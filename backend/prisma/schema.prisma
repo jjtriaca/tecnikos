@@ -1,0 +1,617 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  DESPACHO
+  FINANCEIRO
+  LEITURA
+}
+
+enum ServiceOrderStatus {
+  ABERTA
+  OFERTADA
+  ATRIBUIDA
+  A_CAMINHO
+  EM_EXECUCAO
+  CONCLUIDA
+  APROVADA
+  AJUSTE
+  CANCELADA
+}
+
+enum FinancialEntryType {
+  RECEIVABLE
+  PAYABLE
+}
+
+enum FinancialEntryStatus {
+  PENDING
+  CONFIRMED
+  PAID
+  CANCELLED
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String   // Razão Social
+  tradeName String?  // Nome Fantasia
+  cnpj      String?  @unique
+  ie        String?  // Inscrição Estadual
+  im        String?  // Inscrição Municipal
+
+  phone     String?
+  email     String?
+
+  // Endereço
+  cep           String?
+  addressStreet String?  // Logradouro
+  addressNumber String?  // Número
+  addressComp   String?  // Complemento
+  neighborhood  String?  // Bairro
+  city          String?
+  state         String?  // UF (2 chars)
+
+  // Responsável Legal
+  ownerName  String?
+  ownerCpf   String?
+  ownerPhone String?
+  ownerEmail String?
+
+  // Configurações de Avaliação
+  evalGestorWeight Int    @default(40)  // peso do gestor em % (0-100)
+  evalClientWeight Int    @default(60)  // peso do cliente em % (0-100)
+  evalMinRating    Float  @default(3.0) // nota mínima para receber demandas (1.0-5.0)
+
+  status        String   @default("ATIVA")
+  commissionBps Int      @default(1000) // 10.00% (basis points)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  users              User[]
+  partners           Partner[]
+  serviceOrders      ServiceOrder[]
+  workflowTemplates  WorkflowTemplate[]
+  specializations    Specialization[]
+  automationRules      AutomationRule[]
+  automationTemplates  AutomationTemplate[]
+  financialEntries     FinancialEntry[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  companyId    String
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  mfaEnabled   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  sessions Session[]
+}
+
+model Session {
+  id               String    @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  ip               String?
+  userAgent        String?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// ========== Partner — Entidade unificada (Cliente, Fornecedor, Técnico) ==========
+
+model Partner {
+  id              String   @id @default(uuid())
+  companyId       String
+  partnerTypes    String[] // ["CLIENTE", "FORNECEDOR", "TECNICO"]
+  personType      String   // "PF", "PJ"
+  isRuralProducer Boolean  @default(false) // PF Produtor Rural = habilita IE
+
+  name          String   // Nome completo (PF) ou Razão Social (PJ)
+  tradeName     String?  // Nome Fantasia (PJ)
+  document      String?  // CPF ou CNPJ
+  documentType  String?  // "CPF", "CNPJ"
+  ie            String?  // Inscrição Estadual
+  im            String?  // Inscrição Municipal
+  ieStatus      String?  // "ATIVA", "INATIVA", "NAO_HABILITADO"
+  ieLastCheck   DateTime?
+
+  phone         String?
+  email         String?
+
+  // Campos específicos de TECNICO
+  passwordHash  String?  // Login do técnico
+  rating        Float    @default(5.0) // Avaliação do técnico (1-5)
+
+  // Endereço
+  cep           String?
+  addressStreet String?
+  addressNumber String?
+  addressComp   String?
+  neighborhood  String?
+  city          String?
+  state         String?  // UF (2 chars)
+
+  status    String   @default("ATIVO")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  company              Company                @relation(fields: [companyId], references: [id])
+  serviceOrders        ServiceOrder[]         @relation("AssignedPartner")
+  clientServiceOrders  ServiceOrder[]         @relation("ClientPartner")
+  specializations      PartnerSpecialization[]
+  evaluations          Evaluation[]
+  financialEntries     FinancialEntry[]
+
+  @@index([companyId])
+  @@index([email])
+  @@index([companyId, status])
+  @@index([document])
+}
+
+model ServiceOrder {
+  id          String             @id @default(uuid())
+  companyId   String
+  title       String
+  description String?
+  addressText String
+  lat         Float?
+  lng         Float?
+  valueCents  Int
+
+  // Endereço estruturado (v1.00.09)
+  addressStreet  String?
+  addressNumber  String?
+  addressComp    String?
+  neighborhood   String?
+  city           String?
+  state          String?  // UF (2 chars)
+  cep            String?
+  deadlineAt  DateTime
+  status      ServiceOrderStatus @default(ABERTA)
+
+  assignedPartnerId  String?
+  clientPartnerId    String?
+  acceptedAt         DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  workflowTemplateId String?
+
+  // Atribuição de técnico (v1.00.24)
+  techAssignmentMode        String   @default("BY_SPECIALIZATION") // BY_SPECIALIZATION | DIRECTED | BY_WORKFLOW
+  requiredSpecializationIds String[] @default([])
+  directedTechnicianIds     String[] @default([])
+  contactPersonName         String?  // Nome do contato no local (v1.00.25)
+  acceptTimeoutMinutes      Int?     // Tempo para aceitar em minutos (v1.00.34) — null = usa do fluxo
+  enRouteTimeoutMinutes     Int?     // Tempo para clicar a caminho em minutos (v1.00.35) — null = usa do fluxo
+  estimatedArrivalMinutes   Int?     // Tempo estimado de chegada informado pelo técnico (v1.00.37)
+  trackingStartedAt         DateTime?  // Quando o GPS tracking foi ativado (v1.00.40)
+  proximityEnteredAt        DateTime?  // Quando o técnico entrou no raio de proximidade (v1.00.40)
+  proximityRadiusMeters     Int?       // Raio configurado no momento do tracking (snapshot) (v1.00.40)
+
+  // Sistema de Pausas (v1.00.42)
+  isPaused        Boolean  @default(false)
+  pausedAt        DateTime?
+  pauseCount      Int      @default(0)
+  totalPausedMs   BigInt   @default(0)  // milissegundos totais pausados (acumulativo)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  company          Company           @relation(fields: [companyId], references: [id])
+  assignedPartner  Partner?          @relation("AssignedPartner", fields: [assignedPartnerId], references: [id])
+  clientPartner    Partner?          @relation("ClientPartner", fields: [clientPartnerId], references: [id])
+  workflowTemplate WorkflowTemplate? @relation(fields: [workflowTemplateId], references: [id])
+
+  offers           ServiceOrderOffer[]
+  events           ServiceOrderEvent[]
+  ledger           ServiceOrderLedger?
+  financialEntries FinancialEntry[]
+  workflowStepLogs WorkflowStepLog[]
+  attachments      Attachment[]
+  evaluations      Evaluation[]
+  locationLogs     TechnicianLocationLog[]
+  executionPauses  ExecutionPause[]
+
+  @@index([companyId, status])
+  @@index([companyId, deletedAt])
+  @@index([companyId, isPaused])
+  @@index([assignedPartnerId])
+  @@index([deadlineAt])
+  @@index([createdAt])
+}
+
+model ServiceOrderOffer {
+  id             String   @id @default(uuid())
+  serviceOrderId String
+  companyId      String
+  channel        String
+  token          String   @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@index([serviceOrderId])
+  @@index([token])
+}
+
+model ServiceOrderEvent {
+  id             String   @id @default(uuid())
+  companyId      String
+  serviceOrderId String
+  type           String
+  actorType      String
+  actorId        String?
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@index([serviceOrderId])
+  @@index([companyId])
+}
+
+model OtpCode {
+  id             String   @id @default(uuid())
+  companyId      String
+  partnerId      String
+  serviceOrderId String
+  codeHash       String
+  attempts       Int      @default(0)
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([partnerId, serviceOrderId])
+  @@index([companyId])
+}
+
+model WorkflowTemplate {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  isDefault Boolean  @default(false)
+  steps     Json     // V1: Array<{order,name,icon,requirePhoto,requireNote}> | V2: {version:2, blocks: Block[]}
+  requiredSpecializationIds String[] @default([]) // IDs de especializações necessárias
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  serviceOrders ServiceOrder[]
+}
+
+model WorkflowStepLog {
+  id             String   @id @default(uuid())
+  serviceOrderId String
+  stepOrder      Int      // V1: step.order | V2: sequential completion order
+  stepName       String
+  blockId        String?  // V2: block ID from graph
+  partnerId      String
+  note           String?
+  photoUrl       String?
+  responseData   Json?    // V2: block-specific response data (answers, GPS, checklist, etc.)
+  completedAt    DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@unique([serviceOrderId, stepOrder])
+  @@index([serviceOrderId])
+  @@index([serviceOrderId, blockId])
+}
+
+model ServiceOrderLedger {
+  id               String   @id @default(uuid())
+  serviceOrderId   String   @unique
+  grossCents       Int
+  commissionBps    Int
+  commissionCents  Int
+  netCents         Int
+  confirmedAt      DateTime?
+  createdAt        DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@index([confirmedAt])
+}
+
+model Attachment {
+  id             String   @id @default(uuid())
+  serviceOrderId String
+  companyId      String
+  type           String   // "ANTES", "DEPOIS", "WORKFLOW_STEP", "OUTRO"
+  fileName       String
+  mimeType       String
+  sizeBytes      Int
+  url            String
+  uploadedBy     String   // partner ID or user ID
+  stepOrder      Int?     // if attached to a workflow step
+  createdAt      DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@index([serviceOrderId])
+}
+
+model Notification {
+  id             String    @id @default(uuid())
+  companyId      String
+  serviceOrderId String?
+  channel        String    // "WHATSAPP", "SMS", "EMAIL", "PUSH", "MOCK"
+  recipientPhone String?
+  recipientEmail String?
+  message        String
+  type           String    // "PROXIMIDADE", "STATUS_CHANGE", "OS_ATRIBUIDA", "OS_CONCLUIDA", "LEMBRETE"
+  status         String    @default("PENDING") // "PENDING", "SENT", "FAILED"
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([serviceOrderId])
+}
+
+// ========== Especializações ==========
+
+model Specialization {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  company  Company                @relation(fields: [companyId], references: [id])
+  partners PartnerSpecialization[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model PartnerSpecialization {
+  id               String   @id @default(uuid())
+  partnerId        String
+  specializationId String
+  createdAt        DateTime @default(now())
+
+  partner        Partner        @relation(fields: [partnerId], references: [id])
+  specialization Specialization @relation(fields: [specializationId], references: [id])
+
+  @@unique([partnerId, specializationId])
+  @@index([specializationId])
+}
+
+// ========== Avaliações ==========
+
+model Evaluation {
+  id             String   @id @default(uuid())
+  serviceOrderId String
+  partnerId      String
+  companyId      String
+  evaluatorType  String   // "GESTOR", "CLIENTE"
+  score          Int      // 1-5
+  comment        String?
+  token          String?  @unique // para avaliação pública do cliente
+  createdAt      DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  partner      Partner      @relation(fields: [partnerId], references: [id])
+
+  @@index([partnerId])
+  @@index([serviceOrderId])
+  @@index([token])
+}
+
+// ========== Motor de Automação ==========
+
+model AutomationRule {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  trigger     Json     // { entity: 'SERVICE_ORDER', event: 'completed', conditions: [...] }
+  actions     Json     // [{ type: 'LAUNCH_FINANCIAL', config: {...} }]
+  layout      Json?    // Canvas visual positions: { blocks: [...], connections: [...] }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  company    Company              @relation(fields: [companyId], references: [id])
+  executions AutomationExecution[]
+
+  @@index([companyId, isActive])
+}
+
+model AutomationExecution {
+  id               String   @id @default(uuid())
+  automationRuleId String
+  companyId        String
+  entityType       String   // "SERVICE_ORDER"
+  entityId         String
+  eventType        String   // "completed", "created", etc.
+  status           String   // "SUCCESS" | "FAILED" | "SKIPPED"
+  actionsExecuted  Json?    // [{ type, result }]
+  error            String?
+  executedAt       DateTime @default(now())
+
+  rule AutomationRule @relation(fields: [automationRuleId], references: [id])
+
+  @@index([automationRuleId])
+  @@index([companyId, executedAt])
+  @@index([entityId])
+}
+
+// ========== Templates de Automação (v1.00.22) ==========
+
+model AutomationTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  category    String   // "FINANCEIRO", "COMUNICACAO", "GESTAO", "INTEGRACAO"
+  trigger     Json
+  actions     Json
+  layout      Json?
+  isBuiltIn   Boolean  @default(false) // system-provided templates
+  companyId   String?                  // null = global built-in
+  createdAt   DateTime @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@index([category])
+}
+
+// ========== Financeiro Expandido (v1.00.17) ==========
+
+model FinancialEntry {
+  id               String               @id @default(uuid())
+  companyId        String
+  serviceOrderId   String?
+  partnerId        String?
+  type             FinancialEntryType
+  status           FinancialEntryStatus @default(PENDING)
+  description      String?
+  grossCents       Int
+  commissionBps    Int?
+  commissionCents  Int?
+  netCents         Int
+  dueDate          DateTime?
+  paidAt           DateTime?
+  confirmedAt      DateTime?
+  cancelledAt      DateTime?
+  notes            String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  deletedAt        DateTime?
+
+  company       Company       @relation(fields: [companyId], references: [id])
+  serviceOrder  ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
+  partner       Partner?      @relation(fields: [partnerId], references: [id])
+
+  @@index([companyId, type, status])
+  @@index([companyId, deletedAt])
+  @@index([serviceOrderId])
+  @@index([partnerId])
+  @@index([dueDate])
+}
+
+// ========== Aguardar Verificando — Workflow WAIT_FOR (v1.00.26) ==========
+
+enum WaitStatus {
+  WAITING
+  TRIGGERED
+  EXPIRED
+  CANCELLED
+}
+
+model PendingWorkflowWait {
+  id                 String     @id @default(uuid())
+  companyId          String
+  serviceOrderId     String
+  workflowTemplateId String
+  blockId            String     // ID do bloco WAIT_FOR no grafo
+  nextBlockId        String?    // bloco seguinte para retomar
+  technicianId       String
+  stepOrder          Int        // stepOrder do log deste bloco
+
+  status             WaitStatus @default(WAITING)
+  expiresAt          DateTime   // quando expira
+  triggerConditions  Json       @default("[]") // ["os_assigned","os_status_changed"]
+  targetStatus       String?    // status alvo para os_status_changed (opcional)
+  timeoutAction      String     @default("continue") // "continue" | "cancel"
+
+  resolvedAt         DateTime?
+  resolvedBy         String?    // "TIMEOUT" | "EVENT:assigned" | "OS_CANCELLED"
+
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([status, expiresAt])
+  @@index([serviceOrderId, status])
+  @@index([companyId])
+}
+
+// ========== Audit Log Genérico ==========
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  companyId   String
+  entityType  String   // "SERVICE_ORDER" | "PARTNER" | "USER"
+  entityId    String
+  action      String   // "CREATED" | "UPDATED" | "DELETED" | "STATUS_CHANGED" | "ASSIGNED" | "CANCELLED" | "DUPLICATED"
+  actorType   String   // "USER" | "SYSTEM"
+  actorId     String?
+  actorName   String?  // desnormalizado para display sem joins
+  before      Json?    // campos antes da alteração (só os que mudaram)
+  after       Json?    // campos depois da alteração (só os que mudaram)
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([companyId])
+  @@index([companyId, createdAt])
+}
+
+// ========== Pausas de Execução (v1.00.42) ==========
+
+model ExecutionPause {
+  id               String   @id @default(uuid())
+  companyId        String
+  serviceOrderId   String
+  partnerId        String   // técnico que pausou
+  reasonCategory   String   // meal_break | end_of_day | fetch_materials | weather | waiting_client | waiting_utilities | waiting_access | waiting_other_service | personal | other
+  reason           String?  // texto livre (obrigatório quando category = 'other')
+  pausedAt         DateTime @default(now())
+  resumedAt        DateTime?
+  durationMs       BigInt?  // calculado ao retomar (resumedAt - pausedAt em ms)
+  pausePhotos      Json?    // string[] URLs de fotos tiradas ao pausar
+  resumePhotos     Json?    // string[] URLs de fotos tiradas ao retomar
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@index([serviceOrderId])
+  @@index([companyId, serviceOrderId])
+}
+
+// ========== Rastreamento GPS do Técnico (v1.00.40) ==========
+
+model TechnicianLocationLog {
+  id               String   @id @default(uuid())
+  companyId        String
+  serviceOrderId   String
+  partnerId        String
+  lat              Float
+  lng              Float
+  accuracy         Float?   // precisão em metros
+  speed            Float?   // velocidade em m/s
+  heading          Float?   // direção em graus (0-360)
+  distanceToTarget Float?   // distância até o endereço da OS em metros
+
+  createdAt        DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@index([serviceOrderId, createdAt])
+  @@index([partnerId, createdAt])
+}

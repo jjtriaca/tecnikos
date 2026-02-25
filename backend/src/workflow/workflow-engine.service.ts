@@ -1,0 +1,1740 @@
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  Inject,
+  Optional,
+  Logger,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { ServiceOrderStatus } from '@prisma/client';
+import { WorkflowStep } from './workflow.service';
+import { NotificationService } from '../notification/notification.service';
+import { FinanceService } from '../finance/finance.service';
+import { StepProgressDto } from './dto/step-progress.dto';
+
+/* ═══════════════════════════════════════════════════════════════
+   TYPES
+   ═══════════════════════════════════════════════════════════════ */
+
+// ── V1 (linear) ──
+
+export interface WorkflowProgress {
+  templateId: string;
+  templateName: string;
+  version: number;
+  totalSteps: number;
+  completedSteps: number;
+  currentStep: (WorkflowStep & { completed: boolean }) | null;
+  steps: Array<
+    WorkflowStep & {
+      completed: boolean;
+      completedAt?: string;
+      note?: string;
+      photoUrl?: string;
+    }
+  >;
+  isComplete: boolean;
+}
+
+// ── V2 (graph) ──
+
+interface BlockDef {
+  id: string;
+  type: string;
+  name: string;
+  icon: string;
+  config: Record<string, any>;
+  next: string | null;
+  yesBranch?: string | null;
+  noBranch?: string | null;
+}
+
+interface V2Def {
+  version: 2;
+  blocks: BlockDef[];
+}
+
+export interface BlockProgress extends BlockDef {
+  completed: boolean;
+  completedAt?: string;
+  note?: string;
+  photoUrl?: string;
+  responseData?: any;
+}
+
+export interface WorkflowProgressV2 {
+  templateId: string;
+  templateName: string;
+  version: number;
+  totalBlocks: number;
+  completedBlocks: number;
+  currentBlock: BlockDef | null;
+  executionPath: BlockProgress[];
+  isComplete: boolean;
+}
+
+/* Block types that require technician interaction */
+const ACTIONABLE_TYPES = new Set([
+  'STEP',
+  'PHOTO',
+  'NOTE',
+  'GPS',
+  'QUESTION',
+  'CHECKLIST',
+  'SIGNATURE',
+  'FORM',
+  'CONDITION',
+  'ARRIVAL_QUESTION',
+]);
+
+/* ── V3 (FlowDefinition) ── */
+
+interface V3Block {
+  id: string;
+  type: string;
+  name: string;
+  icon: string;
+  config: Record<string, any>;
+  children: string[];
+  yesBranch?: string[];
+  noBranch?: string[];
+}
+
+interface V3Def {
+  version: 3;
+  blocks: V3Block[];
+  trigger?: { entity: string; event: string };
+}
+
+/* ── Helpers ── */
+
+function isV2(steps: unknown): steps is V2Def {
+  return (
+    !!steps &&
+    typeof steps === 'object' &&
+    !Array.isArray(steps) &&
+    (steps as any).version === 2
+  );
+}
+
+function isV3(steps: unknown): steps is V3Def {
+  return (
+    !!steps &&
+    typeof steps === 'object' &&
+    !Array.isArray(steps) &&
+    (steps as any).version === 3
+  );
+}
+
+/**
+ * Convert V3 FlowDefinition to V2 block graph format.
+ * V3 uses children arrays; V2 uses linked-list next pointers.
+ */
+function convertV3toV2(v3: V3Def): V2Def {
+  const v2Blocks: BlockDef[] = [];
+  const triggerBlock = v3.blocks.find((b) => b.type === 'TRIGGER_START');
+  if (!triggerBlock) return { version: 2, blocks: [] };
+
+  const startId = '_v2_start';
+  const endId = '_v2_end';
+
+  v2Blocks.push({
+    id: startId,
+    type: 'START',
+    name: 'Inicio',
+    icon: '▶️',
+    config: {},
+    next: null,
+  });
+
+  function processChain(childIds: string[]): string | null {
+    let prevId: string | null = null;
+
+    for (const childId of childIds) {
+      const block = v3.blocks.find((b) => b.id === childId);
+      if (!block) continue;
+
+      if (block.type === 'END') {
+        if (prevId) {
+          const prev = v2Blocks.find((b) => b.id === prevId);
+          if (prev && !prev.next) prev.next = endId;
+        }
+        return endId;
+      }
+
+      // Map type: STATUS_CHANGE → STATUS for V2 compat
+      const v2Type =
+        block.type === 'STATUS_CHANGE' ? 'STATUS' : block.type;
+
+      // Check if already added (from branch processing)
+      if (v2Blocks.find((b) => b.id === block.id)) {
+        if (prevId) {
+          const prev = v2Blocks.find((b) => b.id === prevId);
+          if (prev && !prev.next) prev.next = block.id;
+        }
+        prevId = block.id;
+        continue;
+      }
+
+      const v2Block: BlockDef = {
+        id: block.id,
+        type: v2Type,
+        name: block.name,
+        icon: block.icon,
+        config: block.config || {},
+        next: null,
+      };
+
+      if (block.type === 'CONDITION') {
+        v2Block.yesBranch = null;
+        v2Block.noBranch = null;
+
+        // Process yes branch
+        if (block.yesBranch && block.yesBranch.length > 0) {
+          v2Blocks.push(v2Block);
+          const firstYesBlock = block.yesBranch.find((id) => {
+            const b = v3.blocks.find((x) => x.id === id);
+            return b && b.type !== 'END';
+          });
+          if (firstYesBlock) {
+            v2Block.yesBranch = firstYesBlock;
+            linkBranch(block.yesBranch);
+          }
+
+          // Process no branch
+          if (block.noBranch && block.noBranch.length > 0) {
+            const firstNoBlock = block.noBranch.find((id) => {
+              const b = v3.blocks.find((x) => x.id === id);
+              return b && b.type !== 'END';
+            });
+            if (firstNoBlock) {
+              v2Block.noBranch = firstNoBlock;
+              linkBranch(block.noBranch);
+            }
+          }
+
+          if (prevId) {
+            const prev = v2Blocks.find((b) => b.id === prevId);
+            if (prev && !prev.next) prev.next = block.id;
+          }
+          prevId = block.id;
+          continue;
+        }
+      }
+
+      v2Blocks.push(v2Block);
+
+      if (prevId) {
+        const prev = v2Blocks.find((b) => b.id === prevId);
+        if (prev && !prev.next) prev.next = block.id;
+      }
+
+      prevId = block.id;
+    }
+
+    return prevId;
+  }
+
+  function linkBranch(childIds: string[]) {
+    let prevId: string | null = null;
+
+    for (const childId of childIds) {
+      const block = v3.blocks.find((b) => b.id === childId);
+      if (!block || block.type === 'END') continue;
+
+      if (v2Blocks.find((b) => b.id === block.id)) {
+        if (prevId) {
+          const prev = v2Blocks.find((b) => b.id === prevId);
+          if (prev && !prev.next) prev.next = block.id;
+        }
+        prevId = block.id;
+        continue;
+      }
+
+      const v2Type =
+        block.type === 'STATUS_CHANGE' ? 'STATUS' : block.type;
+
+      const v2Block: BlockDef = {
+        id: block.id,
+        type: v2Type,
+        name: block.name,
+        icon: block.icon,
+        config: block.config || {},
+        next: null,
+      };
+
+      v2Blocks.push(v2Block);
+
+      if (prevId) {
+        const prev = v2Blocks.find((b) => b.id === prevId);
+        if (prev && !prev.next) prev.next = block.id;
+      }
+      prevId = block.id;
+    }
+  }
+
+  const lastId = processChain(triggerBlock.children);
+
+  // Add END block
+  v2Blocks.push({
+    id: endId,
+    type: 'END',
+    name: 'Fim',
+    icon: '⏹️',
+    config: {},
+    next: null,
+  });
+
+  // Link start to first child
+  const firstChild = triggerBlock.children[0];
+  if (firstChild) {
+    const firstBlock = v3.blocks.find((b) => b.id === firstChild);
+    if (firstBlock && firstBlock.type !== 'END') {
+      v2Blocks[0].next = firstChild;
+    } else {
+      v2Blocks[0].next = endId;
+    }
+  } else {
+    v2Blocks[0].next = endId;
+  }
+
+  // Ensure last block links to end
+  if (lastId && lastId !== endId) {
+    const last = v2Blocks.find((b) => b.id === lastId);
+    if (last && !last.next) last.next = endId;
+  }
+
+  return { version: 2, blocks: v2Blocks };
+}
+
+/**
+ * Normalize branch endings: the builder may leave the last block in a branch
+ * with next = null; we fix them to point to the CONDITION's merge-point (block.next).
+ */
+function normalizeBranches(blocks: BlockDef[]): BlockDef[] {
+  const result = blocks.map((b) => ({ ...b }));
+
+  for (const block of result) {
+    if (block.type !== 'CONDITION') continue;
+    const mergePoint = block.next;
+    if (!mergePoint) continue;
+
+    for (const branch of ['yesBranch', 'noBranch'] as const) {
+      const branchStart = block[branch];
+      if (!branchStart) continue;
+
+      const visited = new Set<string>();
+      let id: string | null = branchStart;
+      while (id) {
+        if (visited.has(id)) break;
+        visited.add(id);
+        const b = result.find((x) => x.id === id);
+        if (!b) break;
+        if (!b.next) {
+          b.next = mergePoint;
+          break;
+        }
+        if (b.next === mergePoint) break;
+        id = b.next;
+      }
+    }
+  }
+
+  return result;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SERVICE
+   ═══════════════════════════════════════════════════════════════ */
+
+@Injectable()
+export class WorkflowEngineService {
+  private readonly logger = new Logger(WorkflowEngineService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(NotificationService)
+    private readonly notifications?: NotificationService,
+    @Optional()
+    @Inject(FinanceService)
+    private readonly finance?: FinanceService,
+  ) {}
+
+  /* ──────────────────────────────────────────────────────────── */
+  /*  Attach default workflow to OS                              */
+  /* ──────────────────────────────────────────────────────────── */
+
+  async attachDefaultWorkflow(
+    serviceOrderId: string,
+    companyId: string,
+  ): Promise<void> {
+    const defaultTemplate = await this.prisma.workflowTemplate.findFirst({
+      where: { companyId, isDefault: true, deletedAt: null },
+    });
+    if (!defaultTemplate) return;
+
+    await this.prisma.serviceOrder.update({
+      where: { id: serviceOrderId },
+      data: { workflowTemplateId: defaultTemplate.id },
+    });
+  }
+
+  /* ──────────────────────────────────────────────────────────── */
+  /*  Get progress — auto-detects V1 or V2                       */
+  /* ──────────────────────────────────────────────────────────── */
+
+  async getProgress(
+    serviceOrderId: string,
+    companyId: string,
+  ): Promise<WorkflowProgress | WorkflowProgressV2 | null> {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id: serviceOrderId, deletedAt: null },
+      include: {
+        workflowTemplate: true,
+        workflowStepLogs: { orderBy: { stepOrder: 'asc' } },
+      },
+    });
+
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (so.companyId !== companyId)
+      throw new ForbiddenException('Acesso negado');
+    if (!so.workflowTemplate) return null;
+
+    const rawSteps = so.workflowTemplate.steps;
+    if (isV3(rawSteps)) {
+      return this.getProgressV2(so, convertV3toV2(rawSteps));
+    }
+    if (isV2(rawSteps)) {
+      return this.getProgressV2(so, rawSteps);
+    }
+    return this.getProgressV1(so);
+  }
+
+  /* ──────────────────────────────────────────────────────────── */
+  /*  Advance step/block — auto-detects V1 or V2                 */
+  /* ──────────────────────────────────────────────────────────── */
+
+  async advanceStep(
+    serviceOrderId: string,
+    technicianId: string,
+    companyId: string,
+    dto: StepProgressDto,
+  ): Promise<WorkflowProgress | WorkflowProgressV2> {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id: serviceOrderId, deletedAt: null },
+      include: {
+        workflowTemplate: true,
+        workflowStepLogs: { orderBy: { stepOrder: 'asc' } },
+      },
+    });
+
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (so.companyId !== companyId)
+      throw new ForbiddenException('Acesso negado');
+    if (!so.workflowTemplate)
+      throw new BadRequestException(
+        'Esta OS não possui fluxo de atendimento',
+      );
+
+    if (!['ATRIBUIDA', 'EM_EXECUCAO', 'AJUSTE'].includes(so.status)) {
+      throw new BadRequestException(
+        'Não é possível avançar o fluxo neste status',
+      );
+    }
+
+    const rawSteps = so.workflowTemplate.steps;
+    if (isV3(rawSteps)) {
+      return this.advanceBlockV2(so, convertV3toV2(rawSteps), technicianId, companyId, dto);
+    }
+    if (isV2(rawSteps)) {
+      return this.advanceBlockV2(so, rawSteps, technicianId, companyId, dto);
+    }
+    return this.advanceStepV1(so, technicianId, companyId, dto);
+  }
+
+  /* ──────────────────────────────────────────────────────────── */
+  /*  Reset step — supports V1 (stepOrder) and V2 (blockId)      */
+  /* ──────────────────────────────────────────────────────────── */
+
+  async resetStep(
+    serviceOrderId: string,
+    stepOrderOrBlockId: number | string,
+    companyId: string,
+  ): Promise<WorkflowProgress | WorkflowProgressV2> {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id: serviceOrderId, deletedAt: null },
+    });
+
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (so.companyId !== companyId)
+      throw new ForbiddenException('Acesso negado');
+
+    if (typeof stepOrderOrBlockId === 'number') {
+      await this.prisma.workflowStepLog.deleteMany({
+        where: {
+          serviceOrderId,
+          stepOrder: { gte: stepOrderOrBlockId },
+        },
+      });
+    } else {
+      const log = await this.prisma.workflowStepLog.findFirst({
+        where: { serviceOrderId, blockId: stepOrderOrBlockId },
+      });
+      if (log) {
+        await this.prisma.workflowStepLog.deleteMany({
+          where: {
+            serviceOrderId,
+            stepOrder: { gte: log.stepOrder },
+          },
+        });
+      }
+    }
+
+    return this.getProgress(
+      serviceOrderId,
+      companyId,
+    ) as Promise<WorkflowProgress | WorkflowProgressV2>;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     V1 — Linear step progression (original logic)
+     ═══════════════════════════════════════════════════════════ */
+
+  private getProgressV1(so: any): WorkflowProgress {
+    const templateSteps = (
+      so.workflowTemplate.steps as unknown as WorkflowStep[]
+    ).sort((a, b) => a.order - b.order);
+
+    const completedMap = new Map<number, any>(
+      so.workflowStepLogs.map((log: any) => [log.stepOrder, log] as [number, any]),
+    );
+
+    const steps = templateSteps.map((step) => {
+      const log = completedMap.get(step.order);
+      return {
+        ...step,
+        completed: !!log,
+        completedAt: log?.completedAt?.toISOString(),
+        note: log?.note ?? undefined,
+        photoUrl: log?.photoUrl ?? undefined,
+      };
+    });
+
+    const completedCount = so.workflowStepLogs.length;
+    const currentStep = steps.find((s) => !s.completed) ?? null;
+
+    return {
+      templateId: so.workflowTemplate.id,
+      templateName: so.workflowTemplate.name,
+      version: 1,
+      totalSteps: templateSteps.length,
+      completedSteps: completedCount,
+      currentStep,
+      steps,
+      isComplete: completedCount >= templateSteps.length,
+    };
+  }
+
+  private async advanceStepV1(
+    so: any,
+    technicianId: string,
+    companyId: string,
+    dto: StepProgressDto,
+  ): Promise<WorkflowProgress> {
+    const templateSteps = (
+      so.workflowTemplate.steps as unknown as WorkflowStep[]
+    ).sort((a, b) => a.order - b.order);
+
+    const completedOrders = new Set(
+      so.workflowStepLogs.map((l: any) => l.stepOrder),
+    );
+
+    const nextStep = templateSteps.find(
+      (s) => !completedOrders.has(s.order),
+    );
+    if (!nextStep) {
+      throw new BadRequestException('Todos os passos já foram concluídos');
+    }
+
+    if (nextStep.requirePhoto && !dto.photoUrl) {
+      throw new BadRequestException(
+        `O passo "${nextStep.name}" requer uma foto`,
+      );
+    }
+    if (nextStep.requireNote && !dto.note) {
+      throw new BadRequestException(
+        `O passo "${nextStep.name}" requer uma observação`,
+      );
+    }
+
+    const newCompletedCount = completedOrders.size + 1;
+    const isNowComplete = newCompletedCount >= templateSteps.length;
+
+    let newStatus: ServiceOrderStatus | null = null;
+    if (isNowComplete) {
+      newStatus = ServiceOrderStatus.CONCLUIDA;
+    } else if (so.status === 'ATRIBUIDA' || so.status === 'AJUSTE') {
+      newStatus = ServiceOrderStatus.EM_EXECUCAO;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workflowStepLog.create({
+        data: {
+          serviceOrderId: so.id,
+          stepOrder: nextStep.order,
+          stepName: nextStep.name,
+          partnerId: technicianId,
+          note: dto.note,
+          photoUrl: dto.photoUrl,
+        },
+      });
+
+      if (newStatus) {
+        await tx.serviceOrder.update({
+          where: { id: so.id },
+          data: { status: newStatus },
+        });
+      }
+
+      await tx.serviceOrderEvent.create({
+        data: {
+          companyId,
+          serviceOrderId: so.id,
+          type: isNowComplete
+            ? 'WORKFLOW_COMPLETED'
+            : 'WORKFLOW_STEP_COMPLETED',
+          actorType: 'TECNICO',
+          actorId: technicianId,
+          payload: {
+            stepOrder: nextStep.order,
+            stepName: nextStep.name,
+            completedSteps: newCompletedCount,
+            totalSteps: templateSteps.length,
+          },
+        },
+      });
+    });
+
+    if (this.notifications) {
+      const statusLabel = isNowComplete ? 'CONCLUIDA' : 'EM_EXECUCAO';
+      this.notifications
+        .notifyStatusChange(
+          companyId,
+          so.id,
+          so.title ?? 'OS',
+          statusLabel,
+        )
+        .catch(() => {});
+    }
+
+    return this.getProgress(
+      so.id,
+      companyId,
+    ) as Promise<WorkflowProgress>;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     V2 — Block graph execution engine
+     ═══════════════════════════════════════════════════════════ */
+
+  private getProgressV2(so: any, def: V2Def): WorkflowProgressV2 {
+    const blocks = normalizeBranches(def.blocks);
+    const logsByBlockId = new Map<string, any>();
+    for (const log of so.workflowStepLogs) {
+      if (log.blockId) logsByBlockId.set(log.blockId, log);
+    }
+
+    const start = blocks.find((b) => b.type === 'START');
+    if (!start)
+      throw new BadRequestException('Template sem bloco START');
+
+    const executionPath: BlockProgress[] = [];
+    let currentBlock: BlockDef | null = null;
+    let foundEnd = false;
+    const visited = new Set<string>();
+    let currentId: string | null = start.id;
+
+    while (currentId) {
+      if (visited.has(currentId)) break;
+      visited.add(currentId);
+
+      const block = blocks.find((b) => b.id === currentId);
+      if (!block) break;
+
+      const log = logsByBlockId.get(block.id);
+      const isCompleted = !!log;
+      const isActionable = ACTIONABLE_TYPES.has(block.type);
+
+      // END block
+      if (block.type === 'END') {
+        foundEnd = true;
+        executionPath.push({ ...block, completed: true });
+        break;
+      }
+
+      // START block — always "completed"
+      if (block.type === 'START') {
+        executionPath.push({ ...block, completed: true });
+        currentId = block.next;
+        continue;
+      }
+
+      // WAIT_FOR block que está aguardando → NÃO está completado
+      const isWaitForPending =
+        block.type === 'WAIT_FOR' &&
+        log?.responseData?.status === 'WAITING';
+
+      // Add to execution path
+      executionPath.push({
+        ...block,
+        completed: isWaitForPending ? false : isCompleted || !isActionable,
+        completedAt: log?.completedAt?.toISOString(),
+        note: log?.note ?? undefined,
+        photoUrl: log?.photoUrl ?? undefined,
+        responseData: log?.responseData ?? undefined,
+      });
+
+      // Se WAIT_FOR pendente, para aqui
+      if (isWaitForPending) {
+        currentBlock = block;
+        break;
+      }
+
+      // Determine next block
+      if (block.type === 'CONDITION') {
+        if (isCompleted) {
+          const answer = log?.responseData?.answer;
+          const isYes =
+            answer === 'SIM' ||
+            answer === 'sim' ||
+            answer === 'Sim' ||
+            answer === 'yes' ||
+            answer === true;
+          currentId = isYes
+            ? block.yesBranch || block.next
+            : block.noBranch || block.next;
+        } else {
+          currentBlock = block;
+          break;
+        }
+      } else if (isActionable && !isCompleted) {
+        currentBlock = block;
+        break;
+      } else {
+        currentId = block.next;
+      }
+    }
+
+    const actionBlocks = executionPath.filter((b) =>
+      ACTIONABLE_TYPES.has(b.type),
+    );
+    const totalActionable = actionBlocks.length;
+    const completedActionable = actionBlocks.filter(
+      (b) => b.completed,
+    ).length;
+
+    return {
+      templateId: so.workflowTemplate.id,
+      templateName: so.workflowTemplate.name,
+      version: 2,
+      totalBlocks: totalActionable,
+      completedBlocks: completedActionable,
+      currentBlock,
+      executionPath,
+      isComplete: foundEnd && !currentBlock,
+    };
+  }
+
+  private async advanceBlockV2(
+    so: any,
+    def: V2Def,
+    technicianId: string,
+    companyId: string,
+    dto: StepProgressDto,
+  ): Promise<WorkflowProgressV2> {
+    const progress = this.getProgressV2(so, def);
+
+    if (!progress.currentBlock) {
+      throw new BadRequestException(
+        'Todos os blocos já foram concluídos',
+      );
+    }
+
+    const block = progress.currentBlock;
+
+    if (dto.blockId && dto.blockId !== block.id) {
+      throw new BadRequestException(
+        `Bloco esperado: "${block.name}" (${block.id})`,
+      );
+    }
+
+    this.validateBlockRequirements(block, dto);
+
+    // ── ARRIVAL_QUESTION: validar tempo informado pelo técnico ──
+    let arrivalMinutesToSave: number | null = null;
+    if (block.type === 'ARRIVAL_QUESTION') {
+      const selectedMinutes = dto.responseData?.selectedMinutes;
+      if (typeof selectedMinutes !== 'number' || selectedMinutes < 1) {
+        throw new BadRequestException('Informe um tempo estimado válido.');
+      }
+      // Buscar o limite (enRouteTimeout) — pode vir da OS ou do bloco config
+      const enRouteFromOS = (so as any).enRouteTimeoutMinutes;
+      const blockConfig = block.config || {};
+      // Se a OS tem timeout definido, usa; senão tenta do workflow (config do bloco não tem, mas o ASSIGN_TECH anterior define)
+      const enRouteLimit = enRouteFromOS || null;
+      if (enRouteLimit && selectedMinutes > enRouteLimit) {
+        throw new BadRequestException(
+          `O tempo informado (${selectedMinutes} min) excede o prazo de ${enRouteLimit} minutos para ir a caminho. ` +
+          `Informe um tempo menor ou clique em "Não vou poder atender".`,
+        );
+      }
+      arrivalMinutesToSave = selectedMinutes;
+    }
+
+    let nextStepOrder = so.workflowStepLogs.length + 1;
+
+    let newStatus: ServiceOrderStatus | null = null;
+    // ARRIVAL_QUESTION não transiciona status — técnico só informou ETA, não iniciou execução
+    if ((so.status === 'ATRIBUIDA' || so.status === 'AJUSTE') && block.type !== 'ARRIVAL_QUESTION') {
+      newStatus = ServiceOrderStatus.EM_EXECUCAO;
+    }
+
+    const blocks = normalizeBranches(def.blocks);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Se ARRIVAL_QUESTION, salvar estimatedArrivalMinutes na OS
+      if (arrivalMinutesToSave !== null) {
+        await tx.serviceOrder.update({
+          where: { id: so.id },
+          data: { estimatedArrivalMinutes: arrivalMinutesToSave } as any,
+        });
+      }
+
+      await tx.workflowStepLog.create({
+        data: {
+          serviceOrderId: so.id,
+          stepOrder: nextStepOrder,
+          stepName: block.name,
+          blockId: block.id,
+          partnerId: technicianId,
+          note: dto.note,
+          photoUrl: dto.photoUrl,
+          responseData: dto.responseData || undefined,
+        },
+      });
+
+      if (newStatus) {
+        await tx.serviceOrder.update({
+          where: { id: so.id },
+          data: { status: newStatus },
+        });
+      }
+
+      await tx.serviceOrderEvent.create({
+        data: {
+          companyId,
+          serviceOrderId: so.id,
+          type: 'WORKFLOW_STEP_COMPLETED',
+          actorType: 'TECNICO',
+          actorId: technicianId,
+          payload: {
+            blockId: block.id,
+            blockType: block.type,
+            blockName: block.name,
+          },
+        },
+      });
+
+      // ── Auto-complete system blocks that follow ──
+      let nextBlockId: string | null = null;
+
+      if (block.type === 'CONDITION') {
+        const answer = dto.responseData?.answer;
+        const isYes =
+          answer === 'SIM' ||
+          answer === 'sim' ||
+          answer === 'Sim' ||
+          answer === 'yes' ||
+          answer === true;
+        const condBlock = blocks.find((b) => b.id === block.id);
+        nextBlockId = isYes
+          ? condBlock?.yesBranch || condBlock?.next || null
+          : condBlock?.noBranch || condBlock?.next || null;
+      } else {
+        const currBlock = blocks.find((b) => b.id === block.id);
+        nextBlockId = currBlock?.next || null;
+      }
+
+      const autoVisited = new Set<string>();
+      while (nextBlockId) {
+        if (autoVisited.has(nextBlockId)) break;
+        autoVisited.add(nextBlockId);
+
+        const nextBlock = blocks.find((b) => b.id === nextBlockId);
+        if (!nextBlock || nextBlock.type === 'END') break;
+        if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
+
+        // ── WAIT_FOR: criar PendingWorkflowWait e PARAR ──
+        if (nextBlock.type === 'WAIT_FOR') {
+          const waitConfig = nextBlock.config || {};
+          const timeoutMinutes = waitConfig.timeoutMinutes || 60;
+          const expiresAt = new Date(
+            Date.now() + timeoutMinutes * 60_000,
+          );
+
+          nextStepOrder++;
+
+          // Log como "em espera" (não completado ainda)
+          await tx.workflowStepLog.create({
+            data: {
+              serviceOrderId: so.id,
+              stepOrder: nextStepOrder,
+              stepName: nextBlock.name,
+              blockId: nextBlock.id,
+              partnerId: technicianId,
+              responseData: {
+                autoCompleted: false,
+                waitingFor: waitConfig.triggerConditions || [],
+                expiresAt: expiresAt.toISOString(),
+                status: 'WAITING',
+              },
+            },
+          });
+
+          // Criar registro PendingWorkflowWait
+          await tx.pendingWorkflowWait.create({
+            data: {
+              companyId,
+              serviceOrderId: so.id,
+              workflowTemplateId: so.workflowTemplateId || '',
+              blockId: nextBlock.id,
+              nextBlockId: nextBlock.next,
+              technicianId,
+              stepOrder: nextStepOrder,
+              expiresAt,
+              triggerConditions: waitConfig.triggerConditions || [],
+              targetStatus: waitConfig.targetStatus || null,
+              timeoutAction: waitConfig.timeoutAction || 'continue',
+            },
+          });
+
+          await tx.serviceOrderEvent.create({
+            data: {
+              companyId,
+              serviceOrderId: so.id,
+              type: 'WORKFLOW_WAIT_STARTED',
+              actorType: 'SYSTEM',
+              actorId: null,
+              payload: {
+                blockId: nextBlock.id,
+                blockName: nextBlock.name,
+                expiresAt: expiresAt.toISOString(),
+                triggerConditions: waitConfig.triggerConditions || [],
+                timeoutMinutes,
+              },
+            },
+          });
+
+          this.logger.log(
+            `⏳ WAIT_FOR: Workflow paused for OS ${so.id}, block "${nextBlock.name}", expires ${expiresAt.toISOString()}`,
+          );
+
+          break; // SAIR do while — fluxo pausado
+        }
+
+        nextStepOrder++;
+
+        // Execute system block action
+        let actionResult: any = null;
+        try {
+          actionResult = await this.executeSystemBlock(
+            nextBlock,
+            so.id,
+            companyId,
+            technicianId,
+          );
+        } catch (err) {
+          this.logger.error(
+            `System block ${nextBlock.type} failed: ${(err as Error).message}`,
+          );
+        }
+
+        await tx.workflowStepLog.create({
+          data: {
+            serviceOrderId: so.id,
+            stepOrder: nextStepOrder,
+            stepName: nextBlock.name,
+            blockId: nextBlock.id,
+            partnerId: technicianId,
+            responseData: {
+              autoCompleted: true,
+              actionResult: actionResult ?? undefined,
+            },
+          },
+        });
+
+        await tx.serviceOrderEvent.create({
+          data: {
+            companyId,
+            serviceOrderId: so.id,
+            type: 'WORKFLOW_STEP_COMPLETED',
+            actorType: 'SYSTEM',
+            actorId: null,
+            payload: {
+              blockId: nextBlock.id,
+              blockType: nextBlock.type,
+              blockName: nextBlock.name,
+              autoCompleted: true,
+            },
+          },
+        });
+
+        nextBlockId = nextBlock.next;
+      }
+    });
+
+    // Re-fetch progress
+    const updatedProgress = (await this.getProgress(
+      so.id,
+      companyId,
+    )) as WorkflowProgressV2;
+
+    // If workflow complete → update OS status
+    if (
+      updatedProgress.isComplete &&
+      !['CONCLUIDA', 'APROVADA'].includes(so.status)
+    ) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.serviceOrder.update({
+          where: { id: so.id },
+          data: {
+            status: ServiceOrderStatus.CONCLUIDA,
+            completedAt: new Date(),
+          },
+        });
+        await tx.serviceOrderEvent.create({
+          data: {
+            companyId,
+            serviceOrderId: so.id,
+            type: 'WORKFLOW_COMPLETED',
+            actorType: 'TECNICO',
+            actorId: technicianId,
+            payload: {
+              totalBlocks: updatedProgress.totalBlocks,
+            },
+          },
+        });
+      });
+
+      if (this.notifications) {
+        this.notifications
+          .notifyStatusChange(
+            companyId,
+            so.id,
+            so.title ?? 'OS',
+            'CONCLUIDA',
+          )
+          .catch(() => {});
+      }
+
+      return this.getProgress(
+        so.id,
+        companyId,
+      ) as Promise<WorkflowProgressV2>;
+    }
+
+    if (newStatus && this.notifications) {
+      this.notifications
+        .notifyStatusChange(
+          companyId,
+          so.id,
+          so.title ?? 'OS',
+          'EM_EXECUCAO',
+        )
+        .catch(() => {});
+    }
+
+    return updatedProgress;
+  }
+
+  /* ── Resume from block (called by WaitForService after WAIT_FOR resolves) ── */
+
+  async resumeFromBlock(
+    serviceOrderId: string,
+    companyId: string,
+    technicianId: string,
+    startBlockId: string,
+    lastStepOrder: number,
+  ): Promise<void> {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id: serviceOrderId, deletedAt: null },
+      include: {
+        workflowTemplate: true,
+        workflowStepLogs: { orderBy: { stepOrder: 'asc' } },
+      },
+    });
+    if (!so?.workflowTemplate) return;
+
+    const rawSteps = so.workflowTemplate.steps;
+    let def: V2Def;
+    if (isV3(rawSteps)) def = convertV3toV2(rawSteps as any);
+    else if (isV2(rawSteps)) def = rawSteps;
+    else return;
+
+    const blocks = normalizeBranches(def.blocks);
+    let nextBlockId: string | null = startBlockId;
+
+    // Buscar max stepOrder para evitar conflito de unique constraint
+    const maxLog = await this.prisma.workflowStepLog.findFirst({
+      where: { serviceOrderId },
+      orderBy: { stepOrder: 'desc' },
+      select: { stepOrder: true },
+    });
+    let stepOrder = maxLog?.stepOrder || lastStepOrder;
+
+    await this.prisma.$transaction(async (tx) => {
+      const autoVisited = new Set<string>();
+      while (nextBlockId) {
+        if (autoVisited.has(nextBlockId)) break;
+        autoVisited.add(nextBlockId);
+
+        const nextBlock = blocks.find((b) => b.id === nextBlockId);
+        if (!nextBlock || nextBlock.type === 'END') break;
+        if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
+
+        // Se encontrar outro WAIT_FOR, criar novo PendingWorkflowWait
+        if (nextBlock.type === 'WAIT_FOR') {
+          const waitConfig = nextBlock.config || {};
+          const timeoutMinutes = waitConfig.timeoutMinutes || 60;
+          const expiresAt = new Date(
+            Date.now() + timeoutMinutes * 60_000,
+          );
+
+          stepOrder++;
+
+          await tx.workflowStepLog.create({
+            data: {
+              serviceOrderId,
+              stepOrder,
+              stepName: nextBlock.name,
+              blockId: nextBlock.id,
+              partnerId: technicianId,
+              responseData: {
+                autoCompleted: false,
+                waitingFor: waitConfig.triggerConditions || [],
+                expiresAt: expiresAt.toISOString(),
+                status: 'WAITING',
+              },
+            },
+          });
+
+          await tx.pendingWorkflowWait.create({
+            data: {
+              companyId,
+              serviceOrderId,
+              workflowTemplateId: so.workflowTemplateId || '',
+              blockId: nextBlock.id,
+              nextBlockId: nextBlock.next,
+              technicianId,
+              stepOrder,
+              expiresAt,
+              triggerConditions: waitConfig.triggerConditions || [],
+              targetStatus: waitConfig.targetStatus || null,
+              timeoutAction: waitConfig.timeoutAction || 'continue',
+            },
+          });
+
+          await tx.serviceOrderEvent.create({
+            data: {
+              companyId,
+              serviceOrderId,
+              type: 'WORKFLOW_WAIT_STARTED',
+              actorType: 'SYSTEM',
+              actorId: null,
+              payload: {
+                blockId: nextBlock.id,
+                blockName: nextBlock.name,
+                expiresAt: expiresAt.toISOString(),
+                triggerConditions: waitConfig.triggerConditions || [],
+                timeoutMinutes,
+              },
+            },
+          });
+
+          this.logger.log(
+            `⏳ WAIT_FOR (resume): Workflow paused again for OS ${serviceOrderId}, block "${nextBlock.name}"`,
+          );
+          break;
+        }
+
+        stepOrder++;
+
+        let actionResult: any = null;
+        try {
+          actionResult = await this.executeSystemBlock(
+            nextBlock,
+            serviceOrderId,
+            companyId,
+            technicianId,
+          );
+        } catch (err) {
+          this.logger.error(
+            `System block ${nextBlock.type} failed (resume): ${(err as Error).message}`,
+          );
+        }
+
+        await tx.workflowStepLog.create({
+          data: {
+            serviceOrderId,
+            stepOrder,
+            stepName: nextBlock.name,
+            blockId: nextBlock.id,
+            partnerId: technicianId,
+            responseData: {
+              autoCompleted: true,
+              actionResult: actionResult ?? undefined,
+            },
+          },
+        });
+
+        await tx.serviceOrderEvent.create({
+          data: {
+            companyId,
+            serviceOrderId,
+            type: 'WORKFLOW_STEP_COMPLETED',
+            actorType: 'SYSTEM',
+            actorId: null,
+            payload: {
+              blockId: nextBlock.id,
+              blockType: nextBlock.type,
+              blockName: nextBlock.name,
+              autoCompleted: true,
+            },
+          },
+        });
+
+        nextBlockId = nextBlock.next;
+      }
+    });
+
+    // Verificar se workflow completo após resume
+    const progress = (await this.getProgress(
+      serviceOrderId,
+      companyId,
+    )) as WorkflowProgressV2;
+
+    if (
+      progress?.isComplete &&
+      !['CONCLUIDA', 'APROVADA'].includes(so.status)
+    ) {
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: {
+          status: ServiceOrderStatus.CONCLUIDA,
+          completedAt: new Date(),
+        },
+      });
+
+      this.logger.log(
+        `✅ Workflow completed (via resume) for OS ${serviceOrderId}`,
+      );
+    }
+  }
+
+  /* ── System block executor (for auto-completed blocks) ── */
+
+  private async executeSystemBlock(
+    block: BlockDef,
+    serviceOrderId: string,
+    companyId: string,
+    technicianId: string,
+  ): Promise<any> {
+    const config = block.config || {};
+
+    switch (block.type) {
+      case 'STATUS':
+      case 'STATUS_CHANGE': {
+        const targetStatus = config.targetStatus;
+        if (!targetStatus) return null;
+        const data: any = { status: targetStatus };
+        if (targetStatus === 'EM_EXECUCAO') data.startedAt = new Date();
+        if (targetStatus === 'CONCLUIDA' || targetStatus === 'APROVADA')
+          data.completedAt = new Date();
+        this.logger.log(
+          `🔄 System block: Changing OS ${serviceOrderId} status → ${targetStatus}`,
+        );
+        return this.prisma.serviceOrder.update({
+          where: { id: serviceOrderId },
+          data,
+        });
+      }
+
+      case 'FINANCIAL_ENTRY': {
+        if (!this.finance) {
+          this.logger.warn('FinanceService not available for FINANCIAL_ENTRY');
+          return null;
+        }
+        const entryType = config.entryType || 'AUTO';
+        if (entryType === 'AUTO') {
+          this.logger.log(
+            `💰 System block: Launching financial for OS ${serviceOrderId}`,
+          );
+          try {
+            return await this.finance.confirm(serviceOrderId, companyId);
+          } catch (err) {
+            if ((err as any)?.status === 400) {
+              this.logger.log('ℹ️  Financial entry already exists');
+              return { alreadyExists: true };
+            }
+            throw err;
+          }
+        }
+        return null;
+      }
+
+      case 'NOTIFY': {
+        if (!this.notifications) return null;
+
+        // Load full OS data for variable substitution
+        const notifySO = await this.prisma.serviceOrder.findUnique({
+          where: { id: serviceOrderId },
+          include: {
+            assignedPartner: { select: { id: true, name: true, phone: true, email: true } },
+            clientPartner: { select: { id: true, name: true, phone: true, email: true } },
+            company: { select: { name: true, phone: true, email: true, commissionBps: true } },
+          },
+        });
+        if (!notifySO) return null;
+
+        // Fetch last known distance from TechnicianLocationLog
+        let lastDistanceStr = 'Não disponível';
+        try {
+          const lastLog: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT "distanceToTarget" FROM "TechnicianLocationLog"
+             WHERE "serviceOrderId" = $1 AND "distanceToTarget" IS NOT NULL
+             ORDER BY "createdAt" DESC LIMIT 1`,
+            serviceOrderId,
+          );
+          if (lastLog.length > 0 && lastLog[0].distanceToTarget != null) {
+            const dist = Number(lastLog[0].distanceToTarget);
+            lastDistanceStr = dist >= 1000
+              ? `${(dist / 1000).toFixed(1)} km`
+              : `${Math.round(dist)} m`;
+          }
+        } catch {
+          // Table may not exist yet — keep default
+        }
+
+        // Build variable map for substitution
+        const commissionBps = notifySO.company?.commissionBps ?? 1000;
+        const grossCents = notifySO.valueCents;
+        const commissionCents = Math.round(grossCents * commissionBps / 10000);
+        const netCents = grossCents - commissionCents;
+
+        const vars: Record<string, string> = {
+          '{titulo}': notifySO.title || '',
+          '{descricao}': notifySO.description || '',
+          '{status}': notifySO.status || '',
+          '{valor}': `R$ ${(grossCents / 100).toFixed(2)}`,
+          '{comissao}': `R$ ${(commissionCents / 100).toFixed(2)}`,
+          '{valor_tecnico}': `R$ ${(netCents / 100).toFixed(2)}`,
+          '{endereco}': (notifySO as any).addressText || '',
+          '{rua}': (notifySO as any).addressStreet || '',
+          '{numero}': (notifySO as any).addressNumber || '',
+          '{bairro}': (notifySO as any).neighborhood || '',
+          '{cidade}': (notifySO as any).city || '',
+          '{estado}': (notifySO as any).state || '',
+          '{cep}': (notifySO as any).cep || '',
+          '{prazo}': notifySO.deadlineAt ? new Date(notifySO.deadlineAt).toLocaleDateString('pt-BR') : '',
+          '{contato_local}': (notifySO as any).contactPersonName || '',
+          '{cliente}': notifySO.clientPartner?.name || '',
+          '{cliente_telefone}': notifySO.clientPartner?.phone || '',
+          '{tecnico}': notifySO.assignedPartner?.name || '',
+          '{tecnico_telefone}': notifySO.assignedPartner?.phone || '',
+          '{empresa}': notifySO.company?.name || '',
+          '{link}': `${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/${serviceOrderId}`,
+          '{tempo_aceitar}': (notifySO as any).acceptTimeoutMinutes
+            ? ((notifySO as any).acceptTimeoutMinutes >= 60 && (notifySO as any).acceptTimeoutMinutes % 60 === 0
+              ? `${(notifySO as any).acceptTimeoutMinutes / 60}h`
+              : `${(notifySO as any).acceptTimeoutMinutes} min`)
+            : 'Definido no fluxo',
+          '{tempo_a_caminho}': (notifySO as any).enRouteTimeoutMinutes
+            ? ((notifySO as any).enRouteTimeoutMinutes >= 60 && (notifySO as any).enRouteTimeoutMinutes % 60 === 0
+              ? `${(notifySO as any).enRouteTimeoutMinutes / 60}h`
+              : `${(notifySO as any).enRouteTimeoutMinutes} min`)
+            : 'Definido no fluxo',
+          '{tempo_estimado_chegada}': (notifySO as any).estimatedArrivalMinutes
+            ? ((notifySO as any).estimatedArrivalMinutes >= 60 && (notifySO as any).estimatedArrivalMinutes % 60 === 0
+              ? `${(notifySO as any).estimatedArrivalMinutes / 60}h`
+              : `${(notifySO as any).estimatedArrivalMinutes} min`)
+            : 'Não informado',
+          '{distancia_tecnico}': lastDistanceStr,
+          '{pausas}': String((notifySO as any).pauseCount || 0),
+          '{tempo_pausado}': (() => {
+            const ms = Number((notifySO as any).totalPausedMs || 0);
+            if (ms === 0) return 'Nenhuma pausa';
+            const min = Math.round(ms / 60000);
+            if (min >= 60) return `${Math.floor(min / 60)}h${min % 60 > 0 ? ` ${min % 60}min` : ''}`;
+            return `${min} min`;
+          })(),
+          '{motivo_pausa}': (() => {
+            // Try to get the latest pause reason from ExecutionPause
+            // This is a sync context so we use the last known reason or 'N/A'
+            return (notifySO as any).isPaused ? 'Pausa em andamento' : 'N/A';
+          })(),
+        };
+
+        const replaceVars = (text: string): string => {
+          let result = text;
+          for (const [key, val] of Object.entries(vars)) {
+            result = result.split(key).join(val);
+          }
+          return result;
+        };
+
+        // Support new multi-recipient format (recipients array) AND old single-recipient format
+        const recipients: Array<{ type: string; channel: string; message: string }> = [];
+
+        if (Array.isArray(config.recipients) && config.recipients.length > 0) {
+          // New format: multiple recipients with individual messages
+          for (const r of config.recipients) {
+            if (r.enabled !== false) {
+              let msg = replaceVars(r.message || '');
+              // Append OS link only for recipients with includeLink enabled (typically TECNICO)
+              if (r.includeLink) {
+                msg += `\n\nLink da OS: ${vars['{link}']}`;
+              }
+              recipients.push({
+                type: r.type,
+                channel: r.channel || config.channel || 'WHATSAPP',
+                message: msg,
+              });
+            }
+          }
+        } else if (config.recipient) {
+          // Legacy single recipient format
+          let msg = replaceVars(config.message || `Fluxo: bloco "${block.name}" executado`);
+          if (config.includeLink) {
+            msg += `\n\nLink da OS: ${vars['{link}']}`;
+          }
+          recipients.push({
+            type: config.recipient,
+            channel: config.channel || 'MOCK',
+            message: msg,
+          });
+        }
+
+        this.logger.log(`💬 System block: Sending notifications to ${recipients.length} recipient(s)`);
+
+        const results: Array<{ recipient: string; status: string }> = [];
+        for (const r of recipients) {
+          // Resolve recipient phone/email
+          let recipientPhone: string | undefined;
+          let recipientEmail: string | undefined;
+
+          switch (r.type) {
+            case 'TECNICO':
+              recipientPhone = notifySO.assignedPartner?.phone || undefined;
+              recipientEmail = notifySO.assignedPartner?.email || undefined;
+              break;
+            case 'CLIENTE':
+              recipientPhone = notifySO.clientPartner?.phone || undefined;
+              recipientEmail = notifySO.clientPartner?.email || undefined;
+              break;
+            case 'GESTOR':
+              recipientPhone = notifySO.company?.phone || undefined;
+              recipientEmail = notifySO.company?.email || undefined;
+              break;
+          }
+
+          try {
+            await this.notifications.send({
+              companyId,
+              serviceOrderId,
+              channel: r.channel,
+              message: r.message,
+              type: 'WORKFLOW_AUTO',
+              recipientPhone,
+              recipientEmail,
+            });
+            results.push({ recipient: r.type, status: 'sent' });
+          } catch {
+            results.push({ recipient: r.type, status: 'failed' });
+          }
+        }
+
+        return { recipients: results };
+      }
+
+      case 'ALERT': {
+        const message =
+          config.message || `Alerta do fluxo: ${block.name}`;
+        const severity = config.severity || 'info';
+        this.logger.log(`🔔 System block: Alert (${severity})`);
+        return this.prisma.notification.create({
+          data: {
+            companyId,
+            serviceOrderId,
+            channel: 'MOCK',
+            message: `[${severity.toUpperCase()}] ${message}`,
+            type: 'WORKFLOW_ALERT',
+            status: 'SENT',
+            sentAt: new Date(),
+          },
+        });
+      }
+
+      case 'WEBHOOK': {
+        const url = config.url;
+        if (!url) return null;
+        this.logger.log(`🔗 System block: Webhook POST ${url}`);
+        let headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (config.headers) {
+          try {
+            const parsed =
+              typeof config.headers === 'string'
+                ? JSON.parse(config.headers)
+                : config.headers;
+            headers = { ...headers, ...parsed };
+          } catch {
+            /* ignore */
+          }
+        }
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              source: 'workflow',
+              serviceOrderId,
+              companyId,
+              blockName: block.name,
+              timestamp: new Date().toISOString(),
+            }),
+            signal: controller.signal,
+          });
+          return { url, status: response.status, ok: response.ok };
+        } catch (err) {
+          return {
+            url,
+            error: (err as Error).message,
+          };
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+
+      case 'ASSIGN_TECH': {
+        const strategy = config.strategy || 'BEST_RATING';
+        const so = await this.prisma.serviceOrder.findUnique({
+          where: { id: serviceOrderId },
+          select: { assignedPartnerId: true },
+        });
+        if (so?.assignedPartnerId) return { alreadyAssigned: true };
+
+        const technicians = await this.prisma.partner.findMany({
+          where: {
+            companyId,
+            partnerTypes: { has: 'TECNICO' },
+            status: 'ATIVO',
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            name: true,
+            rating: true,
+            _count: {
+              select: {
+                serviceOrders: {
+                  where: {
+                    status: { in: ['ATRIBUIDA', 'EM_EXECUCAO'] },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { rating: 'desc' },
+        });
+        if (technicians.length === 0) return null;
+
+        let selected = technicians[0];
+        if (strategy === 'LEAST_BUSY') {
+          technicians.sort((a, b) => {
+            const diff =
+              a._count.serviceOrders - b._count.serviceOrders;
+            return diff !== 0 ? diff : b.rating - a.rating;
+          });
+          selected = technicians[0];
+        }
+
+        this.logger.log(
+          `👷 System block: Assigning "${selected.name}" to OS ${serviceOrderId}`,
+        );
+        return this.prisma.serviceOrder.update({
+          where: { id: serviceOrderId },
+          data: {
+            assignedPartnerId: selected.id,
+            status: 'ATRIBUIDA',
+          },
+        });
+      }
+
+      case 'DUPLICATE_OS': {
+        const original = await this.prisma.serviceOrder.findUnique({
+          where: { id: serviceOrderId },
+        });
+        if (!original) return null;
+        this.logger.log(
+          `📋 System block: Duplicating OS ${serviceOrderId}`,
+        );
+        return this.prisma.serviceOrder.create({
+          data: {
+            companyId: original.companyId,
+            title: `${original.title} (copia)`,
+            description: original.description,
+            addressText: original.addressText,
+            lat: original.lat,
+            lng: original.lng,
+            valueCents: original.valueCents,
+            addressStreet: original.addressStreet,
+            addressNumber: original.addressNumber,
+            addressComp: original.addressComp,
+            neighborhood: original.neighborhood,
+            city: original.city,
+            state: original.state,
+            cep: original.cep,
+            deadlineAt: original.deadlineAt,
+            status: 'ABERTA',
+            clientPartnerId: original.clientPartnerId,
+            workflowTemplateId: original.workflowTemplateId,
+          },
+        });
+      }
+
+      case 'DELAY': {
+        // Delay blocks just log — actual delay logic would need a scheduler
+        this.logger.log(
+          `⏳ System block: Delay ${config.minutes || 0} minutes (logged only)`,
+        );
+        return { delayed: true, minutes: config.minutes || 0 };
+      }
+
+      case 'SLA': {
+        this.logger.log(
+          `⏱️ System block: SLA ${config.maxMinutes || 0} minutes (logged only)`,
+        );
+        return { sla: true, maxMinutes: config.maxMinutes || 0 };
+      }
+
+      case 'RESCHEDULE': {
+        this.logger.log(
+          `📅 System block: Reschedule (reason: ${config.reason || 'N/A'})`,
+        );
+        return { rescheduled: true, reason: config.reason };
+      }
+
+      default:
+        return null;
+    }
+  }
+
+  /* ── Block validation per type ── */
+
+  private validateBlockRequirements(
+    block: BlockDef,
+    dto: StepProgressDto,
+  ): void {
+    const c = block.config || {};
+
+    switch (block.type) {
+      case 'STEP':
+        if (c.requirePhoto && !dto.photoUrl)
+          throw new BadRequestException(
+            `"${block.name}" requer uma foto`,
+          );
+        if (c.requireNote && !dto.note)
+          throw new BadRequestException(
+            `"${block.name}" requer uma observação`,
+          );
+        break;
+
+      case 'PHOTO':
+        if (!dto.photoUrl)
+          throw new BadRequestException(
+            `"${block.name}" requer uma foto`,
+          );
+        break;
+
+      case 'NOTE':
+        if (c.required !== false && !dto.note)
+          throw new BadRequestException(
+            `"${block.name}" requer uma observação`,
+          );
+        break;
+
+      case 'GPS':
+        if (!dto.responseData?.lat || !dto.responseData?.lng)
+          throw new BadRequestException(
+            `"${block.name}" requer localização GPS`,
+          );
+        break;
+
+      case 'QUESTION':
+        if (!dto.responseData?.answer)
+          throw new BadRequestException(
+            `"${block.name}" requer uma resposta`,
+          );
+        break;
+
+      case 'CHECKLIST':
+        if (
+          !dto.responseData?.checkedItems ||
+          !Array.isArray(dto.responseData.checkedItems)
+        )
+          throw new BadRequestException(
+            `"${block.name}" requer completar o checklist`,
+          );
+        break;
+
+      case 'SIGNATURE':
+        if (!dto.responseData?.signatureUrl && !dto.photoUrl)
+          throw new BadRequestException(
+            `"${block.name}" requer assinatura`,
+          );
+        break;
+
+      case 'FORM':
+        if (c.fields) {
+          for (const field of c.fields) {
+            if (
+              field.required &&
+              (!dto.responseData?.fields ||
+                !dto.responseData.fields[field.name])
+            ) {
+              throw new BadRequestException(
+                `"${block.name}": campo "${field.name}" é obrigatório`,
+              );
+            }
+          }
+        }
+        break;
+
+      case 'CONDITION':
+        if (
+          dto.responseData?.answer === undefined ||
+          dto.responseData?.answer === null
+        )
+          throw new BadRequestException(
+            `"${block.name}" requer uma resposta (Sim/Não)`,
+          );
+        break;
+    }
+  }
+}

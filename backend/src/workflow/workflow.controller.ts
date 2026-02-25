@@ -1,0 +1,61 @@
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { WorkflowService } from './workflow.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { AuthenticatedUser } from '../auth/auth.types';
+import { UserRole } from '@prisma/client';
+
+@Controller('workflows')
+export class WorkflowController {
+  constructor(private readonly service: WorkflowService) {}
+
+  @Get()
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.findAll(user.companyId, {
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get(':id')
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.findOne(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post()
+  create(
+    @Body() body: { name: string; steps: any; requiredSpecializationIds?: string[] },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.create(user.companyId, body.name, body.steps, body.requiredSpecializationIds);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Put(':id')
+  update(
+    @Param('id') id: string,
+    @Body() body: { name?: string; steps?: any; isDefault?: boolean; requiredSpecializationIds?: string[] },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.update(id, user.companyId, body);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete(':id')
+  remove(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.remove(id, user.companyId);
+  }
+}
