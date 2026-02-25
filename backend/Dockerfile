@@ -3,12 +3,16 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Instalar dependências (cache layer)
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY . .
+# Copiar código e gerar Prisma Client
+COPY prisma ./prisma
+RUN npx prisma generate
 
-# Build com output standalone para imagem menor
+# Copiar restante e buildar
+COPY . .
 RUN npm run build
 
 ## ── Stage 2: Produção ──────────────────────────────────────
@@ -22,20 +26,27 @@ ENV NODE_ENV=production
 RUN addgroup -g 1001 -S appgroup && \
     adduser -S appuser -u 1001 -G appgroup
 
-COPY --from=builder /app/package.json /app/package-lock.json ./
+# Instalar apenas dependências de produção
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
+# Copiar Prisma schema + client gerado
+COPY prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Permissões
-RUN chown -R appuser:appgroup .next
+# Copiar build
+COPY --from=builder /app/dist ./dist
 
+# Criar diretório de uploads com permissões
+RUN mkdir -p uploads && chown -R appuser:appgroup uploads
+
+# Usar usuário não-root
 USER appuser
 
-EXPOSE 3000
+EXPOSE 4000
 
+# Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:4000/health || exit 1
 
-CMD ["npm", "run", "start"]
+CMD ["node", "dist/src/main.js"]
