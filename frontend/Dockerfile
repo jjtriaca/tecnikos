@@ -3,12 +3,15 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# API URL é variável de build-time (Next.js inline no bundle)
+ARG NEXT_PUBLIC_API_URL=http://backend:4000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
 
-# Build com output standalone para imagem menor
 RUN npm run build
 
 ## ── Stage 2: Produção ──────────────────────────────────────
@@ -27,6 +30,7 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.ts ./next.config.ts
 
 # Permissões
 RUN chown -R appuser:appgroup .next
