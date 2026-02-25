@@ -40,7 +40,7 @@
 - **Frontend:** Settings faz polling de `/api/health` a cada 60 minutos
   - Se versão do backend difere da carregada: badge âmbar "Nova versão disponível!" + botão ativo
   - Se igual: badge verde "Sistema atualizado" + botão desabilitado
-- **Versão atual:** 1.00.46 (codename: Deploy Infrastructure)
+- **Versão atual:** 1.00.47 (codename: Polish & Docs)
 
 ## Seeds
 - Empresa: SLS OBRAS LTDA (CNPJ: 47.226.599/0001-40, Primavera do Leste - MT)
@@ -913,4 +913,15 @@
 - nginx.conf (HTTPS, gzip, rate limiting zones, reverse proxy, Let's Encrypt support)
 - .env.production.example (template completo)
 - scripts/deploy-production.sh (validação env + SSL auto + build + migrate + up)
+- Build: backend tsc 0 erros, frontend tsc 0 erros
+
+### Sessão 50 — 25/02/2026
+- **Swagger, Logger, CI/CD, Health endpoint** — ✅ CONCLUÍDO
+- Swagger/OpenAPI em /api/docs (dev only) com 14 tags e 20 controllers documentados
+- Plugin @nestjs/swagger para introspecção automática de DTOs
+- console.log/error → NestJS Logger em todo o backend (zero console.* restantes)
+- Request logger com levels (error 5xx, warn 4xx, log 2xx)
+- GitHub Actions CI: backend tsc+build, frontend tsc+build, docker build
+- Health /health/db (verifica banco), /health com node version, env, startedAt
+- Frontend Dockerfile com NEXT_PUBLIC_API_URL como build arg
 - Build: backend tsc 0 erros, frontend tsc 0 erros

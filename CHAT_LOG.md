@@ -2928,3 +2928,56 @@ Infraestrutura completa de deploy para produção Docker + Nginx:
 - `.env.production.example` — novo
 - `scripts/deploy-production.sh` — novo
 - Build: backend tsc 0 erros, frontend tsc 0 erros
+
+## Sessão 50 — 25/02/2026
+
+### Contexto: Continuação automática do roadmap amarelo (Juliano: "não me pergunte qual próximo passo")
+
+### O que foi feito — Polish & Docs v1.00.47:
+
+1. **Console.log → NestJS Logger (cleanup completo):**
+   - `audit.service.ts`: console.error → this.logger.error (com stack trace)
+   - `request-logger.middleware.ts`: console.log(JSON.stringify) → NestJS Logger com levels (error 5xx, warn 4xx, log 2xx/3xx)
+   - Zero console.* restantes no backend
+
+2. **Swagger / OpenAPI em /api/docs:**
+   - Instalado @nestjs/swagger + plugin no nest-cli.json (classValidatorShim + introspectComments)
+   - DocumentBuilder com título, descrição, auth schemes (Bearer + Cookie)
+   - 14 tags definidas (Auth, Service Orders, Partners, Workflow, Finance, etc.)
+   - 20 controllers com @ApiTags para agrupamento no Swagger
+   - Disponível apenas em dev (NODE_ENV !== production)
+   - Introspecção automática de DTOs via plugin do compilador
+
+3. **`as any` cleanup parcial:**
+   - `(req as any).cookies` → `req.cookies` nos auth controllers (auth.controller.ts, tech-auth.controller.ts)
+   - Mapeamento completo: 93 instâncias backend, 10 frontend (maioria são campos Prisma — cleanup completo requer prisma generate)
+
+4. **GitHub Actions CI/CD:**
+   - `.github/workflows/ci.yml` com 3 jobs: backend, frontend, docker
+   - Backend: npm ci → prisma generate → tsc → nest build
+   - Frontend: npm ci → tsc → next build
+   - Docker: build images (apenas em push para master/main)
+   - Cache de npm para acelerar builds
+
+5. **Health endpoint enriquecido:**
+   - Novo endpoint GET /health/db — verifica conexão com banco de dados
+   - GET /health agora retorna: node version, env, startedAt
+   - Decorators @ApiOperation/@ApiOkResponse para documentação Swagger
+
+6. **Frontend Dockerfile melhorado:**
+   - NEXT_PUBLIC_API_URL como ARG de build (variável de build-time do Next.js)
+   - Copia next.config.ts para runtime (rewrites de /api → backend)
+
+### Arquivos criados/modificados:
+- `backend/src/main.ts` — Swagger setup + DocumentBuilder
+- `backend/nest-cli.json` — plugin @nestjs/swagger
+- `backend/package.json` — +@nestjs/swagger
+- `backend/src/common/audit/audit.service.ts` — console.error → Logger
+- `backend/src/common/logger/request-logger.middleware.ts` — console.log → Logger com levels
+- `backend/src/auth/auth.controller.ts` — @ApiTags + cookies fix
+- `backend/src/auth/tech-auth.controller.ts` — @ApiTags + cookies fix
+- 18 controllers adicionais com @ApiTags
+- `backend/src/health/health.controller.ts` — /health/db + dados enriquecidos
+- `frontend/Dockerfile` — NEXT_PUBLIC_API_URL ARG
+- `.github/workflows/ci.yml` — novo (CI pipeline)
+- Build: backend tsc 0 erros, frontend tsc 0 erros
