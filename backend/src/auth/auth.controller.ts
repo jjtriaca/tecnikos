@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -17,6 +18,7 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import { AuthenticatedUser } from './auth.types';
 import { REFRESH_COOKIE_NAME } from './auth.constants';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -55,7 +57,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const oldToken = (req as any).cookies?.[REFRESH_COOKIE_NAME];
+    const oldToken = req.cookies?.[REFRESH_COOKIE_NAME];
     const ip = req.ip || req.socket?.remoteAddress;
     const ua = req.headers['user-agent'];
 
@@ -77,7 +79,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const token = (req as any).cookies?.[REFRESH_COOKIE_NAME];
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
     await this.authService.logout(token);
     res.clearCookie(REFRESH_COOKIE_NAME, this.authService.clearCookieOptions());
     return { ok: true };

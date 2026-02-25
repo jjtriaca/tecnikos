@@ -1,24 +1,33 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: ✅ CONCLUÍDO — Checklist vermelho de segurança (v1.00.45)
+## Status: 🔨 EM ANDAMENTO — Polimento pós-segurança (roadmap amarelo)
 
-## Última sessão completada: 47 (25/02/2026)
-- Auditoria completa do sistema (5 agentes em paralelo)
-- Relatório com 6 issues críticas, 8 high, 12 medium
-- Nota geral: 6.5/10 (pré-produção)
+## Última sessão completada: 49 (25/02/2026)
+- Sessão 48: Security Hardening completo (v1.00.45) — 8 itens críticos resolvidos
+- Sessão 49: Infraestrutura de deploy Docker + Nginx (v1.00.46)
 
-## Próxima tarefa planejada:
-**Checklist vermelho de segurança (~3-4h)**
-O Juliano quer subir o sistema para produção. Precisa primeiro:
+## Tarefa em andamento:
+**Roadmap amarelo — Polimento pós-segurança**
+Continuando itens do roadmap identificados na auditoria (sessão 47):
 
-1. [ ] JWT Secret forte (não hardcoded)
-2. [ ] Helmet (headers de segurança)
-3. [ ] Rate limit diferenciado (login/OTP mais restrito)
-4. [ ] Remover OTP do console.log
-5. [ ] Senha mínima 8+ chars
-6. [ ] CORS com domínio real (configurável via env)
-7. [ ] Middleware de rota no frontend (middleware.ts)
-8. [ ] Error boundary (error.tsx + not-found.tsx)
+### Próximos itens:
+1. [ ] Logger estruturado (winston/pino) — substituir console.log
+2. [ ] Swagger/OpenAPI — documentação automática dos endpoints
+3. [ ] TypeScript strict — limpar `as any` e tipagens fracas
+4. [ ] CI/CD pipeline básica (GitHub Actions)
+
+### Já concluídos:
+- [x] JWT Secret forte (v1.00.45)
+- [x] Helmet headers (v1.00.45)
+- [x] Rate limiting diferenciado (v1.00.45)
+- [x] OTP removido do console.log (v1.00.45)
+- [x] Senha mínima 8 chars (v1.00.45)
+- [x] CORS configurável (v1.00.45)
+- [x] Middleware server-side (v1.00.45)
+- [x] Error boundary + 404 (v1.00.45)
+- [x] Docker multi-stage (v1.00.46)
+- [x] Nginx reverse proxy HTTPS (v1.00.46)
+- [x] Deploy script automatizado (v1.00.46)
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

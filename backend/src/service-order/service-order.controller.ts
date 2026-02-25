@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Delete, Put, Patch, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ServiceOrderService } from './service-order.service';
 import { CreateServiceOrderDto } from './dto/create-service-order.dto';
 import { UpdateServiceOrderDto } from './dto/update-service-order.dto';
@@ -10,6 +11,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 
+@ApiTags('Service Orders')
 @Controller('service-orders')
 export class ServiceOrderController {
   constructor(private readonly service: ServiceOrderService) {}

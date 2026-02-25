@@ -2,11 +2,13 @@ import {
   Controller, Post, Get, Delete, Param, Query,
   UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 
+@ApiTags('Upload')
 @Controller('service-orders/:orderId/attachments')
 export class UploadController {
   constructor(private readonly service: UploadService) {}

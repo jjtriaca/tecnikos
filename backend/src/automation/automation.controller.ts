@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { AutomationService } from './automation.service';
 import { AutomationEngineService } from './automation-engine.service';
 import { CreateAutomationDto, UpdateAutomationDto } from './dto/create-automation.dto';
@@ -8,6 +9,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
+@ApiTags('Automation')
 @Controller('automations')
 export class AutomationController {
   constructor(

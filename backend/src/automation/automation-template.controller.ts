@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { AutomationTemplateService } from './automation-template.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -34,6 +35,7 @@ class ApplyTemplateDto {
 
 /* ── Controller ─────────────────────────────────────────── */
 
+@ApiTags('Automation Templates')
 @Controller('automation-templates')
 export class AutomationTemplateController {
   constructor(private readonly service: AutomationTemplateService) {}

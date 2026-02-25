@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Put, Delete } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { CompanyService } from './company.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -6,6 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 
+@ApiTags('Company')
 @Controller('companies')
 export class CompanyController {
   constructor(private readonly service: CompanyService) {}

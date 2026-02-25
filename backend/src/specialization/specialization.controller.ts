@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Delete, Body, Param, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { SpecializationService } from './specialization.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -6,6 +7,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
+@ApiTags('Specializations')
 @Controller('specializations')
 export class SpecializationController {
   constructor(private readonly service: SpecializationService) {}

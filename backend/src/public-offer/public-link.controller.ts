@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { PublicOfferService } from './public-offer.service';
 import { Public } from '../auth/decorators/public.decorator';
 
+@ApiTags('Public Link')
 @Public()
 @Controller('p')
 export class PublicLinkController {

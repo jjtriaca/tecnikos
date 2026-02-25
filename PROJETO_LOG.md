@@ -40,7 +40,7 @@
 - **Frontend:** Settings faz polling de `/api/health` a cada 60 minutos
   - Se versão do backend difere da carregada: badge âmbar "Nova versão disponível!" + botão ativo
   - Se igual: badge verde "Sistema atualizado" + botão desabilitado
-- **Versão atual:** 1.00.41 (codename: Etapas Inteligentes)
+- **Versão atual:** 1.00.46 (codename: Deploy Infrastructure)
 
 ## Seeds
 - Empresa: SLS OBRAS LTDA (CNPJ: 47.226.599/0001-40, Primavera do Leste - MT)
@@ -904,3 +904,13 @@
 - Middleware server-side no frontend (proteção de rotas)
 - Error boundary (error.tsx) + 404 (not-found.tsx)
 - Build: backend tsc 0 erros, frontend tsc 0 erros, next build 22 rotas + middleware 0 erros
+
+### Sessão 49 — 25/02/2026
+- **Infraestrutura de Deploy Docker + Nginx** — ✅ CONCLUÍDO
+- Dockerfile backend multi-stage (builder + prod, non-root user, healthcheck)
+- Dockerfile frontend atualizado (non-root, healthcheck)
+- docker-compose.production.yml (postgres + backend + frontend + nginx, healthchecks)
+- nginx.conf (HTTPS, gzip, rate limiting zones, reverse proxy, Let's Encrypt support)
+- .env.production.example (template completo)
+- scripts/deploy-production.sh (validação env + SSL auto + build + migrate + up)
+- Build: backend tsc 0 erros, frontend tsc 0 erros

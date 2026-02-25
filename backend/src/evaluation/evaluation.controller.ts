@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Param, NotFoundException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { EvaluationService } from './evaluation.service';
 import { CreateGestorEvaluationDto, SubmitClientEvaluationDto } from './dto/create-evaluation.dto';
@@ -9,6 +10,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
+@ApiTags('Evaluation')
 @Controller('evaluations')
 export class EvaluationController {
   constructor(

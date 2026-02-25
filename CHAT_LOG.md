@@ -2872,3 +2872,59 @@ Nenhum arquivo foi modificado — apenas leitura e análise.
 - `frontend/src/app/error.tsx` — novo (error boundary)
 - `frontend/src/app/not-found.tsx` — novo (404 page)
 - Build: backend tsc 0 erros, frontend tsc 0 erros, next build 22 rotas + middleware 0 erros
+
+## Sessão 49 — 25/02/2026
+
+### Pedido do Juliano (literal):
+> "Quero que vc continua fazendo, não me pergunte qual proximo passo eu quero"
+
+### O que foi feito — Deploy Infrastructure v1.00.46:
+Infraestrutura completa de deploy para produção Docker + Nginx:
+
+1. **Backend Dockerfile** (multi-stage):
+   - Stage 1 (builder): npm ci + prisma generate + nest build
+   - Stage 2 (production): node:20-alpine, non-root user (appuser:1001), apenas production deps
+   - Healthcheck via wget → localhost:4000/health
+   - CMD: node dist/src/main.js
+
+2. **Frontend Dockerfile** (atualizado):
+   - Non-root user, healthcheck via wget → localhost:3000
+   - Next.js standalone output mode
+
+3. **docker-compose.production.yml**:
+   - 4 serviços: postgres, backend, frontend, nginx
+   - Postgres com healthcheck pg_isready, volume persistente
+   - Backend depends_on postgres (condition: service_healthy)
+   - Nginx como reverse proxy (portas 80/443)
+   - Network bridge isolada (app-network)
+   - Volume compartilhado para uploads
+
+4. **nginx/nginx.conf**:
+   - HTTP→HTTPS redirect automático
+   - Let's Encrypt challenge support (.well-known/acme-challenge)
+   - SSL TLS 1.2/1.3 com ciphers modernos
+   - HSTS header (31536000s)
+   - Rate limiting zones: api_general 30r/s, api_auth 1r/s
+   - Proxy reverso: /api/ → backend:4000, / → frontend:3000
+   - Static uploads com cache 7 dias
+   - Gzip compression
+
+5. **.env.production.example**:
+   - Template com todas as variáveis necessárias
+   - Instruções para gerar JWT_SECRET
+
+6. **scripts/deploy-production.sh**:
+   - Validação: .env.production existe, todas vars obrigatórias definidas, JWT_SECRET ≥ 32 chars
+   - Auto-gera certificado SSL self-signed se não existir (avisa para usar Let's Encrypt)
+   - Docker build → postgres up → prisma migrate deploy → all up
+   - Exibe URLs + comandos úteis ao final
+
+### Arquivos criados/modificados:
+- `backend/Dockerfile` — novo (multi-stage)
+- `backend/.dockerignore` — novo
+- `frontend/Dockerfile` — atualizado (non-root + healthcheck)
+- `docker-compose.production.yml` — novo
+- `nginx/nginx.conf` — novo
+- `.env.production.example` — novo
+- `scripts/deploy-production.sh` — novo
+- Build: backend tsc 0 erros, frontend tsc 0 erros

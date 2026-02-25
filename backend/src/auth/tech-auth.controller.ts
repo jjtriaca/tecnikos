@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { TechAuthService } from './tech-auth.service';
@@ -17,6 +18,7 @@ import { AuthenticatedUser } from './auth.types';
 
 const TECH_REFRESH_COOKIE = 'tech_refresh_token';
 
+@ApiTags('Tech Auth')
 @Controller('tech-auth')
 export class TechAuthController {
   constructor(private readonly techAuth: TechAuthService) {}
@@ -50,7 +52,7 @@ export class TechAuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const oldToken = (req as any).cookies?.[TECH_REFRESH_COOKIE];
+    const oldToken = req.cookies?.[TECH_REFRESH_COOKIE];
     const ip = req.ip || req.socket?.remoteAddress;
     const ua = req.headers['user-agent'];
 
@@ -68,7 +70,7 @@ export class TechAuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const token = (req as any).cookies?.[TECH_REFRESH_COOKIE];
+    const token = req.cookies?.[TECH_REFRESH_COOKIE];
     await this.techAuth.logout(token);
     res.clearCookie(TECH_REFRESH_COOKIE, this.techAuth.clearCookieOptions());
     return { ok: true };

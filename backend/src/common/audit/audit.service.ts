@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger(AuditService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -34,7 +36,7 @@ export class AuditService {
         },
       })
       .catch((err) =>
-        console.error('[AuditService] Failed to write audit log:', err),
+        this.logger.error('Failed to write audit log', err?.stack || err),
       );
   }
 

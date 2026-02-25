@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Param, Post, Delete } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { WorkflowEngineService } from './workflow-engine.service';
 import { StepProgressDto } from './dto/step-progress.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 
+@ApiTags('Workflow Engine')
 @Controller('service-orders/:orderId/workflow')
 export class WorkflowEngineController {
   constructor(private readonly engine: WorkflowEngineService) {}

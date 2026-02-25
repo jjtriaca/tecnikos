@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Patch, Delete, Param, Query, Body } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { FinanceService } from './finance.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -7,6 +8,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 import { CreateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
 
+@ApiTags('Finance')
 @Controller('finance')
 export class FinanceController {
   constructor(private readonly service: FinanceService) {}
