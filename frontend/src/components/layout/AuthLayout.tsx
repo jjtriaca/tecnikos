@@ -1,0 +1,56 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import Sidebar from "./Sidebar";
+import Header from "./Header";
+
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [loading, user, router]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+          <p className="text-sm text-slate-500">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not authenticated
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((c) => !c)}
+      />
+      <Header sidebarCollapsed={sidebarCollapsed} />
+
+      {/* Main content */}
+      <main
+        data-main
+        className={`pt-16 transition-all duration-300 ${
+          sidebarCollapsed ? "ml-[68px]" : "ml-64"
+        }`}
+      >
+        <div className="p-6">{children}</div>
+      </main>
+    </div>
+  );
+}

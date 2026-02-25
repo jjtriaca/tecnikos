@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modelo - Workflow em Blocos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; }
+
+  .header { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: white; padding: 24px 32px; }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header p { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px; }
+
+  .section-title { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .section-title .badge { background: #dbeafe; color: #1e40af; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+
+  /* ── Palette ── */
+  .palette { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; padding: 20px; background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .palette-block { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 600; cursor: grab; border: 2px dashed transparent; transition: all 0.2s; user-select: none; }
+  .palette-block:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .palette-block .icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+
+  .pb-action { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+  .pb-action .icon { background: #3b82f6; color: white; }
+
+  .pb-condition { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .pb-condition .icon { background: #f59e0b; color: white; }
+
+  .pb-gate { background: #fce7f3; color: #9d174d; border-color: #f9a8d4; }
+  .pb-gate .icon { background: #ec4899; color: white; }
+
+  .pb-notify { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; }
+  .pb-notify .icon { background: #10b981; color: white; }
+
+  .pb-timer { background: #f5f3ff; color: #5b21b6; border-color: #c4b5fd; }
+  .pb-timer .icon { background: #8b5cf6; color: white; }
+
+  .pb-parallel { background: #fff7ed; color: #9a3412; border-color: #fdba74; }
+  .pb-parallel .icon { background: #f97316; color: white; }
+
+  /* ── Canvas ── */
+  .canvas { background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 32px; min-height: 600px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .canvas-label { position: absolute; top: 12px; right: 16px; font-size: 11px; color: #94a3b8; font-weight: 500; }
+
+  /* ── Flow blocks ── */
+  .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+  .connector { width: 2px; height: 24px; background: #cbd5e1; position: relative; }
+  .connector::after { content: ''; position: absolute; bottom: -4px; left: -3px; width: 8px; height: 8px; border-right: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; transform: rotate(45deg); }
+
+  .connector-short { height: 16px; }
+
+  /* Terminal blocks */
+  .terminal { padding: 8px 24px; border-radius: 99px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+  .terminal-start { background: linear-gradient(135deg, #10b981, #059669); color: white; box-shadow: 0 2px 8px rgba(16,185,129,0.3); }
+  .terminal-end { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239,68,68,0.3); }
+
+  /* Action block */
+  .block { border-radius: 14px; padding: 16px 20px; min-width: 280px; max-width: 320px; position: relative; transition: all 0.2s; }
+  .block:hover { transform: translateY(-1px); }
+
+  .block-action { background: #eff6ff; border: 2px solid #93c5fd; box-shadow: 0 2px 8px rgba(59,130,246,0.12); }
+  .block-action:hover { box-shadow: 0 4px 16px rgba(59,130,246,0.2); }
+
+  .block-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .block-icon { width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .block-action .block-icon { background: #3b82f6; color: white; }
+  .block-name { font-size: 14px; font-weight: 700; }
+  .block-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+  .block-badges { display: flex; gap: 6px; margin-top: 8px; }
+  .block-badge { font-size: 10px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
+  .badge-photo { background: #dbeafe; color: #1e40af; }
+  .badge-note { background: #fef3c7; color: #92400e; }
+  .badge-required { background: #fee2e2; color: #991b1b; }
+
+  /* Condition block - diamond shape (simulated) */
+  .block-condition { background: #fef3c7; border: 2px solid #fbbf24; min-width: 200px; text-align: center; box-shadow: 0 2px 8px rgba(245,158,11,0.15); }
+  .block-condition:hover { box-shadow: 0 4px 16px rgba(245,158,11,0.25); }
+  .block-condition .block-icon { background: #f59e0b; color: white; }
+  .block-condition .block-name { color: #92400e; }
+
+  /* Gate block */
+  .block-gate { background: #fce7f3; border: 2px solid #f9a8d4; box-shadow: 0 2px 8px rgba(236,72,153,0.12); }
+  .block-gate:hover { box-shadow: 0 4px 16px rgba(236,72,153,0.2); }
+  .block-gate .block-icon { background: #ec4899; color: white; }
+
+  /* Notify block */
+  .block-notify { background: #ecfdf5; border: 2px solid #6ee7b7; box-shadow: 0 2px 8px rgba(16,185,129,0.12); }
+  .block-notify:hover { box-shadow: 0 4px 16px rgba(16,185,129,0.2); }
+  .block-notify .block-icon { background: #10b981; color: white; }
+
+  /* Timer block */
+  .block-timer { background: #f5f3ff; border: 2px solid #c4b5fd; box-shadow: 0 2px 8px rgba(139,92,246,0.12); }
+  .block-timer:hover { box-shadow: 0 4px 16px rgba(139,92,246,0.2); }
+  .block-timer .block-icon { background: #8b5cf6; color: white; }
+
+  /* ── Branch layout ── */
+  .branch-container { display: flex; gap: 0; align-items: flex-start; position: relative; }
+  .branch { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+  .branch-label { font-size: 11px; font-weight: 700; padding: 3px 12px; border-radius: 99px; margin-bottom: 4px; }
+  .branch-yes { background: #dcfce7; color: #166534; }
+  .branch-no { background: #fee2e2; color: #991b1b; }
+
+  .branch-line-h { height: 2px; background: #cbd5e1; position: absolute; top: 0; }
+  .branch-merge { width: 2px; height: 24px; background: #cbd5e1; }
+
+  /* Horizontal connector between branches */
+  .h-connector { display: flex; align-items: flex-start; }
+  .h-line { width: 60px; height: 2px; background: #cbd5e1; margin-top: 0; }
+  .v-line-down { width: 2px; height: 20px; background: #cbd5e1; }
+
+  /* ── Add button ── */
+  .add-btn { width: 28px; height: 28px; border-radius: 99px; border: 2px dashed #94a3b8; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #94a3b8; cursor: pointer; transition: all 0.2s; background: white; }
+  .add-btn:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; transform: scale(1.15); }
+
+  /* ── Legend ── */
+  .legend { margin-top: 32px; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+  .legend h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; color: #475569; }
+  .legend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+  .legend-item { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #64748b; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 3px; margin-top: 4px; flex-shrink: 0; }
+
+  /* ── Example 2 ── */
+  .examples { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; }
+  @media (max-width: 900px) { .examples { grid-template-columns: 1fr; } }
+  .example-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .example-card h3 { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .example-badge { font-size: 10px; background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: #f1f5f9; padding: 4px; border-radius: 12px; width: fit-content; }
+  .tab { padding: 8px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; color: #64748b; }
+  .tab.active { background: white; color: #1e293b; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .tab:hover:not(.active) { color: #1e293b; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Modelo: Fluxo de Atendimento em Blocos</h1>
+  <p>Conceito visual de como ficaria o builder de workflow com programacao em blocos</p>
+</div>
+
+<div class="container">
+
+  <!-- Palette -->
+  <div class="section-title">
+    Paleta de Blocos <span class="badge">Arrastar para o canvas</span>
+  </div>
+  <div class="palette">
+    <div class="palette-block pb-action">
+      <div class="icon">&#9881;</div>
+      Acao
+    </div>
+    <div class="palette-block pb-condition">
+      <div class="icon">&#10067;</div>
+      Condicao
+    </div>
+    <div class="palette-block pb-gate">
+      <div class="icon">&#128274;</div>
+      Aprovacao
+    </div>
+    <div class="palette-block pb-notify">
+      <div class="icon">&#128172;</div>
+      Notificacao
+    </div>
+    <div class="palette-block pb-timer">
+      <div class="icon">&#9200;</div>
+      Espera/SLA
+    </div>
+    <div class="palette-block pb-parallel">
+      <div class="icon">&#8694;</div>
+      Paralelo
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active">Exemplo 1 - Manutencao Completa</div>
+    <div class="tab">Exemplo 2 - Comparativo</div>
+  </div>
+
+  <!-- Canvas - Main Example -->
+  <div class="canvas">
+    <div class="canvas-label">CANVAS DO BUILDER</div>
+
+    <div class="flow">
+      <!-- START -->
+      <div class="terminal terminal-start">INICIO</div>
+      <div class="connector"></div>
+
+      <!-- Step 1: Especialização -->
+      <div class="block block-action" style="opacity: 0.7;">
+        <div class="block-header">
+          <div class="block-icon">&#128100;</div>
+          <div>
+            <div class="block-name">Especializacao do Tecnico</div>
+            <div class="block-desc">Bloco fixo — validacao automatica</div>
+          </div>
+        </div>
+        <div class="block-badges">
+          <span class="block-badge badge-required">AUTOMATICO</span>
+        </div>
+      </div>
+      <div class="connector"></div>
+
+      <!-- Step 2: A caminho -->
+      <div class="block block-action">
+        <div class="block-header">
+          <div class="block-icon">&#128663;</div>
+          <div>
+            <div class="block-name">A caminho</div>
+            <div class="block-desc">Tecnico confirma que esta indo ao local</div>
+          </div>
+        </div>
+      </div>
+      <div class="connector"></div>
+
+      <!-- Notification: Notify client -->
+      <div class="block block-notify">
+        <div class="block-header">
+          <div class="block-icon">&#128172;</div>
+          <div>
+            <div class="block-name">Notificar Cliente</div>
+            <div class="block-desc">WhatsApp: "Tecnico a caminho, previsao 30 min"</div>
+          </div>
+        </div>
+      </div>
+      <div class="connector"></div>
+
+      <!-- Step 3: Chegou -->
+      <div class="block block-action">
+        <div class="block-header">
+          <div class="block-icon">&#128205;</div>
+          <div>
+            <div class="block-name">Chegou no local</div>
+            <div class="block-desc">GPS confirma proximidade automatica</div>
+          </div>
+        </div>
+        <div class="block-badges">
+          <span class="block-badge badge-photo">&#128247; Foto obrigatoria</span>
+        </div>
+      </div>
+      <div class="connector"></div>
+
+      <!-- CONDITION: Client present? -->
+      <div class="block block-condition">
+        <div class="block-header" style="justify-content: center;">
+          <div class="block-icon">&#10067;</div>
+          <div>
+            <div class="block-name">Cliente presente?</div>
+            <div class="block-desc">Tecnico confirma se o cliente esta</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Branch -->
+      <div style="display: flex; width: 100%; max-width: 700px; margin-top: 0;">
+        <!-- YES branch -->
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+          <div style="display: flex; align-items: flex-start;">
+            <div style="width: 2px; height: 20px; background: #cbd5e1;"></div>
+          </div>
+          <div class="branch-label branch-yes">&#10004; SIM</div>
+          <div style="width: 2px; height: 12px; background: #cbd5e1;"></div>
+
+          <div class="block block-action" style="min-width: 240px; max-width: 260px;">
+            <div class="block-header">
+              <div class="block-icon">&#128295;</div>
+              <div>
+                <div class="block-name">Iniciar Servico</div>
+                <div class="block-desc">Registra inicio da execucao</div>
+              </div>
+            </div>
+            <div class="block-badges">
+              <span class="block-badge badge-photo">&#128247; Foto antes</span>
+              <span class="block-badge badge-note">&#128221; Observacao</span>
+            </div>
+          </div>
+          <div style="width: 2px; height: 12px; background: #cbd5e1;"></div>
+
+          <!-- Timer -->
+          <div class="block block-timer" style="min-width: 240px; max-width: 260px;">
+            <div class="block-header">
+              <div class="block-icon">&#9200;</div>
+              <div>
+                <div class="block-name">SLA: 4 horas</div>
+                <div class="block-desc">Alerta se ultrapassar tempo limite</div>
+              </div>
+            </div>
+          </div>
+          <div style="width: 2px; height: 12px; background: #cbd5e1;"></div>
+
+          <div class="block block-action" style="min-width: 240px; max-width: 260px;">
+            <div class="block-header">
+              <div class="block-icon">&#9989;</div>
+              <div>
+                <div class="block-name">Finalizar Servico</div>
+                <div class="block-desc">Registra conclusao com evidencias</div>
+              </div>
+            </div>
+            <div class="block-badges">
+              <span class="block-badge badge-photo">&#128247; Foto depois</span>
+              <span class="block-badge badge-note">&#128221; Relatorio</span>
+            </div>
+          </div>
+          <div style="width: 2px; height: 20px; background: #cbd5e1;"></div>
+        </div>
+
+        <!-- NO branch -->
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+          <div style="display: flex; align-items: flex-start;">
+            <div style="width: 2px; height: 20px; background: #cbd5e1;"></div>
+          </div>
+          <div class="branch-label branch-no">&#10008; NAO</div>
+          <div style="width: 2px; height: 12px; background: #cbd5e1;"></div>
+
+          <div class="block block-notify" style="min-width: 240px; max-width: 260px;">
+            <div class="block-header">
+              <div class="block-icon">&#128172;</div>
+              <div>
+                <div class="block-name">Avisar Cliente</div>
+                <div class="block-desc">WhatsApp: "Tecnico no local, mas ninguem atendeu"</div>
+              </div>
+            </div>
+          </div>
+          <div style="width: 2px; height: 12px; background: #cbd5e1;"></div>
+
+          <div class="block block-timer" style="min-width: 240px; max-width: 260px;">
+            <div class="block-header">
+              <div class="block-icon">&#9200;</div>
+              <div>
+                <div class="block-name">Aguardar 15 min</div>
+                <div class="block-desc">Tempo de espera no local</div>
+              </div>
+            </div>
+          </div>
+          <div style="width: 2px; height: 12px; background: #cbd5e1;"></div>
+
+          <!-- Nested condition -->
+          <div class="block block-condition" style="min-width: 240px; max-width: 260px;">
+            <div class="block-header" style="justify-content: center;">
+              <div class="block-icon">&#10067;</div>
+              <div>
+                <div class="block-name" style="font-size: 12px;">Cliente apareceu?</div>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; width: 100%; gap: 0;">
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+              <div style="width: 2px; height: 12px; background: #cbd5e1;"></div>
+              <div class="branch-label branch-yes" style="font-size: 10px;">SIM</div>
+              <div style="width: 2px; height: 8px; background: #cbd5e1;"></div>
+              <div style="font-size: 10px; background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 8px; font-weight: 600; white-space: nowrap;">&#8593; Volta p/ Iniciar</div>
+              <div style="width: 2px; height: 16px; background: #cbd5e1;"></div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+              <div style="width: 2px; height: 12px; background: #cbd5e1;"></div>
+              <div class="branch-label branch-no" style="font-size: 10px;">NAO</div>
+              <div style="width: 2px; height: 8px; background: #cbd5e1;"></div>
+              <div class="block block-action" style="min-width: 120px; max-width: 140px; padding: 10px;">
+                <div class="block-header" style="margin-bottom: 0;">
+                  <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#128247;</div>
+                  <div class="block-name" style="font-size: 11px;">Foto do local</div>
+                </div>
+              </div>
+              <div style="width: 2px; height: 8px; background: #cbd5e1;"></div>
+              <div style="font-size: 10px; background: #fee2e2; color: #991b1b; padding: 4px 12px; border-radius: 8px; font-weight: 600; white-space: nowrap;">Reagendar OS</div>
+              <div style="width: 2px; height: 16px; background: #cbd5e1;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Merge point + continuation -->
+      <div class="connector"></div>
+
+      <!-- Gate: Manager approval -->
+      <div class="block block-gate">
+        <div class="block-header">
+          <div class="block-icon">&#128274;</div>
+          <div>
+            <div class="block-name">Aprovacao do Gestor</div>
+            <div class="block-desc">Gestor revisa fotos e relatorio antes de aprovar</div>
+          </div>
+        </div>
+        <div class="block-badges">
+          <span class="block-badge badge-required">BLOQUEANTE</span>
+        </div>
+      </div>
+      <div class="connector"></div>
+
+      <!-- Notification: Complete -->
+      <div class="block block-notify">
+        <div class="block-header">
+          <div class="block-icon">&#128172;</div>
+          <div>
+            <div class="block-name">Notificar Conclusao</div>
+            <div class="block-desc">WhatsApp: "Servico finalizado com sucesso!"</div>
+          </div>
+        </div>
+      </div>
+      <div class="connector"></div>
+
+      <!-- END -->
+      <div class="terminal terminal-end">FIM</div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <h3>Legenda dos Tipos de Bloco</h3>
+    <div class="legend-grid">
+      <div class="legend-item">
+        <div class="legend-dot" style="background: #3b82f6;"></div>
+        <div><strong>Acao</strong> — Etapa que o tecnico executa (foto, checkin, finalizar). Pode exigir foto e/ou observacao.</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: #f59e0b;"></div>
+        <div><strong>Condicao</strong> — Decisao SIM/NAO que cria 2 caminhos diferentes. Ex: "Cliente presente?", "Precisa de peca?"</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: #ec4899;"></div>
+        <div><strong>Aprovacao</strong> — Bloco que TRAVA o fluxo ate o gestor aprovar. Ideal para QA, revisao de fotos, etc.</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: #10b981;"></div>
+        <div><strong>Notificacao</strong> — Envia mensagem automatica (WhatsApp/SMS) ao cliente ou gestor. Nao trava o fluxo.</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: #8b5cf6;"></div>
+        <div><strong>Espera/SLA</strong> — Define tempo limite. Se ultrapassar, dispara alerta. Ex: "Maximo 4h de servico", "Aguardar 15 min".</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: #f97316;"></div>
+        <div><strong>Paralelo</strong> — Divide em tarefas simultaneas que devem TODAS ser concluidas para avancar. Ex: "Foto + Assinatura + Relatorio".</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Examples -->
+  <div class="examples">
+    <div class="example-card">
+      <h3>
+        Fluxo Simples (atual)
+        <span class="example-badge">HOJE</span>
+      </h3>
+      <div class="flow">
+        <div class="terminal terminal-start" style="font-size: 10px; padding: 5px 16px;">INICIO</div>
+        <div class="connector connector-short"></div>
+        <div class="block block-action" style="min-width: 200px; max-width: 220px; padding: 10px 14px;">
+          <div class="block-header" style="margin-bottom: 0;">
+            <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#128663;</div>
+            <div class="block-name" style="font-size: 12px;">A caminho</div>
+          </div>
+        </div>
+        <div class="connector connector-short"></div>
+        <div class="block block-action" style="min-width: 200px; max-width: 220px; padding: 10px 14px;">
+          <div class="block-header" style="margin-bottom: 0;">
+            <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#128205;</div>
+            <div class="block-name" style="font-size: 12px;">Chegou no local</div>
+          </div>
+        </div>
+        <div class="connector connector-short"></div>
+        <div class="block block-action" style="min-width: 200px; max-width: 220px; padding: 10px 14px;">
+          <div class="block-header" style="margin-bottom: 0;">
+            <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#128295;</div>
+            <div class="block-name" style="font-size: 12px;">Iniciou servico</div>
+          </div>
+        </div>
+        <div class="connector connector-short"></div>
+        <div class="block block-action" style="min-width: 200px; max-width: 220px; padding: 10px 14px;">
+          <div class="block-header" style="margin-bottom: 0;">
+            <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#9989;</div>
+            <div class="block-name" style="font-size: 12px;">Concluido</div>
+          </div>
+        </div>
+        <div class="connector connector-short"></div>
+        <div class="terminal terminal-end" style="font-size: 10px; padding: 5px 16px;">FIM</div>
+      </div>
+      <p style="margin-top: 16px; font-size: 11px; color: #94a3b8; text-align: center;">
+        Linear simples — sem decisoes, sem notificacoes, sem aprovacoes
+      </p>
+    </div>
+
+    <div class="example-card">
+      <h3>
+        Fluxo com Blocos (proposta)
+        <span class="example-badge" style="background: #dcfce7; color: #166534;">NOVO</span>
+      </h3>
+      <div class="flow">
+        <div class="terminal terminal-start" style="font-size: 10px; padding: 5px 16px;">INICIO</div>
+        <div class="connector connector-short"></div>
+        <div class="block block-action" style="min-width: 200px; max-width: 220px; padding: 10px 14px;">
+          <div class="block-header" style="margin-bottom: 0;">
+            <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#128663;</div>
+            <div class="block-name" style="font-size: 12px;">A caminho</div>
+          </div>
+        </div>
+        <div class="connector connector-short"></div>
+        <div class="block block-notify" style="min-width: 200px; max-width: 220px; padding: 10px 14px;">
+          <div class="block-header" style="margin-bottom: 0;">
+            <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#128172;</div>
+            <div class="block-name" style="font-size: 12px;">Avisar cliente</div>
+          </div>
+        </div>
+        <div class="connector connector-short"></div>
+        <div class="block block-condition" style="min-width: 200px; max-width: 220px; padding: 10px 14px;">
+          <div class="block-header" style="margin-bottom: 0; justify-content: center;">
+            <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#10067;</div>
+            <div class="block-name" style="font-size: 12px;">Precisa peca?</div>
+          </div>
+        </div>
+        <div style="display: flex; font-size: 10px; gap: 40px; margin-top: 4px;">
+          <div style="text-align: center;">
+            <div style="width: 2px; height: 8px; background: #cbd5e1; margin: 0 auto;"></div>
+            <span class="branch-label branch-yes" style="font-size: 9px;">SIM</span>
+            <div style="width: 2px; height: 8px; background: #cbd5e1; margin: 0 auto;"></div>
+            <div class="block block-action" style="min-width: 100px; max-width: 110px; padding: 6px 8px;">
+              <div class="block-header" style="margin-bottom: 0;">
+                <div class="block-icon" style="width: 20px; height: 20px; font-size: 10px;">&#128230;</div>
+                <div class="block-name" style="font-size: 10px;">Buscar</div>
+              </div>
+            </div>
+          </div>
+          <div style="text-align: center;">
+            <div style="width: 2px; height: 8px; background: #cbd5e1; margin: 0 auto;"></div>
+            <span class="branch-label branch-no" style="font-size: 9px;">NAO</span>
+            <div style="width: 2px; height: 8px; background: #cbd5e1; margin: 0 auto;"></div>
+            <div style="font-size: 9px; color: #64748b; padding: 6px;">Continua</div>
+          </div>
+        </div>
+        <div class="connector connector-short"></div>
+        <div class="block block-action" style="min-width: 200px; max-width: 220px; padding: 10px 14px;">
+          <div class="block-header" style="margin-bottom: 0;">
+            <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#9989;</div>
+            <div class="block-name" style="font-size: 12px;">Finalizar</div>
+          </div>
+        </div>
+        <div class="connector connector-short"></div>
+        <div class="block block-gate" style="min-width: 200px; max-width: 220px; padding: 10px 14px;">
+          <div class="block-header" style="margin-bottom: 0;">
+            <div class="block-icon" style="width: 24px; height: 24px; font-size: 12px;">&#128274;</div>
+            <div class="block-name" style="font-size: 12px;">Aprovar</div>
+          </div>
+        </div>
+        <div class="connector connector-short"></div>
+        <div class="terminal terminal-end" style="font-size: 10px; padding: 5px 16px;">FIM</div>
+      </div>
+      <p style="margin-top: 16px; font-size: 11px; color: #94a3b8; text-align: center;">
+        Condicoes + notificacoes + aprovacao = fluxo inteligente
+      </p>
+    </div>
+  </div>
+
+  <!-- Data Model -->
+  <div style="margin-top: 32px; background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+      Modelo de Dados (como fica no JSON)
+      <span class="example-badge">BACKEND</span>
+    </h3>
+    <pre style="background: #0f172a; color: #e2e8f0; padding: 20px; border-radius: 12px; font-size: 12px; overflow-x: auto; line-height: 1.6;"><code>{
+  "name": "Manutencao Residencial",
+  "blocks": [
+    { "id": "b1", "type": "START" },
+    { "id": "b2", "type": "ACTION", "name": "A caminho", "icon": "car",
+      "requirePhoto": false, "requireNote": false,
+      "next": "b3" },
+    { "id": "b3", "type": "NOTIFY", "name": "Avisar cliente",
+      "channel": "WHATSAPP", "template": "tecnico_a_caminho",
+      "next": "b4" },
+    { "id": "b4", "type": "ACTION", "name": "Chegou no local", "icon": "pin",
+      "requirePhoto": true, "requireNote": false,
+      "next": "b5" },
+    { "id": "b5", "type": "CONDITION", "name": "Cliente presente?",
+      "yesNext": "b6", "noNext": "b8" },
+    { "id": "b6", "type": "ACTION", "name": "Iniciar servico", "icon": "wrench",
+      "requirePhoto": true, "requireNote": true,
+      "next": "b7" },
+    { "id": "b7", "type": "TIMER", "name": "SLA 4 horas",
+      "maxMinutes": 240, "alertOnExceed": true,
+      "next": "b10" },
+    { "id": "b8", "type": "NOTIFY", "name": "Cliente ausente",
+      "channel": "WHATSAPP", "template": "cliente_ausente",
+      "next": "b9" },
+    { "id": "b9", "type": "TIMER", "name": "Aguardar 15 min",
+      "maxMinutes": 15,
+      "next": "b5" },
+    { "id": "b10", "type": "ACTION", "name": "Finalizar servico", "icon": "check",
+      "requirePhoto": true, "requireNote": true,
+      "next": "b11" },
+    { "id": "b11", "type": "GATE", "name": "Aprovacao do Gestor",
+      "approverRole": "ADMIN",
+      "next": "b12" },
+    { "id": "b12", "type": "NOTIFY", "name": "Servico concluido",
+      "channel": "WHATSAPP", "template": "servico_concluido",
+      "next": "b13" },
+    { "id": "b13", "type": "END" }
+  ]
+}</code></pre>
+  </div>
+
+  <div style="margin-top: 24px; padding: 20px; background: #f0fdf4; border-radius: 12px; border: 1px solid #bbf7d0;">
+    <h3 style="font-size: 14px; font-weight: 700; color: #166534; margin-bottom: 8px;">&#9989; Vantagens do modelo em blocos</h3>
+    <ul style="font-size: 13px; color: #15803d; line-height: 2; padding-left: 20px;">
+      <li><strong>Retrocompativel</strong> — fluxos atuais (lineares) continuam funcionando, sao apenas blocos tipo ACTION em sequencia</li>
+      <li><strong>Condicoes</strong> — permite caminhos diferentes baseado em situacao real (cliente presente? precisa de peca?)</li>
+      <li><strong>Notificacoes automaticas</strong> — WhatsApp/SMS dispara sozinho em cada ponto do fluxo</li>
+      <li><strong>Aprovacao</strong> — gestor pode travar o fluxo e revisar antes de liberar conclusao</li>
+      <li><strong>SLA</strong> — tempo limite com alerta automatico se ultrapassar</li>
+      <li><strong>Loops</strong> — condicao pode apontar para bloco anterior (ex: reagendar)</li>
+      <li><strong>Visual</strong> — arrastar blocos no canvas, conectar com linhas, ver todo o fluxo de uma vez</li>
+    </ul>
+  </div>
+
+</div>
+
+</body>
+</html>

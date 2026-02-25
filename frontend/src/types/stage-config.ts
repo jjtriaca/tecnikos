@@ -1,0 +1,1675 @@
+/* ═══════════════════════════════════════════════════════════════
+   STAGE CONFIG — Formulário de etapas do fluxo de atendimento
+   Cada status da OS = uma seção configurável com toggles.
+   Compila para WorkflowDefV2 (version: 2) para salvar no backend.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Tipos ─────────────────────────────────────────────────── */
+
+export interface StageConfig {
+  id: string;
+  status: string;
+  label: string;
+  icon: string;
+  enabled: boolean;
+
+  techActions: {
+    step:      { enabled: boolean; description: string; requirePhoto: boolean; requireNote: boolean; requireGPS: boolean };
+    photo:     { enabled: boolean; minPhotos: number; label: string; photoType: string };
+    note:      { enabled: boolean; placeholder: string };
+    gps:       { enabled: boolean; requireAccuracy: boolean };
+    checklist: { enabled: boolean; items: string[] };
+    form:      { enabled: boolean; fields: FormFieldDef[] };
+    signature: { enabled: boolean; label: string };
+    question:  { enabled: boolean; question: string; options: string[] };
+    photoRequirements: { enabled: boolean; groups: PhotoRequirementGroup[] };
+    materials: { enabled: boolean; label: string; requireQuantity: boolean; requireUnitCost: boolean };
+  };
+
+  autoActions: {
+    notifyGestor:   { enabled: boolean; channel: string; message: string };
+    notifyTecnico:  { enabled: boolean; channel: string; message: string; includeLink: boolean };
+    notifyCliente:  { enabled: boolean; channel: string; message: string };
+    financialEntry: {
+      enabled: boolean;
+      entries: FinancialEntryConfig[];    // múltiplos lançamentos configuráveis
+    };
+    alert:          { enabled: boolean; message: string; severity: string };
+    webhook:        { enabled: boolean; url: string };
+    assignTech:     { enabled: boolean; strategy: string };
+    duplicateOS:    { enabled: boolean };
+    gestorApproval: {
+      enabled: boolean;
+      reviewChecklist: string[];                    // itens que o gestor confere antes de aprovar
+      onApprove: {
+        notifyTecnico: { enabled: boolean; channel: string; message: string };
+        notifyCliente: { enabled: boolean; channel: string; message: string };
+      };
+      onApproveWithReservations: {
+        enabled: boolean;                           // se false, botão "Aprovar com ressalvas" não aparece
+        requireNote: boolean;                       // gestor deve descrever as ressalvas
+        commissionAdjustment: {
+          enabled: boolean;
+          type: string;                             // 'reduce_percent' | 'reduce_fixed'
+          value: number;                            // % ou valor fixo a reduzir
+        };
+        flagOS: boolean;                            // marca a OS com flag de qualidade
+        notifyTecnico: { enabled: boolean; channel: string; message: string };
+        notifyCliente: { enabled: boolean; channel: string; message: string };
+      };
+      onReject: {
+        action: string;          // 'reopen_execution' | 'return_assigned' | 'notify_only'
+        requireReason: boolean;
+        notifyTecnico: { enabled: boolean; channel: string; message: string };
+        notifyCliente: { enabled: boolean; channel: string; message: string };
+      };
+    };
+
+    /* ── Campos ricos (stage-specific) ─────────────────── */
+    techSelection: {
+      enabled: boolean;
+      method: string;          // BY_SPECIALIZATION | DIRECTED | BEST_RATING | LEAST_BUSY | NEAREST
+      maxTechnicians: number;
+      acceptTimeout: {
+        mode: 'fixed' | 'from_os';    // fixo ou definido na OS
+        value: number;                  // valor numérico (quando mode=fixed)
+        unit: 'minutes' | 'hours';     // unidade (quando mode=fixed)
+      };
+      enRouteTimeout: {
+        mode: 'fixed' | 'from_os';    // fixo ou definido na OS
+        value: number;
+        unit: 'minutes' | 'hours';
+      };
+      onTimeout: string;       // notify_gestor | reassign | cancel
+      filterBySpecialization: boolean;
+      discardBusyTechnicians: boolean;  // descartar técnicos que estão em atendimento no prazo de aceitar
+    };
+    messageDispatch: {
+      enabled: boolean;
+      toTechnicians: {
+        enabled: boolean; channel: string; message: string;
+        link: {
+          enabled: boolean;
+          validityHours: number;
+          acceptOS: boolean;
+          gpsNavigation: boolean;
+          pageLayout: LinkPageBlock[];
+        };
+      };
+      toGestor:  { enabled: boolean; channel: string; message: string };
+      toCliente: { enabled: boolean; channel: string; message: string };
+    };
+    techQuestion: {
+      enabled: boolean;
+      question: string;
+      options: TechQuestionOption[];
+      required: boolean;          // obriga responder antes de aceitar
+      showOnLinkPage: boolean;    // exibir na página do link
+    };
+    arrivalQuestion: {
+      enabled: boolean;
+      question: string;
+      options: ArrivalTimeOption[];
+      useAsDynamicTimeout: boolean;  // tempo escolhido substitui o enRouteTimeout
+      notifyCliente: boolean;        // notificar cliente sobre ETA
+      notifyGestor: boolean;         // notificar gestor sobre ETA
+      onDecline: string;             // notify_gestor | reassign | return_offered | cancel
+    };
+    proximityTrigger: {
+      enabled: boolean;
+      radiusMeters: number;                // raio para disparar eventos (50–5000m)
+      trackingIntervalSeconds: number;     // frequência de envio de posição (10–120s)
+      requireHighAccuracy: boolean;        // alta precisão GPS
+      keepActiveUntil: string;             // 'radius' = desliga ao entrar no raio, 'execution_end' = mantém até concluir
+      onEnterRadius: {
+        notifyCliente:      { enabled: boolean; channel: string; message: string };
+        notifyGestor:       { enabled: boolean; channel: string; message: string };
+        autoStartExecution: boolean;       // auto-mudar status para EM_EXECUÇÃO ao chegar
+        alert:              { enabled: boolean; message: string };
+      };
+    };
+  };
+
+  timeControl: {
+    sla:     { enabled: boolean; maxMinutes: number; alertOnExceed: boolean };
+    waitFor: { enabled: boolean; timeoutMinutes: number; triggerConditions: string[]; targetStatus: string; timeoutAction: string };
+    delay:   { enabled: boolean; minutes: number };
+    executionTimer: { enabled: boolean; showToTech: boolean; pauseDiscountsFromSla: boolean };
+    pauseSystem: {
+      enabled: boolean;
+      maxPauses: number;                   // 0 = ilimitado
+      maxPauseDurationMinutes: number;     // 0 = ilimitado
+      requireReason: boolean;
+      allowedReasons: string[];            // categories habilitadas (subset de PAUSE_REASON_CATEGORIES)
+      /* ── Notificações ricas (canal + mensagem por destinatário) ── */
+      notifications: {
+        onPause: {
+          gestor:  { enabled: boolean; channel: string; message: string };
+          cliente: { enabled: boolean; channel: string; message: string };
+          tecnico: { enabled: boolean; channel: string; message: string };
+        };
+        onResume: {
+          gestor:  { enabled: boolean; channel: string; message: string };
+          cliente: { enabled: boolean; channel: string; message: string };
+          tecnico: { enabled: boolean; channel: string; message: string };
+        };
+      };
+      /* ── Fotos: controladas via photoRequirements (on_pause / on_resume) ── */
+      /* Removido: requirePhotosOnPause/Resume e minPhotosOnPause/Resume */
+      /* As fotos de pausa são configuradas em "Fotos por momento" (photoRequirements) com moment on_pause/on_resume */
+    };
+  };
+}
+
+export interface FormFieldDef {
+  name: string;
+  type: 'text' | 'number' | 'select';
+  required: boolean;
+}
+
+export interface PhotoRequirementGroup {
+  id: string;
+  moment: string;    // 'before_start' | 'after_completion' | 'on_pause' | 'on_resume' | 'general'
+  minPhotos: number;
+  maxPhotos: number; // 0 = ilimitado
+  label: string;
+  instructions: string;
+  required: boolean;
+}
+
+export interface FinancialEntryConfig {
+  id: string;
+  type: string;           // 'contas_receber' | 'contas_pagar' | 'custo' | 'comissao' | 'taxa' | 'desconto' | 'custom'
+  label: string;          // rótulo exibido (ex: "Comissão do técnico")
+  valueSource: string;    // 'os_value' | 'os_commission' | 'fixed' | 'manual' | 'materials_total'
+  fixedValue?: number;    // quando valueSource = 'fixed'
+  percentOfOS?: number;   // quando valueSource = 'percent_os' (0-100)
+  description: string;    // descrição do lançamento
+  autoCreate: boolean;    // criar automaticamente ou apenas sugerir
+}
+
+export interface LinkPageBlock {
+  id: string;
+  type: 'info' | 'text';
+  /** Para type='info': qual campo de dados exibir */
+  field?: string;
+  /** Label exibido na página */
+  label: string;
+  /** Para type='text': conteúdo livre com variáveis de template */
+  content?: string;
+  enabled: boolean;
+}
+
+export interface TechQuestionOption {
+  label: string;
+  action: string;   // 'accept' | 'reject' | 'reschedule' | 'notify_gestor' | 'none'
+}
+
+export interface ArrivalTimeOption {
+  label: string;    // "15 minutos", "30 minutos", "1 hora"
+  minutes: number;  // valor em minutos
+}
+
+export const QUESTION_ACTIONS = [
+  { value: 'accept',        label: 'Aceitar a OS automaticamente' },
+  { value: 'reject',        label: 'Descartar técnico e redistribuir' },
+  { value: 'reschedule',    label: 'Agendar para depois (notifica gestor)' },
+  { value: 'notify_gestor', label: 'Apenas notificar o gestor' },
+  { value: 'none',          label: 'Nenhuma ação automática' },
+];
+
+export const LINK_PAGE_FIELDS = [
+  { field: 'title',       label: 'Título da OS',       icon: '📋' },
+  { field: 'address',     label: 'Endereço',           icon: '📍' },
+  { field: 'commission',  label: 'Valor da comissão',  icon: '💰' },
+  { field: 'value',       label: 'Valor total da OS',  icon: '💵' },
+  { field: 'deadline',    label: 'Prazo de execução',  icon: '📅' },
+  { field: 'clientName',  label: 'Nome do cliente',    icon: '👤' },
+  { field: 'contact',     label: 'Contato no local',   icon: '📞' },
+  { field: 'description', label: 'Descrição do serviço', icon: '📝' },
+  { field: 'city',        label: 'Cidade',             icon: '🏙️' },
+  { field: 'company',     label: 'Nome da empresa',    icon: '🏢' },
+] as const;
+
+export interface WorkflowFormConfig {
+  name: string;
+  isDefault: boolean;
+  triggerEvent: string;
+  stages: StageConfig[];
+}
+
+/* ── Constantes ────────────────────────────────────────────── */
+
+export const OS_STATUSES = [
+  { status: 'ABERTA',      label: 'Aberta',       icon: '📋' },
+  { status: 'OFERTADA',    label: 'Ofertada',     icon: '📤' },
+  { status: 'ATRIBUIDA',   label: 'Atribuída',    icon: '👤' },
+  { status: 'A_CAMINHO',   label: 'A Caminho',    icon: '🚗' },
+  { status: 'EM_EXECUCAO', label: 'Em Execução',  icon: '🔧' },
+  { status: 'CONCLUIDA',   label: 'Concluída',    icon: '✅' },
+  { status: 'APROVADA',    label: 'Aprovada',     icon: '⭐' },
+] as const;
+
+export const CHANNEL_OPTIONS = [
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'sms',      label: 'SMS' },
+  { value: 'email',    label: 'E-mail' },
+  { value: 'push',     label: 'Push' },
+];
+
+export const SEVERITY_OPTIONS = [
+  { value: 'info',    label: 'Informação' },
+  { value: 'warning', label: 'Aviso' },
+  { value: 'error',   label: 'Urgente' },
+];
+
+export const STRATEGY_OPTIONS = [
+  { value: 'BEST_RATING', label: 'Melhor avaliado' },
+  { value: 'LEAST_BUSY',  label: 'Menos ocupado' },
+];
+
+export const TECH_SELECTION_METHODS = [
+  { value: 'BY_SPECIALIZATION', label: 'Todos com a especialização da OS', hint: 'Oferta para técnicos que tenham a especialização requerida' },
+  { value: 'DIRECTED',          label: 'Técnicos direcionados',            hint: 'Seleciona manualmente na OS quais técnicos receberão' },
+  { value: 'BEST_RATING',       label: 'Melhor avaliado',                  hint: 'Atribui ao técnico com melhor avaliação disponível' },
+  { value: 'LEAST_BUSY',        label: 'Menos ocupado',                    hint: 'Atribui ao técnico com menos OS em andamento' },
+  { value: 'NEAREST',           label: 'Mais próximo (GPS)',               hint: 'Atribui ao técnico mais perto do endereço da OS' },
+];
+
+export const ON_TIMEOUT_OPTIONS = [
+  { value: 'notify_gestor', label: 'Notificar o gestor' },
+  { value: 'reassign',      label: 'Redistribuir para outros técnicos' },
+  { value: 'cancel',        label: 'Cancelar a OS' },
+];
+
+export const ON_DECLINE_OPTIONS = [
+  { value: 'notify_gestor',  label: 'Notificar o gestor' },
+  { value: 'reassign',       label: 'Redistribuir para outros técnicos' },
+  { value: 'return_offered', label: 'Voltar para fila (status Ofertada)' },
+  { value: 'cancel',         label: 'Cancelar a OS' },
+];
+
+export const KEEP_ACTIVE_OPTIONS = [
+  { value: 'radius',        label: 'Até entrar no raio de proximidade', hint: 'GPS desliga quando o técnico chega perto do endereço' },
+  { value: 'execution_end', label: 'Até o final do atendimento',        hint: 'GPS fica ativo durante todo o atendimento (A Caminho + Em Execução + Concluída)' },
+];
+
+export const PHOTO_TYPE_OPTIONS = [
+  { value: 'before',  label: 'Antes' },
+  { value: 'during',  label: 'Durante' },
+  { value: 'after',   label: 'Depois' },
+  { value: 'general', label: 'Geral' },
+];
+
+export const PHOTO_MOMENT_OPTIONS = [
+  { value: 'before_start',    label: 'Antes de iniciar',   hint: 'Fotos obrigatórias antes de começar o serviço' },
+  { value: 'after_completion', label: 'Após concluir',     hint: 'Fotos obrigatórias depois de finalizar o serviço' },
+  { value: 'on_pause',        label: 'Ao pausar',          hint: 'Fotos do estado ao pausar (requer sistema de pausas)' },
+  { value: 'on_resume',       label: 'Ao retomar',         hint: 'Fotos do estado ao retomar (requer sistema de pausas)' },
+  { value: 'general',         label: 'A qualquer momento', hint: 'Fotos sem momento específico — técnico envia quando quiser' },
+];
+
+export const FINANCIAL_ENTRY_TYPES = [
+  { value: 'contas_receber',  label: 'Contas a Receber',    icon: '💰', hint: 'Valor a receber do cliente' },
+  { value: 'contas_pagar',    label: 'Contas a Pagar',      icon: '💸', hint: 'Valor a pagar (fornecedor, serviço terceiro)' },
+  { value: 'comissao',        label: 'Comissão do Técnico',  icon: '👷', hint: 'Comissão do técnico pela execução' },
+  { value: 'custo',           label: 'Custo Operacional',    icon: '📊', hint: 'Custo de materiais, deslocamento, etc.' },
+  { value: 'taxa',            label: 'Taxa/Imposto',         icon: '🏛️', hint: 'Taxas, impostos ou retenções' },
+  { value: 'desconto',        label: 'Desconto',             icon: '🏷️', hint: 'Desconto aplicado ao cliente' },
+  { value: 'custom',          label: 'Personalizado',        icon: '📝', hint: 'Lançamento com tipo livre' },
+];
+
+export const FINANCIAL_VALUE_SOURCES = [
+  { value: 'os_value',        label: 'Valor total da OS',       hint: 'Usa o valor total registrado na OS' },
+  { value: 'os_commission',   label: 'Valor da comissão da OS', hint: 'Usa a comissão configurada na OS' },
+  { value: 'materials_total', label: 'Total de materiais',      hint: 'Soma dos materiais registrados pelo técnico' },
+  { value: 'percent_os',      label: 'Percentual do valor da OS', hint: 'Calcula % sobre o valor total da OS' },
+  { value: 'fixed',           label: 'Valor fixo',              hint: 'Valor predefinido no workflow' },
+  { value: 'manual',          label: 'Manual (gestor define)',   hint: 'Gestor informa o valor na aprovação' },
+];
+
+export const PAUSE_REASON_CATEGORIES = [
+  { value: 'meal_break',             label: 'Intervalo para refeição',       icon: '🍽️', hint: 'Almoço, lanche, janta' },
+  { value: 'end_of_day',             label: 'Encerramento do expediente',    icon: '🌙', hint: 'Final do dia, retorna amanhã' },
+  { value: 'fetch_materials',        label: 'Buscar material/peças',         icon: '🔧', hint: 'Precisa sair para buscar suprimentos' },
+  { value: 'weather',                label: 'Condições climáticas',          icon: '🌧️', hint: 'Chuva, tempestade, calor extremo' },
+  { value: 'waiting_client',         label: 'Aguardando cliente',            icon: '⏳', hint: 'Cliente ausente, retorna em horário marcado' },
+  { value: 'waiting_utilities',      label: 'Aguardando energia/utilidades', icon: '🔌', hint: 'Sem luz, sem água, sem internet' },
+  { value: 'waiting_access',         label: 'Aguardando liberação de acesso', icon: '🚧', hint: 'Área restrita, segurança, permissão' },
+  { value: 'waiting_other_service',  label: 'Aguardando outro serviço',      icon: '🛠️', hint: 'Outra equipe precisa terminar primeiro' },
+  { value: 'personal',               label: 'Motivo pessoal',               icon: '🏥', hint: 'Necessidade pessoal do técnico' },
+  { value: 'other',                  label: 'Outro',                         icon: '📝', hint: 'Motivo livre (texto obrigatório)' },
+];
+
+export const COMMISSION_ADJUSTMENT_TYPES = [
+  { value: 'reduce_percent', label: 'Reduzir em percentual (%)',  hint: 'Desconta X% da comissão original' },
+  { value: 'reduce_fixed',   label: 'Reduzir valor fixo (R$)',    hint: 'Desconta um valor fixo da comissão' },
+];
+
+export const GESTOR_REJECT_ACTIONS = [
+  { value: 'reopen_execution', label: 'Retornar para Execução',       hint: 'Técnico refaz o serviço (volta para EM_EXECUÇÃO)' },
+  { value: 'return_assigned',  label: 'Retornar para Atribuída',       hint: 'Volta o técnico ao início (recomeça deslocamento)' },
+  { value: 'notify_only',      label: 'Apenas notificar (manter aqui)', hint: 'Mantém na CONCLUÍDA e notifica técnico para resolver' },
+];
+
+export const TRIGGER_CONDITIONS = [
+  { value: 'os_assigned',       label: 'Técnico aceitar a OS' },
+  { value: 'os_status_changed', label: 'Status da OS mudar' },
+  { value: 'os_completed',      label: 'OS ser concluída' },
+  { value: 'os_approved',       label: 'OS ser aprovada' },
+];
+
+export const TIMEOUT_ACTIONS = [
+  { value: 'continue', label: 'Continuar fluxo' },
+  { value: 'cancel',   label: 'Encerrar fluxo' },
+];
+
+/* ── Notify template variables ─────────────────────────────── */
+
+export const NOTIFY_VARS = [
+  { var: '{titulo}',           label: 'Título da OS' },
+  { var: '{status}',           label: 'Status atual' },
+  { var: '{valor}',            label: 'Valor total' },
+  { var: '{comissao}',         label: 'Valor comissão' },
+  { var: '{endereco}',         label: 'Endereço completo' },
+  { var: '{cidade}',           label: 'Cidade' },
+  { var: '{prazo}',            label: 'Prazo' },
+  { var: '{cliente}',          label: 'Nome do cliente' },
+  { var: '{tecnico}',          label: 'Nome do técnico' },
+  { var: '{contato_local}',    label: 'Contato no local' },
+  { var: '{empresa}',          label: 'Nome da empresa' },
+  { var: '{tempo_aceitar}',    label: 'Tempo para aceitar' },
+  { var: '{tempo_a_caminho}',  label: 'Tempo para clicar a caminho' },
+  { var: '{tempo_estimado_chegada}', label: 'Tempo estimado de chegada (técnico)' },
+  { var: '{distancia_tecnico}',      label: 'Distância atual do técnico' },
+  { var: '{pausas}',                 label: 'Número de pausas realizadas' },
+  { var: '{tempo_pausado}',          label: 'Tempo total pausado' },
+  { var: '{motivo_pausa}',           label: 'Motivo da última pausa' },
+  { var: '{motivo_rejeicao}',       label: 'Motivo da rejeição do gestor' },
+  { var: '{ressalvas}',             label: 'Ressalvas do gestor na aprovação' },
+];
+
+/* ── Labels de ações (PT-BR) ──────────────────────────────── */
+
+export const TECH_ACTION_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
+  step:      { label: 'Registrar atividade',      icon: '⚙️', hint: 'Etapa genérica com foto/nota/GPS opcionais' },
+  photo:     { label: 'Tirar fotos obrigatórias',  icon: '📸', hint: 'Exige fotos do técnico (antes, depois, etc.)' },
+  note:      { label: 'Escrever observação',       icon: '📝', hint: 'Campo de texto para observações' },
+  gps:       { label: 'Capturar localização GPS',  icon: '📍', hint: 'Registra coordenadas do técnico' },
+  checklist: { label: 'Preencher checklist',       icon: '☑️', hint: 'Lista de itens para verificar' },
+  form:      { label: 'Preencher formulário',      icon: '📋', hint: 'Campos personalizados (texto, número, seleção)' },
+  signature:         { label: 'Coletar assinatura',            icon: '✍️', hint: 'Assinatura digital do cliente ou técnico' },
+  question:          { label: 'Responder pergunta',            icon: '❓', hint: 'Pergunta com opções de resposta' },
+  photoRequirements: { label: 'Fotos por momento',             icon: '📷', hint: 'Múltiplos grupos de fotos (antes, depois, pausa, retorno)' },
+  materials:         { label: 'Registrar materiais utilizados', icon: '🔩', hint: 'Técnico informa materiais/peças usados no serviço' },
+};
+
+export const AUTO_ACTION_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
+  notifyGestor:   { label: 'Notificar gestor',                 icon: '👔', hint: 'Envia mensagem para o gestor/admin' },
+  notifyTecnico:  { label: 'Notificar técnico',                icon: '👷', hint: 'Envia mensagem para o técnico atribuído' },
+  notifyCliente:  { label: 'Notificar cliente',                icon: '👤', hint: 'Envia mensagem para o cliente da OS' },
+  financialEntry: { label: 'Lançar financeiro',                icon: '💰', hint: 'Cria lançamento financeiro automático' },
+  alert:          { label: 'Enviar alerta',                    icon: '🔔', hint: 'Cria uma notificação visual no painel do gestor (ex: "OS urgente criada")' },
+  webhook:        { label: 'Webhook externo',                  icon: '🔗', hint: 'Envia os dados da OS para outro sistema via URL (integração com ERP, BI, etc.)' },
+  assignTech:     { label: 'Atribuir técnico automaticamente', icon: '🎯', hint: 'Auto-atribui técnico por avaliação ou disponibilidade' },
+  duplicateOS:    { label: 'Duplicar OS',                      icon: '📑', hint: 'Cria cópia da ordem de serviço' },
+};
+
+export const TIME_CONTROL_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
+  sla:            { label: 'Tempo máximo nesta etapa (SLA)', icon: '⏱️', hint: 'Define prazo máximo para completar esta etapa' },
+  waitFor:        { label: 'Aguardar evento',                icon: '⏸️', hint: 'Pausa o fluxo até evento ou timeout' },
+  delay:          { label: 'Atraso entre etapas',            icon: '⏳', hint: 'Aguarda X minutos antes de prosseguir' },
+  executionTimer: { label: 'Cronômetro de execução',         icon: '⏲️', hint: 'Mede tempo efetivo de execução (descontando pausas futuras)' },
+};
+
+/* ── Factory ───────────────────────────────────────────────── */
+
+function createEmptyStage(status: string, label: string, icon: string): StageConfig {
+  return {
+    id: `stage_${status.toLowerCase()}`,
+    status,
+    label,
+    icon,
+    enabled: false,
+    techActions: {
+      step:      { enabled: false, description: '', requirePhoto: false, requireNote: false, requireGPS: false },
+      photo:     { enabled: false, minPhotos: 1, label: 'Foto', photoType: 'general' },
+      note:      { enabled: false, placeholder: 'Observações...' },
+      gps:       { enabled: false, requireAccuracy: false },
+      checklist: { enabled: false, items: [] },
+      form:      { enabled: false, fields: [] },
+      signature: { enabled: false, label: 'Assinatura do cliente' },
+      question:  { enabled: false, question: '', options: [] },
+      photoRequirements: { enabled: false, groups: [] },
+      materials: { enabled: false, label: 'Materiais utilizados', requireQuantity: true, requireUnitCost: false },
+    },
+    autoActions: {
+      notifyGestor:   { enabled: false, channel: 'whatsapp', message: '' },
+      notifyTecnico:  { enabled: false, channel: 'whatsapp', message: '', includeLink: false },
+      notifyCliente:  { enabled: false, channel: 'sms', message: '' },
+      financialEntry: { enabled: false, entries: [] },
+      alert:          { enabled: false, message: '', severity: 'info' },
+      webhook:        { enabled: false, url: '' },
+      assignTech:     { enabled: false, strategy: 'BEST_RATING' },
+      duplicateOS:    { enabled: false },
+      gestorApproval: {
+        enabled: false,
+        reviewChecklist: ['Verificar fotos do serviço', 'Conferir checklist do técnico', 'Revisar materiais utilizados'],
+        onApprove: {
+          notifyTecnico: { enabled: true,  channel: 'push',     message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
+          notifyCliente: { enabled: false, channel: 'sms',      message: 'Seu serviço "{titulo}" foi finalizado com sucesso. Obrigado!' },
+        },
+        onApproveWithReservations: {
+          enabled: true,
+          requireNote: true,
+          commissionAdjustment: { enabled: false, type: 'reduce_percent', value: 10 },
+          flagOS: true,
+          notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
+          notifyCliente: { enabled: false, channel: 'sms',      message: '' },
+        },
+        onReject: {
+          action: 'reopen_execution',
+          requireReason: true,
+          notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
+          notifyCliente: { enabled: false, channel: 'sms',      message: '' },
+        },
+      },
+      techSelection: {
+        enabled: false, method: 'BY_SPECIALIZATION', maxTechnicians: 5,
+        acceptTimeout: { mode: 'fixed', value: 60, unit: 'minutes' },
+        enRouteTimeout: { mode: 'fixed', value: 30, unit: 'minutes' },
+        onTimeout: 'notify_gestor', filterBySpecialization: true,
+        discardBusyTechnicians: true,
+      },
+      messageDispatch: {
+        enabled: false,
+        toTechnicians: {
+          enabled: true, channel: 'whatsapp',
+          message: 'Nova OS disponível: {titulo}. Endereço: {endereco}. Valor comissão: {comissao}',
+          link: {
+            enabled: true,
+            validityHours: 24,
+            acceptOS: true,
+            gpsNavigation: false,
+            pageLayout: [
+              { id: 'bl_01', type: 'info', field: 'title',       label: 'Título da OS',        enabled: true },
+              { id: 'bl_02', type: 'info', field: 'address',     label: 'Endereço',            enabled: true },
+              { id: 'bl_03', type: 'info', field: 'commission',  label: 'Valor da comissão',   enabled: true },
+              { id: 'bl_04', type: 'info', field: 'value',       label: 'Valor total da OS',   enabled: false },
+              { id: 'bl_05', type: 'info', field: 'deadline',    label: 'Prazo de execução',   enabled: true },
+              { id: 'bl_06', type: 'info', field: 'clientName',  label: 'Nome do cliente',     enabled: false },
+              { id: 'bl_07', type: 'info', field: 'contact',     label: 'Contato no local',    enabled: false },
+              { id: 'bl_08', type: 'info', field: 'description', label: 'Descrição do serviço',enabled: false },
+              { id: 'bl_09', type: 'info', field: 'city',        label: 'Cidade',              enabled: false },
+              { id: 'bl_10', type: 'info', field: 'company',     label: 'Nome da empresa',     enabled: false },
+              { id: 'bl_11', type: 'text', label: 'Texto livre 1', content: '', enabled: false },
+              { id: 'bl_12', type: 'text', label: 'Texto livre 2', content: '', enabled: false },
+              { id: 'bl_13', type: 'text', label: 'Texto livre 3', content: '', enabled: false },
+            ],
+          },
+        },
+        toGestor:  { enabled: false, channel: 'whatsapp', message: 'OS {titulo} foi aberta e enviada para técnicos' },
+        toCliente: { enabled: false, channel: 'sms', message: 'Sua solicitação {titulo} foi recebida. Em breve um técnico será designado.' },
+      },
+      techQuestion: {
+        enabled: false,
+        question: 'Você tem disponibilidade para atender esta OS?',
+        options: [
+          { label: 'Sim, aceito', action: 'accept' },
+          { label: 'Não posso atender', action: 'reject' },
+          { label: 'Posso em outro horário', action: 'notify_gestor' },
+        ],
+        required: true,
+        showOnLinkPage: true,
+      },
+      arrivalQuestion: {
+        enabled: false,
+        question: 'Quanto tempo até você estar a caminho?',
+        options: [
+          { label: '15 minutos', minutes: 15 },
+          { label: '30 minutos', minutes: 30 },
+          { label: '1 hora', minutes: 60 },
+          { label: '2 horas', minutes: 120 },
+        ],
+        useAsDynamicTimeout: false,
+        notifyCliente: false,
+        notifyGestor: false,
+        onDecline: 'notify_gestor',
+      },
+      proximityTrigger: {
+        enabled: false,
+        radiusMeters: 200,
+        trackingIntervalSeconds: 30,
+        requireHighAccuracy: true,
+        keepActiveUntil: 'radius',
+        onEnterRadius: {
+          notifyCliente:      { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} está chegando! OS: {titulo}' },
+          notifyGestor:       { enabled: false, channel: 'push',     message: '' },
+          autoStartExecution: false,
+          alert:              { enabled: false, message: '' },
+        },
+      },
+    },
+    timeControl: {
+      sla:     { enabled: false, maxMinutes: 120, alertOnExceed: true },
+      waitFor: { enabled: false, timeoutMinutes: 60, triggerConditions: [], targetStatus: '', timeoutAction: 'continue' },
+      delay:   { enabled: false, minutes: 30 },
+      executionTimer: { enabled: false, showToTech: true, pauseDiscountsFromSla: true },
+      pauseSystem: {
+        enabled: false,
+        maxPauses: 0,
+        maxPauseDurationMinutes: 0,
+        requireReason: true,
+        allowedReasons: PAUSE_REASON_CATEGORIES.map(c => c.value),
+        notifications: {
+          onPause: {
+            gestor:  { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} pausou a OS "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
+            cliente: { enabled: false, channel: 'sms',      message: '' },
+            tecnico: { enabled: false, channel: 'push',     message: '' },
+          },
+          onResume: {
+            gestor:  { enabled: false, channel: 'whatsapp', message: 'O técnico {tecnico} retomou a OS "{titulo}". Tempo pausado: {tempo_pausado}.' },
+            cliente: { enabled: false, channel: 'sms',      message: '' },
+            tecnico: { enabled: false, channel: 'push',     message: '' },
+          },
+        },
+      },
+    },
+  };
+}
+
+export function createDefaultConfig(): WorkflowFormConfig {
+  return {
+    name: '',
+    isDefault: false,
+    triggerEvent: 'os_created',
+    stages: OS_STATUSES.map(s => createEmptyStage(s.status, s.label, s.icon)),
+  };
+}
+
+/* ── Presets (modelos prontos) ─────────────────────────────── */
+
+export interface WorkflowPreset {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  apply: (config: WorkflowFormConfig) => WorkflowFormConfig;
+}
+
+export const WORKFLOW_PRESETS: WorkflowPreset[] = [
+  {
+    id: 'blank',
+    name: 'Começar do Zero',
+    description: 'Todas as etapas desativadas',
+    icon: '📄',
+    apply: () => createDefaultConfig(),
+  },
+  {
+    id: 'instalacao',
+    name: 'Instalação Padrão',
+    description: 'Fluxo completo com foto antes/depois, checklist e assinatura',
+    icon: '🔌',
+    apply: (cfg) => {
+      const c = createDefaultConfig();
+      c.name = cfg.name;
+      c.triggerEvent = 'os_assigned';
+      // ATRIBUIDA
+      const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
+      atrib.enabled = true;
+      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: 'Você foi atribuído à OS {titulo}. Endereço: {endereco}', includeLink: true };
+      // A_CAMINHO
+      const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
+      caminho.enabled = true;
+      caminho.techActions.gps = { enabled: true, requireAccuracy: false };
+      caminho.autoActions.notifyCliente = { enabled: true, channel: 'sms', message: 'O técnico está a caminho. OS: {titulo}' };
+      caminho.autoActions.proximityTrigger = {
+        ...caminho.autoActions.proximityTrigger,
+        enabled: true, radiusMeters: 200, keepActiveUntil: 'radius',
+        onEnterRadius: { ...caminho.autoActions.proximityTrigger.onEnterRadius, notifyCliente: { enabled: true, channel: 'whatsapp', message: 'O técnico {tecnico} está chegando! OS: {titulo}' } },
+      };
+      // EM_EXECUCAO
+      const exec = c.stages.find(s => s.status === 'EM_EXECUCAO')!;
+      exec.enabled = true;
+      exec.techActions.photoRequirements = { enabled: true, groups: [
+        { id: 'pr_before', moment: 'before_start', minPhotos: 1, maxPhotos: 0, label: 'Foto antes da instalação', instructions: 'Registre o local antes de iniciar', required: true },
+        { id: 'pr_after', moment: 'after_completion', minPhotos: 2, maxPhotos: 0, label: 'Fotos após instalação', instructions: 'Registre o equipamento instalado e área limpa', required: true },
+      ]};
+      exec.techActions.checklist = { enabled: true, items: ['Material conferido', 'Área limpa', 'Equipamento instalado', 'Teste realizado'] };
+      exec.techActions.step = { enabled: true, description: 'Realizar a instalação conforme procedimento', requirePhoto: true, requireNote: true, requireGPS: false };
+      exec.techActions.materials = { enabled: true, label: 'Materiais utilizados na instalação', requireQuantity: true, requireUnitCost: false };
+      exec.techActions.signature = { enabled: true, label: 'Assinatura do cliente' };
+      exec.timeControl.sla = { enabled: true, maxMinutes: 240, alertOnExceed: true };
+      exec.timeControl.executionTimer = { enabled: true, showToTech: true, pauseDiscountsFromSla: true };
+      exec.timeControl.pauseSystem = {
+        ...exec.timeControl.pauseSystem,
+        enabled: true, requireReason: true,
+        notifications: {
+          onPause: {
+            gestor:  { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} pausou a OS "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
+            cliente: { enabled: false, channel: 'sms',      message: '' },
+            tecnico: { enabled: false, channel: 'push',     message: '' },
+          },
+          onResume: {
+            gestor:  { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} retomou a OS "{titulo}". Tempo pausado: {tempo_pausado}.' },
+            cliente: { enabled: false, channel: 'sms',      message: '' },
+            tecnico: { enabled: false, channel: 'push',     message: '' },
+          },
+        },
+      };
+      // Fotos de pausa configuradas via photoRequirements
+      exec.techActions.photoRequirements.groups.push(
+        { id: 'pr_pause', moment: 'on_pause', minPhotos: 1, maxPhotos: 0, label: 'Fotos ao pausar', instructions: 'Registre o estado do serviço antes de pausar', required: true },
+        { id: 'pr_resume', moment: 'on_resume', minPhotos: 1, maxPhotos: 0, label: 'Fotos ao retomar', instructions: 'Registre o estado antes de retomar o serviço', required: true },
+      );
+      // CONCLUIDA
+      const conc = c.stages.find(s => s.status === 'CONCLUIDA')!;
+      conc.enabled = true;
+      conc.autoActions.notifyGestor = { enabled: true, channel: 'whatsapp', message: 'OS {titulo} foi concluída pelo técnico {tecnico}. Aguardando sua aprovação.' };
+      conc.autoActions.gestorApproval = {
+        enabled: true,
+        reviewChecklist: ['Verificar fotos antes/depois', 'Conferir checklist de instalação', 'Revisar materiais utilizados', 'Verificar assinatura do cliente'],
+        onApprove: {
+          notifyTecnico: { enabled: true, channel: 'push', message: '✅ Instalação "{titulo}" aprovada! Comissão: {comissao}' },
+          notifyCliente: { enabled: true, channel: 'sms', message: 'Sua instalação "{titulo}" foi concluída e aprovada. Obrigado por escolher {empresa}!' },
+        },
+        onApproveWithReservations: {
+          enabled: true,
+          requireNote: true,
+          commissionAdjustment: { enabled: true, type: 'reduce_percent', value: 10 },
+          flagOS: true,
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Instalação "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 10%.' },
+          notifyCliente: { enabled: false, channel: 'sms', message: '' },
+        },
+        onReject: {
+          action: 'reopen_execution',
+          requireReason: true,
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '❌ Instalação "{titulo}" reprovada. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
+          notifyCliente: { enabled: false, channel: 'sms', message: '' },
+        },
+      };
+      conc.autoActions.financialEntry = { enabled: true, entries: [
+        { id: 'fe_receber', type: 'contas_receber', label: 'Valor a receber do cliente', valueSource: 'os_value', description: 'Faturamento pela execução do serviço', autoCreate: true },
+        { id: 'fe_comissao', type: 'comissao', label: 'Comissão do técnico', valueSource: 'os_commission', description: 'Comissão pela execução', autoCreate: true },
+      ]};
+      return c;
+    },
+  },
+  {
+    id: 'manutencao',
+    name: 'Manutenção Corretiva',
+    description: 'Diagnóstico, reparo e fotos do serviço',
+    icon: '🔧',
+    apply: (cfg) => {
+      const c = createDefaultConfig();
+      c.name = cfg.name;
+      c.triggerEvent = 'os_assigned';
+      // ATRIBUIDA
+      const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
+      atrib.enabled = true;
+      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: 'Nova manutenção: {titulo}. Local: {endereco}', includeLink: true };
+      // A_CAMINHO
+      const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
+      caminho.enabled = true;
+      caminho.techActions.gps = { enabled: true, requireAccuracy: false };
+      // EM_EXECUCAO
+      const exec = c.stages.find(s => s.status === 'EM_EXECUCAO')!;
+      exec.enabled = true;
+      exec.techActions.photoRequirements = { enabled: true, groups: [
+        { id: 'pr_before', moment: 'before_start', minPhotos: 2, maxPhotos: 0, label: 'Fotos do problema', instructions: 'Registre o estado atual do problema antes do reparo', required: true },
+        { id: 'pr_after', moment: 'after_completion', minPhotos: 1, maxPhotos: 0, label: 'Foto após reparo', instructions: 'Registre o resultado do reparo', required: true },
+      ]};
+      exec.techActions.note = { enabled: true, placeholder: 'Descreva o diagnóstico...' };
+      exec.techActions.step = { enabled: true, description: 'Executar o reparo', requirePhoto: true, requireNote: true, requireGPS: false };
+      exec.techActions.materials = { enabled: true, label: 'Peças e materiais usados no reparo', requireQuantity: true, requireUnitCost: true };
+      exec.timeControl.sla = { enabled: true, maxMinutes: 180, alertOnExceed: true };
+      exec.timeControl.executionTimer = { enabled: true, showToTech: true, pauseDiscountsFromSla: true };
+      exec.timeControl.pauseSystem = {
+        ...exec.timeControl.pauseSystem,
+        enabled: true, requireReason: true,
+        notifications: {
+          onPause: {
+            gestor:  { enabled: true,  channel: 'whatsapp', message: 'Técnico pausou manutenção "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
+            cliente: { enabled: false, channel: 'sms',      message: '' },
+            tecnico: { enabled: false, channel: 'push',     message: '' },
+          },
+          onResume: {
+            gestor:  { enabled: false, channel: 'whatsapp', message: '' },
+            cliente: { enabled: false, channel: 'sms',      message: '' },
+            tecnico: { enabled: false, channel: 'push',     message: '' },
+          },
+        },
+      };
+      // Fotos de pausa via photoRequirements
+      exec.techActions.photoRequirements.groups.push(
+        { id: 'pr_pause', moment: 'on_pause', minPhotos: 1, maxPhotos: 0, label: 'Fotos ao pausar', instructions: 'Registre o estado do reparo antes de pausar', required: true },
+      );
+      // CONCLUIDA
+      const conc = c.stages.find(s => s.status === 'CONCLUIDA')!;
+      conc.enabled = true;
+      conc.autoActions.notifyGestor = { enabled: true, channel: 'whatsapp', message: 'Manutenção concluída: {titulo}. Aguardando sua aprovação.' };
+      conc.autoActions.gestorApproval = {
+        enabled: true,
+        reviewChecklist: ['Verificar fotos do problema (antes)', 'Verificar foto do reparo (depois)', 'Conferir diagnóstico e materiais', 'Revisar custos'],
+        onApprove: {
+          notifyTecnico: { enabled: true, channel: 'push', message: '✅ Manutenção "{titulo}" aprovada!' },
+          notifyCliente: { enabled: false, channel: 'sms', message: '' },
+        },
+        onApproveWithReservations: {
+          enabled: true,
+          requireNote: true,
+          commissionAdjustment: { enabled: true, type: 'reduce_percent', value: 15 },
+          flagOS: true,
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Manutenção "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 15%.' },
+          notifyCliente: { enabled: false, channel: 'sms', message: '' },
+        },
+        onReject: {
+          action: 'reopen_execution',
+          requireReason: true,
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '❌ Manutenção "{titulo}" reprovada. Motivo: {motivo_rejeicao}.' },
+          notifyCliente: { enabled: false, channel: 'sms', message: '' },
+        },
+      };
+      conc.autoActions.financialEntry = { enabled: true, entries: [
+        { id: 'fe_receber', type: 'contas_receber', label: 'Valor a receber', valueSource: 'os_value', description: 'Faturamento do reparo', autoCreate: true },
+        { id: 'fe_custo', type: 'custo', label: 'Custo de materiais', valueSource: 'materials_total', description: 'Total de peças/materiais usados', autoCreate: true },
+        { id: 'fe_comissao', type: 'comissao', label: 'Comissão do técnico', valueSource: 'os_commission', description: 'Comissão pela manutenção', autoCreate: true },
+      ]};
+      return c;
+    },
+  },
+  {
+    id: 'vistoria',
+    name: 'Vistoria Técnica',
+    description: 'Checklist de vistoria com formulário e GPS',
+    icon: '🔍',
+    apply: (cfg) => {
+      const c = createDefaultConfig();
+      c.name = cfg.name;
+      c.triggerEvent = 'os_assigned';
+      // ATRIBUIDA
+      const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
+      atrib.enabled = true;
+      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: 'Vistoria agendada: {titulo}. Endereço: {endereco}', includeLink: true };
+      // A_CAMINHO
+      const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
+      caminho.enabled = true;
+      caminho.techActions.gps = { enabled: true, requireAccuracy: true };
+      caminho.autoActions.proximityTrigger = {
+        ...caminho.autoActions.proximityTrigger,
+        enabled: true, radiusMeters: 100, requireHighAccuracy: true, keepActiveUntil: 'execution_end',
+        onEnterRadius: { ...caminho.autoActions.proximityTrigger.onEnterRadius, autoStartExecution: true, notifyCliente: { enabled: true, channel: 'whatsapp', message: 'O técnico {tecnico} está chegando para a vistoria! OS: {titulo}' } },
+      };
+      // EM_EXECUCAO
+      const exec = c.stages.find(s => s.status === 'EM_EXECUCAO')!;
+      exec.enabled = true;
+      exec.techActions.checklist = { enabled: true, items: ['Estrutura', 'Elétrica', 'Hidráulica', 'Acabamento', 'Segurança'] };
+      exec.techActions.photoRequirements = { enabled: true, groups: [
+        { id: 'pr_vistoria', moment: 'general', minPhotos: 3, maxPhotos: 20, label: 'Fotos da vistoria', instructions: 'Registre cada item vistoriado com fotos', required: true },
+        { id: 'pr_problems', moment: 'general', minPhotos: 0, maxPhotos: 0, label: 'Fotos de problemas encontrados', instructions: 'Se encontrar problemas, registre com fotos', required: false },
+      ]};
+      exec.techActions.form = { enabled: true, fields: [
+        { name: 'Parecer técnico', type: 'text', required: true },
+        { name: 'Nota geral (1-10)', type: 'number', required: true },
+      ]};
+      // CONCLUIDA
+      const conc = c.stages.find(s => s.status === 'CONCLUIDA')!;
+      conc.enabled = true;
+      conc.autoActions.notifyGestor = { enabled: true, channel: 'whatsapp', message: 'Vistoria concluída: {titulo}' };
+      return c;
+    },
+  },
+  {
+    id: 'urgente',
+    name: 'Atendimento Urgente',
+    description: 'SLA curto, auto-atribuição, notificações rápidas',
+    icon: '🚨',
+    apply: (cfg) => {
+      const c = createDefaultConfig();
+      c.name = cfg.name;
+      c.triggerEvent = 'os_created';
+      // ABERTA
+      const aberta = c.stages.find(s => s.status === 'ABERTA')!;
+      aberta.enabled = true;
+      aberta.autoActions.assignTech = { enabled: true, strategy: 'LEAST_BUSY' };
+      aberta.autoActions.notifyGestor = { enabled: true, channel: 'whatsapp', message: '⚠️ OS URGENTE criada: {titulo}' };
+      // ATRIBUIDA
+      const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
+      atrib.enabled = true;
+      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: '🚨 URGENTE: {titulo}. Comparecer imediatamente em {endereco}', includeLink: true };
+      atrib.timeControl.waitFor = { enabled: true, timeoutMinutes: 15, triggerConditions: ['os_assigned'], targetStatus: '', timeoutAction: 'continue' };
+      // EM_EXECUCAO
+      const exec = c.stages.find(s => s.status === 'EM_EXECUCAO')!;
+      exec.enabled = true;
+      exec.techActions.step = { enabled: true, description: 'Resolver o problema urgente', requirePhoto: true, requireNote: true, requireGPS: false };
+      exec.techActions.photoRequirements = { enabled: true, groups: [
+        { id: 'pr_before', moment: 'before_start', minPhotos: 1, maxPhotos: 0, label: 'Foto do problema', instructions: 'Registre o problema antes de iniciar', required: true },
+        { id: 'pr_after', moment: 'after_completion', minPhotos: 1, maxPhotos: 0, label: 'Foto após resolução', instructions: 'Registre que o problema foi resolvido', required: true },
+      ]};
+      exec.timeControl.sla = { enabled: true, maxMinutes: 120, alertOnExceed: true };
+      exec.timeControl.executionTimer = { enabled: true, showToTech: true, pauseDiscountsFromSla: false };
+      // CONCLUIDA
+      const conc = c.stages.find(s => s.status === 'CONCLUIDA')!;
+      conc.enabled = true;
+      conc.autoActions.notifyGestor = { enabled: true, channel: 'whatsapp', message: '✅ OS urgente concluída: {titulo}' };
+      conc.autoActions.notifyCliente = { enabled: true, channel: 'sms', message: 'Seu chamado urgente foi resolvido. OS: {titulo}' };
+      conc.autoActions.financialEntry = { enabled: true, entries: [
+        { id: 'fe_receber', type: 'contas_receber', label: 'Valor a receber', valueSource: 'os_value', description: 'Faturamento do atendimento urgente', autoCreate: true },
+      ]};
+      return c;
+    },
+  },
+  {
+    id: 'simples',
+    name: 'Fluxo Simples',
+    description: 'Mínimo: execução e conclusão apenas',
+    icon: '✨',
+    apply: (cfg) => {
+      const c = createDefaultConfig();
+      c.name = cfg.name;
+      c.triggerEvent = 'os_assigned';
+      // EM_EXECUCAO
+      const exec = c.stages.find(s => s.status === 'EM_EXECUCAO')!;
+      exec.enabled = true;
+      exec.techActions.step = { enabled: true, description: 'Executar o serviço', requirePhoto: false, requireNote: true, requireGPS: false };
+      // CONCLUIDA
+      const conc = c.stages.find(s => s.status === 'CONCLUIDA')!;
+      conc.enabled = true;
+      conc.autoActions.financialEntry = { enabled: true, entries: [
+        { id: 'fe_receber', type: 'contas_receber', label: 'Valor a receber', valueSource: 'os_value', description: 'Faturamento do serviço', autoCreate: true },
+      ]};
+      return c;
+    },
+  },
+];
+
+/* ── Compilador: StageConfig[] → V2 Blocks ─────────────────── */
+
+let _blockCounter = 0;
+function genId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${(++_blockCounter).toString(36)}`;
+}
+
+interface V2Block {
+  id: string;
+  type: string;
+  name: string;
+  icon: string;
+  config: Record<string, any>;
+  next: string | null;
+}
+
+export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V2Block[] } {
+  _blockCounter = 0;
+  const blocks: V2Block[] = [];
+
+  const startId = '_start';
+  const endId = '_end';
+
+  blocks.push({ id: startId, type: 'START', name: 'Início', icon: '▶️', config: {}, next: null });
+  blocks.push({ id: endId, type: 'END', name: 'Fim', icon: '⏹️', config: {}, next: null });
+
+  const enabledStages = config.stages.filter(s => s.enabled);
+  if (enabledStages.length === 0) {
+    blocks[0].next = endId;
+    return { version: 2, blocks };
+  }
+
+  // For each enabled stage, collect blocks
+  const allStageBlocks: V2Block[][] = [];
+
+  for (const stage of enabledStages) {
+    const stageBlocks: V2Block[] = [];
+
+    // 1. STATUS block (change to this stage's status)
+    stageBlocks.push({
+      id: genId('status'),
+      type: 'STATUS',
+      name: `Mudar para ${stage.label}`,
+      icon: stage.icon,
+      config: { targetStatus: stage.status },
+      next: null,
+    });
+
+    // 2a. Rich tech selection (overrides simple assignTech if enabled)
+    //     Cross-stage: ABERTA=método/max, OFERTADA=aceite/timeout, ATRIBUÍDA=a_caminho
+    if (stage.autoActions.techSelection.enabled) {
+      const ofertadaStage = config.stages.find(s => s.status === 'OFERTADA')!;
+      const atribuidaStage = config.stages.find(s => s.status === 'ATRIBUIDA')!;
+      const oSel = ofertadaStage.autoActions.techSelection;
+      const aSel = atribuidaStage.autoActions.techSelection;
+      stageBlocks.push({
+        id: genId('assign'), type: 'ASSIGN_TECH', name: 'Seleção de técnicos', icon: '🎯',
+        config: {
+          strategy: stage.autoActions.techSelection.method,
+          maxTechnicians: stage.autoActions.techSelection.maxTechnicians,
+          // Accept timeout — dados da OFERTADA
+          acceptTimeoutMinutes: oSel.acceptTimeout.mode === 'from_os'
+            ? 'from_os'
+            : oSel.acceptTimeout.value * (oSel.acceptTimeout.unit === 'hours' ? 60 : 1),
+          acceptTimeoutUnit: oSel.acceptTimeout.unit,
+          acceptTimeoutMode: oSel.acceptTimeout.mode,
+          // En route timeout — dados da ATRIBUÍDA
+          enRouteTimeoutMinutes: aSel.enRouteTimeout.mode === 'from_os'
+            ? 'from_os'
+            : aSel.enRouteTimeout.value * (aSel.enRouteTimeout.unit === 'hours' ? 60 : 1),
+          enRouteTimeoutUnit: aSel.enRouteTimeout.unit,
+          enRouteTimeoutMode: aSel.enRouteTimeout.mode,
+          // Timeout behavior — dados da OFERTADA
+          onTimeout: oSel.onTimeout,
+          filterBySpecialization: stage.autoActions.techSelection.filterBySpecialization,
+          // discardBusy = critério de seleção, fica na ABERTA
+          discardBusyTechnicians: stage.autoActions.techSelection.discardBusyTechnicians,
+        },
+        next: null,
+      });
+    } else if (stage.autoActions.assignTech.enabled) {
+      stageBlocks.push({
+        id: genId('assign'), type: 'ASSIGN_TECH', name: 'Atribuir técnico', icon: '🎯',
+        config: { strategy: stage.autoActions.assignTech.strategy },
+        next: null,
+      });
+    }
+
+    // 2b. Rich message dispatch (overrides individual notify if enabled)
+    if (stage.autoActions.messageDispatch.enabled) {
+      const recipients: any[] = [];
+      const md = stage.autoActions.messageDispatch;
+      if (md.toTechnicians.enabled) {
+        const techLink = md.toTechnicians.link;
+        recipients.push({
+          type: 'TECNICO', enabled: true,
+          channel: md.toTechnicians.channel, message: md.toTechnicians.message,
+          includeLink: techLink.enabled,
+          linkConfig: techLink.enabled ? {
+            validityHours: techLink.validityHours,
+            acceptOS: techLink.acceptOS,
+            gpsNavigation: techLink.gpsNavigation,
+            pageLayout: techLink.pageLayout,  // save ALL blocks (enabled flag preserved for round-trip)
+          } : undefined,
+        });
+      }
+      if (md.toGestor.enabled) {
+        recipients.push({ type: 'GESTOR', enabled: true, channel: md.toGestor.channel, message: md.toGestor.message });
+      }
+      if (md.toCliente.enabled) {
+        recipients.push({ type: 'CLIENTE', enabled: true, channel: md.toCliente.channel, message: md.toCliente.message });
+      }
+      if (recipients.length > 0) {
+        stageBlocks.push({
+          id: genId('notify'), type: 'NOTIFY', name: 'Disparo de mensagens', icon: '💬',
+          config: { recipients },
+          next: null,
+        });
+      }
+    } else {
+      // Fallback to simple notify fields
+      if (stage.autoActions.notifyGestor.enabled) {
+        stageBlocks.push({
+          id: genId('notify'), type: 'NOTIFY', name: 'Notificar gestor', icon: '👔',
+          config: { recipients: [{ type: 'GESTOR', enabled: true, channel: stage.autoActions.notifyGestor.channel, message: stage.autoActions.notifyGestor.message }] },
+          next: null,
+        });
+      }
+      if (stage.autoActions.notifyTecnico.enabled) {
+        stageBlocks.push({
+          id: genId('notify'), type: 'NOTIFY', name: 'Notificar técnico', icon: '👷',
+          config: { recipients: [{ type: 'TECNICO', enabled: true, channel: stage.autoActions.notifyTecnico.channel, message: stage.autoActions.notifyTecnico.message, includeLink: stage.autoActions.notifyTecnico.includeLink }] },
+          next: null,
+        });
+      }
+      if (stage.autoActions.notifyCliente.enabled) {
+        stageBlocks.push({
+          id: genId('notify'), type: 'NOTIFY', name: 'Notificar cliente', icon: '👤',
+          config: { recipients: [{ type: 'CLIENTE', enabled: true, channel: stage.autoActions.notifyCliente.channel, message: stage.autoActions.notifyCliente.message }] },
+          next: null,
+        });
+      }
+    }
+    // 2c. Tech question (auto-syncs with techActions.question)
+    if (stage.autoActions.techQuestion.enabled && stage.autoActions.techQuestion.question) {
+      stageBlocks.push({
+        id: genId('quest'), type: 'QUESTION', name: stage.autoActions.techQuestion.question, icon: '❓',
+        config: {
+          question: stage.autoActions.techQuestion.question,
+          options: stage.autoActions.techQuestion.options.map(o => o.label),
+          optionActions: stage.autoActions.techQuestion.options,
+          required: stage.autoActions.techQuestion.required,
+          showOnLinkPage: stage.autoActions.techQuestion.showOnLinkPage,
+        },
+        next: null,
+      });
+    }
+
+    // 2d. Arrival question (ATRIBUÍDA — pergunta pós-aceite de tempo estimado)
+    if (stage.autoActions.arrivalQuestion?.enabled && stage.status === 'ATRIBUIDA') {
+      stageBlocks.push({
+        id: genId('arrival'), type: 'ARRIVAL_QUESTION', name: 'Pergunta de tempo estimado', icon: '🕐',
+        config: {
+          question: stage.autoActions.arrivalQuestion.question,
+          options: stage.autoActions.arrivalQuestion.options,
+          useAsDynamicTimeout: stage.autoActions.arrivalQuestion.useAsDynamicTimeout,
+          notifyCliente: stage.autoActions.arrivalQuestion.notifyCliente,
+          notifyGestor: stage.autoActions.arrivalQuestion.notifyGestor,
+          onDecline: stage.autoActions.arrivalQuestion.onDecline,
+        },
+        next: null,
+      });
+    }
+
+    // 2e. Proximity trigger (A_CAMINHO — rastreamento GPS por proximidade)
+    if (stage.autoActions.proximityTrigger?.enabled && stage.status === 'A_CAMINHO') {
+      stageBlocks.push({
+        id: genId('prox'), type: 'PROXIMITY_TRIGGER', name: 'Rastreamento por Proximidade', icon: '📡',
+        config: {
+          radiusMeters: stage.autoActions.proximityTrigger.radiusMeters,
+          trackingIntervalSeconds: stage.autoActions.proximityTrigger.trackingIntervalSeconds,
+          requireHighAccuracy: stage.autoActions.proximityTrigger.requireHighAccuracy,
+          keepActiveUntil: stage.autoActions.proximityTrigger.keepActiveUntil,
+          onEnterRadius: stage.autoActions.proximityTrigger.onEnterRadius,
+        },
+        next: null,
+      });
+    }
+
+    if (stage.autoActions.alert.enabled) {
+      stageBlocks.push({
+        id: genId('alert'), type: 'ALERT', name: 'Enviar alerta', icon: '🔔',
+        config: { message: stage.autoActions.alert.message, severity: stage.autoActions.alert.severity },
+        next: null,
+      });
+    }
+
+    // 3. WAIT_FOR (pause workflow)
+    if (stage.timeControl.waitFor.enabled) {
+      stageBlocks.push({
+        id: genId('wait'), type: 'WAIT_FOR', name: 'Aguardar evento', icon: '⏸️',
+        config: {
+          timeoutMinutes: stage.timeControl.waitFor.timeoutMinutes,
+          triggerConditions: stage.timeControl.waitFor.triggerConditions,
+          targetStatus: stage.timeControl.waitFor.targetStatus,
+          timeoutAction: stage.timeControl.waitFor.timeoutAction,
+        },
+        next: null,
+      });
+    }
+
+    // 4. DELAY
+    if (stage.timeControl.delay.enabled) {
+      stageBlocks.push({
+        id: genId('delay'), type: 'DELAY', name: 'Aguardar', icon: '⏳',
+        config: { minutes: stage.timeControl.delay.minutes },
+        next: null,
+      });
+    }
+
+    // 5. SLA
+    if (stage.timeControl.sla.enabled) {
+      stageBlocks.push({
+        id: genId('sla'), type: 'SLA', name: 'Controle SLA', icon: '⏱️',
+        config: { maxMinutes: stage.timeControl.sla.maxMinutes, alertOnExceed: stage.timeControl.sla.alertOnExceed },
+        next: null,
+      });
+    }
+
+    // 5b. PAUSE_SYSTEM
+    if (stage.timeControl.pauseSystem?.enabled) {
+      stageBlocks.push({
+        id: genId('pause'), type: 'PAUSE_SYSTEM', name: 'Sistema de pausas', icon: '⏸️',
+        config: {
+          maxPauses: stage.timeControl.pauseSystem.maxPauses,
+          maxPauseDurationMinutes: stage.timeControl.pauseSystem.maxPauseDurationMinutes,
+          requireReason: stage.timeControl.pauseSystem.requireReason,
+          allowedReasons: stage.timeControl.pauseSystem.allowedReasons,
+          notifications: stage.timeControl.pauseSystem.notifications,
+        },
+        next: null,
+      });
+    }
+
+    // 5c. EXECUTION_TIMER
+    if (stage.timeControl.executionTimer.enabled) {
+      stageBlocks.push({
+        id: genId('timer'), type: 'EXECUTION_TIMER', name: 'Cronômetro de execução', icon: '⏲️',
+        config: { showToTech: stage.timeControl.executionTimer.showToTech, pauseDiscountsFromSla: stage.timeControl.executionTimer.pauseDiscountsFromSla },
+        next: null,
+      });
+    }
+
+    // 6. Tech actions (interactive — technician must complete)
+    if (stage.techActions.step.enabled) {
+      stageBlocks.push({
+        id: genId('step'), type: 'STEP', name: stage.techActions.step.description || 'Executar etapa', icon: '⚙️',
+        config: { description: stage.techActions.step.description, requirePhoto: stage.techActions.step.requirePhoto, requireNote: stage.techActions.step.requireNote, requireGPS: stage.techActions.step.requireGPS },
+        next: null,
+      });
+    }
+    // 6a. PHOTO_REQUIREMENTS (multiple groups — replaces single PHOTO for EM_EXECUCAO)
+    if (stage.techActions.photoRequirements.enabled && stage.techActions.photoRequirements.groups.length > 0) {
+      stageBlocks.push({
+        id: genId('photoreq'), type: 'PHOTO_REQUIREMENTS', name: 'Fotos por momento', icon: '📷',
+        config: { groups: stage.techActions.photoRequirements.groups },
+        next: null,
+      });
+    }
+    // 6b. Legacy single PHOTO (only if photoRequirements is NOT enabled — backward compat)
+    if (stage.techActions.photo.enabled && !stage.techActions.photoRequirements.enabled) {
+      stageBlocks.push({
+        id: genId('photo'), type: 'PHOTO', name: stage.techActions.photo.label || 'Tirar foto', icon: '📸',
+        config: { minPhotos: stage.techActions.photo.minPhotos, label: stage.techActions.photo.label, photoType: stage.techActions.photo.photoType },
+        next: null,
+      });
+    }
+    if (stage.techActions.note.enabled) {
+      stageBlocks.push({
+        id: genId('note'), type: 'NOTE', name: 'Observação', icon: '📝',
+        config: { placeholder: stage.techActions.note.placeholder },
+        next: null,
+      });
+    }
+    if (stage.techActions.gps.enabled) {
+      stageBlocks.push({
+        id: genId('gps'), type: 'GPS', name: 'Capturar GPS', icon: '📍',
+        config: { requireAccuracy: stage.techActions.gps.requireAccuracy },
+        next: null,
+      });
+    }
+    if (stage.techActions.checklist.enabled && stage.techActions.checklist.items.length > 0) {
+      stageBlocks.push({
+        id: genId('check'), type: 'CHECKLIST', name: 'Checklist', icon: '☑️',
+        config: { items: stage.techActions.checklist.items },
+        next: null,
+      });
+    }
+    if (stage.techActions.form.enabled && stage.techActions.form.fields.length > 0) {
+      stageBlocks.push({
+        id: genId('form'), type: 'FORM', name: 'Formulário', icon: '📋',
+        config: { fields: stage.techActions.form.fields },
+        next: null,
+      });
+    }
+    // 6c. MATERIALS
+    if (stage.techActions.materials.enabled) {
+      stageBlocks.push({
+        id: genId('mat'), type: 'MATERIALS', name: stage.techActions.materials.label || 'Materiais', icon: '🔩',
+        config: { label: stage.techActions.materials.label, requireQuantity: stage.techActions.materials.requireQuantity, requireUnitCost: stage.techActions.materials.requireUnitCost },
+        next: null,
+      });
+    }
+    if (stage.techActions.signature.enabled) {
+      stageBlocks.push({
+        id: genId('sig'), type: 'SIGNATURE', name: stage.techActions.signature.label || 'Assinatura', icon: '✍️',
+        config: { label: stage.techActions.signature.label },
+        next: null,
+      });
+    }
+    // Skip simple question if rich techQuestion already emitted (avoids duplicate QUESTION blocks)
+    if (stage.techActions.question.enabled && stage.techActions.question.question && !stage.autoActions.techQuestion.enabled) {
+      stageBlocks.push({
+        id: genId('quest'), type: 'QUESTION', name: stage.techActions.question.question, icon: '❓',
+        config: { question: stage.techActions.question.question, options: stage.techActions.question.options },
+        next: null,
+      });
+    }
+
+    // 6d. GESTOR_APPROVAL (CONCLUÍDA — portão de aprovação)
+    if (stage.autoActions.gestorApproval?.enabled) {
+      stageBlocks.push({
+        id: genId('approval'), type: 'GESTOR_APPROVAL', name: 'Aprovação do gestor', icon: '👔',
+        config: {
+          reviewChecklist: stage.autoActions.gestorApproval.reviewChecklist,
+          onApprove: stage.autoActions.gestorApproval.onApprove,
+          onApproveWithReservations: stage.autoActions.gestorApproval.onApproveWithReservations,
+          onReject: stage.autoActions.gestorApproval.onReject,
+        },
+        next: null,
+      });
+    }
+
+    // 7. On-exit auto actions
+    if (stage.autoActions.financialEntry.enabled) {
+      stageBlocks.push({
+        id: genId('fin'), type: 'FINANCIAL_ENTRY', name: 'Lançar financeiro', icon: '💰',
+        config: {
+          entries: stage.autoActions.financialEntry.entries || [],
+        },
+        next: null,
+      });
+    }
+    if (stage.autoActions.webhook.enabled && stage.autoActions.webhook.url) {
+      stageBlocks.push({
+        id: genId('hook'), type: 'WEBHOOK', name: 'Webhook', icon: '🔗',
+        config: { url: stage.autoActions.webhook.url },
+        next: null,
+      });
+    }
+    if (stage.autoActions.duplicateOS.enabled) {
+      stageBlocks.push({
+        id: genId('dup'), type: 'DUPLICATE_OS', name: 'Duplicar OS', icon: '📑',
+        config: {},
+        next: null,
+      });
+    }
+
+    allStageBlocks.push(stageBlocks);
+  }
+
+  // Wire everything together via next pointers
+  const flatBlocks = allStageBlocks.flat();
+  for (let i = 0; i < flatBlocks.length - 1; i++) {
+    flatBlocks[i].next = flatBlocks[i + 1].id;
+  }
+  if (flatBlocks.length > 0) {
+    blocks[0].next = flatBlocks[0].id; // START → first block
+    flatBlocks[flatBlocks.length - 1].next = endId; // last block → END
+  } else {
+    blocks[0].next = endId;
+  }
+
+  return { version: 2, blocks: [...blocks.slice(0, 1), ...flatBlocks, ...blocks.slice(1)] };
+}
+
+/* ── Decompilador: V2/V1 → WorkflowFormConfig ──────────────── */
+
+const TECH_TYPES = new Set(['STEP', 'PHOTO', 'NOTE', 'GPS', 'CHECKLIST', 'FORM', 'SIGNATURE', 'QUESTION', 'PHOTO_REQUIREMENTS', 'MATERIALS']);
+
+export function decompileFromV2(steps: any): WorkflowFormConfig | null {
+  const config = createDefaultConfig();
+
+  // V1 format (array of steps)
+  if (Array.isArray(steps)) {
+    return decompileV1(steps, config);
+  }
+
+  // V2 format
+  if (steps?.version === 2 && Array.isArray(steps.blocks)) {
+    return decompileV2Blocks(steps.blocks, config);
+  }
+
+  // V3 format — try converting
+  if (steps?.version === 3 && Array.isArray(steps.blocks)) {
+    return decompileV3Blocks(steps.blocks, config);
+  }
+
+  return null;
+}
+
+function decompileV1(steps: any[], config: WorkflowFormConfig): WorkflowFormConfig {
+  // V1 is just a flat list of STEP-like actions, no STATUS changes
+  // Map them all to EM_EXECUCAO stage
+  const exec = config.stages.find(s => s.status === 'EM_EXECUCAO')!;
+  exec.enabled = true;
+
+  for (const step of steps) {
+    if (step.requirePhoto) {
+      exec.techActions.photo.enabled = true;
+    }
+    if (step.requireNote) {
+      exec.techActions.note.enabled = true;
+    }
+    // Each V1 step becomes a STEP action
+    exec.techActions.step.enabled = true;
+    exec.techActions.step.description = step.name || '';
+  }
+
+  return config;
+}
+
+function decompileV2Blocks(blocks: any[], config: WorkflowFormConfig): WorkflowFormConfig | null {
+  // Check for CONDITION blocks — can't represent as toggles
+  if (blocks.some((b: any) => b.type === 'CONDITION')) return null;
+
+  // Walk linked list from START
+  const blockMap = new Map<string, any>();
+  for (const b of blocks) blockMap.set(b.id, b);
+
+  const start = blocks.find((b: any) => b.type === 'START');
+  if (!start) return null;
+
+  // Walk and group by STATUS boundaries
+  let currentStage: StageConfig | null = null;
+  let cursor: any = start;
+
+  while (cursor) {
+    if (cursor.type === 'STATUS') {
+      const targetStatus = cursor.config?.targetStatus;
+      if (targetStatus) {
+        currentStage = config.stages.find(s => s.status === targetStatus) || null;
+        if (currentStage) currentStage.enabled = true;
+      }
+    } else if (cursor.type !== 'START' && cursor.type !== 'END' && currentStage) {
+      mapBlockToStage(cursor, currentStage, config.stages);
+    }
+
+    cursor = cursor.next ? blockMap.get(cursor.next) : null;
+  }
+
+  return config;
+}
+
+function decompileV3Blocks(blocks: any[], config: WorkflowFormConfig): WorkflowFormConfig | null {
+  // Check for CONDITION blocks
+  if (blocks.some((b: any) => b.type === 'CONDITION')) return null;
+
+  // V3 uses children[] arrays instead of next pointers
+  // Find TRIGGER_START or first block
+  const trigger = blocks.find((b: any) => b.type === 'TRIGGER_START') || blocks[0];
+  if (!trigger) return null;
+
+  const blockMap = new Map<string, any>();
+  for (const b of blocks) blockMap.set(b.id, b);
+
+  // Walk children chain
+  let currentStage: StageConfig | null = null;
+
+  function walkChildren(childIds: string[]) {
+    for (const childId of childIds) {
+      const block = blockMap.get(childId);
+      if (!block) continue;
+
+      if (block.type === 'STATUS_CHANGE' || block.type === 'STATUS') {
+        const targetStatus = block.config?.targetStatus;
+        if (targetStatus) {
+          currentStage = config.stages.find(s => s.status === targetStatus) || null;
+          if (currentStage) currentStage.enabled = true;
+        }
+      } else if (block.type !== 'TRIGGER_START' && block.type !== 'END' && currentStage) {
+        mapBlockToStage(block, currentStage, config.stages);
+      }
+
+      if (block.children?.length) {
+        walkChildren(block.children);
+      }
+    }
+  }
+
+  walkChildren(trigger.children || []);
+  return config;
+}
+
+function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig[]) {
+  const cfg = block.config || {};
+
+  switch (block.type) {
+    case 'STEP':
+      stage.techActions.step.enabled = true;
+      if (cfg.description) stage.techActions.step.description = cfg.description;
+      if (cfg.requirePhoto) stage.techActions.step.requirePhoto = true;
+      if (cfg.requireNote) stage.techActions.step.requireNote = true;
+      if (cfg.requireGPS) stage.techActions.step.requireGPS = true;
+      break;
+    case 'PHOTO':
+      stage.techActions.photo.enabled = true;
+      if (cfg.minPhotos) stage.techActions.photo.minPhotos = cfg.minPhotos;
+      if (cfg.label) stage.techActions.photo.label = cfg.label;
+      if (cfg.photoType) stage.techActions.photo.photoType = cfg.photoType;
+      break;
+    case 'NOTE':
+      stage.techActions.note.enabled = true;
+      if (cfg.placeholder) stage.techActions.note.placeholder = cfg.placeholder;
+      break;
+    case 'GPS':
+      stage.techActions.gps.enabled = true;
+      if (cfg.requireAccuracy) stage.techActions.gps.requireAccuracy = true;
+      break;
+    case 'CHECKLIST':
+      stage.techActions.checklist.enabled = true;
+      if (cfg.items?.length) stage.techActions.checklist.items = cfg.items;
+      break;
+    case 'FORM':
+      stage.techActions.form.enabled = true;
+      if (cfg.fields?.length) stage.techActions.form.fields = cfg.fields;
+      break;
+    case 'SIGNATURE':
+      stage.techActions.signature.enabled = true;
+      if (cfg.label) stage.techActions.signature.label = cfg.label;
+      break;
+    case 'QUESTION':
+      // If optionActions present → auto-action techQuestion (rich question)
+      if (cfg.optionActions?.length) {
+        stage.autoActions.techQuestion = {
+          enabled: true,
+          question: cfg.question || '',
+          options: cfg.optionActions,
+          required: cfg.required ?? true,
+          showOnLinkPage: cfg.showOnLinkPage ?? true,
+        };
+        // Also sync to techActions.question (labels only)
+        stage.techActions.question.enabled = true;
+        stage.techActions.question.question = cfg.question || '';
+        stage.techActions.question.options = cfg.optionActions.map((o: TechQuestionOption) => o.label);
+      } else {
+        // Simple tech action question
+        stage.techActions.question.enabled = true;
+        if (cfg.question) stage.techActions.question.question = cfg.question;
+        if (cfg.options?.length) stage.techActions.question.options = cfg.options;
+      }
+      break;
+    case 'NOTIFY': {
+      const recipients = cfg.recipients || [];
+      const legacy = cfg.recipient;
+      if (recipients.length > 0) {
+        for (const r of recipients) {
+          if (r.type === 'GESTOR') {
+            stage.autoActions.notifyGestor = { enabled: true, channel: r.channel || 'whatsapp', message: r.message || '' };
+            // Also populate rich messageDispatch
+            stage.autoActions.messageDispatch.toGestor = { enabled: true, channel: r.channel || 'whatsapp', message: r.message || '' };
+          } else if (r.type === 'TECNICO') {
+            stage.autoActions.notifyTecnico = { enabled: true, channel: r.channel || 'whatsapp', message: r.message || '', includeLink: !!r.includeLink };
+            // Also populate rich messageDispatch with link config
+            stage.autoActions.messageDispatch.toTechnicians.enabled = true;
+            stage.autoActions.messageDispatch.toTechnicians.channel = r.channel || 'whatsapp';
+            stage.autoActions.messageDispatch.toTechnicians.message = r.message || '';
+            if (r.includeLink || r.linkConfig) {
+              stage.autoActions.messageDispatch.toTechnicians.link.enabled = true;
+              if (r.linkConfig) {
+                stage.autoActions.messageDispatch.toTechnicians.link.validityHours = r.linkConfig.validityHours || 24;
+                stage.autoActions.messageDispatch.toTechnicians.link.acceptOS = r.linkConfig.acceptOS ?? true;
+                stage.autoActions.messageDispatch.toTechnicians.link.gpsNavigation = r.linkConfig.gpsNavigation ?? false;
+                if (r.linkConfig.pageLayout?.length) {
+                  // Merge saved layout with defaults (preserves blocks added in future versions)
+                  const defaultLayout = stage.autoActions.messageDispatch.toTechnicians.link.pageLayout;
+                  const savedMap = new Map(r.linkConfig.pageLayout.map((b: any) => [b.id, b]));
+                  // Start with saved blocks in saved order, then append any new defaults
+                  const merged = [
+                    ...r.linkConfig.pageLayout,
+                    ...defaultLayout.filter(d => !savedMap.has(d.id)),
+                  ];
+                  stage.autoActions.messageDispatch.toTechnicians.link.pageLayout = merged;
+                }
+              }
+            }
+          } else if (r.type === 'CLIENTE') {
+            stage.autoActions.notifyCliente = { enabled: true, channel: r.channel || 'sms', message: r.message || '' };
+            stage.autoActions.messageDispatch.toCliente = { enabled: true, channel: r.channel || 'sms', message: r.message || '' };
+          }
+        }
+        // Enable the parent messageDispatch toggle so the UI shows the rich section
+        stage.autoActions.messageDispatch.enabled = true;
+      } else if (legacy) {
+        stage.autoActions.notifyGestor = { enabled: true, channel: cfg.channel || 'whatsapp', message: cfg.message || '' };
+      }
+      break;
+    }
+    case 'FINANCIAL_ENTRY':
+      stage.autoActions.financialEntry.enabled = true;
+      if (cfg.entries?.length) {
+        stage.autoActions.financialEntry.entries = cfg.entries;
+      }
+      break;
+    case 'ALERT':
+      stage.autoActions.alert = { enabled: true, message: cfg.message || '', severity: cfg.severity || 'info' };
+      break;
+    case 'WEBHOOK':
+      stage.autoActions.webhook = { enabled: true, url: cfg.url || '' };
+      break;
+    case 'ASSIGN_TECH':
+      // If rich config present, populate techSelection (distributed across stages)
+      if (cfg.maxTechnicians || cfg.acceptTimeoutMinutes) {
+        // ABERTA: método, maxTechnicians, filterBySpecialization, discardBusy
+        stage.autoActions.techSelection = {
+          enabled: true, method: cfg.strategy || 'BY_SPECIALIZATION',
+          maxTechnicians: cfg.maxTechnicians || 5,
+          acceptTimeout: stage.autoActions.techSelection.acceptTimeout,   // keep ABERTA defaults
+          enRouteTimeout: stage.autoActions.techSelection.enRouteTimeout, // keep ABERTA defaults
+          onTimeout: stage.autoActions.techSelection.onTimeout,           // keep ABERTA defaults
+          filterBySpecialization: cfg.filterBySpecialization ?? true,
+          discardBusyTechnicians: cfg.discardBusyTechnicians ?? true,     // critério de seleção
+        };
+
+        // OFERTADA: acceptTimeout, onTimeout, discardBusyTechnicians
+        if (allStages) {
+          const ofertada = allStages.find(s => s.status === 'OFERTADA');
+          if (ofertada) {
+            let acceptTimeout: { mode: 'fixed' | 'from_os'; value: number; unit: 'minutes' | 'hours' };
+            if (cfg.acceptTimeoutMode === 'from_os' || cfg.acceptTimeoutMinutes === 'from_os') {
+              acceptTimeout = { mode: 'from_os', value: 60, unit: 'minutes' };
+            } else {
+              const rawMinutes = typeof cfg.acceptTimeoutMinutes === 'number' ? cfg.acceptTimeoutMinutes : 60;
+              const savedUnit = cfg.acceptTimeoutUnit;
+              if (savedUnit === 'hours' || (!savedUnit && rawMinutes >= 60 && rawMinutes % 60 === 0)) {
+                acceptTimeout = { mode: 'fixed', value: rawMinutes / 60, unit: 'hours' };
+              } else {
+                acceptTimeout = { mode: 'fixed', value: rawMinutes, unit: 'minutes' };
+              }
+            }
+            ofertada.autoActions.techSelection.acceptTimeout = acceptTimeout;
+            ofertada.autoActions.techSelection.onTimeout = cfg.onTimeout || 'notify_gestor';
+          }
+
+          // ATRIBUÍDA: enRouteTimeout
+          const atribuida = allStages.find(s => s.status === 'ATRIBUIDA');
+          if (atribuida) {
+            let enRouteTimeout: { mode: 'fixed' | 'from_os'; value: number; unit: 'minutes' | 'hours' };
+            if (cfg.enRouteTimeoutMode === 'from_os' || cfg.enRouteTimeoutMinutes === 'from_os') {
+              enRouteTimeout = { mode: 'from_os', value: 30, unit: 'minutes' };
+            } else {
+              const rawMinutes = typeof cfg.enRouteTimeoutMinutes === 'number' ? cfg.enRouteTimeoutMinutes : 30;
+              const savedUnit = cfg.enRouteTimeoutUnit;
+              if (savedUnit === 'hours' || (!savedUnit && rawMinutes >= 60 && rawMinutes % 60 === 0)) {
+                enRouteTimeout = { mode: 'fixed', value: rawMinutes / 60, unit: 'hours' };
+              } else {
+                enRouteTimeout = { mode: 'fixed', value: rawMinutes, unit: 'minutes' };
+              }
+            }
+            atribuida.autoActions.techSelection.enRouteTimeout = enRouteTimeout;
+          }
+        }
+      } else {
+        stage.autoActions.assignTech = { enabled: true, strategy: cfg.strategy || 'BEST_RATING' };
+      }
+      break;
+    case 'ARRIVAL_QUESTION':
+      stage.autoActions.arrivalQuestion = {
+        enabled: true,
+        question: cfg.question || 'Quanto tempo até você estar a caminho?',
+        options: cfg.options || [],
+        useAsDynamicTimeout: cfg.useAsDynamicTimeout ?? false,
+        notifyCliente: cfg.notifyCliente ?? false,
+        notifyGestor: cfg.notifyGestor ?? false,
+        onDecline: cfg.onDecline || 'notify_gestor',
+      };
+      break;
+    case 'PROXIMITY_TRIGGER':
+      stage.autoActions.proximityTrigger = {
+        enabled: true,
+        radiusMeters: cfg.radiusMeters ?? 200,
+        trackingIntervalSeconds: cfg.trackingIntervalSeconds ?? 30,
+        requireHighAccuracy: cfg.requireHighAccuracy ?? true,
+        keepActiveUntil: cfg.keepActiveUntil || 'radius',
+        onEnterRadius: cfg.onEnterRadius || {
+          notifyCliente: { enabled: true, channel: 'whatsapp', message: '' },
+          notifyGestor: { enabled: false, channel: 'push', message: '' },
+          autoStartExecution: false,
+          alert: { enabled: false, message: '' },
+        },
+      };
+      break;
+    case 'DUPLICATE_OS':
+      stage.autoActions.duplicateOS.enabled = true;
+      break;
+    case 'WAIT_FOR':
+      stage.timeControl.waitFor = {
+        enabled: true,
+        timeoutMinutes: cfg.timeoutMinutes || 60,
+        triggerConditions: cfg.triggerConditions || [],
+        targetStatus: cfg.targetStatus || '',
+        timeoutAction: cfg.timeoutAction || 'continue',
+      };
+      break;
+    case 'SLA':
+      stage.timeControl.sla = { enabled: true, maxMinutes: cfg.maxMinutes || 120, alertOnExceed: cfg.alertOnExceed ?? true };
+      break;
+    case 'DELAY':
+      stage.timeControl.delay = { enabled: true, minutes: cfg.minutes || 30 };
+      break;
+    case 'EXECUTION_TIMER':
+      stage.timeControl.executionTimer = {
+        enabled: true,
+        showToTech: cfg.showToTech ?? true,
+        pauseDiscountsFromSla: cfg.pauseDiscountsFromSla ?? true,
+      };
+      break;
+    case 'PAUSE_SYSTEM': {
+      const defaultNotifs = {
+        onPause: {
+          gestor:  { enabled: cfg.notifyGestorOnPause ?? true, channel: 'whatsapp', message: '' },
+          cliente: { enabled: false, channel: 'sms', message: '' },
+          tecnico: { enabled: false, channel: 'push', message: '' },
+        },
+        onResume: {
+          gestor:  { enabled: cfg.notifyGestorOnResume ?? false, channel: 'whatsapp', message: '' },
+          cliente: { enabled: false, channel: 'sms', message: '' },
+          tecnico: { enabled: false, channel: 'push', message: '' },
+        },
+      };
+      stage.timeControl.pauseSystem = {
+        enabled: true,
+        maxPauses: cfg.maxPauses ?? 0,
+        maxPauseDurationMinutes: cfg.maxPauseDurationMinutes ?? 0,
+        requireReason: cfg.requireReason ?? true,
+        allowedReasons: cfg.allowedReasons ?? PAUSE_REASON_CATEGORIES.map(c => c.value),
+        notifications: cfg.notifications ?? defaultNotifs,
+      };
+      break;
+    }
+    case 'PHOTO_REQUIREMENTS':
+      stage.techActions.photoRequirements = {
+        enabled: true,
+        groups: cfg.groups || [],
+      };
+      break;
+    case 'MATERIALS':
+      stage.techActions.materials = {
+        enabled: true,
+        label: cfg.label || 'Materiais utilizados',
+        requireQuantity: cfg.requireQuantity ?? true,
+        requireUnitCost: cfg.requireUnitCost ?? false,
+      };
+      break;
+    case 'GESTOR_APPROVAL':
+      stage.autoActions.gestorApproval = {
+        enabled: true,
+        reviewChecklist: cfg.reviewChecklist || [],
+        onApprove: cfg.onApprove || {
+          notifyTecnico: { enabled: true, channel: 'push', message: '' },
+          notifyCliente: { enabled: false, channel: 'sms', message: '' },
+        },
+        onApproveWithReservations: cfg.onApproveWithReservations || {
+          enabled: true,
+          requireNote: true,
+          commissionAdjustment: { enabled: false, type: 'reduce_percent', value: 10 },
+          flagOS: true,
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '' },
+          notifyCliente: { enabled: false, channel: 'sms', message: '' },
+        },
+        onReject: cfg.onReject || {
+          action: 'reopen_execution',
+          requireReason: true,
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '' },
+          notifyCliente: { enabled: false, channel: 'sms', message: '' },
+        },
+      };
+      break;
+  }
+}

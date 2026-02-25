@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ── Global input styles ── */
+/* Ensure inputs always have dark readable text on white backgrounds */
+input,
+select,
+textarea {
+  color: #1e293b !important;  /* slate-800 - always dark and readable */
+  -webkit-text-fill-color: #1e293b;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important;  /* slate-400 - visible but lighter */
+  -webkit-text-fill-color: #94a3b8;
+  opacity: 1;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  color: #475569 !important;  /* slate-600 - still readable when disabled */
+  -webkit-text-fill-color: #475569;
+}
+
+input:disabled::placeholder,
+textarea:disabled::placeholder {
+  color: #94a3b8 !important;  /* slate-400 */
+  -webkit-text-fill-color: #94a3b8;
+}
+
+/* Toast slide-in animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Modal scale-in animation */
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+/* Skeleton loading animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+/* ── Print / PDF styles ── */
+@media print {
+  /* Hide sidebar, header, navigation, buttons */
+  nav, aside, header,
+  [data-sidebar], [data-header],
+  button, a[href="/orders/new"],
+  .no-print { display: none !important; }
+
+  /* Make main content full width */
+  main, [data-main] {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Remove backgrounds and shadows for clean print */
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Keep card borders but remove shadows */
+  .rounded-xl, .rounded-lg {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  /* Print-friendly charts: preserve colors */
+  svg { print-color-adjust: exact; }
+}

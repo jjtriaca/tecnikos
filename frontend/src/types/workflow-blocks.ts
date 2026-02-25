@@ -1,0 +1,429 @@
+/* ═══════════════════════════════════════════════════════════════
+   WORKFLOW BLOCKS — Type definitions and catalog
+   Shared between builder UI, workflow engine, and technician view
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Block Types ─────────────────────────────────────────────── */
+
+export type BlockType =
+  // Flow control
+  | 'START'
+  | 'END'
+  | 'CONDITION'
+  // Actions (technician-facing)
+  | 'STEP'
+  | 'PHOTO'
+  | 'NOTE'
+  | 'GPS'
+  | 'QUESTION'
+  | 'CHECKLIST'
+  | 'SIGNATURE'
+  | 'FORM'
+  // Communication
+  | 'NOTIFY'
+  | 'APPROVAL'
+  | 'ALERT'
+  // System
+  | 'DELAY'
+  | 'SLA'
+  | 'STATUS'
+  | 'RESCHEDULE';
+
+export type BlockCategory = 'FLOW' | 'ACTIONS' | 'COMMUNICATION' | 'SYSTEM';
+
+/* ── Block Data Model ────────────────────────────────────────── */
+
+export type Block = {
+  id: string;
+  type: BlockType;
+  name: string;
+  icon: string;
+  config: Record<string, any>;
+  // Graph connections
+  next: string | null;
+  // Only for CONDITION blocks:
+  yesBranch?: string | null;
+  noBranch?: string | null;
+};
+
+export type WorkflowDefV2 = {
+  version: 2;
+  blocks: Block[];
+};
+
+/* Legacy format (v1) — flat array of steps */
+export type WorkflowStepV1 = {
+  order: number;
+  name: string;
+  icon: string;
+  requirePhoto: boolean;
+  requireNote: boolean;
+};
+
+/* ── Block Config Types ──────────────────────────────────────── */
+
+export type StepConfig = {
+  description?: string;
+  requirePhoto?: boolean;
+  requireNote?: boolean;
+  requireGps?: boolean;
+};
+
+export type PhotoConfig = {
+  minPhotos?: number;
+  label?: string;
+  photoType?: 'ANTES' | 'DEPOIS' | 'EVIDENCIA' | 'GERAL';
+};
+
+export type NoteConfig = {
+  placeholder?: string;
+  required?: boolean;
+};
+
+export type GpsConfig = {
+  auto?: boolean;
+};
+
+export type QuestionConfig = {
+  question?: string;
+  options?: string[];
+};
+
+export type ChecklistConfig = {
+  items?: string[];
+};
+
+export type SignatureConfig = {
+  label?: string;
+};
+
+export type FormConfig = {
+  fields?: { name: string; type: 'text' | 'number' | 'select'; required?: boolean; options?: string[] }[];
+};
+
+export type ConditionConfig = {
+  conditionType?: 'question' | 'gps_proximity' | 'time_range' | 'field_check';
+  question?: string;
+  gpsMeters?: number;
+  timeStart?: string;
+  timeEnd?: string;
+  field?: string;
+  operator?: string;
+  value?: string;
+};
+
+export type NotifyConfig = {
+  channel?: 'WHATSAPP' | 'SMS' | 'EMAIL';
+  message?: string;
+  recipient?: 'CLIENTE' | 'GESTOR' | 'TECNICO';
+};
+
+export type ApprovalConfig = {
+  approverRole?: 'ADMIN' | 'DESPACHO';
+  message?: string;
+};
+
+export type AlertConfig = {
+  message?: string;
+  severity?: 'info' | 'warning' | 'critical';
+};
+
+export type DelayConfig = {
+  minutes?: number;
+};
+
+export type SlaConfig = {
+  maxMinutes?: number;
+  alertOnExceed?: boolean;
+};
+
+export type StatusConfig = {
+  targetStatus?: string;
+};
+
+export type RescheduleConfig = {
+  reason?: string;
+};
+
+/* ── Block Catalog Definition ────────────────────────────────── */
+
+export type CatalogEntry = {
+  type: BlockType;
+  name: string;
+  icon: string;
+  description: string;
+  category: BlockCategory;
+  color: string;       // tailwind bg class
+  borderColor: string; // tailwind border class
+  iconBg: string;      // tailwind bg class for icon circle
+  textColor: string;   // tailwind text class
+};
+
+/* ── Block Catalog ───────────────────────────────────────────── */
+
+export const BLOCK_CATALOG: CatalogEntry[] = [
+  // Flow
+  { type: 'CONDITION', name: 'SE / Condição', icon: '❓', description: 'Avalia condição → 2 caminhos (SIM / NÃO)', category: 'FLOW', color: 'bg-amber-50', borderColor: 'border-amber-300', iconBg: 'bg-amber-500', textColor: 'text-amber-900' },
+
+  // Actions
+  { type: 'STEP', name: 'Etapa', icon: '⚙️', description: 'Passo que o técnico confirma', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+  { type: 'PHOTO', name: 'Foto', icon: '📸', description: 'Tirar ou enviar foto', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+  { type: 'NOTE', name: 'Nota', icon: '📝', description: 'Observação de texto', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+  { type: 'GPS', name: 'GPS', icon: '📍', description: 'Registrar localização atual', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+  { type: 'QUESTION', name: 'Pergunta', icon: '🤔', description: 'Pergunta com opções para o técnico', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+  { type: 'CHECKLIST', name: 'Checklist', icon: '☑️', description: 'Lista de itens para verificar', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+  { type: 'SIGNATURE', name: 'Assinatura', icon: '✍️', description: 'Assinatura digital do cliente', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+  { type: 'FORM', name: 'Formulário', icon: '📋', description: 'Campos customizáveis', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+
+  // Communication
+  { type: 'NOTIFY', name: 'Notificar', icon: '💬', description: 'Enviar WhatsApp/SMS automático', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
+  { type: 'APPROVAL', name: 'Aprovação', icon: '🔒', description: 'Trava fluxo até gestor aprovar', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
+  { type: 'ALERT', name: 'Alerta', icon: '🔔', description: 'Alerta para o gestor/dashboard', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
+
+  // System
+  { type: 'DELAY', name: 'Delay', icon: '⏳', description: 'Aguardar X minutos/horas', category: 'SYSTEM', color: 'bg-violet-50', borderColor: 'border-violet-300', iconBg: 'bg-violet-500', textColor: 'text-violet-900' },
+  { type: 'SLA', name: 'SLA', icon: '⏱️', description: 'Tempo limite com alerta', category: 'SYSTEM', color: 'bg-violet-50', borderColor: 'border-violet-300', iconBg: 'bg-violet-500', textColor: 'text-violet-900' },
+  { type: 'STATUS', name: 'Status', icon: '🔄', description: 'Mudar status da OS', category: 'SYSTEM', color: 'bg-violet-50', borderColor: 'border-violet-300', iconBg: 'bg-violet-500', textColor: 'text-violet-900' },
+  { type: 'RESCHEDULE', name: 'Reagendar', icon: '📅', description: 'Reagendar OS para outra data', category: 'SYSTEM', color: 'bg-violet-50', borderColor: 'border-violet-300', iconBg: 'bg-violet-500', textColor: 'text-violet-900' },
+];
+
+export const CATALOG_BY_CATEGORY: Record<BlockCategory, CatalogEntry[]> = {
+  FLOW: BLOCK_CATALOG.filter(b => b.category === 'FLOW'),
+  ACTIONS: BLOCK_CATALOG.filter(b => b.category === 'ACTIONS'),
+  COMMUNICATION: BLOCK_CATALOG.filter(b => b.category === 'COMMUNICATION'),
+  SYSTEM: BLOCK_CATALOG.filter(b => b.category === 'SYSTEM'),
+};
+
+export const CATEGORY_LABELS: Record<BlockCategory, { label: string; icon: string }> = {
+  FLOW: { label: 'Fluxo', icon: '⚙️' },
+  ACTIONS: { label: 'Ações', icon: '✋' },
+  COMMUNICATION: { label: 'Comunicação', icon: '💬' },
+  SYSTEM: { label: 'Sistema', icon: '🔧' },
+};
+
+/* ── Catalog Lookup ──────────────────────────────────────────── */
+
+export function getCatalogEntry(type: BlockType): CatalogEntry | undefined {
+  return BLOCK_CATALOG.find(b => b.type === type);
+}
+
+/* ── ID Generator ────────────────────────────────────────────── */
+
+let _counter = 0;
+export function genBlockId(): string {
+  _counter++;
+  return `b_${Date.now().toString(36)}_${_counter}`;
+}
+
+/* ── Default Block Factory ───────────────────────────────────── */
+
+export function createBlock(type: BlockType, overrides?: Partial<Block>): Block {
+  const cat = getCatalogEntry(type);
+  const base: Block = {
+    id: genBlockId(),
+    type,
+    name: cat?.name || type,
+    icon: cat?.icon || '⚙️',
+    config: getDefaultConfig(type),
+    next: null,
+    ...(type === 'CONDITION' ? { yesBranch: null, noBranch: null } : {}),
+  };
+  return { ...base, ...overrides };
+}
+
+export function getDefaultConfig(type: BlockType): Record<string, any> {
+  switch (type) {
+    case 'STEP': return { requirePhoto: false, requireNote: false, requireGps: false, description: '' };
+    case 'PHOTO': return { minPhotos: 1, label: 'Foto', photoType: 'GERAL' };
+    case 'NOTE': return { placeholder: 'Digite sua observação...', required: true };
+    case 'GPS': return { auto: true };
+    case 'QUESTION': return { question: '', options: ['Sim', 'Não'] };
+    case 'CHECKLIST': return { items: ['Item 1'] };
+    case 'SIGNATURE': return { label: 'Assinatura do cliente' };
+    case 'FORM': return { fields: [{ name: 'Campo 1', type: 'text', required: false }] };
+    case 'CONDITION': return { conditionType: 'question', question: '' };
+    case 'NOTIFY': return { channel: 'WHATSAPP', message: '', recipient: 'CLIENTE' };
+    case 'APPROVAL': return { approverRole: 'ADMIN', message: '' };
+    case 'ALERT': return { message: '', severity: 'info' };
+    case 'DELAY': return { minutes: 15 };
+    case 'SLA': return { maxMinutes: 240, alertOnExceed: true };
+    case 'STATUS': return { targetStatus: 'EM_EXECUCAO' };
+    case 'RESCHEDULE': return { reason: '' };
+    default: return {};
+  }
+}
+
+/* ── Default Workflow ────────────────────────────────────────── */
+
+export function createDefaultWorkflow(): Block[] {
+  const startId = genBlockId();
+  const endId = genBlockId();
+
+  return [
+    { id: startId, type: 'START', name: 'Início', icon: '▶️', config: {}, next: endId },
+    { id: endId, type: 'END', name: 'Fim', icon: '⏹️', config: {}, next: null },
+  ];
+}
+
+/* ── Graph Helpers ───────────────────────────────────────────── */
+
+export function findBlock(blocks: Block[], id: string): Block | undefined {
+  return blocks.find(b => b.id === id);
+}
+
+export function findStartBlock(blocks: Block[]): Block | undefined {
+  return blocks.find(b => b.type === 'START');
+}
+
+export function findEndBlock(blocks: Block[]): Block | undefined {
+  return blocks.find(b => b.type === 'END');
+}
+
+/** Find the block whose `next`, `yesBranch`, or `noBranch` points to `targetId` */
+export function findParent(blocks: Block[], targetId: string): { block: Block; via: 'next' | 'yesBranch' | 'noBranch' } | undefined {
+  for (const b of blocks) {
+    if (b.next === targetId) return { block: b, via: 'next' };
+    if (b.yesBranch === targetId) return { block: b, via: 'yesBranch' };
+    if (b.noBranch === targetId) return { block: b, via: 'noBranch' };
+  }
+  return undefined;
+}
+
+/** Insert a new block between `afterBlockId` and whatever it currently points to via `via` */
+export function insertBlockAfter(
+  blocks: Block[],
+  afterBlockId: string,
+  newBlock: Block,
+  via: 'next' | 'yesBranch' | 'noBranch' = 'next'
+): Block[] {
+  return blocks.map(b => {
+    if (b.id !== afterBlockId) return b;
+    const oldTarget = via === 'yesBranch' ? b.yesBranch : via === 'noBranch' ? b.noBranch : b.next;
+    const updated = { ...b, [via]: newBlock.id };
+    // Point new block to old target
+    newBlock.next = oldTarget ?? null;
+    return updated;
+  }).concat(newBlock);
+}
+
+/** Remove a block and reconnect the chain */
+export function removeBlock(blocks: Block[], blockId: string): Block[] {
+  const block = findBlock(blocks, blockId);
+  if (!block || block.type === 'START' || block.type === 'END') return blocks;
+
+  // If it's a CONDITION, also remove all blocks in both branches
+  if (block.type === 'CONDITION') {
+    const toRemove = new Set<string>([blockId]);
+    const collectBranch = (startId: string | null | undefined) => {
+      let id = startId;
+      while (id) {
+        const b = findBlock(blocks, id);
+        if (!b) break;
+        toRemove.add(b.id);
+        if (b.type === 'CONDITION') {
+          collectBranch(b.yesBranch);
+          collectBranch(b.noBranch);
+        }
+        id = b.next;
+      }
+    };
+    collectBranch(block.yesBranch);
+    collectBranch(block.noBranch);
+
+    // Find parent and reconnect to block.next (merge point)
+    const parent = findParent(blocks, blockId);
+    const result = blocks
+      .filter(b => !toRemove.has(b.id))
+      .map(b => {
+        if (parent && b.id === parent.block.id) {
+          return { ...b, [parent.via]: block.next };
+        }
+        return b;
+      });
+    return result;
+  }
+
+  // Simple block: find parent, reconnect to block.next
+  const parent = findParent(blocks, blockId);
+  return blocks
+    .filter(b => b.id !== blockId)
+    .map(b => {
+      if (parent && b.id === parent.block.id) {
+        return { ...b, [parent.via]: block.next };
+      }
+      return b;
+    });
+}
+
+/** Count blocks in the main chain + branches (excluding START/END) */
+export function countUserBlocks(blocks: Block[]): number {
+  return blocks.filter(b => b.type !== 'START' && b.type !== 'END').length;
+}
+
+/** Walk the chain from a starting block and return ordered list of IDs */
+export function walkChain(blocks: Block[], startId: string | null): string[] {
+  const ids: string[] = [];
+  let currentId = startId;
+  const visited = new Set<string>();
+  while (currentId) {
+    if (visited.has(currentId)) break; // prevent infinite loops
+    visited.add(currentId);
+    ids.push(currentId);
+    const block = findBlock(blocks, currentId);
+    if (!block) break;
+    currentId = block.next;
+  }
+  return ids;
+}
+
+/* ── V1 → V2 Converter ──────────────────────────────────────── */
+
+export function convertV1toV2(steps: WorkflowStepV1[]): WorkflowDefV2 {
+  const blocks: Block[] = [];
+  const startId = genBlockId();
+  const endId = genBlockId();
+
+  blocks.push({ id: startId, type: 'START', name: 'Início', icon: '▶️', config: {}, next: null });
+
+  let prevId = startId;
+  for (const step of steps) {
+    const blockId = genBlockId();
+    const block: Block = {
+      id: blockId,
+      type: 'STEP',
+      name: step.name,
+      icon: step.icon,
+      config: {
+        requirePhoto: step.requirePhoto,
+        requireNote: step.requireNote,
+        requireGps: false,
+        description: '',
+      },
+      next: null,
+    };
+    // Link previous block to this one
+    const prev = blocks.find(b => b.id === prevId);
+    if (prev) prev.next = blockId;
+    blocks.push(block);
+    prevId = blockId;
+  }
+
+  // Link last block to END
+  const lastBlock = blocks.find(b => b.id === prevId);
+  if (lastBlock) lastBlock.next = endId;
+  blocks.push({ id: endId, type: 'END', name: 'Fim', icon: '⏹️', config: {}, next: null });
+
+  return { version: 2, blocks };
+}
+
+/** Check if a steps JSON is V1 (array) or V2 (object with version) */
+export function isV2Format(steps: any): steps is WorkflowDefV2 {
+  return steps && typeof steps === 'object' && !Array.isArray(steps) && steps.version === 2;
+}
+
+/** Parse steps from DB — handles both V1 and V2 */
+export function parseWorkflowSteps(steps: any): WorkflowDefV2 {
+  if (isV2Format(steps)) return steps;
+  if (Array.isArray(steps)) return convertV1toV2(steps);
+  return { version: 2, blocks: createDefaultWorkflow() };
+}

@@ -1,0 +1,1060 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import Link from "next/link";
+import FilterBar from "@/components/ui/FilterBar";
+import SortableHeader from "@/components/ui/SortableHeader";
+import DraggableHeader from "@/components/ui/DraggableHeader";
+import Pagination from "@/components/ui/Pagination";
+import { useTableParams } from "@/hooks/useTableParams";
+import { useTableLayout } from "@/hooks/useTableLayout";
+import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
+import { exportToCSV, fmtDateTime, fmtMoney, type ExportColumn } from "@/lib/export-utils";
+import type {
+  FinancialEntry,
+  FinancialEntryType,
+  FinancialEntryStatus,
+  FinanceSummaryV2,
+} from "@/types/finance";
+import { ENTRY_STATUS_CONFIG } from "@/types/finance";
+
+/* ── Legacy types (backward compat) ─────────────────────── */
+
+type LedgerEntry = {
+  id: string;
+  serviceOrderId: string;
+  grossCents: number;
+  commissionBps: number;
+  commissionCents: number;
+  netCents: number;
+  confirmedAt: string;
+  serviceOrder: { id: string; title: string; status: string };
+};
+
+type PendingOs = {
+  id: string;
+  title: string;
+  valueCents: number;
+  status: string;
+};
+
+type LegacySummary = {
+  totalGrossCents: number;
+  totalCommissionCents: number;
+  totalNetCents: number;
+  confirmedCount: number;
+  pendingOs: PendingOs[];
+};
+
+interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+interface PaginatedResponse<T> {
+  data: T[];
+  meta: PaginationMeta;
+}
+
+/* ── Helpers ────────────────────────────────────────────── */
+
+function formatCurrency(cents: number) {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/* ── Tab definitions ───────────────────────────────────── */
+
+type TabId = "resumo" | "receber" | "pagar" | "repasses";
+
+const TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: "resumo", label: "Resumo", icon: "📊" },
+  { id: "receber", label: "A Receber", icon: "📥" },
+  { id: "pagar", label: "A Pagar", icon: "📤" },
+  { id: "repasses", label: "Repasses", icon: "📋" },
+];
+
+/* ── StatusBadge ───────────────────────────────────────── */
+
+function StatusBadge({ status }: { status: FinancialEntryStatus }) {
+  const cfg = ENTRY_STATUS_CONFIG[status];
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.bgColor} ${cfg.color} border ${cfg.borderColor}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+/* ── Entry Filters ─────────────────────────────────────── */
+
+const ENTRY_FILTERS: FilterDefinition[] = [
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: [
+      { value: "PENDING", label: "Pendente" },
+      { value: "CONFIRMED", label: "Confirmado" },
+      { value: "PAID", label: "Pago" },
+      { value: "CANCELLED", label: "Cancelado" },
+    ],
+  },
+  { key: "dateFrom", label: "De", type: "date" },
+  { key: "dateTo", label: "Até", type: "date" },
+];
+
+/* ── Entry Columns ─────────────────────────────────────── */
+
+function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<FinancialEntry>[] {
+  const cols: ColumnDefinition<FinancialEntry>[] = [
+    {
+      id: "description",
+      label: "Descrição",
+      render: (e) => (
+        <span className="text-sm font-medium text-slate-900 truncate block max-w-[200px]">
+          {e.description || "(sem descrição)"}
+        </span>
+      ),
+    },
+    {
+      id: "os",
+      label: "OS",
+      render: (e) =>
+        e.serviceOrder ? (
+          <Link href={`/orders/${e.serviceOrder.id}`} className="text-sm text-blue-600 hover:underline truncate block max-w-[150px]">
+            {e.serviceOrder.title}
+          </Link>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
+    },
+    {
+      id: "partner",
+      label: "Parceiro",
+      render: (e) =>
+        e.partner ? (
+          <span className="text-sm text-slate-700 truncate block max-w-[120px]">{e.partner.name}</span>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
+    },
+  ];
+
+  if (type === "PAYABLE") {
+    cols.push({
+      id: "grossCents",
+      label: "Bruto",
+      sortable: true,
+      align: "right",
+      render: (e) => <span className="text-slate-700">{formatCurrency(e.grossCents)}</span>,
+    });
+    cols.push({
+      id: "commission",
+      label: "Comissão",
+      align: "right",
+      render: (e) =>
+        e.commissionCents != null ? (
+          <span className="text-amber-600 text-xs">
+            -{formatCurrency(e.commissionCents)}
+            {e.commissionBps != null && (
+              <span className="ml-1 text-slate-400">({(e.commissionBps / 100).toFixed(1)}%)</span>
+            )}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
+    });
+  }
+
+  cols.push(
+    {
+      id: "netCents",
+      label: "Valor",
+      sortable: true,
+      align: "right",
+      render: (e) => (
+        <span className={`font-semibold ${type === "RECEIVABLE" ? "text-green-700" : "text-blue-700"}`}>
+          {formatCurrency(e.netCents)}
+        </span>
+      ),
+    },
+    {
+      id: "status",
+      label: "Status",
+      sortable: true,
+      render: (e) => <StatusBadge status={e.status} />,
+    },
+    {
+      id: "dueDate",
+      label: "Vencimento",
+      sortable: true,
+      align: "right",
+      render: (e) =>
+        e.dueDate ? (
+          <span className="text-sm text-slate-500">{formatDate(e.dueDate)}</span>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
+    },
+    {
+      id: "createdAt",
+      label: "Criado",
+      sortable: true,
+      align: "right",
+      render: (e) => <span className="text-sm text-slate-500">{formatDate(e.createdAt)}</span>,
+    },
+  );
+
+  return cols;
+}
+
+/* ══════════════════════════════════════════════════════════
+   MAIN PAGE
+   ══════════════════════════════════════════════════════════ */
+
+export default function FinancePage() {
+  const [activeTab, setActiveTab] = useState<TabId>("resumo");
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Financeiro</h1>
+          <p className="text-sm text-slate-500">
+            Controle de receitas, despesas, comissões e repasses.
+          </p>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+            }`}
+          >
+            <span>{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "resumo" && <SummaryTab />}
+      {activeTab === "receber" && <EntriesTab type="RECEIVABLE" />}
+      {activeTab === "pagar" && <EntriesTab type="PAYABLE" />}
+      {activeTab === "repasses" && <LegacyTab />}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   TAB: RESUMO (Summary v2)
+   ══════════════════════════════════════════════════════════ */
+
+function SummaryTab() {
+  const [data, setData] = useState<FinanceSummaryV2 | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get<FinanceSummaryV2>("/finance/summary-v2")
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-28 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
+        Erro ao carregar dados financeiros.
+      </div>
+    );
+  }
+
+  const { receivables: r, payables: p } = data;
+
+  return (
+    <div className="space-y-6">
+      {/* A Receber */}
+      <div>
+        <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-1.5">
+          <span>📥</span> A Receber
+        </h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <SummaryCard
+            label="Total Pendente"
+            value={formatCurrency(r.pendingCents + r.confirmedCents)}
+            count={r.pendingCount + r.confirmedCount}
+            colorClass="border-amber-200 bg-amber-50"
+            valueColor="text-amber-900"
+          />
+          <SummaryCard
+            label="Recebido"
+            value={formatCurrency(r.paidCents)}
+            count={r.paidCount}
+            colorClass="border-green-200 bg-green-50"
+            valueColor="text-green-900"
+          />
+          <SummaryCard
+            label="Aguardando Confirmação"
+            value={String(r.pendingCount)}
+            sub="entradas pendentes"
+            colorClass="border-slate-200 bg-slate-50"
+            valueColor="text-slate-900"
+          />
+        </div>
+      </div>
+
+      {/* A Pagar */}
+      <div>
+        <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-1.5">
+          <span>📤</span> A Pagar
+        </h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <SummaryCard
+            label="Total Pendente"
+            value={formatCurrency(p.pendingCents + p.confirmedCents)}
+            count={p.pendingCount + p.confirmedCount}
+            colorClass="border-amber-200 bg-amber-50"
+            valueColor="text-amber-900"
+          />
+          <SummaryCard
+            label="Pago"
+            value={formatCurrency(p.paidCents)}
+            count={p.paidCount}
+            colorClass="border-blue-200 bg-blue-50"
+            valueColor="text-blue-900"
+          />
+          <SummaryCard
+            label="Aguardando Confirmação"
+            value={String(p.pendingCount)}
+            sub="entradas pendentes"
+            colorClass="border-slate-200 bg-slate-50"
+            valueColor="text-slate-900"
+          />
+        </div>
+      </div>
+
+      {/* Saldo */}
+      <div className="rounded-xl border-2 border-slate-300 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-600">Saldo (Recebido - Pago)</p>
+            <p className={`text-3xl font-bold mt-1 ${data.balanceCents >= 0 ? "text-green-700" : "text-red-700"}`}>
+              {formatCurrency(data.balanceCents)}
+            </p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-2xl">
+            {data.balanceCents >= 0 ? "📈" : "📉"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  count,
+  sub,
+  colorClass,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  count?: number;
+  sub?: string;
+  colorClass: string;
+  valueColor: string;
+}) {
+  return (
+    <div className={`rounded-xl border p-5 shadow-sm ${colorClass}`}>
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <p className={`mt-1 text-2xl font-bold ${valueColor}`}>{value}</p>
+      {count != null && (
+        <p className="mt-0.5 text-xs text-slate-500">{count} entrada{count !== 1 ? "s" : ""}</p>
+      )}
+      {sub && <p className="mt-0.5 text-xs text-slate-500">{sub}</p>}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   TAB: ENTRIES (A Receber / A Pagar)
+   ══════════════════════════════════════════════════════════ */
+
+function EntriesTab({ type }: { type: FinancialEntryType }) {
+  const tp = useTableParams({ defaultSortBy: "createdAt", defaultSortOrder: "desc" });
+  const columns = buildEntryColumns(type);
+  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout(
+    `finance-entries-${type}`,
+    columns,
+  );
+  const [entries, setEntries] = useState<FinancialEntry[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" | "CANCELLED" } | null>(null);
+
+  // New entry modal
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "" });
+
+  const { toast } = useToast();
+
+  const loadEntries = useCallback(async () => {
+    try {
+      setLoading(true);
+      const qs = tp.buildQueryString();
+      const result = await api.get<PaginatedResponse<FinancialEntry>>(
+        `/finance/entries?type=${type}&${qs}`,
+      );
+      setEntries(result.data);
+      setMeta(result.meta);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, [tp.buildQueryString, type]);
+
+  useEffect(() => {
+    loadEntries();
+  }, [loadEntries]);
+
+  async function handleStatusChange() {
+    if (!confirmAction) return;
+    const { entry, action } = confirmAction;
+    setActionLoading(entry.id);
+    try {
+      await api.patch(`/finance/entries/${entry.id}/status`, { status: action });
+      const labels: Record<string, string> = { CONFIRMED: "confirmada", PAID: "paga", CANCELLED: "cancelada" };
+      toast(`Entrada ${labels[action]} com sucesso!`, "success");
+      setConfirmAction(null);
+      await loadEntries();
+    } catch {
+      toast("Erro ao atualizar status.", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleCreateEntry() {
+    const gross = Math.round(Number(formData.grossCents.replace(",", ".")) * 100);
+    if (!gross || gross <= 0) {
+      toast("Informe um valor válido.", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.post("/finance/entries", {
+        type,
+        description: formData.description || undefined,
+        grossCents: gross,
+        dueDate: formData.dueDate || undefined,
+        notes: formData.notes || undefined,
+      });
+      toast("Entrada criada com sucesso!", "success");
+      setShowNewForm(false);
+      setFormData({ description: "", grossCents: "", dueDate: "", notes: "" });
+      await loadEntries();
+    } catch {
+      toast("Erro ao criar entrada.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const typeLabel = type === "RECEIVABLE" ? "A Receber" : "A Pagar";
+  const typeColor = type === "RECEIVABLE" ? "green" : "blue";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-700">
+          {typeLabel}
+          <span className="ml-2 text-xs font-normal text-slate-400">
+            {meta.total} registro{meta.total !== 1 ? "s" : ""}
+          </span>
+        </h3>
+        <button
+          onClick={() => setShowNewForm(true)}
+          className={`rounded-lg bg-${typeColor}-600 px-3 py-2 text-sm font-semibold text-white hover:bg-${typeColor}-700 transition-colors`}
+        >
+          + Nova Entrada
+        </button>
+      </div>
+
+      <FilterBar
+        filters={ENTRY_FILTERS}
+        values={tp.filters}
+        onChange={tp.setFilter}
+        onReset={tp.resetFilters}
+        search={tp.search}
+        onSearchChange={tp.setSearch}
+        searchPlaceholder="Buscar por descrição, OS ou parceiro..."
+      />
+
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-14 animate-pulse rounded-lg border border-slate-200 bg-slate-50" />
+          ))}
+        </div>
+      ) : entries.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+          <p className="text-sm text-slate-400">
+            {tp.search || Object.keys(tp.filters).length > 0
+              ? "Nenhuma entrada encontrada com os filtros selecionados."
+              : `Nenhuma entrada ${typeLabel.toLowerCase()} criada ainda.`}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "auto", overflowY: "hidden" }}>
+          <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "700px", width: "max-content" }}>
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                {orderedColumns.map((col, idx) => (
+                  <DraggableHeader
+                    key={col.id}
+                    index={idx}
+                    columnId={col.id}
+                    onReorder={reorderColumns}
+                    onResize={setColumnWidth}
+                    width={columnWidths[col.id]}
+                    className={col.headerClassName || ""}
+                  >
+                    {col.sortable ? (
+                      <SortableHeader
+                        as="div"
+                        label={col.label}
+                        column={col.sortKey || col.id}
+                        currentColumn={tp.sort.column}
+                        currentOrder={tp.sort.order}
+                        onToggle={tp.toggleSort}
+                        align={col.align}
+                      />
+                    ) : (
+                      <div className={`py-3 px-4 text-xs font-semibold uppercase text-slate-600 ${col.align === "right" ? "text-right" : ""}`}>
+                        {col.label}
+                      </div>
+                    )}
+                  </DraggableHeader>
+                ))}
+                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-right w-[140px]">
+                  Ações
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  {orderedColumns.map((col) => {
+                    const w = columnWidths[col.id];
+                    const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};
+                    return (
+                      <td key={col.id} style={tdStyle} className={`py-3 px-4 ${col.className || ""} ${col.align === "right" ? "text-right" : ""}`}>
+                        {col.render(e)}
+                      </td>
+                    );
+                  })}
+                  <td className="py-3 px-4 text-right">
+                    <EntryActions
+                      entry={e}
+                      loading={actionLoading === e.id}
+                      onAction={(action) => setConfirmAction({ entry: e, action })}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Pagination meta={meta} onPageChange={tp.setPage} />
+
+      {/* Confirm status change modal */}
+      <ConfirmModal
+        open={!!confirmAction}
+        title={
+          confirmAction?.action === "CONFIRMED"
+            ? "Confirmar Entrada"
+            : confirmAction?.action === "PAID"
+            ? "Marcar como Pago"
+            : "Cancelar Entrada"
+        }
+        message={
+          confirmAction
+            ? `Deseja ${
+                confirmAction.action === "CONFIRMED"
+                  ? "confirmar"
+                  : confirmAction.action === "PAID"
+                  ? "marcar como paga"
+                  : "cancelar"
+              } a entrada "${confirmAction.entry.description || "(sem descrição)"}" (${formatCurrency(confirmAction.entry.netCents)})?`
+            : ""
+        }
+        confirmLabel={
+          confirmAction?.action === "CONFIRMED"
+            ? "Confirmar"
+            : confirmAction?.action === "PAID"
+            ? "Marcar Pago"
+            : "Cancelar Entrada"
+        }
+        variant={confirmAction?.action === "CANCELLED" ? "danger" : "default"}
+        loading={!!actionLoading}
+        onConfirm={handleStatusChange}
+        onCancel={() => setConfirmAction(null)}
+      />
+
+      {/* New Entry Modal */}
+      {showNewForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">
+              Nova Entrada — {typeLabel}
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Descrição</label>
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Ex: Pagamento serviço técnico"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Valor (R$) *</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.grossCents}
+                  onChange={(e) => setFormData({ ...formData, grossCents: e.target.value })}
+                  placeholder="Ex: 500,00"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Vencimento</label>
+                <input
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Observações</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={2}
+                  placeholder="Notas opcionais..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => {
+                  setShowNewForm(false);
+                  setFormData({ description: "", grossCents: "", dueDate: "", notes: "" });
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateEntry}
+                disabled={saving}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-50 ${
+                  type === "RECEIVABLE"
+                    ? "bg-green-600 hover:bg-green-700"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+              >
+                {saving ? "Salvando..." : "Criar Entrada"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Entry Action Buttons ──────────────────────────────── */
+
+function EntryActions({
+  entry,
+  loading,
+  onAction,
+}: {
+  entry: FinancialEntry;
+  loading: boolean;
+  onAction: (action: "CONFIRMED" | "PAID" | "CANCELLED") => void;
+}) {
+  if (loading) {
+    return <span className="text-xs text-slate-400 animate-pulse">Processando...</span>;
+  }
+
+  const buttons: { label: string; action: "CONFIRMED" | "PAID" | "CANCELLED"; className: string }[] = [];
+
+  if (entry.status === "PENDING") {
+    buttons.push(
+      { label: "Confirmar", action: "CONFIRMED", className: "text-blue-600 hover:text-blue-800" },
+      { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
+    );
+  } else if (entry.status === "CONFIRMED") {
+    buttons.push(
+      { label: "Pagar", action: "PAID", className: "text-green-600 hover:text-green-800" },
+      { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
+    );
+  }
+
+  if (buttons.length === 0) {
+    return <span className="text-xs text-slate-400">—</span>;
+  }
+
+  return (
+    <div className="flex gap-2 justify-end">
+      {buttons.map((btn) => (
+        <button
+          key={btn.action}
+          onClick={() => onAction(btn.action)}
+          className={`text-xs font-medium ${btn.className} transition-colors`}
+        >
+          {btn.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   TAB: REPASSES (Legacy — backward compat)
+   ══════════════════════════════════════════════════════════ */
+
+const LEDGER_FILTERS: FilterDefinition[] = [
+  { key: "dateFrom", label: "De", type: "date" },
+  { key: "dateTo", label: "Até", type: "date" },
+];
+
+const LEDGER_COLUMNS: ColumnDefinition<LedgerEntry>[] = [
+  {
+    id: "os",
+    label: "OS",
+    render: (l) => (
+      <Link href={`/orders/${l.serviceOrderId}`} className="font-medium text-slate-900 hover:text-blue-600">
+        {l.serviceOrder.title}
+      </Link>
+    ),
+  },
+  {
+    id: "grossCents",
+    label: "Bruto",
+    sortable: true,
+    align: "right",
+    render: (l) => <span className="text-slate-700">{formatCurrency(l.grossCents)}</span>,
+  },
+  {
+    id: "commissionCents",
+    label: "Comissão",
+    sortable: true,
+    align: "right",
+    render: (l) => (
+      <span className="text-amber-600">
+        -{formatCurrency(l.commissionCents)}
+        <span className="ml-1 text-xs text-slate-400">({(l.commissionBps / 100).toFixed(1)}%)</span>
+      </span>
+    ),
+  },
+  {
+    id: "netCents",
+    label: "Líquido",
+    sortable: true,
+    align: "right",
+    render: (l) => <span className="font-semibold text-green-700">{formatCurrency(l.netCents)}</span>,
+  },
+  {
+    id: "confirmedAt",
+    label: "Data",
+    sortable: true,
+    align: "right",
+    render: (l) => <span className="text-slate-500">{formatDate(l.confirmedAt)}</span>,
+  },
+];
+
+function LegacyTab() {
+  const tp = useTableParams({ defaultSortBy: "confirmedAt", defaultSortOrder: "desc" });
+  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout("finance-ledger", LEDGER_COLUMNS);
+  const [summary, setSummary] = useState<LegacySummary | null>(null);
+  const [ledgers, setLedgers] = useState<LedgerEntry[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirmModalOs, setConfirmModalOs] = useState<PendingOs | null>(null);
+  const { toast } = useToast();
+
+  async function loadSummary() {
+    try {
+      const result = await api.get<LegacySummary>("/finance/summary");
+      setSummary(result);
+    } catch { /* ignore */ }
+  }
+
+  const loadLedgers = useCallback(async () => {
+    try {
+      const qs = tp.buildQueryString();
+      const result = await api.get<PaginatedResponse<LedgerEntry>>(`/finance/ledgers?${qs}`);
+      setLedgers(result.data);
+      setMeta(result.meta);
+    } catch { /* ignore */ }
+  }, [tp.buildQueryString]);
+
+  useEffect(() => {
+    loadSummary().finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadLedgers();
+  }, [loadLedgers]);
+
+  async function handleConfirm() {
+    if (!confirmModalOs) return;
+    const osId = confirmModalOs.id;
+    setConfirming(osId);
+    try {
+      await api.post(`/finance/confirm/${osId}`);
+      toast("Repasse confirmado com sucesso!", "success");
+      setConfirmModalOs(null);
+      await Promise.all([loadSummary(), loadLedgers()]);
+    } catch {
+      toast("Erro ao confirmar repasse.", "error");
+    } finally {
+      setConfirming(null);
+    }
+  }
+
+  const FINANCE_CSV: ExportColumn<LedgerEntry>[] = [
+    { header: "OS", value: (r) => r.serviceOrder?.title || "" },
+    { header: "Receita Bruta (R$)", value: (r) => (r.grossCents / 100).toFixed(2).replace(".", ",") },
+    { header: "Comissão (%)", value: (r) => (r.commissionBps / 100).toFixed(2).replace(".", ",") },
+    { header: "Comissão (R$)", value: (r) => (r.commissionCents / 100).toFixed(2).replace(".", ",") },
+    { header: "Repasse Líquido (R$)", value: (r) => (r.netCents / 100).toFixed(2).replace(".", ",") },
+    { header: "Confirmado em", value: (r) => fmtDateTime(r.confirmedAt) },
+  ];
+
+  function handleExportFinanceCSV() {
+    if (!ledgers.length) { toast("Nenhum dado para exportar", "error"); return; }
+    const date = new Date().toISOString().slice(0, 10);
+    exportToCSV(ledgers, FINANCE_CSV, `financeiro-${date}.csv`);
+    toast("CSV exportado com sucesso!", "success");
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!summary) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
+        Erro ao carregar dados financeiros.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-700">Repasses (Legado)</h3>
+        <button
+          onClick={handleExportFinanceCSV}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+          title="Exportar CSV"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          CSV
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <div className="rounded-xl border border-green-200 bg-green-50 p-5 shadow-sm">
+          <span className="text-xs font-medium text-green-700">Receita Bruta</span>
+          <p className="mt-1 text-2xl font-bold text-green-900">{formatCurrency(summary.totalGrossCents)}</p>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <span className="text-xs font-medium text-amber-700">Comissões</span>
+          <p className="mt-1 text-2xl font-bold text-amber-900">{formatCurrency(summary.totalCommissionCents)}</p>
+        </div>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+          <span className="text-xs font-medium text-blue-700">Repasse Líquido</span>
+          <p className="mt-1 text-2xl font-bold text-blue-900">{formatCurrency(summary.totalNetCents)}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+          <span className="text-xs font-medium text-slate-600">OS Confirmadas</span>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{summary.confirmedCount}</p>
+        </div>
+      </div>
+
+      {/* Pending OS */}
+      {summary.pendingOs.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-amber-800 mb-3">
+            OS Pendentes de Confirmação ({summary.pendingOs.length})
+          </h3>
+          <div className="space-y-2">
+            {summary.pendingOs.map((os) => (
+              <div key={os.id} className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 p-3">
+                <div className="min-w-0">
+                  <Link href={`/orders/${os.id}`} className="text-sm font-medium text-slate-900 hover:text-blue-600 truncate block">
+                    {os.title}
+                  </Link>
+                  <span className="text-xs text-slate-500">Valor: {formatCurrency(os.valueCents)}</span>
+                </div>
+                <button
+                  onClick={() => setConfirmModalOs(os)}
+                  disabled={confirming === os.id}
+                  className="ml-4 flex-shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {confirming === os.id ? "Confirmando..." : "Confirmar Repasse"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmed Ledger with Filters */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-slate-700">
+            Repasses Confirmados
+            <span className="ml-2 text-xs font-normal text-slate-400">{meta.total} registro{meta.total !== 1 ? "s" : ""}</span>
+          </h3>
+        </div>
+
+        <FilterBar
+          filters={LEDGER_FILTERS}
+          values={tp.filters}
+          onChange={tp.setFilter}
+          onReset={tp.resetFilters}
+          search={tp.search}
+          onSearchChange={tp.setSearch}
+          searchPlaceholder="Buscar por título da OS..."
+        />
+
+        {ledgers.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+            <p className="text-sm text-slate-400">
+              {tp.search || Object.keys(tp.filters).length > 0
+                ? "Nenhum repasse encontrado com os filtros selecionados."
+                : "Nenhum repasse confirmado ainda."}
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "auto", overflowY: "hidden" }}>
+            <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "600px", width: "max-content" }}>
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  {orderedColumns.map((col, idx) => (
+                    <DraggableHeader
+                      key={col.id}
+                      index={idx}
+                      columnId={col.id}
+                      onReorder={reorderColumns}
+                      onResize={setColumnWidth}
+                      width={columnWidths[col.id]}
+                      className={col.headerClassName || ""}
+                    >
+                      {col.sortable ? (
+                        <SortableHeader
+                          as="div"
+                          label={col.label}
+                          column={col.sortKey || col.id}
+                          currentColumn={tp.sort.column}
+                          currentOrder={tp.sort.order}
+                          onToggle={tp.toggleSort}
+                          align={col.align}
+                        />
+                      ) : (
+                        <div className={`py-3 px-4 text-xs font-semibold uppercase text-slate-600 ${col.align === "right" ? "text-right" : ""}`}>
+                          {col.label}
+                        </div>
+                      )}
+                    </DraggableHeader>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ledgers.map((l) => (
+                  <tr key={l.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    {orderedColumns.map((col) => {
+                      const w = columnWidths[col.id];
+                      const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};
+                      return (
+                        <td key={col.id} style={tdStyle} className={`py-3 px-4 ${col.className || ""} ${col.align === "right" ? "text-right" : ""}`}>
+                          {col.render(l)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <Pagination meta={meta} onPageChange={tp.setPage} />
+      </div>
+
+      <ConfirmModal
+        open={!!confirmModalOs}
+        title="Confirmar Repasse"
+        message={confirmModalOs ? `Deseja confirmar o repasse financeiro da OS "${confirmModalOs.title}" (${formatCurrency(confirmModalOs.valueCents)})?` : ""}
+        confirmLabel="Confirmar Repasse"
+        variant="default"
+        loading={!!confirming}
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirmModalOs(null)}
+      />
+    </div>
+  );
+}

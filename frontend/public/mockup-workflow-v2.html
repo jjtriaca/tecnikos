@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estudo - Workflow em Blocos v2</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; }
+
+  .header { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: white; padding: 28px 32px; }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header p { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+
+  .container { max-width: 1300px; margin: 0 auto; padding: 32px; }
+
+  .section { margin-bottom: 40px; }
+  .section-title { font-size: 18px; font-weight: 800; color: #0f172a; margin-bottom: 6px; }
+  .section-sub { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+  .badge { font-size: 10px; padding: 3px 10px; border-radius: 99px; font-weight: 700; display: inline-block; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-amber { background: #fef3c7; color: #92400e; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-purple { background: #f3e8ff; color: #6b21a8; }
+
+  /* ── Block Catalog ── */
+  .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; }
+  .cat-group { background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .cat-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9; }
+  .cat-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: white; }
+  .cat-name { font-size: 14px; font-weight: 700; }
+  .cat-count { font-size: 11px; color: #94a3b8; }
+
+  .block-list { display: flex; flex-direction: column; gap: 6px; }
+  .block-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; transition: all 0.15s; }
+  .block-item:hover { background: #f8fafc; }
+  .block-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; white-space: nowrap; min-width: 100px; }
+  .block-desc { font-size: 11px; color: #64748b; line-height: 1.4; }
+
+  /* Block colors */
+  .bc-flow { background: #fef3c7; color: #92400e; border: 1.5px solid #fcd34d; }
+  .bc-action { background: #dbeafe; color: #1e40af; border: 1.5px solid #93c5fd; }
+  .bc-data { background: #e0e7ff; color: #3730a3; border: 1.5px solid #a5b4fc; }
+  .bc-condition { background: #ffedd5; color: #9a3412; border: 1.5px solid #fdba74; }
+  .bc-comm { background: #dcfce7; color: #166534; border: 1.5px solid #86efac; }
+  .bc-system { background: #f3e8ff; color: #6b21a8; border: 1.5px solid #c4b5fd; }
+
+  /* ── Builder Mockup ── */
+  .builder-layout { display: grid; grid-template-columns: 220px 1fr 300px; gap: 0; background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); min-height: 700px; }
+
+  .builder-toolbar { background: #f8fafc; border-right: 1px solid #e2e8f0; padding: 16px; overflow-y: auto; }
+  .tb-title { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; margin-top: 14px; }
+  .tb-title:first-child { margin-top: 0; }
+  .tb-block { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: grab; margin-bottom: 4px; transition: all 0.15s; }
+  .tb-block:hover { transform: translateX(4px); }
+  .tb-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+
+  .builder-canvas { background: #fafbfc; padding: 32px; overflow: auto; position: relative; background-image: radial-gradient(circle, #e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
+
+  .builder-props { background: white; border-left: 1px solid #e2e8f0; padding: 20px; }
+  .props-title { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+  .props-section { margin-bottom: 16px; }
+  .props-label { font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+  .props-input { width: 100%; padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-family: inherit; background: #f8fafc; }
+  .props-input:focus { outline: none; border-color: #3b82f6; background: white; }
+  .props-select { width: 100%; padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-family: inherit; background: #f8fafc; }
+  .props-check { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 0; }
+  .props-check input { width: 16px; height: 16px; accent-color: #3b82f6; }
+  .props-selected { background: #eff6ff; border: 2px solid #3b82f6; border-radius: 12px; padding: 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .props-selected-icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+
+  /* Canvas blocks */
+  .flow { display: flex; flex-direction: column; align-items: center; }
+  .conn { width: 2px; height: 20px; background: #cbd5e1; position: relative; }
+  .conn::after { content: ''; position: absolute; bottom: -3px; left: -2.5px; width: 7px; height: 7px; border-right: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; transform: rotate(45deg); }
+
+  .term { padding: 6px 20px; border-radius: 99px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; }
+  .term-start { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+  .term-end { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+
+  .fb { border-radius: 12px; padding: 12px 16px; min-width: 220px; max-width: 260px; cursor: pointer; transition: all 0.15s; position: relative; }
+  .fb:hover { transform: translateY(-1px); }
+  .fb.selected { ring: 3px; box-shadow: 0 0 0 3px #3b82f6, 0 4px 12px rgba(59,130,246,0.2); }
+
+  .fb-action { background: #eff6ff; border: 2px solid #93c5fd; }
+  .fb-action .fb-icon { background: #3b82f6; }
+  .fb-condition { background: #fef3c7; border: 2px solid #fbbf24; }
+  .fb-condition .fb-icon { background: #f59e0b; }
+  .fb-gate { background: #fce7f3; border: 2px solid #f9a8d4; }
+  .fb-gate .fb-icon { background: #ec4899; }
+  .fb-notify { background: #ecfdf5; border: 2px solid #6ee7b7; }
+  .fb-notify .fb-icon { background: #10b981; }
+  .fb-timer { background: #f5f3ff; border: 2px solid #c4b5fd; }
+  .fb-timer .fb-icon { background: #8b5cf6; }
+
+  .fb-head { display: flex; align-items: center; gap: 8px; }
+  .fb-icon { width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: white; flex-shrink: 0; }
+  .fb-name { font-size: 12px; font-weight: 700; }
+  .fb-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .fb-badges { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .fb-badge { font-size: 9px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+
+  .add-circle { width: 22px; height: 22px; border-radius: 99px; border: 2px dashed #94a3b8; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #94a3b8; cursor: pointer; transition: all 0.15s; background: white; }
+  .add-circle:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; transform: scale(1.2); }
+
+  /* Branch */
+  .branch-wrap { display: flex; gap: 24px; margin-top: 0; }
+  .branch-arm { display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .branch-label { font-size: 10px; font-weight: 800; padding: 2px 10px; border-radius: 99px; }
+  .bl-yes { background: #dcfce7; color: #166534; }
+  .bl-no { background: #fee2e2; color: #991b1b; }
+
+  /* ── Tech View ── */
+  .phone-frame { width: 320px; background: #111; border-radius: 36px; padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin: 0 auto; }
+  .phone-screen { background: white; border-radius: 28px; overflow: hidden; min-height: 580px; }
+  .phone-status { background: #111; color: white; display: flex; justify-content: space-between; padding: 8px 24px 4px; font-size: 11px; font-weight: 600; border-radius: 28px 28px 0 0; }
+  .phone-header { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: white; padding: 16px 20px; }
+  .phone-header h3 { font-size: 14px; font-weight: 700; }
+  .phone-header p { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+
+  .phone-progress { padding: 16px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+  .progress-bar { height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-bottom: 6px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #2563eb); border-radius: 99px; transition: width 0.5s; }
+  .progress-text { font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
+
+  .phone-content { padding: 20px; }
+  .phone-step { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .phone-step.active { background: #eff6ff; border-color: #3b82f6; }
+  .phone-step.done { background: #f0fdf4; border-color: #86efac; }
+  .phone-step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .phone-step-num { width: 24px; height: 24px; border-radius: 99px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+  .phone-step-num.done { background: #10b981; color: white; }
+  .phone-step-num.active { background: #3b82f6; color: white; }
+  .phone-step-num.pending { background: #e2e8f0; color: #94a3b8; }
+  .phone-step-name { font-size: 13px; font-weight: 700; }
+  .phone-step-sub { font-size: 11px; color: #64748b; }
+  .phone-btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+  .phone-btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+  .phone-btn-photo { background: #f8fafc; border: 2px dashed #94a3b8; color: #64748b; }
+
+  .phone-question { text-align: center; padding: 20px 0; }
+  .phone-question h4 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .phone-question p { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+  .phone-q-btns { display: flex; gap: 12px; }
+  .phone-q-btn { flex: 1; padding: 14px; border: none; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .phone-q-yes { background: #10b981; color: white; }
+  .phone-q-no { background: #ef4444; color: white; }
+
+  .phone-wait { text-align: center; padding: 32px 16px; }
+  .phone-wait-icon { font-size: 48px; margin-bottom: 12px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .phone-wait h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .phone-wait p { font-size: 12px; color: #64748b; }
+
+  /* ── Grid layouts ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  @media (max-width: 1000px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } .builder-layout { grid-template-columns: 1fr; } }
+
+  .card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .card h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .card p.sub { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+
+  /* ── Comparison ── */
+  .comp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .comp-table th { text-align: left; padding: 10px 12px; background: #f8fafc; font-weight: 700; border-bottom: 2px solid #e2e8f0; }
+  .comp-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+  .comp-table tr:hover td { background: #f8fafc; }
+  .emoji { font-size: 16px; }
+
+  /* ── Architecture diagram ── */
+  .arch { background: #0f172a; color: #e2e8f0; padding: 24px; border-radius: 12px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.8; overflow-x: auto; white-space: pre; }
+
+  .highlight-box { padding: 16px 20px; border-radius: 12px; margin-top: 12px; }
+  .hb-green { background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .hb-amber { background: #fffbeb; border: 1px solid #fde68a; }
+  .hb-blue { background: #eff6ff; border: 1px solid #bfdbfe; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Estudo de Viabilidade: Workflow em Blocos Composiveis</h1>
+  <p>Analise completa — catalogo de blocos, visao do tecnico, visao do gestor, arquitetura</p>
+</div>
+
+<div class="container">
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SECTION 1: CATALOGO COMPLETO DE BLOCOS            -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">1. Catalogo Completo de Blocos <span class="badge badge-blue">38 BLOCOS</span></div>
+  <div class="section-sub">Organizados em 6 categorias por cor. Cada bloco tem um papel especifico e se encaixa em slots compativeis.</div>
+
+  <div class="catalog">
+    <!-- FLUXO -->
+    <div class="cat-group">
+      <div class="cat-header">
+        <div class="cat-icon" style="background: #f59e0b;">&#9881;</div>
+        <div>
+          <div class="cat-name">FLUXO (Controle)</div>
+          <div class="cat-count">7 blocos — definem a logica do caminho</div>
+        </div>
+      </div>
+      <div class="block-list">
+        <div class="block-item">
+          <span class="block-chip bc-flow">INICIO</span>
+          <span class="block-desc">Ponto de partida (fixo, 1 por fluxo)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-flow">FIM</span>
+          <span class="block-desc">Encerra o fluxo (pode ter varios: Sucesso, Falha, Reagendar)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-flow">SE</span>
+          <span class="block-desc">Avalia condicao → abre 2 caminhos (SIM / NAO)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-flow">SENAO SE</span>
+          <span class="block-desc">Encadeia apos SE para condicoes multiplas</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-flow">ENQUANTO</span>
+          <span class="block-desc">Repete blocos internos enquanto condicao for verdadeira</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-flow">REPETIR</span>
+          <span class="block-desc">Repete N vezes (encaixa bloco NUMERO)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-flow">IR PARA</span>
+          <span class="block-desc">Pula para outro bloco (loops, voltar etapa)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AÇÕES -->
+    <div class="cat-group">
+      <div class="cat-header">
+        <div class="cat-icon" style="background: #3b82f6;">&#9997;</div>
+        <div>
+          <div class="cat-name">ACOES (Tecnico executa)</div>
+          <div class="cat-count">9 blocos — o que aparece na tela do tecnico</div>
+        </div>
+      </div>
+      <div class="block-list">
+        <div class="block-item">
+          <span class="block-chip bc-action">ETAPA</span>
+          <span class="block-desc">Passo generico que o tecnico confirma (nome + descricao)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-action">FOTO</span>
+          <span class="block-desc">Tirar/enviar foto (antes, depois, evidencia)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-action">ASSINATURA</span>
+          <span class="block-desc">Capturar assinatura digital do cliente no celular</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-action">FORMULARIO</span>
+          <span class="block-desc">Campos customizaveis que o gestor define</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-action">CHECKLIST</span>
+          <span class="block-desc">Lista de itens para marcar (check, check, check)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-action">NOTA</span>
+          <span class="block-desc">Campo de texto livre para observacao</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-action">GPS</span>
+          <span class="block-desc">Registra localizacao GPS atual</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-action">SCANNER</span>
+          <span class="block-desc">Ler codigo de barras / QR Code</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-action">PERGUNTA</span>
+          <span class="block-desc">Exibe pergunta com opcoes (SIM/NAO, lista, texto)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- DADOS -->
+    <div class="cat-group">
+      <div class="cat-header">
+        <div class="cat-icon" style="background: #4f46e5;">&#128290;</div>
+        <div>
+          <div class="cat-name">DADOS (Valores)</div>
+          <div class="cat-count">7 blocos — encaixam dentro de outros blocos como parametros</div>
+        </div>
+      </div>
+      <div class="block-list">
+        <div class="block-item">
+          <span class="block-chip bc-data">NUMERO</span>
+          <span class="block-desc">Valor numerico editavel (ex: 100 metros, 30 minutos)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-data">TEXTO</span>
+          <span class="block-desc">Texto editavel (mensagem, template, nome)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-data">SIM/NAO</span>
+          <span class="block-desc">Verdadeiro ou Falso (toggle)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-data">LISTA</span>
+          <span class="block-desc">Opcoes pra escolher (dropdown customizavel)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-data">DATA/HORA</span>
+          <span class="block-desc">Data, hora ou periodo (ex: "amanha 14:00")</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-data">VARIAVEL</span>
+          <span class="block-desc">Referencia a campo anterior (resposta de pergunta, etc)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-data">CAMPO OS</span>
+          <span class="block-desc">Dados da OS (valor, endereco, cliente, tecnico)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONDIÇÕES -->
+    <div class="cat-group">
+      <div class="cat-header">
+        <div class="cat-icon" style="background: #ea580c;">&#10067;</div>
+        <div>
+          <div class="cat-name">CONDICOES (Encaixam no SE)</div>
+          <div class="cat-count">8 blocos — hexagonais, encaixam apenas nos slots de condicao</div>
+        </div>
+      </div>
+      <div class="block-list">
+        <div class="block-item">
+          <span class="block-chip bc-condition">IGUAL A</span>
+          <span class="block-desc">Campo = Valor</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-condition">DIFERENTE</span>
+          <span class="block-desc">Campo ≠ Valor</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-condition">MAIOR QUE</span>
+          <span class="block-desc">Numero > Numero</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-condition">MENOR QUE</span>
+          <span class="block-desc">Numero < Numero</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-condition">CONTEM</span>
+          <span class="block-desc">Texto contem substring</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-condition">ESTA PERTO</span>
+          <span class="block-desc">GPS dentro de X metros do endereco da OS</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-condition">HORA ENTRE</span>
+          <span class="block-desc">Hora atual entre X e Y (horario comercial, etc)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-condition">TEM</span>
+          <span class="block-desc">Verifica se existe (foto tirada? assinatura? resposta?)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMUNICAÇÃO -->
+    <div class="cat-group">
+      <div class="cat-header">
+        <div class="cat-icon" style="background: #10b981;">&#128172;</div>
+        <div>
+          <div class="cat-name">COMUNICACAO</div>
+          <div class="cat-count">4 blocos — mensagens automaticas e aprovacoes</div>
+        </div>
+      </div>
+      <div class="block-list">
+        <div class="block-item">
+          <span class="block-chip bc-comm">NOTIFICAR</span>
+          <span class="block-desc">Envia WhatsApp/SMS automatico (nao trava o fluxo)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-comm">APROVACAO</span>
+          <span class="block-desc">TRAVA o fluxo ate o gestor aprovar (gate)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-comm">ALERTA</span>
+          <span class="block-desc">Dispara alerta no dashboard do gestor</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-comm">EMAIL</span>
+          <span class="block-desc">Envia email formatado (relatorio, resumo)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SISTEMA -->
+    <div class="cat-group">
+      <div class="cat-header">
+        <div class="cat-icon" style="background: #8b5cf6;">&#9881;</div>
+        <div>
+          <div class="cat-name">SISTEMA</div>
+          <div class="cat-count">6 blocos — temporizadores, status, calculos</div>
+        </div>
+      </div>
+      <div class="block-list">
+        <div class="block-item">
+          <span class="block-chip bc-system">DELAY</span>
+          <span class="block-desc">Aguarda X minutos/horas (encaixa bloco NUMERO)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-system">SLA</span>
+          <span class="block-desc">Define tempo limite — dispara ALERTA se estourar</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-system">STATUS</span>
+          <span class="block-desc">Muda status da OS automaticamente</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-system">REAGENDAR</span>
+          <span class="block-desc">Reagenda a OS para outra data (encaixa DATA/HORA)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-system">CALCULAR</span>
+          <span class="block-desc">Operacao matematica (soma, multiplica, etc)</span>
+        </div>
+        <div class="block-item">
+          <span class="block-chip bc-system">FINANCEIRO</span>
+          <span class="block-desc">Gera lancamento financeiro / simula comissao</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SECTION 2: BUILDER (VISAO GESTOR)                  -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">2. Builder — Visao do Gestor <span class="badge badge-green">CONSTRUTOR</span></div>
+  <div class="section-sub">Layout em 3 colunas: paleta de blocos | canvas de montagem | painel de propriedades do bloco selecionado</div>
+
+  <div class="builder-layout">
+    <!-- Toolbar -->
+    <div class="builder-toolbar">
+      <div class="tb-title">&#9881; Fluxo</div>
+      <div class="tb-block bc-flow"><div class="tb-dot" style="background: #f59e0b;"></div> SE</div>
+      <div class="tb-block bc-flow"><div class="tb-dot" style="background: #f59e0b;"></div> SENAO SE</div>
+      <div class="tb-block bc-flow"><div class="tb-dot" style="background: #f59e0b;"></div> ENQUANTO</div>
+      <div class="tb-block bc-flow"><div class="tb-dot" style="background: #f59e0b;"></div> REPETIR</div>
+
+      <div class="tb-title">&#9997; Acoes</div>
+      <div class="tb-block bc-action"><div class="tb-dot" style="background: #3b82f6;"></div> Etapa</div>
+      <div class="tb-block bc-action"><div class="tb-dot" style="background: #3b82f6;"></div> Foto</div>
+      <div class="tb-block bc-action"><div class="tb-dot" style="background: #3b82f6;"></div> Assinatura</div>
+      <div class="tb-block bc-action"><div class="tb-dot" style="background: #3b82f6;"></div> Formulario</div>
+      <div class="tb-block bc-action"><div class="tb-dot" style="background: #3b82f6;"></div> Checklist</div>
+      <div class="tb-block bc-action"><div class="tb-dot" style="background: #3b82f6;"></div> Nota</div>
+      <div class="tb-block bc-action"><div class="tb-dot" style="background: #3b82f6;"></div> GPS</div>
+      <div class="tb-block bc-action"><div class="tb-dot" style="background: #3b82f6;"></div> Pergunta</div>
+
+      <div class="tb-title">&#128290; Dados</div>
+      <div class="tb-block bc-data"><div class="tb-dot" style="background: #4f46e5;"></div> Numero</div>
+      <div class="tb-block bc-data"><div class="tb-dot" style="background: #4f46e5;"></div> Texto</div>
+      <div class="tb-block bc-data"><div class="tb-dot" style="background: #4f46e5;"></div> Variavel</div>
+
+      <div class="tb-title">&#10067; Condicoes</div>
+      <div class="tb-block bc-condition"><div class="tb-dot" style="background: #ea580c;"></div> Igual a</div>
+      <div class="tb-block bc-condition"><div class="tb-dot" style="background: #ea580c;"></div> Esta perto</div>
+      <div class="tb-block bc-condition"><div class="tb-dot" style="background: #ea580c;"></div> Maior que</div>
+      <div class="tb-block bc-condition"><div class="tb-dot" style="background: #ea580c;"></div> Tem</div>
+
+      <div class="tb-title">&#128172; Comunicacao</div>
+      <div class="tb-block bc-comm"><div class="tb-dot" style="background: #10b981;"></div> Notificar</div>
+      <div class="tb-block bc-comm"><div class="tb-dot" style="background: #10b981;"></div> Aprovacao</div>
+      <div class="tb-block bc-comm"><div class="tb-dot" style="background: #10b981;"></div> Alerta</div>
+
+      <div class="tb-title">&#9881; Sistema</div>
+      <div class="tb-block bc-system"><div class="tb-dot" style="background: #8b5cf6;"></div> Delay</div>
+      <div class="tb-block bc-system"><div class="tb-dot" style="background: #8b5cf6;"></div> SLA</div>
+      <div class="tb-block bc-system"><div class="tb-dot" style="background: #8b5cf6;"></div> Status</div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="builder-canvas">
+      <div class="flow">
+        <div class="term term-start">INICIO</div>
+        <div class="conn"></div>
+
+        <div class="fb fb-action" style="opacity: 0.6;">
+          <div class="fb-head">
+            <div class="fb-icon">&#128100;</div>
+            <div><div class="fb-name">Especializacao</div><div class="fb-sub">automatico</div></div>
+          </div>
+        </div>
+        <div class="conn"></div>
+
+        <div class="fb fb-action">
+          <div class="fb-head">
+            <div class="fb-icon">&#128663;</div>
+            <div><div class="fb-name">A caminho</div></div>
+          </div>
+        </div>
+        <div class="conn"></div>
+
+        <div class="fb fb-notify">
+          <div class="fb-head">
+            <div class="fb-icon">&#128172;</div>
+            <div><div class="fb-name">Notificar cliente</div><div class="fb-sub">WhatsApp automatico</div></div>
+          </div>
+        </div>
+        <div class="conn"></div>
+
+        <div class="fb fb-action selected">
+          <div class="fb-head">
+            <div class="fb-icon">&#128205;</div>
+            <div><div class="fb-name">Chegou no local</div></div>
+          </div>
+          <div class="fb-badges">
+            <span class="fb-badge" style="background: #dbeafe; color: #1e40af;">&#128247; Foto</span>
+            <span class="fb-badge" style="background: #dcfce7; color: #166534;">GPS auto</span>
+          </div>
+        </div>
+        <div class="conn"></div>
+
+        <!-- SE condition -->
+        <div class="fb fb-condition">
+          <div class="fb-head" style="justify-content: center;">
+            <div class="fb-icon">&#10067;</div>
+            <div>
+              <div class="fb-name">SE: Cliente presente?</div>
+              <div class="fb-sub">Pergunta ao tecnico</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="branch-wrap" style="max-width: 500px;">
+          <div class="branch-arm">
+            <div class="conn" style="height: 12px;"></div>
+            <div class="branch-label bl-yes">&#10004; SIM</div>
+            <div class="conn" style="height: 8px;"></div>
+            <div class="fb fb-action" style="min-width: 180px;">
+              <div class="fb-head"><div class="fb-icon">&#128295;</div><div><div class="fb-name">Iniciar servico</div></div></div>
+              <div class="fb-badges"><span class="fb-badge" style="background: #dbeafe; color: #1e40af;">&#128247;</span><span class="fb-badge" style="background: #fef3c7; color: #92400e;">&#128221;</span></div>
+            </div>
+            <div class="conn" style="height: 8px;"></div>
+            <div class="fb fb-timer" style="min-width: 180px;">
+              <div class="fb-head"><div class="fb-icon">&#9200;</div><div><div class="fb-name">SLA: 4h</div></div></div>
+            </div>
+            <div class="conn" style="height: 8px;"></div>
+            <div class="fb fb-action" style="min-width: 180px;">
+              <div class="fb-head"><div class="fb-icon">&#9989;</div><div><div class="fb-name">Finalizar</div></div></div>
+              <div class="fb-badges"><span class="fb-badge" style="background: #dbeafe; color: #1e40af;">&#128247;</span><span class="fb-badge" style="background: #fef3c7; color: #92400e;">&#128221;</span></div>
+            </div>
+          </div>
+          <div class="branch-arm">
+            <div class="conn" style="height: 12px;"></div>
+            <div class="branch-label bl-no">&#10008; NAO</div>
+            <div class="conn" style="height: 8px;"></div>
+            <div class="fb fb-notify" style="min-width: 180px;">
+              <div class="fb-head"><div class="fb-icon">&#128172;</div><div><div class="fb-name">Avisar ausencia</div></div></div>
+            </div>
+            <div class="conn" style="height: 8px;"></div>
+            <div class="fb fb-timer" style="min-width: 180px;">
+              <div class="fb-head"><div class="fb-icon">&#9200;</div><div><div class="fb-name">Esperar 15min</div></div></div>
+            </div>
+            <div class="conn" style="height: 8px;"></div>
+            <div style="font-size: 10px; background: #fee2e2; color: #991b1b; padding: 6px 14px; border-radius: 8px; font-weight: 700;">Reagendar OS</div>
+          </div>
+        </div>
+
+        <div class="conn"></div>
+        <div class="fb fb-gate">
+          <div class="fb-head"><div class="fb-icon">&#128274;</div><div><div class="fb-name">Aprovacao gestor</div><div class="fb-sub">Trava ate aprovar</div></div></div>
+        </div>
+        <div class="conn"></div>
+        <div class="term term-end">FIM</div>
+      </div>
+    </div>
+
+    <!-- Properties Panel -->
+    <div class="builder-props">
+      <div class="props-title">Propriedades</div>
+
+      <div class="props-selected" style="background: #eff6ff; border-color: #3b82f6;">
+        <div class="props-selected-icon" style="background: #3b82f6; color: white; border-radius: 8px;">&#128205;</div>
+        <div>
+          <div style="font-size: 12px; font-weight: 700;">Chegou no local</div>
+          <div style="font-size: 10px; color: #64748b;">Bloco: ETAPA (Acao)</div>
+        </div>
+      </div>
+
+      <div class="props-section">
+        <div class="props-label">Nome do passo</div>
+        <input class="props-input" value="Chegou no local" />
+      </div>
+
+      <div class="props-section">
+        <div class="props-label">Icone</div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px;">&#128663;</div>
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #dbeafe; border: 2px solid #3b82f6; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px;">&#128205;</div>
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px;">&#128295;</div>
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px;">&#128247;</div>
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px;">&#9989;</div>
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px;">&#9200;</div>
+        </div>
+      </div>
+
+      <div class="props-section">
+        <div class="props-label">Descricao (opcional)</div>
+        <input class="props-input" value="Tecnico confirma presenca no local" placeholder="Instrucao para o tecnico" />
+      </div>
+
+      <div class="props-section">
+        <div class="props-label">Requisitos</div>
+        <label class="props-check"><input type="checkbox" checked /> Exigir foto</label>
+        <label class="props-check"><input type="checkbox" /> Exigir observacao</label>
+        <label class="props-check"><input type="checkbox" checked /> Capturar GPS automatico</label>
+        <label class="props-check"><input type="checkbox" /> Exigir assinatura</label>
+      </div>
+
+      <div class="props-section">
+        <div class="props-label">Quantidade de fotos</div>
+        <select class="props-select">
+          <option>Minimo 1</option>
+          <option>Minimo 2</option>
+          <option>Minimo 3</option>
+          <option>Sem limite</option>
+        </select>
+      </div>
+
+      <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+        <button style="width: 100%; padding: 8px; border: 1.5px solid #fee2e2; background: #fff5f5; color: #991b1b; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;">Remover bloco</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SECTION 3: VISAO DO TECNICO (MOBILE)               -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">3. Visao do Tecnico (Mobile) <span class="badge badge-amber">O TECNICO NUNCA VE OS BLOCOS</span></div>
+  <div class="section-sub">O motor interpreta os blocos e mostra telas simples. O tecnico ve uma coisa por vez: confirmar, tirar foto, responder pergunta, ou aguardar.</div>
+
+  <div class="grid-3">
+    <!-- Phone 1: Normal step -->
+    <div>
+      <h4 style="text-align: center; font-size: 12px; color: #64748b; margin-bottom: 12px;">Tela 1: Etapa normal</h4>
+      <div class="phone-frame">
+        <div class="phone-screen">
+          <div class="phone-status"><span>12:34</span><span>&#128267; 4G</span></div>
+          <div class="phone-header">
+            <h3>OS #1247 — Manutencao eletrica</h3>
+            <p>Rua Pernambuco, 723 — Primavera do Leste</p>
+          </div>
+          <div class="phone-progress">
+            <div class="progress-bar"><div class="progress-fill" style="width: 40%;"></div></div>
+            <div class="progress-text"><span>Etapa 3 de 7</span><span>40%</span></div>
+          </div>
+          <div class="phone-content">
+            <div class="phone-step done">
+              <div class="phone-step-head">
+                <div class="phone-step-num done">&#10003;</div>
+                <div>
+                  <div class="phone-step-name">A caminho</div>
+                  <div class="phone-step-sub">Confirmado 12:15</div>
+                </div>
+              </div>
+            </div>
+            <div class="phone-step done">
+              <div class="phone-step-head">
+                <div class="phone-step-num done">&#10003;</div>
+                <div>
+                  <div class="phone-step-name">Notificacao enviada</div>
+                  <div class="phone-step-sub">Cliente avisado 12:15</div>
+                </div>
+              </div>
+            </div>
+            <div class="phone-step active">
+              <div class="phone-step-head">
+                <div class="phone-step-num active">3</div>
+                <div>
+                  <div class="phone-step-name">Chegou no local</div>
+                  <div class="phone-step-sub">Tire uma foto e confirme</div>
+                </div>
+              </div>
+              <button class="phone-btn phone-btn-photo" style="margin-bottom: 8px;">&#128247; Tirar foto do local</button>
+              <button class="phone-btn phone-btn-primary">&#10003; Confirmar chegada</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phone 2: Question (condition block) -->
+    <div>
+      <h4 style="text-align: center; font-size: 12px; color: #64748b; margin-bottom: 12px;">Tela 2: Condicao (bloco SE)</h4>
+      <div class="phone-frame">
+        <div class="phone-screen">
+          <div class="phone-status"><span>12:41</span><span>&#128267; 4G</span></div>
+          <div class="phone-header">
+            <h3>OS #1247 — Manutencao eletrica</h3>
+            <p>Rua Pernambuco, 723 — Primavera do Leste</p>
+          </div>
+          <div class="phone-progress">
+            <div class="progress-bar"><div class="progress-fill" style="width: 55%;"></div></div>
+            <div class="progress-text"><span>Etapa 4 de 7</span><span>55%</span></div>
+          </div>
+          <div class="phone-content">
+            <div class="phone-question">
+              <div style="font-size: 48px; margin-bottom: 12px;">&#129300;</div>
+              <h4>Cliente esta presente?</h4>
+              <p>Confirme se o cliente ou responsavel esta no local para liberacao do servico</p>
+              <div class="phone-q-btns">
+                <button class="phone-q-btn phone-q-yes">&#10003; Sim</button>
+                <button class="phone-q-btn phone-q-no">&#10007; Nao</button>
+              </div>
+            </div>
+            <div style="margin-top: 20px; padding: 12px; background: #f8fafc; border-radius: 10px; text-align: center;">
+              <p style="font-size: 10px; color: #94a3b8;">O fluxo vai seguir um caminho diferente<br/>dependendo da sua resposta</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phone 3: Waiting for approval -->
+    <div>
+      <h4 style="text-align: center; font-size: 12px; color: #64748b; margin-bottom: 12px;">Tela 3: Aguardando aprovacao</h4>
+      <div class="phone-frame">
+        <div class="phone-screen">
+          <div class="phone-status"><span>14:22</span><span>&#128267; 4G</span></div>
+          <div class="phone-header">
+            <h3>OS #1247 — Manutencao eletrica</h3>
+            <p>Rua Pernambuco, 723 — Primavera do Leste</p>
+          </div>
+          <div class="phone-progress">
+            <div class="progress-bar"><div class="progress-fill" style="width: 85%;"></div></div>
+            <div class="progress-text"><span>Etapa 6 de 7</span><span>85%</span></div>
+          </div>
+          <div class="phone-content">
+            <div class="phone-step done">
+              <div class="phone-step-head">
+                <div class="phone-step-num done">&#10003;</div>
+                <div>
+                  <div class="phone-step-name">Servico finalizado</div>
+                  <div class="phone-step-sub">14:18 — 2 fotos, relatorio</div>
+                </div>
+              </div>
+            </div>
+            <div class="phone-wait">
+              <div class="phone-wait-icon">&#128274;</div>
+              <h4>Aguardando aprovacao</h4>
+              <p>O gestor precisa revisar as fotos e o relatorio antes de concluir esta OS.</p>
+              <div style="margin-top: 16px; padding: 10px; background: #f8fafc; border-radius: 10px;">
+                <p style="font-size: 11px; color: #64748b;">Solicitacao enviada: <strong>14:18</strong></p>
+                <p style="font-size: 11px; color: #64748b;">Tempo de espera: <strong>4 min</strong></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SECTION 4: VISAO GESTOR - MONITORAMENTO            -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">4. Monitor do Gestor <span class="badge badge-purple">ACOMPANHAMENTO</span></div>
+  <div class="section-sub">O gestor vê o fluxo visual com o bloco atual destacado + fila de aprovacoes + alertas de SLA</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>&#128065; Acompanhamento na pagina da OS</h3>
+      <p class="sub">O gestor ve o diagrama do fluxo com o ponto atual marcado em azul</p>
+      <div style="background: #f8fafc; border-radius: 12px; padding: 16px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <div style="padding: 4px 10px; background: #dcfce7; border-radius: 6px; font-size: 10px; font-weight: 700; color: #166534;">&#10003; A caminho</div>
+          <div style="color: #cbd5e1;">&#8594;</div>
+          <div style="padding: 4px 10px; background: #dcfce7; border-radius: 6px; font-size: 10px; font-weight: 700; color: #166534;">&#10003; Notificar</div>
+          <div style="color: #cbd5e1;">&#8594;</div>
+          <div style="padding: 4px 10px; background: #dcfce7; border-radius: 6px; font-size: 10px; font-weight: 700; color: #166534;">&#10003; Chegou</div>
+          <div style="color: #cbd5e1;">&#8594;</div>
+          <div style="padding: 4px 10px; background: #dbeafe; border: 2px solid #3b82f6; border-radius: 6px; font-size: 10px; font-weight: 700; color: #1e40af; animation: pulse 2s infinite;">&#9654; Iniciar servico</div>
+          <div style="color: #cbd5e1;">&#8594;</div>
+          <div style="padding: 4px 10px; background: #f1f5f9; border-radius: 6px; font-size: 10px; font-weight: 600; color: #94a3b8;">Finalizar</div>
+          <div style="color: #cbd5e1;">&#8594;</div>
+          <div style="padding: 4px 10px; background: #f1f5f9; border-radius: 6px; font-size: 10px; font-weight: 600; color: #94a3b8;">&#128274; Aprovar</div>
+        </div>
+        <div style="margin-top: 12px; display: flex; gap: 12px;">
+          <div style="font-size: 11px; color: #64748b;"><strong>Progresso:</strong> 55%</div>
+          <div style="font-size: 11px; color: #64748b;"><strong>SLA:</strong> 3h 18min restantes</div>
+          <div style="font-size: 11px; color: #166534;"><strong>Caminho:</strong> SIM (cliente presente)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>&#128276; Fila de Aprovacoes</h3>
+      <p class="sub">Dashboard mostra todas as OS esperando aprovacao do gestor</p>
+      <div style="background: #fef3c7; border-radius: 12px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <div style="font-size: 12px; font-weight: 700; color: #92400e;">OS #1247 — Manutencao eletrica</div>
+          <div style="font-size: 10px; color: #a16207;">Tecnico: Carlos Silva | Aguardando ha 4 min</div>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button style="padding: 6px 12px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">Aprovar</button>
+          <button style="padding: 6px 12px; background: #ef4444; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">Rejeitar</button>
+        </div>
+      </div>
+      <div style="background: #fef3c7; border-radius: 12px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <div style="font-size: 12px; font-weight: 700; color: #92400e;">OS #1251 — Instalacao ar-condicionado</div>
+          <div style="font-size: 10px; color: #a16207;">Tecnico: Pedro Santos | Aguardando ha 12 min</div>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button style="padding: 6px 12px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">Aprovar</button>
+          <button style="padding: 6px 12px; background: #ef4444; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">Rejeitar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SECTION 5: VIABILIDADE                             -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">5. Analise de Viabilidade</div>
+
+  <div class="grid-2">
+    <div class="highlight-box hb-green">
+      <h4 style="font-size: 14px; font-weight: 700; color: #166534; margin-bottom: 10px;">&#10004; VIAVEL — Sim, da pra fazer</h4>
+      <ul style="font-size: 12px; color: #15803d; line-height: 2; padding-left: 16px;">
+        <li><strong>Retrocompativel:</strong> Fluxos atuais sao apenas blocos ETAPA em sequencia — zero quebra</li>
+        <li><strong>JSON flexivel:</strong> Blocos como grafo (id + next) em vez de array linear</li>
+        <li><strong>Motor simples:</strong> Interpretador que caminha pelo grafo, bloco por bloco</li>
+        <li><strong>Tecnico nao ve complexidade:</strong> So ve uma tela por vez</li>
+        <li><strong>Sem dependencias externas:</strong> Tudo React + SVG, sem library de diagramas</li>
+        <li><strong>Templates pre-prontos:</strong> Gestor escolhe template e customiza</li>
+      </ul>
+    </div>
+
+    <div class="highlight-box hb-amber">
+      <h4 style="font-size: 14px; font-weight: 700; color: #92400e; margin-bottom: 10px;">&#9888; Cuidados na implementacao</h4>
+      <ul style="font-size: 12px; color: #a16207; line-height: 2; padding-left: 16px;">
+        <li><strong>Loop infinito:</strong> Validar que ENQUANTO tem condicao de saida</li>
+        <li><strong>Drag & drop:</strong> Implementar com cuidado no mobile (touch events)</li>
+        <li><strong>Persistencia:</strong> Cada OS salva o estado do fluxo (qual bloco esta)</li>
+        <li><strong>Versioning:</strong> Se gestor edita fluxo, OS em andamento mantém versao antiga</li>
+        <li><strong>Rollback:</strong> Gestor pode resetar passo e mandar tecnico refazer</li>
+        <li><strong>Fases:</strong> Implementar em etapas (primeiro blocos basicos, depois condicoes)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="highlight-box hb-blue" style="margin-top: 16px;">
+    <h4 style="font-size: 14px; font-weight: 700; color: #1e40af; margin-bottom: 10px;">&#128197; Sugestao de faseamento</h4>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 800; color: #1e40af; margin-bottom: 6px;">FASE A — Basico</div>
+        <ul style="font-size: 11px; color: #3b82f6; line-height: 1.8; padding-left: 14px;">
+          <li>Blocos: ETAPA, FOTO, NOTA, GPS</li>
+          <li>Fluxo linear (sem condicao)</li>
+          <li>Builder visual novo</li>
+          <li>Motor com estado por OS</li>
+        </ul>
+      </div>
+      <div>
+        <div style="font-size: 11px; font-weight: 800; color: #1e40af; margin-bottom: 6px;">FASE B — Logica</div>
+        <ul style="font-size: 11px; color: #3b82f6; line-height: 1.8; padding-left: 14px;">
+          <li>Blocos: SE, PERGUNTA, DELAY, SLA</li>
+          <li>Ramificacao SIM/NAO</li>
+          <li>APROVACAO (gate)</li>
+          <li>NOTIFICAR (WhatsApp)</li>
+        </ul>
+      </div>
+      <div>
+        <div style="font-size: 11px; font-weight: 800; color: #1e40af; margin-bottom: 6px;">FASE C — Avancado</div>
+        <ul style="font-size: 11px; color: #3b82f6; line-height: 1.8; padding-left: 14px;">
+          <li>Blocos: FORMULARIO, CHECKLIST, ASSINATURA</li>
+          <li>ENQUANTO, REPETIR (loops)</li>
+          <li>CALCULAR, VARIAVEL</li>
+          <li>Templates pre-prontos</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
