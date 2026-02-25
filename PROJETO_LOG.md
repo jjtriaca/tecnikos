@@ -888,3 +888,19 @@
 - Presets: Instalação (reduz 10%), Manutenção (reduz 15%)
 - UI: seção amber entre Aprovar e Reprovar com toggles, ajuste comissão e notificações
 - Build: backend tsc 0 erros, frontend tsc 0 erros, next build 22 rotas 0 erros
+
+### Sessão 47 — 25/02/2026
+- **Auditoria completa do sistema** — ✅ CONCLUÍDO (apenas leitura)
+- 5 agentes: backend, frontend, segurança, banco, qualidade de código
+- Relatório: 6 críticas, 8 high, 12 medium. Nota 6.5/10
+
+### Sessão 48 — 25/02/2026
+- **Security Hardening para produção** — ✅ CONCLUÍDO
+- JWT Secret: validação obrigatória (32+ chars), sem fallback inseguro
+- Helmet instalado: headers XSS, HSTS, CSP, X-Frame-Options
+- Rate limiting: login 10/15min, OTP 5/10min, avaliação 5/hora
+- OTP log removido de produção (só debug em dev)
+- Senha mínima 8 chars, CORS com env var, env validation no startup
+- Middleware server-side no frontend (proteção de rotas)
+- Error boundary (error.tsx) + 404 (not-found.tsx)
+- Build: backend tsc 0 erros, frontend tsc 0 erros, next build 22 rotas + middleware 0 erros

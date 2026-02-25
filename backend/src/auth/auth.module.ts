@@ -7,11 +7,22 @@ import { TechAuthController } from './tech-auth.controller';
 import { TechAuthService } from './tech-auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      '⛔ JWT_SECRET não configurado ou muito curto (mínimo 32 caracteres). ' +
+      'Defina no .env: JWT_SECRET=<string aleatória de 32+ chars>',
+    );
+  }
+  return secret;
+}
+
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'CHANGE_ME_IN_PRODUCTION',
+      secret: getJwtSecret(),
       signOptions: {
         expiresIn: Number(process.env.JWT_ACCESS_TTL_SECONDS) || 900,
       },

@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, NotFoundException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { EvaluationService } from './evaluation.service';
 import { CreateGestorEvaluationDto, SubmitClientEvaluationDto } from './dto/create-evaluation.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -7,7 +8,6 @@ import { Public } from '../auth/decorators/public.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotFoundException } from '@nestjs/common';
 
 @Controller('evaluations')
 export class EvaluationController {
@@ -58,6 +58,7 @@ export class EvaluationController {
 
   @Public()
   @Post('public/:token')
+  @Throttle({ default: { limit: 5, ttl: 3_600_000 } }) // 5 avaliações por hora por IP
   submitClient(
     @Param('token') token: string,
     @Body() body: SubmitClientEvaluationDto,

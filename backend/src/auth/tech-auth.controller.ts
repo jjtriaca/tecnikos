@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { TechAuthService } from './tech-auth.service';
 import { Public } from './decorators/public.decorator';
@@ -23,6 +24,7 @@ export class TechAuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 900_000 } }) // 10 tentativas a cada 15 min por IP
   async login(
     @Body() body: { email: string; password: string },
     @Req() req: Request,

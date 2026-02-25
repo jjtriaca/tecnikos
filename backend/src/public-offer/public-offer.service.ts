@@ -216,8 +216,9 @@ export class PublicOfferService {
     });
 
     // TODO: integrar envio de SMS com provider (Twilio, etc.)
-    // Em dev, use o log do console para obter o código OTP
-    console.log(`[OTP-DEV] code=${code} partnerId=${technician.id}`);
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.debug(`[OTP-DEV] code=${code} partnerId=${technician.id}`);
+    }
 
     return {
       otpId: otp.id,

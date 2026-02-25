@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { PublicOfferService } from './public-offer.service';
 import { Public } from '../auth/decorators/public.decorator';
 
@@ -27,11 +28,13 @@ export class PublicLinkController {
   }
 
   @Post(':token/request-otp')
+  @Throttle({ default: { limit: 5, ttl: 600_000 } }) // 5 OTPs a cada 10 min por IP
   requestOtp(@Param('token') token: string, @Body('phone') phone: string) {
     return this.service.requestOtp(token, phone);
   }
 
   @Post(':token/accept')
+  @Throttle({ default: { limit: 10, ttl: 600_000 } }) // 10 tentativas de OTP a cada 10 min
   accept(
     @Param('token') token: string,
     @Body('phone') phone: string,

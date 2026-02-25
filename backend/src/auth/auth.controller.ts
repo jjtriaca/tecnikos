@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -23,6 +24,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 900_000 } }) // 10 tentativas a cada 15 min por IP
   async login(
     @Body() dto: LoginDto,
     @Req() req: Request,
@@ -48,6 +50,7 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } }) // 30 refreshes por minuto
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
