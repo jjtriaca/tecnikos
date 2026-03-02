@@ -39,6 +39,11 @@ export class WhatsAppService implements OnModuleInit {
     try {
       await this.createInstance();
       this.logger.log(`WhatsApp instance "${this.instanceName}" initialized`);
+
+      // Auto-configure webhook
+      const domain = process.env.DOMAIN || 'tecnikos.com.br';
+      const webhookUrl = `https://${domain}/api/whatsapp/webhook`;
+      await this.configureWebhook(webhookUrl);
     } catch (err) {
       this.logger.warn(`WhatsApp init: ${err.message} (will retry on first use)`);
     }
@@ -48,20 +53,30 @@ export class WhatsAppService implements OnModuleInit {
 
   /**
    * Create a WhatsApp instance in Evolution API (idempotent).
+   * If instance already exists, returns success silently.
    */
   async createInstance(): Promise<any> {
-    const res = await this.request('POST', '/instance/create', {
-      instanceName: this.instanceName,
-      integration: 'WHATSAPP-BAILEYS',
-      qrcode: true,
-      rejectCall: false,
-      groupsIgnore: true,
-      alwaysOnline: false,
-      readMessages: false,
-      readStatus: false,
-      syncFullHistory: false,
-    });
-    return res;
+    try {
+      const res = await this.request('POST', '/instance/create', {
+        instanceName: this.instanceName,
+        integration: 'WHATSAPP-BAILEYS',
+        qrcode: true,
+        rejectCall: false,
+        groupsIgnore: true,
+        alwaysOnline: false,
+        readMessages: false,
+        readStatus: false,
+        syncFullHistory: false,
+      });
+      return res;
+    } catch (err) {
+      // If instance already exists (403 "already in use"), that's fine
+      if (err.message?.includes('already in use') || err.message?.includes('403')) {
+        this.logger.log(`Instance "${this.instanceName}" already exists — OK`);
+        return { instance: this.instanceName, status: 'already_exists' };
+      }
+      throw err;
+    }
   }
 
   /**

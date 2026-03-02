@@ -46,21 +46,48 @@ export default function WhatsAppSettingsPage() {
     fetchStatus();
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
     };
   }, [fetchStatus]);
 
+  const qrRefreshRef = useRef<NodeJS.Timeout | null>(null);
+
   function startPolling() {
     if (pollRef.current) clearInterval(pollRef.current);
+    if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
+
+    // Poll status every 3s to detect connection
     pollRef.current = setInterval(async () => {
       const s = await fetchStatus();
       if (s?.state === "open") {
-        // Connected! Stop polling
+        // Connected! Stop all polling
         if (pollRef.current) clearInterval(pollRef.current);
+        if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
         setQrCode(null);
         setSuccess("WhatsApp conectado com sucesso!");
         setTimeout(() => setSuccess(null), 5000);
       }
     }, 3000);
+
+    // Auto-refresh QR code every 15s (WhatsApp QR expires in ~20s)
+    qrRefreshRef.current = setInterval(async () => {
+      try {
+        const data = await api.get<QRCodeData>("/whatsapp/qrcode");
+        if (data?.base64) {
+          setQrCode(data);
+        }
+      } catch {
+        // If QR fetch fails, try connect again
+        try {
+          const data = await api.post<QRCodeData & { message: string }>("/whatsapp/connect");
+          if (data?.base64) {
+            setQrCode(data);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }, 15000);
   }
 
   async function handleConnect() {

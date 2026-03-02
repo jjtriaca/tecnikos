@@ -41,14 +41,35 @@ export class WhatsAppController {
   }
 
   /**
-   * POST /whatsapp/connect — Create instance + get QR
+   * POST /whatsapp/connect — Create instance (if needed) + get QR
    */
   @Post('connect')
   @Roles('ADMIN')
   async connect() {
+    // Create instance (idempotent — ignores if already exists)
     await this.whatsAppService.createInstance();
-    const qr = await this.whatsAppService.getQRCode();
-    return { message: 'Instância criada. Escaneie o QR Code.', ...qr };
+
+    // Try to get QR code
+    try {
+      const qr = await this.whatsAppService.getQRCode();
+      return { message: 'Escaneie o QR Code para conectar.', ...qr };
+    } catch {
+      // If QR fails, check if already connected
+      const status = await this.whatsAppService.getConnectionStatus();
+      if (status.state === 'open') {
+        return { message: 'WhatsApp já está conectado!', state: 'open' };
+      }
+      // Try restart and get QR again
+      try {
+        await this.whatsAppService.restart();
+        // Wait a bit for restart
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const qr = await this.whatsAppService.getQRCode();
+        return { message: 'Instância reiniciada. Escaneie o QR Code.', ...qr };
+      } catch (err) {
+        return { message: `Erro ao obter QR Code: ${err.message}`, state: 'error' };
+      }
+    }
   }
 
   /**
