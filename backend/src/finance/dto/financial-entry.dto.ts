@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsEnum, IsNotEmpty, IsDateString, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsEnum, IsNotEmpty, IsDateString, IsBoolean, Min, IsNumber } from 'class-validator';
 
 export class CreateFinancialEntryDto {
   @IsEnum(['RECEIVABLE', 'PAYABLE'])
@@ -30,6 +30,26 @@ export class CreateFinancialEntryDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  installmentCount?: number;
+
+  @IsOptional()
+  interestType?: 'SIMPLE' | 'COMPOUND';
+
+  @IsOptional()
+  @IsNumber()
+  interestRateMonthly?: number;
+
+  @IsOptional()
+  @IsNumber()
+  penaltyPercent?: number;
+
+  @IsOptional()
+  @IsInt()
+  penaltyFixedCents?: number;
 }
 
 export class UpdateFinancialEntryDto {

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
 import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
+import { RenegotiateDto } from './dto/renegotiate.dto';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
 const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt'];
@@ -339,6 +340,137 @@ export class FinanceService {
     return this.prisma.financialEntry.update({
       where: { id },
       data: { deletedAt: new Date() },
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     v2.00 — Renegotiation
+     ═══════════════════════════════════════════════════════════════ */
+
+  async renegotiate(id: string, companyId: string, dto: RenegotiateDto) {
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: { installments: true },
+    });
+    if (!entry) throw new NotFoundException('Lancamento nao encontrado');
+
+    if (entry.status === 'PAID' || entry.status === 'CANCELLED') {
+      throw new BadRequestException('Lancamento com status terminal nao pode ser renegociado');
+    }
+
+    // Calculate remaining balance from unpaid installments, or use full netCents
+    let remainingCents: number;
+    if (entry.installments.length > 0) {
+      remainingCents = entry.installments
+        .filter(i => i.status !== 'PAID' && i.status !== 'CANCELLED')
+        .reduce((sum, i) => sum + i.totalCents, 0);
+    } else {
+      remainingCents = entry.netCents;
+    }
+
+    const newAmountCents = dto.newAmountCents ?? remainingCents;
+
+    // Use a transaction to: cancel old installments, mark old entry, create new entry + installments
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Cancel all pending/overdue installments on old entry
+      if (entry.installments.length > 0) {
+        await tx.financialInstallment.updateMany({
+          where: {
+            financialEntryId: id,
+            status: { in: ['PENDING', 'OVERDUE'] },
+          },
+          data: { status: 'RENEGOTIATED' },
+        });
+      }
+
+      // 2. Mark old entry as renegotiated
+      await tx.financialEntry.update({
+        where: { id },
+        data: {
+          status: 'CANCELLED',
+          renegotiatedAt: new Date(),
+          cancelledAt: new Date(),
+          notes: dto.notes
+            ? `${entry.notes ? entry.notes + ' | ' : ''}Renegociado: ${dto.notes}`
+            : entry.notes,
+        },
+      });
+
+      // 3. Create new financial entry
+      const newEntry = await tx.financialEntry.create({
+        data: {
+          companyId,
+          serviceOrderId: entry.serviceOrderId,
+          partnerId: entry.partnerId,
+          type: entry.type,
+          description: `Renegociacao de: ${entry.description || entry.id}`,
+          grossCents: newAmountCents,
+          commissionBps: entry.commissionBps,
+          commissionCents: entry.commissionCents
+            ? Math.round((newAmountCents * (entry.commissionBps ?? 0)) / 10000)
+            : null,
+          netCents: entry.commissionBps
+            ? newAmountCents - Math.round((newAmountCents * (entry.commissionBps ?? 0)) / 10000)
+            : newAmountCents,
+          dueDate: dto.firstDueDate ? new Date(dto.firstDueDate) : entry.dueDate,
+          notes: dto.notes,
+          parentEntryId: id,
+          installmentCount: dto.installmentCount ?? null,
+          interestType: dto.interestType ?? entry.interestType,
+          interestRateMonthly: dto.interestRateMonthly ?? entry.interestRateMonthly,
+          penaltyPercent: dto.penaltyPercent ?? entry.penaltyPercent,
+          penaltyFixedCents: dto.penaltyFixedCents ?? entry.penaltyFixedCents,
+        },
+      });
+
+      // 4. Link old entry to new one
+      await tx.financialEntry.update({
+        where: { id },
+        data: { renegotiatedToId: newEntry.id },
+      });
+
+      // 5. Generate installments for new entry if requested
+      if (dto.installmentCount && dto.installmentCount >= 2 && dto.firstDueDate) {
+        const intervalDays = dto.intervalDays ?? 30;
+        const count = dto.installmentCount;
+        const baseAmount = Math.floor(newEntry.netCents / count);
+        const remainder = newEntry.netCents - (baseAmount * count);
+        const firstDue = new Date(dto.firstDueDate);
+
+        for (let i = 0; i < count; i++) {
+          const dueDate = new Date(firstDue);
+          dueDate.setDate(dueDate.getDate() + (i * intervalDays));
+
+          const amountCents = i === count - 1 ? baseAmount + remainder : baseAmount;
+
+          await tx.financialInstallment.create({
+            data: {
+              financialEntryId: newEntry.id,
+              installmentNumber: i + 1,
+              dueDate,
+              amountCents,
+              interestCents: 0,
+              penaltyCents: 0,
+              discountCents: 0,
+              totalCents: amountCents,
+              status: 'PENDING',
+            },
+          });
+        }
+      }
+
+      return newEntry;
+    });
+
+    // Return the new entry with relations
+    return this.prisma.financialEntry.findFirst({
+      where: { id: result.id },
+      include: {
+        serviceOrder: { select: { id: true, title: true, status: true } },
+        partner: { select: { id: true, name: true } },
+        installments: { orderBy: { installmentNumber: 'asc' } },
+        parentEntry: { select: { id: true, description: true, grossCents: true, netCents: true } },
+      },
     });
   }
 }

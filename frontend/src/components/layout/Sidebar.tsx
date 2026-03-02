@@ -76,6 +76,16 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
     </svg>
   ),
+  products: (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    </svg>
+  ),
+  nfe: (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+    </svg>
+  ),
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -83,6 +93,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Ordens de Serviço", href: "/orders", icon: icons.orders, roles: ["ADMIN", "DESPACHO", "LEITURA"] },
   { label: "Parceiros", href: "/partners", icon: icons.partners, roles: ["ADMIN", "DESPACHO"] },
   { label: "Financeiro", href: "/finance", icon: icons.finance, roles: ["ADMIN", "FINANCEIRO"] },
+  { label: "Produtos", href: "/products", icon: icons.products, roles: ["ADMIN"] },
+  { label: "Importar NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN"] },
   { label: "Relatórios", href: "/reports", icon: icons.reports, roles: ["ADMIN", "FINANCEIRO", "LEITURA"] },
   { label: "Usuários", href: "/users", icon: icons.users, roles: ["ADMIN"] },
   { label: "Fluxo de Atendimento", href: "/workflow", icon: icons.workflow, roles: ["ADMIN", "DESPACHO"] },

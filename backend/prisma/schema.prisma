@@ -38,6 +38,14 @@ enum FinancialEntryStatus {
   CANCELLED
 }
 
+enum InstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+  RENEGOTIATED
+}
+
 model Company {
   id        String   @id @default(uuid())
   name      String   // Razão Social
@@ -83,8 +91,11 @@ model Company {
   automationRules      AutomationRule[]
   automationTemplates  AutomationTemplate[]
   financialEntries     FinancialEntry[]
+  collectionRules      CollectionRule[]
   whatsappMessages     WhatsAppMessage[]
   whatsAppConfig       WhatsAppConfig?
+  products             Product[]
+  nfeImports           NfeImport[]
 }
 
 model User {
@@ -164,6 +175,7 @@ model Partner {
   evaluations          Evaluation[]
   financialEntries     FinancialEntry[]
   whatsappMessages     WhatsAppMessage[]
+  productEquivalents   ProductEquivalent[]
 
   @@index([companyId])
   @@index([email])
@@ -505,19 +517,229 @@ model FinancialEntry {
   confirmedAt      DateTime?
   cancelledAt      DateTime?
   notes            String?
+
+  // Parcelas e Juros (v2.0)
+  installmentCount    Int?              // Nro de parcelas (null = à vista)
+  interestType        String?           // "SIMPLE" ou "COMPOUND"
+  interestRateMonthly Float?            // Taxa juros mensal % (ex: 2.0 = 2%)
+  penaltyPercent      Float?            // Multa % sobre valor
+  penaltyFixedCents   Int?              // Multa fixa em centavos
+
+  // Renegociação (v2.0)
+  parentEntryId       String?           // Entry original (rastreio de renegociação)
+  renegotiatedAt      DateTime?
+  renegotiatedToId    String?           // Nova entry criada na renegociação
+
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   deletedAt        DateTime?
 
-  company       Company       @relation(fields: [companyId], references: [id])
-  serviceOrder  ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
-  partner       Partner?      @relation(fields: [partnerId], references: [id])
+  company          Company       @relation(fields: [companyId], references: [id])
+  serviceOrder     ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
+  partner          Partner?      @relation(fields: [partnerId], references: [id])
+
+  // Self-relations para renegociação
+  parentEntry        FinancialEntry?        @relation("Renegotiation", fields: [parentEntryId], references: [id])
+  childEntries       FinancialEntry[]       @relation("Renegotiation")
+  renegotiatedTo     FinancialEntry?        @relation("RenegotiationTarget", fields: [renegotiatedToId], references: [id])
+  renegotiationSource FinancialEntry[]      @relation("RenegotiationTarget")
+
+  // Parcelas
+  installments     FinancialInstallment[]
 
   @@index([companyId, type, status])
   @@index([companyId, deletedAt])
   @@index([serviceOrderId])
   @@index([partnerId])
   @@index([dueDate])
+  @@index([parentEntryId])
+}
+
+// ========== Parcelas Financeiras (v2.0) ==========
+
+model FinancialInstallment {
+  id                String            @id @default(uuid())
+  financialEntryId  String
+  installmentNumber Int               // 1, 2, 3... N
+  dueDate           DateTime
+  amountCents       Int               // Valor original da parcela
+  interestCents     Int               @default(0)
+  penaltyCents      Int               @default(0)
+  discountCents     Int               @default(0)
+  totalCents        Int               // amount + interest + penalty - discount
+  status            InstallmentStatus @default(PENDING)
+  paidAt            DateTime?
+  paidAmountCents   Int?              // Valor efetivamente pago
+  notes             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  financialEntry FinancialEntry @relation(fields: [financialEntryId], references: [id])
+
+  @@unique([financialEntryId, installmentNumber])
+  @@index([financialEntryId])
+  @@index([dueDate, status])
+  @@index([status])
+}
+
+// ========== Régua de Cobrança (v2.0) ==========
+
+model CollectionRule {
+  id              String   @id @default(uuid())
+  companyId       String
+  name            String            // Ex: "Lembrete 3 dias antes", "Cobrança 1 dia após"
+  daysAfterDue    Int               // Negativo = antes do vencimento, positivo = depois
+  actionType      String            // WHATSAPP, EMAIL, STATUS_CHANGE, INTEREST_APPLY
+  messageTemplate String?           // {{partner_name}}, {{amount}}, {{due_date}}, {{days_overdue}}
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, isActive])
+  @@index([daysAfterDue])
+}
+
+model CollectionExecution {
+  id                String   @id @default(uuid())
+  companyId         String
+  collectionRuleId  String
+  financialEntryId  String?
+  installmentId     String?
+  status            String   // SUCCESS, FAILED, SKIPPED
+  actionType        String
+  message           String?
+  error             String?
+  executedAt        DateTime @default(now())
+
+  @@index([companyId, executedAt])
+  @@index([financialEntryId])
+  @@index([installmentId])
+}
+
+// ========== Cadastro de Produtos (v2.0) ==========
+
+model Product {
+  id          String   @id @default(uuid())
+  companyId   String
+
+  // Aba Geral
+  code        String?   // Código interno
+  barcode     String?   // Código de barras (EAN)
+  description String    // Nome / Descrição do produto
+  brand       String?   // Marca
+  model       String?   // Modelo
+  unit        String    @default("UN")  // UN, CX, KG, MT, LT, PC
+  ncm         String?   // NCM (Nomenclatura Comum do Mercosul)
+  cest        String?   // CEST
+  origin      String?   // 0=Nacional, 1=Estrangeira importação, etc.
+  category    String?   // Categoria livre
+
+  // Aba Impostos
+  icmsRate    Float?    // Alíquota ICMS %
+  ipiRate     Float?    // Alíquota IPI %
+  pisRate     Float?    // Alíquota PIS %
+  cofinsRate  Float?    // Alíquota COFINS %
+  csosn       String?   // CSOSN (Simples Nacional)
+  cfop        String?   // CFOP padrão
+  cst         String?   // CST ICMS
+  cstPis      String?   // CST PIS
+  cstCofins   String?   // CST COFINS
+
+  // Aba Margem de Lucro
+  costCents              Int?     // Custo unitário em centavos
+  salePriceCents         Int?     // Preço de venda em centavos
+  profitMarginPercent    Float?   // Margem de lucro %
+  lastPurchasePriceCents Int?     // Último preço de compra
+  averageCostCents       Int?     // Custo médio
+
+  // Aba Estoque
+  currentStock  Float   @default(0)
+  minStock      Float?  // Estoque mínimo
+  maxStock      Float?  // Estoque máximo
+  location      String? // Localização no depósito
+
+  status    String    @default("ATIVO")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company      Company              @relation(fields: [companyId], references: [id])
+  equivalents  ProductEquivalent[]
+  nfeItems     NfeImportItem[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@index([barcode])
+  @@index([companyId, category])
+}
+
+model ProductEquivalent {
+  id                  String   @id @default(uuid())
+  productId           String
+  supplierId          String   // Partner (FORNECEDOR) ID
+  supplierCode        String   // Código do produto no fornecedor
+  supplierDescription String?  // Descrição do fornecedor
+  lastPriceCents      Int?     // Último preço pago
+  lastPurchaseDate    DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  product  Product @relation(fields: [productId], references: [id])
+  supplier Partner @relation(fields: [supplierId], references: [id])
+
+  @@unique([productId, supplierId, supplierCode])
+  @@index([supplierId, supplierCode])
+}
+
+// ========== Importador NFe XML (v2.0) ==========
+
+model NfeImport {
+  id            String   @id @default(uuid())
+  companyId     String
+  nfeNumber     String?  // Número da NFe
+  nfeSeries     String?  // Série
+  nfeKey        String?  @unique // Chave de acesso (44 dígitos)
+  issueDate     DateTime?
+  supplierId    String?  // Partner vinculado
+  supplierCnpj  String?  // CNPJ do fornecedor na NFe
+  supplierName  String?  // Nome do fornecedor na NFe
+  totalCents    Int?     // Valor total da NFe em centavos
+  status        String   @default("PENDING") // PENDING, PROCESSED, CANCELLED
+  financialEntryId String? // Lançamento financeiro criado automaticamente
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company  Company         @relation(fields: [companyId], references: [id])
+  items    NfeImportItem[]
+
+  @@index([companyId])
+  @@index([nfeKey])
+}
+
+model NfeImportItem {
+  id              String   @id @default(uuid())
+  nfeImportId     String
+  itemNumber      Int      // Número do item na NFe (1, 2, 3...)
+  productCode     String?  // Código do produto na NFe
+  description     String?  // Descrição do produto na NFe
+  ncm             String?
+  cfop            String?
+  unit            String?  // Unidade
+  quantity        Float?
+  unitPriceCents  Int?     // Preço unitário em centavos
+  totalCents      Int?     // Total do item em centavos
+  productId       String?  // Product vinculado (se existir)
+  action          String   @default("PENDING") // PENDING, LINKED, CREATED, SKIPPED
+  createdAt       DateTime @default(now())
+
+  nfeImport NfeImport @relation(fields: [nfeImportId], references: [id])
+  product   Product?  @relation(fields: [productId], references: [id])
+
+  @@index([nfeImportId])
 }
 
 // ========== Aguardar Verificando — Workflow WAIT_FOR (v1.00.26) ==========

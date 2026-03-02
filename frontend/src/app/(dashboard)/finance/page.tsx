@@ -20,6 +20,10 @@ import type {
   FinanceSummaryV2,
 } from "@/types/finance";
 import { ENTRY_STATUS_CONFIG } from "@/types/finance";
+import GenerateInstallmentsModal from "./components/GenerateInstallmentsModal";
+import InstallmentDetailModal from "./components/InstallmentDetailModal";
+import RenegotiationModal from "./components/RenegotiationModal";
+import CollectionRulesTab from "./components/CollectionRulesTab";
 
 /* ── Legacy types (backward compat) ─────────────────────── */
 
@@ -73,12 +77,14 @@ function formatDate(dateStr: string) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "repasses";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cobranca" | "repasses";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
   { id: "receber", label: "A Receber", icon: "📥" },
   { id: "pagar", label: "A Pagar", icon: "📤" },
+  { id: "parcelas", label: "Parcelas", icon: "📑" },
+  { id: "cobranca", label: "Cobrança", icon: "⚡" },
   { id: "repasses", label: "Repasses", icon: "📋" },
 ];
 
@@ -119,9 +125,26 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       id: "description",
       label: "Descrição",
       render: (e) => (
-        <span className="text-sm font-medium text-slate-900 truncate block max-w-[200px]">
-          {e.description || "(sem descrição)"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-medium text-slate-900 truncate block max-w-[180px]">
+            {e.description || "(sem descrição)"}
+          </span>
+          {e.installmentCount && e.installmentCount > 0 && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+              {e.installmentCount}x
+            </span>
+          )}
+          {e.parentEntryId && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200 whitespace-nowrap">
+              Reneg.
+            </span>
+          )}
+          {e.dueDate && new Date(e.dueDate) < new Date() && e.status !== "PAID" && e.status !== "CANCELLED" && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-700 border border-red-200 whitespace-nowrap">
+              Vencida
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -256,6 +279,8 @@ export default function FinancePage() {
       {activeTab === "resumo" && <SummaryTab />}
       {activeTab === "receber" && <EntriesTab type="RECEIVABLE" />}
       {activeTab === "pagar" && <EntriesTab type="PAYABLE" />}
+      {activeTab === "parcelas" && <InstallmentsOverviewTab />}
+      {activeTab === "cobranca" && <CollectionRulesTab />}
       {activeTab === "repasses" && <LegacyTab />}
     </div>
   );
@@ -425,6 +450,11 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "" });
 
+  // v2.00 — Installment & Renegotiation modals
+  const [installmentModal, setInstallmentModal] = useState<{ entryId: string; netCents: number } | null>(null);
+  const [detailModal, setDetailModal] = useState<{ entryId: string; description?: string } | null>(null);
+  const [renegotiateModal, setRenegotiateModal] = useState<{ entryId: string; description?: string; netCents: number } | null>(null);
+
   const { toast } = useToast();
 
   const loadEntries = useCallback(async () => {
@@ -588,6 +618,9 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       entry={e}
                       loading={actionLoading === e.id}
                       onAction={(action) => setConfirmAction({ entry: e, action })}
+                      onInstallments={() => setInstallmentModal({ entryId: e.id, netCents: e.netCents })}
+                      onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
+                      onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
                     />
                   </td>
                 </tr>
@@ -707,6 +740,40 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
           </div>
         </div>
       )}
+
+      {/* v2.00 — Generate Installments Modal */}
+      {installmentModal && (
+        <GenerateInstallmentsModal
+          entryId={installmentModal.entryId}
+          entryNetCents={installmentModal.netCents}
+          open={true}
+          onClose={() => setInstallmentModal(null)}
+          onSuccess={() => { setInstallmentModal(null); loadEntries(); }}
+        />
+      )}
+
+      {/* v2.00 — Installment Detail Modal */}
+      {detailModal && (
+        <InstallmentDetailModal
+          entryId={detailModal.entryId}
+          entryDescription={detailModal.description}
+          open={true}
+          onClose={() => setDetailModal(null)}
+          onSuccess={() => { setDetailModal(null); loadEntries(); }}
+        />
+      )}
+
+      {/* v2.00 — Renegotiation Modal */}
+      {renegotiateModal && (
+        <RenegotiationModal
+          entryId={renegotiateModal.entryId}
+          entryDescription={renegotiateModal.description}
+          entryNetCents={renegotiateModal.netCents}
+          open={true}
+          onClose={() => setRenegotiateModal(null)}
+          onSuccess={() => { setRenegotiateModal(null); loadEntries(); }}
+        />
+      )}
     </div>
   );
 }
@@ -717,36 +784,42 @@ function EntryActions({
   entry,
   loading,
   onAction,
+  onInstallments,
+  onViewInstallments,
+  onRenegotiate,
 }: {
   entry: FinancialEntry;
   loading: boolean;
   onAction: (action: "CONFIRMED" | "PAID" | "CANCELLED") => void;
+  onInstallments: () => void;
+  onViewInstallments: () => void;
+  onRenegotiate: () => void;
 }) {
   if (loading) {
     return <span className="text-xs text-slate-400 animate-pulse">Processando...</span>;
   }
 
-  const buttons: { label: string; action: "CONFIRMED" | "PAID" | "CANCELLED"; className: string }[] = [];
+  const statusButtons: { label: string; action: "CONFIRMED" | "PAID" | "CANCELLED"; className: string }[] = [];
 
   if (entry.status === "PENDING") {
-    buttons.push(
+    statusButtons.push(
       { label: "Confirmar", action: "CONFIRMED", className: "text-blue-600 hover:text-blue-800" },
       { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
     );
   } else if (entry.status === "CONFIRMED") {
-    buttons.push(
+    statusButtons.push(
       { label: "Pagar", action: "PAID", className: "text-green-600 hover:text-green-800" },
       { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
     );
   }
 
-  if (buttons.length === 0) {
-    return <span className="text-xs text-slate-400">—</span>;
-  }
+  const isTerminal = entry.status === "PAID" || entry.status === "CANCELLED";
+  const hasInstallments = entry.installmentCount && entry.installmentCount > 0;
 
   return (
-    <div className="flex gap-2 justify-end">
-      {buttons.map((btn) => (
+    <div className="flex gap-1.5 justify-end flex-wrap">
+      {/* Status actions */}
+      {statusButtons.map((btn) => (
         <button
           key={btn.action}
           onClick={() => onAction(btn.action)}
@@ -755,6 +828,176 @@ function EntryActions({
           {btn.label}
         </button>
       ))}
+
+      {/* Installment actions */}
+      {hasInstallments ? (
+        <button
+          onClick={onViewInstallments}
+          className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
+          title="Ver parcelas"
+        >
+          📑 Parcelas
+        </button>
+      ) : !isTerminal ? (
+        <button
+          onClick={onInstallments}
+          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+          title="Gerar parcelas"
+        >
+          Parcelar
+        </button>
+      ) : null}
+
+      {/* Renegotiate — only for non-terminal entries */}
+      {!isTerminal && (
+        <button
+          onClick={onRenegotiate}
+          className="text-xs font-medium text-amber-600 hover:text-amber-800 transition-colors"
+          title="Renegociar"
+        >
+          Renegociar
+        </button>
+      )}
+
+      {/* Show dash if terminal and no installments */}
+      {isTerminal && !hasInstallments && statusButtons.length === 0 && (
+        <span className="text-xs text-slate-400">—</span>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   TAB: PARCELAS (Installments Overview)
+   ══════════════════════════════════════════════════════════ */
+
+function InstallmentsOverviewTab() {
+  const [entries, setEntries] = useState<FinancialEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detailModal, setDetailModal] = useState<{ entryId: string; description?: string } | null>(null);
+  const [filter, setFilter] = useState<"all" | "pending" | "overdue" | "paid">("all");
+
+  useEffect(() => {
+    async function loadEntriesWithInstallments() {
+      try {
+        setLoading(true);
+        // Load both receivable and payable entries that have installments
+        const [rec, pay] = await Promise.all([
+          api.get<PaginatedResponse<FinancialEntry>>("/finance/entries?type=RECEIVABLE&limit=100"),
+          api.get<PaginatedResponse<FinancialEntry>>("/finance/entries?type=PAYABLE&limit=100"),
+        ]);
+        const allEntries = [...rec.data, ...pay.data].filter((e) => e.installmentCount && e.installmentCount > 0);
+        setEntries(allEntries);
+      } catch {
+        /* ignore */
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadEntriesWithInstallments();
+  }, []);
+
+  const filteredEntries = entries.filter((e) => {
+    if (filter === "all") return true;
+    if (filter === "paid") return e.status === "PAID";
+    if (filter === "pending") return e.status === "PENDING" || e.status === "CONFIRMED";
+    if (filter === "overdue") return e.dueDate && new Date(e.dueDate) < new Date() && e.status !== "PAID" && e.status !== "CANCELLED";
+    return true;
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-700">
+          Lançamentos com Parcelas
+          <span className="ml-2 text-xs font-normal text-slate-400">
+            {entries.length} lançamento{entries.length !== 1 ? "s" : ""}
+          </span>
+        </h3>
+        <div className="flex gap-1">
+          {(["all", "pending", "overdue", "paid"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                filter === f
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {{ all: "Todos", pending: "Pendentes", overdue: "Vencidas", paid: "Pagas" }[f]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-xl border border-slate-200 bg-slate-50" />
+          ))}
+        </div>
+      ) : filteredEntries.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+          <p className="text-sm text-slate-400">
+            {filter !== "all" ? "Nenhum lançamento encontrado com este filtro." : "Nenhum lançamento com parcelas ainda."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredEntries.map((e) => {
+            const isOverdue = e.dueDate && new Date(e.dueDate) < new Date() && e.status !== "PAID" && e.status !== "CANCELLED";
+            return (
+              <div
+                key={e.id}
+                className={`rounded-xl border p-4 shadow-sm bg-white cursor-pointer hover:shadow-md transition-shadow ${
+                  isOverdue ? "border-red-200" : "border-slate-200"
+                }`}
+                onClick={() => setDetailModal({ entryId: e.id, description: e.description })}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-900 truncate">
+                        {e.description || "(sem descrição)"}
+                      </span>
+                      <StatusBadge status={e.status} />
+                      {isOverdue && (
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                          Vencida
+                        </span>
+                      )}
+                      <span className="text-xs text-slate-400">
+                        {e.type === "RECEIVABLE" ? "📥 A Receber" : "📤 A Pagar"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1">
+                      {e.partner && <span className="text-xs text-slate-500">{e.partner.name}</span>}
+                      <span className="text-xs text-slate-400">{e.installmentCount}x parcelas</span>
+                      {e.dueDate && <span className="text-xs text-slate-400">Venc: {formatDate(e.dueDate)}</span>}
+                    </div>
+                  </div>
+                  <div className="text-right ml-4">
+                    <p className="text-lg font-bold text-slate-900">{formatCurrency(e.netCents)}</p>
+                    <p className="text-xs text-slate-400">Clique para ver parcelas</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Installment Detail Modal */}
+      {detailModal && (
+        <InstallmentDetailModal
+          entryId={detailModal.entryId}
+          entryDescription={detailModal.description}
+          open={true}
+          onClose={() => setDetailModal(null)}
+          onSuccess={() => setDetailModal(null)}
+        />
+      )}
     </div>
   );
 }
