@@ -6,8 +6,8 @@ import { ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("admin@tecnikos.com.br");
+  const [password, setPassword] = useState("Tecnikos2026!");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -52,8 +52,8 @@ export default function LoginPage() {
                 </svg>
               </div>
               <div>
-                <div className="text-base font-bold text-slate-900">FieldService</div>
-                <div className="text-[11px] text-slate-400">Gestão de OS em Campo</div>
+                <div className="text-base font-bold text-slate-900">Tecnikos</div>
+                <div className="text-[11px] text-slate-400">Gestao de Servicos Tecnicos</div>
               </div>
             </div>
 
@@ -129,7 +129,7 @@ export default function LoginPage() {
               </button>
 
               <div className="pt-3 text-center text-[11px] text-slate-300">
-                Demo: admin@demo.com / admin123
+                admin@tecnikos.com.br / Tecnikos2026!
               </div>
             </form>
           </div>
