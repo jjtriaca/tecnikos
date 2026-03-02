@@ -98,6 +98,11 @@ export class CreatePartnerDto {
   state?: string;
 
   @IsOptional()
+  @IsString()
+  @IsIn(['ATIVO', 'INATIVO', 'EM_TREINAMENTO'], { message: 'Status inválido' })
+  status?: string;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   specializationIds?: string[];

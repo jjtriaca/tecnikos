@@ -266,45 +266,80 @@ export class PartnerService {
     let skipped = 0;
     const errors: { row: number; name: string; message: string }[] = [];
 
+    // Pré-carrega documentos e emails existentes em batch (evita N queries)
+    const existingPartners = await this.prisma.partner.findMany({
+      where: { companyId, deletedAt: null },
+      select: { document: true, email: true },
+    });
+    const existingDocs = new Set(existingPartners.map(p => p.document).filter(Boolean));
+    const existingEmails = new Set(existingPartners.map(p => p.email?.toLowerCase()).filter(Boolean));
+
+    // Set para rastrear duplicatas dentro do próprio lote de importação
+    const batchDocs = new Set<string>();
+    const batchEmails = new Set<string>();
+
+    // Campos aceitos pelo Prisma Partner model
+    const ALLOWED_FIELDS = new Set([
+      'companyId', 'partnerTypes', 'personType', 'isRuralProducer',
+      'name', 'tradeName', 'document', 'documentType', 'ie', 'im', 'ieStatus',
+      'phone', 'email', 'passwordHash', 'rating',
+      'cep', 'addressStreet', 'addressNumber', 'addressComp',
+      'neighborhood', 'city', 'state', 'status',
+    ]);
+
+    // Filtra parceiros, removendo duplicatas do lote
+    const toCreate: { row: number; data: any }[] = [];
     for (let i = 0; i < partners.length; i++) {
-      const data = partners[i];
-      try {
-        // Verifica documento duplicado
-        if (data.document) {
-          const existing = await this.prisma.partner.findFirst({
-            where: { companyId, document: data.document, deletedAt: null },
-          });
-          if (existing) {
-            skipped++;
-            continue;
-          }
+      const data = partners[i] as any;
+      const row = i + 1;
+
+      // Verifica documento duplicado
+      if (data.document) {
+        if (existingDocs.has(data.document) || batchDocs.has(data.document)) {
+          skipped++;
+          continue;
         }
-
-        // Verifica email duplicado
-        if (data.email) {
-          const existingEmail = await this.prisma.partner.findFirst({
-            where: { companyId, email: data.email, deletedAt: null },
-          });
-          if (existingEmail) {
-            skipped++;
-            continue;
-          }
-        }
-
-        const { specializationIds, password, ...rest } = data;
-        const createData: any = { companyId, ...rest };
-        delete createData.password;
-        delete createData.specializationIds;
-
-        await this.prisma.partner.create({ data: createData });
-        created++;
-      } catch (err: any) {
-        errors.push({
-          row: i + 1,
-          name: data.name || `Linha ${i + 1}`,
-          message: err.message?.slice(0, 120) || 'Erro desconhecido',
-        });
+        batchDocs.add(data.document);
       }
+
+      // Verifica email duplicado
+      const emailLower = data.email?.toLowerCase();
+      if (emailLower) {
+        if (existingEmails.has(emailLower) || batchEmails.has(emailLower)) {
+          skipped++;
+          continue;
+        }
+        batchEmails.add(emailLower);
+      }
+
+      // Limpa campos não aceitos pelo Prisma
+      const createData: any = { companyId };
+      for (const [key, val] of Object.entries(data)) {
+        if (ALLOWED_FIELDS.has(key) && val !== undefined && val !== '' && key !== 'password' && key !== 'specializationIds') {
+          createData[key] = val;
+        }
+      }
+
+      toCreate.push({ row, data: createData });
+    }
+
+    // Insere em chunks paralelos de 50
+    const CHUNK_SIZE = 50;
+    for (let start = 0; start < toCreate.length; start += CHUNK_SIZE) {
+      const chunk = toCreate.slice(start, start + CHUNK_SIZE);
+      const promises = chunk.map(async ({ row, data }) => {
+        try {
+          await this.prisma.partner.create({ data });
+          created++;
+        } catch (err: any) {
+          errors.push({
+            row,
+            name: data.name || `Linha ${row}`,
+            message: err.message?.slice(0, 120) || 'Erro desconhecido',
+          });
+        }
+      });
+      await Promise.all(promises);
     }
 
     // Log de auditoria da importação
