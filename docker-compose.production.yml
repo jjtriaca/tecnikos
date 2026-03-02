@@ -1,12 +1,12 @@
 # ═══════════════════════════════════════════════════════════════
-#  Docker Compose — Produção
+#  Docker Compose — Producao Tecnikos SaaS
 #  Uso: docker compose -f docker-compose.production.yml up -d
-#  Requer: .env.production com todas as variáveis definidas
+#  Requer: .env.production com todas as variaveis definidas
 # ═══════════════════════════════════════════════════════════════
 services:
   postgres:
     image: postgres:16
-    container_name: sistema_postgres
+    container_name: tecnikos_postgres
     restart: always
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -21,18 +21,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: sistema_backend
+    container_name: tecnikos_backend
     restart: always
     environment:
       NODE_ENV: production
       PORT: 4000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-604800}
       FRONTEND_URL: ${FRONTEND_URL}
     volumes:
       - uploads_data:/app/uploads
@@ -46,18 +52,21 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://backend:4000
-    container_name: sistema_frontend
+        NEXT_PUBLIC_API_URL: /api
+    container_name: tecnikos_frontend
     restart: always
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://backend:4000
     depends_on:
       - backend
     networks:
@@ -67,10 +76,14 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 
   nginx:
     image: nginx:alpine
-    container_name: sistema_nginx
+    container_name: tecnikos_nginx
     restart: always
     ports:
       - "80:80"
@@ -78,6 +91,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_webroot:/var/www/certbot:ro
       - uploads_data:/app/uploads:ro
     depends_on:
       - frontend
@@ -85,9 +99,24 @@ services:
     networks:
       - app-network
 
+  # ── Certbot — renovacao automatica SSL ────────────────────
+  certbot:
+    image: certbot/certbot:latest
+    container_name: tecnikos_certbot
+    volumes:
+      - ./nginx/ssl:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    # Renova a cada 12h (so renova se faltar < 30 dias)
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'"
+    depends_on:
+      - nginx
+    networks:
+      - app-network
+
 volumes:
   postgres_data:
   uploads_data:
+  certbot_webroot:
 
 networks:
   app-network:

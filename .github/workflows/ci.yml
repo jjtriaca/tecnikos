@@ -1,4 +1,4 @@
-name: CI — Build & Type Check
+name: Tecnikos CI — Build & Type Check
 
 on:
   push:
@@ -75,9 +75,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build backend image
-        run: docker build -t sistema-backend:ci ./backend
+        run: docker build -t tecnikos-backend:ci ./backend
 
       - name: Build frontend image
-        run: docker build -t sistema-frontend:ci ./frontend
+        run: docker build -t tecnikos-frontend:ci ./frontend
         env:
           NEXT_PUBLIC_API_URL: http://backend:4000

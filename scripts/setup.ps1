@@ -1,11 +1,11 @@
 # ============================================================
-# FieldService - Script de Instalacao (Windows PowerShell)
+# Tecnikos SaaS - Script de Instalacao (Windows PowerShell)
 # ============================================================
 $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Blue
-Write-Host "  FieldService - Instalador do Sistema  " -ForegroundColor Blue
+Write-Host "  Tecnikos - Instalador do Sistema      " -ForegroundColor Blue
 Write-Host "========================================" -ForegroundColor Blue
 Write-Host ""
 
@@ -65,7 +65,7 @@ Write-Host "  OK Container do PostgreSQL rodando na porta 5433" -ForegroundColor
 Write-Host "  Aguardando PostgreSQL aceitar conexoes..."
 $ready = $false
 for ($i = 0; $i -lt 30; $i++) {
-    docker compose exec -T postgres pg_isready -U sistema_user -d sistema 2>$null | Out-Null
+    docker compose exec -T postgres pg_isready -U tecnikos_user -d tecnikos 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) {
         $ready = $true
         break
@@ -153,12 +153,6 @@ Write-Host "    Terminal 1 (Backend):  cd backend; npm run start:dev" -Foregroun
 Write-Host "    Terminal 2 (Frontend): cd frontend; npm run dev" -ForegroundColor Blue
 Write-Host ""
 Write-Host "  Acesse:" -ForegroundColor Yellow
-Write-Host "    Painel Gestor:  http://localhost:3001" -ForegroundColor Blue
-Write-Host "    Mobile Tecnico: http://localhost:3001/tech" -ForegroundColor Blue
+Write-Host "    Painel Gestor:  http://localhost:3000" -ForegroundColor Blue
 Write-Host "    API Health:     http://localhost:4000/health" -ForegroundColor Blue
-Write-Host ""
-Write-Host "  Logins:" -ForegroundColor Yellow
-Write-Host "    Admin:    admin@demo.com / admin123" -ForegroundColor Blue
-Write-Host "    Despacho: despacho@demo.com / despacho123" -ForegroundColor Blue
-Write-Host "    Tecnico:  tecnico@demo.com / tech123" -ForegroundColor Blue
 Write-Host ""

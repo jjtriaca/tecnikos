@@ -1,12 +1,12 @@
 services:
   postgres:
     image: postgres:16
-    container_name: sistema_postgres
+    container_name: tecnikos_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-sistema}
-      POSTGRES_USER: ${POSTGRES_USER:-sistema_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sistema_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-tecnikos}
+      POSTGRES_USER: ${POSTGRES_USER:-tecnikos_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tecnikos_pass}
     ports:
       - "5433:5432"
     volumes:

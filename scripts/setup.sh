@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# FieldService — Script de Instalação (Linux/Mac)
+# Tecnikos SaaS — Script de Instalacao (Linux/Mac)
 # ============================================================
 set -e
 
@@ -13,21 +13,21 @@ NC='\033[0m' # No Color
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   FieldService — Instalador do Sistema       ║${NC}"
+echo -e "${BLUE}║   Tecnikos — Instalador do Sistema            ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Detectar diretório raiz do projeto
+# Detectar diretorio raiz do projeto
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$ROOT_DIR"
 
-# ── 1. Verificar pré-requisitos ──
-echo -e "${YELLOW}[1/7]${NC} Verificando pré-requisitos..."
+# ── 1. Verificar pre-requisitos ──
+echo -e "${YELLOW}[1/7]${NC} Verificando pre-requisitos..."
 
 # Docker
 if ! command -v docker &> /dev/null; then
-    echo -e "${RED}✗ Docker não encontrado. Instale em: https://docs.docker.com/get-docker/${NC}"
+    echo -e "${RED}✗ Docker nao encontrado. Instale em: https://docs.docker.com/get-docker/${NC}"
     exit 1
 fi
 echo -e "  ${GREEN}✓${NC} Docker instalado ($(docker --version | head -1))"
@@ -35,15 +35,15 @@ echo -e "  ${GREEN}✓${NC} Docker instalado ($(docker --version | head -1))"
 # Docker Compose
 if ! docker compose version &> /dev/null 2>&1; then
     if ! command -v docker-compose &> /dev/null; then
-        echo -e "${RED}✗ Docker Compose não encontrado.${NC}"
+        echo -e "${RED}✗ Docker Compose nao encontrado.${NC}"
         exit 1
     fi
 fi
-echo -e "  ${GREEN}✓${NC} Docker Compose disponível"
+echo -e "  ${GREEN}✓${NC} Docker Compose disponivel"
 
 # Node.js
 if ! command -v node &> /dev/null; then
-    echo -e "${RED}✗ Node.js não encontrado. Instale em: https://nodejs.org/${NC}"
+    echo -e "${RED}✗ Node.js nao encontrado. Instale em: https://nodejs.org/${NC}"
     exit 1
 fi
 NODE_VER=$(node -v)
@@ -51,7 +51,7 @@ echo -e "  ${GREEN}✓${NC} Node.js $NODE_VER"
 
 # npm
 if ! command -v npm &> /dev/null; then
-    echo -e "${RED}✗ npm não encontrado.${NC}"
+    echo -e "${RED}✗ npm nao encontrado.${NC}"
     exit 1
 fi
 echo -e "  ${GREEN}✓${NC} npm $(npm -v)"
@@ -63,9 +63,9 @@ docker compose up -d
 echo -e "  ${GREEN}✓${NC} Container do PostgreSQL rodando na porta 5433"
 
 # Aguardar o banco ficar pronto
-echo "  Aguardando PostgreSQL aceitar conexões..."
+echo "  Aguardando PostgreSQL aceitar conexoes..."
 for i in {1..30}; do
-    if docker compose exec -T postgres pg_isready -U sistema_user -d sistema &>/dev/null 2>&1; then
+    if docker compose exec -T postgres pg_isready -U tecnikos_user -d tecnikos &>/dev/null 2>&1; then
         echo -e "  ${GREEN}✓${NC} PostgreSQL pronto!"
         break
     fi
@@ -76,12 +76,12 @@ for i in {1..30}; do
     sleep 1
 done
 
-# ── 3. Instalar dependências do backend ──
+# ── 3. Instalar dependencias do backend ──
 echo ""
-echo -e "${YELLOW}[3/7]${NC} Instalando dependências do backend..."
+echo -e "${YELLOW}[3/7]${NC} Instalando dependencias do backend..."
 cd backend
 npm install --silent
-echo -e "  ${GREEN}✓${NC} Dependências do backend instaladas"
+echo -e "  ${GREEN}✓${NC} Dependencias do backend instaladas"
 
 # ── 4. Rodar migrations ──
 echo ""
@@ -95,12 +95,12 @@ echo -e "${YELLOW}[5/7]${NC} Populando banco com dados iniciais..."
 npx prisma db seed
 echo -e "  ${GREEN}✓${NC} Dados iniciais inseridos"
 
-# ── 6. Instalar dependências do frontend ──
+# ── 6. Instalar dependencias do frontend ──
 echo ""
-echo -e "${YELLOW}[6/7]${NC} Instalando dependências do frontend..."
+echo -e "${YELLOW}[6/7]${NC} Instalando dependencias do frontend..."
 cd ../frontend
 npm install --silent
-echo -e "  ${GREEN}✓${NC} Dependências do frontend instaladas"
+echo -e "  ${GREEN}✓${NC} Dependencias do frontend instaladas"
 
 # ── 7. Build do frontend ──
 echo ""
@@ -114,10 +114,10 @@ VERSION=$(node -e "const v = require('./version.json'); console.log('v' + v.vers
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   ✅ Instalação concluída com sucesso!        ║${NC}"
+echo -e "${GREEN}║   ✅ Instalacao concluida com sucesso!        ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  Versão: ${BLUE}${VERSION}${NC}"
+echo -e "  Versao: ${BLUE}${VERSION}${NC}"
 echo ""
 echo -e "  ${YELLOW}Para iniciar o sistema:${NC}"
 echo ""
@@ -125,12 +125,6 @@ echo -e "    Terminal 1 (Backend):  ${BLUE}cd backend && npm run start:dev${NC}"
 echo -e "    Terminal 2 (Frontend): ${BLUE}cd frontend && npm run dev${NC}"
 echo ""
 echo -e "  ${YELLOW}Acesse:${NC}"
-echo -e "    Painel Gestor: ${BLUE}http://localhost:3001${NC}"
-echo -e "    Mobile Técnico: ${BLUE}http://localhost:3001/tech${NC}"
-echo -e "    API Health: ${BLUE}http://localhost:4000/health${NC}"
-echo ""
-echo -e "  ${YELLOW}Logins:${NC}"
-echo -e "    Admin:    ${BLUE}admin@demo.com${NC} / admin123"
-echo -e "    Despacho: ${BLUE}despacho@demo.com${NC} / despacho123"
-echo -e "    Técnico:  ${BLUE}tecnico@demo.com${NC} / tech123"
+echo -e "    Painel Gestor:  ${BLUE}http://localhost:3000${NC}"
+echo -e "    API Health:     ${BLUE}http://localhost:4000/health${NC}"
 echo ""

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# FieldService — Deploy / Atualização
+# Tecnikos SaaS — Deploy / Atualizacao (dev)
 # Incrementa build, roda migrations, rebuilda tudo.
 # ============================================================
 set -e
@@ -17,7 +17,7 @@ cd "$ROOT_DIR"
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   FieldService — Deploy / Atualização        ║${NC}"
+echo -e "${BLUE}║   Tecnikos — Deploy / Atualizacao             ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -25,15 +25,15 @@ echo ""
 echo -e "${YELLOW}[1/5]${NC} Incrementando build..."
 node scripts/bump-build.js ${1:---patch}
 VERSION=$(node -e "const v = require('./version.json'); console.log('v' + v.version + ' (build #' + v.build + ')')")
-echo -e "  ${GREEN}✓${NC} Nova versão: ${BLUE}${VERSION}${NC}"
+echo -e "  ${GREEN}✓${NC} Nova versao: ${BLUE}${VERSION}${NC}"
 
-# ── 2. Atualizar dependências ──
+# ── 2. Atualizar dependencias ──
 echo ""
-echo -e "${YELLOW}[2/5]${NC} Atualizando dependências..."
+echo -e "${YELLOW}[2/5]${NC} Atualizando dependencias..."
 cd backend && npm install --silent
 cd ../frontend && npm install --silent
 cd "$ROOT_DIR"
-echo -e "  ${GREEN}✓${NC} Dependências atualizadas"
+echo -e "  ${GREEN}✓${NC} Dependencias atualizadas"
 
 # ── 3. Migrations ──
 echo ""
@@ -61,10 +61,10 @@ echo -e "  ${GREEN}✓${NC} Frontend compilado"
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   ✅ Deploy concluído! ${VERSION}   ${NC}"
+echo -e "${GREEN}║   ✅ Deploy concluido! ${VERSION}   ${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  Reinicie os serviços para aplicar:"
+echo -e "  Reinicie os servicos para aplicar:"
 echo -e "    Backend:  ${BLUE}Ctrl+C → npm run start:dev${NC}"
 echo -e "    Frontend: ${BLUE}Ctrl+C → npm run dev${NC}"
 echo ""

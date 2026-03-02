@@ -10,6 +10,10 @@ build/
 .env
 .env.local
 .env.*.local
+.env.production
+
+# SSL certificates
+nginx/ssl/
 
 # Uploads (user-generated content)
 uploads/
