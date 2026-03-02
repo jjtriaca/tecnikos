@@ -12,6 +12,7 @@ import type { FilterDefinition } from "@/lib/types/table";
 import PartnerTable, { type Partner } from "./components/PartnerTable";
 import PartnerForm from "./components/PartnerForm";
 import SpecializationsTab, { type Specialization } from "./components/SpecializationsTab";
+import ImportCSVModal from "./components/ImportCSVModal";
 import { exportToCSV, fmtDate, fmtStatus, type ExportColumn } from "@/lib/export-utils";
 
 type MainTab = "parceiros" | "especializacoes";
@@ -76,6 +77,7 @@ export default function PartnersPage() {
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const canEdit = user?.role === "ADMIN" || user?.role === "DESPACHO";
   const isAdmin = user?.role === "ADMIN";
@@ -236,6 +238,16 @@ export default function PartnersPage() {
               </button>
               {canEdit && (
                 <button
+                  onClick={() => setShowImportModal(true)}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+                  title="Importar CSV"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  Importar
+                </button>
+              )}
+              {canEdit && (
+                <button
                   onClick={() => { setEditingPartner(null); setShowForm(true); }}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
                 >
@@ -316,6 +328,13 @@ export default function PartnersPage() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => { setShowConfirmModal(false); setDeleteTarget(null); }}
         variant="danger"
+      />
+
+      {/* Import CSV modal */}
+      <ImportCSVModal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => { toast("Parceiros importados com sucesso!", "success"); loadPartners(); }}
       />
     </div>
   );

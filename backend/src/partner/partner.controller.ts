@@ -44,6 +44,15 @@ export class PartnerController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('import')
+  importMany(
+    @Body('partners') partners: CreatePartnerDto[],
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.importMany(user.companyId, partners, user);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post()
   create(
     @Body() body: CreatePartnerDto,

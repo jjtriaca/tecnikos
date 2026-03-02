@@ -256,6 +256,72 @@ export class PartnerService {
     return result;
   }
 
+  /** Importa vários parceiros de uma vez (CSV import) */
+  async importMany(
+    companyId: string,
+    partners: CreatePartnerDto[],
+    actor?: AuthenticatedUser,
+  ): Promise<{ created: number; skipped: number; errors: { row: number; name: string; message: string }[] }> {
+    let created = 0;
+    let skipped = 0;
+    const errors: { row: number; name: string; message: string }[] = [];
+
+    for (let i = 0; i < partners.length; i++) {
+      const data = partners[i];
+      try {
+        // Verifica documento duplicado
+        if (data.document) {
+          const existing = await this.prisma.partner.findFirst({
+            where: { companyId, document: data.document, deletedAt: null },
+          });
+          if (existing) {
+            skipped++;
+            continue;
+          }
+        }
+
+        // Verifica email duplicado
+        if (data.email) {
+          const existingEmail = await this.prisma.partner.findFirst({
+            where: { companyId, email: data.email, deletedAt: null },
+          });
+          if (existingEmail) {
+            skipped++;
+            continue;
+          }
+        }
+
+        const { specializationIds, password, ...rest } = data;
+        const createData: any = { companyId, ...rest };
+        delete createData.password;
+        delete createData.specializationIds;
+
+        await this.prisma.partner.create({ data: createData });
+        created++;
+      } catch (err: any) {
+        errors.push({
+          row: i + 1,
+          name: data.name || `Linha ${i + 1}`,
+          message: err.message?.slice(0, 120) || 'Erro desconhecido',
+        });
+      }
+    }
+
+    // Log de auditoria da importação
+    this.audit.log({
+      companyId,
+      entityType: 'PARTNER',
+      entityId: 'IMPORT',
+      action: 'IMPORT',
+      actorType: 'USER',
+      actorId: actor?.id,
+      actorName: actor?.email,
+      after: { created, skipped, errors: errors.length, total: partners.length },
+    });
+
+    return { created, skipped, errors };
+  }
+
   /** Find partners of type TECNICO that have ALL required specializations and are ATIVO */
   async findBySpecializations(companyId: string, specializationIds: string[]) {
     const where: any = {
