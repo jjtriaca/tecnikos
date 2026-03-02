@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FieldService — Gestão de Ordens de Serviço",
-  description: "SaaS de Field Service Management multi-tenant",
+  title: "Tecnikos — Gestao Inteligente de Servicos Tecnicos",
+  description: "Plataforma SaaS para empresas que gerenciam equipes de tecnicos em campo. Ordens de servico, despacho, financeiro e automacao.",
 };
 
 export default function RootLayout({
