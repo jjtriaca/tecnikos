@@ -37,6 +37,9 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 # Copiar build
 COPY --from=builder /app/dist ./dist
 
+# Copiar version.json (gerado pelo script de deploy)
+COPY version.json* ./
+
 # Criar diretório de uploads com permissões
 RUN mkdir -p uploads && chown -R appuser:appgroup uploads
 

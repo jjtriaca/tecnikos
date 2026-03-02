@@ -9,7 +9,7 @@ import * as path from 'path';
 @Controller('health')
 export class HealthController {
   private readonly startedAt = new Date();
-  private versionFilePath = path.join(process.cwd(), '..', 'version.json');
+  private versionFilePath = path.join(process.cwd(), 'version.json');
 
   constructor(private readonly prisma: PrismaService) {}
 
