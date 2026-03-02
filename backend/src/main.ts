@@ -21,7 +21,12 @@ async function bootstrap() {
     }
   }
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: true,
+  });
+
+  // Aumenta limite do body para suportar importações grandes (ex: 3000+ parceiros)
+  app.useBodyParser('json', { limit: '10mb' });
 
   /* ── Security headers (Helmet) ────────────────────────── */
   app.use(helmet({

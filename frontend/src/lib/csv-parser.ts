@@ -141,9 +141,7 @@ const COLUMN_MAP: Record<string, string[]> = {
   phone: [
     "telefone", "fone", "tel", "phone",
   ],
-  phone2: [
-    "celular/fax", "celular", "fax", "celular/fax",
-  ],
+  // phone2 removido - campo não existe no schema Partner
   email: [
     "email", "e-mail", "e_mail",
   ],
@@ -173,7 +171,7 @@ const COLUMN_MAP: Record<string, string[]> = {
     "inscrição estadual", "insc estadual", "inscestadual",
   ],
   im: [
-    "im", "inscricao municipal", "inscrição municipal",
+    "inscricao municipal", "inscrição municipal", "insc. municipal",
   ],
   isCliente: ["cliente"],
   isFornecedor: ["fornecedor"],
@@ -201,13 +199,15 @@ export function autoMapColumns(headers: string[]): Record<string, string> {
   }
 
   // Segundo passe: fuzzy (includes) para o que sobrou
+  // Ignora headers que parecem códigos (ex: "Cód. Cidade", "Cód. Parceiro")
   for (const header of headers) {
     if (mapping[header]) continue;
     const normalized = header.toLowerCase().trim();
+    if (normalized.startsWith("cód") || normalized.startsWith("cod")) continue;
 
     for (const [field, aliases] of Object.entries(COLUMN_MAP)) {
       if (usedFields.has(field)) continue;
-      if (aliases.some((alias) => normalized.includes(alias))) {
+      if (aliases.some((alias) => alias.length >= 3 && normalized.includes(alias))) {
         mapping[header] = field;
         usedFields.add(field);
         break;
@@ -269,11 +269,11 @@ export function mapRowsToPartners(
       const status = (ativoVal === "não" || ativoVal === "nao" || ativoVal === "n" || ativoVal === "false")
         ? "INATIVO" : "ATIVO";
 
-      // Cidade/UF do campo combinado "Nome + UF (Cidade)" ex: "PRIMAVERA DO LESTE - MT"
-      let city = get("city");
-      let state = get("state");
+      // Cidade/UF: prioriza campo combinado "Nome + UF (Cidade)" ex: "PRIMAVERA DO LESTE - MT"
       const cityState = get("cityState");
-      if (cityState && !city) {
+      let city = "";
+      let state = "";
+      if (cityState) {
         const parts = cityState.split(" - ");
         if (parts.length >= 2) {
           city = parts.slice(0, -1).join(" - ").trim();
@@ -281,6 +281,9 @@ export function mapRowsToPartners(
         } else {
           city = cityState;
         }
+      } else {
+        city = get("city");
+        state = get("state");
       }
 
       // Pega nome fantasia do campo "Razão social" se o name veio de "Nome Parceiro" (que é abreviado)
@@ -345,7 +348,6 @@ export const FIELD_LABELS: Record<string, string> = {
   document: "Documento",
   personTypeSankhya: "Tipo Pessoa",
   phone: "Telefone",
-  phone2: "Celular/Fax",
   email: "Email",
   addressStreet: "Endereço",
   addressNumber: "Número",
