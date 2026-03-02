@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 export interface SendNotificationDto {
   companyId: string;
@@ -15,16 +16,43 @@ export interface SendNotificationDto {
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly whatsApp?: WhatsAppService,
+  ) {}
 
   /**
-   * Send a notification (MOCK in MVP — logs to console and saves to DB).
-   * Ready for WhatsApp/SMS/Email integration.
+   * Send a notification via the appropriate channel.
+   * Supports: WHATSAPP (real via Evolution API), MOCK (console log), EMAIL/SMS (future).
    */
   async send(dto: SendNotificationDto) {
     const channel = dto.channel || 'MOCK';
+    let status = 'SENT';
 
-    // Create record
+    // ── WhatsApp channel — send via Evolution API ──
+    if (channel === 'WHATSAPP' && dto.recipientPhone && this.whatsApp) {
+      try {
+        const connected = await this.whatsApp.isConnected();
+        if (connected) {
+          const result = await this.whatsApp.sendText(dto.recipientPhone, dto.message);
+          status = result ? 'SENT' : 'FAILED';
+          this.logger.log(`📱 [WHATSAPP] ${dto.type} → ${dto.recipientPhone}: ${status}`);
+        } else {
+          status = 'FAILED';
+          this.logger.warn(`📱 [WHATSAPP] Not connected — notification saved as FAILED`);
+        }
+      } catch (err) {
+        status = 'FAILED';
+        this.logger.error(`📱 [WHATSAPP] Error: ${err.message}`);
+      }
+    } else {
+      // Mock: log to console (future: EMAIL, SMS, PUSH)
+      this.logger.log(
+        `📨 [${channel}] ${dto.type} → ${dto.recipientPhone || dto.recipientEmail || 'N/A'}: ${dto.message}`,
+      );
+    }
+
+    // Create record in DB
     const notification = await this.prisma.notification.create({
       data: {
         companyId: dto.companyId,
@@ -34,15 +62,10 @@ export class NotificationService {
         recipientEmail: dto.recipientEmail,
         message: dto.message,
         type: dto.type,
-        status: 'SENT',
+        status,
         sentAt: new Date(),
       },
     });
-
-    // Mock: log to console (replace with real API call)
-    this.logger.log(
-      `📨 [${channel}] ${dto.type} → ${dto.recipientPhone || dto.recipientEmail || 'N/A'}: ${dto.message}`,
-    );
 
     return notification;
   }

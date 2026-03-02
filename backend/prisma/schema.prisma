@@ -83,6 +83,7 @@ model Company {
   automationRules      AutomationRule[]
   automationTemplates  AutomationTemplate[]
   financialEntries     FinancialEntry[]
+  whatsappMessages     WhatsAppMessage[]
 }
 
 model User {
@@ -161,6 +162,7 @@ model Partner {
   specializations      PartnerSpecialization[]
   evaluations          Evaluation[]
   financialEntries     FinancialEntry[]
+  whatsappMessages     WhatsAppMessage[]
 
   @@index([companyId])
   @@index([email])
@@ -614,4 +616,27 @@ model TechnicianLocationLog {
 
   @@index([serviceOrderId, createdAt])
   @@index([partnerId, createdAt])
+}
+
+// ========== WhatsApp Messages (v1.00.49) ==========
+
+model WhatsAppMessage {
+  id            String   @id @default(uuid())
+  companyId     String
+  partnerId     String?
+  remotePhone   String   // phone number without country code (e.g. "65999887766")
+  direction     String   // "INBOUND" | "OUTBOUND"
+  messageType   String   @default("text") // "text" | "image" | "document" | "audio" | "video" | "location" | "contact" | "sticker"
+  content       String   // text content or media description
+  caption       String?
+  whatsappMsgId String?  @unique // WhatsApp message ID for dedup & status tracking
+  status        String   @default("SENT") // SENT, DELIVERED, READ, FAILED, RECEIVED
+  createdAt     DateTime @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  partner  Partner? @relation(fields: [partnerId], references: [id])
+
+  @@index([companyId, remotePhone])
+  @@index([companyId, createdAt])
+  @@index([partnerId])
 }

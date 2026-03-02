@@ -99,6 +99,35 @@ services:
     networks:
       - app-network
 
+  # ── Evolution API — WhatsApp ──────────────────────────────
+  evolution:
+    image: atendai/evolution-api:v2.2.3
+    container_name: tecnikos_evolution
+    restart: always
+    environment:
+      - SERVER_URL=https://${DOMAIN}/evolution
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-tecnikos-evo-secret-2026}
+      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=evolution
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=true
+      - DATABASE_SAVE_DATA_CONTACTS=true
+      - LOG_LEVEL=WARN
+      - DEL_INSTANCE=false
+      - CONFIG_SESSION_PHONE_CLIENT=Tecnikos
+      - QRCODE_LIMIT=6
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
   # ── Certbot — renovacao automatica SSL ────────────────────
   certbot:
     image: certbot/certbot:latest
