@@ -1,145 +1,264 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EncryptionService } from '../common/encryption.service';
+import * as crypto from 'crypto';
 
-export interface EvolutionResponse {
-  key?: { id?: string };
-  status?: string;
-  error?: boolean;
-  message?: string;
+export interface MetaMessageResponse {
+  messaging_product: string;
+  contacts?: Array<{ input: string; wa_id: string }>;
+  messages?: Array<{ id: string }>;
 }
 
-export interface ConnectionState {
-  state: string; // 'open' | 'close' | 'connecting'
-  statusReason?: number;
-}
-
-export interface QRCodeResponse {
-  pairingCode?: string;
-  code?: string;
-  base64?: string;
-  count?: number;
+export interface WhatsAppConfigInfo {
+  provider: 'META';
+  isConnected: boolean;
+  connectedAt: string | null;
+  metaPhoneNumberId: string | null;
+  metaWabaId: string | null;
+  hasAccessToken: boolean;
+  verifyToken: string;
+  webhookUrl: string;
 }
 
 @Injectable()
-export class WhatsAppService implements OnModuleInit {
+export class WhatsAppService {
   private readonly logger = new Logger(WhatsAppService.name);
+  private readonly metaApiUrl = 'https://graph.facebook.com/v21.0';
 
-  private readonly apiUrl: string;
-  private readonly apiKey: string;
-  private readonly instanceName: string;
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly encryption: EncryptionService,
+  ) {}
 
-  constructor(private readonly prisma: PrismaService) {
-    this.apiUrl = process.env.EVOLUTION_API_URL || 'http://evolution:8080';
-    this.apiKey = process.env.EVOLUTION_API_KEY || 'tecnikos-evo-secret-2026';
-    this.instanceName = process.env.EVOLUTION_INSTANCE_NAME || 'tecnikos';
+  // ── Config Management ─────────────────────────────────────
+
+  /**
+   * Get WhatsApp config for a company (without decrypting token).
+   */
+  async getConfig(companyId: string): Promise<WhatsAppConfigInfo> {
+    const config = await this.prisma.whatsAppConfig.findUnique({
+      where: { companyId },
+    });
+
+    const domain = process.env.DOMAIN || 'tecnikos.com.br';
+
+    if (!config) {
+      return {
+        provider: 'META',
+        isConnected: false,
+        connectedAt: null,
+        metaPhoneNumberId: null,
+        metaWabaId: null,
+        hasAccessToken: false,
+        verifyToken: '',
+        webhookUrl: `https://${domain}/api/whatsapp/webhook/meta/${companyId}`,
+      };
+    }
+
+    return {
+      provider: 'META',
+      isConnected: config.isConnected,
+      connectedAt: config.connectedAt?.toISOString() || null,
+      metaPhoneNumberId: config.metaPhoneNumberId,
+      metaWabaId: config.metaWabaId,
+      hasAccessToken: !!config.metaAccessToken,
+      verifyToken: config.metaVerifyToken,
+      webhookUrl: `https://${domain}/api/whatsapp/webhook/meta/${companyId}`,
+    };
   }
 
-  async onModuleInit() {
-    // Try to create the instance on startup (idempotent)
-    try {
-      await this.createInstance();
-      this.logger.log(`WhatsApp instance "${this.instanceName}" initialized`);
+  /**
+   * Save Meta Cloud API config for a company.
+   * Encrypts the access token before storing.
+   */
+  async saveConfig(
+    companyId: string,
+    data: { metaAccessToken: string; metaPhoneNumberId: string; metaWabaId?: string },
+  ): Promise<WhatsAppConfigInfo> {
+    const encryptedToken = this.encryption.encrypt(data.metaAccessToken);
+    const verifyToken = crypto.randomBytes(16).toString('hex');
 
-      // Auto-configure webhook
-      const domain = process.env.DOMAIN || 'tecnikos.com.br';
-      const webhookUrl = `https://${domain}/api/whatsapp/webhook`;
-      await this.configureWebhook(webhookUrl);
+    await this.prisma.whatsAppConfig.upsert({
+      where: { companyId },
+      create: {
+        companyId,
+        metaAccessToken: encryptedToken,
+        metaPhoneNumberId: data.metaPhoneNumberId,
+        metaWabaId: data.metaWabaId || null,
+        metaVerifyToken: verifyToken,
+        isConnected: true,
+        connectedAt: new Date(),
+      },
+      update: {
+        metaAccessToken: encryptedToken,
+        metaPhoneNumberId: data.metaPhoneNumberId,
+        metaWabaId: data.metaWabaId || null,
+        isConnected: true,
+        connectedAt: new Date(),
+      },
+    });
+
+    return this.getConfig(companyId);
+  }
+
+  /**
+   * Disconnect: mark config as not connected.
+   */
+  async disconnect(companyId: string): Promise<void> {
+    await this.prisma.whatsAppConfig.updateMany({
+      where: { companyId },
+      data: {
+        isConnected: false,
+        metaAccessToken: null,
+      },
+    });
+    this.logger.log(`WhatsApp disconnected for company ${companyId}`);
+  }
+
+  /**
+   * Get decrypted access token for a company.
+   */
+  private async getAccessToken(companyId: string): Promise<string | null> {
+    const config = await this.prisma.whatsAppConfig.findUnique({
+      where: { companyId },
+      select: { metaAccessToken: true, isConnected: true },
+    });
+
+    if (!config?.metaAccessToken || !config.isConnected) return null;
+
+    try {
+      return this.encryption.decrypt(config.metaAccessToken);
     } catch (err) {
-      this.logger.warn(`WhatsApp init: ${err.message} (will retry on first use)`);
+      this.logger.error(`Failed to decrypt token for company ${companyId}: ${err.message}`);
+      return null;
     }
   }
 
-  // ── Instance Management ─────────────────────────────────────
+  /**
+   * Get phone number ID for a company.
+   */
+  private async getPhoneNumberId(companyId: string): Promise<string | null> {
+    const config = await this.prisma.whatsAppConfig.findUnique({
+      where: { companyId },
+      select: { metaPhoneNumberId: true, isConnected: true },
+    });
+
+    return config?.isConnected ? config.metaPhoneNumberId : null;
+  }
+
+  // ── Connection Testing ────────────────────────────────────
 
   /**
-   * Create a WhatsApp instance in Evolution API (idempotent).
-   * If instance already exists, returns success silently.
+   * Test connection with provided credentials (before saving).
    */
-  async createInstance(): Promise<any> {
+  async testConnection(
+    accessToken: string,
+    phoneNumberId: string,
+  ): Promise<{ success: boolean; phoneNumber?: string; displayName?: string; error?: string }> {
     try {
-      const res = await this.request('POST', '/instance/create', {
-        instanceName: this.instanceName,
-        integration: 'WHATSAPP-BAILEYS',
-        qrcode: true,
-        rejectCall: false,
-        groupsIgnore: true,
-        alwaysOnline: false,
-        readMessages: false,
-        readStatus: false,
-        syncFullHistory: false,
+      const res = await fetch(`${this.metaApiUrl}/${phoneNumberId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
-      return res;
-    } catch (err) {
-      // If instance already exists (403 "already in use"), that's fine
-      if (err.message?.includes('already in use') || err.message?.includes('403')) {
-        this.logger.log(`Instance "${this.instanceName}" already exists — OK`);
-        return { instance: this.instanceName, status: 'already_exists' };
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          error: error?.error?.message || `HTTP ${res.status}`,
+        };
       }
-      throw err;
+
+      const data = await res.json();
+      return {
+        success: true,
+        phoneNumber: data.display_phone_number,
+        displayName: data.verified_name,
+      };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   }
 
   /**
-   * Get QR code to pair WhatsApp.
+   * Get connection status for a company.
    */
-  async getQRCode(): Promise<QRCodeResponse> {
-    const res = await this.request('GET', `/instance/connect/${this.instanceName}`);
-    return res as QRCodeResponse;
-  }
+  async getConnectionStatus(companyId: string): Promise<{ state: string; displayName?: string; phoneNumber?: string }> {
+    const config = await this.prisma.whatsAppConfig.findUnique({
+      where: { companyId },
+    });
 
-  /**
-   * Get the connection status.
-   */
-  async getConnectionStatus(): Promise<ConnectionState> {
+    if (!config?.isConnected || !config.metaAccessToken || !config.metaPhoneNumberId) {
+      return { state: 'close' };
+    }
+
+    // Verify token is still valid
     try {
-      const res = await this.request('GET', `/instance/connectionState/${this.instanceName}`);
-      return (res?.instance || res) as ConnectionState;
+      const token = this.encryption.decrypt(config.metaAccessToken);
+      const result = await this.testConnection(token, config.metaPhoneNumberId);
+
+      if (result.success) {
+        return {
+          state: 'open',
+          displayName: result.displayName,
+          phoneNumber: result.phoneNumber,
+        };
+      }
+
+      // Token invalid — mark as disconnected
+      await this.prisma.whatsAppConfig.update({
+        where: { companyId },
+        data: { isConnected: false },
+      });
+      return { state: 'close' };
     } catch {
       return { state: 'close' };
     }
   }
 
   /**
-   * Check if WhatsApp is connected.
+   * Check if WhatsApp is connected for a company.
    */
-  async isConnected(): Promise<boolean> {
-    const status = await this.getConnectionStatus();
-    return status?.state === 'open';
+  async isConnected(companyId: string): Promise<boolean> {
+    const config = await this.prisma.whatsAppConfig.findUnique({
+      where: { companyId },
+      select: { isConnected: true },
+    });
+    return config?.isConnected || false;
   }
 
-  /**
-   * Logout / disconnect WhatsApp.
-   */
-  async logout(): Promise<void> {
-    await this.request('DELETE', `/instance/logout/${this.instanceName}`);
-    this.logger.log('WhatsApp disconnected');
-  }
+  // ── Sending Messages (Meta Cloud API) ─────────────────────
 
   /**
-   * Restart the instance.
-   */
-  async restart(): Promise<void> {
-    await this.request('PUT', `/instance/restart/${this.instanceName}`);
-  }
-
-  // ── Sending Messages ────────────────────────────────────────
-
-  /**
-   * Send a text message via WhatsApp.
+   * Send a text message via Meta WhatsApp Cloud API.
+   * @param companyId The company sending the message
    * @param phone Brazilian phone (e.g. "65999887766" or "5565999887766")
    * @param message Text to send
    */
-  async sendText(phone: string, message: string): Promise<EvolutionResponse | null> {
+  async sendText(
+    companyId: string,
+    phone: string,
+    message: string,
+  ): Promise<MetaMessageResponse | null> {
+    const token = await this.getAccessToken(companyId);
+    const phoneNumberId = await this.getPhoneNumberId(companyId);
+
+    if (!token || !phoneNumberId) {
+      this.logger.warn(`WhatsApp not configured for company ${companyId}`);
+      return null;
+    }
+
     const formattedPhone = this.formatPhone(phone);
 
     try {
-      const res = await this.request('POST', `/message/sendText/${this.instanceName}`, {
-        number: formattedPhone,
-        text: message,
+      const res = await this.metaRequest(token, phoneNumberId, {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'text',
+        text: { body: message },
       });
 
       this.logger.log(`WhatsApp sent to ${formattedPhone}: ${message.substring(0, 50)}...`);
-      return res as EvolutionResponse;
+      return res;
     } catch (err) {
       this.logger.error(`WhatsApp send failed to ${formattedPhone}: ${err.message}`);
       return null;
@@ -147,122 +266,232 @@ export class WhatsAppService implements OnModuleInit {
   }
 
   /**
-   * Send media (image, document, audio) via WhatsApp.
+   * Send media (image, document) via Meta WhatsApp Cloud API.
    */
   async sendMedia(
+    companyId: string,
     phone: string,
     mediaUrl: string,
     caption?: string,
-    mediaType: 'image' | 'document' | 'audio' = 'image',
-  ): Promise<EvolutionResponse | null> {
+    mediaType: 'image' | 'document' | 'audio' | 'video' = 'image',
+  ): Promise<MetaMessageResponse | null> {
+    const token = await this.getAccessToken(companyId);
+    const phoneNumberId = await this.getPhoneNumberId(companyId);
+
+    if (!token || !phoneNumberId) {
+      this.logger.warn(`WhatsApp not configured for company ${companyId}`);
+      return null;
+    }
+
     const formattedPhone = this.formatPhone(phone);
 
     try {
-      const res = await this.request('POST', `/message/sendMedia/${this.instanceName}`, {
-        number: formattedPhone,
-        media: mediaUrl,
-        mediatype: mediaType,
-        caption: caption || '',
-      });
+      const body: any = {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: mediaType,
+      };
 
+      body[mediaType] = {
+        link: mediaUrl,
+        ...(caption && mediaType !== 'audio' ? { caption } : {}),
+      };
+
+      const res = await this.metaRequest(token, phoneNumberId, body);
       this.logger.log(`WhatsApp media sent to ${formattedPhone} (${mediaType})`);
-      return res as EvolutionResponse;
+      return res;
     } catch (err) {
       this.logger.error(`WhatsApp media send failed to ${formattedPhone}: ${err.message}`);
       return null;
     }
   }
 
-  // ── Webhook — Process Incoming Messages ─────────────────────
+  // ── Webhook — Meta Cloud API ──────────────────────────────
 
   /**
-   * Process webhook event from Evolution API.
-   * Called by the controller on POST /whatsapp/webhook
+   * Verify Meta webhook (GET request challenge).
    */
-  async processWebhook(body: any): Promise<void> {
-    const event = body.event;
+  async verifyWebhook(
+    companyId: string,
+    mode: string,
+    token: string,
+    challenge: string,
+  ): Promise<string | null> {
+    if (mode !== 'subscribe') return null;
 
-    if (event === 'messages.upsert') {
-      await this.handleIncomingMessage(body.data);
-    } else if (event === 'messages.update') {
-      await this.handleMessageStatusUpdate(body.data);
-    } else if (event === 'connection.update') {
-      this.logger.log(`WhatsApp connection: ${JSON.stringify(body.data?.state || body.data)}`);
+    const config = await this.prisma.whatsAppConfig.findUnique({
+      where: { companyId },
+      select: { metaVerifyToken: true },
+    });
+
+    if (!config || config.metaVerifyToken !== token) {
+      this.logger.warn(`Webhook verification failed for company ${companyId}`);
+      return null;
+    }
+
+    this.logger.log(`Webhook verified for company ${companyId}`);
+    return challenge;
+  }
+
+  /**
+   * Process incoming webhook from Meta Cloud API.
+   */
+  async processMetaWebhook(companyId: string, body: any): Promise<void> {
+    // Meta sends { object: "whatsapp_business_account", entry: [...] }
+    if (body.object !== 'whatsapp_business_account') return;
+
+    for (const entry of body.entry || []) {
+      for (const change of entry.changes || []) {
+        if (change.field !== 'messages') continue;
+
+        const value = change.value;
+
+        // Process incoming messages
+        for (const msg of value.messages || []) {
+          await this.handleMetaIncomingMessage(companyId, msg, value.contacts);
+        }
+
+        // Process status updates
+        for (const status of value.statuses || []) {
+          await this.handleMetaStatusUpdate(status);
+        }
+      }
     }
   }
 
   /**
-   * Handle incoming WhatsApp message — save to DB.
+   * Handle incoming message from Meta webhook.
    */
-  private async handleIncomingMessage(data: any): Promise<void> {
-    if (!data || data.key?.fromMe) return; // Ignore own messages
+  private async handleMetaIncomingMessage(
+    companyId: string,
+    msg: any,
+    contacts?: any[],
+  ): Promise<void> {
+    const remotePhone = msg.from; // Full phone number with country code
 
-    const remotePhone = data.key?.remoteJid?.replace('@s.whatsapp.net', '') || '';
-    if (!remotePhone || remotePhone.includes('@g.us')) return; // Ignore groups
+    if (!remotePhone) return;
 
-    const messageType = this.detectMessageType(data.message);
-    const content = this.extractContent(data.message, messageType);
+    const messageType = msg.type || 'text';
+    const content = this.extractMetaContent(msg);
 
     if (!content) return;
 
-    this.logger.log(`WhatsApp received from ${remotePhone}: ${content.substring(0, 50)}`);
+    // Remove country code for storage (e.g. "5565999887766" → "65999887766")
+    const storedPhone = remotePhone.replace(/^55/, '');
 
-    // Find partner by phone number (try multiple formats)
+    this.logger.log(`WhatsApp received from ${storedPhone}: ${content.substring(0, 50)}`);
+
+    // Find partner by phone number
     const phoneSuffixes = this.getPhoneSuffixes(remotePhone);
-
-    // Look for partner in any company
     const partner = await this.prisma.partner.findFirst({
       where: {
+        companyId,
         phone: { in: phoneSuffixes },
         deletedAt: null,
       },
-      select: { id: true, companyId: true, name: true },
+      select: { id: true },
     });
 
-    const companyId = partner?.companyId;
-
-    // Only save if we can associate with a company
-    if (!companyId) {
-      this.logger.warn(`WhatsApp from unknown phone ${remotePhone} — no partner found`);
-      return;
+    // Check for duplicate by whatsappMsgId
+    if (msg.id) {
+      const existing = await this.prisma.whatsAppMessage.findUnique({
+        where: { whatsappMsgId: msg.id },
+      });
+      if (existing) return; // Already processed
     }
 
     await this.prisma.whatsAppMessage.create({
       data: {
         companyId,
         partnerId: partner?.id || null,
-        remotePhone,
+        remotePhone: storedPhone,
         direction: 'INBOUND',
         messageType,
         content,
-        whatsappMsgId: data.key?.id || null,
+        whatsappMsgId: msg.id || null,
         status: 'RECEIVED',
       },
     });
   }
 
   /**
-   * Handle message status updates (delivered, read).
+   * Handle message status update from Meta webhook.
    */
-  private async handleMessageStatusUpdate(data: any): Promise<void> {
-    if (!data?.key?.id) return;
+  private async handleMetaStatusUpdate(status: any): Promise<void> {
+    if (!status?.id) return;
 
-    const statusMap: Record<number, string> = {
-      2: 'DELIVERED',
-      3: 'READ',
-      4: 'READ',
+    const statusMap: Record<string, string> = {
+      sent: 'SENT',
+      delivered: 'DELIVERED',
+      read: 'READ',
+      failed: 'FAILED',
     };
 
-    const newStatus = statusMap[data.update?.status];
+    const newStatus = statusMap[status.status];
     if (!newStatus) return;
 
     await this.prisma.whatsAppMessage.updateMany({
-      where: { whatsappMsgId: data.key.id },
+      where: { whatsappMsgId: status.id },
       data: { status: newStatus },
     });
   }
 
-  // ── Phone Formatting ────────────────────────────────────────
+  /**
+   * Extract content from Meta message object.
+   */
+  private extractMetaContent(msg: any): string {
+    switch (msg.type) {
+      case 'text':
+        return msg.text?.body || '';
+      case 'image':
+        return msg.image?.caption || '[Imagem]';
+      case 'document':
+        return msg.document?.filename || '[Documento]';
+      case 'audio':
+        return '[Audio]';
+      case 'video':
+        return msg.video?.caption || '[Video]';
+      case 'location':
+        return `📍 ${msg.location?.latitude},${msg.location?.longitude}`;
+      case 'contacts':
+        return msg.contacts?.[0]?.name?.formatted_name || '[Contato]';
+      case 'sticker':
+        return '[Figurinha]';
+      case 'reaction':
+        return msg.reaction?.emoji || '[Reacao]';
+      default:
+        return '';
+    }
+  }
+
+  // ── Meta API HTTP Helper ──────────────────────────────────
+
+  private async metaRequest(
+    accessToken: string,
+    phoneNumberId: string,
+    body: any,
+  ): Promise<MetaMessageResponse> {
+    const url = `${this.metaApiUrl}/${phoneNumberId}/messages`;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      const errorMsg = error?.error?.message || `HTTP ${res.status}`;
+      throw new Error(`Meta API: ${errorMsg}`);
+    }
+
+    return res.json();
+  }
+
+  // ── Phone Formatting ──────────────────────────────────────
 
   /**
    * Format Brazilian phone number for WhatsApp.
@@ -270,7 +499,6 @@ export class WhatsAppService implements OnModuleInit {
    * Output: "5565999887766"
    */
   formatPhone(phone: string): string {
-    // Remove everything except digits
     let digits = phone.replace(/\D/g, '');
 
     // Already has country code
@@ -283,7 +511,7 @@ export class WhatsAppService implements OnModuleInit {
       return '55' + digits;
     }
 
-    // Just the number without DDD (shouldn't happen, but handle it)
+    // Just the number without DDD
     if (digits.length === 8 || digits.length === 9) {
       return '5565' + digits; // Default DDD 65 (MT)
     }
@@ -307,9 +535,13 @@ export class WhatsAppService implements OnModuleInit {
 
       // With and without 9th digit
       if (withoutCountry.length === 11) {
-        suffixes.add(withoutCountry.substring(0, 2) + withoutCountry.substring(3)); // remove 9th digit
+        suffixes.add(
+          withoutCountry.substring(0, 2) + withoutCountry.substring(3),
+        );
       } else if (withoutCountry.length === 10) {
-        suffixes.add(withoutCountry.substring(0, 2) + '9' + withoutCountry.substring(2)); // add 9th digit
+        suffixes.add(
+          withoutCountry.substring(0, 2) + '9' + withoutCountry.substring(2),
+        );
       }
     }
 
@@ -318,7 +550,9 @@ export class WhatsAppService implements OnModuleInit {
       if (s.length === 10 || s.length === 11) {
         const ddd = s.substring(0, 2);
         const num = s.substring(2);
-        suffixes.add(`(${ddd}) ${num.substring(0, num.length - 4)}-${num.substring(num.length - 4)}`);
+        suffixes.add(
+          `(${ddd}) ${num.substring(0, num.length - 4)}-${num.substring(num.length - 4)}`,
+        );
         suffixes.add(`(${ddd})${num}`);
         suffixes.add(`${ddd}${num}`);
       }
@@ -327,81 +561,12 @@ export class WhatsAppService implements OnModuleInit {
     return [...suffixes];
   }
 
-  // ── Message Content Extraction ──────────────────────────────
-
-  private detectMessageType(msg: any): string {
-    if (!msg) return 'text';
-    if (msg.conversation || msg.extendedTextMessage) return 'text';
-    if (msg.imageMessage) return 'image';
-    if (msg.documentMessage || msg.documentWithCaptionMessage) return 'document';
-    if (msg.audioMessage) return 'audio';
-    if (msg.videoMessage) return 'video';
-    if (msg.locationMessage) return 'location';
-    if (msg.contactMessage || msg.contactsArrayMessage) return 'contact';
-    if (msg.stickerMessage) return 'sticker';
-    return 'text';
-  }
-
-  private extractContent(msg: any, type: string): string {
-    if (!msg) return '';
-
-    switch (type) {
-      case 'text':
-        return msg.conversation || msg.extendedTextMessage?.text || '';
-      case 'image':
-        return msg.imageMessage?.caption || '[Imagem]';
-      case 'document':
-        return msg.documentMessage?.fileName || msg.documentWithCaptionMessage?.message?.documentMessage?.fileName || '[Documento]';
-      case 'audio':
-        return '[Áudio]';
-      case 'video':
-        return msg.videoMessage?.caption || '[Vídeo]';
-      case 'location':
-        return `📍 ${msg.locationMessage?.degreesLatitude},${msg.locationMessage?.degreesLongitude}`;
-      case 'contact':
-        return msg.contactMessage?.displayName || '[Contato]';
-      case 'sticker':
-        return '[Figurinha]';
-      default:
-        return '';
-    }
-  }
-
-  // ── HTTP Helper ─────────────────────────────────────────────
-
-  private async request(method: string, path: string, body?: any): Promise<any> {
-    const url = `${this.apiUrl}${path}`;
-
-    const options: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: this.apiKey,
-      },
-    };
-
-    if (body) {
-      options.body = JSON.stringify(body);
-    }
-
-    const res = await fetch(url, options);
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Evolution API ${method} ${path} → ${res.status}: ${text}`);
-    }
-
-    return res.json().catch(() => ({}));
-  }
-
-  // ── Chat / Conversation Methods ─────────────────────────────
+  // ── Chat / Conversation Methods ───────────────────────────
 
   /**
    * List conversations for a company (grouped by phone).
    */
   async listConversations(companyId: string, search?: string) {
-    // Get all messages for the company, grouped by phone
-    // Using Prisma instead of raw SQL for better compatibility
     const allMessages = await this.prisma.whatsAppMessage.findMany({
       where: { companyId },
       orderBy: { createdAt: 'desc' },
@@ -448,14 +613,21 @@ export class WhatsAppService implements OnModuleInit {
 
     // Sort by lastMessageAt descending
     return conversations.sort(
-      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
+      (a, b) =>
+        new Date(b.lastMessageAt).getTime() -
+        new Date(a.lastMessageAt).getTime(),
     );
   }
 
   /**
    * Get messages for a specific conversation (by phone).
    */
-  async getMessages(companyId: string, remotePhone: string, take = 50, skip = 0) {
+  async getMessages(
+    companyId: string,
+    remotePhone: string,
+    take = 50,
+    skip = 0,
+  ) {
     return this.prisma.whatsAppMessage.findMany({
       where: { companyId, remotePhone },
       orderBy: { createdAt: 'desc' },
@@ -476,8 +648,8 @@ export class WhatsAppService implements OnModuleInit {
     message: string,
     mediaUrl?: string,
   ): Promise<any> {
-    const remotePhone = this.formatPhone(phone).replace('55', '');
     const fullPhone = this.formatPhone(phone);
+    const storedPhone = fullPhone.replace(/^55/, '');
 
     // Find partner by phone
     const phoneSuffixes = this.getPhoneSuffixes(phone);
@@ -490,26 +662,27 @@ export class WhatsAppService implements OnModuleInit {
       select: { id: true },
     });
 
-    // Send via Evolution API
-    let result: EvolutionResponse | null;
+    // Send via Meta Cloud API
+    let result: MetaMessageResponse | null;
     if (mediaUrl) {
-      result = await this.sendMedia(phone, mediaUrl);
+      result = await this.sendMedia(companyId, phone, mediaUrl);
     } else {
-      result = await this.sendText(phone, message);
+      result = await this.sendText(companyId, phone, message);
     }
 
     const status = result ? 'SENT' : 'FAILED';
+    const whatsappMsgId = result?.messages?.[0]?.id || null;
 
     // Save to DB
     const saved = await this.prisma.whatsAppMessage.create({
       data: {
         companyId,
         partnerId: partner?.id || null,
-        remotePhone: fullPhone.replace(/^55/, ''),
+        remotePhone: storedPhone,
         direction: 'OUTBOUND',
         messageType: mediaUrl ? 'image' : 'text',
         content: message,
-        whatsappMsgId: result?.key?.id || null,
+        whatsappMsgId,
         status,
       },
     });
@@ -530,25 +703,5 @@ export class WhatsAppService implements OnModuleInit {
       },
       data: { status: 'READ' },
     });
-  }
-
-  /**
-   * Set webhook URL in Evolution API for this instance.
-   */
-  async configureWebhook(webhookUrl: string): Promise<void> {
-    await this.request('POST', `/webhook/set/${this.instanceName}`, {
-      webhook: {
-        enabled: true,
-        url: webhookUrl,
-        webhookByEvents: false,
-        webhookBase64: false,
-        events: [
-          'MESSAGES_UPSERT',
-          'MESSAGES_UPDATE',
-          'CONNECTION_UPDATE',
-        ],
-      },
-    });
-    this.logger.log(`Webhook configured: ${webhookUrl}`);
   }
 }

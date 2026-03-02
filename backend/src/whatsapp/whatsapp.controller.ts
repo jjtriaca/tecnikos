@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Put,
   Post,
   Delete,
   Body,
@@ -9,9 +10,11 @@ import {
   Req,
   HttpCode,
   HttpStatus,
+  HttpException,
 } from '@nestjs/common';
 import { WhatsAppService } from './whatsapp.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { UpdateWhatsAppConfigDto } from './dto/whatsapp-config.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 
@@ -19,104 +22,103 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class WhatsAppController {
   constructor(private readonly whatsAppService: WhatsAppService) {}
 
-  // ── Instance Management (ADMIN only) ───────────────────────
+  // ── Config Management (ADMIN only) ────────────────────────
 
   /**
-   * GET /whatsapp/status — Connection status
+   * GET /whatsapp/config — Get WhatsApp config for the company
+   */
+  @Get('config')
+  @Roles('ADMIN')
+  async getConfig(@Req() req: any) {
+    return this.whatsAppService.getConfig(req.user.companyId);
+  }
+
+  /**
+   * PUT /whatsapp/config — Save/update Meta Cloud API config
+   */
+  @Put('config')
+  @Roles('ADMIN')
+  async updateConfig(@Req() req: any, @Body() dto: UpdateWhatsAppConfigDto) {
+    return this.whatsAppService.saveConfig(req.user.companyId, {
+      metaAccessToken: dto.metaAccessToken,
+      metaPhoneNumberId: dto.metaPhoneNumberId,
+      metaWabaId: dto.metaWabaId,
+    });
+  }
+
+  /**
+   * POST /whatsapp/test-connection — Test Meta credentials before saving
+   */
+  @Post('test-connection')
+  @Roles('ADMIN')
+  async testConnection(@Body() dto: UpdateWhatsAppConfigDto) {
+    return this.whatsAppService.testConnection(
+      dto.metaAccessToken,
+      dto.metaPhoneNumberId,
+    );
+  }
+
+  /**
+   * GET /whatsapp/status — Connection status (compatible with existing frontend)
    */
   @Get('status')
   @Roles('ADMIN')
-  async getStatus() {
-    const status = await this.whatsAppService.getConnectionStatus();
-    return { instance: process.env.EVOLUTION_INSTANCE_NAME || 'tecnikos', ...status };
+  async getStatus(@Req() req: any) {
+    const status = await this.whatsAppService.getConnectionStatus(req.user.companyId);
+    return { instance: 'meta-cloud', ...status };
   }
 
   /**
-   * GET /whatsapp/qrcode — Get QR code to connect
+   * DELETE /whatsapp/disconnect — Disconnect WhatsApp
    */
-  @Get('qrcode')
+  @Delete('disconnect')
   @Roles('ADMIN')
-  async getQRCode() {
-    return this.whatsAppService.getQRCode();
-  }
-
-  /**
-   * POST /whatsapp/connect — Create instance (if needed) + get QR
-   */
-  @Post('connect')
-  @Roles('ADMIN')
-  async connect() {
-    // Create instance (idempotent — ignores if already exists)
-    await this.whatsAppService.createInstance();
-
-    // Try to get QR code
-    try {
-      const qr = await this.whatsAppService.getQRCode();
-      return { message: 'Escaneie o QR Code para conectar.', ...qr };
-    } catch {
-      // If QR fails, check if already connected
-      const status = await this.whatsAppService.getConnectionStatus();
-      if (status.state === 'open') {
-        return { message: 'WhatsApp já está conectado!', state: 'open' };
-      }
-      // Try restart and get QR again
-      try {
-        await this.whatsAppService.restart();
-        // Wait a bit for restart
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const qr = await this.whatsAppService.getQRCode();
-        return { message: 'Instância reiniciada. Escaneie o QR Code.', ...qr };
-      } catch (err) {
-        return { message: `Erro ao obter QR Code: ${err.message}`, state: 'error' };
-      }
-    }
-  }
-
-  /**
-   * DELETE /whatsapp/logout — Disconnect WhatsApp
-   */
-  @Delete('logout')
-  @Roles('ADMIN')
-  async logout() {
-    await this.whatsAppService.logout();
+  async disconnect(@Req() req: any) {
+    await this.whatsAppService.disconnect(req.user.companyId);
     return { message: 'WhatsApp desconectado' };
   }
 
-  /**
-   * POST /whatsapp/restart — Restart instance
-   */
-  @Post('restart')
-  @Roles('ADMIN')
-  async restart() {
-    await this.whatsAppService.restart();
-    return { message: 'Instância reiniciada' };
-  }
+  // ── Meta Webhook (PUBLIC — called by Meta) ────────────────
 
   /**
-   * POST /whatsapp/configure-webhook — Set webhook URL
-   */
-  @Post('configure-webhook')
-  @Roles('ADMIN')
-  async configureWebhook(@Body() body: { url: string }) {
-    const url = body.url || `https://${process.env.DOMAIN || 'tecnikos.com.br'}/api/whatsapp/webhook`;
-    await this.whatsAppService.configureWebhook(url);
-    return { message: 'Webhook configurado', url };
-  }
-
-  // ── Webhook (PUBLIC — called by Evolution API) ─────────────
-
-  /**
-   * POST /whatsapp/webhook — Receive events from Evolution API
+   * GET /whatsapp/webhook/meta/:companyId — Webhook verification (Meta challenge)
+   * Meta sends hub.mode, hub.verify_token, hub.challenge as query params.
+   * Must return the challenge string as plain text.
    */
   @Public()
-  @Post('webhook')
+  @Get('webhook/meta/:companyId')
+  async verifyWebhook(
+    @Param('companyId') companyId: string,
+    @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') token: string,
+    @Query('hub.challenge') challenge: string,
+  ): Promise<string> {
+    const result = await this.whatsAppService.verifyWebhook(
+      companyId,
+      mode,
+      token,
+      challenge,
+    );
+
+    if (result) {
+      return result;
+    }
+
+    throw new HttpException('Verification failed', HttpStatus.FORBIDDEN);
+  }
+
+  /**
+   * POST /whatsapp/webhook/meta/:companyId — Receive events from Meta Cloud API
+   */
+  @Public()
+  @Post('webhook/meta/:companyId')
   @HttpCode(HttpStatus.OK)
-  async webhook(@Body() body: any) {
-    await this.whatsAppService.processWebhook(body);
+  async metaWebhook(@Param('companyId') companyId: string, @Body() body: any) {
+    await this.whatsAppService.processMetaWebhook(companyId, body);
     return { ok: true };
   }
 
-  // ── Messaging ──────────────────────────────────────────────
+  // ── Messaging ─────────────────────────────────────────────
 
   /**
    * POST /whatsapp/send — Send message manually
@@ -136,7 +138,7 @@ export class WhatsAppController {
     return result;
   }
 
-  // ── Chat / Conversations ───────────────────────────────────
+  // ── Chat / Conversations ──────────────────────────────────
 
   /**
    * GET /whatsapp/conversations — List all conversations

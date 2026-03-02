@@ -84,6 +84,7 @@ model Company {
   automationTemplates  AutomationTemplate[]
   financialEntries     FinancialEntry[]
   whatsappMessages     WhatsAppMessage[]
+  whatsAppConfig       WhatsAppConfig?
 }
 
 model User {
@@ -616,6 +617,23 @@ model TechnicianLocationLog {
 
   @@index([serviceOrderId, createdAt])
   @@index([partnerId, createdAt])
+}
+
+// ========== WhatsApp Config (v1.00.51 — Meta Cloud API) ==========
+
+model WhatsAppConfig {
+  id                  String   @id @default(uuid())
+  companyId           String   @unique
+  metaAccessToken     String?  // Encrypted AES-256-GCM
+  metaPhoneNumberId   String?  // Phone Number ID from Meta dashboard
+  metaWabaId          String?  // WhatsApp Business Account ID
+  metaVerifyToken     String   // Auto-generated for webhook verification
+  isConnected         Boolean  @default(false)
+  connectedAt         DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
 }
 
 // ========== WhatsApp Messages (v1.00.49) ==========

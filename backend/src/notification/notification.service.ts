@@ -23,18 +23,18 @@ export class NotificationService {
 
   /**
    * Send a notification via the appropriate channel.
-   * Supports: WHATSAPP (real via Evolution API), MOCK (console log), EMAIL/SMS (future).
+   * Supports: WHATSAPP (via Meta Cloud API), MOCK (console log), EMAIL/SMS (future).
    */
   async send(dto: SendNotificationDto) {
     const channel = dto.channel || 'MOCK';
     let status = 'SENT';
 
-    // ── WhatsApp channel — send via Evolution API ──
+    // ── WhatsApp channel — send via Meta Cloud API ──
     if (channel === 'WHATSAPP' && dto.recipientPhone && this.whatsApp) {
       try {
-        const connected = await this.whatsApp.isConnected();
+        const connected = await this.whatsApp.isConnected(dto.companyId);
         if (connected) {
-          const result = await this.whatsApp.sendText(dto.recipientPhone, dto.message);
+          const result = await this.whatsApp.sendText(dto.companyId, dto.recipientPhone, dto.message);
           status = result ? 'SENT' : 'FAILED';
           this.logger.log(`📱 [WHATSAPP] ${dto.type} → ${dto.recipientPhone}: ${status}`);
         } else {
@@ -75,9 +75,9 @@ export class NotificationService {
    */
   async notifyStatusChange(companyId: string, serviceOrderId: string, title: string, newStatus: string, recipientPhone?: string) {
     const statusMessages: Record<string, string> = {
-      ATRIBUIDA: `A OS "${title}" foi atribuída a um técnico.`,
-      EM_EXECUCAO: `O técnico iniciou o atendimento da OS "${title}".`,
-      CONCLUIDA: `A OS "${title}" foi concluída pelo técnico.`,
+      ATRIBUIDA: `A OS "${title}" foi atribuida a um tecnico.`,
+      EM_EXECUCAO: `O tecnico iniciou o atendimento da OS "${title}".`,
+      CONCLUIDA: `A OS "${title}" foi concluida pelo tecnico.`,
       APROVADA: `A OS "${title}" foi aprovada.`,
       AJUSTE: `A OS "${title}" precisa de ajuste.`,
     };
