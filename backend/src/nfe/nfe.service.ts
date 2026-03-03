@@ -143,12 +143,17 @@ export class NfeService {
   async findImports(
     companyId: string,
     pagination?: PaginationDto,
+    status?: string,
   ): Promise<PaginatedResult<any>> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
     const skip = (page - 1) * limit;
 
     const where: any = { companyId };
+
+    if (status) {
+      where.status = status;
+    }
 
     if (pagination?.search) {
       where.OR = [
@@ -159,10 +164,19 @@ export class NfeService {
       ];
     }
 
+    // Dynamic sorting
+    const validSortFields = ['nfeNumber', 'supplierName', 'totalCents', 'issueDate', 'createdAt'];
+    const orderBy: Record<string, string> = {};
+    if (pagination?.sortBy && validSortFields.includes(pagination.sortBy)) {
+      orderBy[pagination.sortBy] = pagination.sortOrder || 'desc';
+    } else {
+      orderBy.createdAt = 'desc';
+    }
+
     const [data, total] = await this.prisma.$transaction([
       this.prisma.nfeImport.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
         include: {

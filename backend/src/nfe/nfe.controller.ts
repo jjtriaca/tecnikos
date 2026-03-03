@@ -36,9 +36,10 @@ export class NfeController {
   @Get('imports')
   findImports(
     @Query() pagination: PaginationDto,
+    @Query('status') status: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.findImports(user.companyId, pagination);
+    return this.service.findImports(user.companyId, pagination, status);
   }
 
   /* ── Import detail ───────────────────────────────────────────── */

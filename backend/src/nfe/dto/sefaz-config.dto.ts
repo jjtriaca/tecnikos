@@ -27,6 +27,10 @@ export class SefazDocumentFilterDto extends PaginationDto {
 
   @IsOptional()
   @IsString()
+  situacao?: string; // 1=Autorizada | 2=Denegada | 3=Cancelada
+
+  @IsOptional()
+  @IsString()
   dateFrom?: string;
 
   @IsOptional()

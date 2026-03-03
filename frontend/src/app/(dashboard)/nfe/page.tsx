@@ -4,6 +4,13 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import PasswordInput from "@/components/ui/PasswordInput";
+import FilterBar from "@/components/ui/FilterBar";
+import SortableHeader from "@/components/ui/SortableHeader";
+import DraggableHeader from "@/components/ui/DraggableHeader";
+import Pagination from "@/components/ui/Pagination";
+import { useTableParams } from "@/hooks/useTableParams";
+import { useTableLayout } from "@/hooks/useTableLayout";
+import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
 
 /* ── Types (Upload Manual) ─────────────────────────────────── */
 
@@ -199,9 +206,9 @@ function SituacaoBadge({ situacao }: { situacao: string | number | null }) {
 }
 
 const SEFAZ_STATUS_CONFIG: Record<string, { label: string; classes: string }> = {
-  FETCHED: { label: "Buscado", classes: "bg-blue-50 text-blue-700 border-blue-200" },
-  IMPORTED: { label: "Importado", classes: "bg-green-50 text-green-700 border-green-200" },
-  IGNORED: { label: "Ignorado", classes: "bg-slate-50 text-slate-500 border-slate-200" },
+  FETCHED: { label: "Pendente", classes: "bg-amber-50 text-amber-700 border-amber-200" },
+  IMPORTED: { label: "Importada", classes: "bg-green-50 text-green-700 border-green-200" },
+  IGNORED: { label: "Ignorada", classes: "bg-slate-50 text-slate-500 border-slate-200" },
   EVENT: { label: "Evento", classes: "bg-purple-50 text-purple-700 border-purple-200" },
 };
 
@@ -230,6 +237,172 @@ function FetchStatusBadge({ status }: { status: string | null }) {
     </span>
   );
 }
+
+/* ── SEFAZ Table Definitions ─────────────────────────────── */
+
+const SEFAZ_FILTERS: FilterDefinition[] = [
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: [
+      { value: "FETCHED", label: "Pendente" },
+      { value: "IMPORTED", label: "Importada" },
+      { value: "IGNORED", label: "Ignorada" },
+      { value: "EVENT", label: "Evento" },
+    ],
+  },
+  {
+    key: "schema",
+    label: "Tipo",
+    type: "select",
+    options: [
+      { value: "resNFe", label: "resNFe" },
+      { value: "procNFe", label: "procNFe" },
+      { value: "resEvento", label: "resEvento" },
+    ],
+  },
+  {
+    key: "situacao",
+    label: "Situacao",
+    type: "select",
+    options: [
+      { value: "1", label: "Autorizada" },
+      { value: "2", label: "Denegada" },
+      { value: "3", label: "Cancelada" },
+    ],
+  },
+  { key: "dateFrom", label: "De", type: "date" },
+  { key: "dateTo", label: "Ate", type: "date" },
+  { key: "supplierCnpj", label: "CNPJ Fornecedor", type: "text", placeholder: "00.000.000/0000-00" },
+];
+
+const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
+  {
+    id: "nsu",
+    label: "NSU",
+    sortable: true,
+    sortKey: "nsu",
+    render: (doc) => <span className="font-mono text-xs text-slate-700">{doc.nsu}</span>,
+  },
+  {
+    id: "schema",
+    label: "Tipo",
+    render: (doc) => <SchemaBadge schema={doc.schema} />,
+  },
+  {
+    id: "nfeKey",
+    label: "Chave NFe",
+    render: (doc) => (
+      <span className="font-mono text-xs text-slate-500 truncate block max-w-[180px]" title={doc.nfeKey || ""}>
+        {truncateKey(doc.nfeKey, 25)}
+      </span>
+    ),
+  },
+  {
+    id: "emitter",
+    label: "Emitente",
+    sortable: true,
+    sortKey: "emitterName",
+    render: (doc) => (
+      <div>
+        <p className="text-xs text-slate-900 font-medium truncate max-w-[160px]" title={doc.emitterName || ""}>
+          {doc.emitterName || "\u2014"}
+        </p>
+        <p className="text-xs text-slate-400">{formatCnpj(doc.emitterCnpj)}</p>
+      </div>
+    ),
+  },
+  {
+    id: "issueDate",
+    label: "Data Emissao",
+    sortable: true,
+    sortKey: "issueDate",
+    render: (doc) => <span className="text-xs text-slate-500">{formatDate(doc.issueDate)}</span>,
+  },
+  {
+    id: "nfeValue",
+    label: "Valor",
+    sortable: true,
+    sortKey: "nfeValue",
+    align: "right",
+    render: (doc) => <span className="text-xs font-medium text-slate-900">{formatCurrency(doc.nfeValue)}</span>,
+  },
+  {
+    id: "situacao",
+    label: "Situacao",
+    align: "center",
+    render: (doc) => <SituacaoBadge situacao={doc.situacao} />,
+  },
+  {
+    id: "status",
+    label: "Status",
+    align: "center",
+    render: (doc) => <SefazStatusBadge status={doc.status} />,
+  },
+];
+
+/* ── Upload Table Definitions ────────────────────────────── */
+
+const UPLOAD_FILTERS: FilterDefinition[] = [
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: [
+      { value: "PENDING", label: "Pendente" },
+      { value: "PROCESSED", label: "Processado" },
+      { value: "CANCELLED", label: "Cancelado" },
+    ],
+  },
+];
+
+const UPLOAD_COLUMNS: ColumnDefinition<NfeImport>[] = [
+  {
+    id: "nfeNumber",
+    label: "N. NFe",
+    sortable: true,
+    sortKey: "nfeNumber",
+    render: (imp) => <span className="font-medium text-slate-900">{imp.nfeNumber}</span>,
+  },
+  {
+    id: "accessKey",
+    label: "Chave",
+    render: (imp) => (
+      <span className="font-mono text-xs text-slate-500 truncate block max-w-[200px]" title={imp.accessKey}>
+        {imp.accessKey}
+      </span>
+    ),
+  },
+  {
+    id: "supplierName",
+    label: "Fornecedor",
+    sortable: true,
+    sortKey: "supplierName",
+    render: (imp) => <span className="text-slate-700">{imp.supplierName}</span>,
+  },
+  {
+    id: "totalCents",
+    label: "Valor Total",
+    sortable: true,
+    sortKey: "totalCents",
+    align: "right",
+    render: (imp) => <span className="font-medium text-slate-900">{formatCurrency(imp.totalCents)}</span>,
+  },
+  {
+    id: "issueDate",
+    label: "Data Emissao",
+    sortable: true,
+    sortKey: "issueDate",
+    render: (imp) => <span className="text-slate-500">{formatDate(imp.issueDate)}</span>,
+  },
+  {
+    id: "status",
+    label: "Status",
+    align: "center",
+    render: (imp) => <StatusBadge status={imp.status} />,
+  },
+];
 
 /* ── Step Indicator ──────────────────────────────────────── */
 
@@ -313,7 +486,19 @@ export default function NfePage() {
     limit: 20,
     totalPages: 1,
   });
-  const [sefazPage, setSefazPage] = useState(1);
+
+  // Table hooks for SEFAZ tab (persistent filters + column layout)
+  const sefazTp = useTableParams({
+    defaultSortBy: "fetchedAt",
+    defaultSortOrder: "desc",
+    persistKey: "nfe-sefaz",
+  });
+  const {
+    orderedColumns: sefazOrderedColumns,
+    reorderColumns: sefazReorderColumns,
+    columnWidths: sefazColumnWidths,
+    setColumnWidth: sefazSetColumnWidth,
+  } = useTableLayout("nfe-sefaz-docs", SEFAZ_COLUMNS);
 
   // Fetch button
   const [fetching, setFetching] = useState(false);
@@ -324,14 +509,6 @@ export default function NfePage() {
   const [certPassword, setCertPassword] = useState("");
   const [certEnvironment, setCertEnvironment] = useState<"PRODUCTION" | "HOMOLOGATION">("PRODUCTION");
   const [uploadingCert, setUploadingCert] = useState(false);
-
-  // Filters
-  const [sefazDateFrom, setSefazDateFrom] = useState("");
-  const [sefazDateTo, setSefazDateTo] = useState("");
-  const [sefazSupplierCnpj, setSefazSupplierCnpj] = useState("");
-  const [sefazStatusFilter, setSefazStatusFilter] = useState("");
-  const [sefazSchemaFilter, setSefazSchemaFilter] = useState("");
-  const [sefazSearch, setSefazSearch] = useState("");
 
   // XML Modal
   const [xmlModalOpen, setXmlModalOpen] = useState(false);
@@ -351,13 +528,25 @@ export default function NfePage() {
 
   const [imports, setImports] = useState<NfeImport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState<PaginationMeta>({
+  const [uploadMeta, setUploadMeta] = useState<PaginationMeta>({
     total: 0,
     page: 1,
     limit: 20,
     totalPages: 1,
   });
+
+  // Table hooks for Upload tab (persistent filters + column layout)
+  const uploadTp = useTableParams({
+    defaultSortBy: "createdAt",
+    defaultSortOrder: "desc",
+    persistKey: "nfe-upload",
+  });
+  const {
+    orderedColumns: uploadOrderedColumns,
+    reorderColumns: uploadReorderColumns,
+    columnWidths: uploadColumnWidths,
+    setColumnWidth: uploadSetColumnWidth,
+  } = useTableLayout("nfe-upload-imports", UPLOAD_COLUMNS);
 
   /* ---- Wizard state ---- */
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -408,14 +597,8 @@ export default function NfePage() {
   const loadSefazDocs = useCallback(async () => {
     try {
       setSefazDocsLoading(true);
-      const params = new URLSearchParams({ page: String(sefazPage), limit: "20" });
-      if (sefazSearch) params.set("search", sefazSearch);
-      if (sefazStatusFilter) params.set("status", sefazStatusFilter);
-      if (sefazSchemaFilter) params.set("schema", sefazSchemaFilter);
-      if (sefazDateFrom) params.set("dateFrom", sefazDateFrom);
-      if (sefazDateTo) params.set("dateTo", sefazDateTo);
-      if (sefazSupplierCnpj) params.set("supplierCnpj", sefazSupplierCnpj);
-      const res = await api.get<PaginatedResponse<SefazDocument>>(`/nfe/sefaz/documents?${params.toString()}`);
+      const qs = sefazTp.buildQueryString();
+      const res = await api.get<PaginatedResponse<SefazDocument>>(`/nfe/sefaz/documents?${qs}`);
       setSefazDocs(res.data);
       setSefazDocsMeta(res.meta);
       setLastRefresh(new Date());
@@ -424,7 +607,7 @@ export default function NfePage() {
     } finally {
       setSefazDocsLoading(false);
     }
-  }, [sefazPage, sefazSearch, sefazStatusFilter, sefazSchemaFilter, sefazDateFrom, sefazDateTo, sefazSupplierCnpj, toast]);
+  }, [sefazTp.buildQueryString, toast]);
 
   /* ══════════════════════════════════════════════════════════ */
   /*  SEFAZ: Effects                                           */
@@ -573,16 +756,16 @@ export default function NfePage() {
   const loadImports = useCallback(async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams({ page: String(page), limit: "20" });
-      const res = await api.get<PaginatedResponse<NfeImport>>(`/nfe/imports?${params.toString()}`);
+      const qs = uploadTp.buildQueryString();
+      const res = await api.get<PaginatedResponse<NfeImport>>(`/nfe/imports?${qs}`);
       setImports(res.data);
-      setMeta(res.meta);
+      setUploadMeta(res.meta);
     } catch {
       toast("Erro ao carregar importacoes.", "error");
     } finally {
       setLoading(false);
     }
-  }, [page, toast]);
+  }, [uploadTp.buildQueryString, toast]);
 
   useEffect(() => {
     if (activeTab === "upload") {
@@ -757,63 +940,6 @@ export default function NfePage() {
   const itemsToIgnore = itemActions.filter((i) => i.action === "IGNORE").length;
 
   /* ══════════════════════════════════════════════════════════ */
-  /*  PAGINATION HELPERS                                       */
-  /* ══════════════════════════════════════════════════════════ */
-
-  function renderPagination(
-    pMeta: PaginationMeta,
-    setPageFn: (p: number) => void
-  ) {
-    if (pMeta.totalPages <= 1) return null;
-    const pages: number[] = [];
-    const maxVisible = 5;
-    let start = Math.max(1, pMeta.page - Math.floor(maxVisible / 2));
-    const end = Math.min(pMeta.totalPages, start + maxVisible - 1);
-    if (end - start + 1 < maxVisible) {
-      start = Math.max(1, end - maxVisible + 1);
-    }
-    for (let i = start; i <= end; i++) pages.push(i);
-
-    return (
-      <div className="flex items-center justify-between mt-4">
-        <p className="text-sm text-slate-500">
-          {pMeta.total} registro{pMeta.total !== 1 ? "s" : ""} | Pagina {pMeta.page} de{" "}
-          {pMeta.totalPages}
-        </p>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setPageFn(pMeta.page - 1)}
-            disabled={pMeta.page <= 1}
-            className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-30"
-          >
-            Anterior
-          </button>
-          {pages.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPageFn(p)}
-              className={`rounded px-2.5 py-1 text-xs font-medium ${
-                p === pMeta.page
-                  ? "bg-blue-600 text-white"
-                  : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-          <button
-            onClick={() => setPageFn(pMeta.page + 1)}
-            disabled={pMeta.page >= pMeta.totalPages}
-            className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-30"
-          >
-            Proxima
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  /* ══════════════════════════════════════════════════════════ */
   /*  RENDER: SEFAZ TAB                                        */
   /* ══════════════════════════════════════════════════════════ */
 
@@ -948,90 +1074,15 @@ export default function NfePage() {
         )}
 
         {/* ── Filters Row ─────────────────────────────────── */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {/* Date from */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">De</label>
-              <input
-                type="date"
-                value={sefazDateFrom}
-                onChange={(e) => { setSefazDateFrom(e.target.value); setSefazPage(1); }}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Date to */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Ate</label>
-              <input
-                type="date"
-                value={sefazDateTo}
-                onChange={(e) => { setSefazDateTo(e.target.value); setSefazPage(1); }}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Supplier CNPJ */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">CNPJ Fornecedor</label>
-              <input
-                type="text"
-                name="sefaz_supplier_cnpj"
-                autoComplete="off"
-                value={sefazSupplierCnpj}
-                onChange={(e) => { setSefazSupplierCnpj(e.target.value); setSefazPage(1); }}
-                placeholder="00.000.000/0000-00"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Status */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
-              <select
-                value={sefazStatusFilter}
-                onChange={(e) => { setSefazStatusFilter(e.target.value); setSefazPage(1); }}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Todos</option>
-                <option value="FETCHED">Buscado</option>
-                <option value="IMPORTED">Importado</option>
-                <option value="IGNORED">Ignorado</option>
-                <option value="EVENT">Evento</option>
-              </select>
-            </div>
-
-            {/* Schema */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
-              <select
-                value={sefazSchemaFilter}
-                onChange={(e) => { setSefazSchemaFilter(e.target.value); setSefazPage(1); }}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Todos</option>
-                <option value="resNFe">resNFe</option>
-                <option value="procNFe">procNFe</option>
-                <option value="resEvento">resEvento</option>
-              </select>
-            </div>
-
-            {/* Search */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Buscar</label>
-              <input
-                type="text"
-                name="sefaz_search_nfe"
-                autoComplete="off"
-                value={sefazSearch}
-                onChange={(e) => { setSefazSearch(e.target.value); setSefazPage(1); }}
-                placeholder="Chave, nome..."
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-        </div>
+        <FilterBar
+          filters={SEFAZ_FILTERS}
+          values={sefazTp.filters}
+          onChange={sefazTp.setFilter}
+          onReset={sefazTp.resetFilters}
+          search={sefazTp.search}
+          onSearchChange={sefazTp.setSearch}
+          searchPlaceholder="Chave, nome, CNPJ..."
+        />
 
         {/* ── Documents Table ─────────────────────────────── */}
         {sefazDocsLoading ? (
@@ -1058,74 +1109,46 @@ export default function NfePage() {
               </p>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-              <table className="w-full text-sm">
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "auto", overflowY: "hidden" }}>
+              <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "1000px", width: "max-content" }}>
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-16">
-                      NSU
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-24">
-                      Tipo
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Chave NFe
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Emitente
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-28">
-                      Data Emissao
-                    </th>
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider w-28">
-                      Valor
-                    </th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-24">
-                      Situacao
-                    </th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-24">
-                      Status
-                    </th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-40">
+                    <th className="py-3 px-3 text-xs font-semibold uppercase text-slate-600" style={{ width: "140px", minWidth: "140px" }}>
                       Acoes
                     </th>
+                    {sefazOrderedColumns.map((col, idx) => (
+                      <DraggableHeader
+                        key={col.id}
+                        index={idx}
+                        columnId={col.id}
+                        onReorder={sefazReorderColumns}
+                        onResize={sefazSetColumnWidth}
+                        width={sefazColumnWidths[col.id]}
+                      >
+                        {col.sortable ? (
+                          <SortableHeader
+                            as="div"
+                            label={col.label}
+                            column={col.sortKey || col.id}
+                            currentColumn={sefazTp.sort.column}
+                            currentOrder={sefazTp.sort.order}
+                            onToggle={sefazTp.toggleSort}
+                            align={col.align}
+                          />
+                        ) : (
+                          <div className={`py-3 px-3 text-xs font-semibold uppercase text-slate-600 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}>
+                            {col.label}
+                          </div>
+                        )}
+                      </DraggableHeader>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {sefazDocs.map((doc) => (
                     <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-3 py-3 text-slate-700 font-mono text-xs">
-                        {doc.nsu}
-                      </td>
-                      <td className="px-3 py-3">
-                        <SchemaBadge schema={doc.schema} />
-                      </td>
-                      <td className="px-3 py-3 text-slate-500 font-mono text-xs max-w-[180px] truncate" title={doc.nfeKey || ""}>
-                        {truncateKey(doc.nfeKey, 25)}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div>
-                          <p className="text-xs text-slate-900 font-medium truncate max-w-[160px]" title={doc.emitterName || ""}>
-                            {doc.emitterName || "\u2014"}
-                          </p>
-                          <p className="text-xs text-slate-400">{formatCnpj(doc.emitterCnpj)}</p>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-slate-500 text-xs">
-                        {formatDate(doc.issueDate)}
-                      </td>
-                      <td className="px-3 py-3 text-right font-medium text-slate-900 text-xs">
-                        {formatCurrency(doc.nfeValue)}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <SituacaoBadge situacao={doc.situacao} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <SefazStatusBadge status={doc.status} />
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {/* Import button - only for procNFe + FETCHED */}
+                      <td className="py-3 px-3" style={{ width: "140px", minWidth: "140px" }}>
+                        <div className="flex items-center gap-1.5">
                           {doc.schema === "procNFe" && doc.status === "FETCHED" && (
                             <button
                               onClick={() => handleImportDoc(doc.id)}
@@ -1139,8 +1162,6 @@ export default function NfePage() {
                               )}
                             </button>
                           )}
-
-                          {/* Ignore button - only for FETCHED */}
                           {doc.status === "FETCHED" && (
                             <button
                               onClick={() => handleIgnoreDoc(doc.id)}
@@ -1154,22 +1175,29 @@ export default function NfePage() {
                               )}
                             </button>
                           )}
-
-                          {/* View XML button */}
                           <button
                             onClick={() => handleViewXml(doc.id)}
                             className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
                           >
-                            Ver XML
+                            XML
                           </button>
                         </div>
                       </td>
+                      {sefazOrderedColumns.map((col) => {
+                        const w = sefazColumnWidths[col.id];
+                        const tdStyle: React.CSSProperties = w ? { width: w, minWidth: w, maxWidth: w, overflow: "hidden" } : {};
+                        return (
+                          <td key={col.id} style={tdStyle} className={`py-3 px-3 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}>
+                            {col.render(doc)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {renderPagination(sefazDocsMeta, setSefazPage)}
+            <Pagination meta={sefazDocsMeta} onPageChange={sefazTp.setPage} />
           </>
         )}
       </div>
@@ -1181,13 +1209,44 @@ export default function NfePage() {
   /* ══════════════════════════════════════════════════════════ */
 
   function renderUploadManualTab() {
+    function handleOpenProcess(imp: NfeImport) {
+      setNfeData(imp);
+      if (imp.supplierId) {
+        setSupplierAction({ action: "LINK", partnerId: imp.supplierId });
+      } else {
+        setSupplierAction({ action: "CREATE" });
+      }
+      setItemActions(
+        (imp.items || []).map((item) => ({
+          itemNumber: item.itemNumber,
+          action: item.productId ? "LINK" : "CREATE",
+          productId: item.productId || undefined,
+        }))
+      );
+      setProductSearches({});
+      setProductResults({});
+      setStep(2);
+      setWizardOpen(true);
+    }
+
     return (
-      <div>
-        {/* Header action */}
-        <div className="flex items-center justify-end mb-6">
+      <div className="space-y-4">
+        {/* Header action + Filters */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <FilterBar
+              filters={UPLOAD_FILTERS}
+              values={uploadTp.filters}
+              onChange={uploadTp.setFilter}
+              onReset={uploadTp.resetFilters}
+              search={uploadTp.search}
+              onSearchChange={uploadTp.setSearch}
+              searchPlaceholder="Numero, chave, fornecedor..."
+            />
+          </div>
           <button
             onClick={openWizard}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors flex items-center gap-2"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors flex items-center gap-2 flex-shrink-0"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -1214,77 +1273,48 @@ export default function NfePage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-              <table className="w-full text-sm">
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "auto", overflowY: "hidden" }}>
+              <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "800px", width: "max-content" }}>
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      N. NFe
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Chave
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Fornecedor
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Valor Total
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Data Emissao
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600" style={{ width: "100px", minWidth: "100px" }}>
                       Acoes
                     </th>
+                    {uploadOrderedColumns.map((col, idx) => (
+                      <DraggableHeader
+                        key={col.id}
+                        index={idx}
+                        columnId={col.id}
+                        onReorder={uploadReorderColumns}
+                        onResize={uploadSetColumnWidth}
+                        width={uploadColumnWidths[col.id]}
+                      >
+                        {col.sortable ? (
+                          <SortableHeader
+                            as="div"
+                            label={col.label}
+                            column={col.sortKey || col.id}
+                            currentColumn={uploadTp.sort.column}
+                            currentOrder={uploadTp.sort.order}
+                            onToggle={uploadTp.toggleSort}
+                            align={col.align}
+                          />
+                        ) : (
+                          <div className={`py-3 px-4 text-xs font-semibold uppercase text-slate-600 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}>
+                            {col.label}
+                          </div>
+                        )}
+                      </DraggableHeader>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {imports.map((imp) => (
                     <tr key={imp.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-slate-900">
-                        {imp.nfeNumber}
-                      </td>
-                      <td className="px-4 py-3 text-slate-500 font-mono text-xs max-w-[200px] truncate" title={imp.accessKey}>
-                        {imp.accessKey}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {imp.supplierName}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-slate-900">
-                        {formatCurrency(imp.totalCents)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-500">
-                        {formatDate(imp.issueDate)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <StatusBadge status={imp.status} />
-                      </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="py-3 px-4" style={{ width: "100px", minWidth: "100px" }}>
                         {imp.status === "PENDING" ? (
                           <button
-                            onClick={() => {
-                              setNfeData(imp);
-                              // Initialize actions from existing data
-                              if (imp.supplierId) {
-                                setSupplierAction({ action: "LINK", partnerId: imp.supplierId });
-                              } else {
-                                setSupplierAction({ action: "CREATE" });
-                              }
-                              setItemActions(
-                                (imp.items || []).map((item) => ({
-                                  itemNumber: item.itemNumber,
-                                  action: item.productId ? "LINK" : "CREATE",
-                                  productId: item.productId || undefined,
-                                }))
-                              );
-                              setProductSearches({});
-                              setProductResults({});
-                              setStep(2);
-                              setWizardOpen(true);
-                            }}
+                            onClick={() => handleOpenProcess(imp)}
                             className="text-blue-600 hover:text-blue-700 text-xs font-medium hover:underline"
                           >
                             Processar
@@ -1293,12 +1323,21 @@ export default function NfePage() {
                           <span className="text-slate-400 text-xs">{"\u2014"}</span>
                         )}
                       </td>
+                      {uploadOrderedColumns.map((col) => {
+                        const w = uploadColumnWidths[col.id];
+                        const tdStyle: React.CSSProperties = w ? { width: w, minWidth: w, maxWidth: w, overflow: "hidden" } : {};
+                        return (
+                          <td key={col.id} style={tdStyle} className={`py-3 px-4 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}>
+                            {col.render(imp)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {renderPagination(meta, setPage)}
+            <Pagination meta={uploadMeta} onPageChange={uploadTp.setPage} />
           </>
         )}
       </div>

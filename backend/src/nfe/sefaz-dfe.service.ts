@@ -363,8 +363,14 @@ export class SefazDfeService {
           try {
             const docData = this.parseSefazDocument(doc.xml, doc.nsu, doc.schema);
 
+            // Check if document already exists (for auto-import logic)
+            const existing = await this.prisma.sefazDocument.findFirst({
+              where: { companyId, nsu: doc.nsu },
+              select: { id: true, status: true },
+            });
+
             // Upsert (skip if NSU already exists)
-            await this.prisma.sefazDocument.upsert({
+            const upserted = await this.prisma.sefazDocument.upsert({
               where: {
                 companyId_nsu: { companyId, nsu: doc.nsu },
               },
@@ -390,11 +396,28 @@ export class SefazDfeService {
                   nfeValue: docData.nfeValue || undefined,
                 }),
               },
+              select: { id: true, status: true },
             });
+
+            // Auto-import: only for NEW procNFe documents with XML
+            if (!existing && docData.schema === 'procNFe' && doc.xml) {
+              try {
+                const nfeImport = await this.nfeService.upload(doc.xml, companyId, upserted.id);
+                await this.prisma.sefazDocument.update({
+                  where: { id: upserted.id },
+                  data: { status: 'IMPORTED', nfeImportId: nfeImport.id },
+                });
+                this.logger.log(`Auto-imported procNFe NSU ${doc.nsu} -> NfeImport ${nfeImport.id}`);
+              } catch (importErr) {
+                // If auto-import fails (e.g. duplicate nfeKey), log and continue
+                // Document stays as FETCHED for manual import later
+                this.logger.warn(`Auto-import failed for NSU ${doc.nsu}: ${(importErr as Error).message}`);
+              }
+            }
 
             totalNewDocs++;
           } catch (err) {
-            this.logger.error(`Error processing doc NSU ${doc.nsu}: ${err.message}`);
+            this.logger.error(`Error processing doc NSU ${doc.nsu}: ${(err as Error).message}`);
           }
         }
 
@@ -748,6 +771,10 @@ export class SefazDfeService {
       where.schema = filters.schema;
     }
 
+    if (filters.situacao) {
+      where.situacao = filters.situacao;
+    }
+
     if (filters.supplierCnpj) {
       where.emitterCnpj = { contains: filters.supplierCnpj.replace(/\D/g, '') };
     }
@@ -767,10 +794,19 @@ export class SefazDfeService {
       ];
     }
 
+    // Dynamic sorting
+    const validSortFields = ['nsu', 'emitterName', 'issueDate', 'nfeValue', 'fetchedAt', 'status'];
+    const orderBy: Record<string, string> = {};
+    if (filters.sortBy && validSortFields.includes(filters.sortBy)) {
+      orderBy[filters.sortBy] = filters.sortOrder || 'desc';
+    } else {
+      orderBy.fetchedAt = 'desc';
+    }
+
     const [data, total] = await this.prisma.$transaction([
       this.prisma.sefazDocument.findMany({
         where,
-        orderBy: { fetchedAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
         select: {

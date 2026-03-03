@@ -90,3 +90,15 @@ Colunas mapeadas: Nome Parceiro, CNPJ/CPF, Tipo de pessoa, Cliente, Fornecedor, 
 - Idioma da UI: portugues brasileiro
 - Sem acentos em nomes de arquivo
 - CSS: Tailwind utility classes, design system slate/blue
+
+## Regras de Tabelas (System-Wide)
+- Todas as tabelas DEVEM usar `DraggableHeader` (`@/components/ui/DraggableHeader`) para colunas redimensionaveis e reordenaveis
+- Todas as tabelas DEVEM usar `SortableHeader` (`@/components/ui/SortableHeader`) para colunas que suportam ordenacao
+- Todas as tabelas DEVEM usar `FilterBar` (`@/components/ui/FilterBar`) com `FilterDefinition[]` para filtros
+- Todas as tabelas DEVEM usar o componente `Pagination` (`@/components/ui/Pagination`)
+- Filtros DEVEM ser persistidos via `useTableParams({ persistKey: "nome-unico" })` — filtros sobrevivem ao fechar pagina e logoff
+- Layout de colunas (ordem e largura) DEVE ser persistido via `useTableLayout("table-id", columns)`
+- Hooks: `useTableParams` para estado de filtros/sort/page; `useTableLayout` para ordem/largura de colunas
+- Nunca usar `<th>` plain — sempre `DraggableHeader` wrapping `SortableHeader`
+- Nunca criar funcao `renderPagination()` customizada — usar componente `Pagination`
+- Tipos: `ColumnDefinition<T>` e `FilterDefinition` de `@/lib/types/table`
