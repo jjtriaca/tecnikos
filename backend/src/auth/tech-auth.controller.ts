@@ -28,7 +28,7 @@ export class TechAuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 900_000 } }) // 10 tentativas a cada 15 min por IP
   async login(
-    @Body() body: { email: string; password: string },
+    @Body() body: { email: string; password: string; rememberMe?: boolean },
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
