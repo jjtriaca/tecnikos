@@ -23,6 +23,10 @@ export interface FinancialEntry {
   confirmedAt?: string;
   cancelledAt?: string;
   notes?: string;
+  paymentMethod?: string;
+  cardBrand?: string;
+  cancelledReason?: string;
+  cancelledByName?: string;
   createdAt: string;
   updatedAt: string;
   serviceOrder?: { id: string; title: string; status: string };

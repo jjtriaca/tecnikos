@@ -524,6 +524,12 @@ model FinancialEntry {
   cancelledAt      DateTime?
   notes            String?
 
+  // Pagamento e Cancelamento (v2.1)
+  paymentMethod     String?           // PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO, TRANSFERENCIA, BOLETO
+  cardBrand         String?           // Visa, Mastercard, Elo, etc.
+  cancelledReason   String?
+  cancelledByName   String?
+
   // Parcelas e Juros (v2.0)
   installmentCount    Int?              // Nro de parcelas (null = à vista)
   interestType        String?           // "SIMPLE" ou "COMPOUND"

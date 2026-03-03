@@ -85,4 +85,20 @@ export class ChangeEntryStatusDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  cardBrand?: string;
+
+  @IsOptional()
+  @IsString()
+  cancelledReason?: string;
+
+  @IsOptional()
+  @IsString()
+  cancelledByName?: string;
 }

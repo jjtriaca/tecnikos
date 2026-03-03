@@ -250,7 +250,12 @@ export class FinanceService {
 
     const where: any = { companyId, type, deletedAt: null };
 
-    if (filters?.status) where.status = filters.status;
+    if (filters?.status) {
+      where.status = filters.status;
+    } else {
+      // By default, exclude CANCELLED entries — user must explicitly filter by CANCELLED
+      where.status = { not: 'CANCELLED' };
+    }
     if (filters?.partnerId) where.partnerId = filters.partnerId;
     if (filters?.dateFrom || filters?.dateTo) {
       where.createdAt = {};
@@ -322,8 +327,16 @@ export class FinanceService {
     const data: any = { status: newStatus };
     if (notes) data.notes = notes;
     if (newStatus === 'CONFIRMED') data.confirmedAt = new Date();
-    if (newStatus === 'PAID') data.paidAt = new Date();
-    if (newStatus === 'CANCELLED') data.cancelledAt = new Date();
+    if (newStatus === 'PAID') {
+      data.paidAt = new Date();
+      if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
+      if (dto.cardBrand) data.cardBrand = dto.cardBrand;
+    }
+    if (newStatus === 'CANCELLED') {
+      data.cancelledAt = new Date();
+      if (dto.cancelledReason) data.cancelledReason = dto.cancelledReason;
+      if (dto.cancelledByName) data.cancelledByName = dto.cancelledByName;
+    }
 
     return this.prisma.financialEntry.update({
       where: { id },

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { useAuth } from "@/contexts/AuthContext";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Link from "next/link";
 import LookupField from "@/components/ui/LookupField";
@@ -132,6 +133,31 @@ const partnerFetcher: LookupFetcher<PartnerSummary> = async (search, page, signa
   );
 };
 
+/* ── Payment method options ────────────────────────────── */
+
+const PAYMENT_METHODS = [
+  { value: "PIX", label: "PIX" },
+  { value: "CARTAO_CREDITO", label: "Cartão Crédito" },
+  { value: "CARTAO_DEBITO", label: "Cartão Débito" },
+  { value: "DINHEIRO", label: "Dinheiro" },
+  { value: "TRANSFERENCIA", label: "Transferência Eletrônica" },
+  { value: "BOLETO", label: "Boleto" },
+];
+
+const CARD_BRANDS = [
+  "Visa", "Mastercard", "Elo", "Hipercard", "American Express", "Outro",
+];
+
+function paymentMethodLabel(method?: string, brand?: string) {
+  if (!method) return "—";
+  const m = PAYMENT_METHODS.find((p) => p.value === method);
+  const label = m?.label || method;
+  if (brand && (method === "CARTAO_CREDITO" || method === "CARTAO_DEBITO")) {
+    return `${label} (${brand})`;
+  }
+  return label;
+}
+
 /* ── Entry Columns ─────────────────────────────────────── */
 
 function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<FinancialEntry>[] {
@@ -248,6 +274,45 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       sortable: true,
       align: "right",
       render: (e) => <span className="text-sm text-slate-500">{formatDate(e.createdAt)}</span>,
+    },
+    {
+      id: "activity",
+      label: "Atividade",
+      render: (e) => {
+        if (e.status === "CANCELLED" && e.cancelledByName) {
+          return (
+            <span className="text-xs text-red-600" title={`Cancelado por ${e.cancelledByName}`}>
+              {e.cancelledByName} cancelou
+            </span>
+          );
+        }
+        if (e.status === "PAID" && e.paymentMethod) {
+          return (
+            <span className="text-xs text-green-700" title={paymentMethodLabel(e.paymentMethod, e.cardBrand)}>
+              {paymentMethodLabel(e.paymentMethod, e.cardBrand)}
+            </span>
+          );
+        }
+        if (e.renegotiatedAt) {
+          return <span className="text-xs text-purple-600">Renegociado</span>;
+        }
+        if (e.installmentCount && e.installmentCount > 0) {
+          return <span className="text-xs text-indigo-600">Parcelado {e.installmentCount}x</span>;
+        }
+        return <span className="text-xs text-slate-400">—</span>;
+      },
+    },
+    {
+      id: "reason",
+      label: "Motivo",
+      render: (e) =>
+        e.cancelledReason ? (
+          <span className="text-xs text-slate-600 truncate block max-w-[180px]" title={e.cancelledReason}>
+            {e.cancelledReason}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
     },
   );
 
@@ -448,6 +513,7 @@ function SummaryCard({
    ══════════════════════════════════════════════════════════ */
 
 function EntriesTab({ type }: { type: FinancialEntryType }) {
+  const { user } = useAuth();
   const tp = useTableParams({ defaultSortBy: "createdAt", defaultSortOrder: "desc" });
   const columns = buildEntryColumns(type);
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout(
@@ -458,7 +524,14 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" | "CANCELLED" } | null>(null);
+
+  // Cancel with reason
+  const [cancelAction, setCancelAction] = useState<{ entry: FinancialEntry } | null>(null);
+
+  // Pay/Confirm with payment method
+  const [payAction, setPayAction] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [cardBrand, setCardBrand] = useState("");
 
   // New entry modal
   const [showNewForm, setShowNewForm] = useState(false);
@@ -493,15 +566,49 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     loadEntries();
   }, [loadEntries]);
 
-  async function handleStatusChange() {
-    if (!confirmAction) return;
-    const { entry, action } = confirmAction;
+  async function handleCancel(reason: string) {
+    if (!cancelAction) return;
+    const { entry } = cancelAction;
     setActionLoading(entry.id);
     try {
-      await api.patch(`/finance/entries/${entry.id}/status`, { status: action });
-      const labels: Record<string, string> = { CONFIRMED: "confirmada", PAID: "paga", CANCELLED: "cancelada" };
+      await api.patch(`/finance/entries/${entry.id}/status`, {
+        status: "CANCELLED",
+        cancelledReason: reason,
+        cancelledByName: user?.name || user?.email || "Desconhecido",
+      });
+      toast("Entrada cancelada com sucesso!", "success");
+      setCancelAction(null);
+      await loadEntries();
+    } catch {
+      toast("Erro ao cancelar entrada.", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handlePayConfirm() {
+    if (!payAction) return;
+    if (!paymentMethod) {
+      toast("Selecione a forma de pagamento.", "error");
+      return;
+    }
+    if ((paymentMethod === "CARTAO_CREDITO" || paymentMethod === "CARTAO_DEBITO") && !cardBrand) {
+      toast("Selecione a bandeira do cartão.", "error");
+      return;
+    }
+    const { entry, action } = payAction;
+    setActionLoading(entry.id);
+    try {
+      await api.patch(`/finance/entries/${entry.id}/status`, {
+        status: action,
+        paymentMethod,
+        cardBrand: (paymentMethod === "CARTAO_CREDITO" || paymentMethod === "CARTAO_DEBITO") ? cardBrand : undefined,
+      });
+      const labels: Record<string, string> = { CONFIRMED: "confirmada", PAID: "paga" };
       toast(`Entrada ${labels[action]} com sucesso!`, "success");
-      setConfirmAction(null);
+      setPayAction(null);
+      setPaymentMethod("");
+      setCardBrand("");
       await loadEntries();
     } catch {
       toast("Erro ao atualizar status.", "error");
@@ -631,7 +738,13 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       entry={e}
                       type={type}
                       loading={actionLoading === e.id}
-                      onAction={(action) => setConfirmAction({ entry: e, action })}
+                      onAction={(action) => {
+                        if (action === "CANCELLED") {
+                          setCancelAction({ entry: e });
+                        } else {
+                          setPayAction({ entry: e, action });
+                        }
+                      }}
                       onInstallments={() => setInstallmentModal({ entryId: e.id, netCents: e.netCents })}
                       onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
                       onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
@@ -655,35 +768,110 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
 
       <Pagination meta={meta} onPageChange={tp.setPage} />
 
-      {/* Confirm status change modal */}
+      {/* Cancel modal — requires reason (min 10 chars) */}
       <ConfirmModal
-        open={!!confirmAction}
-        title={
-          confirmAction?.action === "CANCELLED"
-            ? "Cancelar Entrada"
-            : type === "RECEIVABLE"
-            ? "Receber"
-            : "Pagar"
-        }
+        open={!!cancelAction}
+        title="Cancelar Entrada"
         message={
-          confirmAction
-            ? confirmAction.action === "CANCELLED"
-              ? `Deseja cancelar a entrada "${confirmAction.entry.description || "(sem descrição)"}" (${formatCurrency(confirmAction.entry.netCents)})?`
-              : `Deseja ${type === "RECEIVABLE" ? "receber" : "pagar"} a entrada "${confirmAction.entry.description || "(sem descrição)"}" (${formatCurrency(confirmAction.entry.netCents)})?`
+          cancelAction
+            ? `Deseja cancelar a entrada "${cancelAction.entry.description || "(sem descrição)"}" (${formatCurrency(cancelAction.entry.netCents)})?`
             : ""
         }
-        confirmLabel={
-          confirmAction?.action === "CANCELLED"
-            ? "Cancelar Entrada"
-            : type === "RECEIVABLE"
-            ? "Receber"
-            : "Pagar"
-        }
-        variant={confirmAction?.action === "CANCELLED" ? "danger" : "default"}
+        confirmLabel="Cancelar Entrada"
+        variant="danger"
         loading={!!actionLoading}
-        onConfirm={handleStatusChange}
-        onCancel={() => setConfirmAction(null)}
+        reasonRequired
+        reasonMinLength={10}
+        reasonPlaceholder="Informe o motivo do cancelamento (mín. 10 caracteres)..."
+        onConfirm={() => {}}
+        onConfirmWithReason={handleCancel}
+        onCancel={() => setCancelAction(null)}
       />
+
+      {/* Payment method modal */}
+      {payAction && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); }} />
+          <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
+            <div className="flex items-start gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
+                <svg className="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold text-slate-900">
+                  {type === "RECEIVABLE" ? "Receber" : "Pagar"}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {`${type === "RECEIVABLE" ? "Receber" : "Pagar"} "${payAction.entry.description || "(sem descrição)"}" — ${formatCurrency(payAction.entry.netCents)}`}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Forma de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"} *
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => { setPaymentMethod(e.target.value); setCardBrand(""); }}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                >
+                  <option value="">Selecione...</option>
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {(paymentMethod === "CARTAO_CREDITO" || paymentMethod === "CARTAO_DEBITO") && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Bandeira do Cartão *</label>
+                  <select
+                    value={cardBrand}
+                    onChange={(e) => setCardBrand(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                  >
+                    <option value="">Selecione a bandeira...</option>
+                    {CARD_BRANDS.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); }}
+                disabled={!!actionLoading}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handlePayConfirm}
+                disabled={!!actionLoading || !paymentMethod || ((paymentMethod === "CARTAO_CREDITO" || paymentMethod === "CARTAO_DEBITO") && !cardBrand)}
+                className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              >
+                {actionLoading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Processando...
+                  </span>
+                ) : (
+                  type === "RECEIVABLE" ? "Receber" : "Pagar"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Entry Modal */}
       {showNewForm && (

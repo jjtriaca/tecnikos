@@ -15,6 +15,8 @@ interface ConfirmModalProps {
   /** Mostra textarea obrigatoria para motivo (ex: cancelamento) */
   reasonRequired?: boolean;
   reasonPlaceholder?: string;
+  /** Numero minimo de caracteres para o motivo (default: 3) */
+  reasonMinLength?: number;
   /** Callback alternativo que recebe o motivo digitado */
   onConfirmWithReason?: (reason: string) => void;
 }
@@ -52,6 +54,7 @@ export default function ConfirmModal({
   onCancel,
   reasonRequired = false,
   reasonPlaceholder = "Informe o motivo...",
+  reasonMinLength = 3,
   onConfirmWithReason,
 }: ConfirmModalProps) {
   const [reason, setReason] = useState("");
@@ -64,7 +67,7 @@ export default function ConfirmModal({
   if (!open) return null;
 
   const v = VARIANTS[variant];
-  const reasonValid = !reasonRequired || reason.trim().length >= 3;
+  const reasonValid = !reasonRequired || reason.trim().length >= reasonMinLength;
 
   function handleConfirm() {
     if (reasonRequired && onConfirmWithReason) {
@@ -109,8 +112,8 @@ export default function ConfirmModal({
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none placeholder:text-slate-400"
               autoFocus
             />
-            {reason.length > 0 && reason.trim().length < 3 && (
-              <p className="text-xs text-red-500 mt-1">Motivo deve ter pelo menos 3 caracteres</p>
+            {reason.length > 0 && reason.trim().length < reasonMinLength && (
+              <p className="text-xs text-red-500 mt-1">Motivo deve ter pelo menos {reasonMinLength} caracteres</p>
             )}
           </div>
         )}
