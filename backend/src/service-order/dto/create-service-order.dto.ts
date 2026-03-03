@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsDateString, IsArray, Min, Matches } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsDateString, IsArray, Min, Matches, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateServiceOrderDto {
@@ -34,9 +34,9 @@ export class CreateServiceOrderDto {
   @IsString()
   workflowTemplateId?: string;
 
-  @IsOptional()
   @IsString()
-  clientPartnerId?: string;
+  @IsNotEmpty({ message: 'Cliente e obrigatorio' })
+  clientPartnerId: string;
 
   // Endereço estruturado (v1.00.09)
   @IsOptional()

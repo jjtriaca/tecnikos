@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import PasswordInput from "@/components/ui/PasswordInput";
 
 /* ── Types (Upload Manual) ─────────────────────────────────── */
 
@@ -1399,8 +1400,7 @@ export default function NfePage() {
                 {/* Password */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Senha do Certificado</label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     name="cert_pfx_password"
                     autoComplete="new-password"
                     value={certPassword}

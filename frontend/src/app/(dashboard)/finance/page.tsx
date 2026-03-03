@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Link from "next/link";
+import LookupField from "@/components/ui/LookupField";
+import type { LookupFetcher, LookupFetcherResult } from "@/components/ui/SearchLookupModal";
 import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
 import DraggableHeader from "@/components/ui/DraggableHeader";
@@ -116,6 +118,19 @@ const ENTRY_FILTERS: FilterDefinition[] = [
   { key: "dateFrom", label: "De", type: "date" },
   { key: "dateTo", label: "Até", type: "date" },
 ];
+
+/* ── Partner lookup ────────────────────────────────────── */
+
+type PartnerSummary = { id: string; name: string; document: string | null; phone: string | null };
+
+const partnerFetcher: LookupFetcher<PartnerSummary> = async (search, page, signal) => {
+  const params = new URLSearchParams({ page: String(page), limit: "20" });
+  if (search) params.set("search", search);
+  return api.get<LookupFetcherResult<PartnerSummary>>(
+    `/partners?${params.toString()}`,
+    { signal },
+  );
+};
 
 /* ── Entry Columns ─────────────────────────────────────── */
 
@@ -449,6 +464,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [showNewForm, setShowNewForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "" });
+  const [selectedPartner, setSelectedPartner] = useState<PartnerSummary | null>(null);
 
   // v2.00 — Installment & Renegotiation modals
   const [installmentModal, setInstallmentModal] = useState<{ entryId: string; netCents: number } | null>(null);
@@ -495,6 +511,10 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   }
 
   async function handleCreateEntry() {
+    if (!selectedPartner) {
+      toast("Selecione um parceiro.", "error");
+      return;
+    }
     const gross = Math.round(Number(formData.grossCents.replace(",", ".")) * 100);
     if (!gross || gross <= 0) {
       toast("Informe um valor válido.", "error");
@@ -504,6 +524,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     try {
       await api.post("/finance/entries", {
         type,
+        partnerId: selectedPartner.id,
         description: formData.description || undefined,
         grossCents: gross,
         dueDate: formData.dueDate || undefined,
@@ -512,6 +533,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       toast("Entrada criada com sucesso!", "success");
       setShowNewForm(false);
       setFormData({ description: "", grossCents: "", dueDate: "", notes: "" });
+      setSelectedPartner(null);
       await loadEntries();
     } catch {
       toast("Erro ao criar entrada.", "error");
@@ -569,6 +591,9 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
           <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "700px", width: "max-content" }}>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 w-[160px]">
+                  Ações
+                </th>
                 {orderedColumns.map((col, idx) => (
                   <DraggableHeader
                     key={col.id}
@@ -596,14 +621,22 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                     )}
                   </DraggableHeader>
                 ))}
-                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-right w-[140px]">
-                  Ações
-                </th>
               </tr>
             </thead>
             <tbody>
               {entries.map((e) => (
                 <tr key={e.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  <td className="py-3 px-4">
+                    <EntryActions
+                      entry={e}
+                      type={type}
+                      loading={actionLoading === e.id}
+                      onAction={(action) => setConfirmAction({ entry: e, action })}
+                      onInstallments={() => setInstallmentModal({ entryId: e.id, netCents: e.netCents })}
+                      onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
+                      onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
+                    />
+                  </td>
                   {orderedColumns.map((col) => {
                     const w = columnWidths[col.id];
                     const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};
@@ -613,16 +646,6 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       </td>
                     );
                   })}
-                  <td className="py-3 px-4 text-right">
-                    <EntryActions
-                      entry={e}
-                      loading={actionLoading === e.id}
-                      onAction={(action) => setConfirmAction({ entry: e, action })}
-                      onInstallments={() => setInstallmentModal({ entryId: e.id, netCents: e.netCents })}
-                      onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
-                      onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
-                    />
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -636,29 +659,25 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       <ConfirmModal
         open={!!confirmAction}
         title={
-          confirmAction?.action === "CONFIRMED"
-            ? "Confirmar Entrada"
-            : confirmAction?.action === "PAID"
-            ? "Marcar como Pago"
-            : "Cancelar Entrada"
+          confirmAction?.action === "CANCELLED"
+            ? "Cancelar Entrada"
+            : type === "RECEIVABLE"
+            ? "Receber"
+            : "Pagar"
         }
         message={
           confirmAction
-            ? `Deseja ${
-                confirmAction.action === "CONFIRMED"
-                  ? "confirmar"
-                  : confirmAction.action === "PAID"
-                  ? "marcar como paga"
-                  : "cancelar"
-              } a entrada "${confirmAction.entry.description || "(sem descrição)"}" (${formatCurrency(confirmAction.entry.netCents)})?`
+            ? confirmAction.action === "CANCELLED"
+              ? `Deseja cancelar a entrada "${confirmAction.entry.description || "(sem descrição)"}" (${formatCurrency(confirmAction.entry.netCents)})?`
+              : `Deseja ${type === "RECEIVABLE" ? "receber" : "pagar"} a entrada "${confirmAction.entry.description || "(sem descrição)"}" (${formatCurrency(confirmAction.entry.netCents)})?`
             : ""
         }
         confirmLabel={
-          confirmAction?.action === "CONFIRMED"
-            ? "Confirmar"
-            : confirmAction?.action === "PAID"
-            ? "Marcar Pago"
-            : "Cancelar Entrada"
+          confirmAction?.action === "CANCELLED"
+            ? "Cancelar Entrada"
+            : type === "RECEIVABLE"
+            ? "Receber"
+            : "Pagar"
         }
         variant={confirmAction?.action === "CANCELLED" ? "danger" : "default"}
         loading={!!actionLoading}
@@ -674,6 +693,27 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
               Nova Entrada — {typeLabel}
             </h3>
             <div className="space-y-3">
+              <LookupField
+                label="Parceiro *"
+                placeholder="Selecione um parceiro"
+                modalTitle="Buscar Parceiro"
+                modalPlaceholder="Nome, documento ou telefone..."
+                value={selectedPartner}
+                displayValue={(p) => p.name}
+                onChange={(p) => setSelectedPartner(p)}
+                fetcher={partnerFetcher}
+                keyExtractor={(p) => p.id}
+                required
+                renderItem={(p) => (
+                  <div>
+                    <div className="font-medium text-slate-900">{p.name}</div>
+                    <div className="flex gap-3 text-xs text-slate-400 mt-0.5">
+                      {p.document && <span>{p.document}</span>}
+                      {p.phone && <span>{p.phone}</span>}
+                    </div>
+                  </div>
+                )}
+              />
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Descrição</label>
                 <input
@@ -720,6 +760,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 onClick={() => {
                   setShowNewForm(false);
                   setFormData({ description: "", grossCents: "", dueDate: "", notes: "" });
+                  setSelectedPartner(null);
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
@@ -782,6 +823,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
 
 function EntryActions({
   entry,
+  type,
   loading,
   onAction,
   onInstallments,
@@ -789,6 +831,7 @@ function EntryActions({
   onRenegotiate,
 }: {
   entry: FinancialEntry;
+  type: FinancialEntryType;
   loading: boolean;
   onAction: (action: "CONFIRMED" | "PAID" | "CANCELLED") => void;
   onInstallments: () => void;
@@ -799,16 +842,17 @@ function EntryActions({
     return <span className="text-xs text-slate-400 animate-pulse">Processando...</span>;
   }
 
+  const confirmLabel = type === "RECEIVABLE" ? "Receber" : "Pagar";
   const statusButtons: { label: string; action: "CONFIRMED" | "PAID" | "CANCELLED"; className: string }[] = [];
 
   if (entry.status === "PENDING") {
     statusButtons.push(
-      { label: "Confirmar", action: "CONFIRMED", className: "text-blue-600 hover:text-blue-800" },
+      { label: confirmLabel, action: "CONFIRMED", className: "text-blue-600 hover:text-blue-800" },
       { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
     );
   } else if (entry.status === "CONFIRMED") {
     statusButtons.push(
-      { label: "Pagar", action: "PAID", className: "text-green-600 hover:text-green-800" },
+      { label: confirmLabel, action: "PAID", className: "text-green-600 hover:text-green-800" },
       { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
     );
   }
@@ -817,7 +861,7 @@ function EntryActions({
   const hasInstallments = entry.installmentCount && entry.installmentCount > 0;
 
   return (
-    <div className="flex gap-1.5 justify-end flex-wrap">
+    <div className="flex gap-1.5 flex-wrap">
       {/* Status actions */}
       {statusButtons.map((btn) => (
         <button
@@ -836,7 +880,7 @@ function EntryActions({
           className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
           title="Ver parcelas"
         >
-          📑 Parcelas
+          Parcelas
         </button>
       ) : !isTerminal ? (
         <button

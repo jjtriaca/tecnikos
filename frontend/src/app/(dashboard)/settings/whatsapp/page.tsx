@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import Link from "next/link";
+import PasswordInput from "@/components/ui/PasswordInput";
 
 type WhatsAppConfig = {
   provider: "META";
@@ -266,8 +267,7 @@ export default function WhatsAppSettingsPage() {
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Access Token (Permanente)
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 value={accessToken}
                 onChange={(e) => setAccessToken(e.target.value)}
                 placeholder="Cole seu access token aqui"

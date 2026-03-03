@@ -192,6 +192,12 @@ export default function NewOrderPage() {
     setGeocodingMsg(null);
 
     try {
+      if (!selectedClient) {
+        setError("Selecione um cliente");
+        setLoading(false);
+        return;
+      }
+
       const valueNum = Math.round(parseFloat(form.valueCents) * 100);
       if (isNaN(valueNum) || valueNum <= 0) {
         setError("Valor inválido");
@@ -299,7 +305,7 @@ export default function NewOrderPage() {
           {/* Cliente (LookupField) */}
           <LookupField
             label="Cliente"
-            placeholder="Selecione um cliente (opcional)"
+            placeholder="Selecione um cliente"
             modalTitle="Buscar Cliente"
             modalPlaceholder="Nome, documento ou telefone..."
             value={selectedClient}
@@ -307,6 +313,7 @@ export default function NewOrderPage() {
             onChange={(c) => setSelectedClient(c)}
             fetcher={clientFetcher}
             keyExtractor={(c) => c.id}
+            required
             renderItem={(c) => (
               <div>
                 <div className="font-medium text-slate-900">{c.name}</div>

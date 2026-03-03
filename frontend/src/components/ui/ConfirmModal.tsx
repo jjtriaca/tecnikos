@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useState, useEffect } from "react";
 
 interface ConfirmModalProps {
   open: boolean;
@@ -12,6 +12,11 @@ interface ConfirmModalProps {
   loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Mostra textarea obrigatoria para motivo (ex: cancelamento) */
+  reasonRequired?: boolean;
+  reasonPlaceholder?: string;
+  /** Callback alternativo que recebe o motivo digitado */
+  onConfirmWithReason?: (reason: string) => void;
 }
 
 const VARIANTS = {
@@ -45,10 +50,29 @@ export default function ConfirmModal({
   loading = false,
   onConfirm,
   onCancel,
+  reasonRequired = false,
+  reasonPlaceholder = "Informe o motivo...",
+  onConfirmWithReason,
 }: ConfirmModalProps) {
+  const [reason, setReason] = useState("");
+
+  // Limpar motivo ao abrir/fechar
+  useEffect(() => {
+    if (!open) setReason("");
+  }, [open]);
+
   if (!open) return null;
 
   const v = VARIANTS[variant];
+  const reasonValid = !reasonRequired || reason.trim().length >= 3;
+
+  function handleConfirm() {
+    if (reasonRequired && onConfirmWithReason) {
+      onConfirmWithReason(reason.trim());
+    } else {
+      onConfirm();
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center">
@@ -70,6 +94,27 @@ export default function ConfirmModal({
             <div className="mt-1 text-sm text-slate-500">{message}</div>
           </div>
         </div>
+
+        {/* Campo de motivo (opcional) */}
+        {reasonRequired && (
+          <div className="mt-4">
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Motivo *
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={reasonPlaceholder}
+              rows={2}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none placeholder:text-slate-400"
+              autoFocus
+            />
+            {reason.length > 0 && reason.trim().length < 3 && (
+              <p className="text-xs text-red-500 mt-1">Motivo deve ter pelo menos 3 caracteres</p>
+            )}
+          </div>
+        )}
+
         <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={onCancel}
@@ -79,8 +124,8 @@ export default function ConfirmModal({
             {cancelLabel}
           </button>
           <button
-            onClick={onConfirm}
-            disabled={loading}
+            onClick={handleConfirm}
+            disabled={loading || !reasonValid}
             className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 ${v.btnColor}`}
           >
             {loading ? (

@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AuditLogDrawer from "@/components/ui/AuditLogDrawer";
+import PasswordInput from "@/components/ui/PasswordInput";
 
 type User = {
   id: string;
@@ -191,9 +192,8 @@ export default function UsersPage() {
                 required
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
               />
-              <input
+              <PasswordInput
                 placeholder={editingId ? "Nova senha (opcional)" : "Senha"}
-                type="password"
                 value={form.password}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, password: e.target.value }))

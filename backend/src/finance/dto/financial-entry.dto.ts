@@ -8,9 +8,9 @@ export class CreateFinancialEntryDto {
   @IsString()
   serviceOrderId?: string;
 
-  @IsOptional()
   @IsString()
-  partnerId?: string;
+  @IsNotEmpty({ message: 'Parceiro e obrigatorio' })
+  partnerId: string;
 
   @IsOptional()
   @IsString()
@@ -53,6 +53,10 @@ export class CreateFinancialEntryDto {
 }
 
 export class UpdateFinancialEntryDto {
+  @IsOptional()
+  @IsString()
+  partnerId?: string;
+
   @IsOptional()
   @IsString()
   description?: string;

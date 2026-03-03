@@ -35,12 +35,12 @@ export class AuthController {
     const ip = req.ip || req.socket?.remoteAddress;
     const ua = req.headers['user-agent'];
 
-    const result = await this.authService.login(dto.email, dto.password, ip, ua);
+    const result = await this.authService.login(dto.email, dto.password, ip, ua, dto.rememberMe);
 
     res.cookie(
       REFRESH_COOKIE_NAME,
       result.refreshToken,
-      this.authService.refreshCookieOptions(),
+      this.authService.refreshCookieOptions(result.rememberMe),
     );
 
     return {

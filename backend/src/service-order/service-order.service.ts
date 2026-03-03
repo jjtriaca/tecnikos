@@ -347,7 +347,7 @@ export class ServiceOrderService {
     return updated;
   }
 
-  async cancel(id: string, companyId: string, actor: AuthenticatedUser) {
+  async cancel(id: string, companyId: string, actor: AuthenticatedUser, reason?: string) {
     const so = await this.findOne(id, companyId);
 
     if (TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)) {
@@ -356,13 +356,17 @@ export class ServiceOrderService {
 
     const updated = await this.prisma.serviceOrder.update({
       where: { id },
-      data: { status: ServiceOrderStatus.CANCELADA },
+      data: {
+        status: ServiceOrderStatus.CANCELADA,
+        cancelledReason: reason || null,
+        cancelledByName: actor.email,
+      },
     });
 
     this.audit.log({
       companyId, entityType: 'SERVICE_ORDER', entityId: id,
       action: 'CANCELLED', actorType: 'USER', actorId: actor.id, actorName: actor.email,
-      before: { status: so.status }, after: { status: 'CANCELADA' },
+      before: { status: so.status }, after: { status: 'CANCELADA', reason: reason || undefined },
     });
 
     this.dispatchAutomation({

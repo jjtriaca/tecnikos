@@ -35,9 +35,9 @@ export class TechAuthController {
     const ip = req.ip || req.socket?.remoteAddress;
     const ua = req.headers['user-agent'];
 
-    const result = await this.techAuth.login(body.email, body.password, ip, ua);
+    const result = await this.techAuth.login(body.email, body.password, ip, ua, body.rememberMe);
 
-    res.cookie(TECH_REFRESH_COOKIE, result.refreshToken, this.techAuth.refreshCookieOptions());
+    res.cookie(TECH_REFRESH_COOKIE, result.refreshToken, this.techAuth.refreshCookieOptions(result.rememberMe));
 
     return {
       accessToken: result.accessToken,

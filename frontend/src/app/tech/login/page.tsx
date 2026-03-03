@@ -1,23 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTechAuth } from "@/contexts/TechAuthContext";
+import PasswordInput from "@/components/ui/PasswordInput";
 
 export default function TechLoginPage() {
   const { login } = useTechAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Carregar preferencia "lembrar-me" do localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("techRememberMe");
+    if (saved === "true") setRememberMe(true);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    // Salvar preferencia
+    localStorage.setItem("techRememberMe", String(rememberMe));
+
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
     } catch (err: any) {
-      setError(err.message || "Credenciais inválidas");
+      setError(err.message || "Credenciais invalidas");
     } finally {
       setLoading(false);
     }
@@ -39,7 +51,7 @@ export default function TechLoginPage() {
             </div>
             <div>
               <div className="text-sm font-bold text-slate-900">FieldService</div>
-              <div className="text-[10px] text-slate-400">Portal do Técnico</div>
+              <div className="text-[10px] text-slate-400">Portal do Tecnico</div>
             </div>
           </div>
 
@@ -62,15 +74,25 @@ export default function TechLoginPage() {
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-600">Senha</label>
-              <input
+              <PasswordInput
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 text-sm outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                type="password"
                 placeholder="••••••••"
                 required
               />
             </div>
+
+            {/* Lembrar-me */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 transition-colors"
+              />
+              <span className="text-xs text-slate-500">Lembrar-me</span>
+            </label>
 
             {error && (
               <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">

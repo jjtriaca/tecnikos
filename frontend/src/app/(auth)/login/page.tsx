@@ -1,30 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiError } from "@/lib/api";
+import PasswordInput from "@/components/ui/PasswordInput";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState("admin@tecnikos.com.br");
   const [password, setPassword] = useState("Tecnikos2026!");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Carregar preferencia "lembrar-me" do localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("rememberMe");
+    if (saved === "true") setRememberMe(true);
+  }, []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
+    // Salvar preferencia
+    localStorage.setItem("rememberMe", String(rememberMe));
+
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setError(err.payload?.message || err.message);
       } else if (err instanceof Error && err.message === "Failed to fetch") {
-        setError("Servidor indisponível. Verifique se o backend está rodando.");
+        setError("Servidor indisponivel. Verifique se o backend esta rodando.");
       } else {
-        setError("Credenciais inválidas");
+        setError("Credenciais invalidas");
       }
     } finally {
       setLoading(false);
@@ -86,23 +97,33 @@ export default function LoginPage() {
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">
                   Senha
                 </label>
-                <input
+                <PasswordInput
                   className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 text-sm outline-none placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  type="password"
                   placeholder="••••••••"
                   required
                 />
                 <button
                   type="button"
                   className="mt-2 text-xs text-slate-400 hover:text-blue-600 transition-colors"
-                  onClick={() => setError("Recuperação de senha será implementada em breve.")}
+                  onClick={() => setError("Recuperacao de senha sera implementada em breve.")}
                   disabled={loading}
                 >
                   Esqueceu a senha?
                 </button>
               </div>
+
+              {/* Lembrar-me */}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 transition-colors"
+                />
+                <span className="text-xs text-slate-500">Lembrar-me</span>
+              </label>
 
               {error && (
                 <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-600">

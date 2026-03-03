@@ -10,6 +10,8 @@ import { randomUUID } from 'crypto';
 import { JwtPayload, AuthenticatedUser } from './auth.types';
 import {
   DEFAULT_REFRESH_TTL_SECONDS,
+  REMEMBER_ME_TTL_SECONDS,
+  SESSION_TTL_SECONDS,
   REFRESH_COOKIE_NAME,
 } from './auth.constants';
 
@@ -33,6 +35,7 @@ export class AuthService {
     password: string,
     ip?: string,
     userAgent?: string,
+    rememberMe?: boolean,
   ) {
     const user = await this.prisma.user.findFirst({
       where: { email, deletedAt: null },
@@ -43,17 +46,20 @@ export class AuthService {
     const passwordOk = await bcrypt.compare(password, user.passwordHash);
     if (!passwordOk) throw new UnauthorizedException('Credenciais inválidas');
 
+    const ttl = rememberMe ? REMEMBER_ME_TTL_SECONDS : SESSION_TTL_SECONDS;
     const accessToken = this.issueAccessToken(user);
     const { refreshToken, session } = await this.createSession(
       user.id,
       ip,
       userAgent,
+      ttl,
     );
 
     return {
       accessToken,
       refreshToken,
-      refreshTtlSeconds: this.refreshTtlSeconds,
+      refreshTtlSeconds: ttl,
+      rememberMe: !!rememberMe,
       user: {
         id: user.id,
         name: user.name,
@@ -175,12 +181,12 @@ export class AuthService {
     userId: string,
     ip?: string,
     userAgent?: string,
+    ttlSeconds?: number,
   ) {
+    const ttl = ttlSeconds || this.refreshTtlSeconds;
     const refreshToken = randomUUID();
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-    const expiresAt = new Date(
-      Date.now() + this.refreshTtlSeconds * 1000,
-    );
+    const expiresAt = new Date(Date.now() + ttl * 1000);
 
     const session = await this.prisma.session.create({
       data: {
@@ -196,14 +202,20 @@ export class AuthService {
   }
 
   /** Cookie options for the refresh token */
-  refreshCookieOptions() {
-    return {
+  refreshCookieOptions(rememberMe?: boolean) {
+    const opts: Record<string, any> = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
       path: '/',
-      maxAge: this.refreshTtlSeconds * 1000,
     };
+    if (rememberMe) {
+      opts.maxAge = REMEMBER_ME_TTL_SECONDS * 1000;
+    } else {
+      // Sem maxAge = cookie de sessao (expira ao fechar o browser)
+      opts.maxAge = SESSION_TTL_SECONDS * 1000;
+    }
+    return opts;
   }
 
   /** Cookie options to clear the refresh token */

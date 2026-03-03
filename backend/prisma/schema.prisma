@@ -231,6 +231,10 @@ model ServiceOrder {
   pauseCount      Int      @default(0)
   totalPausedMs   BigInt   @default(0)  // milissegundos totais pausados (acumulativo)
 
+  // Cancelamento (v1.00.55)
+  cancelledReason  String?   // Motivo do cancelamento
+  cancelledByName  String?   // Nome do usuario que cancelou
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?

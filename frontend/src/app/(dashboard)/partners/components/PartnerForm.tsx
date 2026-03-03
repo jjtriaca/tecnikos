@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import PasswordInput from "@/components/ui/PasswordInput";
 import {
   maskCnpj,
   maskCpf,
@@ -310,7 +311,7 @@ export default function PartnerForm({
         {isTecnico && (
           <div className="border-t border-slate-200 pt-4">
             <p className="text-xs font-medium text-slate-500 mb-3 uppercase tracking-wide">Acesso do Técnico</p>
-            <input type="password" placeholder={editingId ? "Nova senha (deixe vazio para manter)" : "Senha de acesso *"} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required={!editingId} className={inputClass + " w-full sm:w-1/2"} />
+            <PasswordInput placeholder={editingId ? "Nova senha (deixe vazio para manter)" : "Senha de acesso *"} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required={!editingId} className={inputClass + " w-full sm:w-1/2"} />
           </div>
         )}
 

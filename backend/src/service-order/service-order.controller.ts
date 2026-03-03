@@ -67,9 +67,10 @@ export class ServiceOrderController {
   @Patch(':id/cancel')
   cancel(
     @Param('id') id: string,
+    @Body() body: { reason?: string },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.cancel(id, user.companyId, user);
+    return this.service.cancel(id, user.companyId, user, body.reason);
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
