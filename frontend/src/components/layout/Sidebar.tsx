@@ -94,7 +94,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Parceiros", href: "/partners", icon: icons.partners, roles: ["ADMIN", "DESPACHO"] },
   { label: "Financeiro", href: "/finance", icon: icons.finance, roles: ["ADMIN", "FINANCEIRO"] },
   { label: "Produtos", href: "/products", icon: icons.products, roles: ["ADMIN"] },
-  { label: "Importar NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN"] },
+  { label: "NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN"] },
   { label: "Relatórios", href: "/reports", icon: icons.reports, roles: ["ADMIN", "FINANCEIRO", "LEITURA"] },
   { label: "Usuários", href: "/users", icon: icons.users, roles: ["ADMIN"] },
   { label: "Fluxo de Atendimento", href: "/workflow", icon: icons.workflow, roles: ["ADMIN", "DESPACHO"] },

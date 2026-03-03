@@ -43,7 +43,7 @@ export class NfeService {
      upload — Parse XML, create NfeImport + NfeImportItems
      ═══════════════════════════════════════════════════════════════════ */
 
-  async upload(xmlContent: string, companyId: string) {
+  async upload(xmlContent: string, companyId: string, sefazDocumentId?: string) {
     const parsed = this.parser.parse(xmlContent);
 
     // Check duplicate by nfeKey
@@ -103,6 +103,7 @@ export class NfeService {
         supplierName: parsed.supplier.name || null,
         totalCents: parsed.totalCents,
         status: 'PENDING',
+        sefazDocumentId: sefazDocumentId ?? null,
         items: {
           create: parsed.items.map((item) => {
             const matchedProductId = productMatches.get(item.productCode) ?? null;

@@ -96,6 +96,8 @@ model Company {
   whatsAppConfig       WhatsAppConfig?
   products             Product[]
   nfeImports           NfeImport[]
+  sefazConfig          SefazConfig?
+  sefazDocuments       SefazDocument[]
 }
 
 model User {
@@ -710,6 +712,7 @@ model NfeImport {
   totalCents    Int?     // Valor total da NFe em centavos
   status        String   @default("PENDING") // PENDING, PROCESSED, CANCELLED
   financialEntryId String? // Lançamento financeiro criado automaticamente
+  sefazDocumentId  String? // Link com SefazDocument (null = upload manual)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -740,6 +743,53 @@ model NfeImportItem {
   product   Product?  @relation(fields: [productId], references: [id])
 
   @@index([nfeImportId])
+}
+
+// ========== Configuração SEFAZ DistribuiçãoDFe (v1.00.53) ==========
+
+model SefazConfig {
+  id                  String    @id @default(uuid())
+  companyId           String    @unique
+  environment         String    @default("PRODUCTION") // PRODUCTION | HOMOLOGATION
+  pfxBase64           String    // PFX criptografado com AES-256-GCM
+  pfxPassword         String    // Senha do PFX criptografada com AES-256-GCM
+  certificateCN       String?   // Common Name do certificado
+  certificateExpiry   DateTime? // Data de expiração do certificado
+  lastNsu             String    @default("000000000000000") // 15 dígitos
+  lastFetchAt         DateTime?
+  lastFetchStatus     String?   // SUCCESS | ERROR | NO_DOCS
+  lastFetchError      String?
+  autoFetchEnabled    Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+}
+
+model SefazDocument {
+  id            String    @id @default(uuid())
+  companyId     String
+  nsu           String    // NSU do SEFAZ (15 chars)
+  schema        String    // resNFe | procNFe | resEvento
+  nfeKey        String?   // Chave de acesso 44 dígitos
+  emitterCnpj   String?
+  emitterName   String?
+  issueDate     DateTime?
+  nfeValue      Int?      // Valor total em centavos
+  situacao      String?   // 1=Autorizada, 2=Denegada, 3=Cancelada
+  xmlContent    String?   // XML descomprimido completo
+  nfeImportId   String?   // Vínculo com NfeImport quando processado
+  status        String    @default("FETCHED") // FETCHED | IMPORTED | IGNORED | EVENT
+  fetchedAt     DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, nsu])
+  @@index([companyId, status])
+  @@index([companyId, nfeKey])
+  @@index([companyId, fetchedAt])
+  @@index([emitterCnpj])
 }
 
 // ========== Aguardar Verificando — Workflow WAIT_FOR (v1.00.26) ==========

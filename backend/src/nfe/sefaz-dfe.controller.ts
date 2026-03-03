@@ -1,0 +1,132 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Query,
+  Body,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
+import { SefazDfeService } from './sefaz-dfe.service';
+import { UpdateSefazConfigDto, SefazDocumentFilterDto } from './dto/sefaz-config.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { AuthenticatedUser } from '../auth/auth.types';
+
+@ApiTags('NFe SEFAZ')
+@Controller('nfe/sefaz')
+export class SefazDfeController {
+  constructor(private readonly service: SefazDfeService) {}
+
+  /* ── Upload PFX Certificate ──────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Post('certificate')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadCertificate(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('pfxPassword') pfxPassword: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Arquivo PFX é obrigatório');
+    }
+    if (!pfxPassword) {
+      throw new BadRequestException('Senha do certificado é obrigatória');
+    }
+
+    // Validate file extension
+    const ext = file.originalname?.toLowerCase();
+    if (!ext?.endsWith('.pfx') && !ext?.endsWith('.p12')) {
+      throw new BadRequestException('Arquivo deve ser do tipo .pfx ou .p12');
+    }
+
+    return this.service.saveCertificate(user.companyId, file.buffer, pfxPassword);
+  }
+
+  /* ── Get Config (no secrets) ─────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Get('config')
+  getConfig(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getConfig(user.companyId);
+  }
+
+  /* ── Update Config ───────────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Put('config')
+  updateConfig(
+    @Body() dto: UpdateSefazConfigDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateConfig(user.companyId, dto);
+  }
+
+  /* ── Delete Certificate ──────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Delete('certificate')
+  deleteCertificate(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.deleteCertificate(user.companyId);
+  }
+
+  /* ── Manual Fetch ────────────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Post('fetch')
+  fetch(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.fetchDistDFe(user.companyId);
+  }
+
+  /* ── List Documents (paginated + filtered) ───────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Get('documents')
+  findDocuments(
+    @Query() filters: SefazDocumentFilterDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.findDocuments(user.companyId, filters);
+  }
+
+  /* ── Document Detail ─────────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Get('documents/:id')
+  findOneDocument(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.findOneDocument(user.companyId, id);
+  }
+
+  /* ── Import Document into NfeImport ──────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Post('documents/:id/import')
+  importDocument(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.importDocument(user.companyId, id);
+  }
+
+  /* ── Ignore Document ─────────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Post('documents/:id/ignore')
+  ignoreDocument(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.ignoreDocument(user.companyId, id);
+  }
+}

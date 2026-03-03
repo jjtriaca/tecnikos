@@ -1,0 +1,775 @@
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import * as crypto from 'crypto';
+import * as tls from 'tls';
+import * as https from 'https';
+import * as zlib from 'zlib';
+import { XMLParser } from 'fast-xml-parser';
+import { PrismaService } from '../prisma/prisma.service';
+import { EncryptionService } from '../common/encryption.service';
+import { NfeService } from './nfe.service';
+import { PaginatedResult } from '../common/dto/pagination.dto';
+import { SefazDocumentFilterDto } from './dto/sefaz-config.dto';
+
+/* ══════════════════════════════════════════════════════════════════════
+   UF → IBGE code mapping
+   ══════════════════════════════════════════════════════════════════════ */
+
+const UF_IBGE: Record<string, number> = {
+  AC: 12, AL: 27, AM: 13, AP: 16, BA: 29, CE: 23, DF: 53, ES: 32,
+  GO: 52, MA: 21, MG: 31, MS: 50, MT: 51, PA: 15, PB: 25, PE: 26,
+  PI: 22, PR: 41, RJ: 33, RN: 24, RO: 11, RR: 14, RS: 43, SC: 42,
+  SE: 28, SP: 35, TO: 17,
+};
+
+const SEFAZ_URLS = {
+  PRODUCTION: 'https://www1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx',
+  HOMOLOGATION: 'https://hom1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx',
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   Types
+   ══════════════════════════════════════════════════════════════════════ */
+
+interface SoapResponse {
+  cStat: string;
+  xMotivo: string;
+  ultNSU: string;
+  maxNSU: string;
+  docZips: Array<{ nsu: string; schema: string; xml: string }>;
+}
+
+export interface SefazConfigInfo {
+  hasCertificate: boolean;
+  certificateCN: string | null;
+  certificateExpiry: string | null;
+  environment: string;
+  autoFetchEnabled: boolean;
+  lastNsu: string;
+  lastFetchAt: string | null;
+  lastFetchStatus: string | null;
+  lastFetchError: string | null;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Service
+   ══════════════════════════════════════════════════════════════════════ */
+
+@Injectable()
+export class SefazDfeService {
+  private readonly logger = new Logger(SefazDfeService.name);
+  private readonly xmlParser: XMLParser;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly encryption: EncryptionService,
+    private readonly nfeService: NfeService,
+  ) {
+    this.xmlParser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     saveCertificate — Upload and validate PFX certificate
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async saveCertificate(
+    companyId: string,
+    pfxBuffer: Buffer,
+    pfxPassword: string,
+  ) {
+    // Validate PFX by trying to create a secure context
+    let certificateCN: string | null = null;
+    let certificateExpiry: Date | null = null;
+
+    try {
+      tls.createSecureContext({
+        pfx: pfxBuffer,
+        passphrase: pfxPassword,
+      });
+
+      // Try to extract certificate info
+      try {
+        const certDetails = this.extractCertInfo(pfxBuffer, pfxPassword);
+        certificateCN = certDetails.cn;
+        certificateExpiry = certDetails.expiry;
+      } catch {
+        this.logger.warn('Could not extract certificate details, PFX is valid');
+      }
+    } catch (err) {
+      throw new BadRequestException(
+        'Certificado PFX inválido ou senha incorreta. Verifique o arquivo e a senha.',
+      );
+    }
+
+    // Encrypt PFX and password for storage
+    const pfxBase64 = pfxBuffer.toString('base64');
+    const encryptedPfx = this.encryption.encrypt(pfxBase64);
+    const encryptedPassword = this.encryption.encrypt(pfxPassword);
+
+    // Upsert SefazConfig
+    const config = await this.prisma.sefazConfig.upsert({
+      where: { companyId },
+      create: {
+        companyId,
+        pfxBase64: encryptedPfx,
+        pfxPassword: encryptedPassword,
+        certificateCN,
+        certificateExpiry,
+      },
+      update: {
+        pfxBase64: encryptedPfx,
+        pfxPassword: encryptedPassword,
+        certificateCN,
+        certificateExpiry,
+      },
+    });
+
+    return {
+      id: config.id,
+      certificateCN: config.certificateCN,
+      certificateExpiry: config.certificateExpiry,
+      environment: config.environment,
+      autoFetchEnabled: config.autoFetchEnabled,
+      lastNsu: config.lastNsu,
+    };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     extractCertInfo — Extract CN and expiry from PFX
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private extractCertInfo(pfxBuffer: Buffer, password: string): { cn: string | null; expiry: Date | null } {
+    try {
+      // Use tls to create context and verify
+      const ctx = tls.createSecureContext({
+        pfx: pfxBuffer,
+        passphrase: password,
+      });
+
+      // Try using X509Certificate if available (Node.js 15.6+)
+      // Unfortunately, direct PFX→X509Certificate parsing isn't available
+      // So we attempt to extract from the secure context's internal cert
+      const internalCtx = (ctx as any).context;
+      if (internalCtx?.getCertificate) {
+        const cert = internalCtx.getCertificate();
+        return {
+          cn: cert?.subject?.CN || null,
+          expiry: cert?.valid_to ? new Date(cert.valid_to) : null,
+        };
+      }
+    } catch {
+      // Could not extract details
+    }
+
+    return { cn: null, expiry: null };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     getConfig — Return config info (no secrets)
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async getConfig(companyId: string): Promise<SefazConfigInfo> {
+    const config = await this.prisma.sefazConfig.findUnique({
+      where: { companyId },
+    });
+
+    if (!config) {
+      return {
+        hasCertificate: false,
+        certificateCN: null,
+        certificateExpiry: null,
+        environment: 'PRODUCTION',
+        autoFetchEnabled: true,
+        lastNsu: '000000000000000',
+        lastFetchAt: null,
+        lastFetchStatus: null,
+        lastFetchError: null,
+      };
+    }
+
+    return {
+      hasCertificate: true,
+      certificateCN: config.certificateCN,
+      certificateExpiry: config.certificateExpiry?.toISOString() ?? null,
+      environment: config.environment,
+      autoFetchEnabled: config.autoFetchEnabled,
+      lastNsu: config.lastNsu,
+      lastFetchAt: config.lastFetchAt?.toISOString() ?? null,
+      lastFetchStatus: config.lastFetchStatus,
+      lastFetchError: config.lastFetchError,
+    };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     updateConfig — Update environment or autoFetchEnabled
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async updateConfig(companyId: string, data: { environment?: string; autoFetchEnabled?: boolean }) {
+    const config = await this.prisma.sefazConfig.findUnique({ where: { companyId } });
+    if (!config) {
+      throw new NotFoundException('Configuração SEFAZ não encontrada. Faça upload do certificado primeiro.');
+    }
+
+    return this.prisma.sefazConfig.update({
+      where: { companyId },
+      data: {
+        ...(data.environment !== undefined && { environment: data.environment }),
+        ...(data.autoFetchEnabled !== undefined && { autoFetchEnabled: data.autoFetchEnabled }),
+      },
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     deleteCertificate — Remove SEFAZ config
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async deleteCertificate(companyId: string) {
+    const config = await this.prisma.sefazConfig.findUnique({ where: { companyId } });
+    if (!config) {
+      throw new NotFoundException('Configuração SEFAZ não encontrada');
+    }
+
+    await this.prisma.sefazConfig.delete({ where: { companyId } });
+    return { message: 'Certificado removido com sucesso' };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     fetchDistDFe — Main orchestrator: fetch documents from SEFAZ
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async fetchDistDFe(companyId: string): Promise<{ newDocuments: number; lastNsu: string }> {
+    // Load config
+    const config = await this.prisma.sefazConfig.findUnique({ where: { companyId } });
+    if (!config) {
+      throw new BadRequestException('Configuração SEFAZ não encontrada. Faça upload do certificado primeiro.');
+    }
+
+    // Load company for CNPJ and UF
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+    if (!company.cnpj) throw new BadRequestException('Empresa não possui CNPJ cadastrado');
+    if (!company.state) throw new BadRequestException('Empresa não possui UF cadastrada');
+
+    const cUFAutor = UF_IBGE[company.state.toUpperCase()];
+    if (!cUFAutor) throw new BadRequestException(`UF "${company.state}" não reconhecida`);
+
+    // Decrypt PFX
+    const pfxBase64 = this.encryption.decrypt(config.pfxBase64);
+    const pfxPassword = this.encryption.decrypt(config.pfxPassword);
+    const pfxBuffer = Buffer.from(pfxBase64, 'base64');
+
+    // Clean CNPJ (digits only)
+    const cnpj = company.cnpj.replace(/\D/g, '');
+    const tpAmb = config.environment === 'HOMOLOGATION' ? '2' : '1';
+
+    let currentNsu = config.lastNsu;
+    let totalNewDocs = 0;
+    let lastError: string | null = null;
+    let fetchStatus = 'SUCCESS';
+
+    try {
+      // Loop until no more documents
+      let hasMore = true;
+      let iterations = 0;
+      const MAX_ITERATIONS = 50; // Safety limit
+
+      while (hasMore && iterations < MAX_ITERATIONS) {
+        iterations++;
+
+        const response = await this.callSefazSoap(
+          pfxBuffer, pfxPassword, cnpj, cUFAutor, currentNsu, tpAmb, config.environment,
+        );
+
+        if (response.cStat === '137' || response.cStat === '656') {
+          // 137 = Nenhum documento localizado
+          // 656 = Consumo indevido (rate limit)
+          hasMore = false;
+          if (response.cStat === '656') {
+            this.logger.warn(`SEFAZ rate limit for company ${companyId}: ${response.xMotivo}`);
+            fetchStatus = 'ERROR';
+            lastError = `Rate limit: ${response.xMotivo}`;
+          } else {
+            fetchStatus = totalNewDocs > 0 ? 'SUCCESS' : 'NO_DOCS';
+          }
+          continue;
+        }
+
+        if (response.cStat !== '138') {
+          // Other error
+          fetchStatus = 'ERROR';
+          lastError = `SEFAZ retornou cStat=${response.cStat}: ${response.xMotivo}`;
+          hasMore = false;
+          continue;
+        }
+
+        // Process documents
+        for (const doc of response.docZips) {
+          try {
+            const docData = this.parseSefazDocument(doc.xml, doc.nsu, doc.schema);
+
+            // Upsert (skip if NSU already exists)
+            await this.prisma.sefazDocument.upsert({
+              where: {
+                companyId_nsu: { companyId, nsu: doc.nsu },
+              },
+              create: {
+                companyId,
+                nsu: doc.nsu,
+                schema: docData.schema,
+                nfeKey: docData.nfeKey,
+                emitterCnpj: docData.emitterCnpj,
+                emitterName: docData.emitterName,
+                issueDate: docData.issueDate,
+                nfeValue: docData.nfeValue,
+                situacao: docData.situacao,
+                xmlContent: docData.schema === 'procNFe' ? doc.xml : null,
+                status: docData.schema === 'resEvento' ? 'EVENT' : 'FETCHED',
+              },
+              update: {
+                // If we get a procNFe for an existing resNFe, update it
+                ...(docData.schema === 'procNFe' && {
+                  schema: 'procNFe',
+                  xmlContent: doc.xml,
+                  emitterName: docData.emitterName || undefined,
+                  nfeValue: docData.nfeValue || undefined,
+                }),
+              },
+            });
+
+            totalNewDocs++;
+          } catch (err) {
+            this.logger.error(`Error processing doc NSU ${doc.nsu}: ${err.message}`);
+          }
+        }
+
+        // Update current NSU
+        currentNsu = response.ultNSU;
+
+        // Check if we've reached the max
+        if (response.ultNSU >= response.maxNSU) {
+          hasMore = false;
+        }
+      }
+    } catch (err) {
+      fetchStatus = 'ERROR';
+      lastError = err.message || 'Erro desconhecido ao consultar SEFAZ';
+      this.logger.error(`SEFAZ fetch error for company ${companyId}: ${err.message}`);
+    }
+
+    // Update config with latest NSU and fetch status
+    await this.prisma.sefazConfig.update({
+      where: { companyId },
+      data: {
+        lastNsu: currentNsu,
+        lastFetchAt: new Date(),
+        lastFetchStatus: fetchStatus,
+        lastFetchError: lastError,
+      },
+    });
+
+    return { newDocuments: totalNewDocs, lastNsu: currentNsu };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     callSefazSoap — Make SOAP call to SEFAZ DistribuiçãoDFe
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private callSefazSoap(
+    pfxBuffer: Buffer,
+    pfxPassword: string,
+    cnpj: string,
+    cUFAutor: number,
+    ultNsu: string,
+    tpAmb: string,
+    environment: string,
+  ): Promise<SoapResponse> {
+    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <nfeDistDFeInteresse xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe">
+      <nfeDadosMsg>
+        <distDFeInt xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.01">
+          <tpAmb>${tpAmb}</tpAmb>
+          <cUFAutor>${cUFAutor}</cUFAutor>
+          <CNPJ>${cnpj}</CNPJ>
+          <distNSU>
+            <ultNSU>${ultNsu}</ultNSU>
+          </distNSU>
+        </distDFeInt>
+      </nfeDadosMsg>
+    </nfeDistDFeInteresse>
+  </soap12:Body>
+</soap12:Envelope>`;
+
+    const url = environment === 'HOMOLOGATION' ? SEFAZ_URLS.HOMOLOGATION : SEFAZ_URLS.PRODUCTION;
+    const parsedUrl = new URL(url);
+
+    return new Promise<SoapResponse>((resolve, reject) => {
+      const options: https.RequestOptions = {
+        hostname: parsedUrl.hostname,
+        port: 443,
+        path: parsedUrl.pathname,
+        method: 'POST',
+        pfx: pfxBuffer,
+        passphrase: pfxPassword,
+        headers: {
+          'Content-Type': 'application/soap+xml;charset=UTF-8',
+          'Content-Length': Buffer.byteLength(soapEnvelope, 'utf-8'),
+        },
+        timeout: 30000,
+      };
+
+      const req = https.request(options, (res) => {
+        const chunks: Buffer[] = [];
+
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          try {
+            const body = Buffer.concat(chunks).toString('utf-8');
+            const parsed = this.parseSoapResponse(body);
+            resolve(parsed);
+          } catch (err) {
+            reject(new Error(`Erro ao processar resposta SEFAZ: ${err.message}`));
+          }
+        });
+      });
+
+      req.on('error', (err) => {
+        reject(new Error(`Erro de conexão com SEFAZ: ${err.message}`));
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Timeout ao conectar com SEFAZ (30s)'));
+      });
+
+      req.write(soapEnvelope);
+      req.end();
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     parseSoapResponse — Parse SEFAZ SOAP response XML
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private parseSoapResponse(xml: string): SoapResponse {
+    const parsed = this.xmlParser.parse(xml);
+
+    // Navigate through SOAP envelope to find retDistDFeInt
+    const envelope = parsed['soap:Envelope'] ?? parsed['soap12:Envelope'] ?? parsed;
+    const body = envelope['soap:Body'] ?? envelope['soap12:Body'] ?? envelope;
+    const resp = body?.nfeDistDFeInteresseResponse ?? body;
+    const result = resp?.nfeDistDFeInteresseResult ?? resp;
+    const retDist = result?.retDistDFeInt ?? result;
+
+    if (!retDist) {
+      throw new Error('Resposta SEFAZ inválida: retDistDFeInt não encontrado');
+    }
+
+    const cStat = String(retDist.cStat ?? '');
+    const xMotivo = String(retDist.xMotivo ?? '');
+    const ultNSU = String(retDist.ultNSU ?? '000000000000000');
+    const maxNSU = String(retDist.maxNSU ?? '000000000000000');
+
+    // Parse docZip entries
+    const docZips: Array<{ nsu: string; schema: string; xml: string }> = [];
+
+    const lote = retDist.loteDistDFeInt;
+    if (lote) {
+      const docZipRaw = lote.docZip;
+      const docZipArray = Array.isArray(docZipRaw) ? docZipRaw : docZipRaw ? [docZipRaw] : [];
+
+      for (const dz of docZipArray) {
+        const nsu = String(dz['@_NSU'] ?? '');
+        const schema = String(dz['@_schema'] ?? '');
+        const base64Content = typeof dz === 'object' ? (dz['#text'] ?? '') : String(dz);
+
+        if (base64Content) {
+          try {
+            const decompressed = this.decompressDocZip(String(base64Content));
+            docZips.push({ nsu, schema, xml: decompressed });
+          } catch (err) {
+            this.logger.error(`Error decompressing docZip NSU ${nsu}: ${err.message}`);
+          }
+        }
+      }
+    }
+
+    return { cStat, xMotivo, ultNSU: ultNSU, maxNSU, docZips };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     decompressDocZip — Decompress base64+gzip content
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private decompressDocZip(base64Content: string): string {
+    const compressed = Buffer.from(base64Content, 'base64');
+    const decompressed = zlib.gunzipSync(compressed);
+    return decompressed.toString('utf-8');
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     parseSefazDocument — Parse individual document XML
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private parseSefazDocument(xml: string, nsu: string, schemaHint: string) {
+    const parsed = this.xmlParser.parse(xml);
+
+    // Detect document type
+    let schema = 'resNFe';
+    let nfeKey: string | null = null;
+    let emitterCnpj: string | null = null;
+    let emitterName: string | null = null;
+    let issueDate: Date | null = null;
+    let nfeValue: number | null = null;
+    let situacao: string | null = null;
+
+    // ── resNFe (summary) ───────────────────────────────────────────
+    const resNFe = parsed.resNFe;
+    if (resNFe) {
+      schema = 'resNFe';
+      nfeKey = String(resNFe.chNFe ?? '');
+      emitterCnpj = String(resNFe.CNPJ ?? '');
+      emitterName = String(resNFe.xNome ?? '');
+      issueDate = resNFe.dhEmi ? new Date(String(resNFe.dhEmi)) : null;
+      nfeValue = resNFe.vNF ? Math.round(parseFloat(String(resNFe.vNF)) * 100) : null;
+      situacao = String(resNFe.cSitNFe ?? '');
+    }
+
+    // ── procNFe (full authorized NFe) ──────────────────────────────
+    const nfeProc = parsed.nfeProc ?? parsed['ns0:nfeProc'];
+    if (nfeProc) {
+      schema = 'procNFe';
+      const nfe = nfeProc.NFe;
+      if (nfe?.infNFe) {
+        const infNFe = nfe.infNFe;
+        const emit = infNFe.emit;
+        const ide = infNFe.ide;
+
+        nfeKey = nfeProc.protNFe?.infProt?.chNFe
+          ? String(nfeProc.protNFe.infProt.chNFe)
+          : infNFe['@_Id']
+            ? String(infNFe['@_Id']).replace(/^NFe/, '')
+            : null;
+
+        emitterCnpj = String(emit?.CNPJ ?? emit?.CPF ?? '');
+        emitterName = String(emit?.xNome ?? '');
+        issueDate = ide?.dhEmi ? new Date(String(ide.dhEmi)) : null;
+
+        const vNF = infNFe.total?.ICMSTot?.vNF;
+        nfeValue = vNF ? Math.round(parseFloat(String(vNF)) * 100) : null;
+        situacao = '1'; // Authorized (since it's in procNFe)
+      }
+    }
+
+    // ── resEvento (event summary) ──────────────────────────────────
+    const resEvento = parsed.resEvento;
+    if (resEvento) {
+      schema = 'resEvento';
+      nfeKey = String(resEvento.chNFe ?? '');
+      emitterCnpj = String(resEvento.CNPJ ?? '');
+      issueDate = resEvento.dhEvento ? new Date(String(resEvento.dhEvento)) : null;
+      emitterName = String(resEvento.xEvento ?? resEvento.tpEvento ?? '');
+    }
+
+    // Fallback from schema hint
+    if (schemaHint && schemaHint.includes('resNFe') && !resNFe && !nfeProc && !resEvento) {
+      schema = 'resNFe';
+    } else if (schemaHint && schemaHint.includes('procNFe')) {
+      schema = 'procNFe';
+    } else if (schemaHint && schemaHint.includes('resEvento')) {
+      schema = 'resEvento';
+    }
+
+    return {
+      schema,
+      nfeKey: nfeKey || null,
+      emitterCnpj: emitterCnpj || null,
+      emitterName: emitterName || null,
+      issueDate,
+      nfeValue,
+      situacao: situacao || null,
+    };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     importDocument — Import a SEFAZ document into NfeImport
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async importDocument(companyId: string, sefazDocId: string) {
+    const doc = await this.prisma.sefazDocument.findFirst({
+      where: { id: sefazDocId, companyId },
+    });
+
+    if (!doc) throw new NotFoundException('Documento SEFAZ não encontrado');
+    if (doc.status === 'IMPORTED') {
+      throw new BadRequestException('Este documento já foi importado');
+    }
+    if (doc.schema !== 'procNFe' || !doc.xmlContent) {
+      throw new BadRequestException(
+        'Somente documentos com XML completo (procNFe) podem ser importados. ' +
+        'Resumos (resNFe) não contêm dados suficientes para importação.',
+      );
+    }
+
+    // Use existing NfeService.upload() to parse and create NfeImport
+    const nfeImport = await this.nfeService.upload(doc.xmlContent, companyId, sefazDocId);
+
+    // Update SefazDocument status
+    await this.prisma.sefazDocument.update({
+      where: { id: sefazDocId },
+      data: {
+        status: 'IMPORTED',
+        nfeImportId: nfeImport.id,
+      },
+    });
+
+    return nfeImport;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ignoreDocument — Mark document as ignored
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async ignoreDocument(companyId: string, sefazDocId: string) {
+    const doc = await this.prisma.sefazDocument.findFirst({
+      where: { id: sefazDocId, companyId },
+    });
+
+    if (!doc) throw new NotFoundException('Documento SEFAZ não encontrado');
+
+    return this.prisma.sefazDocument.update({
+      where: { id: sefazDocId },
+      data: { status: 'IGNORED' },
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     findDocuments — Paginated list with filters
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async findDocuments(
+    companyId: string,
+    filters: SefazDocumentFilterDto,
+  ): Promise<PaginatedResult<any>> {
+    const page = filters?.page ?? 1;
+    const limit = filters?.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const where: any = { companyId };
+
+    if (filters.status) {
+      where.status = filters.status;
+    }
+
+    if (filters.schema) {
+      where.schema = filters.schema;
+    }
+
+    if (filters.supplierCnpj) {
+      where.emitterCnpj = { contains: filters.supplierCnpj.replace(/\D/g, '') };
+    }
+
+    if (filters.dateFrom || filters.dateTo) {
+      where.issueDate = {};
+      if (filters.dateFrom) where.issueDate.gte = new Date(filters.dateFrom);
+      if (filters.dateTo) where.issueDate.lte = new Date(filters.dateTo + 'T23:59:59.999Z');
+    }
+
+    if (filters.search) {
+      where.OR = [
+        { nfeKey: { contains: filters.search, mode: 'insensitive' } },
+        { emitterName: { contains: filters.search, mode: 'insensitive' } },
+        { emitterCnpj: { contains: filters.search, mode: 'insensitive' } },
+        { nsu: { contains: filters.search } },
+      ];
+    }
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.sefazDocument.findMany({
+        where,
+        orderBy: { fetchedAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          nsu: true,
+          schema: true,
+          nfeKey: true,
+          emitterCnpj: true,
+          emitterName: true,
+          issueDate: true,
+          nfeValue: true,
+          situacao: true,
+          nfeImportId: true,
+          status: true,
+          fetchedAt: true,
+          // xmlContent excluded from list for performance
+        },
+      }),
+      this.prisma.sefazDocument.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     findOneDocument — Single document detail (with XML)
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async findOneDocument(companyId: string, id: string) {
+    const doc = await this.prisma.sefazDocument.findFirst({
+      where: { id, companyId },
+    });
+
+    if (!doc) throw new NotFoundException('Documento SEFAZ não encontrado');
+    return doc;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Cron — Auto-fetch every 10 minutes
+     ═══════════════════════════════════════════════════════════════════ */
+
+  @Cron('0 */10 * * * *')
+  async cronFetchAll() {
+    this.logger.log('Starting scheduled SEFAZ DFe fetch...');
+
+    try {
+      const configs = await this.prisma.sefazConfig.findMany({
+        where: { autoFetchEnabled: true },
+      });
+
+      if (configs.length === 0) {
+        this.logger.log('No companies with SEFAZ auto-fetch enabled');
+        return;
+      }
+
+      let totalDocs = 0;
+      for (const config of configs) {
+        try {
+          const result = await this.fetchDistDFe(config.companyId);
+          totalDocs += result.newDocuments;
+          if (result.newDocuments > 0) {
+            this.logger.log(
+              `Company ${config.companyId}: ${result.newDocuments} new docs (NSU: ${result.lastNsu})`,
+            );
+          }
+        } catch (err) {
+          this.logger.error(
+            `SEFAZ fetch error for company ${config.companyId}: ${err.message}`,
+          );
+        }
+      }
+
+      this.logger.log(`SEFAZ DFe fetch completed. Total new docs: ${totalDocs}`);
+    } catch (err) {
+      this.logger.error(`SEFAZ cron error: ${err.message}`);
+    }
+  }
+}
