@@ -3,6 +3,10 @@ import { ApiTags } from '@nestjs/swagger';
 import { FinanceService } from './finance.service';
 import { InstallmentService } from './installment.service';
 import { CollectionService } from './collection.service';
+import { PaymentMethodService } from './payment-method.service';
+import { CashAccountService } from './cash-account.service';
+import { TransferService } from './transfer.service';
+import { ReconciliationService } from './reconciliation.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,6 +16,10 @@ import { CreateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-e
 import { GenerateInstallmentsDto } from './dto/generate-installments.dto';
 import { RenegotiateDto } from './dto/renegotiate.dto';
 import { CreateCollectionRuleDto, UpdateCollectionRuleDto } from './dto/collection-rule.dto';
+import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-method.dto';
+import { CreateCashAccountDto, UpdateCashAccountDto } from './dto/cash-account.dto';
+import { CreateTransferDto } from './dto/transfer.dto';
+import { MatchLineDto } from './dto/reconciliation.dto';
 
 @ApiTags('Finance')
 @Controller('finance')
@@ -20,7 +28,190 @@ export class FinanceController {
     private readonly service: FinanceService,
     private readonly installmentService: InstallmentService,
     private readonly collectionService: CollectionService,
+    private readonly paymentMethodService: PaymentMethodService,
+    private readonly cashAccountService: CashAccountService,
+    private readonly transferService: TransferService,
+    private readonly reconciliationService: ReconciliationService,
   ) {}
+
+  /* ── Payment Methods ──────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('payment-methods')
+  findPaymentMethods(@CurrentUser() user: AuthenticatedUser) {
+    return this.paymentMethodService.findAll(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('payment-methods/active')
+  findActivePaymentMethods(@CurrentUser() user: AuthenticatedUser) {
+    return this.paymentMethodService.findActive(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('payment-methods')
+  createPaymentMethod(
+    @Body() dto: CreatePaymentMethodDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentMethodService.create(user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('payment-methods/seed')
+  seedPaymentMethods(@CurrentUser() user: AuthenticatedUser) {
+    return this.paymentMethodService.seedDefaults(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('payment-methods/:id')
+  updatePaymentMethod(
+    @Param('id') id: string,
+    @Body() dto: UpdatePaymentMethodDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentMethodService.update(id, user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Delete('payment-methods/:id')
+  deletePaymentMethod(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentMethodService.remove(id, user.companyId);
+  }
+
+  /* ── Cash Accounts ────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('cash-accounts')
+  findCashAccounts(@CurrentUser() user: AuthenticatedUser) {
+    return this.cashAccountService.findAll(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('cash-accounts/active')
+  findActiveCashAccounts(@CurrentUser() user: AuthenticatedUser) {
+    return this.cashAccountService.findActive(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('cash-accounts/:id')
+  findOneCashAccount(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cashAccountService.findOne(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('cash-accounts')
+  createCashAccount(
+    @Body() dto: CreateCashAccountDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cashAccountService.create(user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('cash-accounts/:id')
+  updateCashAccount(
+    @Param('id') id: string,
+    @Body() dto: UpdateCashAccountDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cashAccountService.update(id, user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Delete('cash-accounts/:id')
+  deleteCashAccount(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cashAccountService.remove(id, user.companyId);
+  }
+
+  /* ── Transfers ───────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('transfers')
+  findTransfers(
+    @Query('dateFrom') dateFrom: string | undefined,
+    @Query('dateTo') dateTo: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.transferService.findAll(user.companyId, { dateFrom, dateTo });
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('transfers')
+  createTransfer(
+    @Body() dto: CreateTransferDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.transferService.create(user.companyId, dto, user.email);
+  }
+
+  /* ── Reconciliation ──────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('reconciliation/imports')
+  findReconciliationImports(@CurrentUser() user: AuthenticatedUser) {
+    return this.reconciliationService.findImports(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('reconciliation/imports/:importId/lines')
+  findReconciliationLines(
+    @Param('importId') importId: string,
+    @Query('status') status: string | undefined,
+  ) {
+    return this.reconciliationService.findLines(importId, status);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/import')
+  importStatement(
+    @Body('cashAccountId') cashAccountId: string,
+    @Body('fileName') fileName: string,
+    @Body('fileContent') fileContent: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.importFile(
+      user.companyId,
+      cashAccountId,
+      fileName,
+      fileContent,
+      user.email,
+    );
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/match')
+  matchLine(
+    @Param('lineId') lineId: string,
+    @Body() dto: MatchLineDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.matchLine(lineId, dto, user.email);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/unmatch')
+  unmatchLine(@Param('lineId') lineId: string) {
+    return this.reconciliationService.unmatchLine(lineId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/ignore')
+  ignoreLine(
+    @Param('lineId') lineId: string,
+    @Body('notes') notes: string | undefined,
+  ) {
+    return this.reconciliationService.ignoreLine(lineId, notes);
+  }
 
   /* ── Legacy Endpoints (backward compat) ────────────────── */
 

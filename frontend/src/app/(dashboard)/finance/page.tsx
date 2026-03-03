@@ -21,12 +21,16 @@ import type {
   FinancialEntryType,
   FinancialEntryStatus,
   FinanceSummaryV2,
+  PaymentMethod,
 } from "@/types/finance";
 import { ENTRY_STATUS_CONFIG } from "@/types/finance";
 import GenerateInstallmentsModal from "./components/GenerateInstallmentsModal";
 import InstallmentDetailModal from "./components/InstallmentDetailModal";
 import RenegotiationModal from "./components/RenegotiationModal";
 import CollectionRulesTab from "./components/CollectionRulesTab";
+import PaymentMethodsTab from "./components/PaymentMethodsTab";
+import CashAccountsTab from "./components/CashAccountsTab";
+import ReconciliationTab from "./components/ReconciliationTab";
 
 /* ── Legacy types (backward compat) ─────────────────────── */
 
@@ -80,14 +84,17 @@ function formatDate(dateStr: string) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cobranca" | "repasses";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "contas" | "conciliacao" | "formas" | "cobranca" | "repasses";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
   { id: "receber", label: "A Receber", icon: "📥" },
   { id: "pagar", label: "A Pagar", icon: "📤" },
   { id: "parcelas", label: "Parcelas", icon: "📑" },
-  { id: "cobranca", label: "Cobrança", icon: "⚡" },
+  { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
+  { id: "conciliacao", label: "Conciliacao", icon: "🔄" },
+  { id: "formas", label: "Formas Pgto", icon: "💳" },
+  { id: "cobranca", label: "Cobranca", icon: "⚡" },
   { id: "repasses", label: "Repasses", icon: "📋" },
 ];
 
@@ -135,24 +142,18 @@ const partnerFetcher: LookupFetcher<PartnerSummary> = async (search, page, signa
 
 /* ── Payment method options ────────────────────────────── */
 
-const PAYMENT_METHODS = [
-  { value: "PIX", label: "PIX" },
-  { value: "CARTAO_CREDITO", label: "Cartão Crédito" },
-  { value: "CARTAO_DEBITO", label: "Cartão Débito" },
-  { value: "DINHEIRO", label: "Dinheiro" },
-  { value: "TRANSFERENCIA", label: "Transferência Eletrônica" },
-  { value: "BOLETO", label: "Boleto" },
-];
-
 const CARD_BRANDS = [
   "Visa", "Mastercard", "Elo", "Hipercard", "American Express", "Outro",
 ];
 
+/** Cached payment methods from API (loaded by EntriesTab) */
+let _cachedPaymentMethods: PaymentMethod[] = [];
+
 function paymentMethodLabel(method?: string, brand?: string) {
   if (!method) return "—";
-  const m = PAYMENT_METHODS.find((p) => p.value === method);
-  const label = m?.label || method;
-  if (brand && (method === "CARTAO_CREDITO" || method === "CARTAO_DEBITO")) {
+  const pm = _cachedPaymentMethods.find((p) => p.code === method);
+  const label = pm?.name || method;
+  if (brand && pm?.requiresBrand) {
     return `${label} (${brand})`;
   }
   return label;
@@ -360,6 +361,9 @@ export default function FinancePage() {
       {activeTab === "receber" && <EntriesTab type="RECEIVABLE" />}
       {activeTab === "pagar" && <EntriesTab type="PAYABLE" />}
       {activeTab === "parcelas" && <InstallmentsOverviewTab />}
+      {activeTab === "contas" && <CashAccountsTab />}
+      {activeTab === "conciliacao" && <ReconciliationTab />}
+      {activeTab === "formas" && <PaymentMethodsTab />}
       {activeTab === "cobranca" && <CollectionRulesTab />}
       {activeTab === "repasses" && <LegacyTab />}
     </div>
@@ -532,6 +536,9 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [payAction, setPayAction] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [cardBrand, setCardBrand] = useState("");
+  const [activePMs, setActivePMs] = useState<PaymentMethod[]>([]);
+  const [activeAccounts, setActiveAccounts] = useState<{ id: string; name: string; type: string; currentBalanceCents: number }[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState("");
 
   // New entry modal
   const [showNewForm, setShowNewForm] = useState(false);
@@ -566,6 +573,16 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     loadEntries();
   }, [loadEntries]);
 
+  // Load active payment methods and accounts for dropdowns
+  useEffect(() => {
+    api.get<PaymentMethod[]>("/finance/payment-methods/active")
+      .then((pms) => { setActivePMs(pms); _cachedPaymentMethods = pms; })
+      .catch(() => {});
+    api.get<{ id: string; name: string; type: string; currentBalanceCents: number }[]>("/finance/cash-accounts/active")
+      .then(setActiveAccounts)
+      .catch(() => {});
+  }, []);
+
   async function handleCancel(reason: string) {
     if (!cancelAction) return;
     const { entry } = cancelAction;
@@ -592,7 +609,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       toast("Selecione a forma de pagamento.", "error");
       return;
     }
-    if ((paymentMethod === "CARTAO_CREDITO" || paymentMethod === "CARTAO_DEBITO") && !cardBrand) {
+    const selectedPM = activePMs.find((p) => p.code === paymentMethod);
+    if (selectedPM?.requiresBrand && !cardBrand) {
       toast("Selecione a bandeira do cartão.", "error");
       return;
     }
@@ -602,13 +620,15 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       await api.patch(`/finance/entries/${entry.id}/status`, {
         status: action,
         paymentMethod,
-        cardBrand: (paymentMethod === "CARTAO_CREDITO" || paymentMethod === "CARTAO_DEBITO") ? cardBrand : undefined,
+        cardBrand: selectedPM?.requiresBrand ? cardBrand : undefined,
+        cashAccountId: selectedAccountId || undefined,
       });
       const labels: Record<string, string> = { CONFIRMED: "confirmada", PAID: "paga" };
       toast(`Entrada ${labels[action]} com sucesso!`, "success");
       setPayAction(null);
       setPaymentMethod("");
       setCardBrand("");
+      setSelectedAccountId("");
       await loadEntries();
     } catch {
       toast("Erro ao atualizar status.", "error");
@@ -820,15 +840,15 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                 >
                   <option value="">Selecione...</option>
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
+                  {activePMs.map((m) => (
+                    <option key={m.code} value={m.code}>{m.name}</option>
                   ))}
                 </select>
               </div>
 
-              {(paymentMethod === "CARTAO_CREDITO" || paymentMethod === "CARTAO_DEBITO") && (
+              {(() => { const selPM = activePMs.find((p) => p.code === paymentMethod); return selPM?.requiresBrand; })() && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Bandeira do Cartão *</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Bandeira do Cartao *</label>
                   <select
                     value={cardBrand}
                     onChange={(e) => setCardBrand(e.target.value)}
@@ -841,11 +861,31 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                   </select>
                 </div>
               )}
+
+              {/* Cash account (optional) */}
+              {activeAccounts.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Conta/Caixa</label>
+                  <select
+                    value={selectedAccountId}
+                    onChange={(e) => setSelectedAccountId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                  >
+                    <option value="">Nenhuma (nao atualizar saldo)</option>
+                    {activeAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"}) — {formatCurrency(a.currentBalanceCents)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-0.5 text-[10px] text-slate-400">Selecione para atualizar o saldo automaticamente</p>
+                </div>
+              )}
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); }}
+                onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); setSelectedAccountId(""); }}
                 disabled={!!actionLoading}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
               >
@@ -853,7 +893,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
               </button>
               <button
                 onClick={handlePayConfirm}
-                disabled={!!actionLoading || !paymentMethod || ((paymentMethod === "CARTAO_CREDITO" || paymentMethod === "CARTAO_DEBITO") && !cardBrand)}
+                disabled={!!actionLoading || !paymentMethod || !!(activePMs.find((p) => p.code === paymentMethod)?.requiresBrand && !cardBrand)}
                 className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
                 {actionLoading ? (
@@ -1533,3 +1573,4 @@ function LegacyTab() {
     </div>
   );
 }
+

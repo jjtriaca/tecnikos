@@ -63,6 +63,91 @@ export interface FinancialInstallment {
   updatedAt: string;
 }
 
+/* v3.00 — Payment Methods, Cash Accounts, Reconciliation */
+
+export interface PaymentMethod {
+  id: string;
+  companyId: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+  feePercent?: number | null;
+  receivingDays?: number | null;
+  requiresBrand: boolean;
+  requiresCheckData: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
+export interface CashAccount {
+  id: string;
+  companyId: string;
+  name: string;
+  type: 'CAIXA' | 'BANCO';
+  bankCode?: string | null;
+  bankName?: string | null;
+  agency?: string | null;
+  accountNumber?: string | null;
+  accountType?: 'CORRENTE' | 'POUPANCA' | null;
+  pixKeyType?: 'CPF' | 'CNPJ' | 'EMAIL' | 'TELEFONE' | 'ALEATORIA' | null;
+  pixKey?: string | null;
+  initialBalanceCents: number;
+  currentBalanceCents: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
+export interface AccountTransfer {
+  id: string;
+  companyId: string;
+  fromAccountId: string;
+  toAccountId: string;
+  amountCents: number;
+  description?: string | null;
+  transferDate: string;
+  createdByName: string;
+  createdAt: string;
+  fromAccount?: CashAccount;
+  toAccount?: CashAccount;
+}
+
+export interface BankStatementImport {
+  id: string;
+  companyId: string;
+  cashAccountId: string;
+  fileName: string;
+  fileType: string;
+  importedAt: string;
+  importedByName: string;
+  lineCount: number;
+  matchedCount: number;
+}
+
+export type StatementLineStatus = 'UNMATCHED' | 'MATCHED' | 'IGNORED';
+
+export interface BankStatementLine {
+  id: string;
+  importId: string;
+  cashAccountId: string;
+  transactionDate: string;
+  description: string;
+  amountCents: number;
+  fitId?: string | null;
+  checkNum?: string | null;
+  refNum?: string | null;
+  status: StatementLineStatus;
+  matchedEntryId?: string | null;
+  matchedInstallmentId?: string | null;
+  matchedAt?: string | null;
+  matchedByName?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
 export interface CollectionRule {
   id: string;
   companyId: string;

@@ -331,6 +331,7 @@ export class FinanceService {
       data.paidAt = new Date();
       if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
       if (dto.cardBrand) data.cardBrand = dto.cardBrand;
+      if (dto.cashAccountId) data.cashAccountId = dto.cashAccountId;
     }
     if (newStatus === 'CANCELLED') {
       data.cancelledAt = new Date();
@@ -338,7 +339,8 @@ export class FinanceService {
       if (dto.cancelledByName) data.cancelledByName = dto.cancelledByName;
     }
 
-    return this.prisma.financialEntry.update({
+    // Update entry
+    const updated = await this.prisma.financialEntry.update({
       where: { id },
       data,
       include: {
@@ -346,6 +348,17 @@ export class FinanceService {
         partner: { select: { id: true, name: true } },
       },
     });
+
+    // Adjust cash account balance when PAID and cashAccountId is provided
+    if (newStatus === 'PAID' && dto.cashAccountId) {
+      const deltaCents = entry.type === 'RECEIVABLE' ? entry.netCents : -entry.netCents;
+      await this.prisma.cashAccount.update({
+        where: { id: dto.cashAccountId },
+        data: { currentBalanceCents: { increment: deltaCents } },
+      });
+    }
+
+    return updated;
   }
 
   async deleteEntry(id: string, companyId: string) {

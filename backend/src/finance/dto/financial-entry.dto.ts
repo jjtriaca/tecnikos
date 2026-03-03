@@ -101,4 +101,8 @@ export class ChangeEntryStatusDto {
   @IsOptional()
   @IsString()
   cancelledByName?: string;
+
+  @IsOptional()
+  @IsString()
+  cashAccountId?: string;
 }

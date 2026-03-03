@@ -46,6 +46,30 @@ enum InstallmentStatus {
   RENEGOTIATED
 }
 
+enum CashAccountType {
+  CAIXA
+  BANCO
+}
+
+enum BankAccountType {
+  CORRENTE
+  POUPANCA
+}
+
+enum PixKeyType {
+  CPF
+  CNPJ
+  EMAIL
+  TELEFONE
+  ALEATORIA
+}
+
+enum StatementLineStatus {
+  UNMATCHED
+  MATCHED
+  IGNORED
+}
+
 model Company {
   id        String   @id @default(uuid())
   name      String   // Razão Social
@@ -98,6 +122,8 @@ model Company {
   nfeImports           NfeImport[]
   sefazConfig          SefazConfig?
   sefazDocuments       SefazDocument[]
+  paymentMethods       PaymentMethod[]
+  cashAccounts         CashAccount[]
 }
 
 model User {
@@ -530,6 +556,10 @@ model FinancialEntry {
   cancelledReason   String?
   cancelledByName   String?
 
+  // Referências para cadastros (v2.2)
+  paymentMethodId   String?           // FK para PaymentMethod
+  cashAccountId     String?           // FK para CashAccount (conta de recebimento/pagamento)
+
   // Parcelas e Juros (v2.0)
   installmentCount    Int?              // Nro de parcelas (null = à vista)
   interestType        String?           // "SIMPLE" ou "COMPOUND"
@@ -546,9 +576,11 @@ model FinancialEntry {
   updatedAt        DateTime             @updatedAt
   deletedAt        DateTime?
 
-  company          Company       @relation(fields: [companyId], references: [id])
-  serviceOrder     ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
-  partner          Partner?      @relation(fields: [partnerId], references: [id])
+  company          Company        @relation(fields: [companyId], references: [id])
+  serviceOrder     ServiceOrder?  @relation(fields: [serviceOrderId], references: [id])
+  partner          Partner?       @relation(fields: [partnerId], references: [id])
+  paymentMethodRef PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  cashAccountRef   CashAccount?   @relation(fields: [cashAccountId], references: [id])
 
   // Self-relations para renegociação
   parentEntry        FinancialEntry?        @relation("Renegotiation", fields: [parentEntryId], references: [id])
@@ -939,4 +971,125 @@ model WhatsAppMessage {
   @@index([companyId, remotePhone])
   @@index([companyId, createdAt])
   @@index([partnerId])
+}
+
+// ========== Formas de Pagamento (v2.2) ==========
+
+model PaymentMethod {
+  id                String    @id @default(uuid())
+  companyId         String
+  name              String    // "PIX", "Cartao Credito", "Cheque"
+  code              String    // Slug: "PIX", "CARTAO_CREDITO", "CHEQUE"
+  isActive          Boolean   @default(true)
+  feePercent        Float?    // Taxa % (ex: 2.5)
+  receivingDays     Int?      // Prazo de recebimento em dias
+  requiresBrand     Boolean   @default(false)  // Exige bandeira (cartoes)
+  requiresCheckData Boolean   @default(false)  // Exige dados do cheque
+  sortOrder         Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  company          Company          @relation(fields: [companyId], references: [id])
+  financialEntries FinancialEntry[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+// ========== Caixas e Contas Bancarias (v2.2) ==========
+
+model CashAccount {
+  id                  String           @id @default(uuid())
+  companyId           String
+  name                String           // "Caixa Principal", "Bradesco CC"
+  type                CashAccountType  // CAIXA | BANCO
+  bankCode            String?          // "237"
+  bankName            String?          // "Bradesco"
+  agency              String?
+  accountNumber       String?
+  accountType         BankAccountType? // CORRENTE | POUPANCA
+  pixKeyType          PixKeyType?
+  pixKey              String?
+  initialBalanceCents Int              @default(0)
+  currentBalanceCents Int              @default(0)
+  isActive            Boolean          @default(true)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  deletedAt           DateTime?
+
+  company             Company             @relation(fields: [companyId], references: [id])
+  transfersFrom       AccountTransfer[]   @relation("TransferFrom")
+  transfersTo         AccountTransfer[]   @relation("TransferTo")
+  statementLines      BankStatementLine[]
+  financialEntries    FinancialEntry[]
+
+  @@index([companyId, isActive])
+  @@index([companyId, type])
+}
+
+// ========== Transferencias entre Contas (v2.2) ==========
+
+model AccountTransfer {
+  id              String      @id @default(uuid())
+  companyId       String
+  fromAccountId   String
+  toAccountId     String
+  amountCents     Int
+  description     String?
+  transferDate    DateTime    @default(now())
+  createdByName   String
+  createdAt       DateTime    @default(now())
+
+  fromAccount CashAccount @relation("TransferFrom", fields: [fromAccountId], references: [id])
+  toAccount   CashAccount @relation("TransferTo", fields: [toAccountId], references: [id])
+
+  @@index([companyId, transferDate])
+  @@index([fromAccountId])
+  @@index([toAccountId])
+}
+
+// ========== Conciliacao Bancaria (v2.2) ==========
+
+model BankStatementImport {
+  id              String   @id @default(uuid())
+  companyId       String
+  cashAccountId   String
+  fileName        String
+  fileType        String   // "OFX" | "CSV"
+  importedAt      DateTime @default(now())
+  importedByName  String
+  lineCount       Int      @default(0)
+  matchedCount    Int      @default(0)
+
+  lines BankStatementLine[]
+
+  @@index([companyId])
+  @@index([cashAccountId])
+}
+
+model BankStatementLine {
+  id                    String              @id @default(uuid())
+  importId              String
+  cashAccountId         String
+  transactionDate       DateTime
+  description           String
+  amountCents           Int                 // Positivo = credito, Negativo = debito
+  fitId                 String?             // OFX FITID (dedup)
+  checkNum              String?
+  refNum                String?
+  status                StatementLineStatus @default(UNMATCHED)
+  matchedEntryId        String?
+  matchedInstallmentId  String?
+  matchedAt             DateTime?
+  matchedByName         String?
+  notes                 String?
+  createdAt             DateTime            @default(now())
+
+  import      BankStatementImport @relation(fields: [importId], references: [id])
+  cashAccount CashAccount         @relation(fields: [cashAccountId], references: [id])
+
+  @@index([importId])
+  @@index([cashAccountId, transactionDate])
+  @@index([status])
 }
