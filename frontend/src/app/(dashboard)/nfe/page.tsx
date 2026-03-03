@@ -73,29 +73,29 @@ interface ProductSearchResult {
 
 interface SefazConfigInfo {
   hasCertificate: boolean;
-  certificateCn: string | null;
+  certificateCN: string | null;
   certificateExpiry: string | null;
   environment: "PRODUCTION" | "HOMOLOGATION";
   autoFetchEnabled: boolean;
   lastFetchAt: string | null;
-  lastFetchStatus: "success" | "error" | "no_docs" | null;
+  lastFetchStatus: "SUCCESS" | "ERROR" | "NO_DOCS" | null;
   lastFetchError: string | null;
-  lastNsu: number;
+  lastNsu: string;
 }
 
 interface SefazDocument {
   id: string;
-  nsu: number;
+  nsu: string;
   schema: "resNFe" | "procNFe" | "resEvento";
-  accessKey: string | null;
-  issuerCnpj: string | null;
-  issuerName: string | null;
+  nfeKey: string | null;
+  emitterCnpj: string | null;
+  emitterName: string | null;
   issueDate: string | null;
-  totalCents: number | null;
-  situacao: number | null;
+  nfeValue: number | null;
+  situacao: string | null;
   status: "FETCHED" | "IMPORTED" | "IGNORED" | "EVENT";
   xmlContent: string | null;
-  createdAt: string;
+  fetchedAt: string;
 }
 
 /* ── Helpers ──────────────────────────────────────────────── */
@@ -187,7 +187,7 @@ const SITUACAO_CONFIG: Record<number, { label: string; classes: string }> = {
   3: { label: "Cancelada", classes: "bg-red-50 text-red-700 border-red-200" },
 };
 
-function SituacaoBadge({ situacao }: { situacao: number | null }) {
+function SituacaoBadge({ situacao }: { situacao: string | number | null }) {
   if (situacao == null) return <span className="text-slate-400 text-xs">{"\u2014"}</span>;
   const cfg = SITUACAO_CONFIG[situacao] || { label: `${situacao}`, classes: "bg-slate-50 text-slate-500 border-slate-200" };
   return (
@@ -214,14 +214,15 @@ function SefazStatusBadge({ status }: { status: string }) {
 }
 
 const FETCH_STATUS_CONFIG: Record<string, { label: string; classes: string }> = {
-  success: { label: "Sucesso", classes: "bg-green-50 text-green-700 border-green-200" },
-  error: { label: "Erro", classes: "bg-red-50 text-red-700 border-red-200" },
-  no_docs: { label: "Sem documentos", classes: "bg-slate-50 text-slate-500 border-slate-200" },
+  SUCCESS: { label: "Sucesso", classes: "bg-green-50 text-green-700 border-green-200" },
+  ERROR: { label: "Erro", classes: "bg-red-50 text-red-700 border-red-200" },
+  NO_DOCS: { label: "Sem documentos", classes: "bg-slate-50 text-slate-500 border-slate-200" },
+  RATE_LIMIT: { label: "Aguardando (limite)", classes: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
 function FetchStatusBadge({ status }: { status: string | null }) {
   if (!status) return null;
-  const cfg = FETCH_STATUS_CONFIG[status] || FETCH_STATUS_CONFIG.success;
+  const cfg = FETCH_STATUS_CONFIG[status] || FETCH_STATUS_CONFIG.SUCCESS;
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.classes}`}>
       {cfg.label}
@@ -452,7 +453,7 @@ export default function NfePage() {
   async function handleFetchNow() {
     setFetching(true);
     try {
-      const res = await api.post<{ newDocuments: number; lastNsu: number }>("/nfe/sefaz/fetch");
+      const res = await api.post<{ newDocuments: number; lastNsu: string }>("/nfe/sefaz/fetch");
       if (res.newDocuments > 0) {
         toast(`${res.newDocuments} novo(s) documento(s) encontrado(s)!`, "success");
       } else {
@@ -870,8 +871,8 @@ export default function NfePage() {
               {/* CN */}
               <div>
                 <p className="text-xs text-slate-500">Titular (CN)</p>
-                <p className="text-sm font-medium text-slate-900 truncate" title={sefazConfig.certificateCn || ""}>
-                  {sefazConfig.certificateCn || "\u2014"}
+                <p className="text-sm font-medium text-slate-900 truncate" title={sefazConfig.certificateCN || ""}>
+                  {sefazConfig.certificateCN || "\u2014"}
                 </p>
               </div>
 
@@ -891,7 +892,7 @@ export default function NfePage() {
               {/* NSU */}
               <div>
                 <p className="text-xs text-slate-500">Ultimo NSU</p>
-                <p className="text-sm font-medium text-slate-900">{sefazConfig.lastNsu || 0}</p>
+                <p className="text-sm font-medium text-slate-900">{sefazConfig.lastNsu || "0"}</p>
               </div>
 
               {/* Last fetch */}
@@ -975,6 +976,8 @@ export default function NfePage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">CNPJ Fornecedor</label>
               <input
                 type="text"
+                name="sefaz_supplier_cnpj"
+                autoComplete="off"
                 value={sefazSupplierCnpj}
                 onChange={(e) => { setSefazSupplierCnpj(e.target.value); setSefazPage(1); }}
                 placeholder="00.000.000/0000-00"
@@ -1018,6 +1021,8 @@ export default function NfePage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">Buscar</label>
               <input
                 type="text"
+                name="sefaz_search_nfe"
+                autoComplete="off"
                 value={sefazSearch}
                 onChange={(e) => { setSefazSearch(e.target.value); setSefazPage(1); }}
                 placeholder="Chave, nome..."
@@ -1094,22 +1099,22 @@ export default function NfePage() {
                       <td className="px-3 py-3">
                         <SchemaBadge schema={doc.schema} />
                       </td>
-                      <td className="px-3 py-3 text-slate-500 font-mono text-xs max-w-[180px] truncate" title={doc.accessKey || ""}>
-                        {truncateKey(doc.accessKey, 25)}
+                      <td className="px-3 py-3 text-slate-500 font-mono text-xs max-w-[180px] truncate" title={doc.nfeKey || ""}>
+                        {truncateKey(doc.nfeKey, 25)}
                       </td>
                       <td className="px-3 py-3">
                         <div>
-                          <p className="text-xs text-slate-900 font-medium truncate max-w-[160px]" title={doc.issuerName || ""}>
-                            {doc.issuerName || "\u2014"}
+                          <p className="text-xs text-slate-900 font-medium truncate max-w-[160px]" title={doc.emitterName || ""}>
+                            {doc.emitterName || "\u2014"}
                           </p>
-                          <p className="text-xs text-slate-400">{formatCnpj(doc.issuerCnpj)}</p>
+                          <p className="text-xs text-slate-400">{formatCnpj(doc.emitterCnpj)}</p>
                         </div>
                       </td>
                       <td className="px-3 py-3 text-slate-500 text-xs">
                         {formatDate(doc.issueDate)}
                       </td>
                       <td className="px-3 py-3 text-right font-medium text-slate-900 text-xs">
-                        {formatCurrency(doc.totalCents)}
+                        {formatCurrency(doc.nfeValue)}
                       </td>
                       <td className="px-3 py-3 text-center">
                         <SituacaoBadge situacao={doc.situacao} />
@@ -1396,6 +1401,8 @@ export default function NfePage() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Senha do Certificado</label>
                   <input
                     type="password"
+                    name="cert_pfx_password"
+                    autoComplete="new-password"
                     value={certPassword}
                     onChange={(e) => setCertPassword(e.target.value)}
                     placeholder="Digite a senha do certificado"

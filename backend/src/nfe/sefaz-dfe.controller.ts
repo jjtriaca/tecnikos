@@ -10,6 +10,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
@@ -23,6 +24,8 @@ import { AuthenticatedUser } from '../auth/auth.types';
 @ApiTags('NFe SEFAZ')
 @Controller('nfe/sefaz')
 export class SefazDfeController {
+  private readonly logger = new Logger(SefazDfeController.name);
+
   constructor(private readonly service: SefazDfeService) {}
 
   /* ── Upload PFX Certificate ──────────────────────────────────── */
@@ -41,6 +44,11 @@ export class SefazDfeController {
     if (!pfxPassword) {
       throw new BadRequestException('Senha do certificado é obrigatória');
     }
+
+    this.logger.log(
+      `Certificate upload: name=${file.originalname}, size=${file.size}, ` +
+      `bufferLen=${file.buffer?.length}, mimetype=${file.mimetype}`,
+    );
 
     // Validate file extension
     const ext = file.originalname?.toLowerCase();

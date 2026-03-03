@@ -101,23 +101,50 @@ export class SefazDfeService {
       throw new Error('Nenhuma chave privada encontrada no PFX');
     }
 
-    // Build full PEM chain: entity cert first, then CA certs
-    const certPemParts: string[] = [];
-    for (const bag of certBagList) {
-      if (bag.cert) {
-        certPemParts.push(forge.pki.certificateToPem(bag.cert));
-      }
-    }
-    const certPem = certPemParts.join('');
-
     const key = keyBagList[0].key!;
     const keyPem = forge.pki.privateKeyToPem(key);
 
-    // Extract CN and expiry from entity cert (first in chain)
-    const entityCert = certBagList[0].cert!;
+    // Find the entity cert (the one whose public key matches the private key)
+    // by checking which cert is NOT a CA cert (no basicConstraints CA=true)
+    let entityCert: forge.pki.Certificate | null = null;
+    const caCerts: forge.pki.Certificate[] = [];
+
+    for (const bag of certBagList) {
+      if (!bag.cert) continue;
+      const cert = bag.cert;
+      const bc = cert.getExtension('basicConstraints') as any;
+      if (bc && bc.cA) {
+        caCerts.push(cert);
+      } else {
+        // End-entity cert (no CA flag or basicConstraints absent)
+        if (!entityCert) {
+          entityCert = cert;
+        } else {
+          caCerts.push(cert); // extra non-CA cert goes to chain
+        }
+      }
+    }
+
+    // Fallback: if no entity cert found, use the first cert
+    if (!entityCert) {
+      entityCert = certBagList[0].cert!;
+    }
+
+    // Build PEM chain: entity cert first, then CA certs
+    const certPem = [
+      forge.pki.certificateToPem(entityCert),
+      ...caCerts.map(c => forge.pki.certificateToPem(c)),
+    ].join('');
+
+    // Extract CN and expiry from entity cert
     const cnAttr = entityCert.subject.getField('CN');
     const cn = cnAttr ? String(cnAttr.value) : null;
     const expiry = entityCert.validity.notAfter ?? null;
+
+    this.logger.log(
+      `PFX parsed: ${certBagList.length} certs found, entity CN=${cn}, ` +
+      `expiry=${expiry?.toISOString()}, CA certs=${caCerts.length}`,
+    );
 
     return { certPem, keyPem, cn, expiry };
   }
@@ -310,8 +337,13 @@ export class SefazDfeService {
           hasMore = false;
           if (response.cStat === '656') {
             this.logger.warn(`SEFAZ rate limit for company ${companyId}: ${response.xMotivo}`);
-            fetchStatus = 'ERROR';
-            lastError = `Rate limit: ${response.xMotivo}`;
+            fetchStatus = 'RATE_LIMIT';
+            lastError = response.xMotivo;
+            // Save ultNSU from rate limit response for subsequent requests
+            if (response.ultNSU && response.ultNSU !== '000000000000000') {
+              currentNsu = response.ultNSU;
+              this.logger.log(`Saving ultNSU from rate limit: ${currentNsu}`);
+            }
           } else {
             fetchStatus = totalNewDocs > 0 ? 'SUCCESS' : 'NO_DOCS';
           }
@@ -428,6 +460,8 @@ export class SefazDfeService {
     const url = environment === 'HOMOLOGATION' ? SEFAZ_URLS.HOMOLOGATION : SEFAZ_URLS.PRODUCTION;
     const parsedUrl = new URL(url);
 
+    this.logger.log(`SEFAZ SOAP → ${url} | CNPJ=${cnpj} | cUFAutor=${cUFAutor} | tpAmb=${tpAmb} | ultNSU=${ultNsu}`);
+
     return new Promise<SoapResponse>((resolve, reject) => {
       const options: https.RequestOptions = {
         hostname: parsedUrl.hostname,
@@ -450,6 +484,12 @@ export class SefazDfeService {
         res.on('end', () => {
           try {
             const body = Buffer.concat(chunks).toString('utf-8');
+            this.logger.log(`SEFAZ HTTP ${res.statusCode} | body length=${body.length}`);
+            if (body.length < 2000) {
+              this.logger.log(`SEFAZ response: ${body}`);
+            } else {
+              this.logger.log(`SEFAZ response (first 1000): ${body.substring(0, 1000)}`);
+            }
             const parsed = this.parseSoapResponse(body);
             resolve(parsed);
           } catch (err) {
@@ -485,6 +525,24 @@ export class SefazDfeService {
     const resp = body?.nfeDistDFeInteresseResponse ?? body;
     const result = resp?.nfeDistDFeInteresseResult ?? resp;
     const retDist = result?.retDistDFeInt ?? result;
+
+    // Debug logging
+    this.logger.log(`SOAP keys: top=${Object.keys(parsed).join(',')}`);
+    if (envelope && typeof envelope === 'object') {
+      this.logger.log(`SOAP envelope keys: ${Object.keys(envelope).join(',')}`);
+    }
+    if (body && typeof body === 'object') {
+      this.logger.log(`SOAP body keys: ${Object.keys(body).join(',')}`);
+    }
+    if (resp && typeof resp === 'object') {
+      this.logger.log(`SOAP resp keys: ${Object.keys(resp).join(',')}`);
+    }
+    if (result && typeof result === 'object') {
+      this.logger.log(`SOAP result keys: ${Object.keys(result).join(',')}`);
+    }
+    if (retDist && typeof retDist === 'object') {
+      this.logger.log(`retDistDFeInt keys: ${Object.keys(retDist).join(',')}, cStat=${retDist.cStat}`);
+    }
 
     if (!retDist) {
       throw new Error('Resposta SEFAZ inválida: retDistDFeInt não encontrado');
@@ -774,6 +832,20 @@ export class SefazDfeService {
       let totalDocs = 0;
       for (const config of configs) {
         try {
+          // Skip if in rate limit (wait at least 1 hour)
+          if (
+            config.lastFetchStatus === 'RATE_LIMIT' &&
+            config.lastFetchAt &&
+            Date.now() - config.lastFetchAt.getTime() < 60 * 60 * 1000
+          ) {
+            const minutesLeft = Math.ceil(
+              (60 * 60 * 1000 - (Date.now() - config.lastFetchAt.getTime())) / 60000,
+            );
+            this.logger.log(
+              `Skipping company ${config.companyId}: rate limited, retry in ${minutesLeft}min`,
+            );
+            continue;
+          }
           const result = await this.fetchDistDFe(config.companyId);
           totalDocs += result.newDocuments;
           if (result.newDocuments > 0) {
