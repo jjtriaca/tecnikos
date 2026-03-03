@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import * as tls from 'tls';
 import * as https from 'https';
 import * as zlib from 'zlib';
+import * as forge from 'node-forge';
 import { XMLParser } from 'fast-xml-parser';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
@@ -72,6 +73,56 @@ export class SefazDfeService {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
+     parsePfxWithForge — Parse PFX using node-forge (supports legacy encryption)
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private parsePfxWithForge(pfxBuffer: Buffer, pfxPassword: string): {
+    certPem: string;
+    keyPem: string;
+    cn: string | null;
+    expiry: Date | null;
+  } {
+    const pfxDer = forge.util.decode64(pfxBuffer.toString('base64'));
+    const pfxAsn1 = forge.asn1.fromDer(pfxDer);
+    const p12 = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, pfxPassword);
+
+    // Extract certificates (entity + CA chain)
+    const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
+    const certBagList = certBags[forge.pki.oids.certBag] ?? [];
+
+    // Extract private key
+    const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
+    const keyBagList = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] ?? [];
+
+    if (certBagList.length === 0) {
+      throw new Error('Nenhum certificado encontrado no PFX');
+    }
+    if (keyBagList.length === 0) {
+      throw new Error('Nenhuma chave privada encontrada no PFX');
+    }
+
+    // Build full PEM chain: entity cert first, then CA certs
+    const certPemParts: string[] = [];
+    for (const bag of certBagList) {
+      if (bag.cert) {
+        certPemParts.push(forge.pki.certificateToPem(bag.cert));
+      }
+    }
+    const certPem = certPemParts.join('');
+
+    const key = keyBagList[0].key!;
+    const keyPem = forge.pki.privateKeyToPem(key);
+
+    // Extract CN and expiry from entity cert (first in chain)
+    const entityCert = certBagList[0].cert!;
+    const cnAttr = entityCert.subject.getField('CN');
+    const cn = cnAttr ? String(cnAttr.value) : null;
+    const expiry = entityCert.validity.notAfter ?? null;
+
+    return { certPem, keyPem, cn, expiry };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
      saveCertificate — Upload and validate PFX certificate
      ═══════════════════════════════════════════════════════════════════ */
 
@@ -80,33 +131,34 @@ export class SefazDfeService {
     pfxBuffer: Buffer,
     pfxPassword: string,
   ) {
-    // Validate PFX by trying to create a secure context
     let certificateCN: string | null = null;
     let certificateExpiry: Date | null = null;
+    let certPem: string;
+    let keyPem: string;
 
     try {
-      tls.createSecureContext({
-        pfx: pfxBuffer,
-        passphrase: pfxPassword,
-      });
+      // Use node-forge to parse PFX (handles legacy RC2/3DES encryption)
+      const parsed = this.parsePfxWithForge(pfxBuffer, pfxPassword);
+      certPem = parsed.certPem;
+      keyPem = parsed.keyPem;
+      certificateCN = parsed.cn;
+      certificateExpiry = parsed.expiry;
 
-      // Try to extract certificate info
-      try {
-        const certDetails = this.extractCertInfo(pfxBuffer, pfxPassword);
-        certificateCN = certDetails.cn;
-        certificateExpiry = certDetails.expiry;
-      } catch {
-        this.logger.warn('Could not extract certificate details, PFX is valid');
-      }
+      this.logger.log(`Certificate parsed: CN=${certificateCN}, Expiry=${certificateExpiry}`);
+
+      // Validate PEM works with TLS
+      tls.createSecureContext({ cert: certPem, key: keyPem });
     } catch (err) {
+      this.logger.error(`PFX parse error: ${err.message}`);
       throw new BadRequestException(
         'Certificado PFX inválido ou senha incorreta. Verifique o arquivo e a senha.',
       );
     }
 
-    // Encrypt PFX and password for storage
-    const pfxBase64 = pfxBuffer.toString('base64');
-    const encryptedPfx = this.encryption.encrypt(pfxBase64);
+    // Store PEM (cert+key) instead of original PFX — avoids legacy PFX issues
+    const encryptedCert = this.encryption.encrypt(certPem);
+    const encryptedKey = this.encryption.encrypt(keyPem);
+    // Also store original password for reference (not used for PEM)
     const encryptedPassword = this.encryption.encrypt(pfxPassword);
 
     // Upsert SefazConfig
@@ -114,14 +166,14 @@ export class SefazDfeService {
       where: { companyId },
       create: {
         companyId,
-        pfxBase64: encryptedPfx,
-        pfxPassword: encryptedPassword,
+        pfxBase64: encryptedCert,
+        pfxPassword: encryptedKey,
         certificateCN,
         certificateExpiry,
       },
       update: {
-        pfxBase64: encryptedPfx,
-        pfxPassword: encryptedPassword,
+        pfxBase64: encryptedCert,
+        pfxPassword: encryptedKey,
         certificateCN,
         certificateExpiry,
       },
@@ -135,36 +187,6 @@ export class SefazDfeService {
       autoFetchEnabled: config.autoFetchEnabled,
       lastNsu: config.lastNsu,
     };
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════
-     extractCertInfo — Extract CN and expiry from PFX
-     ═══════════════════════════════════════════════════════════════════ */
-
-  private extractCertInfo(pfxBuffer: Buffer, password: string): { cn: string | null; expiry: Date | null } {
-    try {
-      // Use tls to create context and verify
-      const ctx = tls.createSecureContext({
-        pfx: pfxBuffer,
-        passphrase: password,
-      });
-
-      // Try using X509Certificate if available (Node.js 15.6+)
-      // Unfortunately, direct PFX→X509Certificate parsing isn't available
-      // So we attempt to extract from the secure context's internal cert
-      const internalCtx = (ctx as any).context;
-      if (internalCtx?.getCertificate) {
-        const cert = internalCtx.getCertificate();
-        return {
-          cn: cert?.subject?.CN || null,
-          expiry: cert?.valid_to ? new Date(cert.valid_to) : null,
-        };
-      }
-    } catch {
-      // Could not extract details
-    }
-
-    return { cn: null, expiry: null };
   }
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -256,10 +278,9 @@ export class SefazDfeService {
     const cUFAutor = UF_IBGE[company.state.toUpperCase()];
     if (!cUFAutor) throw new BadRequestException(`UF "${company.state}" não reconhecida`);
 
-    // Decrypt PFX
-    const pfxBase64 = this.encryption.decrypt(config.pfxBase64);
-    const pfxPassword = this.encryption.decrypt(config.pfxPassword);
-    const pfxBuffer = Buffer.from(pfxBase64, 'base64');
+    // Decrypt PEM cert+key (stored as PEM strings after node-forge conversion)
+    const certPem = this.encryption.decrypt(config.pfxBase64);
+    const keyPem = this.encryption.decrypt(config.pfxPassword);
 
     // Clean CNPJ (digits only)
     const cnpj = company.cnpj.replace(/\D/g, '');
@@ -280,7 +301,7 @@ export class SefazDfeService {
         iterations++;
 
         const response = await this.callSefazSoap(
-          pfxBuffer, pfxPassword, cnpj, cUFAutor, currentNsu, tpAmb, config.environment,
+          certPem, keyPem, cnpj, cUFAutor, currentNsu, tpAmb, config.environment,
         );
 
         if (response.cStat === '137' || response.cStat === '656') {
@@ -378,8 +399,8 @@ export class SefazDfeService {
      ═══════════════════════════════════════════════════════════════════ */
 
   private callSefazSoap(
-    pfxBuffer: Buffer,
-    pfxPassword: string,
+    certPem: string,
+    keyPem: string,
     cnpj: string,
     cUFAutor: number,
     ultNsu: string,
@@ -413,8 +434,8 @@ export class SefazDfeService {
         port: 443,
         path: parsedUrl.pathname,
         method: 'POST',
-        pfx: pfxBuffer,
-        passphrase: pfxPassword,
+        cert: certPem,
+        key: keyPem,
         headers: {
           'Content-Type': 'application/soap+xml;charset=UTF-8',
           'Content-Length': Buffer.byteLength(soapEnvelope, 'utf-8'),
