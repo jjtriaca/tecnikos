@@ -1041,6 +1041,40 @@ export default function SettingsPage() {
         ) : null}
       </form>
 
+      {/* ── Links para sub-configuracoes ── */}
+      {isAdmin && (
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <a
+            href="/settings/fiscal"
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:border-teal-300 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-600 group-hover:bg-teal-100 transition-colors">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800">Fiscal (NFS-e)</h4>
+                <p className="text-xs text-slate-500">Emissao de notas fiscais de servico</p>
+              </div>
+            </div>
+          </a>
+          <a
+            href="/settings/whatsapp"
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:border-green-300 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600 group-hover:bg-green-100 transition-colors">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800">WhatsApp</h4>
+                <p className="text-xs text-slate-500">Integrcao com WhatsApp Business</p>
+              </div>
+            </div>
+          </a>
+        </div>
+      )}
+
       {/* ── Sistema / Build Info ── */}
       {isAdmin && buildInfo && (
         <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">

@@ -15,6 +15,7 @@ export class PrismaService
     await this.ensureServiceOrderColumns();
     await this.ensureLocationLogTable();
     await this.ensureExecutionPauseTable();
+    await this.ensureNfseEmissionTables();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -192,6 +193,99 @@ export class PrismaService
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "TechnicianLocationLog_partnerId_createdAt_idx" ON "TechnicianLocationLog"("partnerId", "createdAt")`);
     } catch (err) {
       this.logger.warn('TechnicianLocationLog auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  /** Ensure NFS-e Emission tables and columns exist (self-healing migration v3.0) */
+  private async ensureNfseEmissionTables(): Promise<void> {
+    try {
+      // NfseConfig table
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "NfseConfig" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "companyId" TEXT NOT NULL,
+          "focusNfeToken" TEXT,
+          "focusNfeEnvironment" TEXT NOT NULL DEFAULT 'HOMOLOGATION',
+          "focusNfeCompanyId" TEXT,
+          "inscricaoMunicipal" TEXT,
+          "codigoMunicipio" TEXT,
+          "naturezaOperacao" TEXT NOT NULL DEFAULT '1',
+          "regimeEspecialTributacao" TEXT,
+          "optanteSimplesNacional" BOOLEAN NOT NULL DEFAULT false,
+          "itemListaServico" TEXT,
+          "codigoCnae" TEXT,
+          "codigoTributarioMunicipio" TEXT,
+          "aliquotaIss" DOUBLE PRECISION,
+          "askOnFinishOS" BOOLEAN NOT NULL DEFAULT true,
+          "receiveWithoutNfse" TEXT NOT NULL DEFAULT 'WARN',
+          "sendEmailToTomador" BOOLEAN NOT NULL DEFAULT true,
+          "rpsSeries" TEXT NOT NULL DEFAULT 'A',
+          "rpsNextNumber" INTEGER NOT NULL DEFAULT 1,
+          "defaultDiscriminacao" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "NfseConfig_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "NfseConfig_companyId_key" ON "NfseConfig"("companyId")`);
+
+      // NfseEmission table
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "NfseEmission" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "companyId" TEXT NOT NULL,
+          "serviceOrderId" TEXT,
+          "rpsNumber" INTEGER NOT NULL,
+          "rpsSeries" TEXT NOT NULL,
+          "nfseNumber" TEXT,
+          "codigoVerificacao" TEXT,
+          "focusNfeRef" TEXT NOT NULL,
+          "status" TEXT NOT NULL DEFAULT 'PROCESSING',
+          "errorMessage" TEXT,
+          "prestadorCnpj" TEXT NOT NULL,
+          "prestadorIm" TEXT,
+          "prestadorCodigoMunicipio" TEXT,
+          "tomadorCnpjCpf" TEXT,
+          "tomadorRazaoSocial" TEXT,
+          "tomadorEmail" TEXT,
+          "valorServicos" INTEGER NOT NULL,
+          "aliquotaIss" DOUBLE PRECISION,
+          "issRetido" BOOLEAN NOT NULL DEFAULT false,
+          "valorIss" INTEGER,
+          "itemListaServico" TEXT,
+          "codigoCnae" TEXT,
+          "discriminacao" TEXT,
+          "codigoMunicipioServico" TEXT,
+          "naturezaOperacao" TEXT,
+          "xmlUrl" TEXT,
+          "pdfUrl" TEXT,
+          "cancelledAt" TIMESTAMP(3),
+          "cancelReason" TEXT,
+          "issuedAt" TIMESTAMP(3),
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "NfseEmission_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "NfseEmission_focusNfeRef_key" ON "NfseEmission"("focusNfeRef")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "NfseEmission_companyId_status_idx" ON "NfseEmission"("companyId", "status")`);
+
+      // FinancialEntry NFS-e columns
+      const existing: { column_name: string }[] = await this.$queryRaw`
+        SELECT column_name FROM information_schema.columns WHERE table_name = 'FinancialEntry'
+      `;
+      const existingNames = new Set(existing.map((c) => c.column_name));
+
+      if (!existingNames.has('nfseStatus')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "FinancialEntry" ADD COLUMN "nfseStatus" TEXT`);
+        this.logger.log('Added column FinancialEntry.nfseStatus');
+      }
+      if (!existingNames.has('nfseEmissionId')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "FinancialEntry" ADD COLUMN "nfseEmissionId" TEXT`);
+        this.logger.log('Added column FinancialEntry.nfseEmissionId');
+      }
+    } catch (err) {
+      this.logger.warn('NFS-e Emission auto-migration check failed (non-fatal):', err);
     }
   }
 }

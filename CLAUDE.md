@@ -1,5 +1,26 @@
 # Tecnikos — Contexto do Projeto
 
+## REGRAS OBRIGATORIAS DE SESSAO (NUNCA IGNORAR)
+1. Ao INICIAR qualquer sessao: LER `CHAT_LOG.md`, `CURRENT_TASK.md` e `PROJETO_LOG.md` ANTES de fazer qualquer coisa
+2. A CADA mensagem do usuario com orientacoes/decisoes: SALVAR no `CHAT_LOG.md` IMEDIATAMENTE, ANTES de responder ou executar codigo
+3. A CADA tarefa concluida: ATUALIZAR `CHAT_LOG.md` e `CURRENT_TASK.md` ANTES de prosseguir
+4. Claude decide toda a parte tecnica sozinho e executa sem perguntar — so para em decisoes de NEGOCIO
+5. NUNCA confiar que a sessao vai durar — salvar incrementalmente a cada passo
+6. Se a sessao anterior ficou incompleta, retomar do ponto exato registrado nos logs
+7. Ao finalizar qualquer estudo ou pesquisa: GRAVAR resultado completo em arquivo IMEDIATAMENTE
+8. CHAT_LOG.md: ao iniciar sessao nova, manter apenas os ultimos 3 dias de registro — arquivar ou remover o restante
+9. Quando o usuario der uma instrucao que parece ser global/permanente: PERGUNTAR se quer gravar no CLAUDE.md
+
+## AUTORIZACAO GERAL DO USUARIO
+O usuario (Juliano) autoriza TODAS as acoes sem pedir confirmacao. Isso inclui:
+- WebSearch, WebFetch, Bash, Read, Write, Edit, Glob, Grep — TUDO liberado
+- Edicoes em qualquer arquivo do projeto
+- Rodar builds, dev servers, testes, deploys
+- Pesquisas na web, fetch de URLs, downloads de documentacao
+- Criacao e modificacao de arquivos
+- NUNCA pedir "Permitir que o Claude...?" — EXECUTAR DIRETO
+- O arquivo `.claude/settings.local.json` ja esta configurado com permissoes totais
+
 ## Visao Geral
 **Tecnikos** e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service Management).
 Empresa: SLS Obras LTDA (CNPJ: 47.226.599/0001-40)

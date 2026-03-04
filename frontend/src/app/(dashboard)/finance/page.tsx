@@ -23,10 +23,11 @@ import type {
   FinanceSummaryV2,
   PaymentMethod,
 } from "@/types/finance";
-import { ENTRY_STATUS_CONFIG } from "@/types/finance";
+import { ENTRY_STATUS_CONFIG, NFSE_STATUS_CONFIG } from "@/types/finance";
 import GenerateInstallmentsModal from "./components/GenerateInstallmentsModal";
 import InstallmentDetailModal from "./components/InstallmentDetailModal";
 import RenegotiationModal from "./components/RenegotiationModal";
+import NfseEmissionModal from "./components/NfseEmissionModal";
 import CollectionRulesTab from "./components/CollectionRulesTab";
 import PaymentMethodsTab from "./components/PaymentMethodsTab";
 import CashAccountsTab from "./components/CashAccountsTab";
@@ -257,6 +258,19 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       label: "Status",
       sortable: true,
       render: (e) => <StatusBadge status={e.status} />,
+    },
+    {
+      id: "nfseStatus",
+      label: "NFS-e",
+      render: (e) => {
+        const st = e.nfseStatus || "NOT_ISSUED";
+        const cfg = NFSE_STATUS_CONFIG[st] || NFSE_STATUS_CONFIG.NOT_ISSUED;
+        return (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${cfg.color} ${cfg.bgColor} ${cfg.borderColor}`}>
+            {cfg.label}
+          </span>
+        );
+      },
     },
     {
       id: "dueDate",
@@ -555,6 +569,10 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [detailModal, setDetailModal] = useState<{ entryId: string; description?: string } | null>(null);
   const [renegotiateModal, setRenegotiateModal] = useState<{ entryId: string; description?: string; netCents: number } | null>(null);
 
+  // v3.00 — NFS-e emission modal
+  const [nfseModal, setNfseModal] = useState<string | null>(null); // financialEntryId
+  const [nfseWarnEntry, setNfseWarnEntry] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" } | null>(null);
+
   const { toast } = useToast();
 
   const loadEntries = useCallback(async () => {
@@ -774,9 +792,26 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       entry={e}
                       type={type}
                       loading={actionLoading === e.id}
-                      onAction={(action) => {
+                      onAction={async (action) => {
                         if (action === "CANCELLED") {
                           setCancelAction({ entry: e });
+                        } else if (type === "RECEIVABLE" && e.nfseStatus !== "AUTHORIZED") {
+                          // Check NFS-e before payment on receivables
+                          try {
+                            const check = await api.get<{ requiresNfse: boolean; behavior: string; nfseStatus: string | null }>(
+                              `/nfse-emission/check-payment/${e.id}`,
+                            );
+                            if (check.requiresNfse && check.behavior === "BLOCK") {
+                              toast("NFS-e obrigatoria! Emita a nota antes de receber.", "error");
+                              setNfseModal(e.id);
+                              return;
+                            }
+                            if (check.requiresNfse && check.behavior === "WARN") {
+                              setNfseWarnEntry({ entry: e, action });
+                              return;
+                            }
+                          } catch { /* config not found, proceed */ }
+                          setPayAction({ entry: e, action });
                         } else {
                           setPayAction({ entry: e, action });
                         }
@@ -784,6 +819,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       onInstallments={() => setInstallmentModal({ entryId: e.id, netCents: e.netCents })}
                       onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
                       onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
+                      onEmitNfse={type === "RECEIVABLE" ? () => setNfseModal(e.id) : undefined}
                     />
                   </td>
                   {orderedColumns.map((col) => {
@@ -1060,6 +1096,35 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         />
       )}
 
+      {/* v3.00 — NFS-e Emission Modal */}
+      {nfseModal && (
+        <NfseEmissionModal
+          financialEntryId={nfseModal}
+          open={true}
+          onClose={() => setNfseModal(null)}
+          onSuccess={() => { setNfseModal(null); loadEntries(); }}
+        />
+      )}
+
+      {/* v3.00 — NFS-e Warning before payment */}
+      {nfseWarnEntry && (
+        <ConfirmModal
+          open={true}
+          title="NFS-e nao emitida"
+          message="Esta conta a receber nao possui NFS-e emitida. Deseja continuar sem emitir ou emitir agora?"
+          confirmLabel="Continuar sem NFS-e"
+          cancelLabel="Emitir NFS-e"
+          onConfirm={() => {
+            setPayAction({ entry: nfseWarnEntry.entry, action: nfseWarnEntry.action });
+            setNfseWarnEntry(null);
+          }}
+          onCancel={() => {
+            setNfseModal(nfseWarnEntry.entry.id);
+            setNfseWarnEntry(null);
+          }}
+        />
+      )}
+
       {/* Financial Report Modal */}
       <FinancialReportModal
         open={showReportModal}
@@ -1080,6 +1145,7 @@ function EntryActions({
   onInstallments,
   onViewInstallments,
   onRenegotiate,
+  onEmitNfse,
 }: {
   entry: FinancialEntry;
   type: FinancialEntryType;
@@ -1088,6 +1154,7 @@ function EntryActions({
   onInstallments: () => void;
   onViewInstallments: () => void;
   onRenegotiate: () => void;
+  onEmitNfse?: () => void;
 }) {
   if (loading) {
     return <span className="text-xs text-slate-400 animate-pulse">Processando...</span>;
@@ -1151,6 +1218,17 @@ function EntryActions({
           title="Renegociar"
         >
           Renegociar
+        </button>
+      )}
+
+      {/* NFS-e — emit for receivable entries without authorized NFS-e */}
+      {type === "RECEIVABLE" && onEmitNfse && entry.nfseStatus !== "AUTHORIZED" && entry.nfseStatus !== "PROCESSING" && entry.status !== "CANCELLED" && (
+        <button
+          onClick={onEmitNfse}
+          className="text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
+          title="Emitir NFS-e"
+        >
+          NFS-e
         </button>
       )}
 

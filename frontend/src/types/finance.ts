@@ -43,6 +43,10 @@ export interface FinancialEntry {
   renegotiatedToId?: string;
   installments?: FinancialInstallment[];
   parentEntry?: { id: string; description?: string; grossCents: number; netCents: number };
+
+  // v3.00 — NFS-e
+  nfseStatus?: string | null;       // NOT_ISSUED | PROCESSING | AUTHORIZED | ERROR | CANCELLED
+  nfseEmissionId?: string | null;
 }
 
 export interface FinancialInstallment {
@@ -220,6 +224,16 @@ export const INSTALLMENT_STATUS_CONFIG: Record<InstallmentStatus, { label: strin
   OVERDUE:      { label: 'Vencida',      color: 'text-red-700',    bgColor: 'bg-red-50',    borderColor: 'border-red-200' },
   CANCELLED:    { label: 'Cancelada',    color: 'text-slate-500',  bgColor: 'bg-slate-50',  borderColor: 'border-slate-200' },
   RENEGOTIATED: { label: 'Renegociada',  color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
+};
+
+export type NfseStatusType = 'NOT_ISSUED' | 'PROCESSING' | 'AUTHORIZED' | 'ERROR' | 'CANCELLED';
+
+export const NFSE_STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
+  NOT_ISSUED:  { label: 'Sem NFS-e',     color: 'text-slate-500',  bgColor: 'bg-slate-50',  borderColor: 'border-slate-200' },
+  PROCESSING:  { label: 'Processando',   color: 'text-amber-700',  bgColor: 'bg-amber-50',  borderColor: 'border-amber-200' },
+  AUTHORIZED:  { label: 'Autorizada',    color: 'text-green-700',  bgColor: 'bg-green-50',  borderColor: 'border-green-200' },
+  ERROR:       { label: 'Erro',          color: 'text-red-700',    bgColor: 'bg-red-50',    borderColor: 'border-red-200' },
+  CANCELLED:   { label: 'Cancelada',     color: 'text-slate-500',  bgColor: 'bg-slate-50',  borderColor: 'border-slate-200' },
 };
 
 export const ENTRY_TYPE_CONFIG: Record<FinancialEntryType, { label: string; icon: string }> = {

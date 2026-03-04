@@ -129,6 +129,8 @@ model Company {
   sefazDocuments       SefazDocument[]
   paymentMethods       PaymentMethod[]
   cashAccounts         CashAccount[]
+  nfseConfig           NfseConfig?
+  nfseEmissions        NfseEmission[]
 }
 
 model User {
@@ -279,6 +281,7 @@ model ServiceOrder {
   events           ServiceOrderEvent[]
   ledger           ServiceOrderLedger?
   financialEntries FinancialEntry[]
+  nfseEmissions    NfseEmission[]
   workflowStepLogs WorkflowStepLog[]
   attachments      Attachment[]
   evaluations      Evaluation[]
@@ -577,6 +580,10 @@ model FinancialEntry {
   renegotiatedAt      DateTime?
   renegotiatedToId    String?           // Nova entry criada na renegociação
 
+  // NFS-e (v3.0)
+  nfseStatus          String?           // NOT_ISSUED | PROCESSING | AUTHORIZED | ERROR | CANCELLED
+  nfseEmissionId      String?           // FK para NfseEmission
+
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   deletedAt        DateTime?
@@ -586,6 +593,7 @@ model FinancialEntry {
   partner          Partner?       @relation(fields: [partnerId], references: [id])
   paymentMethodRef PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
   cashAccountRef   CashAccount?   @relation(fields: [cashAccountId], references: [id])
+  nfseEmission     NfseEmission?  @relation(fields: [nfseEmissionId], references: [id])
 
   // Self-relations para renegociação
   parentEntry        FinancialEntry?        @relation("Renegotiation", fields: [parentEntryId], references: [id])
@@ -602,6 +610,7 @@ model FinancialEntry {
   @@index([partnerId])
   @@index([dueDate])
   @@index([parentEntryId])
+  @@index([nfseEmissionId])
 }
 
 // ========== Parcelas Financeiras (v2.0) ==========
@@ -1097,4 +1106,91 @@ model BankStatementLine {
   @@index([importId])
   @@index([cashAccountId, transactionDate])
   @@index([status])
+}
+
+// ========== NFS-e Emissão (v3.0) ==========
+
+model NfseConfig {
+  id                      String   @id @default(uuid())
+  companyId               String   @unique
+  // Focus NFe
+  focusNfeToken           String?  // Token da API Focus NFe (encriptado AES-256-GCM)
+  focusNfeEnvironment     String   @default("HOMOLOGATION") // PRODUCTION | HOMOLOGATION
+  focusNfeCompanyId       String?  // ID da empresa no Focus NFe
+  // Dados fiscais do prestador
+  inscricaoMunicipal      String?
+  codigoMunicipio         String?  // IBGE 7 dígitos
+  naturezaOperacao        String   @default("1") // 1=Tributação no municipio
+  regimeEspecialTributacao String?  // 1-6
+  optanteSimplesNacional  Boolean  @default(false)
+  itemListaServico        String?  // Código LC 116 padrão (ex: "1401")
+  codigoCnae              String?  // CNAE 7 dígitos
+  codigoTributarioMunicipio String?
+  aliquotaIss             Float?   // % ISS padrão
+  // Configurações de comportamento
+  askOnFinishOS           Boolean  @default(true)  // Perguntar ao finalizar OS
+  receiveWithoutNfse      String   @default("WARN") // WARN | BLOCK | IGNORE
+  sendEmailToTomador      Boolean  @default(true)
+  rpsSeries               String   @default("A")
+  rpsNextNumber           Int      @default(1)
+  // Discriminação padrão (template)
+  defaultDiscriminacao    String?  // Template com variáveis: {titulo_os}, {descricao_os}, {tecnico}
+  // Certificado: reutiliza do SefazConfig (mesmo companyId)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+}
+
+model NfseEmission {
+  id                    String    @id @default(uuid())
+  companyId             String
+  serviceOrderId        String?
+  // RPS
+  rpsNumber             Int
+  rpsSeries             String
+  // NFS-e retornada
+  nfseNumber            String?   // Número da NFS-e (retornado pela prefeitura)
+  codigoVerificacao     String?   // Código de verificação
+  // Referência Focus NFe
+  focusNfeRef           String    @unique // ref enviada ao Focus NFe
+  // Status
+  status                String    @default("PROCESSING") // PROCESSING | AUTHORIZED | ERROR | CANCELLED
+  errorMessage          String?
+  // Dados do prestador (snapshot no momento da emissão)
+  prestadorCnpj         String
+  prestadorIm           String?
+  prestadorCodigoMunicipio String?
+  // Dados do tomador (snapshot)
+  tomadorCnpjCpf        String?
+  tomadorRazaoSocial    String?
+  tomadorEmail          String?
+  // Dados do serviço
+  valorServicos         Int       // centavos
+  aliquotaIss           Float?
+  issRetido             Boolean   @default(false)
+  valorIss              Int?      // centavos
+  itemListaServico      String?
+  codigoCnae            String?
+  discriminacao         String?
+  codigoMunicipioServico String?
+  naturezaOperacao      String?
+  // XML e PDF
+  xmlUrl                String?   // URL do XML no Focus NFe
+  pdfUrl                String?   // URL do DANFSe no Focus NFe
+  // Cancelamento
+  cancelledAt           DateTime?
+  cancelReason          String?
+  // Timestamps
+  issuedAt              DateTime? // Data da emissão efetiva pela prefeitura
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  company        Company        @relation(fields: [companyId], references: [id])
+  serviceOrder   ServiceOrder?  @relation(fields: [serviceOrderId], references: [id])
+  financialEntries FinancialEntry[]
+
+  @@index([companyId, status])
+  @@index([serviceOrderId])
+  @@index([focusNfeRef])
 }

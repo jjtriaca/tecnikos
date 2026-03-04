@@ -8,6 +8,7 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import LocationPickerModal from "@/components/ui/LocationPickerModal";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import NfseEmissionModal from "@/app/(dashboard)/finance/components/NfseEmissionModal";
 
 type AttachmentType = {
   id: string;
@@ -237,6 +238,11 @@ export default function OrderDetailPage() {
   const [evalComment, setEvalComment] = useState("");
   const [evalSubmitting, setEvalSubmitting] = useState(false);
 
+  // NFS-e prompt state
+  const [nfsePrompt, setNfsePrompt] = useState<{ show: boolean; financialEntryId?: string } | null>(null);
+  const [nfseDismissed, setNfseDismissed] = useState(false);
+  const [nfseEmissionEntryId, setNfseEmissionEntryId] = useState<string | null>(null);
+
   // Smart Routing state
   const [eligiblePartners, setEligiblePartners] = useState<EligiblePartner[]>([]);
   const [loadingEligible, setLoadingEligible] = useState(false);
@@ -258,6 +264,22 @@ export default function OrderDetailPage() {
         setWorkflow(wf);
       } catch {
         setWorkflow(null);
+      }
+      // Check NFS-e prompt for completed orders
+      if ((data.status === "CONCLUIDA" || data.status === "APROVADA") && !nfseDismissed) {
+        try {
+          const entries = await api.get<{ data: { id: string; nfseStatus?: string | null }[] }>(
+            `/finance/entries?type=RECEIVABLE&serviceOrderId=${id}&limit=1`,
+          );
+          const entry = entries.data?.[0];
+          if (entry && entry.nfseStatus !== "AUTHORIZED" && entry.nfseStatus !== "PROCESSING") {
+            // Check if askOnFinishOS is enabled
+            const config = await api.get<{ askOnFinishOS?: boolean } | null>("/nfse-emission/config").catch(() => null);
+            if (config?.askOnFinishOS !== false) {
+              setNfsePrompt({ show: true, financialEntryId: entry.id });
+            }
+          }
+        } catch { /* NFS-e config not found or no entries */ }
       }
     } catch (err) {
       if (err instanceof ApiError) {
@@ -632,6 +654,52 @@ export default function OrderDetailPage() {
             )}
           </button>
         </div>
+      )}
+
+      {/* ── NFS-e Prompt (when OS is completed) ── */}
+      {nfsePrompt?.show && nfsePrompt.financialEntryId && (
+        <div className="rounded-xl border border-teal-200 bg-teal-50 p-5 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-100 text-teal-600 flex-shrink-0">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-teal-900">Emitir NFS-e</h4>
+              <p className="text-xs text-teal-700 mt-0.5">
+                A OS foi concluida. Deseja emitir a Nota Fiscal de Servico agora?
+              </p>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => {
+                    setNfseEmissionEntryId(nfsePrompt.financialEntryId!);
+                    setNfsePrompt(null);
+                  }}
+                  className="rounded-lg bg-teal-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition-colors"
+                >
+                  Emitir Agora
+                </button>
+                <button
+                  onClick={() => { setNfsePrompt(null); setNfseDismissed(true); }}
+                  className="rounded-lg border border-teal-300 bg-white px-4 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50 transition-colors"
+                >
+                  Depois
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NFS-e Emission Modal */}
+      {nfseEmissionEntryId && (
+        <NfseEmissionModal
+          financialEntryId={nfseEmissionEntryId}
+          open={true}
+          onClose={() => setNfseEmissionEntryId(null)}
+          onSuccess={() => { setNfseEmissionEntryId(null); toast("NFS-e enviada para processamento!", "success"); }}
+        />
       )}
 
       {/* ── Smart Routing (only when ABERTA + workflowTemplateId) ── */}
