@@ -1,6 +1,13 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
+
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+const LOGO_ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+const LOGO_MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 const ALLOWED_FIELDS: (keyof UpdateCompanyDto)[] = [
   'name', 'tradeName', 'cnpj', 'ie', 'im',
@@ -53,6 +60,70 @@ export class CompanyService {
     return this.prisma.company.update({
       where: { id },
       data: { deletedAt: new Date() },
+    });
+  }
+
+  /* ── Logo Upload ─────────────────────────────────────── */
+
+  async uploadLogo(
+    companyId: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+  ) {
+    if (!LOGO_ALLOWED_MIME.includes(file.mimetype)) {
+      throw new BadRequestException('Tipo de arquivo nao permitido. Use JPEG, PNG ou WebP.');
+    }
+    if (file.size > LOGO_MAX_SIZE) {
+      throw new BadRequestException('Arquivo muito grande. Maximo: 5MB.');
+    }
+
+    // Remove old logo if exists
+    const company = await this.findOne(companyId);
+    if (company.logoUrl) {
+      const oldPath = path.join(process.cwd(), company.logoUrl.replace(/^\//, ''));
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+
+    // Save new logo
+    const ext = path.extname(file.originalname) || '.png';
+    const fileName = `logo-${randomUUID()}${ext}`;
+    const dirPath = path.join(UPLOAD_DIR, companyId);
+
+    fs.mkdirSync(dirPath, { recursive: true });
+    fs.writeFileSync(path.join(dirPath, fileName), file.buffer);
+
+    const logoUrl = `/uploads/${companyId}/${fileName}`;
+
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { logoUrl },
+    });
+
+    return { logoUrl };
+  }
+
+  async removeLogo(companyId: string) {
+    const company = await this.findOne(companyId);
+    if (company.logoUrl) {
+      const filePath = path.join(process.cwd(), company.logoUrl.replace(/^\//, ''));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { logoUrl: null },
+    });
+
+    return { logoUrl: null };
+  }
+
+  async updateLogoDimensions(companyId: string, logoWidth: number, logoHeight: number) {
+    return this.prisma.company.update({
+      where: { id: companyId },
+      data: { logoWidth, logoHeight },
     });
   }
 }

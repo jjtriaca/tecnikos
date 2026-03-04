@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Company" ADD COLUMN "logoUrl" TEXT;
+ALTER TABLE "Company" ADD COLUMN "logoWidth" INTEGER DEFAULT 120;
+ALTER TABLE "Company" ADD COLUMN "logoHeight" INTEGER DEFAULT 40;

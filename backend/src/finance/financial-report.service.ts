@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import * as fs from 'fs';
+import * as path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit');
 
@@ -37,6 +39,9 @@ interface ReportData {
     city?: string | null;
     state?: string | null;
     cep?: string | null;
+    logoBuffer?: Buffer | null;
+    logoWidth: number;
+    logoHeight: number;
   };
   partner?: {
     name: string;
@@ -180,6 +185,17 @@ export class FinancialReportService {
       .filter((e) => e.type === 'PAYABLE')
       .reduce((s, e) => s + e.netCents, 0);
 
+    // Load logo from filesystem if exists
+    let logoBuffer: Buffer | null = null;
+    if (company.logoUrl) {
+      try {
+        const logoPath = path.join(process.cwd(), company.logoUrl.replace(/^\//, ''));
+        if (fs.existsSync(logoPath)) {
+          logoBuffer = fs.readFileSync(logoPath);
+        }
+      } catch { /* ignore — logo just won't appear */ }
+    }
+
     return {
       company: {
         name: company.name,
@@ -197,6 +213,9 @@ export class FinancialReportService {
         city: company.city,
         state: company.state,
         cep: company.cep,
+        logoBuffer,
+        logoWidth: company.logoWidth ?? 120,
+        logoHeight: company.logoHeight ?? 40,
       },
       partner,
       filters,
@@ -280,15 +299,30 @@ export class FinancialReportService {
       const headerH = 65;
       drawBox(leftX, y, pageWidth, headerH);
 
-      // Company info (left)
-      const companyW = pageWidth - 180;
+      // Logo (left side, if exists)
+      const hasLogo = !!data.company.logoBuffer;
+      const logoW = hasLogo ? Math.min(data.company.logoWidth, 150) + 10 : 0;
+
+      if (hasLogo) {
+        try {
+          doc.image(data.company.logoBuffer!, leftX + 5, y + 5, {
+            width: Math.min(data.company.logoWidth, 150),
+            height: Math.min(data.company.logoHeight, 55),
+            fit: [Math.min(data.company.logoWidth, 150), Math.min(data.company.logoHeight, 55)],
+          });
+        } catch { /* ignore rendering errors */ }
+      }
+
+      // Company info (after logo)
+      const companyX = leftX + logoW;
+      const companyW = pageWidth - 180 - logoW;
       doc
         .font('Helvetica-Bold')
         .fontSize(FONT_SIZE_LG)
         .fillColor('#000000')
         .text(
           data.company.tradeName || data.company.name,
-          leftX + 4,
+          companyX + 4,
           y + 5,
           { width: companyW - 8 },
         );
@@ -300,13 +334,13 @@ export class FinancialReportService {
       if (data.company.cnpj) {
         doc.text(
           `CNPJ: ${this.formatCnpj(data.company.cnpj)}`,
-          leftX + 4,
+          companyX + 4,
           y + 20,
           { width: companyW - 8 },
         );
       }
       if (data.company.address) {
-        doc.text(data.company.address, leftX + 4, y + 30, {
+        doc.text(data.company.address, companyX + 4, y + 30, {
           width: companyW - 8,
         });
       }
@@ -314,7 +348,7 @@ export class FinancialReportService {
         .filter(Boolean)
         .join(' - ');
       if (cityUf) {
-        doc.text(cityUf, leftX + 4, y + 40, { width: companyW - 8 });
+        doc.text(cityUf, companyX + 4, y + 40, { width: companyW - 8 });
       }
       const contacts = [
         data.company.phone
@@ -325,7 +359,7 @@ export class FinancialReportService {
         .filter(Boolean)
         .join('  |  ');
       if (contacts) {
-        doc.text(contacts, leftX + 4, y + 50, { width: companyW - 8 });
+        doc.text(contacts, companyX + 4, y + 50, { width: companyW - 8 });
       }
 
       // Title (right)

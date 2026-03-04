@@ -81,6 +81,11 @@ model Company {
   phone     String?
   email     String?
 
+  // Logomarca
+  logoUrl    String?  // URL relativa: /uploads/{companyId}/logo.png
+  logoWidth  Int?     @default(120)  // largura em px no PDF
+  logoHeight Int?     @default(40)   // altura em px no PDF
+
   // Endereço
   cep           String?
   addressStreet String?  // Logradouro

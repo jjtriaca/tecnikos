@@ -1,5 +1,9 @@
-import { Body, Controller, Get, Param, Put, Delete } from '@nestjs/common';
+import {
+  Body, Controller, Get, Param, Put, Delete,
+  Post, Patch, UseInterceptors, UploadedFile, BadRequestException,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CompanyService } from './company.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -37,5 +41,34 @@ export class CompanyController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.remove(id, user.companyId);
+  }
+
+  /* ── Logo ────────────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Post('logo')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadLogo(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado');
+    return this.service.uploadLogo(user.companyId, file);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete('logo')
+  removeLogo(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.removeLogo(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch('logo-dimensions')
+  updateLogoDimensions(
+    @Body('logoWidth') logoWidth: number,
+    @Body('logoHeight') logoHeight: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateLogoDimensions(user.companyId, logoWidth, logoHeight);
   }
 }

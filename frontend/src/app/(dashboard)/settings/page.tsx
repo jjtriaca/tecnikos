@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, getAccessToken } from "@/lib/api";
 
 /* ── Types ──────────────────────────────────────────── */
 
@@ -26,6 +26,9 @@ type CompanyData = {
   ownerCpf: string | null;
   ownerPhone: string | null;
   ownerEmail: string | null;
+  logoUrl: string | null;
+  logoWidth: number | null;
+  logoHeight: number | null;
   status: string;
   commissionBps: number;
   evalGestorWeight: number;
@@ -147,6 +150,9 @@ export default function SettingsPage() {
   const loadedVersionRef = useRef<string | null>(null);
   const [lookingUpCnpj, setLookingUpCnpj] = useState(false);
   const [cnpjStatus, setCnpjStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoWidth, setLogoWidth] = useState(120);
+  const [logoHeight, setLogoHeight] = useState(40);
   const [form, setForm] = useState<CompanyForm>({
     name: "", tradeName: "", cnpj: "", ie: "", im: "",
     phone: "", email: "",
@@ -164,6 +170,8 @@ export default function SettingsPage() {
       const data = await api.get<CompanyData>("/companies/me");
       setCompany(data);
       setForm(companyToForm(data));
+      setLogoWidth(data.logoWidth ?? 120);
+      setLogoHeight(data.logoHeight ?? 40);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -519,6 +527,147 @@ export default function SettingsPage() {
               {cnpjStatus.msg}
             </div>
           )}
+        </div>
+
+        {/* ── Logomarca ── */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+            <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Logomarca
+          </h3>
+          <p className="text-xs text-slate-500 mb-4">
+            A logomarca sera usada nos relatorios financeiros em PDF. Formatos: JPEG, PNG ou WebP (max 5MB).
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-6">
+            {/* Preview */}
+            <div className="flex-shrink-0">
+              {company?.logoUrl ? (
+                <div className="border border-slate-200 rounded-lg p-2 bg-slate-50">
+                  <img
+                    src={`/api${company.logoUrl}`}
+                    alt="Logo"
+                    style={{ width: logoWidth, height: logoHeight, objectFit: 'contain' }}
+                    className="block"
+                  />
+                </div>
+              ) : (
+                <div className="w-[120px] h-[40px] border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center text-xs text-slate-400">
+                  Sem logo
+                </div>
+              )}
+            </div>
+
+            {/* Controls */}
+            <div className="flex-1 space-y-3">
+              {/* Upload */}
+              <div className="flex gap-2">
+                <label className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  isAdmin ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                } ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  {logoUploading ? 'Enviando...' : 'Enviar Logo'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    disabled={!isAdmin || logoUploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setLogoUploading(true);
+                      try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const token = getAccessToken();
+                        const res = await fetch('/api/companies/logo', {
+                          method: 'POST',
+                          body: formData,
+                          credentials: 'include',
+                          headers: token ? { Authorization: `Bearer ${token}` } : {},
+                        });
+                        if (!res.ok) {
+                          const err = await res.json().catch(() => ({}));
+                          throw new Error(err.message || 'Erro ao enviar logo');
+                        }
+                        const result = await res.json();
+                        setCompany((c) => c ? { ...c, logoUrl: result.logoUrl } : c);
+                        setSuccess(true);
+                        setTimeout(() => setSuccess(false), 2000);
+                      } catch (err: any) {
+                        setError(err.message || 'Erro ao enviar logo');
+                      } finally {
+                        setLogoUploading(false);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                </label>
+
+                {company?.logoUrl && isAdmin && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.del('/companies/logo');
+                        setCompany((c) => c ? { ...c, logoUrl: null } : c);
+                      } catch { setError('Erro ao remover logo'); }
+                    }}
+                    className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    Remover
+                  </button>
+                )}
+              </div>
+
+              {/* Dimensions */}
+              {company?.logoUrl && (
+                <div className="flex items-end gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Largura (px)</label>
+                    <input
+                      type="number"
+                      min={30}
+                      max={300}
+                      value={logoWidth}
+                      onChange={(e) => setLogoWidth(Number(e.target.value))}
+                      disabled={!isAdmin}
+                      className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Altura (px)</label>
+                    <input
+                      type="number"
+                      min={15}
+                      max={150}
+                      value={logoHeight}
+                      onChange={(e) => setLogoHeight(Number(e.target.value))}
+                      disabled={!isAdmin}
+                      className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.patch('/companies/logo-dimensions', { logoWidth, logoHeight });
+                        setCompany((c) => c ? { ...c, logoWidth, logoHeight } : c);
+                        setSuccess(true);
+                        setTimeout(() => setSuccess(false), 2000);
+                      } catch { setError('Erro ao salvar dimensoes'); }
+                    }}
+                    disabled={!isAdmin}
+                    className="rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* ── Dados da Empresa ── */}
