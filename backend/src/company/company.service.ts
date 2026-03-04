@@ -79,7 +79,8 @@ export class CompanyService {
     // Remove old logo if exists
     const company = await this.findOne(companyId);
     if (company.logoUrl) {
-      const oldPath = path.join(process.cwd(), company.logoUrl.replace(/^\//, ''));
+      const safeName = path.basename(company.logoUrl);
+      const oldPath = path.join(UPLOAD_DIR, companyId, safeName);
       if (fs.existsSync(oldPath)) {
         fs.unlinkSync(oldPath);
       }
@@ -106,7 +107,8 @@ export class CompanyService {
   async removeLogo(companyId: string) {
     const company = await this.findOne(companyId);
     if (company.logoUrl) {
-      const filePath = path.join(process.cwd(), company.logoUrl.replace(/^\//, ''));
+      const safeName = path.basename(company.logoUrl);
+      const filePath = path.join(UPLOAD_DIR, companyId, safeName);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }

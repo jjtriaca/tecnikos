@@ -189,7 +189,8 @@ export class FinancialReportService {
     let logoBuffer: Buffer | null = null;
     if (company.logoUrl) {
       try {
-        const logoPath = path.join(process.cwd(), company.logoUrl.replace(/^\//, ''));
+        const safeName = path.basename(company.logoUrl);
+        const logoPath = path.join(process.cwd(), 'uploads', company.id, safeName);
         if (fs.existsSync(logoPath)) {
           logoBuffer = fs.readFileSync(logoPath);
         }

@@ -126,35 +126,37 @@ export class FinanceService {
     const commission = Math.round((gross * bps) / 10000);
     const net = gross - commission;
 
-    const ledger = await this.prisma.serviceOrderLedger.create({
-      data: {
-        serviceOrderId,
-        grossCents: gross,
-        commissionBps: bps,
-        commissionCents: commission,
-        netCents: net,
-        confirmedAt: new Date(),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const ledger = await tx.serviceOrderLedger.create({
+        data: {
+          serviceOrderId,
+          grossCents: gross,
+          commissionBps: bps,
+          commissionCents: commission,
+          netCents: net,
+          confirmedAt: new Date(),
+        },
+      });
+
+      // v1.00.17: Also create FinancialEntry (PAYABLE) for AP/AR tracking
+      await tx.financialEntry.create({
+        data: {
+          companyId,
+          serviceOrderId,
+          partnerId: so.assignedPartnerId,
+          type: 'PAYABLE',
+          status: 'CONFIRMED',
+          grossCents: gross,
+          commissionBps: bps,
+          commissionCents: commission,
+          netCents: net,
+          confirmedAt: new Date(),
+          description: `Repasse OS: ${so.title}`,
+        },
+      });
+
+      return ledger;
     });
-
-    // v1.00.17: Also create FinancialEntry (PAYABLE) for AP/AR tracking
-    await this.prisma.financialEntry.create({
-      data: {
-        companyId,
-        serviceOrderId,
-        partnerId: so.assignedPartnerId,
-        type: 'PAYABLE',
-        status: 'CONFIRMED',
-        grossCents: gross,
-        commissionBps: bps,
-        commissionCents: commission,
-        netCents: net,
-        confirmedAt: new Date(),
-        description: `Repasse OS: ${so.title}`,
-      },
-    }).catch(() => {}); // fire-and-forget: don't break ledger flow
-
-    return ledger;
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -339,26 +341,28 @@ export class FinanceService {
       if (dto.cancelledByName) data.cancelledByName = dto.cancelledByName;
     }
 
-    // Update entry
-    const updated = await this.prisma.financialEntry.update({
-      where: { id },
-      data,
-      include: {
-        serviceOrder: { select: { id: true, title: true, status: true } },
-        partner: { select: { id: true, name: true } },
-      },
-    });
-
-    // Adjust cash account balance when PAID and cashAccountId is provided
-    if (newStatus === 'PAID' && dto.cashAccountId) {
-      const deltaCents = entry.type === 'RECEIVABLE' ? entry.netCents : -entry.netCents;
-      await this.prisma.cashAccount.update({
-        where: { id: dto.cashAccountId },
-        data: { currentBalanceCents: { increment: deltaCents } },
+    // Update entry + cash account atomically
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.financialEntry.update({
+        where: { id },
+        data,
+        include: {
+          serviceOrder: { select: { id: true, title: true, status: true } },
+          partner: { select: { id: true, name: true } },
+        },
       });
-    }
 
-    return updated;
+      // Adjust cash account balance when PAID and cashAccountId is provided
+      if (newStatus === 'PAID' && dto.cashAccountId) {
+        const deltaCents = entry.type === 'RECEIVABLE' ? entry.netCents : -entry.netCents;
+        await tx.cashAccount.update({
+          where: { id: dto.cashAccountId },
+          data: { currentBalanceCents: { increment: deltaCents } },
+        });
+      }
+
+      return updated;
+    });
   }
 
   async deleteEntry(id: string, companyId: string) {

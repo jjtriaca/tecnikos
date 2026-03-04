@@ -91,12 +91,14 @@ export class UploadService {
     if (!att) throw new NotFoundException('Anexo não encontrado');
     if (att.companyId !== companyId) throw new ForbiddenException('Acesso negado');
 
-    // Remove file from disk
+    // Delete DB record first, then remove file from disk
+    const deleted = await this.prisma.attachment.delete({ where: { id } });
+
     const filePath = path.join(UPLOAD_DIR, att.companyId, att.serviceOrderId, path.basename(att.url));
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
 
-    return this.prisma.attachment.delete({ where: { id } });
+    return deleted;
   }
 }

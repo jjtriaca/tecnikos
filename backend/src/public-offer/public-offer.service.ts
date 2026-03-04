@@ -10,6 +10,7 @@ import { ServiceOrderStatus } from '@prisma/client';
 import {
   randomUUID,
   randomBytes,
+  randomInt,
   scryptSync,
   timingSafeEqual,
 } from 'crypto';
@@ -20,7 +21,7 @@ function normalizePhone(phone: string): string {
 }
 
 function generateOtp6(): string {
-  const n = Math.floor(Math.random() * 1_000_000);
+  const n = randomInt(0, 1_000_000);
   return String(n).padStart(6, '0');
 }
 

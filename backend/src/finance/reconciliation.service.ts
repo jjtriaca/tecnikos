@@ -144,7 +144,13 @@ export class ReconciliationService {
   /**
    * List statement lines for an import
    */
-  async findLines(importId: string, status?: string) {
+  async findLines(importId: string, companyId: string, status?: string) {
+    // Verify the import belongs to this company
+    const imp = await this.prisma.bankStatementImport.findFirst({
+      where: { id: importId, companyId },
+    });
+    if (!imp) throw new NotFoundException('Importação não encontrada.');
+
     const where: Record<string, unknown> = { importId };
     if (status) where.status = status;
 
@@ -157,11 +163,14 @@ export class ReconciliationService {
   /**
    * Match a statement line to an entry or installment
    */
-  async matchLine(lineId: string, dto: MatchLineDto, matchedByName: string) {
+  async matchLine(lineId: string, companyId: string, dto: MatchLineDto, matchedByName: string) {
     const line = await this.prisma.bankStatementLine.findUnique({
       where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
     });
-    if (!line) throw new NotFoundException('Linha não encontrada.');
+    if (!line || line.import.companyId !== companyId) {
+      throw new NotFoundException('Linha não encontrada.');
+    }
     if (line.status === 'MATCHED') {
       throw new BadRequestException('Linha já está conciliada.');
     }
@@ -197,11 +206,14 @@ export class ReconciliationService {
   /**
    * Unmatch (revert) a matched line
    */
-  async unmatchLine(lineId: string) {
+  async unmatchLine(lineId: string, companyId: string) {
     const line = await this.prisma.bankStatementLine.findUnique({
       where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
     });
-    if (!line) throw new NotFoundException('Linha não encontrada.');
+    if (!line || line.import.companyId !== companyId) {
+      throw new NotFoundException('Linha não encontrada.');
+    }
     if (line.status !== 'MATCHED') {
       throw new BadRequestException('Linha não está conciliada.');
     }
@@ -232,11 +244,14 @@ export class ReconciliationService {
   /**
    * Ignore a statement line
    */
-  async ignoreLine(lineId: string, notes?: string) {
+  async ignoreLine(lineId: string, companyId: string, notes?: string) {
     const line = await this.prisma.bankStatementLine.findUnique({
       where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
     });
-    if (!line) throw new NotFoundException('Linha não encontrada.');
+    if (!line || line.import.companyId !== companyId) {
+      throw new NotFoundException('Linha não encontrada.');
+    }
 
     return this.prisma.bankStatementLine.update({
       where: { id: lineId },

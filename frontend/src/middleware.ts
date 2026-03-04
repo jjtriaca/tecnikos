@@ -21,7 +21,10 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/users') ||
     pathname.startsWith('/workflow') ||
     pathname.startsWith('/automation') ||
-    pathname.startsWith('/notifications')
+    pathname.startsWith('/notifications') ||
+    pathname.startsWith('/nfe') ||
+    pathname.startsWith('/products') ||
+    pathname.startsWith('/whatsapp')
   ) {
     const refreshToken = request.cookies.get('refresh_token');
     if (!refreshToken) {

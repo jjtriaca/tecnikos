@@ -170,8 +170,9 @@ export class FinanceController {
   findReconciliationLines(
     @Param('importId') importId: string,
     @Query('status') status: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.reconciliationService.findLines(importId, status);
+    return this.reconciliationService.findLines(importId, user.companyId, status);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
@@ -198,13 +199,16 @@ export class FinanceController {
     @Body() dto: MatchLineDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.reconciliationService.matchLine(lineId, dto, user.email);
+    return this.reconciliationService.matchLine(lineId, user.companyId, dto, user.email);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Post('reconciliation/lines/:lineId/unmatch')
-  unmatchLine(@Param('lineId') lineId: string) {
-    return this.reconciliationService.unmatchLine(lineId);
+  unmatchLine(
+    @Param('lineId') lineId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.unmatchLine(lineId, user.companyId);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
@@ -212,8 +216,9 @@ export class FinanceController {
   ignoreLine(
     @Param('lineId') lineId: string,
     @Body('notes') notes: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.reconciliationService.ignoreLine(lineId, notes);
+    return this.reconciliationService.ignoreLine(lineId, user.companyId, notes);
   }
 
   /* ── Legacy Endpoints (backward compat) ────────────────── */

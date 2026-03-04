@@ -56,6 +56,12 @@ export class SefazDfeController {
       `bufferLen=${file.buffer?.length}, mimetype=${file.mimetype}`,
     );
 
+    // Validate file size (max 50KB for certificates)
+    const PFX_MAX_SIZE = 50 * 1024; // 50KB
+    if (file.size > PFX_MAX_SIZE) {
+      throw new BadRequestException('Arquivo muito grande. Certificados devem ter no máximo 50KB.');
+    }
+
     // Validate file extension
     const ext = file.originalname?.toLowerCase();
     if (!ext?.endsWith('.pfx') && !ext?.endsWith('.p12')) {

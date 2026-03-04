@@ -162,21 +162,26 @@ export class PartnerService {
       afterFields['password'] = '***alterada***';
     }
 
-    await this.prisma.partner.update({ where: { id }, data: updateData });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.partner.update({ where: { id }, data: updateData });
+
+      if (specializationIds !== undefined) {
+        await tx.partnerSpecialization.deleteMany({
+          where: { partnerId: id },
+        });
+        if (specializationIds.length > 0) {
+          await tx.partnerSpecialization.createMany({
+            data: specializationIds.map((sid) => ({
+              partnerId: id,
+              specializationId: sid,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    });
 
     if (specializationIds !== undefined) {
-      await this.prisma.partnerSpecialization.deleteMany({
-        where: { partnerId: id },
-      });
-      if (specializationIds.length > 0) {
-        await this.prisma.partnerSpecialization.createMany({
-          data: specializationIds.map((sid) => ({
-            partnerId: id,
-            specializationId: sid,
-          })),
-          skipDuplicates: true,
-        });
-      }
       afterFields['specializationIds'] = specializationIds;
     }
 
