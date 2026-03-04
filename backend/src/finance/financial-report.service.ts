@@ -441,8 +441,8 @@ export class FinancialReportService {
         .text('LANCAMENTOS', leftX + 2, y);
       y += 10;
 
-      // Column widths
-      const colWidths = [52, 145, 50, 55, 52, 72, 72, 48];
+      // Column widths — adjusted for readability
+      const colWidths = [52, 130, 80, 48, 52, 68, 68, 48];
       const colHeaders = [
         'DATA',
         'DESCRICAO',
@@ -450,13 +450,13 @@ export class FinancialReportService {
         'TIPO',
         'FORMA PGTO',
         'VALOR BRUTO',
-        'VALOR LIQUIDO',
+        'VALOR LIQ.',
         'STATUS',
       ];
 
       // Draw table header
       const drawTableHeader = () => {
-        const itemHeaderH = 14;
+        const itemHeaderH = 16;
         let cx = leftX;
         colHeaders.forEach((h, i) => {
           drawBox(cx, y, colWidths[i], itemHeaderH);
@@ -464,7 +464,7 @@ export class FinancialReportService {
             .font('Helvetica-Bold')
             .fontSize(FONT_SIZE_SM)
             .fillColor('#333333')
-            .text(h, cx + 2, y + 3, {
+            .text(h, cx + 2, y + 4, {
               width: colWidths[i] - 4,
               align: 'center',
             });
@@ -475,8 +475,8 @@ export class FinancialReportService {
 
       drawTableHeader();
 
-      // Item rows
-      const itemRowH = 12;
+      // Item rows — taller to fit wrapped text
+      const itemRowH = 22;
       for (const entry of data.entries) {
         // Check page break
         if (y + itemRowH > doc.page.height - 80) {
@@ -505,11 +505,12 @@ export class FinancialReportService {
             .font('Helvetica')
             .fontSize(FONT_SIZE_SM)
             .fillColor('#000000')
-            .text(v, cx + 1, y + 2, {
-              width: colWidths[i] - 2,
+            .text(v, cx + 2, y + 3, {
+              width: colWidths[i] - 4,
               align,
+              height: itemRowH - 6,
               ellipsis: true,
-              lineBreak: false,
+              lineBreak: true,
             });
           cx += colWidths[i];
         });
