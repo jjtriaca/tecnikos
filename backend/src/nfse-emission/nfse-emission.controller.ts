@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { ApiTags } from '@nestjs/swagger';
+import { FiscalGuard } from '../auth/guards/fiscal.guard';
 import { NfseEmissionService } from './nfse-emission.service';
 import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto } from './dto/nfse-emission.dto';
 import type { Response } from 'express';
@@ -37,7 +38,7 @@ export class NfseEmissionController {
 
   @Get('preview/:financialEntryId')
   @Roles('ADMIN', 'FINANCEIRO')
-
+  @UseGuards(FiscalGuard)
   async getPreview(@Req() req: any, @Param('financialEntryId') financialEntryId: string) {
     return this.nfseService.getEmissionPreview(req.user.companyId, financialEntryId);
   }
@@ -46,7 +47,7 @@ export class NfseEmissionController {
 
   @Post('emit')
   @Roles('ADMIN', 'FINANCEIRO')
-
+  @UseGuards(FiscalGuard)
   async emit(@Req() req: any, @Body() dto: EmitNfseDto) {
     return this.nfseService.emit(req.user.companyId, dto);
   }
@@ -55,14 +56,14 @@ export class NfseEmissionController {
 
   @Delete(':id')
   @Roles('ADMIN')
-
+  @UseGuards(FiscalGuard)
   async cancel(@Req() req: any, @Param('id') id: string, @Body() dto: CancelNfseDto) {
     return this.nfseService.cancel(req.user.companyId, id, dto);
   }
 
   @Post(':id/cancel')
   @Roles('ADMIN')
-
+  @UseGuards(FiscalGuard)
   async cancelPost(@Req() req: any, @Param('id') id: string, @Body() dto: CancelNfseDto) {
     return this.nfseService.cancel(req.user.companyId, id, dto);
   }
@@ -71,7 +72,7 @@ export class NfseEmissionController {
 
   @Get('emissions')
   @Roles('ADMIN', 'FINANCEIRO')
-
+  @UseGuards(FiscalGuard)
   async findEmissions(
     @Req() req: any,
     @Query('status') status?: string,
@@ -101,7 +102,7 @@ export class NfseEmissionController {
 
   @Get('emissions/:id')
   @Roles('ADMIN', 'FINANCEIRO')
-
+  @UseGuards(FiscalGuard)
   async findOneEmission(@Req() req: any, @Param('id') id: string) {
     return this.nfseService.findOneEmission(req.user.companyId, id);
   }
@@ -110,7 +111,7 @@ export class NfseEmissionController {
 
   @Post('emissions/:id/refresh')
   @Roles('ADMIN', 'FINANCEIRO')
-
+  @UseGuards(FiscalGuard)
   async refreshStatus(@Req() req: any, @Param('id') id: string) {
     return this.nfseService.refreshStatus(req.user.companyId, id);
   }
@@ -119,7 +120,7 @@ export class NfseEmissionController {
 
   @Get('emissions/:id/pdf')
   @Roles('ADMIN', 'FINANCEIRO')
-
+  @UseGuards(FiscalGuard)
   async downloadPdf(@Req() req: any, @Param('id') id: string, @Res() res: Response) {
     const { buffer, filename } = await this.nfseService.downloadPdf(req.user.companyId, id);
     res.set({
@@ -134,7 +135,7 @@ export class NfseEmissionController {
 
   @Post('emissions/:id/resend-email')
   @Roles('ADMIN', 'FINANCEIRO')
-
+  @UseGuards(FiscalGuard)
   async resendEmail(@Req() req: any, @Param('id') id: string, @Body() body: { emails?: string[] }) {
     return this.nfseService.resendEmail(req.user.companyId, id, body.emails);
   }

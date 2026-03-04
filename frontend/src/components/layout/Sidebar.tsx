@@ -103,7 +103,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Financeiro", href: "/finance", icon: icons.finance, roles: ["ADMIN", "FINANCEIRO"] },
   { label: "Produtos", href: "/products", icon: icons.products, roles: ["ADMIN"] },
   { label: "NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN"], requiresFiscal: true, children: [
-    { label: "Importações", href: "/nfe" },
+    { label: "Entrada", href: "/nfe" },
     { label: "Saída", href: "/nfe/saida" },
   ] },
   { label: "Relatórios", href: "/reports", icon: icons.reports, roles: ["ADMIN", "FINANCEIRO", "LEITURA"] },
@@ -234,7 +234,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 {!collapsed && isExpanded && (
                   <div className="ml-5 mt-0.5 flex flex-col gap-0.5 border-l border-white/10 pl-3">
                     {item.children!.map((child) => {
-                      const isChildActive = pathname === child.href || pathname.startsWith(child.href + "/");
+                      const isChildActive = child.href === item.href
+                        ? pathname === child.href
+                        : (pathname === child.href || pathname.startsWith(child.href + "/"));
                       return (
                         <Link
                           key={child.href}
