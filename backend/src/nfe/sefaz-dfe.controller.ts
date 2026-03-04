@@ -7,6 +7,7 @@ import {
   Param,
   Query,
   Body,
+  Res,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -15,7 +16,9 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
+import type { Response } from 'express';
 import { SefazDfeService } from './sefaz-dfe.service';
+import { DanfeService } from './danfe.service';
 import { UpdateSefazConfigDto, SefazDocumentFilterDto } from './dto/sefaz-config.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -26,7 +29,10 @@ import { AuthenticatedUser } from '../auth/auth.types';
 export class SefazDfeController {
   private readonly logger = new Logger(SefazDfeController.name);
 
-  constructor(private readonly service: SefazDfeService) {}
+  constructor(
+    private readonly service: SefazDfeService,
+    private readonly danfeService: DanfeService,
+  ) {}
 
   /* ── Upload PFX Certificate ──────────────────────────────────── */
 
@@ -136,5 +142,58 @@ export class SefazDfeController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.ignoreDocument(user.companyId, id);
+  }
+
+  /* ── Download XML ──────────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Get('documents/:id/xml')
+  async downloadXml(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const doc = await this.service.findOneDocument(user.companyId, id);
+    if (!doc.xmlContent) {
+      throw new BadRequestException('XML nao disponivel para este documento');
+    }
+
+    const filename = doc.nfeKey
+      ? `NFe_${doc.nfeKey}.xml`
+      : `NFe_${doc.nsu}.xml`;
+
+    res.set({
+      'Content-Type': 'application/xml',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    res.send(doc.xmlContent);
+  }
+
+  /* ── Download DANFE PDF ────────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN)
+  @Get('documents/:id/danfe')
+  async downloadDanfe(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const doc = await this.service.findOneDocument(user.companyId, id);
+    if (!doc.xmlContent) {
+      throw new BadRequestException('XML nao disponivel para gerar DANFE');
+    }
+
+    const pdfBuffer = await this.danfeService.generate(doc.xmlContent);
+
+    const filename = doc.nfeKey
+      ? `DANFE_${doc.nfeKey}.pdf`
+      : `DANFE_${doc.nsu}.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(pdfBuffer.length),
+    });
+    res.send(pdfBuffer);
   }
 }

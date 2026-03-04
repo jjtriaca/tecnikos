@@ -340,8 +340,9 @@ export class SefazDfeService {
             fetchStatus = 'RATE_LIMIT';
             lastError = response.xMotivo;
             // Save ultNSU from rate limit response for subsequent requests
-            if (response.ultNSU && response.ultNSU !== '000000000000000') {
-              currentNsu = response.ultNSU;
+            const rateLimitNsu = String(response.ultNSU).padStart(15, '0');
+            if (rateLimitNsu !== '000000000000000') {
+              currentNsu = rateLimitNsu;
               this.logger.log(`Saving ultNSU from rate limit: ${currentNsu}`);
             }
           } else {
@@ -421,8 +422,8 @@ export class SefazDfeService {
           }
         }
 
-        // Update current NSU
-        currentNsu = response.ultNSU;
+        // Update current NSU (ensure 15-digit padding)
+        currentNsu = String(response.ultNSU).padStart(15, '0');
 
         // Check if we've reached the max
         if (response.ultNSU >= response.maxNSU) {
@@ -472,7 +473,7 @@ export class SefazDfeService {
           <cUFAutor>${cUFAutor}</cUFAutor>
           <CNPJ>${cnpj}</CNPJ>
           <distNSU>
-            <ultNSU>${ultNsu}</ultNSU>
+            <ultNSU>${String(ultNsu).padStart(15, '0')}</ultNSU>
           </distNSU>
         </distDFeInt>
       </nfeDadosMsg>
@@ -573,8 +574,10 @@ export class SefazDfeService {
 
     const cStat = String(retDist.cStat ?? '');
     const xMotivo = String(retDist.xMotivo ?? '');
-    const ultNSU = String(retDist.ultNSU ?? '000000000000000');
-    const maxNSU = String(retDist.maxNSU ?? '000000000000000');
+    // CRITICAL: ultNSU/maxNSU must always be 15-digit zero-padded strings.
+    // fast-xml-parser parses "000000005000000" as number 5000000, losing padding.
+    const ultNSU = String(retDist.ultNSU ?? '0').padStart(15, '0');
+    const maxNSU = String(retDist.maxNSU ?? '0').padStart(15, '0');
 
     // Parse docZip entries
     const docZips: Array<{ nsu: string; schema: string; xml: string }> = [];

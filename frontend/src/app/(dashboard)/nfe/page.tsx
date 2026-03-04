@@ -741,6 +741,55 @@ export default function NfePage() {
     }
   }
 
+  async function handleDownloadFile(docId: string, type: "xml" | "danfe") {
+    try {
+      const token = getAccessToken();
+      const endpoint = type === "xml"
+        ? `/api/nfe/sefaz/documents/${docId}/xml`
+        : `/api/nfe/sefaz/documents/${docId}/danfe`;
+
+      const res = await fetch(endpoint, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `Erro ao baixar ${type.toUpperCase()}`);
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+      const filename = filenameMatch?.[1] || (type === "xml" ? "nfe.xml" : "danfe.pdf");
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      toast(`${type === "xml" ? "XML" : "DANFE"} salvo: ${filename}`, "success");
+
+      // Ask if user wants to open
+      setTimeout(() => {
+        const openFile = window.confirm(
+          `${type === "xml" ? "XML" : "DANFE PDF"} salvo com sucesso!\n\nDeseja abrir o arquivo?`
+        );
+        if (openFile) {
+          window.open(url, "_blank");
+        } else {
+          URL.revokeObjectURL(url);
+        }
+      }, 300);
+    } catch (err: any) {
+      toast(err?.message || `Erro ao baixar ${type.toUpperCase()}.`, "error");
+    }
+  }
+
   function isCertExpiringSoon(): boolean {
     if (!sefazConfig?.certificateExpiry) return false;
     const expiry = new Date(sefazConfig.certificateExpiry);
@@ -1113,7 +1162,7 @@ export default function NfePage() {
               <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "1000px", width: "max-content" }}>
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="py-3 px-3 text-xs font-semibold uppercase text-slate-600" style={{ width: "140px", minWidth: "140px" }}>
+                    <th className="py-3 px-3 text-xs font-semibold uppercase text-slate-600" style={{ width: "220px", minWidth: "220px" }}>
                       Acoes
                     </th>
                     {sefazOrderedColumns.map((col, idx) => (
@@ -1147,8 +1196,8 @@ export default function NfePage() {
                 <tbody className="divide-y divide-slate-100">
                   {sefazDocs.map((doc) => (
                     <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-3" style={{ width: "140px", minWidth: "140px" }}>
-                        <div className="flex items-center gap-1.5">
+                      <td className="py-3 px-3" style={{ width: "220px", minWidth: "220px" }}>
+                        <div className="flex items-center gap-1 flex-wrap">
                           {doc.schema === "procNFe" && doc.status === "FETCHED" && (
                             <button
                               onClick={() => handleImportDoc(doc.id)}
@@ -1178,9 +1227,34 @@ export default function NfePage() {
                           <button
                             onClick={() => handleViewXml(doc.id)}
                             className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                            title="Visualizar XML"
                           >
                             XML
                           </button>
+                          {doc.schema === "procNFe" && (
+                            <>
+                              <button
+                                onClick={() => handleDownloadFile(doc.id, "xml")}
+                                className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                title="Salvar XML"
+                              >
+                                <svg className="h-3 w-3 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                XML
+                              </button>
+                              <button
+                                onClick={() => handleDownloadFile(doc.id, "danfe")}
+                                className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
+                                title="Salvar DANFE PDF"
+                              >
+                                <svg className="h-3 w-3 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                DANFE
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                       {sefazOrderedColumns.map((col) => {
