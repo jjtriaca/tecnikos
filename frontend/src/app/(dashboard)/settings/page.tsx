@@ -164,14 +164,32 @@ export default function SettingsPage() {
   });
 
   const isAdmin = user?.role === "ADMIN";
+  const savedFormRef = useRef<string>("");
+  const isDirty = JSON.stringify(form) !== savedFormRef.current;
+  const savedLogoDimsRef = useRef<string>("");
+  const isLogoDimsDirty = JSON.stringify({ logoWidth, logoHeight }) !== savedLogoDimsRef.current;
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /** Show success toast for `ms` milliseconds, cancelling any previous timer */
+  function flashSuccess(ms = 3000) {
+    if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    setSuccess(true);
+    successTimerRef.current = setTimeout(() => setSuccess(false), ms);
+  }
 
   const loadCompany = useCallback(async () => {
     try {
       const data = await api.get<CompanyData>("/companies/me");
       setCompany(data);
-      setForm(companyToForm(data));
-      setLogoWidth(data.logoWidth ?? 120);
-      setLogoHeight(data.logoHeight ?? 40);
+      const f = companyToForm(data);
+      setForm(f);
+      savedFormRef.current = JSON.stringify(f);
+      const lw = data.logoWidth ?? 120;
+      const lh = data.logoHeight ?? 40;
+      setLogoWidth(lw);
+      setLogoHeight(lh);
+      savedLogoDimsRef.current = JSON.stringify({ logoWidth: lw, logoHeight: lh });
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -376,9 +394,9 @@ export default function SettingsPage() {
         evalMinRating,
       });
 
-      setSuccess(true);
+      savedFormRef.current = JSON.stringify(form);
       await loadCompany();
-      setTimeout(() => setSuccess(false), 3000);
+      flashSuccess(3000);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.payload?.message || err.message);
@@ -572,14 +590,18 @@ export default function SettingsPage() {
                   </svg>
                   {logoUploading ? 'Enviando...' : 'Enviar Logo'}
                   <input
+                    ref={fileInputRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     className="hidden"
                     disabled={!isAdmin || logoUploading}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
+                    onChange={async () => {
+                      const file = fileInputRef.current?.files?.[0];
                       if (!file) return;
                       setLogoUploading(true);
+                      setError(null);
+                      const controller = new AbortController();
+                      const timeout = setTimeout(() => controller.abort(), 30000);
                       try {
                         const formData = new FormData();
                         formData.append('file', file);
@@ -589,20 +611,25 @@ export default function SettingsPage() {
                           body: formData,
                           credentials: 'include',
                           headers: token ? { Authorization: `Bearer ${token}` } : {},
+                          signal: controller.signal,
                         });
                         if (!res.ok) {
                           const err = await res.json().catch(() => ({}));
                           throw new Error(err.message || 'Erro ao enviar logo');
                         }
-                        const result = await res.json();
-                        setCompany((c) => c ? { ...c, logoUrl: result.logoUrl } : c);
-                        setSuccess(true);
-                        setTimeout(() => setSuccess(false), 2000);
+                        await res.json();
+                        await loadCompany();
+                        flashSuccess(3000);
                       } catch (err: any) {
-                        setError(err.message || 'Erro ao enviar logo');
+                        if (err.name === 'AbortError') {
+                          setError('Upload demorou demais. Tente novamente.');
+                        } else {
+                          setError(err.message || 'Erro ao enviar logo');
+                        }
                       } finally {
+                        clearTimeout(timeout);
                         setLogoUploading(false);
-                        e.target.value = '';
+                        if (fileInputRef.current) fileInputRef.current.value = '';
                       }
                     }}
                   />
@@ -650,20 +677,21 @@ export default function SettingsPage() {
                       className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
                     />
                   </div>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await api.patch('/companies/logo-dimensions', { logoWidth, logoHeight });
-                        setCompany((c) => c ? { ...c, logoWidth, logoHeight } : c);
-                        setSuccess(true);
-                        setTimeout(() => setSuccess(false), 2000);
-                      } catch { setError('Erro ao salvar dimensoes'); }
-                    }}
-                    disabled={!isAdmin}
-                    className="rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 transition-colors disabled:opacity-50"
-                  >
-                    Salvar
-                  </button>
+                  {isAdmin && isLogoDimsDirty && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api.patch('/companies/logo-dimensions', { logoWidth, logoHeight });
+                          setCompany((c) => c ? { ...c, logoWidth, logoHeight } : c);
+                          savedLogoDimsRef.current = JSON.stringify({ logoWidth, logoHeight });
+                          flashSuccess(3000);
+                        } catch { setError('Erro ao salvar dimensoes'); }
+                      }}
+                      className="rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 transition-colors"
+                    >
+                      Salvar
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -992,27 +1020,21 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {success && (
-          <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-            Configuracoes salvas com sucesso!
-          </div>
-        )}
-
-        {isAdmin ? (
+        {isAdmin && isDirty ? (
           <div className="flex items-center gap-3">
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-all"
             >
               {saving ? "Salvando..." : "Salvar Alteracoes"}
             </button>
           </div>
-        ) : (
+        ) : !isAdmin ? (
           <p className="text-xs text-slate-400">
             Somente administradores podem alterar as configuracoes.
           </p>
-        )}
+        ) : null}
       </form>
 
       {/* ── Sistema / Build Info ── */}
@@ -1122,6 +1144,18 @@ export default function SettingsPage() {
                 </button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Toast de sucesso ── */}
+      {success && (
+        <div className="fixed bottom-6 right-6 z-50 animate-fade-in">
+          <div className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
+            <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Configuracoes salvas com sucesso!
           </div>
         </div>
       )}
