@@ -33,17 +33,7 @@ export class CompanyController {
     return this.service.update(id, body, user.companyId);
   }
 
-  /** Admin-only: soft delete */
-  @Roles(UserRole.ADMIN)
-  @Delete(':id')
-  remove(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.service.remove(id, user.companyId);
-  }
-
-  /* ── Logo ────────────────────────────────────────────── */
+  /* ── Logo (must be before :id routes) ──────────────── */
 
   @Roles(UserRole.ADMIN)
   @Post('logo')
@@ -70,5 +60,15 @@ export class CompanyController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.updateLogoDimensions(user.companyId, logoWidth, logoHeight);
+  }
+
+  /** Admin-only: soft delete */
+  @Roles(UserRole.ADMIN)
+  @Delete(':id')
+  remove(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.remove(id, user.companyId);
   }
 }
