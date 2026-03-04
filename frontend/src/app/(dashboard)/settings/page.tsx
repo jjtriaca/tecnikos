@@ -163,7 +163,7 @@ export default function SettingsPage() {
     evalGestorWeight: "40", evalClientWeight: "60", evalMinRating: "3.0",
   });
 
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.roles?.includes("ADMIN") ?? false;
   const savedFormRef = useRef<string>("");
   const isDirty = JSON.stringify(form) !== savedFormRef.current;
   const savedLogoDimsRef = useRef<string>("");

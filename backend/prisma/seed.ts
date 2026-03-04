@@ -33,10 +33,10 @@ async function main() {
       name: 'Administrador',
       email: 'admin@demo.com',
       passwordHash,
-      role: UserRole.ADMIN,
+      roles: [UserRole.ADMIN],
     },
   });
-  console.log(`✅ User: ${user.email} / admin123 (role: ${user.role})`);
+  console.log(`✅ User: ${user.email} / admin123 (role: ${user.roles})`);
 
   // ── Usuário Despacho ──
   const despachoHash = await bcrypt.hash('despacho123', 10);
@@ -48,10 +48,10 @@ async function main() {
       name: 'Operador Despacho',
       email: 'despacho@demo.com',
       passwordHash: despachoHash,
-      role: UserRole.DESPACHO,
+      roles: [UserRole.DESPACHO],
     },
   });
-  console.log(`✅ User: ${despacho.email} / despacho123 (role: ${despacho.role})`);
+  console.log(`✅ User: ${despacho.email} / despacho123 (role: ${despacho.roles})`);
 
   // ── Especializações ──
   const specNames = [

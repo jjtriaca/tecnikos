@@ -64,7 +64,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        roles: user.roles,
         companyId: user.companyId,
       },
     };
@@ -150,7 +150,7 @@ export class AuthService {
         id: true,
         name: true,
         email: true,
-        role: true,
+        roles: true,
         companyId: true,
         company: { select: { id: true, name: true } },
       },
@@ -165,13 +165,13 @@ export class AuthService {
   private issueAccessToken(user: {
     id: string;
     email: string;
-    role: string;
+    roles: any[];
     companyId: string;
   }): string {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      role: user.role as any,
+      roles: user.roles,
       companyId: user.companyId,
     };
     return this.jwt.sign(payload);

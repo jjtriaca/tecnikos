@@ -19,7 +19,14 @@ export class RolesGuard implements CanActivate {
     const user: AuthenticatedUser = request.user;
     if (!user) throw new ForbiddenException('Usuário não autenticado');
 
-    if (!requiredRoles.includes(user.role as any)) {
+    // TECNICO check (partner login, not a UserRole enum value)
+    if (requiredRoles.includes('TECNICO') && user.isTecnico) {
+      return true;
+    }
+
+    // Check if ANY of the user's roles matches ANY required role
+    const hasRole = user.roles?.some(r => requiredRoles.includes(r));
+    if (!hasRole) {
       throw new ForbiddenException('Permissão insuficiente');
     }
     return true;

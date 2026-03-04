@@ -11,7 +11,7 @@ type User = {
   id: string;
   name: string;
   email: string;
-  role: string;
+  roles: string[];
   createdAt: string;
 };
 
@@ -19,6 +19,7 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrador",
   DESPACHO: "Despacho",
   FINANCEIRO: "Financeiro",
+  FISCAL: "Fiscal",
   LEITURA: "Somente Leitura",
 };
 
@@ -26,12 +27,13 @@ const ROLE_COLORS: Record<string, string> = {
   ADMIN: "bg-purple-100 text-purple-800",
   DESPACHO: "bg-blue-100 text-blue-800",
   FINANCEIRO: "bg-green-100 text-green-800",
+  FISCAL: "bg-amber-100 text-amber-800",
   LEITURA: "bg-slate-100 text-slate-600",
 };
 
-const ALL_ROLES = ["ADMIN", "DESPACHO", "FINANCEIRO", "LEITURA"];
+const ALL_ROLES = ["ADMIN", "DESPACHO", "FINANCEIRO", "FISCAL", "LEITURA"];
 
-const COLUMN_COUNT = 4; // name, email, role, actions
+const COLUMN_COUNT = 4; // name, email, roles, actions
 
 export default function UsersPage() {
   const { toast } = useToast();
@@ -52,7 +54,7 @@ export default function UsersPage() {
     name: "",
     email: "",
     password: "",
-    role: "DESPACHO",
+    roles: ["DESPACHO"] as string[],
   });
 
   async function loadUsers() {
@@ -71,7 +73,7 @@ export default function UsersPage() {
   }, []);
 
   function resetForm() {
-    setForm({ name: "", email: "", password: "", role: "DESPACHO" });
+    setForm({ name: "", email: "", password: "", roles: ["DESPACHO"] });
     setEditingId(null);
     setShowForm(false);
     setFormError(null);
@@ -82,16 +84,37 @@ export default function UsersPage() {
       name: user.name,
       email: user.email,
       password: "",
-      role: user.role,
+      roles: user.roles,
     });
     setEditingId(user.id);
     setShowForm(true);
     setFormError(null);
   }
 
+  function toggleRole(role: string) {
+    setForm((f) => {
+      if (role === "LEITURA") {
+        // LEITURA is exclusive: toggle it, clear all others
+        return { ...f, roles: f.roles.includes("LEITURA") ? [] : ["LEITURA"] };
+      }
+      // Normal role toggle
+      const has = f.roles.includes(role);
+      const next = has
+        ? f.roles.filter((r) => r !== role)
+        : [...f.roles.filter((r) => r !== "LEITURA"), role];
+      return { ...f, roles: next };
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
+
+    if (form.roles.length === 0) {
+      setFormError("Selecione pelo menos um papel");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -99,7 +122,7 @@ export default function UsersPage() {
         const body: any = {
           name: form.name,
           email: form.email,
-          role: form.role,
+          roles: form.roles,
         };
         if (form.password) body.password = form.password;
         await api.put(`/users/${editingId}`, body);
@@ -147,13 +170,16 @@ export default function UsersPage() {
     setDeactivateTarget(null);
   }
 
+  const leituraSelected = form.roles.includes("LEITURA");
+  const hasNonLeitura = form.roles.some((r) => r !== "LEITURA");
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Usuários</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Usuarios</h1>
           <p className="text-sm text-slate-500">
-            Gerencie os usuários do sistema.
+            Gerencie os usuarios do sistema.
           </p>
         </div>
         <button
@@ -163,7 +189,7 @@ export default function UsersPage() {
           }}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
         >
-          + Novo Usuário
+          + Novo Usuario
         </button>
       </div>
 
@@ -171,10 +197,10 @@ export default function UsersPage() {
       {showForm && (
         <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-4">
-            {editingId ? "Editar Usuário" : "Novo Usuário"}
+            {editingId ? "Editar Usuario" : "Novo Usuario"}
           </h3>
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input
                 placeholder="Nome"
                 value={form.name}
@@ -200,19 +226,47 @@ export default function UsersPage() {
                 }
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
               />
-              <select
-                value={form.role}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, role: e.target.value }))
-                }
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-              >
-                {ALL_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABELS[r]}
-                  </option>
-                ))}
-              </select>
+            </div>
+
+            {/* Roles multi-select checkboxes */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-2">
+                Papeis
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {ALL_ROLES.map((r) => {
+                  const isLeitura = r === "LEITURA";
+                  const disabled = isLeitura ? hasNonLeitura : leituraSelected;
+                  const checked = form.roles.includes(r);
+
+                  return (
+                    <label
+                      key={r}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all select-none ${
+                        checked
+                          ? "border-blue-300 bg-blue-50 text-blue-800 font-medium"
+                          : disabled
+                          ? "border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed"
+                          : "border-slate-300 bg-white text-slate-700 hover:border-blue-200 cursor-pointer"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={() => toggleRole(r)}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:opacity-30"
+                      />
+                      {ROLE_LABELS[r]}
+                    </label>
+                  );
+                })}
+              </div>
+              {leituraSelected && (
+                <p className="text-xs text-amber-600 mt-1.5">
+                  Somente Leitura e exclusivo — desmarque para habilitar outros papeis.
+                </p>
+              )}
             </div>
 
             {formError && (
@@ -257,7 +311,7 @@ export default function UsersPage() {
         </div>
       ) : users.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
-          Nenhum usuário cadastrado.
+          Nenhum usuario cadastrado.
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -271,10 +325,10 @@ export default function UsersPage() {
                   Email
                 </th>
                 <th className="py-3 px-4 text-left font-medium text-slate-600">
-                  Papel
+                  Papeis
                 </th>
                 <th className="py-3 px-4 text-right font-medium text-slate-600">
-                  Ações
+                  Acoes
                 </th>
               </tr>
             </thead>
@@ -287,19 +341,24 @@ export default function UsersPage() {
                     </td>
                     <td className="py-3 px-4 text-slate-600">{u.email}</td>
                     <td className="py-3 px-4">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          ROLE_COLORS[u.role] || "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {ROLE_LABELS[u.role] || u.role}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {u.roles.map((r) => (
+                          <span
+                            key={r}
+                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              ROLE_COLORS[r] || "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {ROLE_LABELS[r] || r}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex justify-end gap-1.5">
                         <button
                           onClick={() => setExpandedAuditId((prev) => (prev === u.id ? null : u.id))}
-                          title="Histórico de alterações"
+                          title="Historico de alteracoes"
                           className={`rounded border px-1.5 py-1 text-xs transition-colors ${expandedAuditId === u.id ? "border-blue-300 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"}`}
                         >
                           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -337,8 +396,8 @@ export default function UsersPage() {
       {/* Confirm Modal */}
       <ConfirmModal
         open={showConfirmModal && !!deactivateTarget}
-        title="Desativar Usuário"
-        message={`Desativar o usuário "${deactivateTarget?.name}"?`}
+        title="Desativar Usuario"
+        message={`Desativar o usuario "${deactivateTarget?.name}"?`}
         confirmLabel="Desativar"
         cancelLabel="Cancelar"
         onConfirm={handleConfirmDeactivate}

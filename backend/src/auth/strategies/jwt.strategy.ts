@@ -13,13 +13,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): AuthenticatedUser {
+  validate(payload: any): AuthenticatedUser {
     return {
       id: payload.sub,
       email: payload.email,
-      role: payload.role,
+      // Handle both old (role) and new (roles) JWT format during rollout
+      roles: payload.roles || (payload.role && payload.role !== 'TECNICO' ? [payload.role] : []),
+      isTecnico: payload.isTecnico || payload.role === 'TECNICO',
       companyId: payload.companyId,
       technicianId: payload.technicianId,
+      partnerId: payload.partnerId,
     };
   }
 }

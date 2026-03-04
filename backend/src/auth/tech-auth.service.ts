@@ -156,7 +156,8 @@ export class TechAuthService {
     const payload: JwtPayload = {
       sub: tech.id,
       email: tech.email || '',
-      role: 'TECNICO',
+      roles: [],
+      isTecnico: true,
       companyId: tech.companyId,
       technicianId: tech.id,
       partnerId: tech.id,

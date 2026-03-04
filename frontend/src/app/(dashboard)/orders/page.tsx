@@ -391,8 +391,8 @@ export default function OrdersPage() {
   const { user: authUser } = useAuth();
   const { toast } = useToast();
 
-  const canEdit = authUser?.role === "ADMIN" || authUser?.role === "DESPACHO";
-  const canDelete = authUser?.role === "ADMIN";
+  const canEdit = authUser?.roles?.some(r => r === "ADMIN" || r === "DESPACHO") ?? false;
+  const canDelete = authUser?.roles?.includes("ADMIN") ?? false;
 
   const [cancelTarget, setCancelTarget] = useState<ServiceOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceOrder | null>(null);

@@ -42,7 +42,7 @@ export class UserController {
       name: string;
       email: string;
       password: string;
-      role: UserRole;
+      roles: UserRole[];
     },
     @CurrentUser() user: AuthenticatedUser,
   ) {
@@ -54,7 +54,7 @@ export class UserController {
   update(
     @Param('id') id: string,
     @Body()
-    body: { name?: string; email?: string; role?: UserRole; password?: string },
+    body: { name?: string; email?: string; roles?: UserRole[]; password?: string },
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.update(id, user.companyId, body, user);

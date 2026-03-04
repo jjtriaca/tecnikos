@@ -79,8 +79,8 @@ export default function PartnersPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
-  const canEdit = user?.role === "ADMIN" || user?.role === "DESPACHO";
-  const isAdmin = user?.role === "ADMIN";
+  const canEdit = user?.roles?.some(r => r === "ADMIN" || r === "DESPACHO") ?? false;
+  const isAdmin = user?.roles?.includes("ADMIN") ?? false;
 
   /* ---- data loading ---- */
 

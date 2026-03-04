@@ -31,10 +31,10 @@ async function main() {
       name: 'Admin Company B',
       email: 'admin@companyb.com',
       passwordHash: hash,
-      role: UserRole.ADMIN,
+      roles: [UserRole.ADMIN],
     },
   });
-  console.log(`User B: ${userB.email} / admin123 (role: ${userB.role})`);
+  console.log(`User B: ${userB.email} / admin123 (role: ${userB.roles})`);
 
   // User LEITURA na Company A (demo)
   const userLeitura = await prisma.user.upsert({
@@ -45,10 +45,10 @@ async function main() {
       name: 'Usuário Leitura',
       email: 'leitura@demo.com',
       passwordHash: hashLeitura,
-      role: UserRole.LEITURA,
+      roles: [UserRole.LEITURA],
     },
   });
-  console.log(`User Leitura: ${userLeitura.email} / leitura123 (role: ${userLeitura.role})`);
+  console.log(`User Leitura: ${userLeitura.email} / leitura123 (role: ${userLeitura.roles})`);
 
   // User FINANCEIRO na Company A
   const userFin = await prisma.user.upsert({
@@ -59,10 +59,10 @@ async function main() {
       name: 'Usuário Financeiro',
       email: 'financeiro@demo.com',
       passwordHash: hash,
-      role: UserRole.FINANCEIRO,
+      roles: [UserRole.FINANCEIRO],
     },
   });
-  console.log(`User Financeiro: ${userFin.email} / admin123 (role: ${userFin.role})`);
+  console.log(`User Financeiro: ${userFin.email} / admin123 (role: ${userFin.roles})`);
 }
 
 main()

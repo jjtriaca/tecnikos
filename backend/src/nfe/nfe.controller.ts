@@ -21,7 +21,7 @@ export class NfeController {
 
   /* ── Upload XML ──────────────────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Post('upload')
   upload(
     @Body('xml') xml: string,
@@ -32,7 +32,7 @@ export class NfeController {
 
   /* ── List imports (paginated) ────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Get('imports')
   findImports(
     @Query() pagination: PaginationDto,
@@ -44,7 +44,7 @@ export class NfeController {
 
   /* ── Import detail ───────────────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Get('imports/:id')
   findOneImport(
     @Param('id') id: string,
@@ -55,7 +55,7 @@ export class NfeController {
 
   /* ── Process import with decisions ───────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Post('imports/:id/process')
   process(
     @Param('id') id: string,

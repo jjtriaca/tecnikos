@@ -36,7 +36,7 @@ export class SefazDfeController {
 
   /* ── Upload PFX Certificate ──────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Post('certificate')
   @UseInterceptors(FileInterceptor('file'))
   async uploadCertificate(
@@ -73,7 +73,7 @@ export class SefazDfeController {
 
   /* ── Get Config (no secrets) ─────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Get('config')
   getConfig(@CurrentUser() user: AuthenticatedUser) {
     return this.service.getConfig(user.companyId);
@@ -81,7 +81,7 @@ export class SefazDfeController {
 
   /* ── Update Config ───────────────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Put('config')
   updateConfig(
     @Body() dto: UpdateSefazConfigDto,
@@ -92,7 +92,7 @@ export class SefazDfeController {
 
   /* ── Delete Certificate ──────────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Delete('certificate')
   deleteCertificate(@CurrentUser() user: AuthenticatedUser) {
     return this.service.deleteCertificate(user.companyId);
@@ -100,7 +100,7 @@ export class SefazDfeController {
 
   /* ── Manual Fetch ────────────────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Post('fetch')
   fetch(@CurrentUser() user: AuthenticatedUser) {
     return this.service.fetchDistDFe(user.companyId);
@@ -108,7 +108,7 @@ export class SefazDfeController {
 
   /* ── List Documents (paginated + filtered) ───────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Get('documents')
   findDocuments(
     @Query() filters: SefazDocumentFilterDto,
@@ -119,7 +119,7 @@ export class SefazDfeController {
 
   /* ── Document Detail ─────────────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Get('documents/:id')
   findOneDocument(
     @Param('id') id: string,
@@ -130,7 +130,7 @@ export class SefazDfeController {
 
   /* ── Import Document into NfeImport ──────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Post('documents/:id/import')
   importDocument(
     @Param('id') id: string,
@@ -141,7 +141,7 @@ export class SefazDfeController {
 
   /* ── Ignore Document ─────────────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Post('documents/:id/ignore')
   ignoreDocument(
     @Param('id') id: string,
@@ -152,7 +152,7 @@ export class SefazDfeController {
 
   /* ── Download XML ──────────────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Get('documents/:id/xml')
   async downloadXml(
     @Param('id') id: string,
@@ -177,7 +177,7 @@ export class SefazDfeController {
 
   /* ── Download DANFE PDF ────────────────────────────────────── */
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Get('documents/:id/danfe')
   async downloadDanfe(
     @Param('id') id: string,

@@ -97,12 +97,12 @@ const icons = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: icons.dashboard, roles: ["ADMIN", "DESPACHO", "FINANCEIRO", "LEITURA"] },
+  { label: "Dashboard", href: "/dashboard", icon: icons.dashboard, roles: ["ADMIN", "DESPACHO", "FINANCEIRO", "FISCAL", "LEITURA"] },
   { label: "Ordens de Serviço", href: "/orders", icon: icons.orders, roles: ["ADMIN", "DESPACHO", "LEITURA"] },
   { label: "Parceiros", href: "/partners", icon: icons.partners, roles: ["ADMIN", "DESPACHO"] },
   { label: "Financeiro", href: "/finance", icon: icons.finance, roles: ["ADMIN", "FINANCEIRO"] },
   { label: "Produtos", href: "/products", icon: icons.products, roles: ["ADMIN"] },
-  { label: "NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN"], requiresFiscal: true, children: [
+  { label: "NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN", "FISCAL"], requiresFiscal: true, children: [
     { label: "Entrada", href: "/nfe" },
     { label: "Saída", href: "/nfe/saida" },
   ] },
@@ -110,7 +110,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Usuários", href: "/users", icon: icons.users, roles: ["ADMIN"] },
   { label: "Fluxo de Atendimento", href: "/workflow", icon: icons.workflow, roles: ["ADMIN", "DESPACHO"] },
   { label: "Notificações", href: "/notifications", icon: icons.notifications, roles: ["ADMIN", "DESPACHO"] },
-  { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN"] },
+  { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN", "FISCAL"] },
 ];
 
 interface SidebarProps {
@@ -151,7 +151,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   };
 
   const visibleItems = NAV_ITEMS.filter(
-    (item) => user && item.roles.includes(user.role) && (!item.requiresFiscal || fiscalEnabled)
+    (item) => user && item.roles.some(r => user.roles.includes(r)) && (!item.requiresFiscal || fiscalEnabled)
   );
 
   return (
@@ -286,7 +286,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{user.name}</p>
-                  <p className="text-xs text-slate-500 truncate">{user.role}</p>
+                  <p className="text-xs text-slate-500 truncate">{user.roles.join(", ")}</p>
                 </div>
               </div>
               {buildInfo && (

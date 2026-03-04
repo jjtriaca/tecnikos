@@ -11,6 +11,7 @@ enum UserRole {
   ADMIN
   DESPACHO
   FINANCEIRO
+  FISCAL
   LEITURA
 }
 
@@ -140,7 +141,7 @@ model User {
   name         String
   email        String   @unique
   passwordHash String
-  role         UserRole
+  roles        UserRole[]
   mfaEnabled   Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

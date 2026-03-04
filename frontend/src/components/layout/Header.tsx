@@ -61,7 +61,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <p className="text-[13px] font-medium text-slate-800 leading-tight">{user?.name}</p>
-            <p className="text-[11px] text-slate-400">{user?.role}</p>
+            <p className="text-[11px] text-slate-400">{user?.roles?.join(", ")}</p>
           </div>
           <button
             onClick={logout}

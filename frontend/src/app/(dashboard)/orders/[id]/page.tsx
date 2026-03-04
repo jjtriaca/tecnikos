@@ -465,7 +465,7 @@ export default function OrderDetailPage() {
           <p className="mt-1 text-sm text-slate-500">ID: {order.id}</p>
         </div>
 
-        {user?.role === "ADMIN" && (
+        {user?.roles?.includes("ADMIN") && (
           <button
             onClick={() => setShowDeleteModal(true)}
             disabled={deleting}

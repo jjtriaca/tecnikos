@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
 import { UserRole } from '@prisma/client';
@@ -19,7 +19,7 @@ export class UserService {
         id: true,
         name: true,
         email: true,
-        role: true,
+        roles: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -34,7 +34,7 @@ export class UserService {
         id: true,
         name: true,
         email: true,
-        role: true,
+        roles: true,
         mfaEnabled: true,
         createdAt: true,
         updatedAt: true,
@@ -44,16 +44,27 @@ export class UserService {
     return user;
   }
 
+  private validateRoles(roles: UserRole[]) {
+    if (!roles || roles.length === 0) {
+      throw new BadRequestException('Pelo menos um papel é obrigatório');
+    }
+    if (roles.includes(UserRole.LEITURA) && roles.length > 1) {
+      throw new BadRequestException('Somente Leitura é exclusivo e não pode ser combinado com outros papéis');
+    }
+  }
+
   async create(
     data: {
       companyId: string;
       name: string;
       email: string;
       password: string;
-      role: UserRole;
+      roles: UserRole[];
     },
     actor?: AuthenticatedUser,
   ) {
+    this.validateRoles(data.roles);
+
     // Check unique email
     const existing = await this.prisma.user.findFirst({
       where: { email: data.email, deletedAt: null },
@@ -68,13 +79,13 @@ export class UserService {
         name: data.name,
         email: data.email,
         passwordHash,
-        role: data.role,
+        roles: data.roles,
       },
       select: {
         id: true,
         name: true,
         email: true,
-        role: true,
+        roles: true,
         createdAt: true,
       },
     });
@@ -87,7 +98,7 @@ export class UserService {
       actorType: 'USER',
       actorId: actor?.id,
       actorName: actor?.email,
-      after: { name: created.name, email: created.email, role: created.role },
+      after: { name: created.name, email: created.email, roles: created.roles },
     });
 
     return created;
@@ -96,10 +107,14 @@ export class UserService {
   async update(
     id: string,
     companyId: string,
-    data: { name?: string; email?: string; role?: UserRole; password?: string },
+    data: { name?: string; email?: string; roles?: UserRole[]; password?: string },
     actor?: AuthenticatedUser,
   ) {
     const existing = await this.findOne(id, companyId);
+
+    if (data.roles) {
+      this.validateRoles(data.roles);
+    }
 
     const updateData: any = {};
     const beforeFields: Record<string, any> = {};
@@ -115,10 +130,10 @@ export class UserService {
       afterFields.email = data.email;
       updateData.email = data.email;
     }
-    if (data.role && data.role !== existing.role) {
-      beforeFields.role = existing.role;
-      afterFields.role = data.role;
-      updateData.role = data.role;
+    if (data.roles && JSON.stringify(data.roles.sort()) !== JSON.stringify([...existing.roles].sort())) {
+      beforeFields.roles = existing.roles;
+      afterFields.roles = data.roles;
+      updateData.roles = data.roles;
     }
     if (data.password) {
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
@@ -133,7 +148,7 @@ export class UserService {
         id: true,
         name: true,
         email: true,
-        role: true,
+        roles: true,
         updatedAt: true,
       },
     });

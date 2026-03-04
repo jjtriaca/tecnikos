@@ -11,15 +11,21 @@ import {
 import { useRouter } from "next/navigation";
 import { api, setAccessToken, silentRefresh } from "@/lib/api";
 
-export type UserRole = "ADMIN" | "DESPACHO" | "FINANCEIRO" | "LEITURA";
+export type UserRole = "ADMIN" | "DESPACHO" | "FINANCEIRO" | "FISCAL" | "LEITURA";
 
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  roles: UserRole[];
   companyId: string;
   companyName?: string;
+}
+
+/** Check if user has ANY of the given roles */
+export function hasRole(user: AuthUser | null | undefined, ...roles: UserRole[]): boolean {
+  if (!user) return false;
+  return user.roles.some(r => roles.includes(r));
 }
 
 interface AuthContextValue {
@@ -31,7 +37,14 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-type MeResponse = AuthUser & { company?: { id: string; name: string } };
+type MeResponse = {
+  id: string;
+  name: string;
+  email: string;
+  roles: UserRole[];
+  companyId: string;
+  company?: { id: string; name: string };
+};
 
 type LoginResponse = {
   accessToken: string;
@@ -39,7 +52,7 @@ type LoginResponse = {
     id: string;
     name: string;
     email: string;
-    role: UserRole;
+    roles: UserRole[];
     companyId: string;
   };
 };
@@ -49,7 +62,7 @@ function mapUser(d: MeResponse): AuthUser {
     id: d.id,
     name: d.name,
     email: d.email,
-    role: d.role,
+    roles: d.roles,
     companyId: d.companyId,
     companyName: d.company?.name,
   };
@@ -103,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: res.user.id,
           name: res.user.name,
           email: res.user.email,
-          role: res.user.role,
+          roles: res.user.roles,
           companyId: res.user.companyId,
         });
       }
