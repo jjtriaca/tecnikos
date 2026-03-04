@@ -76,14 +76,10 @@ export class CompanyService {
       throw new BadRequestException('Arquivo muito grande. Maximo: 5MB.');
     }
 
-    // Remove old logo if exists
+    // Reject if a logo already exists — user must remove first
     const company = await this.findOne(companyId);
     if (company.logoUrl) {
-      const safeName = path.basename(company.logoUrl);
-      const oldPath = path.join(UPLOAD_DIR, companyId, safeName);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
+      throw new BadRequestException('Ja existe uma logo. Remova a atual antes de enviar outra.');
     }
 
     // Save new logo

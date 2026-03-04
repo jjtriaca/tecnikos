@@ -582,9 +582,11 @@ export default function SettingsPage() {
             <div className="flex-1 space-y-3">
               {/* Upload */}
               <div className="flex gap-2">
-                <label className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  isAdmin ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                } ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                <label className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                  isAdmin && !company?.logoUrl ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                } ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                  title={company?.logoUrl ? 'Remova a logo atual antes de enviar outra' : undefined}
+                >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
@@ -594,7 +596,7 @@ export default function SettingsPage() {
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     className="hidden"
-                    disabled={!isAdmin || logoUploading}
+                    disabled={!isAdmin || logoUploading || !!company?.logoUrl}
                     onChange={async () => {
                       const file = fileInputRef.current?.files?.[0];
                       if (!file) return;
