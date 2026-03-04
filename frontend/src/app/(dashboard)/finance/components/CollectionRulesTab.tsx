@@ -32,6 +32,7 @@ const ACTION_TYPE_COLORS: Record<string, string> = {
   INTEREST_APPLY: "bg-amber-50 text-amber-700 border-amber-200",
   WHATSAPP: "bg-green-50 text-green-700 border-green-200",
   EMAIL: "bg-purple-50 text-purple-700 border-purple-200",
+  ENVIAR_RELATORIO: "bg-orange-50 text-orange-700 border-orange-200",
 };
 
 const EXECUTION_STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {

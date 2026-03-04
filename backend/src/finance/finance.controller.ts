@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Delete, Param, Query, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Query, Body, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { FinanceService } from './finance.service';
 import { InstallmentService } from './installment.service';
@@ -7,6 +8,7 @@ import { PaymentMethodService } from './payment-method.service';
 import { CashAccountService } from './cash-account.service';
 import { TransferService } from './transfer.service';
 import { ReconciliationService } from './reconciliation.service';
+import { FinancialReportService } from './financial-report.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -32,6 +34,7 @@ export class FinanceController {
     private readonly cashAccountService: CashAccountService,
     private readonly transferService: TransferService,
     private readonly reconciliationService: ReconciliationService,
+    private readonly reportService: FinancialReportService,
   ) {}
 
   /* ── Payment Methods ──────────────────────────────────── */
@@ -374,6 +377,38 @@ export class FinanceController {
   @Get('overdue')
   overdueAgingReport(@CurrentUser() user: AuthenticatedUser) {
     return this.installmentService.getOverdueAgingReport(user.companyId);
+  }
+
+  /* ── Financial Report PDF ─────────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('report/pdf')
+  async generateReportPdf(
+    @Query('partnerId') partnerId: string | undefined,
+    @Query('type') type: 'RECEIVABLE' | 'PAYABLE' | undefined,
+    @Query('dateFrom') dateFrom: string | undefined,
+    @Query('dateTo') dateTo: string | undefined,
+    @Query('status') status: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.reportService.generateReport(user.companyId, {
+      partnerId,
+      type,
+      dateFrom,
+      dateTo,
+      status,
+    });
+
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `Relatorio_Financeiro_${date}.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(pdfBuffer.length),
+    });
+    res.send(pdfBuffer);
   }
 
   /* ── v2.00 — Collection Rules ──────────────────────────── */

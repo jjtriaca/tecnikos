@@ -6,6 +6,7 @@ import { PaymentMethodService } from './payment-method.service';
 import { CashAccountService } from './cash-account.service';
 import { TransferService } from './transfer.service';
 import { ReconciliationService } from './reconciliation.service';
+import { FinancialReportService } from './financial-report.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
 import { FinanceController } from './finance.controller';
@@ -20,6 +21,7 @@ import { FinanceController } from './finance.controller';
     CashAccountService,
     TransferService,
     ReconciliationService,
+    FinancialReportService,
     OfxParserService,
     CsvParserService,
   ],
@@ -31,6 +33,7 @@ import { FinanceController } from './finance.controller';
     CashAccountService,
     TransferService,
     ReconciliationService,
+    FinancialReportService,
   ],
 })
 export class FinanceModule {}

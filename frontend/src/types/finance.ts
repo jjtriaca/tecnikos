@@ -232,4 +232,5 @@ export const ACTION_TYPE_OPTIONS = [
   { value: 'INTEREST_APPLY', label: 'Aplicar Juros' },
   { value: 'WHATSAPP', label: 'WhatsApp' },
   { value: 'EMAIL', label: 'E-mail' },
+  { value: 'ENVIAR_RELATORIO', label: 'Enviar Relatorio' },
 ];

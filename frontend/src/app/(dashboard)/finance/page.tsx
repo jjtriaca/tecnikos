@@ -31,6 +31,7 @@ import CollectionRulesTab from "./components/CollectionRulesTab";
 import PaymentMethodsTab from "./components/PaymentMethodsTab";
 import CashAccountsTab from "./components/CashAccountsTab";
 import ReconciliationTab from "./components/ReconciliationTab";
+import FinancialReportModal from "./components/FinancialReportModal";
 
 /* ── Legacy types (backward compat) ─────────────────────── */
 
@@ -540,6 +541,9 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [activeAccounts, setActiveAccounts] = useState<{ id: string; name: string; type: string; currentBalanceCents: number }[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
 
+  // Report modal
+  const [showReportModal, setShowReportModal] = useState(false);
+
   // New entry modal
   const [showNewForm, setShowNewForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -681,12 +685,24 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
             {meta.total} registro{meta.total !== 1 ? "s" : ""}
           </span>
         </h3>
-        <button
-          onClick={() => setShowNewForm(true)}
-          className={`rounded-lg bg-${typeColor}-600 px-3 py-2 text-sm font-semibold text-white hover:bg-${typeColor}-700 transition-colors`}
-        >
-          + Nova Entrada
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+            title="Gerar Relatorio PDF"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Relatorio PDF
+          </button>
+          <button
+            onClick={() => setShowNewForm(true)}
+            className={`rounded-lg bg-${typeColor}-600 px-3 py-2 text-sm font-semibold text-white hover:bg-${typeColor}-700 transition-colors`}
+          >
+            + Nova Entrada
+          </button>
+        </div>
       </div>
 
       <FilterBar
@@ -1043,6 +1059,13 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
           onSuccess={() => { setRenegotiateModal(null); loadEntries(); }}
         />
       )}
+
+      {/* Financial Report Modal */}
+      <FinancialReportModal
+        open={showReportModal}
+        defaultType={type}
+        onClose={() => setShowReportModal(false)}
+      />
     </div>
   );
 }

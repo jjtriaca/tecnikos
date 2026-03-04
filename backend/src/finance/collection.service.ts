@@ -296,6 +296,12 @@ export class CollectionService {
           return { status: 'SUCCESS', message: msg, error: null };
         }
 
+        case 'ENVIAR_RELATORIO': {
+          const msg = `[PLACEHOLDER] Relatorio financeiro gerado para ${partnerName} — Parcela vencida ha ${daysOverdue} dia(s), valor R$ ${(installment.totalCents / 100).toFixed(2)}`;
+          this.logger.log(msg);
+          return { status: 'SUCCESS', message: msg, error: null };
+        }
+
         default: {
           const msg = `Tipo de acao desconhecido: ${rule.actionType}`;
           this.logger.warn(msg);
