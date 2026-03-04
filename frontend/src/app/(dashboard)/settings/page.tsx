@@ -396,7 +396,7 @@ export default function SettingsPage() {
 
       savedFormRef.current = JSON.stringify(form);
       await loadCompany();
-      flashSuccess(3000);
+      flashSuccess();
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.payload?.message || err.message);
