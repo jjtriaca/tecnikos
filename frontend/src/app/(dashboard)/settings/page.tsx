@@ -640,7 +640,8 @@ export default function SettingsPage() {
                     onClick={async () => {
                       try {
                         await api.del('/companies/logo');
-                        setCompany((c) => c ? { ...c, logoUrl: null } : c);
+                        await loadCompany();
+                        flashSuccess(3000);
                       } catch { setError('Erro ao remover logo'); }
                     }}
                     className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
@@ -1020,7 +1021,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {isAdmin && isDirty ? (
+        {isAdmin && isDirty && !loading ? (
           <div className="flex items-center gap-3">
             <button
               type="submit"
