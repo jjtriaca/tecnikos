@@ -1,16 +1,23 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
 import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
 import { RenegotiateDto } from './dto/renegotiate.dto';
+import { NfseEmissionService } from '../nfse-emission/nfse-emission.service';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
 const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt'];
 
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(FinanceService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => NfseEmissionService))
+    private readonly nfseService: NfseEmissionService,
+  ) {}
 
   /* ═══════════════════════════════════════════════════════════════
      LEGACY — ServiceOrderLedger (backward compat, v1.00.16)
@@ -219,7 +226,7 @@ export class FinanceService {
       netCents = data.grossCents - commissionCents;
     }
 
-    return this.prisma.financialEntry.create({
+    const entry = await this.prisma.financialEntry.create({
       data: {
         companyId,
         serviceOrderId: data.serviceOrderId || undefined,
@@ -238,6 +245,67 @@ export class FinanceService {
         partner: { select: { id: true, name: true } },
       },
     });
+
+    // Auto-emit NFS-e if configured and entry is RECEIVABLE
+    if (data.type === 'RECEIVABLE') {
+      this.tryAutoEmitNfse(companyId, entry.id, entry.grossCents).catch((err) => {
+        this.logger.warn(`Auto-emissão NFS-e falhou para entry ${entry.id}: ${err.message}`);
+      });
+    }
+
+    return entry;
+  }
+
+  /**
+   * Checks if auto-emission is enabled and triggers NFS-e emission.
+   * Runs async (fire-and-forget) — errors are logged, not thrown.
+   */
+  private async tryAutoEmitNfse(companyId: string, entryId: string, grossCents: number) {
+    const [company, config] = await Promise.all([
+      this.prisma.company.findUnique({ where: { id: companyId }, select: { fiscalEnabled: true } }),
+      this.prisma.nfseConfig.findUnique({ where: { companyId } }),
+    ]);
+
+    if (!company?.fiscalEnabled || !config?.autoEmitOnEntry || !config.focusNfeToken) return;
+
+    // Fetch entry with partner data for tomador
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id: entryId, companyId },
+      include: {
+        partner: true,
+        serviceOrder: { include: { clientPartner: true } },
+      },
+    });
+    if (!entry) return;
+
+    const tomador = entry.serviceOrder?.clientPartner || entry.partner;
+
+    // Build discriminacao from template
+    let discriminacao = config.defaultDiscriminacao || entry.description || '';
+    if (entry.serviceOrder) {
+      discriminacao = discriminacao
+        .replace('{titulo_os}', entry.serviceOrder.title || '')
+        .replace('{descricao_os}', entry.serviceOrder.description || '');
+    }
+
+    await this.nfseService.emit(companyId, {
+      financialEntryId: entryId,
+      serviceOrderId: entry.serviceOrderId || undefined,
+      tomadorCnpjCpf: tomador?.document || undefined,
+      tomadorRazaoSocial: tomador?.name || undefined,
+      tomadorEmail: tomador?.email || undefined,
+      valorServicosCents: grossCents,
+      aliquotaIss: config.aliquotaIss || undefined,
+      issRetido: false,
+      itemListaServico: config.itemListaServico || undefined,
+      codigoCnae: config.codigoCnae || undefined,
+      codigoTributarioMunicipio: config.codigoTributarioMunicipio || undefined,
+      discriminacao,
+      naturezaOperacao: config.naturezaOperacao || undefined,
+      codigoMunicipioServico: config.codigoMunicipio || undefined,
+    });
+
+    this.logger.log(`Auto-emissão NFS-e disparada para entry ${entryId}`);
   }
 
   async findEntries(

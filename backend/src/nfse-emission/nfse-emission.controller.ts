@@ -37,6 +37,7 @@ export class NfseEmissionController {
 
   @Get('preview/:financialEntryId')
   @Roles('ADMIN', 'FINANCEIRO')
+
   async getPreview(@Req() req: any, @Param('financialEntryId') financialEntryId: string) {
     return this.nfseService.getEmissionPreview(req.user.companyId, financialEntryId);
   }
@@ -45,6 +46,7 @@ export class NfseEmissionController {
 
   @Post('emit')
   @Roles('ADMIN', 'FINANCEIRO')
+
   async emit(@Req() req: any, @Body() dto: EmitNfseDto) {
     return this.nfseService.emit(req.user.companyId, dto);
   }
@@ -53,7 +55,15 @@ export class NfseEmissionController {
 
   @Delete(':id')
   @Roles('ADMIN')
+
   async cancel(@Req() req: any, @Param('id') id: string, @Body() dto: CancelNfseDto) {
+    return this.nfseService.cancel(req.user.companyId, id, dto);
+  }
+
+  @Post(':id/cancel')
+  @Roles('ADMIN')
+
+  async cancelPost(@Req() req: any, @Param('id') id: string, @Body() dto: CancelNfseDto) {
     return this.nfseService.cancel(req.user.companyId, id, dto);
   }
 
@@ -61,16 +71,29 @@ export class NfseEmissionController {
 
   @Get('emissions')
   @Roles('ADMIN', 'FINANCEIRO')
+
   async findEmissions(
     @Req() req: any,
     @Query('status') status?: string,
     @Query('serviceOrderId') serviceOrderId?: string,
+    @Query('search') search?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('nfseNumber') nfseNumber?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.nfseService.findEmissions(req.user.companyId, {
       status,
       serviceOrderId,
+      search,
+      dateFrom,
+      dateTo,
+      nfseNumber,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
       page: page ? parseInt(page) : undefined,
       limit: limit ? parseInt(limit) : undefined,
     });
@@ -78,6 +101,7 @@ export class NfseEmissionController {
 
   @Get('emissions/:id')
   @Roles('ADMIN', 'FINANCEIRO')
+
   async findOneEmission(@Req() req: any, @Param('id') id: string) {
     return this.nfseService.findOneEmission(req.user.companyId, id);
   }
@@ -86,6 +110,7 @@ export class NfseEmissionController {
 
   @Post('emissions/:id/refresh')
   @Roles('ADMIN', 'FINANCEIRO')
+
   async refreshStatus(@Req() req: any, @Param('id') id: string) {
     return this.nfseService.refreshStatus(req.user.companyId, id);
   }
@@ -94,6 +119,7 @@ export class NfseEmissionController {
 
   @Get('emissions/:id/pdf')
   @Roles('ADMIN', 'FINANCEIRO')
+
   async downloadPdf(@Req() req: any, @Param('id') id: string, @Res() res: Response) {
     const { buffer, filename } = await this.nfseService.downloadPdf(req.user.companyId, id);
     res.set({
@@ -102,6 +128,15 @@ export class NfseEmissionController {
       'Content-Length': buffer.length,
     });
     res.end(buffer);
+  }
+
+  // ========== RESEND EMAIL ==========
+
+  @Post('emissions/:id/resend-email')
+  @Roles('ADMIN', 'FINANCEIRO')
+
+  async resendEmail(@Req() req: any, @Param('id') id: string, @Body() body: { emails?: string[] }) {
+    return this.nfseService.resendEmail(req.user.companyId, id, body.emails);
   }
 
   // ========== CHECK BEFORE PAYMENT ==========

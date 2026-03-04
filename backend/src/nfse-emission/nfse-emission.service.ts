@@ -375,17 +375,44 @@ export class NfseEmissionService {
 
   // ========== CONSULTAS ==========
 
-  async findEmissions(companyId: string, query: { status?: string; serviceOrderId?: string; page?: number; limit?: number }) {
+  async findEmissions(companyId: string, query: {
+    status?: string; serviceOrderId?: string; search?: string;
+    dateFrom?: string; dateTo?: string; nfseNumber?: string;
+    sortBy?: string; sortOrder?: 'asc' | 'desc';
+    page?: number; limit?: number;
+  }) {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const where: any = { companyId };
     if (query.status) where.status = query.status;
     if (query.serviceOrderId) where.serviceOrderId = query.serviceOrderId;
+    if (query.nfseNumber) where.nfseNumber = { contains: query.nfseNumber, mode: 'insensitive' };
+    if (query.search) {
+      where.OR = [
+        { tomadorRazaoSocial: { contains: query.search, mode: 'insensitive' } },
+        { tomadorCnpjCpf: { contains: query.search, mode: 'insensitive' } },
+        { nfseNumber: { contains: query.search, mode: 'insensitive' } },
+        { discriminacao: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+    if (query.dateFrom || query.dateTo) {
+      where.createdAt = {};
+      if (query.dateFrom) where.createdAt.gte = new Date(query.dateFrom);
+      if (query.dateTo) {
+        const to = new Date(query.dateTo);
+        to.setHours(23, 59, 59, 999);
+        where.createdAt.lte = to;
+      }
+    }
+
+    const validSortFields = ['createdAt', 'nfseNumber', 'rpsNumber', 'valorServicos', 'status'];
+    const orderField = validSortFields.includes(query.sortBy || '') ? query.sortBy! : 'createdAt';
+    const orderDir = query.sortOrder === 'asc' ? 'asc' : 'desc';
 
     const [items, total] = await Promise.all([
       this.prisma.nfseEmission.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { [orderField]: orderDir },
         skip: (page - 1) * limit,
         take: limit,
         include: {
@@ -448,6 +475,26 @@ export class NfseEmissionService {
     const buffer = await this.focusNfe.downloadPdf(token, config.focusNfeEnvironment, emission.focusNfeRef);
 
     return { buffer, filename: `nfse-${emission.nfseNumber || emission.rpsNumber}.pdf` };
+  }
+
+  // ========== RESEND EMAIL ==========
+
+  async resendEmail(companyId: string, emissionId: string, emails?: string[]) {
+    const emission = await this.prisma.nfseEmission.findFirst({
+      where: { id: emissionId, companyId },
+    });
+    if (!emission) throw new NotFoundException('NFS-e não encontrada');
+    if (emission.status !== 'AUTHORIZED') throw new BadRequestException('NFS-e não autorizada — só é possível reenviar email de notas autorizadas');
+
+    const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
+
+    const token = this.encryption.decrypt(config.focusNfeToken);
+    const targetEmails = emails?.length ? emails : (emission.tomadorEmail ? [emission.tomadorEmail] : []);
+    if (!targetEmails.length) throw new BadRequestException('Nenhum email disponível para envio');
+
+    await this.focusNfe.resendEmail(token, config.focusNfeEnvironment, emission.focusNfeRef, targetEmails);
+    return { ok: true, sentTo: targetEmails };
   }
 
   // ========== CHECK BEFORE PAYMENT ==========

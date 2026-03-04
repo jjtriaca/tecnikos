@@ -124,4 +124,22 @@ export class CompanyService {
       data: { logoWidth, logoHeight },
     });
   }
+
+  /* ── Fiscal Module ─────────────────────────────────── */
+
+  async getFiscalModule(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { fiscalEnabled: true },
+    });
+    return { fiscalEnabled: company?.fiscalEnabled ?? false };
+  }
+
+  async toggleFiscalModule(companyId: string, fiscalEnabled: boolean) {
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { fiscalEnabled },
+    });
+    return { fiscalEnabled };
+  }
 }

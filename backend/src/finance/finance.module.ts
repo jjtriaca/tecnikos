@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { FinanceService } from './finance.service';
 import { InstallmentService } from './installment.service';
 import { CollectionService } from './collection.service';
@@ -10,8 +10,10 @@ import { FinancialReportService } from './financial-report.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
 import { FinanceController } from './finance.controller';
+import { NfseEmissionModule } from '../nfse-emission/nfse-emission.module';
 
 @Module({
+  imports: [forwardRef(() => NfseEmissionModule)],
   controllers: [FinanceController],
   providers: [
     FinanceService,

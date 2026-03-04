@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import PasswordInput from "@/components/ui/PasswordInput";
+import { useFiscalModule } from "@/contexts/FiscalModuleContext";
 
 /* ===================================================================
    FISCAL SETTINGS — NFS-e Configuration (Focus NFe)
@@ -23,6 +24,7 @@ interface NfseConfig {
   codigoCnae: string | null;
   codigoTributarioMunicipio: string | null;
   aliquotaIss: number | null;
+  autoEmitOnEntry: boolean;
   askOnFinishOS: boolean;
   receiveWithoutNfse: string;
   sendEmailToTomador: boolean;
@@ -42,6 +44,7 @@ const EMPTY_CONFIG: NfseConfig = {
   codigoCnae: null,
   codigoTributarioMunicipio: null,
   aliquotaIss: null,
+  autoEmitOnEntry: false,
   askOnFinishOS: true,
   receiveWithoutNfse: "WARN",
   sendEmailToTomador: true,
@@ -77,14 +80,31 @@ const RECEIVE_WITHOUT_NFSE_OPTIONS = [
 const inputClass = "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors";
 const labelClass = "block text-xs font-medium text-slate-600 mb-1";
 
+/** Extract only user-editable fields for dirty comparison (avoids id/timestamps/token masking issues) */
+function editableSnapshot(c: NfseConfig, t: string): string {
+  return JSON.stringify([
+    c.focusNfeEnvironment, c.inscricaoMunicipal, c.codigoMunicipio,
+    c.naturezaOperacao, c.regimeEspecialTributacao, c.optanteSimplesNacional,
+    c.itemListaServico, c.codigoCnae, c.codigoTributarioMunicipio,
+    c.aliquotaIss, c.autoEmitOnEntry, c.askOnFinishOS, c.receiveWithoutNfse,
+    c.sendEmailToTomador, c.rpsSeries, c.defaultDiscriminacao, t,
+  ]);
+}
+
 export default function FiscalSettingsPage() {
+  const { fiscalEnabled, refresh: refreshFiscal } = useFiscalModule();
   const [config, setConfig] = useState<NfseConfig>(EMPTY_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [togglingModule, setTogglingModule] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [token, setToken] = useState("");
+  const [savedSnapshot, setSavedSnapshot] = useState<string>("");
   const successTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const currentSnapshot = editableSnapshot(config, token);
+  const isDirty = savedSnapshot !== "" && currentSnapshot !== savedSnapshot;
 
   function flashSuccess(msg = "Configuracoes salvas com sucesso!", ms = 3000) {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -97,10 +117,15 @@ export default function FiscalSettingsPage() {
       const data = await api.get<NfseConfig | null>("/nfse-emission/config");
       if (data) {
         setConfig(data);
-        if (data.focusNfeToken) setToken(data.focusNfeToken);
+        const t = data.focusNfeToken || "";
+        if (t) setToken(t);
+        setSavedSnapshot(editableSnapshot(data, t));
+      } else {
+        setSavedSnapshot(editableSnapshot(EMPTY_CONFIG, ""));
       }
     } catch {
       // Config not found — use defaults
+      setSavedSnapshot(editableSnapshot(EMPTY_CONFIG, ""));
     } finally {
       setLoading(false);
     }
@@ -125,6 +150,7 @@ export default function FiscalSettingsPage() {
         codigoCnae: config.codigoCnae || undefined,
         codigoTributarioMunicipio: config.codigoTributarioMunicipio || undefined,
         aliquotaIss: config.aliquotaIss ?? undefined,
+        autoEmitOnEntry: config.autoEmitOnEntry,
         askOnFinishOS: config.askOnFinishOS,
         receiveWithoutNfse: config.receiveWithoutNfse,
         sendEmailToTomador: config.sendEmailToTomador,
@@ -138,12 +164,29 @@ export default function FiscalSettingsPage() {
 
       const result = await api.put<NfseConfig>("/nfse-emission/config", payload);
       setConfig(result);
-      if (result.focusNfeToken) setToken(result.focusNfeToken);
+      const t = result.focusNfeToken || token; // keep current token if API returns masked
+      setToken(t);
+      setSavedSnapshot(editableSnapshot(result, t));
       flashSuccess();
     } catch (err: any) {
       setErrorMsg(err?.message || "Erro ao salvar configuracoes");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleToggleFiscal() {
+    setTogglingModule(true);
+    setErrorMsg(null);
+    try {
+      const next = !fiscalEnabled;
+      await api.patch("/companies/fiscal-module", { fiscalEnabled: next });
+      await refreshFiscal();
+      flashSuccess(next ? "Modulo fiscal habilitado!" : "Modulo fiscal desabilitado!");
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Erro ao alterar modulo fiscal");
+    } finally {
+      setTogglingModule(false);
     }
   }
 
@@ -189,6 +232,50 @@ export default function FiscalSettingsPage() {
           {successMsg}
         </div>
       )}
+
+      {/* ── Module Toggle ── */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${fiscalEnabled ? "bg-green-100 text-green-600" : "bg-slate-100 text-slate-400"}`}>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700">Modulo Fiscal (NFS-e)</h3>
+              <p className="text-xs text-slate-400">
+                {fiscalEnabled
+                  ? "Habilitado — emissao de notas fiscais ativa"
+                  : "Desabilitado — nenhuma funcionalidade fiscal visivel no sistema"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleToggleFiscal}
+            disabled={togglingModule}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 focus:outline-none ${
+              fiscalEnabled ? "bg-green-500" : "bg-slate-300"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
+                fiscalEnabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {!fiscalEnabled && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center mb-6">
+          <svg className="w-12 h-12 text-amber-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.694-.833-2.464 0L4.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+          <h3 className="text-sm font-semibold text-amber-800 mb-1">Modulo fiscal desabilitado</h3>
+          <p className="text-xs text-amber-600">
+            Ative o modulo acima para configurar a emissao de NFS-e e ter acesso ao menu NFe.
+          </p>
+        </div>
+      )}
+
+      {!fiscalEnabled ? null : (<>
 
       {/* ── Focus NFe Connection ── */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
@@ -399,6 +486,19 @@ export default function FiscalSettingsPage() {
           <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
             <input
               type="checkbox"
+              checked={config.autoEmitOnEntry}
+              onChange={(e) => setConfig({ ...config, autoEmitOnEntry: e.target.checked })}
+              className="rounded border-slate-300"
+            />
+            <div>
+              <span className="font-medium">Auto-emitir NFS-e ao criar lancamento a receber</span>
+              <p className="text-xs text-slate-400">Quando um lancamento financeiro do tipo &quot;A Receber&quot; for criado, emitir a NFS-e automaticamente</p>
+            </div>
+          </label>
+
+          <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
               checked={config.askOnFinishOS}
               onChange={(e) => setConfig({ ...config, askOnFinishOS: e.target.checked })}
               className="rounded border-slate-300"
@@ -444,12 +544,13 @@ export default function FiscalSettingsPage() {
       <div className="flex justify-end pb-8">
         <button
           onClick={handleSave}
-          disabled={saving}
-          className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+          disabled={saving || !isDirty}
+          className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? "Salvando..." : "Salvar Configuracoes"}
         </button>
       </div>
+      </>)}
     </div>
   );
 }

@@ -14,6 +14,26 @@
 
 ---
 
+## 2026-03-04 — Modulo Fiscal Separado + Auto-Emissao NFS-e
+
+### Decisoes do Usuario
+- NFSe deve ser um modulo separado, toggle habilitado/desabilitado
+- Quando desabilitado, TODOS os campos fiscais somem do sistema
+- Financeiro comunica com modulo fiscal sem duplicidade
+- Certificado digital fica dentro do modulo fiscal
+- **Auto-emissao de NFS-e ao criar lancamento financeiro**: deve ser opcao configuravel pelo cliente (checkbox), ja implementada
+- Abordagem pragmatica aprovada: flag fiscalEnabled, hook useModuleEnabled, guard no backend
+
+### Implementacao Acordada
+- Flag `fiscalEnabled` na Company
+- Flag `autoEmitNfse` na config fiscal
+- Hook `useModuleEnabled('fiscal')` no frontend
+- Guard nos endpoints fiscais no backend
+- Service dedicado para auto-emissao (financeiro → NFS-e)
+- Mover certificado para config fiscal (ja esta la)
+
+---
+
 ## Sessao 51 — 04/03/2026
 
 ### Pedido do Juliano (literal):
@@ -116,3 +136,47 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - `NfseStatusType`: union type
 
 ### Status: IMPLEMENTACAO CONCLUIDA — Backend + Frontend compilando com 0 erros
+
+---
+
+## Sessao 52 — 04/03/2026
+
+### Pedido do Juliano (literal):
+> "No sidebar em nfe, colocar um sub link, importacoes que sao as notas de fornecedores, e de saida, onde vai pra uma tela que ainda nao existe onde vai estar todas as notas fiscais emitidas, com opcoes de filtros, opcoes de correcoes de notas com erro, opcao de tentar validacao quando o sistema da prefeitura cair e ela ficar pendente de autorizacao, ou seja um ambiente nfe completo. O botao salvar configuracoes no fiscal fica ativo mesmo depois de clicar em salvar, deve ficar inativo so ativar se tiver modificacoes e quando salvar inativar"
+
+### Implementacao realizada:
+
+#### 1. Sidebar — Submenu NFe com links expandiveis
+- `NavItem` agora suporta `children: NavChild[]`
+- NFe no sidebar virou menu expansivel com chevron
+- Sublinks: "Importacoes" (`/nfe`) e "Saida" (`/nfe/saida`)
+- Auto-expande quando uma rota filha esta ativa
+- Visual: borda esquerda + indentacao para sublinks
+- Funciona com sidebar colapsado (sem submenu)
+
+#### 2. Pagina NFS-e Saida (`/nfe/saida/page.tsx`)
+- Listagem de todas NFS-e emitidas pela empresa
+- Cards de resumo: Total, Autorizadas, Processando, Com Erro
+- Filtros: Status, Data de/ate, Busca por tomador/CNPJ/numero
+- Tabela com DraggableHeader + SortableHeader + useTableLayout + useTableParams (padrao do sistema)
+- Colunas: Data, NFS-e, Status, Tomador, Valor, OS, Erro
+- Acoes por nota:
+  - Consultar status (PROCESSING) / Tentar novamente (ERROR)
+  - Baixar PDF (AUTHORIZED)
+  - Reenviar email (AUTHORIZED)
+  - Cancelar NFS-e (AUTHORIZED)
+  - Expandir detalhes
+- Botao bulk "Validar Pendentes" — atualiza status de todas as notas em processamento
+- Detalhes expandidos: prestador, tomador, tributacao, cod verificacao, discriminacao, lancamentos vinculados
+
+#### 3. Backend — Novos endpoints e filtros
+- `GET /nfse-emission/emissions` — filtros adicionais: search, dateFrom, dateTo, nfseNumber, sortBy, sortOrder
+- `POST /nfse-emission/emissions/:id/resend-email` — reenvio de email
+- `POST /nfse-emission/:id/cancel` — cancelamento via POST (alternativa ao DELETE com body)
+
+#### 4. Fix botao Salvar Configuracoes Fiscais
+- Criada funcao `editableSnapshot()` que compara apenas campos editaveis (exclui id, companyId, timestamps)
+- Corrigido sync do token apos save (mantém valor atual se API retorna mascarado)
+- Botao agora desativa corretamente apos salvar e so ativa quando ha mudancas
+
+### Status: BUILD OK — Backend + Frontend compilando com 0 erros

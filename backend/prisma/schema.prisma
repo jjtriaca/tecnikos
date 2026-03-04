@@ -108,6 +108,7 @@ model Company {
 
   status        String   @default("ATIVA")
   commissionBps Int      @default(1000) // 10.00% (basis points)
+  fiscalEnabled Boolean  @default(false) // Módulo fiscal (NFS-e) habilitado
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   deletedAt     DateTime?
@@ -1128,6 +1129,7 @@ model NfseConfig {
   codigoTributarioMunicipio String?
   aliquotaIss             Float?   // % ISS padrão
   // Configurações de comportamento
+  autoEmitOnEntry         Boolean  @default(false) // Auto-emitir NFS-e ao criar lançamento RECEIVABLE
   askOnFinishOS           Boolean  @default(true)  // Perguntar ao finalizar OS
   receiveWithoutNfse      String   @default("WARN") // WARN | BLOCK | IGNORE
   sendEmailToTomador      Boolean  @default(true)

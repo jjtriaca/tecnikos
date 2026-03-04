@@ -12,6 +12,7 @@ export class SaveNfseConfigDto {
   @IsOptional() @IsString() codigoCnae?: string;
   @IsOptional() @IsString() codigoTributarioMunicipio?: string;
   @IsOptional() @IsNumber() aliquotaIss?: number;
+  @IsOptional() @IsBoolean() autoEmitOnEntry?: boolean;
   @IsOptional() @IsBoolean() askOnFinishOS?: boolean;
   @IsOptional() @IsString() receiveWithoutNfse?: string; // WARN | BLOCK | IGNORE
   @IsOptional() @IsBoolean() sendEmailToTomador?: boolean;

@@ -4,12 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
+import { useFiscalModule } from "@/contexts/FiscalModuleContext";
+
+interface NavChild {
+  label: string;
+  href: string;
+}
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
   roles: UserRole[];
+  children?: NavChild[];
+  requiresFiscal?: boolean;
 }
 
 /* ── SVG Icons (clean, Bling-like) ─────────────────────── */
@@ -94,11 +102,13 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Parceiros", href: "/partners", icon: icons.partners, roles: ["ADMIN", "DESPACHO"] },
   { label: "Financeiro", href: "/finance", icon: icons.finance, roles: ["ADMIN", "FINANCEIRO"] },
   { label: "Produtos", href: "/products", icon: icons.products, roles: ["ADMIN"] },
-  { label: "NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN"] },
+  { label: "NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN"], requiresFiscal: true, children: [
+    { label: "Importações", href: "/nfe" },
+    { label: "Saída", href: "/nfe/saida" },
+  ] },
   { label: "Relatórios", href: "/reports", icon: icons.reports, roles: ["ADMIN", "FINANCEIRO", "LEITURA"] },
   { label: "Usuários", href: "/users", icon: icons.users, roles: ["ADMIN"] },
   { label: "Fluxo de Atendimento", href: "/workflow", icon: icons.workflow, roles: ["ADMIN", "DESPACHO"] },
-  { label: "WhatsApp", href: "/whatsapp", icon: icons.whatsapp, roles: ["ADMIN", "DESPACHO"] },
   { label: "Notificações", href: "/notifications", icon: icons.notifications, roles: ["ADMIN", "DESPACHO"] },
   { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN"] },
 ];
@@ -111,7 +121,9 @@ interface SidebarProps {
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const { fiscalEnabled } = useFiscalModule();
   const [buildInfo, setBuildInfo] = useState<{ version: string } | null>(null);
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch("/api/health")
@@ -120,8 +132,26 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       .catch(() => {});
   }, []);
 
+  // Auto-expand parent menus when a child route is active
+  useEffect(() => {
+    NAV_ITEMS.forEach((item) => {
+      if (item.children && item.children.some((c) => pathname === c.href || pathname.startsWith(c.href + "/"))) {
+        setExpandedMenus((prev) => new Set(prev).add(item.href));
+      }
+    });
+  }, [pathname]);
+
+  const toggleMenu = (href: string) => {
+    setExpandedMenus((prev) => {
+      const next = new Set(prev);
+      if (next.has(href)) next.delete(href);
+      else next.add(href);
+      return next;
+    });
+  };
+
   const visibleItems = NAV_ITEMS.filter(
-    (item) => user && item.roles.includes(user.role)
+    (item) => user && item.roles.includes(user.role) && (!item.requiresFiscal || fiscalEnabled)
   );
 
   return (
@@ -164,9 +194,66 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Navigation */}
       <nav className="mt-3 flex flex-col gap-0.5 px-3">
         {visibleItems.map((item) => {
-          const isActive =
+          const hasChildren = item.children && item.children.length > 0;
+          const isExpanded = expandedMenus.has(item.href);
+          const isParentActive = hasChildren
+            ? item.children!.some((c) => pathname === c.href || pathname.startsWith(c.href + "/"))
+            : false;
+          const isActive = !hasChildren && (
             pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            (item.href !== "/dashboard" && pathname.startsWith(item.href))
+          );
+
+          if (hasChildren) {
+            return (
+              <div key={item.href}>
+                <button
+                  onClick={() => collapsed ? undefined : toggleMenu(item.href)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 ${
+                    isParentActive
+                      ? "bg-blue-600/20 text-blue-400"
+                      : "text-slate-400 hover:bg-white/5 hover:text-white"
+                  }`}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <span className="flex-shrink-0 opacity-90">{item.icon}</span>
+                  {!collapsed && (
+                    <>
+                      <span className="truncate flex-1 text-left">{item.label}</span>
+                      <svg
+                        className={`h-3.5 w-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+                {!collapsed && isExpanded && (
+                  <div className="ml-5 mt-0.5 flex flex-col gap-0.5 border-l border-white/10 pl-3">
+                    {item.children!.map((child) => {
+                      const isChildActive = pathname === child.href || pathname.startsWith(child.href + "/");
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-medium transition-all duration-200 ${
+                            isChildActive
+                              ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25"
+                              : "text-slate-400 hover:bg-white/5 hover:text-white"
+                          }`}
+                        >
+                          <span className="truncate">{child.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
 
           return (
             <Link

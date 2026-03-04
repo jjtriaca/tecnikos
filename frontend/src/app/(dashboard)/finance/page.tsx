@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFiscalModule } from "@/contexts/FiscalModuleContext";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Link from "next/link";
 import LookupField from "@/components/ui/LookupField";
@@ -533,8 +534,10 @@ function SummaryCard({
 
 function EntriesTab({ type }: { type: FinancialEntryType }) {
   const { user } = useAuth();
+  const { fiscalEnabled } = useFiscalModule();
   const tp = useTableParams({ defaultSortBy: "createdAt", defaultSortOrder: "desc" });
-  const columns = buildEntryColumns(type);
+  const allColumns = buildEntryColumns(type);
+  const columns = fiscalEnabled ? allColumns : allColumns.filter((c) => c.id !== "nfseStatus");
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout(
     `finance-entries-${type}`,
     columns,
@@ -795,8 +798,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       onAction={async (action) => {
                         if (action === "CANCELLED") {
                           setCancelAction({ entry: e });
-                        } else if (type === "RECEIVABLE" && e.nfseStatus !== "AUTHORIZED") {
-                          // Check NFS-e before payment on receivables
+                        } else if (fiscalEnabled && type === "RECEIVABLE" && e.nfseStatus !== "AUTHORIZED") {
+                          // Check NFS-e before payment on receivables (only when fiscal module is enabled)
                           try {
                             const check = await api.get<{ requiresNfse: boolean; behavior: string; nfseStatus: string | null }>(
                               `/nfse-emission/check-payment/${e.id}`,
@@ -819,7 +822,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       onInstallments={() => setInstallmentModal({ entryId: e.id, netCents: e.netCents })}
                       onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
                       onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
-                      onEmitNfse={type === "RECEIVABLE" ? () => setNfseModal(e.id) : undefined}
+                      onEmitNfse={fiscalEnabled && type === "RECEIVABLE" ? () => setNfseModal(e.id) : undefined}
                     />
                   </td>
                   {orderedColumns.map((col) => {
@@ -1096,8 +1099,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         />
       )}
 
-      {/* v3.00 — NFS-e Emission Modal */}
-      {nfseModal && (
+      {/* v3.00 — NFS-e Emission Modal (only when fiscal module is enabled) */}
+      {fiscalEnabled && nfseModal && (
         <NfseEmissionModal
           financialEntryId={nfseModal}
           open={true}
@@ -1107,7 +1110,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       )}
 
       {/* v3.00 — NFS-e Warning before payment */}
-      {nfseWarnEntry && (
+      {fiscalEnabled && nfseWarnEntry && (
         <ConfirmModal
           open={true}
           title="NFS-e nao emitida"

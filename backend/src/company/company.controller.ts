@@ -62,6 +62,22 @@ export class CompanyController {
     return this.service.updateLogoDimensions(user.companyId, logoWidth, logoHeight);
   }
 
+  /* ── Fiscal Module Toggle ──────────────── */
+
+  @Get('fiscal-module')
+  getFiscalModule(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getFiscalModule(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch('fiscal-module')
+  toggleFiscalModule(
+    @Body('fiscalEnabled') fiscalEnabled: boolean,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.toggleFiscalModule(user.companyId, fiscalEnabled);
+  }
+
   /** Admin-only: soft delete */
   @Roles(UserRole.ADMIN)
   @Delete(':id')
