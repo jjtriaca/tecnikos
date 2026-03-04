@@ -142,7 +142,7 @@ export default function SettingsPage() {
   const [company, setCompany] = useState<CompanyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -172,10 +172,10 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /** Show success toast for `ms` milliseconds, cancelling any previous timer */
-  function flashSuccess(ms = 3000) {
+  function flashSuccess(msg = "Configuracoes salvas com sucesso!", ms = 3000) {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
-    setSuccess(true);
-    successTimerRef.current = setTimeout(() => setSuccess(false), ms);
+    setSuccessMsg(msg);
+    successTimerRef.current = setTimeout(() => setSuccessMsg(null), ms);
   }
 
   const loadCompany = useCallback(async () => {
@@ -342,7 +342,7 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!company) return;
     setError(null);
-    setSuccess(false);
+    setSuccessMsg(null);
     setSaving(true);
 
     try {
@@ -619,7 +619,7 @@ export default function SettingsPage() {
                         }
                         await res.json();
                         await loadCompany();
-                        flashSuccess(3000);
+                        flashSuccess("Logo enviada com sucesso!");
                       } catch (err: any) {
                         if (err.name === 'AbortError') {
                           setError('Upload demorou demais. Tente novamente.');
@@ -640,8 +640,9 @@ export default function SettingsPage() {
                     onClick={async () => {
                       try {
                         await api.del('/companies/logo');
+                        setCompany((c) => c ? { ...c, logoUrl: null } : c);
                         await loadCompany();
-                        flashSuccess(3000);
+                        flashSuccess("Logo removida com sucesso!");
                       } catch { setError('Erro ao remover logo'); }
                     }}
                     className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
@@ -685,7 +686,7 @@ export default function SettingsPage() {
                           await api.patch('/companies/logo-dimensions', { logoWidth, logoHeight });
                           setCompany((c) => c ? { ...c, logoWidth, logoHeight } : c);
                           savedLogoDimsRef.current = JSON.stringify({ logoWidth, logoHeight });
-                          flashSuccess(3000);
+                          flashSuccess("Dimensoes salvas com sucesso!");
                         } catch { setError('Erro ao salvar dimensoes'); }
                       }}
                       className="rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 transition-colors"
@@ -1150,13 +1151,13 @@ export default function SettingsPage() {
       )}
 
       {/* ── Toast de sucesso ── */}
-      {success && (
+      {successMsg && (
         <div className="fixed bottom-6 right-6 z-50 animate-fade-in">
           <div className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
             <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Configuracoes salvas com sucesso!
+            {successMsg}
           </div>
         </div>
       )}
