@@ -106,7 +106,7 @@ export class NfseEmissionService {
         numero: tomador?.addressNumber || '',
         complemento: tomador?.addressComp || '',
         bairro: tomador?.neighborhood || '',
-        codigoMunicipio: (tomador as any)?.ibgeCode || '',
+        codigoMunicipio: (tomador as any)?.ibgeCode || config.codigoMunicipio || '',
         uf: tomador?.state || '',
         cep: tomador?.cep || '',
         city: tomador?.city || '',

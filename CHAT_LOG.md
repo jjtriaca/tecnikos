@@ -297,3 +297,15 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 3. **Dados corrigidos**: Script SQL atualizou addressStreet de 2791 de 2796 parceiros no banco de producao
 
 ### Status: CORRIGIDO — Deploy v1.00.82
+
+---
+
+## Pendente — Configuracao de Email
+
+### Decisoes do Juliano:
+- Provedor: **Gmail SMTP** (senha de app)
+- Escopo: **Tudo** (NFS-e, cobranca, OS, usuarios, reset senha, alertas sistema)
+- Cada tipo de email com **toggle para habilitar/desabilitar**
+- Status: **PAUSADO** — Juliano pediu para fazer depois
+- Dependencia instalada: `nodemailer`, `handlebars`, `@types/nodemailer` (ja no package.json)
+- Nenhum codigo de email foi criado ainda
