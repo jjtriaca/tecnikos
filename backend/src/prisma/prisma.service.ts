@@ -287,6 +287,10 @@ export class PrismaService
         await this.$executeRawUnsafe(`ALTER TABLE "NfseConfig" ADD COLUMN "nfseLayout" TEXT NOT NULL DEFAULT 'MUNICIPAL'`);
         this.logger.log('Added column NfseConfig.nfseLayout');
       }
+      if (!nfseConfigColNames.has('afterEmissionSendWhatsApp')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "NfseConfig" ADD COLUMN "afterEmissionSendWhatsApp" BOOLEAN NOT NULL DEFAULT false`);
+        this.logger.log('Added column NfseConfig.afterEmissionSendWhatsApp');
+      }
 
       // FinancialEntry NFS-e columns
       const existing: { column_name: string }[] = await this.$queryRaw`

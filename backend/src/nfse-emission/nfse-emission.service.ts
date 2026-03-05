@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
 import { FocusNfeProvider, FocusNfseRequest, FocusNfsenRequest, NfseLayout } from './focus-nfe.provider';
 import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto } from './dto/nfse-emission.dto';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { randomUUID } from 'crypto';
 
 /** Retorna data/hora atual no fuso de Brasilia (UTC-3) em formato ISO sem 'Z'. */
@@ -27,6 +28,7 @@ export class NfseEmissionService {
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
     private readonly focusNfe: FocusNfeProvider,
+    private readonly whatsApp: WhatsAppService,
   ) {}
 
   // ========== CONFIG ==========
@@ -137,6 +139,7 @@ export class NfseEmissionService {
         optanteSimplesNacional: config.optanteSimplesNacional,
         regimeEspecialTributacao: config.regimeEspecialTributacao,
         sendEmailToTomador: config.sendEmailToTomador,
+        afterEmissionSendWhatsApp: config.afterEmissionSendWhatsApp,
       },
       // Entry info
       financialEntry: {
@@ -581,6 +584,48 @@ export class NfseEmissionService {
 
     await this.focusNfe.resendEmail(token, config.focusNfeEnvironment, emission.focusNfeRef, targetEmails, layout);
     return { ok: true, sentTo: targetEmails };
+  }
+
+  // ========== SEND WHATSAPP ==========
+
+  async sendWhatsApp(companyId: string, emissionId: string): Promise<{ ok: boolean; sentTo?: string }> {
+    const emission = await this.prisma.nfseEmission.findFirst({
+      where: { id: emissionId, companyId },
+      include: { financialEntries: { include: { partner: true } } },
+    });
+    if (!emission) throw new NotFoundException('NFS-e não encontrada');
+    if (emission.status !== 'AUTHORIZED') throw new BadRequestException('NFS-e não autorizada');
+
+    // Find phone from partner
+    const partner = emission.financialEntries[0]?.partner;
+    const phone = partner?.phone || '';
+    if (!phone) throw new BadRequestException('Telefone do tomador não encontrado');
+
+    const valorFormatted = ((emission.valorServicos || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const message = [
+      `*NFS-e Autorizada*`,
+      ``,
+      `Número: ${emission.nfseNumber || 'N/A'}`,
+      `Cód. Verificação: ${emission.codigoVerificacao || 'N/A'}`,
+      `Valor: ${valorFormatted}`,
+      `Tomador: ${emission.tomadorRazaoSocial || 'N/A'}`,
+      emission.discriminacao ? `Serviço: ${emission.discriminacao}` : '',
+      ``,
+      emission.pdfUrl ? `PDF: ${emission.pdfUrl}` : '',
+    ].filter(Boolean).join('\n');
+
+    await this.whatsApp.sendText(companyId, phone, message);
+
+    // Try to send PDF as document if available
+    if (emission.pdfUrl) {
+      try {
+        await this.whatsApp.sendMedia(companyId, phone, emission.pdfUrl, `NFS-e ${emission.nfseNumber || emission.rpsNumber}`, 'document');
+      } catch (err) {
+        this.logger.warn(`Failed to send NFS-e PDF via WhatsApp: ${err.message}`);
+      }
+    }
+
+    return { ok: true, sentTo: phone };
   }
 
   // ========== CHECK BEFORE PAYMENT ==========

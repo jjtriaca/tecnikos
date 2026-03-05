@@ -18,6 +18,7 @@ export class SaveNfseConfigDto {
   @IsOptional() @IsBoolean() askOnFinishOS?: boolean;
   @IsOptional() @IsString() receiveWithoutNfse?: string; // WARN | BLOCK | IGNORE
   @IsOptional() @IsBoolean() sendEmailToTomador?: boolean;
+  @IsOptional() @IsBoolean() afterEmissionSendWhatsApp?: boolean;
   @IsOptional() @IsString() rpsSeries?: string;
   @IsOptional() @IsString() defaultDiscriminacao?: string;
 }

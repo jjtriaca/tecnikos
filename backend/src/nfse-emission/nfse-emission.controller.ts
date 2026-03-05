@@ -140,6 +140,15 @@ export class NfseEmissionController {
     return this.nfseService.resendEmail(req.user.companyId, id, body.emails);
   }
 
+  // ========== SEND WHATSAPP ==========
+
+  @Post('emissions/:id/send-whatsapp')
+  @Roles('ADMIN', 'FINANCEIRO', 'FISCAL')
+  @UseGuards(FiscalGuard)
+  async sendWhatsApp(@Req() req: any, @Param('id') id: string) {
+    return this.nfseService.sendWhatsApp(req.user.companyId, id);
+  }
+
   // ========== CHECK BEFORE PAYMENT ==========
 
   @Get('check-payment/:financialEntryId')

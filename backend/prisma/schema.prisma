@@ -1136,6 +1136,7 @@ model NfseConfig {
   askOnFinishOS           Boolean  @default(true)  // Perguntar ao finalizar OS
   receiveWithoutNfse      String   @default("WARN") // WARN | BLOCK | IGNORE
   sendEmailToTomador      Boolean  @default(true)
+  afterEmissionSendWhatsApp Boolean @default(false) // Enviar NFS-e por WhatsApp ao tomador após emissão
   rpsSeries               String   @default("A")
   rpsNextNumber           Int      @default(1)
   // Discriminação padrão (template)

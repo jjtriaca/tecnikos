@@ -3,8 +3,10 @@ import { NfseEmissionController, NfseWebhookController } from './nfse-emission.c
 import { NfseEmissionService } from './nfse-emission.service';
 import { FocusNfeProvider } from './focus-nfe.provider';
 import { EncryptionService } from '../common/encryption.service';
+import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 
 @Module({
+  imports: [WhatsAppModule],
   controllers: [NfseEmissionController, NfseWebhookController],
   providers: [NfseEmissionService, FocusNfeProvider, EncryptionService],
   exports: [NfseEmissionService],

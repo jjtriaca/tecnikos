@@ -30,6 +30,7 @@ interface NfseConfig {
   askOnFinishOS: boolean;
   receiveWithoutNfse: string;
   sendEmailToTomador: boolean;
+  afterEmissionSendWhatsApp: boolean;
   rpsSeries: string;
   defaultDiscriminacao: string | null;
 }
@@ -52,6 +53,7 @@ const EMPTY_CONFIG: NfseConfig = {
   askOnFinishOS: true,
   receiveWithoutNfse: "WARN",
   sendEmailToTomador: true,
+  afterEmissionSendWhatsApp: false,
   rpsSeries: "A",
   defaultDiscriminacao: null,
 };
@@ -91,7 +93,7 @@ function editableSnapshot(c: NfseConfig, t: string): string {
     c.naturezaOperacao, c.regimeEspecialTributacao, c.optanteSimplesNacional,
     c.itemListaServico, c.codigoCnae, c.codigoTributarioMunicipio, c.codigoTributarioNacional,
     c.nfseLayout, c.aliquotaIss, c.autoEmitOnEntry, c.askOnFinishOS, c.receiveWithoutNfse,
-    c.sendEmailToTomador, c.rpsSeries, c.defaultDiscriminacao, t,
+    c.sendEmailToTomador, c.afterEmissionSendWhatsApp, c.rpsSeries, c.defaultDiscriminacao, t,
   ]);
 }
 
@@ -160,6 +162,7 @@ export default function FiscalSettingsPage() {
         askOnFinishOS: config.askOnFinishOS,
         receiveWithoutNfse: config.receiveWithoutNfse,
         sendEmailToTomador: config.sendEmailToTomador,
+        afterEmissionSendWhatsApp: config.afterEmissionSendWhatsApp,
         rpsSeries: config.rpsSeries,
         defaultDiscriminacao: config.defaultDiscriminacao || undefined,
       };
@@ -548,6 +551,19 @@ export default function FiscalSettingsPage() {
             <div>
               <span className="font-medium">Enviar email ao tomador</span>
               <p className="text-xs text-slate-400">Envia automaticamente o DANFSe por email ao tomador</p>
+            </div>
+          </label>
+
+          <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.afterEmissionSendWhatsApp}
+              onChange={(e) => setConfig({ ...config, afterEmissionSendWhatsApp: e.target.checked })}
+              className="rounded border-slate-300"
+            />
+            <div>
+              <span className="font-medium">Enviar NFS-e por WhatsApp ao tomador</span>
+              <p className="text-xs text-slate-400">Apos emissao autorizada, envia dados da NFS-e e PDF via WhatsApp</p>
             </div>
           </label>
 
