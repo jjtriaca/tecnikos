@@ -33,6 +33,8 @@ import PaymentMethodsTab from "./components/PaymentMethodsTab";
 import CashAccountsTab from "./components/CashAccountsTab";
 import ReconciliationTab from "./components/ReconciliationTab";
 import CardSettlementTab from "./components/CardSettlementTab";
+import AccountsTab from "./components/AccountsTab";
+import DreReport from "./components/DreReport";
 import FinancialReportModal from "./components/FinancialReportModal";
 
 
@@ -60,7 +62,7 @@ function formatDate(dateStr: string) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "cobranca";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "plano" | "dre" | "cobranca";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
@@ -71,6 +73,8 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
   { id: "conciliacao", label: "Conciliacao", icon: "🔄" },
   { id: "formas", label: "Formas Pgto", icon: "💳" },
+  { id: "plano", label: "Plano Contas", icon: "📋" },
+  { id: "dre", label: "DRE", icon: "📈" },
   { id: "cobranca", label: "Cobranca", icon: "⚡" },
 ];
 
@@ -183,6 +187,18 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       render: (e) =>
         e.partner ? (
           <span className="text-sm text-slate-700 truncate block" title={e.partner.name}>{e.partner.name}</span>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
+    },
+    {
+      id: "category",
+      label: "Categoria",
+      render: (e) =>
+        e.financialAccount ? (
+          <span className="text-xs text-slate-600 truncate block" title={`${e.financialAccount.code} - ${e.financialAccount.name}`}>
+            {e.financialAccount.name}
+          </span>
         ) : (
           <span className="text-xs text-slate-400">—</span>
         ),
@@ -341,6 +357,8 @@ export default function FinancePage() {
       {activeTab === "contas" && <CashAccountsTab />}
       {activeTab === "conciliacao" && <ReconciliationTab />}
       {activeTab === "formas" && <PaymentMethodsTab />}
+      {activeTab === "plano" && <AccountsTab />}
+      {activeTab === "dre" && <DreReport />}
       {activeTab === "cobranca" && <CollectionRulesTab />}
     </div>
   );
@@ -525,8 +543,9 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   // New entry modal
   const [showNewForm, setShowNewForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "" });
+  const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "" });
   const [selectedPartner, setSelectedPartner] = useState<PartnerSummary | null>(null);
+  const [postableAccounts, setPostableAccounts] = useState<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>([]);
 
   // v2.00 — Installment & Renegotiation modals
   const [installmentModal, setInstallmentModal] = useState<{ entryId: string; netCents: number } | null>(null);
@@ -566,6 +585,9 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       .catch(() => {});
     api.get<{ id: string; name: string; type: string; currentBalanceCents: number }[]>("/finance/cash-accounts/active")
       .then(setActiveAccounts)
+      .catch(() => {});
+    api.get<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>("/finance/accounts/postable")
+      .then(setPostableAccounts)
       .catch(() => {});
   }, []);
 
@@ -662,10 +684,11 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         grossCents: gross,
         dueDate: formData.dueDate || undefined,
         notes: formData.notes || undefined,
+        financialAccountId: formData.financialAccountId || undefined,
       });
       toast("Entrada criada com sucesso!", "success");
       setShowNewForm(false);
-      setFormData({ description: "", grossCents: "", dueDate: "", notes: "" });
+      setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "" });
       setSelectedPartner(null);
       await loadEntries();
     } catch {
@@ -1051,6 +1074,31 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 />
               </div>
               <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Categoria</label>
+                <select
+                  value={formData.financialAccountId}
+                  onChange={(e) => setFormData({ ...formData, financialAccountId: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                >
+                  <option value="">Sem categoria</option>
+                  {(() => {
+                    const grouped = new Map<string, typeof postableAccounts>();
+                    for (const acc of postableAccounts) {
+                      const parentName = acc.parent?.name || "Outros";
+                      if (!grouped.has(parentName)) grouped.set(parentName, []);
+                      grouped.get(parentName)!.push(acc);
+                    }
+                    return Array.from(grouped.entries()).map(([group, items]) => (
+                      <optgroup key={group} label={group}>
+                        {items.map((a) => (
+                          <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                        ))}
+                      </optgroup>
+                    ));
+                  })()}
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Observações</label>
                 <textarea
                   value={formData.notes}
@@ -1065,7 +1113,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
               <button
                 onClick={() => {
                   setShowNewForm(false);
-                  setFormData({ description: "", grossCents: "", dueDate: "", notes: "" });
+                  setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "" });
                   setSelectedPartner(null);
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"

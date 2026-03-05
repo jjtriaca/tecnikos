@@ -241,10 +241,12 @@ export class FinanceService {
         netCents,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         notes: data.notes,
+        financialAccountId: data.financialAccountId || undefined,
       },
       include: {
         serviceOrder: { select: { id: true, title: true, status: true } },
         partner: { select: { id: true, name: true } },
+        financialAccount: { select: { id: true, code: true, name: true } },
       },
     });
 
@@ -353,6 +355,7 @@ export class FinanceService {
         include: {
           serviceOrder: { select: { id: true, title: true, status: true } },
           partner: { select: { id: true, name: true } },
+          financialAccount: { select: { id: true, code: true, name: true } },
         },
       }),
       this.prisma.financialEntry.count({ where }),
@@ -370,6 +373,7 @@ export class FinanceService {
       include: {
         serviceOrder: { select: { id: true, title: true, status: true } },
         partner: { select: { id: true, name: true } },
+        financialAccount: { select: { id: true, code: true, name: true } },
       },
     });
     if (!entry) throw new NotFoundException('Entrada financeira não encontrada');

@@ -647,6 +647,129 @@ export class FinancialReportService {
     });
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     DRE — Demonstrativo de Resultado do Exercício
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async generateDre(companyId: string, dateFrom: string, dateTo: string) {
+    // Fetch all PAID entries in the period that have a financialAccount
+    const entries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        status: 'PAID',
+        deletedAt: null,
+        paidAt: {
+          gte: new Date(dateFrom),
+          lte: new Date(`${dateTo}T23:59:59.999Z`),
+        },
+      },
+      include: {
+        financialAccount: {
+          select: { id: true, code: true, name: true, type: true, parentId: true },
+        },
+      },
+    });
+
+    // Fetch all accounts hierarchy for the company
+    const accounts = await this.prisma.financialAccount.findMany({
+      where: { companyId, deletedAt: null, isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+    });
+
+    // Build parent map
+    const parentMap = new Map<string, typeof accounts[0]>();
+    const childrenMap = new Map<string, typeof accounts>();
+    for (const acc of accounts) {
+      if (!acc.parentId) {
+        parentMap.set(acc.id, acc);
+        if (!childrenMap.has(acc.id)) childrenMap.set(acc.id, []);
+      }
+    }
+    for (const acc of accounts) {
+      if (acc.parentId && childrenMap.has(acc.parentId)) {
+        childrenMap.get(acc.parentId)!.push(acc);
+      }
+    }
+
+    // Aggregate entries by financialAccountId
+    const accountTotals = new Map<string, number>();
+    let uncategorizedRevenue = 0;
+    let uncategorizedExpense = 0;
+
+    for (const entry of entries) {
+      if (entry.financialAccountId && entry.financialAccount) {
+        const current = accountTotals.get(entry.financialAccountId) || 0;
+        accountTotals.set(entry.financialAccountId, current + entry.netCents);
+      } else {
+        // Entries without category
+        if (entry.type === 'RECEIVABLE') uncategorizedRevenue += entry.netCents;
+        else uncategorizedExpense += entry.netCents;
+      }
+    }
+
+    // Build DRE structure by type
+    const buildSection = (type: string) => {
+      const groups: {
+        id: string;
+        code: string;
+        name: string;
+        totalCents: number;
+        children: { id: string; code: string; name: string; totalCents: number }[];
+      }[] = [];
+
+      for (const [parentId, parent] of parentMap.entries()) {
+        if (parent.type !== type) continue;
+        const children = childrenMap.get(parentId) || [];
+        const childRows: { id: string; code: string; name: string; totalCents: number }[] = [];
+        let groupTotal = 0;
+
+        for (const child of children) {
+          const total = accountTotals.get(child.id) || 0;
+          if (total > 0) {
+            childRows.push({ id: child.id, code: child.code, name: child.name, totalCents: total });
+            groupTotal += total;
+          }
+        }
+
+        // Also check if the parent itself has entries (shouldn't normally, but just in case)
+        const parentTotal = accountTotals.get(parentId) || 0;
+        groupTotal += parentTotal;
+
+        if (groupTotal > 0 || childRows.length > 0) {
+          groups.push({
+            id: parentId,
+            code: parent.code,
+            name: parent.name,
+            totalCents: groupTotal,
+            children: childRows,
+          });
+        }
+      }
+
+      return groups;
+    };
+
+    const revenue = buildSection('REVENUE');
+    const costs = buildSection('COST');
+    const expenses = buildSection('EXPENSE');
+
+    const totalRevenue = revenue.reduce((s, g) => s + g.totalCents, 0) + uncategorizedRevenue;
+    const totalCosts = costs.reduce((s, g) => s + g.totalCents, 0);
+    const totalExpenses = expenses.reduce((s, g) => s + g.totalCents, 0) + uncategorizedExpense;
+    const grossProfit = totalRevenue - totalCosts;
+    const netResult = grossProfit - totalExpenses;
+
+    return {
+      period: { dateFrom, dateTo },
+      revenue: { groups: revenue, uncategorizedCents: uncategorizedRevenue, totalCents: totalRevenue },
+      costs: { groups: costs, totalCents: totalCosts },
+      expenses: { groups: expenses, uncategorizedCents: uncategorizedExpense, totalCents: totalExpenses },
+      grossProfitCents: grossProfit,
+      netResultCents: netResult,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   /* ── Formatters ────────────────────────────────────────── */
 
   private formatCnpj(cnpj: string): string {

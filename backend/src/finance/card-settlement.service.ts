@@ -2,12 +2,16 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { SettleCardDto, BatchSettleCardDto } from './dto/card-settlement.dto';
+import { FinancialAccountService } from './financial-account.service';
 
 @Injectable()
 export class CardSettlementService {
   private readonly logger = new Logger(CardSettlementService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly financialAccountService: FinancialAccountService,
+  ) {}
 
   /**
    * Create a card settlement record when an entry is paid by card.
@@ -136,6 +140,7 @@ export class CardSettlementService {
   async settle(id: string, companyId: string, dto: SettleCardDto, settledByName: string) {
     const cs = await this.prisma.cardSettlement.findFirst({
       where: { id, companyId, status: 'PENDING' },
+      include: { financialEntry: { select: { description: true, partnerId: true } } },
     });
     if (!cs) throw new NotFoundException('Baixa de cartão não encontrada');
 
@@ -161,6 +166,11 @@ export class CardSettlementService {
         data: { currentBalanceCents: { increment: dto.actualAmountCents } },
       });
 
+      // Auto-generate fee expense entry for DRE reporting
+      if (cs.feeCents > 0) {
+        await this.createFeeExpense(tx, companyId, cs, settledByName);
+      }
+
       this.logger.log(`Card settlement ${id} settled: expected=${cs.expectedNetCents}, actual=${dto.actualAmountCents}, diff=${differenceCents}`);
       return updated;
     });
@@ -170,6 +180,7 @@ export class CardSettlementService {
   async settleBatch(companyId: string, dto: BatchSettleCardDto, settledByName: string) {
     const settlements = await this.prisma.cardSettlement.findMany({
       where: { id: { in: dto.ids }, companyId, status: 'PENDING' },
+      include: { financialEntry: { select: { description: true, partnerId: true } } },
     });
 
     if (settlements.length === 0) throw new BadRequestException('Nenhuma baixa pendente encontrada');
@@ -178,7 +189,7 @@ export class CardSettlementService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const cs of settlements) {
-        const actualAmount = dto.useExpectedAmounts ? cs.expectedNetCents : Math.round(cs.expectedNetCents); // use expected if flag set
+        const actualAmount = dto.useExpectedAmounts ? cs.expectedNetCents : Math.round(cs.expectedNetCents);
         const diff = actualAmount - cs.expectedNetCents;
 
         await tx.cardSettlement.update({
@@ -195,6 +206,11 @@ export class CardSettlementService {
         });
 
         totalActual += actualAmount;
+
+        // Auto-generate fee expense entry for each settlement
+        if (cs.feeCents > 0) {
+          await this.createFeeExpense(tx, companyId, cs, settledByName);
+        }
       }
 
       // Update cash account with total
@@ -206,6 +222,46 @@ export class CardSettlementService {
 
     this.logger.log(`Batch settled ${settlements.length} card settlements, total=${totalActual}`);
     return { settled: settlements.length, totalAmountCents: totalActual };
+  }
+
+  /**
+   * Create a PAYABLE expense entry for card fee (DRE reporting only).
+   * Does NOT debit cash — the fee was already retained by the card operator.
+   */
+  private async createFeeExpense(tx: any, companyId: string, cs: any, settledByName: string) {
+    try {
+      // Find the "5200" (Taxas de Cartão) system account
+      const feeAccount = await this.financialAccountService.findByCode(companyId, '5200');
+      if (!feeAccount) {
+        this.logger.warn(`Account 5200 not found for company ${companyId}, skipping fee expense`);
+        return;
+      }
+
+      const now = new Date();
+      const brandLabel = cs.cardBrand ? ` ${cs.cardBrand}` : '';
+      const entryDesc = cs.financialEntry?.description || '';
+      const description = `Taxa cartão${brandLabel} - Ref: ${entryDesc}`.trim();
+
+      await tx.financialEntry.create({
+        data: {
+          companyId,
+          type: 'PAYABLE',
+          status: 'PAID',
+          description,
+          grossCents: cs.feeCents,
+          netCents: cs.feeCents,
+          paidAt: now,
+          paymentMethod: 'TAXA_CARTAO',
+          partnerId: cs.financialEntry?.partnerId || undefined,
+          financialAccountId: feeAccount.id,
+          notes: `[${now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}] Auto-gerado na baixa do cartão por ${settledByName}`,
+        },
+      });
+
+      this.logger.log(`Fee expense created: ${cs.feeCents} cents for card settlement ${cs.id}`);
+    } catch (err) {
+      this.logger.error(`Failed to create fee expense for settlement ${cs.id}: ${err.message}`);
+    }
   }
 
   /** Cancel a pending card settlement */

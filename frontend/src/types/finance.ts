@@ -47,6 +47,10 @@ export interface FinancialEntry {
   // v3.00 — NFS-e
   nfseStatus?: string | null;       // NOT_ISSUED | PROCESSING | AUTHORIZED | ERROR | CANCELLED
   nfseEmissionId?: string | null;
+
+  // v1.01 — Plano de Contas
+  financialAccountId?: string | null;
+  financialAccount?: { id: string; code: string; name: string } | null;
 }
 
 export interface FinancialInstallment {
@@ -294,3 +298,34 @@ export const ACTION_TYPE_OPTIONS = [
   { value: 'EMAIL', label: 'E-mail' },
   { value: 'ENVIAR_RELATORIO', label: 'Enviar Relatorio' },
 ];
+
+// ═══════════════════════════════════════════════════════════════
+//   FINANCIAL ACCOUNTS (Plano de Contas) — v1.01
+// ═══════════════════════════════════════════════════════════════
+
+export type FinancialAccountType = 'REVENUE' | 'EXPENSE' | 'COST';
+
+export interface FinancialAccount {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  type: FinancialAccountType;
+  parentId?: string | null;
+  level: number;
+  allowPosting: boolean;
+  isSystem: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  children?: FinancialAccount[];
+  parent?: { id: string; code: string; name: string };
+  _count?: { entries: number; children: number };
+}
+
+export const ACCOUNT_TYPE_CONFIG: Record<FinancialAccountType, { label: string; color: string; bgColor: string }> = {
+  REVENUE: { label: 'Receita', color: 'text-green-700', bgColor: 'bg-green-50' },
+  COST:    { label: 'Custo',   color: 'text-amber-700', bgColor: 'bg-amber-50' },
+  EXPENSE: { label: 'Despesa', color: 'text-red-700',   bgColor: 'bg-red-50' },
+};

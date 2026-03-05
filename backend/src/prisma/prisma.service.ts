@@ -17,6 +17,7 @@ export class PrismaService
     await this.ensureExecutionPauseTable();
     await this.ensureNfseEmissionTables();
     await this.ensureCardSettlementTable();
+    await this.ensureFinancialAccountTable();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -398,6 +399,38 @@ export class PrismaService
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardSettlement_financialEntryId_idx" ON "CardSettlement"("financialEntryId")`);
     } catch (err) {
       this.logger.warn('CardSettlement auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  private async ensureFinancialAccountTable(): Promise<void> {
+    try {
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "FinancialAccount" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "companyId" TEXT NOT NULL,
+          "code" TEXT NOT NULL,
+          "name" TEXT NOT NULL,
+          "type" TEXT NOT NULL,
+          "parentId" TEXT,
+          "level" INTEGER NOT NULL DEFAULT 1,
+          "allowPosting" BOOLEAN NOT NULL DEFAULT false,
+          "isSystem" BOOLEAN NOT NULL DEFAULT false,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "sortOrder" INTEGER NOT NULL DEFAULT 0,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "deletedAt" TIMESTAMP(3),
+          CONSTRAINT "FinancialAccount_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "FinancialAccount_companyId_code_key" ON "FinancialAccount"("companyId", "code")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialAccount_companyId_parentId_idx" ON "FinancialAccount"("companyId", "parentId")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialAccount_companyId_type_idx" ON "FinancialAccount"("companyId", "type")`);
+      // Add financialAccountId column to FinancialEntry if missing
+      await this.$executeRawUnsafe(`ALTER TABLE "FinancialEntry" ADD COLUMN IF NOT EXISTS "financialAccountId" TEXT`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialEntry_financialAccountId_idx" ON "FinancialEntry"("financialAccountId")`);
+    } catch (err) {
+      this.logger.warn('FinancialAccount auto-migration check failed (non-fatal):', err);
     }
   }
 }

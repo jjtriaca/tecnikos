@@ -50,6 +50,10 @@ export class CreateFinancialEntryDto {
   @IsOptional()
   @IsInt()
   penaltyFixedCents?: number;
+
+  @IsOptional()
+  @IsString()
+  financialAccountId?: string;
 }
 
 export class UpdateFinancialEntryDto {

@@ -10,7 +10,9 @@ import { TransferService } from './transfer.service';
 import { ReconciliationService } from './reconciliation.service';
 import { FinancialReportService } from './financial-report.service';
 import { CardSettlementService } from './card-settlement.service';
+import { FinancialAccountService } from './financial-account.service';
 import { SettleCardDto, BatchSettleCardDto } from './dto/card-settlement.dto';
+import { CreateFinancialAccountDto, UpdateFinancialAccountDto } from './dto/financial-account.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -38,7 +40,46 @@ export class FinanceController {
     private readonly reconciliationService: ReconciliationService,
     private readonly reportService: FinancialReportService,
     private readonly cardSettlementService: CardSettlementService,
+    private readonly financialAccountService: FinancialAccountService,
   ) {}
+
+  /* ── Financial Accounts (Plano de Contas) ──────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('accounts')
+  findAccounts(@CurrentUser() user: AuthenticatedUser, @Query('type') type?: string) {
+    return this.financialAccountService.findAll(user.companyId, type);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('accounts/postable')
+  findPostableAccounts(@CurrentUser() user: AuthenticatedUser, @Query('type') type?: string) {
+    return this.financialAccountService.findPostable(user.companyId, type);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('accounts')
+  createAccount(@Body() dto: CreateFinancialAccountDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.financialAccountService.create(user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('accounts/seed')
+  seedAccounts(@CurrentUser() user: AuthenticatedUser) {
+    return this.financialAccountService.seedDefaults(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('accounts/:id')
+  updateAccount(@Param('id') id: string, @Body() dto: UpdateFinancialAccountDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.financialAccountService.update(id, user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Delete('accounts/:id')
+  deleteAccount(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.financialAccountService.delete(id, user.companyId);
+  }
 
   /* ── Payment Methods ──────────────────────────────────── */
 
@@ -466,6 +507,18 @@ export class FinanceController {
       'Content-Length': String(pdfBuffer.length),
     });
     res.send(pdfBuffer);
+  }
+
+  /* ── DRE — Demonstrativo de Resultado ────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('reports/dre')
+  async getDre(
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reportService.generateDre(user.companyId, dateFrom, dateTo);
   }
 
   /* ── v2.00 — Collection Rules ──────────────────────────── */

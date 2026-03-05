@@ -135,6 +135,7 @@ model Company {
   nfseEmissions        NfseEmission[]
   obras                Obra[]
   cardSettlements      CardSettlement[]
+  financialAccounts    FinancialAccount[]
 }
 
 model User {
@@ -593,6 +594,9 @@ model FinancialEntry {
   nfseStatus          String?           // NOT_ISSUED | PROCESSING | AUTHORIZED | ERROR | CANCELLED
   nfseEmissionId      String?           // FK para NfseEmission
 
+  // Plano de Contas (v1.01)
+  financialAccountId  String?           // FK para FinancialAccount (categoria/natureza)
+
   // Obra vinculada (v1.00.88)
   obraId              String?
 
@@ -605,7 +609,8 @@ model FinancialEntry {
   partner          Partner?       @relation(fields: [partnerId], references: [id])
   paymentMethodRef PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
   cashAccountRef   CashAccount?   @relation(fields: [cashAccountId], references: [id])
-  nfseEmission     NfseEmission?  @relation(fields: [nfseEmissionId], references: [id])
+  nfseEmission     NfseEmission?    @relation(fields: [nfseEmissionId], references: [id])
+  financialAccount FinancialAccount? @relation(fields: [financialAccountId], references: [id])
   obra             Obra?          @relation(fields: [obraId], references: [id])
 
   // Self-relations para renegociação
@@ -625,6 +630,7 @@ model FinancialEntry {
   @@index([dueDate])
   @@index([parentEntryId])
   @@index([nfseEmissionId])
+  @@index([financialAccountId])
 }
 
 // ========== Parcelas Financeiras (v2.0) ==========
@@ -1278,4 +1284,31 @@ model CardSettlement {
   @@index([companyId, status])
   @@index([companyId, expectedDate])
   @@index([financialEntryId])
+}
+
+// ========== Plano de Contas (v1.01) ==========
+model FinancialAccount {
+  id              String    @id @default(uuid())
+  companyId       String
+  code            String    // "1000", "5200", etc.
+  name            String    // "Receitas Operacionais", "Taxas de Cartão"
+  type            String    // REVENUE | EXPENSE | COST
+  parentId        String?   // null = grupo principal, preenchido = subgrupo
+  level           Int       @default(1) // 1 = grupo, 2 = subgrupo
+  allowPosting    Boolean   @default(false) // true = pode receber lançamentos (só subgrupos)
+  isSystem        Boolean   @default(false) // true = criado pelo sistema, não pode deletar
+  isActive        Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  company         Company            @relation(fields: [companyId], references: [id])
+  parent          FinancialAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children        FinancialAccount[] @relation("AccountHierarchy")
+  entries         FinancialEntry[]
+
+  @@unique([companyId, code])
+  @@index([companyId, parentId])
+  @@index([companyId, type])
 }
