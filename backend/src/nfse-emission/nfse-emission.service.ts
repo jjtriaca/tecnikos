@@ -222,6 +222,8 @@ export class NfseEmissionService {
         codigo_tributacao_municipal_iss: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
         descricao_servico: dto.discriminacao || '',
         valor_servico: valorServicos,
+        aliquota: aliquota || undefined,
+        valor_iss: valorIss > 0 ? valorIss : undefined,
         tributacao_iss: tributacaoIss,
         tipo_retencao_iss: tipoRetencaoIss,
         indicador_total_tributacao: '0',

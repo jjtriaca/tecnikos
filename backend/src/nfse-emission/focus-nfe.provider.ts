@@ -73,6 +73,8 @@ export interface FocusNfsenRequest {
   codigo_nbs?: string;
   descricao_servico: string;
   valor_servico: number;
+  aliquota?: number;          // % ISS (obrigatório para Simples Nacional)
+  valor_iss?: number;         // valor ISS calculado
   tributacao_iss: number;     // 1=Operação normal, 2=Imunidade, 3=Isenção, etc.
   tipo_retencao_iss: number;  // 1=Não retido, 2=Retido pelo tomador, etc.
   indicador_total_tributacao?: string; // "0" ou "1"
