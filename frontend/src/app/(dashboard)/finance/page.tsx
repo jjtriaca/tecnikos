@@ -1224,7 +1224,18 @@ function EntryActions({
         </button>
       )}
 
-      {/* NFS-e — emit for receivable entries without authorized NFS-e */}
+      {/* NFS-e — emit or download PDF */}
+      {type === "RECEIVABLE" && onEmitNfse && entry.nfseStatus === "AUTHORIZED" && entry.nfseEmissionId && (
+        <a
+          href={`/api/nfse-emission/emissions/${entry.nfseEmissionId}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-medium text-green-600 hover:text-green-800 transition-colors"
+          title="Baixar PDF da NFS-e"
+        >
+          PDF NFS-e
+        </a>
+      )}
       {type === "RECEIVABLE" && onEmitNfse && entry.nfseStatus !== "AUTHORIZED" && entry.nfseStatus !== "PROCESSING" && entry.status !== "CANCELLED" && (
         <button
           onClick={onEmitNfse}
