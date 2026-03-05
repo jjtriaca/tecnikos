@@ -1129,6 +1129,7 @@ model NfseConfig {
   codigoCnae              String?  // CNAE 7 dígitos
   codigoTributarioMunicipio String?
   codigoTributarioNacional String?  // cTribNac - 6 dígitos (obrigatório para NFS-e Nacional)
+  nfseLayout              String   @default("MUNICIPAL") // MUNICIPAL | NACIONAL (endpoint /v2/nfse vs /v2/nfsen)
   aliquotaIss             Float?   // % ISS padrão
   // Configurações de comportamento
   autoEmitOnEntry         Boolean  @default(false) // Auto-emitir NFS-e ao criar lançamento RECEIVABLE

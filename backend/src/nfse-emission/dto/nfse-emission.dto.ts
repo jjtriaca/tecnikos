@@ -12,6 +12,7 @@ export class SaveNfseConfigDto {
   @IsOptional() @IsString() codigoCnae?: string;
   @IsOptional() @IsString() codigoTributarioMunicipio?: string;
   @IsOptional() @IsString() codigoTributarioNacional?: string;
+  @IsOptional() @IsString() nfseLayout?: string; // MUNICIPAL | NACIONAL
   @IsOptional() @IsNumber() aliquotaIss?: number;
   @IsOptional() @IsBoolean() autoEmitOnEntry?: boolean;
   @IsOptional() @IsBoolean() askOnFinishOS?: boolean;

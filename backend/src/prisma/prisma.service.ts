@@ -283,6 +283,10 @@ export class PrismaService
         await this.$executeRawUnsafe(`ALTER TABLE "NfseConfig" ADD COLUMN "autoEmitOnEntry" BOOLEAN NOT NULL DEFAULT false`);
         this.logger.log('Added column NfseConfig.autoEmitOnEntry');
       }
+      if (!nfseConfigColNames.has('nfseLayout')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "NfseConfig" ADD COLUMN "nfseLayout" TEXT NOT NULL DEFAULT 'MUNICIPAL'`);
+        this.logger.log('Added column NfseConfig.nfseLayout');
+      }
 
       // FinancialEntry NFS-e columns
       const existing: { column_name: string }[] = await this.$queryRaw`

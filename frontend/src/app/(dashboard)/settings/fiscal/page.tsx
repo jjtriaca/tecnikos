@@ -24,6 +24,7 @@ interface NfseConfig {
   codigoCnae: string | null;
   codigoTributarioMunicipio: string | null;
   codigoTributarioNacional: string | null;
+  nfseLayout: string;
   aliquotaIss: number | null;
   autoEmitOnEntry: boolean;
   askOnFinishOS: boolean;
@@ -45,6 +46,7 @@ const EMPTY_CONFIG: NfseConfig = {
   codigoCnae: null,
   codigoTributarioMunicipio: null,
   codigoTributarioNacional: null,
+  nfseLayout: "MUNICIPAL",
   aliquotaIss: null,
   autoEmitOnEntry: false,
   askOnFinishOS: true,
@@ -88,7 +90,7 @@ function editableSnapshot(c: NfseConfig, t: string): string {
     c.focusNfeEnvironment, c.inscricaoMunicipal, c.codigoMunicipio,
     c.naturezaOperacao, c.regimeEspecialTributacao, c.optanteSimplesNacional,
     c.itemListaServico, c.codigoCnae, c.codigoTributarioMunicipio, c.codigoTributarioNacional,
-    c.aliquotaIss, c.autoEmitOnEntry, c.askOnFinishOS, c.receiveWithoutNfse,
+    c.nfseLayout, c.aliquotaIss, c.autoEmitOnEntry, c.askOnFinishOS, c.receiveWithoutNfse,
     c.sendEmailToTomador, c.rpsSeries, c.defaultDiscriminacao, t,
   ]);
 }
@@ -152,6 +154,7 @@ export default function FiscalSettingsPage() {
         codigoCnae: config.codigoCnae || undefined,
         codigoTributarioMunicipio: config.codigoTributarioMunicipio || undefined,
         codigoTributarioNacional: config.codigoTributarioNacional || undefined,
+        nfseLayout: config.nfseLayout,
         aliquotaIss: config.aliquotaIss ?? undefined,
         autoEmitOnEntry: config.autoEmitOnEntry,
         askOnFinishOS: config.askOnFinishOS,
@@ -307,6 +310,18 @@ export default function FiscalSettingsPage() {
               <option value="HOMOLOGATION">Homologacao (testes)</option>
               <option value="PRODUCTION">Producao</option>
             </select>
+          </div>
+          <div>
+            <label className={labelClass}>Layout NFS-e</label>
+            <select
+              value={config.nfseLayout}
+              onChange={(e) => setConfig({ ...config, nfseLayout: e.target.value })}
+              className={inputClass}
+            >
+              <option value="MUNICIPAL">Municipal (ABRASF) — /v2/nfse</option>
+              <option value="NACIONAL">Nacional (SPED) — /v2/nfsen</option>
+            </select>
+            <p className="text-xs text-slate-400 mt-1">Verifique qual layout seu municipio usa em focusnfe.com.br</p>
           </div>
         </div>
       </div>

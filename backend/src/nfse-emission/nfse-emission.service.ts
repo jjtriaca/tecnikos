@@ -1,7 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
-import { FocusNfeProvider, FocusNfseRequest } from './focus-nfe.provider';
+import { FocusNfeProvider, FocusNfseRequest, FocusNfsenRequest, NfseLayout } from './focus-nfe.provider';
 import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto } from './dto/nfse-emission.dto';
 import { randomUUID } from 'crypto';
 
@@ -173,52 +173,104 @@ export class NfseEmissionService {
     });
 
     // Build request
+    const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
     const valorServicos = dto.valorServicosCents / 100;
     const aliquota = dto.aliquotaIss ?? config.aliquotaIss ?? 0;
     const baseCalculo = valorServicos;
     const valorIss = Math.round(baseCalculo * aliquota) / 100;
+    const cnpjClean = company.cnpj.replace(/\D/g, '');
+    const tomadorDoc = (dto.tomadorCnpjCpf || '').replace(/\D/g, '');
 
-    const request: FocusNfseRequest = {
-      data_emissao: new Date().toISOString(),
-      natureza_operacao: dto.naturezaOperacao || config.naturezaOperacao || '1',
-      regime_especial_tributacao: config.regimeEspecialTributacao || undefined,
-      optante_simples_nacional: config.optanteSimplesNacional,
-      incentivador_cultural: false,
-      prestador: {
-        cnpj: company.cnpj.replace(/\D/g, ''),
-        inscricao_municipal: config.inscricaoMunicipal || company.im || '',
-        codigo_municipio: config.codigoMunicipio || '',
-      },
-      tomador: {
-        cnpj: dto.tomadorCnpjCpf && dto.tomadorCnpjCpf.replace(/\D/g, '').length === 14
-          ? dto.tomadorCnpjCpf.replace(/\D/g, '') : undefined,
-        cpf: dto.tomadorCnpjCpf && dto.tomadorCnpjCpf.replace(/\D/g, '').length === 11
-          ? dto.tomadorCnpjCpf.replace(/\D/g, '') : undefined,
-        razao_social: dto.tomadorRazaoSocial || '',
-        email: dto.tomadorEmail || undefined,
-        endereco: {
-          logradouro: dto.tomadorLogradouro || '',
-          numero: dto.tomadorNumero || 'S/N',
-          complemento: dto.tomadorComplemento || undefined,
-          bairro: dto.tomadorBairro || '',
-          codigo_municipio: dto.tomadorCodigoMunicipio || '',
-          uf: dto.tomadorUf || '',
-          cep: (dto.tomadorCep || '').replace(/\D/g, ''),
+    let request: FocusNfseRequest | FocusNfsenRequest;
+
+    if (layout === 'NACIONAL') {
+      // ===== Layout Nacional (flat) — endpoint /v2/nfsen =====
+      const codigoMunicipioNum = parseInt(config.codigoMunicipio || '0', 10);
+      const tomadorMunicipioNum = parseInt(dto.tomadorCodigoMunicipio || config.codigoMunicipio || '0', 10);
+
+      // codigo_opcao_simples_nacional: 1=Não optante, 2=MEI, 3=ME/EPP
+      const codigoOpcaoSN = config.optanteSimplesNacional ? 3 : 1;
+      // regime_especial_tributacao: 0=Sem regime especial
+      const regimeEspecial = parseInt(config.regimeEspecialTributacao || '0', 10);
+      // tributacao_iss: 1=Operação normal (tributação no município)
+      const tributacaoIss = 1;
+      // tipo_retencao_iss: 1=Não retido, 2=Retido pelo tomador
+      const tipoRetencaoIss = (dto.issRetido ?? false) ? 2 : 1;
+
+      const nfsenPayload: FocusNfsenRequest = {
+        data_emissao: new Date().toISOString(),
+        data_competencia: new Date().toISOString().slice(0, 10),
+        codigo_municipio_emissora: codigoMunicipioNum,
+        cnpj_prestador: cnpjClean,
+        inscricao_municipal_prestador: config.inscricaoMunicipal || company.im || undefined,
+        codigo_opcao_simples_nacional: codigoOpcaoSN,
+        regime_especial_tributacao: regimeEspecial,
+        // Tomador
+        cnpj_tomador: tomadorDoc.length === 14 ? tomadorDoc : undefined,
+        cpf_tomador: tomadorDoc.length === 11 ? tomadorDoc : undefined,
+        razao_social_tomador: dto.tomadorRazaoSocial || '',
+        codigo_municipio_tomador: tomadorMunicipioNum || undefined,
+        cep_tomador: (dto.tomadorCep || '').replace(/\D/g, '') || undefined,
+        logradouro_tomador: dto.tomadorLogradouro || undefined,
+        numero_tomador: dto.tomadorNumero || 'S/N',
+        complemento_tomador: dto.tomadorComplemento || undefined,
+        bairro_tomador: dto.tomadorBairro || undefined,
+        email_tomador: dto.tomadorEmail || undefined,
+        // Serviço
+        codigo_municipio_prestacao: codigoMunicipioNum,
+        codigo_tributacao_nacional_iss: config.codigoTributarioNacional || '',
+        codigo_tributacao_municipal_iss: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
+        descricao_servico: dto.discriminacao || '',
+        valor_servico: valorServicos,
+        tributacao_iss: tributacaoIss,
+        tipo_retencao_iss: tipoRetencaoIss,
+        indicador_total_tributacao: '0',
+      };
+      request = nfsenPayload;
+    } else {
+      // ===== Layout Municipal (nested) — endpoint /v2/nfse =====
+      request = {
+        data_emissao: new Date().toISOString(),
+        natureza_operacao: dto.naturezaOperacao || config.naturezaOperacao || '1',
+        regime_especial_tributacao: config.regimeEspecialTributacao || undefined,
+        optante_simples_nacional: config.optanteSimplesNacional,
+        incentivador_cultural: false,
+        prestador: {
+          cnpj: cnpjClean,
+          inscricao_municipal: config.inscricaoMunicipal || company.im || '',
+          codigo_municipio: config.codigoMunicipio || '',
         },
-      },
-      servico: {
-        valor_servicos: valorServicos,
-        iss_retido: dto.issRetido ?? false,
-        item_lista_servico: (dto.itemListaServico || config.itemListaServico || '').replace(/\./g, ''),
-        codigo_cnae: dto.codigoCnae || config.codigoCnae || undefined,
-        codigo_tributario_municipio: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
-        codigo_tributacao_nacional_iss: config.codigoTributarioNacional || undefined,
-        discriminacao: dto.discriminacao || '',
-        aliquota,
-        base_calculo: baseCalculo,
-        codigo_municipio: dto.codigoMunicipioServico || config.codigoMunicipio || undefined,
-      },
-    };
+        tomador: {
+          cnpj: tomadorDoc.length === 14 ? tomadorDoc : undefined,
+          cpf: tomadorDoc.length === 11 ? tomadorDoc : undefined,
+          razao_social: dto.tomadorRazaoSocial || '',
+          email: dto.tomadorEmail || undefined,
+          endereco: {
+            logradouro: dto.tomadorLogradouro || '',
+            numero: dto.tomadorNumero || 'S/N',
+            complemento: dto.tomadorComplemento || undefined,
+            bairro: dto.tomadorBairro || '',
+            codigo_municipio: dto.tomadorCodigoMunicipio || '',
+            uf: dto.tomadorUf || '',
+            cep: (dto.tomadorCep || '').replace(/\D/g, ''),
+          },
+        },
+        servico: {
+          valor_servicos: valorServicos,
+          iss_retido: dto.issRetido ?? false,
+          item_lista_servico: (dto.itemListaServico || config.itemListaServico || '').replace(/\./g, ''),
+          codigo_cnae: dto.codigoCnae || config.codigoCnae || undefined,
+          codigo_tributario_municipio: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
+          codigo_tributacao_nacional_iss: config.codigoTributarioNacional || undefined,
+          discriminacao: dto.discriminacao || '',
+          aliquota,
+          base_calculo: baseCalculo,
+          codigo_municipio: dto.codigoMunicipioServico || config.codigoMunicipio || undefined,
+        },
+      } as FocusNfseRequest;
+    }
+
+    this.logger.log(`NFS-e layout=${layout}, cTribNac="${config.codigoTributarioNacional}"`);
 
     // Create emission record + update entry status in transaction
     const emission = await this.prisma.$transaction(async (tx) => {
@@ -258,7 +310,7 @@ export class NfseEmissionService {
 
     // Send to Focus NFe (fire-and-forget, webhook will update status)
     try {
-      const result = await this.focusNfe.emit(token, config.focusNfeEnvironment, ref, request);
+      const result = await this.focusNfe.emit(token, config.focusNfeEnvironment, ref, request, layout);
       this.logger.log(`Focus NFe response: status=${result.status} ref=${ref}`);
 
       // If synchronous response with authorized status
@@ -359,11 +411,13 @@ export class NfseEmissionService {
 
     const token = this.encryption.decrypt(config.focusNfeToken);
 
+    const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
     const result = await this.focusNfe.cancel(
       token,
       config.focusNfeEnvironment,
       emission.focusNfeRef,
       dto.justificativa,
+      layout,
     );
 
     if (result.status === 'cancelado') {
@@ -462,7 +516,8 @@ export class NfseEmissionService {
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
 
     const token = this.encryption.decrypt(config.focusNfeToken);
-    const result = await this.focusNfe.query(token, config.focusNfeEnvironment, emission.focusNfeRef);
+    const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
+    const result = await this.focusNfe.query(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
 
     await this.handleWebhook(emission.focusNfeRef, result);
 
@@ -482,7 +537,8 @@ export class NfseEmissionService {
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
 
     const token = this.encryption.decrypt(config.focusNfeToken);
-    const buffer = await this.focusNfe.downloadPdf(token, config.focusNfeEnvironment, emission.focusNfeRef);
+    const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
+    const buffer = await this.focusNfe.downloadPdf(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
 
     return { buffer, filename: `nfse-${emission.nfseNumber || emission.rpsNumber}.pdf` };
   }
@@ -500,10 +556,11 @@ export class NfseEmissionService {
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
 
     const token = this.encryption.decrypt(config.focusNfeToken);
+    const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
     const targetEmails = emails?.length ? emails : (emission.tomadorEmail ? [emission.tomadorEmail] : []);
     if (!targetEmails.length) throw new BadRequestException('Nenhum email disponível para envio');
 
-    await this.focusNfe.resendEmail(token, config.focusNfeEnvironment, emission.focusNfeRef, targetEmails);
+    await this.focusNfe.resendEmail(token, config.focusNfeEnvironment, emission.focusNfeRef, targetEmails, layout);
     return { ok: true, sentTo: targetEmails };
   }
 
