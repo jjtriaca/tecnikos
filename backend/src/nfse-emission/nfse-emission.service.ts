@@ -75,9 +75,17 @@ export class NfseEmissionService {
         .replace('{titulo_os}', entry.serviceOrder.title || '')
         .replace('{descricao_os}', entry.serviceOrder.description || '')
         .replace('{tecnico}', entry.serviceOrder.assignedPartner?.name || '');
+    } else {
+      // No service order linked — remove template variables
+      discriminacao = discriminacao
+        .replace(/\{titulo_os\}/g, '')
+        .replace(/\{descricao_os\}/g, '')
+        .replace(/\{tecnico\}/g, '');
     }
+    // Clean up multiple spaces and trim
+    discriminacao = discriminacao.replace(/\s{2,}/g, ' ').trim();
     if (!discriminacao) {
-      discriminacao = entry.description || `Serviço ref. OS ${entry.serviceOrder?.title || 'N/A'}`;
+      discriminacao = entry.description || 'Prestacao de servicos';
     }
 
     return {
@@ -98,9 +106,10 @@ export class NfseEmissionService {
         numero: tomador?.addressNumber || '',
         complemento: tomador?.addressComp || '',
         bairro: tomador?.neighborhood || '',
-        codigoMunicipio: '', // Needs IBGE code mapping
+        codigoMunicipio: (tomador as any)?.ibgeCode || '',
         uf: tomador?.state || '',
         cep: tomador?.cep || '',
+        city: tomador?.city || '',
       },
       // Serviço
       servico: {

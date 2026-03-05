@@ -180,3 +180,47 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Botao agora desativa corretamente apos salvar e so ativa quando ha mudancas
 
 ### Status: BUILD OK — Backend + Frontend compilando com 0 erros
+
+---
+
+## Sessao 53 — 05/03/2026
+
+### Pedido do Juliano (literal):
+> "Ja fiz o cadastro na focus vamos preparar e configurar o ambiente NFSe"
+
+### Configuracao Focus NFe (painel externo):
+- Empresa: SLS OBRAS LTDA (CNPJ: 47.226.599/0001-40)
+- NFSe habilitada no painel Focus NFe
+- Inscricao Municipal: 9648219 (informada pelo Juliano)
+- Certificado digital: Valido
+- Serie RPS Homologacao: 1 / Proximo RPS: 1
+- Serie RPS Producao: 1 / Proximo RPS: 1
+- Regime Tributario: Simples Nacional
+- Tokens coletados: Homologacao + Producao
+
+### Dados do CNPJ (ReceitaWS):
+- Municipio: Primavera do Leste - MT (IBGE: 5107040)
+- CNAE principal: 41.20-4-00 (Construcao de edificios)
+- CNAE secundario: 43.21-5-00 (Instalacoes eletricas)
+- Optante Simples Nacional: Sim
+- Porte: EPP
+
+### Configuracao Tecnikos (pagina /settings/fiscal):
+- Token: configurado (homologacao)
+- Ambiente: Homologacao (testes)
+- Inscricao Municipal: 9648219
+- Codigo IBGE: 5107040
+- Natureza Operacao: 1 - Tributacao no municipio
+- Regime Especial: 6 - ME/EPP Simples Nacional
+- Aliquota ISS: 2%
+- Optante Simples Nacional: Sim
+- Item LC 116: 7.02
+- CNAE: 4321500
+- Serie RPS: 1
+- Discriminacao: "Prestacao de servicos conforme OS {titulo_os}. {descricao_os}"
+- Auto-emitir: Sim
+- Perguntar ao finalizar OS: Sim
+- Enviar email ao tomador: Sim
+- Recebimento sem NFS-e: Avisar
+
+### Status: CONFIGURACAO SALVA COM SUCESSO

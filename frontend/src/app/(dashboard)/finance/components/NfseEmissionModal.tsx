@@ -34,6 +34,7 @@ interface NfsePreview {
     codigoMunicipio: string;
     uf: string;
     cep: string;
+    city: string;
   };
   servico: {
     valorServicosCents: number;
@@ -92,6 +93,13 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [tomadorCnpjCpf, setTomadorCnpjCpf] = useState("");
   const [tomadorRazaoSocial, setTomadorRazaoSocial] = useState("");
   const [tomadorEmail, setTomadorEmail] = useState("");
+  const [tomadorLogradouro, setTomadorLogradouro] = useState("");
+  const [tomadorNumero, setTomadorNumero] = useState("");
+  const [tomadorComplemento, setTomadorComplemento] = useState("");
+  const [tomadorBairro, setTomadorBairro] = useState("");
+  const [tomadorCodigoMunicipio, setTomadorCodigoMunicipio] = useState("");
+  const [tomadorUf, setTomadorUf] = useState("");
+  const [tomadorCep, setTomadorCep] = useState("");
   const [discriminacao, setDiscriminacao] = useState("");
   const [aliquotaIss, setAliquotaIss] = useState("");
   const [issRetido, setIssRetido] = useState(false);
@@ -105,6 +113,13 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       setTomadorCnpjCpf(data.tomador.cnpjCpf);
       setTomadorRazaoSocial(data.tomador.razaoSocial);
       setTomadorEmail(data.tomador.email);
+      setTomadorLogradouro(data.tomador.logradouro);
+      setTomadorNumero(data.tomador.numero);
+      setTomadorComplemento(data.tomador.complemento);
+      setTomadorBairro(data.tomador.bairro);
+      setTomadorCodigoMunicipio(data.tomador.codigoMunicipio);
+      setTomadorUf(data.tomador.uf);
+      setTomadorCep(data.tomador.cep);
       setDiscriminacao(data.servico.discriminacao);
       setAliquotaIss(String(data.servico.aliquotaIss || ""));
       setIssRetido(data.servico.issRetido);
@@ -129,6 +144,26 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       toast("Discriminacao do servico e obrigatoria.", "error");
       return;
     }
+    if (!tomadorLogradouro) {
+      toast("Logradouro do tomador e obrigatorio.", "error");
+      return;
+    }
+    if (!tomadorBairro) {
+      toast("Bairro do tomador e obrigatorio.", "error");
+      return;
+    }
+    if (!tomadorUf) {
+      toast("UF do tomador e obrigatoria.", "error");
+      return;
+    }
+    if (!tomadorCep) {
+      toast("CEP do tomador e obrigatorio.", "error");
+      return;
+    }
+    if (!tomadorCodigoMunicipio) {
+      toast("Codigo do municipio (IBGE) do tomador e obrigatorio.", "error");
+      return;
+    }
 
     setEmitting(true);
     try {
@@ -138,13 +173,13 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         tomadorCnpjCpf,
         tomadorRazaoSocial,
         tomadorEmail,
-        tomadorLogradouro: preview.tomador.logradouro,
-        tomadorNumero: preview.tomador.numero,
-        tomadorComplemento: preview.tomador.complemento,
-        tomadorBairro: preview.tomador.bairro,
-        tomadorCodigoMunicipio: preview.tomador.codigoMunicipio,
-        tomadorUf: preview.tomador.uf,
-        tomadorCep: preview.tomador.cep,
+        tomadorLogradouro,
+        tomadorNumero: tomadorNumero || "S/N",
+        tomadorComplemento,
+        tomadorBairro,
+        tomadorCodigoMunicipio,
+        tomadorUf,
+        tomadorCep,
         valorServicosCents: preview.servico.valorServicosCents,
         aliquotaIss: aliquotaIss ? parseFloat(aliquotaIss) : undefined,
         issRetido,
@@ -259,13 +294,53 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                     />
                   </div>
                 </div>
-                {preview.tomador.logradouro && (
-                  <div className="mt-2 text-xs text-slate-500">
-                    Endereco: {preview.tomador.logradouro}, {preview.tomador.numero}
-                    {preview.tomador.complemento ? ` - ${preview.tomador.complemento}` : ""}
-                    {" - "}{preview.tomador.bairro} - {preview.tomador.uf} - CEP {preview.tomador.cep}
+
+                {/* Endereço do tomador */}
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Endereco</p>
+                  {(!tomadorLogradouro || !tomadorBairro || !tomadorUf || !tomadorCep || !tomadorCodigoMunicipio) && (
+                    <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700 mb-2">
+                      ⚠ Endereco incompleto — preencha todos os campos obrigatorios para emitir a NFS-e.
+                    </div>
+                  )}
+                  <div className="grid grid-cols-6 gap-2">
+                    <div className="col-span-4">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Logradouro *</label>
+                      <input type="text" value={tomadorLogradouro} onChange={(e) => setTomadorLogradouro(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Numero</label>
+                      <input type="text" value={tomadorNumero} onChange={(e) => setTomadorNumero(e.target.value)} placeholder="S/N"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Complemento</label>
+                      <input type="text" value={tomadorComplemento} onChange={(e) => setTomadorComplemento(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Bairro *</label>
+                      <input type="text" value={tomadorBairro} onChange={(e) => setTomadorBairro(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">CEP *</label>
+                      <input type="text" value={tomadorCep} onChange={(e) => setTomadorCep(e.target.value)} placeholder="00000-000"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div className="col-span-1">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">UF *</label>
+                      <input type="text" value={tomadorUf} onChange={(e) => setTomadorUf(e.target.value.toUpperCase())} maxLength={2}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Cod. Municipio IBGE *</label>
+                      <input type="text" value={tomadorCodigoMunicipio} onChange={(e) => setTomadorCodigoMunicipio(e.target.value)} placeholder="7 digitos"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Servico (editavel) */}
