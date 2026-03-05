@@ -33,8 +33,6 @@ import PaymentMethodsTab from "./components/PaymentMethodsTab";
 import CashAccountsTab from "./components/CashAccountsTab";
 import ReconciliationTab from "./components/ReconciliationTab";
 import CardSettlementTab from "./components/CardSettlementTab";
-import AccountsTab from "./components/AccountsTab";
-import DreReport from "./components/DreReport";
 import FinancialReportModal from "./components/FinancialReportModal";
 
 
@@ -62,7 +60,7 @@ function formatDate(dateStr: string) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "plano" | "dre" | "cobranca";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "cobranca";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
@@ -73,8 +71,6 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
   { id: "conciliacao", label: "Conciliacao", icon: "🔄" },
   { id: "formas", label: "Formas Pgto", icon: "💳" },
-  { id: "plano", label: "Plano Contas", icon: "📋" },
-  { id: "dre", label: "DRE", icon: "📈" },
   { id: "cobranca", label: "Cobranca", icon: "⚡" },
 ];
 
@@ -357,8 +353,6 @@ export default function FinancePage() {
       {activeTab === "contas" && <CashAccountsTab />}
       {activeTab === "conciliacao" && <ReconciliationTab />}
       {activeTab === "formas" && <PaymentMethodsTab />}
-      {activeTab === "plano" && <AccountsTab />}
-      {activeTab === "dre" && <DreReport />}
       {activeTab === "cobranca" && <CollectionRulesTab />}
     </div>
   );

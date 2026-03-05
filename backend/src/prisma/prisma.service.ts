@@ -18,6 +18,7 @@ export class PrismaService
     await this.ensureNfseEmissionTables();
     await this.ensureCardSettlementTable();
     await this.ensureFinancialAccountTable();
+    await this.ensureServiceTable();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -431,6 +432,32 @@ export class PrismaService
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialEntry_financialAccountId_idx" ON "FinancialEntry"("financialAccountId")`);
     } catch (err) {
       this.logger.warn('FinancialAccount auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  private async ensureServiceTable(): Promise<void> {
+    try {
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Service" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "companyId" TEXT NOT NULL,
+          "code" TEXT,
+          "name" TEXT NOT NULL,
+          "description" TEXT,
+          "unit" TEXT NOT NULL DEFAULT 'SV',
+          "priceCents" INTEGER,
+          "category" TEXT,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "deletedAt" TIMESTAMP(3),
+          CONSTRAINT "Service_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Service_companyId_idx" ON "Service"("companyId")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Service_companyId_code_idx" ON "Service"("companyId", "code")`);
+    } catch (err) {
+      this.logger.warn('Service auto-migration check failed (non-fatal):', err);
     }
   }
 }

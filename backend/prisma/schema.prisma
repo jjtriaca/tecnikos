@@ -136,6 +136,7 @@ model Company {
   obras                Obra[]
   cardSettlements      CardSettlement[]
   financialAccounts    FinancialAccount[]
+  services             Service[]
 }
 
 model User {
@@ -1311,4 +1312,28 @@ model FinancialAccount {
   @@unique([companyId, code])
   @@index([companyId, parentId])
   @@index([companyId, type])
+}
+
+// ========== Cadastro de Serviços ==========
+
+model Service {
+  id          String    @id @default(uuid())
+  companyId   String
+
+  code        String?   // Código interno
+  name        String    // Nome do serviço
+  description String?   // Descrição detalhada
+  unit        String    @default("SV") // SV, HR, UN
+  priceCents  Int?      // Preço unitário em centavos
+  category    String?   // Categoria livre
+  isActive    Boolean   @default(true)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  company     Company   @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@index([companyId, code])
 }

@@ -99,9 +99,15 @@ const icons = {
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: icons.dashboard, roles: ["ADMIN", "DESPACHO", "FINANCEIRO", "FISCAL", "LEITURA"] },
   { label: "Ordens de Serviço", href: "/orders", icon: icons.orders, roles: ["ADMIN", "DESPACHO", "LEITURA"] },
-  { label: "Parceiros", href: "/partners", icon: icons.partners, roles: ["ADMIN", "DESPACHO"] },
-  { label: "Financeiro", href: "/finance", icon: icons.finance, roles: ["ADMIN", "FINANCEIRO"] },
-  { label: "Produtos", href: "/products", icon: icons.products, roles: ["ADMIN"] },
+  { label: "Cadastros", href: "/partners", icon: icons.partners, roles: ["ADMIN", "DESPACHO"], children: [
+    { label: "Parceiros", href: "/partners" },
+    { label: "Produtos", href: "/products" },
+    { label: "Serviços", href: "/services" },
+  ] },
+  { label: "Finanças", href: "/finance", icon: icons.finance, roles: ["ADMIN", "FINANCEIRO"], children: [
+    { label: "Financeiro", href: "/finance" },
+    { label: "Resultados", href: "/results" },
+  ] },
   { label: "NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN", "FISCAL"], requiresFiscal: true, children: [
     { label: "Entrada", href: "/nfe" },
     { label: "Saída", href: "/nfe/saida" },
