@@ -16,7 +16,6 @@ import Pagination from "@/components/ui/Pagination";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
-import { exportToCSV, fmtDateTime, fmtMoney, type ExportColumn } from "@/lib/export-utils";
 import type {
   FinancialEntry,
   FinancialEntryType,
@@ -36,33 +35,6 @@ import ReconciliationTab from "./components/ReconciliationTab";
 import CardSettlementTab from "./components/CardSettlementTab";
 import FinancialReportModal from "./components/FinancialReportModal";
 
-/* ── Legacy types (backward compat) ─────────────────────── */
-
-type LedgerEntry = {
-  id: string;
-  serviceOrderId: string;
-  grossCents: number;
-  commissionBps: number;
-  commissionCents: number;
-  netCents: number;
-  confirmedAt: string;
-  serviceOrder: { id: string; title: string; status: string };
-};
-
-type PendingOs = {
-  id: string;
-  title: string;
-  valueCents: number;
-  status: string;
-};
-
-type LegacySummary = {
-  totalGrossCents: number;
-  totalCommissionCents: number;
-  totalNetCents: number;
-  confirmedCount: number;
-  pendingOs: PendingOs[];
-};
 
 interface PaginationMeta {
   total: number;
@@ -88,7 +60,7 @@ function formatDate(dateStr: string) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "cobranca" | "repasses";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "cobranca";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
@@ -100,7 +72,6 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "conciliacao", label: "Conciliacao", icon: "🔄" },
   { id: "formas", label: "Formas Pgto", icon: "💳" },
   { id: "cobranca", label: "Cobranca", icon: "⚡" },
-  { id: "repasses", label: "Repasses", icon: "📋" },
 ];
 
 /* ── StatusBadge ───────────────────────────────────────── */
@@ -384,7 +355,6 @@ export default function FinancePage() {
       {activeTab === "conciliacao" && <ReconciliationTab />}
       {activeTab === "formas" && <PaymentMethodsTab />}
       {activeTab === "cobranca" && <CollectionRulesTab />}
-      {activeTab === "repasses" && <LegacyTab />}
     </div>
   );
 }
@@ -1423,303 +1393,4 @@ function InstallmentsOverviewTab() {
   );
 }
 
-/* ══════════════════════════════════════════════════════════
-   TAB: REPASSES (Legacy — backward compat)
-   ══════════════════════════════════════════════════════════ */
-
-const LEDGER_FILTERS: FilterDefinition[] = [
-  { key: "dateFrom", label: "De", type: "date" },
-  { key: "dateTo", label: "Até", type: "date" },
-];
-
-const LEDGER_COLUMNS: ColumnDefinition<LedgerEntry>[] = [
-  {
-    id: "os",
-    label: "OS",
-    render: (l) => (
-      <Link href={`/orders/${l.serviceOrderId}`} className="font-medium text-slate-900 hover:text-blue-600">
-        {l.serviceOrder.title}
-      </Link>
-    ),
-  },
-  {
-    id: "grossCents",
-    label: "Bruto",
-    sortable: true,
-    align: "right",
-    render: (l) => <span className="text-slate-700">{formatCurrency(l.grossCents)}</span>,
-  },
-  {
-    id: "commissionCents",
-    label: "Comissão",
-    sortable: true,
-    align: "right",
-    render: (l) => (
-      <span className="text-amber-600">
-        -{formatCurrency(l.commissionCents)}
-        <span className="ml-1 text-xs text-slate-400">({(l.commissionBps / 100).toFixed(1)}%)</span>
-      </span>
-    ),
-  },
-  {
-    id: "netCents",
-    label: "Líquido",
-    sortable: true,
-    align: "right",
-    render: (l) => <span className="font-semibold text-green-700">{formatCurrency(l.netCents)}</span>,
-  },
-  {
-    id: "confirmedAt",
-    label: "Data",
-    sortable: true,
-    align: "right",
-    render: (l) => <span className="text-slate-500">{formatDate(l.confirmedAt)}</span>,
-  },
-];
-
-function LegacyTab() {
-  const tp = useTableParams({ defaultSortBy: "confirmedAt", defaultSortOrder: "desc" });
-  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout("finance-ledger", LEDGER_COLUMNS);
-  const [summary, setSummary] = useState<LegacySummary | null>(null);
-  const [ledgers, setLedgers] = useState<LedgerEntry[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
-  const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState<string | null>(null);
-  const [confirmModalOs, setConfirmModalOs] = useState<PendingOs | null>(null);
-  const { toast } = useToast();
-
-  async function loadSummary() {
-    try {
-      const result = await api.get<LegacySummary>("/finance/summary");
-      setSummary(result);
-    } catch { /* ignore */ }
-  }
-
-  const loadLedgers = useCallback(async () => {
-    try {
-      const qs = tp.buildQueryString();
-      const result = await api.get<PaginatedResponse<LedgerEntry>>(`/finance/ledgers?${qs}`);
-      setLedgers(result.data);
-      setMeta(result.meta);
-    } catch { /* ignore */ }
-  }, [tp.buildQueryString]);
-
-  useEffect(() => {
-    loadSummary().finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    loadLedgers();
-  }, [loadLedgers]);
-
-  async function handleConfirm() {
-    if (!confirmModalOs) return;
-    const osId = confirmModalOs.id;
-    setConfirming(osId);
-    try {
-      await api.post(`/finance/confirm/${osId}`);
-      toast("Repasse confirmado com sucesso!", "success");
-      setConfirmModalOs(null);
-      await Promise.all([loadSummary(), loadLedgers()]);
-    } catch {
-      toast("Erro ao confirmar repasse.", "error");
-    } finally {
-      setConfirming(null);
-    }
-  }
-
-  const FINANCE_CSV: ExportColumn<LedgerEntry>[] = [
-    { header: "OS", value: (r) => r.serviceOrder?.title || "" },
-    { header: "Receita Bruta (R$)", value: (r) => (r.grossCents / 100).toFixed(2).replace(".", ",") },
-    { header: "Comissão (%)", value: (r) => (r.commissionBps / 100).toFixed(2).replace(".", ",") },
-    { header: "Comissão (R$)", value: (r) => (r.commissionCents / 100).toFixed(2).replace(".", ",") },
-    { header: "Repasse Líquido (R$)", value: (r) => (r.netCents / 100).toFixed(2).replace(".", ",") },
-    { header: "Confirmado em", value: (r) => fmtDateTime(r.confirmedAt) },
-  ];
-
-  function handleExportFinanceCSV() {
-    if (!ledgers.length) { toast("Nenhum dado para exportar", "error"); return; }
-    const date = new Date().toISOString().slice(0, 10);
-    exportToCSV(ledgers, FINANCE_CSV, `financeiro-${date}.csv`);
-    toast("CSV exportado com sucesso!", "success");
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!summary) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
-        Erro ao carregar dados financeiros.
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">Repasses (Legado)</h3>
-        <button
-          onClick={handleExportFinanceCSV}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-          title="Exportar CSV"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-          CSV
-        </button>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-green-200 bg-green-50 p-5 shadow-sm">
-          <span className="text-xs font-medium text-green-700">Receita Bruta</span>
-          <p className="mt-1 text-2xl font-bold text-green-900">{formatCurrency(summary.totalGrossCents)}</p>
-        </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-          <span className="text-xs font-medium text-amber-700">Comissões</span>
-          <p className="mt-1 text-2xl font-bold text-amber-900">{formatCurrency(summary.totalCommissionCents)}</p>
-        </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
-          <span className="text-xs font-medium text-blue-700">Repasse Líquido</span>
-          <p className="mt-1 text-2xl font-bold text-blue-900">{formatCurrency(summary.totalNetCents)}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
-          <span className="text-xs font-medium text-slate-600">OS Confirmadas</span>
-          <p className="mt-1 text-2xl font-bold text-slate-900">{summary.confirmedCount}</p>
-        </div>
-      </div>
-
-      {/* Pending OS */}
-      {summary.pendingOs.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-amber-800 mb-3">
-            OS Pendentes de Confirmação ({summary.pendingOs.length})
-          </h3>
-          <div className="space-y-2">
-            {summary.pendingOs.map((os) => (
-              <div key={os.id} className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 p-3">
-                <div className="min-w-0">
-                  <Link href={`/orders/${os.id}`} className="text-sm font-medium text-slate-900 hover:text-blue-600 truncate block">
-                    {os.title}
-                  </Link>
-                  <span className="text-xs text-slate-500">Valor: {formatCurrency(os.valueCents)}</span>
-                </div>
-                <button
-                  onClick={() => setConfirmModalOs(os)}
-                  disabled={confirming === os.id}
-                  className="ml-4 flex-shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
-                >
-                  {confirming === os.id ? "Confirmando..." : "Confirmar Repasse"}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Confirmed Ledger with Filters */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700">
-            Repasses Confirmados
-            <span className="ml-2 text-xs font-normal text-slate-400">{meta.total} registro{meta.total !== 1 ? "s" : ""}</span>
-          </h3>
-        </div>
-
-        <FilterBar
-          filters={LEDGER_FILTERS}
-          values={tp.filters}
-          onChange={tp.setFilter}
-          onReset={tp.resetFilters}
-          search={tp.search}
-          onSearchChange={tp.setSearch}
-          searchPlaceholder="Buscar por título da OS..."
-        />
-
-        {ledgers.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-            <p className="text-sm text-slate-400">
-              {tp.search || Object.keys(tp.filters).length > 0
-                ? "Nenhum repasse encontrado com os filtros selecionados."
-                : "Nenhum repasse confirmado ainda."}
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "auto", overflowY: "hidden" }}>
-            <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "600px", width: "max-content" }}>
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  {orderedColumns.map((col, idx) => (
-                    <DraggableHeader
-                      key={col.id}
-                      index={idx}
-                      columnId={col.id}
-                      onReorder={reorderColumns}
-                      onResize={setColumnWidth}
-                      width={columnWidths[col.id]}
-                      className={col.headerClassName || ""}
-                    >
-                      {col.sortable ? (
-                        <SortableHeader
-                          as="div"
-                          label={col.label}
-                          column={col.sortKey || col.id}
-                          currentColumn={tp.sort.column}
-                          currentOrder={tp.sort.order}
-                          onToggle={tp.toggleSort}
-                          align={col.align}
-                        />
-                      ) : (
-                        <div className={`py-3 px-4 text-xs font-semibold uppercase text-slate-600 ${col.align === "right" ? "text-right" : ""}`}>
-                          {col.label}
-                        </div>
-                      )}
-                    </DraggableHeader>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ledgers.map((l) => (
-                  <tr key={l.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    {orderedColumns.map((col) => {
-                      const w = columnWidths[col.id];
-                      const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};
-                      return (
-                        <td key={col.id} style={tdStyle} className={`py-3 px-4 ${col.className || ""} ${col.align === "right" ? "text-right" : ""}`}>
-                          {col.render(l)}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <Pagination meta={meta} onPageChange={tp.setPage} />
-      </div>
-
-      <ConfirmModal
-        open={!!confirmModalOs}
-        title="Confirmar Repasse"
-        message={confirmModalOs ? `Deseja confirmar o repasse financeiro da OS "${confirmModalOs.title}" (${formatCurrency(confirmModalOs.valueCents)})?` : ""}
-        confirmLabel="Confirmar Repasse"
-        variant="default"
-        loading={!!confirming}
-        onConfirm={handleConfirm}
-        onCancel={() => setConfirmModalOs(null)}
-      />
-    </div>
-  );
-}
 
