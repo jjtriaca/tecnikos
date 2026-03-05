@@ -144,7 +144,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       label: "Descrição",
       render: (e) => (
         <div className="flex items-center gap-1.5">
-          <span className="text-sm font-medium text-slate-900 truncate block max-w-[180px]">
+          <span className="text-sm font-medium text-slate-900 truncate block" title={e.description || ""}>
             {e.description || "(sem descrição)"}
           </span>
           {e.installmentCount && e.installmentCount > 0 && (
@@ -170,7 +170,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       label: "OS",
       render: (e) =>
         e.serviceOrder ? (
-          <Link href={`/orders/${e.serviceOrder.id}`} className="text-sm text-blue-600 hover:underline truncate block max-w-[150px]">
+          <Link href={`/orders/${e.serviceOrder.id}`} className="text-sm text-blue-600 hover:underline truncate block">
             {e.serviceOrder.title}
           </Link>
         ) : (
@@ -182,7 +182,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       label: "Parceiro",
       render: (e) =>
         e.partner ? (
-          <span className="text-sm text-slate-700 truncate block max-w-[120px]">{e.partner.name}</span>
+          <span className="text-sm text-slate-700 truncate block" title={e.partner.name}>{e.partner.name}</span>
         ) : (
           <span className="text-xs text-slate-400">—</span>
         ),
@@ -266,48 +266,12 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       render: (e) => <span className="text-sm text-slate-500">{formatDate(e.createdAt)}</span>,
     },
     {
-      id: "activity",
-      label: "Atividade",
-      render: (e) => {
-        if (e.status === "CANCELLED" && e.cancelledByName) {
-          return (
-            <span className="text-xs text-red-600" title={`Cancelado por ${e.cancelledByName}`}>
-              {e.cancelledByName} cancelou
-            </span>
-          );
-        }
-        if (e.status === "PAID" && e.paymentMethod) {
-          return (
-            <span className="text-xs text-green-700" title={paymentMethodLabel(e.paymentMethod, e.cardBrand)}>
-              {paymentMethodLabel(e.paymentMethod, e.cardBrand)}
-            </span>
-          );
-        }
-        // Show reversal info when notes contain [ESTORNO]
-        if (e.notes?.includes("[ESTORNO]")) {
-          const lastEstorno = e.notes.split("\n").filter((l: string) => l.includes("ESTORNO")).pop() || "";
-          return (
-            <span className="text-xs text-orange-600" title={lastEstorno}>
-              Estornado
-            </span>
-          );
-        }
-        if (e.renegotiatedAt) {
-          return <span className="text-xs text-purple-600">Renegociado</span>;
-        }
-        if (e.installmentCount && e.installmentCount > 0) {
-          return <span className="text-xs text-indigo-600">Parcelado {e.installmentCount}x</span>;
-        }
-        return <span className="text-xs text-slate-400">—</span>;
-      },
-    },
-    {
       id: "reason",
-      label: "Motivo",
+      label: "Registro",
       render: (e) => {
         if (e.cancelledReason) {
           return (
-            <span className="text-xs text-slate-600 truncate block max-w-[180px]" title={e.cancelledReason}>
+            <span className="text-xs text-slate-600 truncate block" title={e.cancelledReason}>
               {e.cancelledReason}
             </span>
           );
@@ -318,7 +282,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
           if (lines.length > 0) {
             const last = lines[lines.length - 1];
             return (
-              <span className="text-xs text-slate-600 truncate block max-w-[180px] cursor-help" title={e.notes}>
+              <span className="text-xs text-slate-600 truncate block cursor-help" title={e.notes}>
                 {last.replace(/^\[.*?\]\s*/, "")}
               </span>
             );
