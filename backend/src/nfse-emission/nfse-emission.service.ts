@@ -616,6 +616,18 @@ export class NfseEmissionService {
     if (!emission) throw new NotFoundException('NFS-e não encontrada');
     if (emission.status !== 'AUTHORIZED') throw new BadRequestException('NFS-e não autorizada');
 
+    const filename = `nfse-${emission.nfseNumber || emission.rpsNumber}.pdf`;
+
+    // Use stored pdfUrl (direct S3 link) if available
+    if (emission.pdfUrl) {
+      const response = await fetch(emission.pdfUrl);
+      if (response.ok) {
+        return { buffer: Buffer.from(await response.arrayBuffer()), filename };
+      }
+      this.logger.warn(`pdfUrl fetch failed (${response.status}), falling back to API`);
+    }
+
+    // Fallback to Focus NFe API
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
 
@@ -623,7 +635,7 @@ export class NfseEmissionService {
     const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
     const buffer = await this.focusNfe.downloadPdf(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
 
-    return { buffer, filename: `nfse-${emission.nfseNumber || emission.rpsNumber}.pdf` };
+    return { buffer, filename };
   }
 
   // ========== RESEND EMAIL ==========
