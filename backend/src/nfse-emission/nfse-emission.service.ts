@@ -180,7 +180,17 @@ export class NfseEmissionService {
     // Decrypt token
     const token = this.encryption.decrypt(config.focusNfeToken);
 
-    // Generate unique ref
+    // Check for existing ERROR emission for this entry — reuse instead of duplicating
+    const existingErrorEmission = await this.prisma.nfseEmission.findFirst({
+      where: {
+        companyId,
+        status: 'ERROR',
+        financialEntries: { some: { id: dto.financialEntryId } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Generate unique ref (new ref even for retry, since the old ref may be stuck in Focus NFe)
     const ref = `tk-${companyId.substring(0, 8)}-${randomUUID().substring(0, 8)}`;
 
     // Load Obra if tipoNota=OBRA
@@ -199,12 +209,18 @@ export class NfseEmissionService {
       ? (config.codigoTributarioNacional || '')   // ex: 070202
       : (config.codigoTributarioNacionalServico || config.codigoTributarioNacional || ''); // ex: 140100
 
-    // Get next RPS number and increment atomically
-    const rpsNumber = config.rpsNextNumber;
-    await this.prisma.nfseConfig.update({
-      where: { companyId },
-      data: { rpsNextNumber: rpsNumber + 1 },
-    });
+    // Reuse RPS from existing error emission, or get next RPS number
+    let rpsNumber: number;
+    if (existingErrorEmission) {
+      rpsNumber = existingErrorEmission.rpsNumber;
+      this.logger.log(`Reusing RPS ${rpsNumber} from failed emission ${existingErrorEmission.id}`);
+    } else {
+      rpsNumber = config.rpsNextNumber;
+      await this.prisma.nfseConfig.update({
+        where: { companyId },
+        data: { rpsNextNumber: rpsNumber + 1 },
+      });
+    }
 
     // Build request
     const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
@@ -327,34 +343,45 @@ export class NfseEmissionService {
 
     this.logger.log(`NFS-e layout=${layout}, tipoNota=${dto.tipoNota || 'SERVICO'}, cTribNac="${codigoTribNac}"${isObra ? `, obra=${obra?.name} CNO=${obra?.cno}` : ''}`);
 
-    // Create emission record + update entry status in transaction
+    // Create or update emission record + update entry status in transaction
+    const emissionData = {
+      companyId,
+      serviceOrderId: dto.serviceOrderId || entry.serviceOrderId,
+      rpsNumber,
+      rpsSeries: config.rpsSeries,
+      focusNfeRef: ref,
+      status: 'PROCESSING',
+      errorMessage: null,
+      prestadorCnpj: company.cnpj!,
+      prestadorIm: config.inscricaoMunicipal,
+      prestadorCodigoMunicipio: config.codigoMunicipio,
+      tomadorCnpjCpf: dto.tomadorCnpjCpf,
+      tomadorRazaoSocial: dto.tomadorRazaoSocial,
+      tomadorEmail: dto.tomadorEmail,
+      valorServicos: dto.valorServicosCents,
+      aliquotaIss: aliquota,
+      issRetido: dto.issRetido ?? false,
+      valorIss: Math.round(valorIss * 100),
+      itemListaServico: dto.itemListaServico || config.itemListaServico,
+      codigoCnae: dto.codigoCnae || config.codigoCnae,
+      discriminacao: dto.discriminacao,
+      codigoMunicipioServico: dto.codigoMunicipioServico || config.codigoMunicipio,
+      naturezaOperacao: dto.naturezaOperacao || config.naturezaOperacao,
+      obraId: isObra ? dto.obraId : undefined,
+    };
+
     const emission = await this.prisma.$transaction(async (tx) => {
-      const em = await tx.nfseEmission.create({
-        data: {
-          companyId,
-          serviceOrderId: dto.serviceOrderId || entry.serviceOrderId,
-          rpsNumber,
-          rpsSeries: config.rpsSeries,
-          focusNfeRef: ref,
-          status: 'PROCESSING',
-          prestadorCnpj: company.cnpj!,
-          prestadorIm: config.inscricaoMunicipal,
-          prestadorCodigoMunicipio: config.codigoMunicipio,
-          tomadorCnpjCpf: dto.tomadorCnpjCpf,
-          tomadorRazaoSocial: dto.tomadorRazaoSocial,
-          tomadorEmail: dto.tomadorEmail,
-          valorServicos: dto.valorServicosCents,
-          aliquotaIss: aliquota,
-          issRetido: dto.issRetido ?? false,
-          valorIss: Math.round(valorIss * 100),
-          itemListaServico: dto.itemListaServico || config.itemListaServico,
-          codigoCnae: dto.codigoCnae || config.codigoCnae,
-          discriminacao: dto.discriminacao,
-          codigoMunicipioServico: dto.codigoMunicipioServico || config.codigoMunicipio,
-          naturezaOperacao: dto.naturezaOperacao || config.naturezaOperacao,
-          obraId: isObra ? dto.obraId : undefined,
-        },
-      });
+      let em;
+      if (existingErrorEmission) {
+        // Retry: update existing failed emission instead of creating new
+        em = await tx.nfseEmission.update({
+          where: { id: existingErrorEmission.id },
+          data: emissionData,
+        });
+        this.logger.log(`Retrying emission ${em.id} with new ref=${ref}`);
+      } else {
+        em = await tx.nfseEmission.create({ data: emissionData });
+      }
 
       await tx.financialEntry.update({
         where: { id: dto.financialEntryId },
