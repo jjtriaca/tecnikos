@@ -522,6 +522,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
 
   // Cancel with reason
   const [cancelAction, setCancelAction] = useState<{ entry: FinancialEntry } | null>(null);
+  const [reverseAction, setReverseAction] = useState<{ entry: FinancialEntry } | null>(null);
 
   // Pay/Confirm with payment method
   const [payAction, setPayAction] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" } | null>(null);
@@ -596,6 +597,22 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       await loadEntries();
     } catch {
       toast("Erro ao cancelar entrada.", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleReverse() {
+    if (!reverseAction) return;
+    const { entry } = reverseAction;
+    setActionLoading(entry.id);
+    try {
+      await api.patch(`/finance/entries/${entry.id}/status`, { status: "REVERSED" });
+      toast("Recebimento estornado com sucesso!", "success");
+      setReverseAction(null);
+      await loadEntries();
+    } catch {
+      toast("Erro ao estornar recebimento.", "error");
     } finally {
       setActionLoading(null);
     }
@@ -769,6 +786,10 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       type={type}
                       loading={actionLoading === e.id}
                       onAction={async (action) => {
+                        if (action === "REVERSED") {
+                          setReverseAction({ entry: e });
+                          return;
+                        }
                         if (action === "CANCELLED") {
                           setCancelAction({ entry: e });
                         } else if (fiscalEnabled && type === "RECEIVABLE" && e.nfseStatus !== "AUTHORIZED") {
@@ -834,6 +855,22 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         onConfirm={() => {}}
         onConfirmWithReason={handleCancel}
         onCancel={() => setCancelAction(null)}
+      />
+
+      {/* Reverse modal */}
+      <ConfirmModal
+        open={!!reverseAction}
+        title="Estornar Recebimento"
+        message={
+          reverseAction
+            ? `Deseja estornar o recebimento "${reverseAction.entry.description || "(sem descrição)"}" (${formatCurrency(reverseAction.entry.netCents)})? O saldo da conta será revertido e o lançamento voltará para "Confirmado".`
+            : ""
+        }
+        confirmLabel="Estornar"
+        variant="danger"
+        loading={!!actionLoading}
+        onConfirm={handleReverse}
+        onCancel={() => setReverseAction(null)}
       />
 
       {/* Payment method modal */}
@@ -1144,7 +1181,7 @@ function EntryActions({
   entry: FinancialEntry;
   type: FinancialEntryType;
   loading: boolean;
-  onAction: (action: "CONFIRMED" | "PAID" | "CANCELLED") => void;
+  onAction: (action: "CONFIRMED" | "PAID" | "CANCELLED" | "REVERSED") => void;
   onInstallments: () => void;
   onViewInstallments: () => void;
   onRenegotiate: () => void;
@@ -1156,7 +1193,7 @@ function EntryActions({
   }
 
   const confirmLabel = type === "RECEIVABLE" ? "Receber" : "Pagar";
-  const statusButtons: { label: string; action: "CONFIRMED" | "PAID" | "CANCELLED"; className: string }[] = [];
+  const statusButtons: { label: string; action: "CONFIRMED" | "PAID" | "CANCELLED" | "REVERSED"; className: string }[] = [];
 
   if (entry.status === "PENDING") {
     statusButtons.push(
@@ -1168,9 +1205,13 @@ function EntryActions({
       { label: confirmLabel, action: "PAID", className: "text-green-600 hover:text-green-800" },
       { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
     );
+  } else if (entry.status === "PAID") {
+    statusButtons.push(
+      { label: "Estornar", action: "REVERSED", className: "text-orange-600 hover:text-orange-800" },
+    );
   }
 
-  const isTerminal = entry.status === "PAID" || entry.status === "CANCELLED";
+  const isTerminal = entry.status === "CANCELLED";
   const hasInstallments = entry.installmentCount && entry.installmentCount > 0;
 
   return (

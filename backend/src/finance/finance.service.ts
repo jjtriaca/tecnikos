@@ -383,11 +383,14 @@ export class FinanceService {
     const { status: currentStatus } = entry;
     const { status: newStatus, notes } = dto;
 
+    // REVERSED is an alias — transitions to CONFIRMED while reversing side effects
+    const isReversal = newStatus === 'REVERSED';
+
     const allowedTransitions: Record<string, string[]> = {
       PENDING: ['CONFIRMED', 'CANCELLED'],
       CONFIRMED: ['PAID', 'CANCELLED'],
-      PAID: [],       // terminal
-      CANCELLED: [],  // terminal
+      PAID: ['REVERSED'],  // estorno
+      CANCELLED: [],       // terminal
     };
 
     if (!allowedTransitions[currentStatus]?.includes(newStatus)) {
@@ -396,19 +399,30 @@ export class FinanceService {
       );
     }
 
-    const data: any = { status: newStatus };
+    const data: any = {};
     if (notes) data.notes = notes;
-    if (newStatus === 'CONFIRMED') data.confirmedAt = new Date();
-    if (newStatus === 'PAID') {
-      data.paidAt = new Date();
-      if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
-      if (dto.cardBrand) data.cardBrand = dto.cardBrand;
-      if (dto.cashAccountId) data.cashAccountId = dto.cashAccountId;
-    }
-    if (newStatus === 'CANCELLED') {
-      data.cancelledAt = new Date();
-      if (dto.cancelledReason) data.cancelledReason = dto.cancelledReason;
-      if (dto.cancelledByName) data.cancelledByName = dto.cancelledByName;
+
+    if (isReversal) {
+      // Reversal: go back to CONFIRMED, clear payment fields
+      data.status = 'CONFIRMED';
+      data.paidAt = null;
+      data.paymentMethod = null;
+      data.cardBrand = null;
+      data.cashAccountId = null;
+    } else {
+      data.status = newStatus;
+      if (newStatus === 'CONFIRMED') data.confirmedAt = new Date();
+      if (newStatus === 'PAID') {
+        data.paidAt = new Date();
+        if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
+        if (dto.cardBrand) data.cardBrand = dto.cardBrand;
+        if (dto.cashAccountId) data.cashAccountId = dto.cashAccountId;
+      }
+      if (newStatus === 'CANCELLED') {
+        data.cancelledAt = new Date();
+        if (dto.cancelledReason) data.cancelledReason = dto.cancelledReason;
+        if (dto.cancelledByName) data.cancelledByName = dto.cancelledByName;
+      }
     }
 
     // Update entry + cash account atomically
@@ -421,6 +435,35 @@ export class FinanceService {
           partner: { select: { id: true, name: true } },
         },
       });
+
+      // Reversal: undo cash account balance and cancel card settlement
+      if (isReversal) {
+        // Reverse cash account balance if it was a direct payment
+        if (entry.cashAccountId) {
+          // Check if there's a pending card settlement for this entry
+          const cardSettlement = await tx.cardSettlement.findFirst({
+            where: { financialEntryId: id, status: 'PENDING' },
+          });
+
+          if (cardSettlement) {
+            // Card payment: cancel the card settlement (balance was never updated)
+            await tx.cardSettlement.update({
+              where: { id: cardSettlement.id },
+              data: { status: 'CANCELLED', notes: 'Estorno de recebimento' },
+            });
+            this.logger.log(`Card settlement ${cardSettlement.id} cancelled due to reversal of entry ${id}`);
+          } else {
+            // Direct payment: reverse the cash account balance
+            const deltaCents = entry.type === 'RECEIVABLE' ? -entry.netCents : entry.netCents;
+            await tx.cashAccount.update({
+              where: { id: entry.cashAccountId },
+              data: { currentBalanceCents: { increment: deltaCents } },
+            });
+            this.logger.log(`Cash account ${entry.cashAccountId} reversed by ${deltaCents} cents for entry ${id}`);
+          }
+        }
+        return updated;
+      }
 
       // Adjust cash account balance when PAID and cashAccountId is provided
       if (newStatus === 'PAID' && dto.cashAccountId) {
