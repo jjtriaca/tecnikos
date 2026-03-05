@@ -628,15 +628,23 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                           </button>
                         ))}
                       </div>
-                      {/* cTribNac info */}
-                      <p className="mt-1.5 text-xs text-slate-400">
-                        cTribNac:{" "}
-                        <span className="font-medium text-slate-600">
-                          {tipoNota === "SERVICO"
-                            ? preview.config.codigoTributarioNacionalServico || preview.config.codigoTributarioNacional || "\u2014"
-                            : preview.config.codigoTributarioNacional || "\u2014"}
-                        </span>
-                      </p>
+                      {/* cTribNac (read-only, changes with tipo) */}
+                      <div className="mt-3">
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Cod. Tributacao Nacional (cTribNac)</label>
+                        <input
+                          type="text"
+                          readOnly
+                          value={
+                            tipoNota === "SERVICO"
+                              ? preview.config.codigoTributarioNacionalServico || preview.config.codigoTributarioNacional || ""
+                              : preview.config.codigoTributarioNacional || ""
+                          }
+                          className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 font-medium outline-none cursor-default"
+                        />
+                        {tipoNota === "SERVICO" && !preview.config.codigoTributarioNacionalServico && (
+                          <p className="mt-1 text-xs text-amber-600">cTribNac de servico nao configurado. Configure em Configuracoes &gt; Fiscal.</p>
+                        )}
+                      </div>
                     </div>
 
                     {/* Obra selector (only when tipo=OBRA) */}

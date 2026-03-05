@@ -404,6 +404,53 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 
 ---
 
+## Sessao 60 — 05/03/2026
+
+### Pedido do Juliano:
+> Verificar se "grupo de informações de obra" é realmente o CNO ou outro campo. Antes de enviar nota com código de obra, se o parceiro não tiver obra cadastrada, pedir o cadastro.
+
+### Pesquisa — Campos do "Grupo de Informações de Obra" (Focus NFe):
+- `codigo_obra` (cObra) — CNO (Cadastro Nacional de Obras) ou CEI - String[1-30]
+- `logradouro_obra` (xLgr) — Endereço da obra - String[1-255]
+- `numero_obra` (nro) — Número - String[1-60]
+- `complemento_obra` (xCpl) — Complemento - String[1-156]
+- `bairro_obra` (xBairro) — Bairro - String[1-60]
+- `cep_obra` (CEP) — CEP numérico 8 dígitos - Integer[8]
+- **NÃO tem campo ART** neste layout (NFS-e Nacional flat)
+- Fonte: campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html
+
+### Implementacao (continuacao sessao 59):
+
+#### Backend — emit() atualizado:
+1. Carrega Obra do banco quando `tipoNota=OBRA` (validação: obra obrigatória + ativa)
+2. `codigoTribNac` determinado por tipoNota: OBRA usa `config.codigoTributarioNacional`, SERVICO usa `config.codigoTributarioNacionalServico` (fallback para codigoTributarioNacional)
+3. Campos de obra adicionados no payload NACIONAL: `codigo_obra`, `logradouro_obra`, `numero_obra`, `complemento_obra`, `bairro_obra`, `cep_obra`
+4. `cTribNac` usado no layout MUNICIPAL também
+5. `obraId` salvo no registro NfseEmission
+6. Log melhorado com tipoNota e info da obra
+
+#### Backend — ServiceOrder:
+1. DTOs Create/Update: campo `obraId` adicionado
+2. Service create(): passa `obraId` para Prisma
+3. Service update(): `checkField` para obraId com audit
+
+#### Frontend — NfseEmissionModal:
+- Mensagem melhorada quando tipo=OBRA e parceiro sem obras: alerta vermelho orientando a cadastrar em "Parceiros > Editar > Obras"
+
+#### Frontend — ObrasSection (PartnerForm):
+- Bug fix: `api.patch('/obras/${id}', ...)` corrigido para `api.patch('/obras/${id}/toggle')` (endpoint correto)
+
+#### Frontend — OS new/edit:
+- Seletor de obra (dropdown) adicionado abaixo do seletor de cliente
+- Só aparece quando cliente tem obras cadastradas
+- Busca obras via `GET /obras?partnerId={id}&activeOnly=true`
+- Na edição: pré-popula obraId da OS existente
+- Fix: resposta API é array direto (não `{ data: [...] }`)
+
+### Status: CONCLUIDO — Deploy v1.00.88
+
+---
+
 ## Pendente — Configuracao de Email
 
 ### Decisoes do Juliano:
