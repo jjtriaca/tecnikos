@@ -238,6 +238,8 @@ export class NfseEmissionService {
         cnpj_prestador: cnpjClean,
         inscricao_municipal_prestador: config.inscricaoMunicipal || company.im || undefined,
         codigo_opcao_simples_nacional: codigoOpcaoSN,
+        // regApTribSN — obrigatório para optantes SN (ME/EPP): 1=Tudo pelo SN
+        ...(config.optanteSimplesNacional ? { regime_tributario_simples_nacional: 1 } : {}),
         regime_especial_tributacao: regimeEspecial,
         // Tomador
         cnpj_tomador: tomadorDoc.length === 14 ? tomadorDoc : undefined,
