@@ -300,6 +300,24 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 
 ---
 
+## Sessao 56 — 05/03/2026
+
+### Pedido do Juliano:
+> "Porque o campo cod municipio IBGE está ficando em branco na hora de emitir uma nota, precisamos tratar isso, tem que já trazer automatico"
+
+### Problema identificado:
+- No `nfse-emission.service.ts` linha 109: `codigoMunicipio: (tomador as any)?.ibgeCode || ''`
+- O model Partner NAO tem campo `ibgeCode`, entao sempre retornava vazio
+- O IBGE do tomador deve usar fallback para o codigo da empresa emissora
+
+### Correcao:
+- Alterado para: `codigoMunicipio: (tomador as any)?.ibgeCode || config.codigoMunicipio || ''`
+- Agora usa o IBGE da config da empresa (5107040) como fallback
+
+### Status: CORRIGIDO — Deploy v1.00.83 — Confirmado pelo Juliano que campo aparece preenchido
+
+---
+
 ## Pendente — Configuracao de Email
 
 ### Decisoes do Juliano:

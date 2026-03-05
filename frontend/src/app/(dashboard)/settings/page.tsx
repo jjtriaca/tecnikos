@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError, getAccessToken } from "@/lib/api";
+import { toTitleCase } from "@/lib/brazil-utils";
 
 /* ── Types ──────────────────────────────────────────── */
 
@@ -413,11 +414,11 @@ export default function SettingsPage() {
   const inputClass = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 disabled:bg-slate-50 disabled:text-slate-500 transition-colors";
 
   function Field({
-    label, value, onChange, required, disabled, placeholder, className, type = "text",
+    label, value, onChange, required, disabled, placeholder, className, type = "text", onBlur,
   }: {
     label: string; value: string; onChange: (v: string) => void;
     required?: boolean; disabled?: boolean; placeholder?: string;
-    className?: string; type?: string;
+    className?: string; type?: string; onBlur?: () => void;
   }) {
     return (
       <div className={className}>
@@ -428,6 +429,7 @@ export default function SettingsPage() {
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
           required={required}
           disabled={disabled}
           placeholder={placeholder}
@@ -715,6 +717,7 @@ export default function SettingsPage() {
               label="Razao Social"
               value={form.name}
               onChange={(v) => setField("name", v)}
+              onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))}
               required
               disabled={!isAdmin}
               placeholder="Razao social completa"
@@ -724,6 +727,7 @@ export default function SettingsPage() {
               label="Nome Fantasia"
               value={form.tradeName}
               onChange={(v) => setField("tradeName", v)}
+              onBlur={() => setForm((f) => ({ ...f, tradeName: toTitleCase(f.tradeName) }))}
               disabled={!isAdmin}
               placeholder="Nome comercial"
             />
@@ -801,6 +805,7 @@ export default function SettingsPage() {
               label="Endereco"
               value={form.addressStreet}
               onChange={(v) => setField("addressStreet", v)}
+              onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))}
               disabled={!isAdmin}
               placeholder="Rua, Av., etc."
               className="sm:col-span-2 lg:col-span-2"
@@ -816,6 +821,7 @@ export default function SettingsPage() {
               label="Complemento"
               value={form.addressComp}
               onChange={(v) => setField("addressComp", v)}
+              onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))}
               disabled={!isAdmin}
               placeholder="Sala, Andar, Bloco"
             />
@@ -823,6 +829,7 @@ export default function SettingsPage() {
               label="Bairro"
               value={form.neighborhood}
               onChange={(v) => setField("neighborhood", v)}
+              onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))}
               disabled={!isAdmin}
               placeholder="Bairro"
             />
@@ -830,6 +837,7 @@ export default function SettingsPage() {
               label="Cidade"
               value={form.city}
               onChange={(v) => setField("city", v)}
+              onBlur={() => setForm((f) => ({ ...f, city: toTitleCase(f.city) }))}
               disabled={!isAdmin}
               placeholder="Cidade"
             />
@@ -863,6 +871,7 @@ export default function SettingsPage() {
               label="Nome Completo"
               value={form.ownerName}
               onChange={(v) => setField("ownerName", v)}
+              onBlur={() => setForm((f) => ({ ...f, ownerName: toTitleCase(f.ownerName) }))}
               disabled={!isAdmin}
               placeholder="Nome do responsavel"
             />

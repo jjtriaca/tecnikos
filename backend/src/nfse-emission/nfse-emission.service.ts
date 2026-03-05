@@ -69,22 +69,17 @@ export class NfseEmissionService {
     const tomador = entry.serviceOrder?.clientPartner || entry.partner;
 
     // Build discriminacao from template
-    let discriminacao = config.defaultDiscriminacao || '';
+    let discriminacao = '';
     if (entry.serviceOrder) {
-      discriminacao = discriminacao
+      // Has OS — use template with variables
+      discriminacao = (config.defaultDiscriminacao || '')
         .replace('{titulo_os}', entry.serviceOrder.title || '')
         .replace('{descricao_os}', entry.serviceOrder.description || '')
         .replace('{tecnico}', entry.serviceOrder.assignedPartner?.name || '');
-    } else {
-      // No service order linked — remove template variables
-      discriminacao = discriminacao
-        .replace(/\{titulo_os\}/g, '')
-        .replace(/\{descricao_os\}/g, '')
-        .replace(/\{tecnico\}/g, '');
+      discriminacao = discriminacao.replace(/\s{2,}/g, ' ').trim();
     }
-    // Clean up multiple spaces and trim
-    discriminacao = discriminacao.replace(/\s{2,}/g, ' ').trim();
     if (!discriminacao) {
+      // No OS or template resulted in empty — use financial entry description
       discriminacao = entry.description || 'Prestacao de servicos';
     }
 

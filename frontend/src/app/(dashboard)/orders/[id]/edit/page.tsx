@@ -20,6 +20,7 @@ import {
   fetchCitiesByState,
   geocodeAddress,
   composeAddressText,
+  toTitleCase,
   type IBGECity,
 } from "@/lib/brazil-utils";
 
@@ -469,6 +470,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
               name="title"
               value={form.title}
               onChange={onChange}
+              onBlur={() => setForm((f) => ({ ...f, title: toTitleCase(f.title) }))}
               required
               placeholder="Ex: Manutenção ar-condicionado"
               className={inputClass}
@@ -497,6 +499,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
               name="contactPersonName"
               value={form.contactPersonName}
               onChange={onChange}
+              onBlur={() => setForm((f) => ({ ...f, contactPersonName: toTitleCase(f.contactPersonName) }))}
               placeholder="Nome de quem estará no local"
               className={inputClass}
             />
@@ -678,6 +681,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                     name="neighborhood"
                     value={form.neighborhood}
                     onChange={onChange}
+                    onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))}
                     placeholder="Bairro"
                     className={inputClass}
                   />
@@ -692,6 +696,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                     name="addressStreet"
                     value={form.addressStreet}
                     onChange={onChange}
+                    onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))}
                     required
                     placeholder="Endereco"
                     className={inputClass}
@@ -716,6 +721,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                   name="addressComp"
                   value={form.addressComp}
                   onChange={onChange}
+                  onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))}
                   placeholder="Apt, Sala, Bloco..."
                   className={inputClass}
                 />

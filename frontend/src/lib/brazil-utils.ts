@@ -1,3 +1,44 @@
+// ========== Title Case ==========
+
+/** Preposicoes / artigos que ficam minusculos (exceto se primeira palavra) */
+const LOWERCASE_WORDS = new Set([
+  "de", "da", "do", "das", "dos", "e", "em", "na", "no", "nas", "nos",
+  "com", "por", "para", "ao", "aos", "a", "as", "o", "os", "um", "uma",
+]);
+
+/**
+ * Converte texto para Title Case (primeira letra de cada palavra maiuscula).
+ * Preposicoes/artigos ficam minusculos, exceto se forem a primeira palavra.
+ * Ex: "rua sao bernardo do campo" → "Rua Sao Bernardo do Campo"
+ */
+export function toTitleCase(text: string): string {
+  if (!text) return text;
+  return text
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (!word) return word;
+      if (index > 0 && LOWERCASE_WORDS.has(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}
+
+/**
+ * Handler para onBlur que aplica Title Case ao valor do input.
+ * Uso: onBlur={titleCaseBlur(value, setter)}
+ */
+export function titleCaseBlur(
+  value: string,
+  setter: (v: string) => void,
+) {
+  return () => {
+    if (value && value !== toTitleCase(value)) {
+      setter(toTitleCase(value));
+    }
+  };
+}
+
 // States array
 export const STATES = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",

@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AuditLogDrawer from "@/components/ui/AuditLogDrawer";
 import PasswordInput from "@/components/ui/PasswordInput";
+import { toTitleCase } from "@/lib/brazil-utils";
 
 type User = {
   id: string;
@@ -205,6 +206,7 @@ export default function UsersPage() {
                 placeholder="Nome"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))}
                 required
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
               />

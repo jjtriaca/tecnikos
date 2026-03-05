@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { toTitleCase } from "@/lib/brazil-utils";
 
 /* ===================================================================
    NFS-e EMISSION MODAL — Preview and confirm NFS-e emission data
@@ -281,6 +282,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                       type="text"
                       value={tomadorRazaoSocial}
                       onChange={(e) => setTomadorRazaoSocial(e.target.value)}
+                      onBlur={() => setTomadorRazaoSocial(toTitleCase(tomadorRazaoSocial))}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                     />
                   </div>
@@ -307,6 +309,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                     <div className="col-span-4">
                       <label className="block text-xs font-medium text-slate-600 mb-1">Endereco *</label>
                       <input type="text" value={tomadorLogradouro} onChange={(e) => setTomadorLogradouro(e.target.value)}
+                        onBlur={() => setTomadorLogradouro(toTitleCase(tomadorLogradouro))}
                         className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                     </div>
                     <div className="col-span-2">
@@ -317,11 +320,13 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                     <div className="col-span-3">
                       <label className="block text-xs font-medium text-slate-600 mb-1">Complemento</label>
                       <input type="text" value={tomadorComplemento} onChange={(e) => setTomadorComplemento(e.target.value)}
+                        onBlur={() => setTomadorComplemento(toTitleCase(tomadorComplemento))}
                         className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                     </div>
                     <div className="col-span-3">
                       <label className="block text-xs font-medium text-slate-600 mb-1">Bairro *</label>
                       <input type="text" value={tomadorBairro} onChange={(e) => setTomadorBairro(e.target.value)}
+                        onBlur={() => setTomadorBairro(toTitleCase(tomadorBairro))}
                         className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                     </div>
                     <div className="col-span-2">

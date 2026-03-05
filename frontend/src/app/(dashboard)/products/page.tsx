@@ -12,6 +12,7 @@ import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
 import type { Product, ProductEquivalent } from "@/types/product";
 import { UNIT_OPTIONS, ORIGIN_OPTIONS } from "@/types/product";
+import { toTitleCase } from "@/lib/brazil-utils";
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -764,6 +765,7 @@ export default function ProductsPage() {
                       type="text"
                       value={form.description}
                       onChange={(e) => setField("description", e.target.value)}
+                      onBlur={() => setField("description", toTitleCase(form.description || ""))}
                       placeholder="Nome / descricao do produto"
                       className={inputClass}
                     />
@@ -774,6 +776,7 @@ export default function ProductsPage() {
                       type="text"
                       value={form.brand}
                       onChange={(e) => setField("brand", e.target.value)}
+                      onBlur={() => setField("brand", toTitleCase(form.brand || ""))}
                       className={inputClass}
                     />
                   </div>
@@ -783,6 +786,7 @@ export default function ProductsPage() {
                       type="text"
                       value={form.model}
                       onChange={(e) => setField("model", e.target.value)}
+                      onBlur={() => setField("model", toTitleCase(form.model || ""))}
                       className={inputClass}
                     />
                   </div>
@@ -840,6 +844,7 @@ export default function ProductsPage() {
                       type="text"
                       value={form.category}
                       onChange={(e) => setField("category", e.target.value)}
+                      onBlur={() => setField("category", toTitleCase(form.category || ""))}
                       placeholder="Ex: Eletrico, Hidraulico..."
                       className={inputClass}
                     />
@@ -1087,6 +1092,9 @@ export default function ProductsPage() {
                             onChange={(e) =>
                               setEquivForm({ ...equivForm, supplierDescription: e.target.value })
                             }
+                            onBlur={() =>
+                              setEquivForm({ ...equivForm, supplierDescription: toTitleCase(equivForm.supplierDescription || "") })
+                            }
                             placeholder="Descricao no fornecedor"
                             className={inputClass}
                           />
@@ -1249,6 +1257,7 @@ export default function ProductsPage() {
                           type="text"
                           value={form.location}
                           onChange={(e) => setField("location", e.target.value)}
+                          onBlur={() => setField("location", toTitleCase(form.location || ""))}
                           placeholder="Ex: Prateleira A3"
                           className={inputClass}
                         />

@@ -11,6 +11,7 @@ import {
   maskPhone,
   lookupCnpj,
   lookupCep,
+  toTitleCase,
   STATES,
 } from "@/lib/brazil-utils";
 import type { Partner } from "./PartnerTable";
@@ -268,7 +269,7 @@ export default function PartnerForm({
         {form.personType === "PF" && (
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input placeholder="Nome completo *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required className={inputClass + " w-full"} />
+              <input placeholder="Nome completo *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
               <input placeholder="CPF" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} className={inputClass + " w-full"} />
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
@@ -291,8 +292,8 @@ export default function PartnerForm({
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input placeholder="Razão Social *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required className={inputClass + " w-full"} />
-              <input placeholder="Nome Fantasia" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} className={inputClass + " w-full"} />
+              <input placeholder="Razão Social *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
+              <input placeholder="Nome Fantasia" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: toTitleCase(f.tradeName) }))} className={inputClass + " w-full"} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input placeholder="Inscrição Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: e.target.value }))} className={inputClass + " w-full"} />
@@ -321,13 +322,13 @@ export default function PartnerForm({
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input placeholder="CEP" value={form.cep} onChange={(e) => setForm((f) => ({ ...f, cep: maskCep(e.target.value) }))} onBlur={handleCepBlur} className={inputClass + " w-full"} />
-              <input placeholder="Endereco" value={form.addressStreet} onChange={(e) => setForm((f) => ({ ...f, addressStreet: e.target.value }))} className={inputClass + " w-full"} />
+              <input placeholder="Endereco" value={form.addressStreet} onChange={(e) => setForm((f) => ({ ...f, addressStreet: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))} className={inputClass + " w-full"} />
               <input placeholder="Número" value={form.addressNumber} onChange={(e) => setForm((f) => ({ ...f, addressNumber: e.target.value }))} className={inputClass + " w-full"} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <input placeholder="Complemento" value={form.addressComp} onChange={(e) => setForm((f) => ({ ...f, addressComp: e.target.value }))} className={inputClass + " w-full"} />
-              <input placeholder="Bairro" value={form.neighborhood} onChange={(e) => setForm((f) => ({ ...f, neighborhood: e.target.value }))} className={inputClass + " w-full"} />
-              <input placeholder="Cidade" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} className={inputClass + " w-full"} />
+              <input placeholder="Complemento" value={form.addressComp} onChange={(e) => setForm((f) => ({ ...f, addressComp: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))} className={inputClass + " w-full"} />
+              <input placeholder="Bairro" value={form.neighborhood} onChange={(e) => setForm((f) => ({ ...f, neighborhood: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))} className={inputClass + " w-full"} />
+              <input placeholder="Cidade" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, city: toTitleCase(f.city) }))} className={inputClass + " w-full"} />
               <select value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} className={inputClass + " w-full"}>
                 <option value="">UF</option>
                 {STATES.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
