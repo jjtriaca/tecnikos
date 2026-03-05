@@ -146,7 +146,14 @@ export class FocusNfeProvider {
       body,
     });
 
-    const result = await response.json();
+    const text = await response.text();
+    let result: any;
+    try {
+      result = JSON.parse(text);
+    } catch {
+      this.logger.error(`Focus NFe returned non-JSON (${response.status}): ${text.substring(0, 200)}`);
+      throw new Error(`Focus NFe error ${response.status}: ${text.substring(0, 200)}`);
+    }
 
     if (!response.ok && response.status !== 201) {
       this.logger.error(`Focus NFe error: ${response.status} ${JSON.stringify(result)}`);

@@ -318,6 +318,30 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 
 ---
 
+## Sessao 57 — 05/03/2026
+
+### Pedido do Juliano:
+> "A descriminação, quando não tem OS cadastrada deve pegar a descrição do lançamento financeiro"
+> "nos cadastros quando é preenchido, produtos, nome, endereço, etc o texto tem que ser sempre a primeira letra das palavras em maiúscula, para evitar erro de digitação"
+
+### Correcao 1 — Discriminacao sem OS:
+- Problema: template "Prestacao de servicos conforme OS {titulo_os}. {descricao_os}" sem OS virava "Prestacao de servicos conforme OS ." (nao vazio, nao caia no fallback)
+- Fix: `nfse-emission.service.ts` — quando nao tem OS, usa `entry.description` diretamente
+
+### Correcao 2 — Title Case automatico:
+- Funcao `toTitleCase()` criada em `brazil-utils.ts` — Title Case respeitando preposicoes (de, da, do, etc.)
+- Aplicado via `onBlur` em todos os formularios:
+  - PartnerForm: name, tradeName, addressStreet, addressComp, neighborhood, city
+  - Products: description, brand, model, category, location, supplierDescription
+  - Orders new/edit: title, contactPersonName, addressStreet, addressComp, neighborhood
+  - Users: name
+  - Settings: name, tradeName, addressStreet, addressComp, neighborhood, city, ownerName
+  - NfseEmissionModal: tomadorRazaoSocial, tomadorLogradouro, tomadorComplemento, tomadorBairro
+
+### Status: CONCLUIDO — Deploy v1.00.84
+
+---
+
 ## Pendente — Configuracao de Email
 
 ### Decisoes do Juliano:
