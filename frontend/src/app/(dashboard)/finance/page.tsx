@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { api } from "@/lib/api";
+import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFiscalModule } from "@/contexts/FiscalModuleContext";
@@ -1159,6 +1159,7 @@ function EntryActions({
   onRenegotiate: () => void;
   onEmitNfse?: () => void;
 }) {
+  const { toast } = useToast();
   if (loading) {
     return <span className="text-xs text-slate-400 animate-pulse">Processando...</span>;
   }
@@ -1224,17 +1225,29 @@ function EntryActions({
         </button>
       )}
 
-      {/* NFS-e — emit or download PDF */}
+      {/* NFS-e — download PDF when authorized */}
       {type === "RECEIVABLE" && onEmitNfse && entry.nfseStatus === "AUTHORIZED" && entry.nfseEmissionId && (
-        <a
-          href={`/api/nfse-emission/emissions/${entry.nfseEmissionId}/pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={async () => {
+            try {
+              const token = getAccessToken();
+              const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/nfse-emission/emissions/${entry.nfseEmissionId}/pdf`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              });
+              if (!res.ok) throw new Error("Erro ao baixar PDF");
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              window.open(url, "_blank");
+              setTimeout(() => URL.revokeObjectURL(url), 60000);
+            } catch {
+              toast("Erro ao baixar PDF da NFS-e.", "error");
+            }
+          }}
           className="text-xs font-medium text-green-600 hover:text-green-800 transition-colors"
           title="Baixar PDF da NFS-e"
         >
           PDF NFS-e
-        </a>
+        </button>
       )}
       {type === "RECEIVABLE" && onEmitNfse && entry.nfseStatus !== "AUTHORIZED" && entry.nfseStatus !== "PROCESSING" && entry.status !== "CANCELLED" && (
         <button
