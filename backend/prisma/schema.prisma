@@ -1128,6 +1128,7 @@ model NfseConfig {
   itemListaServico        String?  // Código LC 116 padrão (ex: "1401")
   codigoCnae              String?  // CNAE 7 dígitos
   codigoTributarioMunicipio String?
+  codigoTributarioNacional String?  // cTribNac - 6 dígitos (obrigatório para NFS-e Nacional)
   aliquotaIss             Float?   // % ISS padrão
   // Configurações de comportamento
   autoEmitOnEntry         Boolean  @default(false) // Auto-emitir NFS-e ao criar lançamento RECEIVABLE

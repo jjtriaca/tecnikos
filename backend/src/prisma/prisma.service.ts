@@ -270,6 +270,20 @@ export class PrismaService
       await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "NfseEmission_focusNfeRef_key" ON "NfseEmission"("focusNfeRef")`);
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "NfseEmission_companyId_status_idx" ON "NfseEmission"("companyId", "status")`);
 
+      // Self-heal NfseConfig new columns
+      const nfseConfigCols: { column_name: string }[] = await this.$queryRaw`
+        SELECT column_name FROM information_schema.columns WHERE table_name = 'NfseConfig'
+      `;
+      const nfseConfigColNames = new Set(nfseConfigCols.map((c) => c.column_name));
+      if (!nfseConfigColNames.has('codigoTributarioNacional')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "NfseConfig" ADD COLUMN "codigoTributarioNacional" TEXT`);
+        this.logger.log('Added column NfseConfig.codigoTributarioNacional');
+      }
+      if (!nfseConfigColNames.has('autoEmitOnEntry')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "NfseConfig" ADD COLUMN "autoEmitOnEntry" BOOLEAN NOT NULL DEFAULT false`);
+        this.logger.log('Added column NfseConfig.autoEmitOnEntry');
+      }
+
       // FinancialEntry NFS-e columns
       const existing: { column_name: string }[] = await this.$queryRaw`
         SELECT column_name FROM information_schema.columns WHERE table_name = 'FinancialEntry'

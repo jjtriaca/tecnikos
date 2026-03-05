@@ -23,6 +23,7 @@ interface NfseConfig {
   itemListaServico: string | null;
   codigoCnae: string | null;
   codigoTributarioMunicipio: string | null;
+  codigoTributarioNacional: string | null;
   aliquotaIss: number | null;
   autoEmitOnEntry: boolean;
   askOnFinishOS: boolean;
@@ -43,6 +44,7 @@ const EMPTY_CONFIG: NfseConfig = {
   itemListaServico: null,
   codigoCnae: null,
   codigoTributarioMunicipio: null,
+  codigoTributarioNacional: null,
   aliquotaIss: null,
   autoEmitOnEntry: false,
   askOnFinishOS: true,
@@ -85,7 +87,7 @@ function editableSnapshot(c: NfseConfig, t: string): string {
   return JSON.stringify([
     c.focusNfeEnvironment, c.inscricaoMunicipal, c.codigoMunicipio,
     c.naturezaOperacao, c.regimeEspecialTributacao, c.optanteSimplesNacional,
-    c.itemListaServico, c.codigoCnae, c.codigoTributarioMunicipio,
+    c.itemListaServico, c.codigoCnae, c.codigoTributarioMunicipio, c.codigoTributarioNacional,
     c.aliquotaIss, c.autoEmitOnEntry, c.askOnFinishOS, c.receiveWithoutNfse,
     c.sendEmailToTomador, c.rpsSeries, c.defaultDiscriminacao, t,
   ]);
@@ -149,6 +151,7 @@ export default function FiscalSettingsPage() {
         itemListaServico: config.itemListaServico || undefined,
         codigoCnae: config.codigoCnae || undefined,
         codigoTributarioMunicipio: config.codigoTributarioMunicipio || undefined,
+        codigoTributarioNacional: config.codigoTributarioNacional || undefined,
         aliquotaIss: config.aliquotaIss ?? undefined,
         autoEmitOnEntry: config.autoEmitOnEntry,
         askOnFinishOS: config.askOnFinishOS,
@@ -432,6 +435,17 @@ export default function FiscalSettingsPage() {
               placeholder="Codigo da prefeitura"
               className={inputClass}
             />
+          </div>
+          <div>
+            <label className={labelClass}>Codigo Tributario Nacional (cTribNac)</label>
+            <input
+              type="text"
+              value={config.codigoTributarioNacional || ""}
+              onChange={(e) => setConfig({ ...config, codigoTributarioNacional: e.target.value })}
+              placeholder="6 digitos (ex: 070202)"
+              className={inputClass}
+            />
+            <p className="text-xs text-slate-400 mt-1">Obrigatorio para municipios com NFS-e Nacional</p>
           </div>
         </div>
       </div>

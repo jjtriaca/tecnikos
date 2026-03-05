@@ -212,6 +212,7 @@ export class NfseEmissionService {
         item_lista_servico: (dto.itemListaServico || config.itemListaServico || '').replace(/\./g, ''),
         codigo_cnae: dto.codigoCnae || config.codigoCnae || undefined,
         codigo_tributario_municipio: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
+        codigo_tributacao_nacional_iss: config.codigoTributarioNacional || undefined,
         discriminacao: dto.discriminacao || '',
         aliquota,
         base_calculo: baseCalculo,

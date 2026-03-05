@@ -11,6 +11,7 @@ export class SaveNfseConfigDto {
   @IsOptional() @IsString() itemListaServico?: string;
   @IsOptional() @IsString() codigoCnae?: string;
   @IsOptional() @IsString() codigoTributarioMunicipio?: string;
+  @IsOptional() @IsString() codigoTributarioNacional?: string;
   @IsOptional() @IsNumber() aliquotaIss?: number;
   @IsOptional() @IsBoolean() autoEmitOnEntry?: boolean;
   @IsOptional() @IsBoolean() askOnFinishOS?: boolean;

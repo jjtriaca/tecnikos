@@ -34,6 +34,7 @@ export interface FocusNfseRequest {
     item_lista_servico: string;
     codigo_cnae?: string;
     codigo_tributario_municipio?: string;
+    codigo_tributacao_nacional_iss?: string;
     discriminacao: string;
     aliquota: number;
     base_calculo?: number;
