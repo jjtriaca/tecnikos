@@ -400,7 +400,8 @@ export class FinanceService {
     }
 
     const data: any = {};
-    if (notes) data.notes = notes;
+    const now = new Date();
+    const timestamp = now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
     if (isReversal) {
       // Reversal: go back to CONFIRMED, clear payment fields
@@ -409,20 +410,28 @@ export class FinanceService {
       data.paymentMethod = null;
       data.cardBrand = null;
       data.cashAccountId = null;
+      // Append reversal log to notes
+      const who = dto.cancelledByName || 'Sistema';
+      const logLine = `[${timestamp}] ESTORNO por ${who}: ${notes || 'sem motivo'}`;
+      data.notes = entry.notes ? `${entry.notes}\n${logLine}` : logLine;
     } else {
       data.status = newStatus;
-      if (newStatus === 'CONFIRMED') data.confirmedAt = new Date();
+      if (newStatus === 'CONFIRMED') data.confirmedAt = now;
       if (newStatus === 'PAID') {
-        data.paidAt = new Date();
+        data.paidAt = now;
         if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
         if (dto.cardBrand) data.cardBrand = dto.cardBrand;
         if (dto.cashAccountId) data.cashAccountId = dto.cashAccountId;
+        // Append payment log to notes
+        const payLog = `[${timestamp}] RECEBIDO via ${dto.paymentMethod || 'N/A'}`;
+        data.notes = entry.notes ? `${entry.notes}\n${payLog}` : payLog;
       }
       if (newStatus === 'CANCELLED') {
-        data.cancelledAt = new Date();
+        data.cancelledAt = now;
         if (dto.cancelledReason) data.cancelledReason = dto.cancelledReason;
         if (dto.cancelledByName) data.cancelledByName = dto.cancelledByName;
       }
+      if (notes && newStatus !== 'PAID') data.notes = notes;
     }
 
     // Update entry + cash account atomically

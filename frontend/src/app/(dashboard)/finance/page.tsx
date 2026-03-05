@@ -602,12 +602,16 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     }
   }
 
-  async function handleReverse() {
+  async function handleReverseWithReason(reason: string) {
     if (!reverseAction) return;
     const { entry } = reverseAction;
     setActionLoading(entry.id);
     try {
-      await api.patch(`/finance/entries/${entry.id}/status`, { status: "REVERSED" });
+      await api.patch(`/finance/entries/${entry.id}/status`, {
+        status: "REVERSED",
+        notes: `[ESTORNO] ${reason}`,
+        cancelledByName: user?.name || user?.email || "Desconhecido",
+      });
       toast("Recebimento estornado com sucesso!", "success");
       setReverseAction(null);
       await loadEntries();
@@ -869,7 +873,11 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         confirmLabel="Estornar"
         variant="danger"
         loading={!!actionLoading}
-        onConfirm={handleReverse}
+        reasonRequired
+        reasonMinLength={10}
+        reasonPlaceholder="Informe o motivo do estorno (mín. 10 caracteres)..."
+        onConfirm={() => {}}
+        onConfirmWithReason={handleReverseWithReason}
         onCancel={() => setReverseAction(null)}
       />
 
