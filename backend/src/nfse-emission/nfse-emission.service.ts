@@ -5,6 +5,20 @@ import { FocusNfeProvider, FocusNfseRequest, FocusNfsenRequest, NfseLayout } fro
 import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto } from './dto/nfse-emission.dto';
 import { randomUUID } from 'crypto';
 
+/** Retorna data/hora atual no fuso de Brasilia (UTC-3) em formato ISO sem 'Z'. */
+function brazilNow(): string {
+  const now = new Date();
+  const br = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+  return br.toISOString().slice(0, 19) + '-03:00';
+}
+
+/** Retorna data atual no fuso de Brasilia como YYYY-MM-DD. */
+function brazilToday(): string {
+  const now = new Date();
+  const br = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+  return br.toISOString().slice(0, 10);
+}
+
 @Injectable()
 export class NfseEmissionService {
   private readonly logger = new Logger(NfseEmissionService.name);
@@ -193,8 +207,8 @@ export class NfseEmissionService {
       const tipoRetencaoIss = (dto.issRetido ?? false) ? 2 : 1;
 
       const nfsenPayload: FocusNfsenRequest = {
-        data_emissao: new Date().toISOString(),
-        data_competencia: new Date().toISOString().slice(0, 10),
+        data_emissao: brazilNow(),
+        data_competencia: brazilToday(),
         codigo_municipio_emissora: codigoMunicipioNum,
         cnpj_prestador: cnpjClean,
         inscricao_municipal_prestador: config.inscricaoMunicipal || company.im || undefined,
@@ -235,7 +249,7 @@ export class NfseEmissionService {
     } else {
       // ===== Layout Municipal (nested) — endpoint /v2/nfse =====
       request = {
-        data_emissao: new Date().toISOString(),
+        data_emissao: brazilNow(),
         natureza_operacao: dto.naturezaOperacao || config.naturezaOperacao || '1',
         regime_especial_tributacao: config.regimeEspecialTributacao || undefined,
         optante_simples_nacional: config.optanteSimplesNacional,
