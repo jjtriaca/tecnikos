@@ -1206,7 +1206,7 @@ function EntryActions({
     );
   }
 
-  const isTerminal = entry.status === "CANCELLED";
+  const isTerminal = entry.status === "CANCELLED" || entry.status === "PAID";
   const hasInstallments = entry.installmentCount && entry.installmentCount > 0;
 
   return (
