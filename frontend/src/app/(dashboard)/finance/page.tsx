@@ -283,6 +283,15 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
             </span>
           );
         }
+        // Show reversal info when notes contain [ESTORNO]
+        if (e.notes?.includes("[ESTORNO]")) {
+          const lastEstorno = e.notes.split("\n").filter((l: string) => l.includes("ESTORNO")).pop() || "";
+          return (
+            <span className="text-xs text-orange-600" title={lastEstorno}>
+              Estornado
+            </span>
+          );
+        }
         if (e.renegotiatedAt) {
           return <span className="text-xs text-purple-600">Renegociado</span>;
         }
@@ -295,14 +304,28 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
     {
       id: "reason",
       label: "Motivo",
-      render: (e) =>
-        e.cancelledReason ? (
-          <span className="text-xs text-slate-600 truncate block max-w-[180px]" title={e.cancelledReason}>
-            {e.cancelledReason}
-          </span>
-        ) : (
-          <span className="text-xs text-slate-400">—</span>
-        ),
+      render: (e) => {
+        if (e.cancelledReason) {
+          return (
+            <span className="text-xs text-slate-600 truncate block max-w-[180px]" title={e.cancelledReason}>
+              {e.cancelledReason}
+            </span>
+          );
+        }
+        if (e.notes) {
+          // Show last log line as tooltip, extract reason from notes
+          const lines = e.notes.split("\n").filter((l: string) => l.startsWith("["));
+          if (lines.length > 0) {
+            const last = lines[lines.length - 1];
+            return (
+              <span className="text-xs text-slate-600 truncate block max-w-[180px] cursor-help" title={e.notes}>
+                {last.replace(/^\[.*?\]\s*/, "")}
+              </span>
+            );
+          }
+        }
+        return <span className="text-xs text-slate-400">—</span>;
+      },
     },
   );
 
