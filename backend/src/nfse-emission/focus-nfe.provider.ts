@@ -73,11 +73,14 @@ export interface FocusNfsenRequest {
   codigo_nbs?: string;
   descricao_servico: string;
   valor_servico: number;
-  iss_aliquota?: number;      // % ISS (pAliqAplic — obrigatório para Simples Nacional)
-  valor_iss?: number;         // valor ISS calculado
+  percentual_aliquota_relativa_municipio?: number; // pAliq — % ISS do município
+  percentual_total_tributos_simples_nacional?: number; // pTotTribSN — obrigatório para SN
   tributacao_iss: number;     // 1=Operação normal, 2=Imunidade, 3=Isenção, etc.
   tipo_retencao_iss: number;  // 1=Não retido, 2=Retido pelo tomador, etc.
-  indicador_total_tributacao?: string; // "0" ou "1"
+  // Para NÃO optantes SN, usar estes campos no lugar de pTotTribSN:
+  percentual_total_tributos_federais?: string;
+  percentual_total_tributos_estaduais?: string;
+  percentual_total_tributos_municipais?: string;
 }
 
 // ========== Response (mesma para ambos) ==========

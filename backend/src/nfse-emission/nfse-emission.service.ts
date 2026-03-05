@@ -222,11 +222,19 @@ export class NfseEmissionService {
         codigo_tributacao_municipal_iss: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
         descricao_servico: dto.discriminacao || '',
         valor_servico: valorServicos,
-        iss_aliquota: aliquota || undefined,
-        valor_iss: valorIss > 0 ? valorIss : undefined,
+        percentual_aliquota_relativa_municipio: aliquota || undefined,
+        // pTotTribSN obrigatório para Simples Nacional
+        percentual_total_tributos_simples_nacional: config.optanteSimplesNacional
+          ? (aliquota || 2) // % aproximado total tributos SN
+          : undefined,
         tributacao_iss: tributacaoIss,
         tipo_retencao_iss: tipoRetencaoIss,
-        indicador_total_tributacao: '0',
+        // Para não-SN, informar tributos individuais
+        ...(!config.optanteSimplesNacional ? {
+          percentual_total_tributos_federais: '0.00',
+          percentual_total_tributos_estaduais: '0.00',
+          percentual_total_tributos_municipais: String(aliquota || 0),
+        } : {}),
       };
       request = nfsenPayload;
     } else {
