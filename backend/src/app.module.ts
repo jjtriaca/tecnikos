@@ -23,6 +23,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { ProductModule } from './product/product.module';
 import { NfeModule } from './nfe/nfe.module';
 import { NfseEmissionModule } from './nfse-emission/nfse-emission.module';
+import { ObraModule } from './obra/obra.module';
 
 import { RequestLoggerMiddleware } from './common/logger/request-logger.middleware';
 import { AuditModule } from './common/audit/audit.module';
@@ -61,6 +62,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     ProductModule,
     NfeModule,
     NfseEmissionModule,
+    ObraModule,
   ],
   providers: [
     // Order matters: Throttle → JWT Auth → Roles

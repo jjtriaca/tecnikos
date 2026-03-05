@@ -133,6 +133,7 @@ model Company {
   cashAccounts         CashAccount[]
   nfseConfig           NfseConfig?
   nfseEmissions        NfseEmission[]
+  obras                Obra[]
 }
 
 model User {
@@ -213,6 +214,7 @@ model Partner {
   financialEntries     FinancialEntry[]
   whatsappMessages     WhatsAppMessage[]
   productEquivalents   ProductEquivalent[]
+  obras                Obra[]
 
   @@index([companyId])
   @@index([email])
@@ -270,6 +272,9 @@ model ServiceOrder {
   cancelledReason  String?   // Motivo do cancelamento
   cancelledByName  String?   // Nome do usuario que cancelou
 
+  // Obra vinculada (v1.00.88)
+  obraId           String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
@@ -278,6 +283,7 @@ model ServiceOrder {
   assignedPartner  Partner?          @relation("AssignedPartner", fields: [assignedPartnerId], references: [id])
   clientPartner    Partner?          @relation("ClientPartner", fields: [clientPartnerId], references: [id])
   workflowTemplate WorkflowTemplate? @relation(fields: [workflowTemplateId], references: [id])
+  obra             Obra?             @relation(fields: [obraId], references: [id])
 
   offers           ServiceOrderOffer[]
   events           ServiceOrderEvent[]
@@ -586,6 +592,9 @@ model FinancialEntry {
   nfseStatus          String?           // NOT_ISSUED | PROCESSING | AUTHORIZED | ERROR | CANCELLED
   nfseEmissionId      String?           // FK para NfseEmission
 
+  // Obra vinculada (v1.00.88)
+  obraId              String?
+
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   deletedAt        DateTime?
@@ -596,6 +605,7 @@ model FinancialEntry {
   paymentMethodRef PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
   cashAccountRef   CashAccount?   @relation(fields: [cashAccountId], references: [id])
   nfseEmission     NfseEmission?  @relation(fields: [nfseEmissionId], references: [id])
+  obra             Obra?          @relation(fields: [obraId], references: [id])
 
   // Self-relations para renegociação
   parentEntry        FinancialEntry?        @relation("Renegotiation", fields: [parentEntryId], references: [id])
@@ -1128,7 +1138,8 @@ model NfseConfig {
   itemListaServico        String?  // Código LC 116 padrão (ex: "1401")
   codigoCnae              String?  // CNAE 7 dígitos
   codigoTributarioMunicipio String?
-  codigoTributarioNacional String?  // cTribNac - 6 dígitos (obrigatório para NFS-e Nacional)
+  codigoTributarioNacional String?  // cTribNac - 6 dígitos (obrigatório para NFS-e Nacional) — usado para OBRA
+  codigoTributarioNacionalServico String? // cTribNac para serviços SEM obra (ex: 140100)
   nfseLayout              String   @default("MUNICIPAL") // MUNICIPAL | NACIONAL (endpoint /v2/nfse vs /v2/nfsen)
   aliquotaIss             Float?   // % ISS padrão
   // Configurações de comportamento
@@ -1192,11 +1203,45 @@ model NfseEmission {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  // Obra vinculada (v1.00.88)
+  obraId                String?
+
   company        Company        @relation(fields: [companyId], references: [id])
   serviceOrder   ServiceOrder?  @relation(fields: [serviceOrderId], references: [id])
+  obra           Obra?          @relation(fields: [obraId], references: [id])
   financialEntries FinancialEntry[]
 
   @@index([companyId, status])
   @@index([serviceOrderId])
   @@index([focusNfeRef])
+}
+
+// ========== Obras / Canteiro de Obras (v1.00.88) ==========
+
+model Obra {
+  id            String   @id @default(uuid())
+  companyId     String
+  partnerId     String
+  name          String                  // "Residencial Porto Seguro"
+  cno           String                  // CNO - Cadastro Nacional de Obras (XX.XXX.XXXXX/XX)
+  addressStreet String
+  addressNumber String
+  addressComp   String?
+  neighborhood  String
+  city          String
+  state         String                  // UF (2 chars)
+  cep           String
+  ibgeCode      String?                 // IBGE 7 dígitos
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company           Company           @relation(fields: [companyId], references: [id])
+  partner           Partner           @relation(fields: [partnerId], references: [id])
+  serviceOrders     ServiceOrder[]
+  financialEntries  FinancialEntry[]
+  nfseEmissions     NfseEmission[]
+
+  @@index([companyId, partnerId])
+  @@index([companyId, active])
 }

@@ -74,9 +74,10 @@ export class NfseEmissionService {
     const entry = await this.prisma.financialEntry.findFirst({
       where: { id: financialEntryId, companyId, deletedAt: null },
       include: {
-        serviceOrder: { include: { clientPartner: true, assignedPartner: true } },
+        serviceOrder: { include: { clientPartner: true, assignedPartner: true, obra: true } },
         partner: true,
         company: true,
+        obra: true,
       },
     });
     if (!entry) throw new NotFoundException('Lançamento financeiro não encontrado');
@@ -109,6 +110,7 @@ export class NfseEmissionService {
       },
       // Tomador (cliente/parceiro)
       tomador: {
+        partnerId: tomador?.id || null,
         cnpjCpf: tomador?.document || '',
         razaoSocial: tomador?.name || '',
         email: tomador?.email || '',
@@ -140,6 +142,8 @@ export class NfseEmissionService {
         regimeEspecialTributacao: config.regimeEspecialTributacao,
         sendEmailToTomador: config.sendEmailToTomador,
         afterEmissionSendWhatsApp: config.afterEmissionSendWhatsApp,
+        codigoTributarioNacional: config.codigoTributarioNacional || '',
+        codigoTributarioNacionalServico: config.codigoTributarioNacionalServico || '',
       },
       // Entry info
       financialEntry: {
@@ -150,6 +154,8 @@ export class NfseEmissionService {
         description: entry.description,
         nfseStatus: entry.nfseStatus,
       },
+      // Obra vinculada (da OS ou do lançamento)
+      obra: entry.obra || entry.serviceOrder?.obra || null,
     };
   }
 
@@ -176,6 +182,22 @@ export class NfseEmissionService {
 
     // Generate unique ref
     const ref = `tk-${companyId.substring(0, 8)}-${randomUUID().substring(0, 8)}`;
+
+    // Load Obra if tipoNota=OBRA
+    let obra: any = null;
+    const isObra = dto.tipoNota === 'OBRA';
+    if (isObra) {
+      if (!dto.obraId) throw new BadRequestException('Obra é obrigatória para NFS-e de tipo OBRA');
+      obra = await this.prisma.obra.findFirst({
+        where: { id: dto.obraId, companyId, active: true },
+      });
+      if (!obra) throw new NotFoundException('Obra não encontrada ou inativa');
+    }
+
+    // Determine cTribNac based on tipoNota
+    const codigoTribNac = isObra
+      ? (config.codigoTributarioNacional || '')   // ex: 070202
+      : (config.codigoTributarioNacionalServico || config.codigoTributarioNacional || ''); // ex: 140100
 
     // Get next RPS number and increment atomically
     const rpsNumber = config.rpsNextNumber;
@@ -230,7 +252,7 @@ export class NfseEmissionService {
         email_tomador: dto.tomadorEmail || undefined,
         // Serviço
         codigo_municipio_prestacao: codigoMunicipioNum,
-        codigo_tributacao_nacional_iss: config.codigoTributarioNacional || '',
+        codigo_tributacao_nacional_iss: codigoTribNac,
         codigo_tributacao_municipal_iss: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
         descricao_servico: dto.discriminacao || '',
         valor_servico: valorServicos,
@@ -246,6 +268,15 @@ export class NfseEmissionService {
           percentual_total_tributos_federais: '0.00',
           percentual_total_tributos_estaduais: '0.00',
           percentual_total_tributos_municipais: String(aliquota || 0),
+        } : {}),
+        // Campos de obra (obrigatório para cTribNac 07.02.xx, 07.04.xx, etc.)
+        ...(isObra && obra ? {
+          codigo_obra: obra.cno?.replace(/\D/g, '') || '',
+          logradouro_obra: obra.addressStreet || undefined,
+          numero_obra: obra.addressNumber || undefined,
+          complemento_obra: obra.addressComp || undefined,
+          bairro_obra: obra.neighborhood || undefined,
+          cep_obra: parseInt((obra.cep || '').replace(/\D/g, ''), 10) || undefined,
         } : {}),
       };
       request = nfsenPayload;
@@ -283,7 +314,7 @@ export class NfseEmissionService {
           item_lista_servico: (dto.itemListaServico || config.itemListaServico || '').replace(/\./g, ''),
           codigo_cnae: dto.codigoCnae || config.codigoCnae || undefined,
           codigo_tributario_municipio: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
-          codigo_tributacao_nacional_iss: config.codigoTributarioNacional || undefined,
+          codigo_tributacao_nacional_iss: codigoTribNac || undefined,
           discriminacao: dto.discriminacao || '',
           aliquota,
           base_calculo: baseCalculo,
@@ -292,7 +323,7 @@ export class NfseEmissionService {
       } as FocusNfseRequest;
     }
 
-    this.logger.log(`NFS-e layout=${layout}, cTribNac="${config.codigoTributarioNacional}"`);
+    this.logger.log(`NFS-e layout=${layout}, tipoNota=${dto.tipoNota || 'SERVICO'}, cTribNac="${codigoTribNac}"${isObra ? `, obra=${obra?.name} CNO=${obra?.cno}` : ''}`);
 
     // Create emission record + update entry status in transaction
     const emission = await this.prisma.$transaction(async (tx) => {
@@ -319,6 +350,7 @@ export class NfseEmissionService {
           discriminacao: dto.discriminacao,
           codigoMunicipioServico: dto.codigoMunicipioServico || config.codigoMunicipio,
           naturezaOperacao: dto.naturezaOperacao || config.naturezaOperacao,
+          obraId: isObra ? dto.obraId : undefined,
         },
       });
 

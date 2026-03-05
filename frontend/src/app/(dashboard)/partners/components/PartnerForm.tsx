@@ -16,6 +16,7 @@ import {
 } from "@/lib/brazil-utils";
 import type { Partner } from "./PartnerTable";
 import type { Specialization } from "./SpecializationsTab";
+import ObrasSection from "./ObrasSection";
 
 type PersonType = "PF" | "PJ";
 
@@ -336,6 +337,13 @@ export default function PartnerForm({
             </div>
           </div>
         </div>
+
+        {/* OBRAS — só aparece ao editar um CLIENTE */}
+        {editingId && form.partnerTypes.includes("CLIENTE") && (
+          <div className="border-t border-slate-200 pt-4">
+            <ObrasSection partnerId={editingId} />
+          </div>
+        )}
 
         {/* TECNICO Specializations */}
         {isTecnico && (

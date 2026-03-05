@@ -12,6 +12,7 @@ export class SaveNfseConfigDto {
   @IsOptional() @IsString() codigoCnae?: string;
   @IsOptional() @IsString() codigoTributarioMunicipio?: string;
   @IsOptional() @IsString() codigoTributarioNacional?: string;
+  @IsOptional() @IsString() codigoTributarioNacionalServico?: string;
   @IsOptional() @IsString() nfseLayout?: string; // MUNICIPAL | NACIONAL
   @IsOptional() @IsNumber() aliquotaIss?: number;
   @IsOptional() @IsBoolean() autoEmitOnEntry?: boolean;
@@ -47,6 +48,9 @@ export class EmitNfseDto {
   @IsOptional() @IsString() discriminacao?: string;
   @IsOptional() @IsString() naturezaOperacao?: string;
   @IsOptional() @IsString() codigoMunicipioServico?: string;
+  // Tipo de NFS-e e Obra (v1.00.88)
+  @IsOptional() @IsString() tipoNota?: string; // SERVICO | OBRA
+  @IsOptional() @IsString() obraId?: string;
 }
 
 export class CancelNfseDto {

@@ -71,6 +71,7 @@ export class ServiceOrderService {
         contactPersonName: data.contactPersonName || undefined,
         acceptTimeoutMinutes: data.acceptTimeoutMinutes ?? undefined,
         enRouteTimeoutMinutes: data.enRouteTimeoutMinutes ?? undefined,
+        obraId: data.obraId || undefined,
       },
     });
 
@@ -326,6 +327,15 @@ export class ServiceOrderService {
         beforeFields['workflowTemplateId'] = so.workflowTemplateId;
         afterFields['workflowTemplateId'] = newVal;
         updateData['workflowTemplateId'] = newVal;
+      }
+    }
+    // Obra vinculada (v1.00.88)
+    if (data.obraId !== undefined) {
+      const newVal = data.obraId || null;
+      if (newVal !== (so as any).obraId) {
+        beforeFields['obraId'] = (so as any).obraId;
+        afterFields['obraId'] = newVal;
+        updateData['obraId'] = newVal;
       }
     }
 

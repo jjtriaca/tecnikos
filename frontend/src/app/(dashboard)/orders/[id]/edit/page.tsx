@@ -26,6 +26,7 @@ import {
 
 /* ---- Types ---- */
 type PartnerSummary = { id: string; name: string; document: string | null; phone: string | null };
+type ObraSummary = { id: string; name: string; cno: string; city: string; state: string; active: boolean };
 
 const STATUS_LABELS: Record<string, string> = {
   ABERTA: "Aberta",
@@ -77,6 +78,8 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<PartnerSummary | null>(null);
+  const [obras, setObras] = useState<ObraSummary[]>([]);
+  const [selectedObraId, setSelectedObraId] = useState<string>("");
   const [selectedCity, setSelectedCity] = useState<IBGECity | null>(null);
   const [status, setStatus] = useState("");
   const [title, setTitle] = useState("");
@@ -175,6 +178,15 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         });
       }
 
+      // Pre-populate obras do cliente e obraId da OS
+      if (order.clientPartner) {
+        try {
+          const obrasRes = await api.get<ObraSummary[]>(`/obras?partnerId=${order.clientPartner.id}&activeOnly=true`);
+          setObras(Array.isArray(obrasRes) ? obrasRes : []);
+          if (order.obraId) setSelectedObraId(order.obraId);
+        } catch { /* ignore */ }
+      }
+
       // Pre-populate selected city
       if (order.state && order.city) {
         try {
@@ -225,6 +237,20 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
       setLoading(false);
     });
   }, [id]);
+
+  // Recarregar obras quando cliente muda (após load inicial)
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  useEffect(() => {
+    if (!initialLoadDone) { if (!loading) setInitialLoadDone(true); return; }
+    setObras([]);
+    setSelectedObraId("");
+    if (!selectedClient) return;
+    let cancelled = false;
+    api.get<ObraSummary[]>(`/obras?partnerId=${selectedClient.id}&activeOnly=true`)
+      .then(res => { if (!cancelled) setObras(Array.isArray(res) ? res : []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedClient?.id, initialLoadDone, loading]);
 
   function onChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -369,6 +395,8 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         workflowTemplateId: techMode === "BY_WORKFLOW" ? selectedWorkflow?.id || undefined : undefined,
         // Contato no local
         contactPersonName: form.contactPersonName || undefined,
+        // Obra vinculada
+        obraId: selectedObraId || null,
         // Tempo para aceitar (null = usa do fluxo)
         acceptTimeoutMinutes: acceptTimeoutMode === 'from_flow' ? null
           : acceptTimeoutMode === 'hours' ? acceptTimeoutValue * 60
@@ -462,6 +490,29 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
             )}
             disabled={isTerminal}
           />
+
+          {/* Obra (opcional, só aparece se cliente tem obras) */}
+          {obras.length > 0 && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">
+                Obra <span className="text-xs text-slate-400 font-normal">(opcional)</span>
+              </span>
+              <select
+                value={selectedObraId}
+                onChange={(e) => setSelectedObraId(e.target.value)}
+                className={`${inputClass} bg-white`}
+                disabled={isTerminal}
+              >
+                <option value="">Nenhuma obra vinculada</option>
+                {obras.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name} — CNO: {o.cno} ({o.city}/{o.state})
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-400">Selecione se esta OS é para uma obra de construção</span>
+            </label>
+          )}
 
           {/* Título */}
           <label className="flex flex-col gap-1.5">

@@ -105,4 +105,9 @@ export class UpdateServiceOrderDto {
   @IsNumber()
   @Min(1, { message: 'Tempo para clicar a caminho deve ser pelo menos 1 minuto' })
   enRouteTimeoutMinutes?: number;
+
+  // Obra vinculada (v1.00.88)
+  @IsOptional()
+  @IsString()
+  obraId?: string;
 }

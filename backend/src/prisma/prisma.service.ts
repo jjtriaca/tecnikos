@@ -291,6 +291,10 @@ export class PrismaService
         await this.$executeRawUnsafe(`ALTER TABLE "NfseConfig" ADD COLUMN "afterEmissionSendWhatsApp" BOOLEAN NOT NULL DEFAULT false`);
         this.logger.log('Added column NfseConfig.afterEmissionSendWhatsApp');
       }
+      if (!nfseConfigColNames.has('codigoTributarioNacionalServico')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "NfseConfig" ADD COLUMN "codigoTributarioNacionalServico" TEXT`);
+        this.logger.log('Added column NfseConfig.codigoTributarioNacionalServico');
+      }
 
       // FinancialEntry NFS-e columns
       const existing: { column_name: string }[] = await this.$queryRaw`
@@ -306,6 +310,55 @@ export class PrismaService
         await this.$executeRawUnsafe(`ALTER TABLE "FinancialEntry" ADD COLUMN "nfseEmissionId" TEXT`);
         this.logger.log('Added column FinancialEntry.nfseEmissionId');
       }
+      if (!existingNames.has('obraId')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "FinancialEntry" ADD COLUMN "obraId" TEXT`);
+        this.logger.log('Added column FinancialEntry.obraId');
+      }
+
+      // ServiceOrder obra column
+      const soCols: { column_name: string }[] = await this.$queryRaw`
+        SELECT column_name FROM information_schema.columns WHERE table_name = 'ServiceOrder'
+      `;
+      const soColNames = new Set(soCols.map((c) => c.column_name));
+      if (!soColNames.has('obraId')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "ServiceOrder" ADD COLUMN "obraId" TEXT`);
+        this.logger.log('Added column ServiceOrder.obraId');
+      }
+
+      // NfseEmission obra column
+      const emCols: { column_name: string }[] = await this.$queryRaw`
+        SELECT column_name FROM information_schema.columns WHERE table_name = 'NfseEmission'
+      `;
+      const emColNames = new Set(emCols.map((c) => c.column_name));
+      if (!emColNames.has('obraId')) {
+        await this.$executeRawUnsafe(`ALTER TABLE "NfseEmission" ADD COLUMN "obraId" TEXT`);
+        this.logger.log('Added column NfseEmission.obraId');
+      }
+
+      // Obra table
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Obra" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "companyId" TEXT NOT NULL,
+          "partnerId" TEXT NOT NULL,
+          "name" TEXT NOT NULL,
+          "cno" TEXT NOT NULL,
+          "addressStreet" TEXT NOT NULL,
+          "addressNumber" TEXT NOT NULL,
+          "addressComp" TEXT,
+          "neighborhood" TEXT NOT NULL,
+          "city" TEXT NOT NULL,
+          "state" TEXT NOT NULL,
+          "cep" TEXT NOT NULL,
+          "ibgeCode" TEXT,
+          "active" BOOLEAN NOT NULL DEFAULT true,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "Obra_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Obra_companyId_partnerId_idx" ON "Obra"("companyId", "partnerId")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Obra_companyId_active_idx" ON "Obra"("companyId", "active")`);
     } catch (err) {
       this.logger.warn('NFS-e Emission auto-migration check failed (non-fatal):', err);
     }

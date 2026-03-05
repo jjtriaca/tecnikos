@@ -24,6 +24,7 @@ interface NfseConfig {
   codigoCnae: string | null;
   codigoTributarioMunicipio: string | null;
   codigoTributarioNacional: string | null;
+  codigoTributarioNacionalServico: string | null;
   nfseLayout: string;
   aliquotaIss: number | null;
   autoEmitOnEntry: boolean;
@@ -47,6 +48,7 @@ const EMPTY_CONFIG: NfseConfig = {
   codigoCnae: null,
   codigoTributarioMunicipio: null,
   codigoTributarioNacional: null,
+  codigoTributarioNacionalServico: null,
   nfseLayout: "MUNICIPAL",
   aliquotaIss: null,
   autoEmitOnEntry: false,
@@ -91,7 +93,7 @@ function editableSnapshot(c: NfseConfig, t: string): string {
   return JSON.stringify([
     c.focusNfeEnvironment, c.inscricaoMunicipal, c.codigoMunicipio,
     c.naturezaOperacao, c.regimeEspecialTributacao, c.optanteSimplesNacional,
-    c.itemListaServico, c.codigoCnae, c.codigoTributarioMunicipio, c.codigoTributarioNacional,
+    c.itemListaServico, c.codigoCnae, c.codigoTributarioMunicipio, c.codigoTributarioNacional, c.codigoTributarioNacionalServico,
     c.nfseLayout, c.aliquotaIss, c.autoEmitOnEntry, c.askOnFinishOS, c.receiveWithoutNfse,
     c.sendEmailToTomador, c.afterEmissionSendWhatsApp, c.rpsSeries, c.defaultDiscriminacao, t,
   ]);
@@ -156,6 +158,7 @@ export default function FiscalSettingsPage() {
         codigoCnae: config.codigoCnae || undefined,
         codigoTributarioMunicipio: config.codigoTributarioMunicipio || undefined,
         codigoTributarioNacional: config.codigoTributarioNacional || undefined,
+        codigoTributarioNacionalServico: config.codigoTributarioNacionalServico || undefined,
         nfseLayout: config.nfseLayout,
         aliquotaIss: config.aliquotaIss ?? undefined,
         autoEmitOnEntry: config.autoEmitOnEntry,
@@ -455,7 +458,7 @@ export default function FiscalSettingsPage() {
             />
           </div>
           <div>
-            <label className={labelClass}>Codigo Tributario Nacional (cTribNac)</label>
+            <label className={labelClass}>Cod. Trib. Nacional (Obra)</label>
             <input
               type="text"
               value={config.codigoTributarioNacional || ""}
@@ -463,7 +466,18 @@ export default function FiscalSettingsPage() {
               placeholder="6 digitos (ex: 070202)"
               className={inputClass}
             />
-            <p className="text-xs text-slate-400 mt-1">Obrigatorio para municipios com NFS-e Nacional</p>
+            <p className="text-xs text-slate-400 mt-0.5">Usado para emissoes de obra/construcao (requer CNO)</p>
+          </div>
+          <div>
+            <label className={labelClass}>Cod. Trib. Nacional (Servico)</label>
+            <input
+              type="text"
+              value={config.codigoTributarioNacionalServico || ""}
+              onChange={(e) => setConfig({ ...config, codigoTributarioNacionalServico: e.target.value })}
+              placeholder="Ex: 140100"
+              className={inputClass}
+            />
+            <p className="text-xs text-slate-400 mt-0.5">Usado para emissoes de servico (manutencao, assistencia tecnica)</p>
           </div>
         </div>
       </div>

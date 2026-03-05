@@ -342,6 +342,68 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 
 ---
 
+## Sessao 58 — 05/03/2026
+
+### Pedido do Juliano (literal):
+> "Quando no financeiro confirmar a emissão tem que aguardar a resposta em processamento e assim que confirmar a validação uma tela pergunta se quer enviar por email e ou WhatsApp na mesma tela, isso também tem que estar em opções de configurações"
+
+### Contexto sessoes anteriores (57):
+- Token producao configurado, erro de auth non-JSON tratado (v1.00.85)
+- Timezone corrigido com `brazilNow()`/`brazilToday()` para evitar erro de data futura (v1.00.86)
+
+### Implementacao — Modal NFS-e em 3 Fases:
+
+#### Plano aprovado:
+- **Fase 1 (FORM)**: formulario existente, usuario revisa dados e clica "Confirmar e Emitir"
+- **Fase 2 (PROCESSING)**: spinner + polling a cada 3s, aguarda autorizacao da prefeitura (timeout 3 min)
+- **Fase 3 (SEND)**: banner verde "Autorizada" + checkboxes Email e WhatsApp + botoes "Enviar e Fechar" / "Fechar sem Enviar"
+
+#### Backend:
+1. **Prisma Schema**: campo `afterEmissionSendWhatsApp Boolean @default(false)` no NfseConfig
+2. **Self-healing migration**: ALTER TABLE adicionado em `prisma.service.ts`
+3. **DTO**: `afterEmissionSendWhatsApp` no SaveNfseConfigDto
+4. **Module**: `WhatsAppModule` importado no NfseEmissionModule
+5. **Service**: WhatsAppService injetado + metodo `sendWhatsApp()` (texto + PDF)
+6. **Controller**: endpoint `POST /emissions/:id/send-whatsapp` (ADMIN, FINANCEIRO, FISCAL)
+
+#### Frontend:
+1. **Settings Fiscal** (`/settings/fiscal`): toggle "Enviar NFS-e por WhatsApp ao tomador" na secao Comportamento
+2. **NfseEmissionModal**: reescrito com 3 fases — state machine FORM → PROCESSING → SEND
+   - Preview agora retorna `afterEmissionSendWhatsApp` na config
+   - Modal nao fecha durante PROCESSING
+   - Polling com `useEffect` + `setInterval`
+   - Envia email e WhatsApp em paralelo via `Promise.allSettled`
+   - Defaults vem da config (sendEmailToTomador, afterEmissionSendWhatsApp)
+
+### Status: CONCLUIDO — Deploy v1.00.87
+
+---
+
+## Sessao 59 — 05/03/2026
+
+### Pedido do Juliano:
+> Adicionar Tipo de NFS-e (Servico/Obra) e seletor de Obra no modal de emissao NFS-e
+
+### Implementacao:
+
+#### Frontend — NfseEmissionModal.tsx:
+1. **NfsePreview interface atualizada**: adicionado `tomador.partnerId`, `config.codigoTributarioNacional`, `config.codigoTributarioNacionalServico`, `obra` (objeto com id, name, cno, endereco)
+2. **Novos tipos**: `TipoNota` ("SERVICO" | "OBRA"), `ObraOption` interface
+3. **Novos states**: `tipoNota`, `obras`, `selectedObraId`, `loadingObras`
+4. **Toggle Servico/Obra**: botoes estilo PF/PJ no topo da secao "Servico" — default "OBRA" se preview.obra existe
+5. **cTribNac info**: texto abaixo do toggle mostrando qual codigo tributario sera usado (servico vs obra)
+6. **Seletor de Obra**: dropdown que busca `/obras?partnerId={id}&activeOnly=true`, aparece so quando tipo=OBRA
+7. **Detalhes da obra**: card com CNO + endereco completo quando obra selecionada
+8. **Validacao**: botao Emitir desabilitado se tipo=OBRA e nenhuma obra selecionada
+9. **Payload**: `tipoNota` e `obraId` incluidos no POST /nfse-emission/emit
+
+#### Backend — nfse-emission.service.ts:
+1. **Preview**: adicionado `tomador.partnerId` (ID do parceiro tomador) para frontend buscar obras
+
+### Status: BUILD OK — Frontend + Backend 0 erros TypeScript
+
+---
+
 ## Pendente — Configuracao de Email
 
 ### Decisoes do Juliano:
