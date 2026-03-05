@@ -145,7 +145,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       return;
     }
     if (!tomadorLogradouro) {
-      toast("Logradouro do tomador e obrigatorio.", "error");
+      toast("Endereco do tomador e obrigatorio.", "error");
       return;
     }
     if (!tomadorBairro) {
@@ -305,7 +305,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                   )}
                   <div className="grid grid-cols-6 gap-2">
                     <div className="col-span-4">
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Logradouro *</label>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Endereco *</label>
                       <input type="text" value={tomadorLogradouro} onChange={(e) => setTomadorLogradouro(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                     </div>

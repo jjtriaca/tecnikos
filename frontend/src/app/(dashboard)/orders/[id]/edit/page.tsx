@@ -693,7 +693,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                     value={form.addressStreet}
                     onChange={onChange}
                     required
-                    placeholder="Logradouro"
+                    placeholder="Endereco"
                     className={inputClass}
                   />
                 </label>

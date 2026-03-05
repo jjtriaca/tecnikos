@@ -321,7 +321,7 @@ export default function PartnerForm({
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input placeholder="CEP" value={form.cep} onChange={(e) => setForm((f) => ({ ...f, cep: maskCep(e.target.value) }))} onBlur={handleCepBlur} className={inputClass + " w-full"} />
-              <input placeholder="Logradouro" value={form.addressStreet} onChange={(e) => setForm((f) => ({ ...f, addressStreet: e.target.value }))} className={inputClass + " w-full"} />
+              <input placeholder="Endereco" value={form.addressStreet} onChange={(e) => setForm((f) => ({ ...f, addressStreet: e.target.value }))} className={inputClass + " w-full"} />
               <input placeholder="Número" value={form.addressNumber} onChange={(e) => setForm((f) => ({ ...f, addressNumber: e.target.value }))} className={inputClass + " w-full"} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">

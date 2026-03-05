@@ -91,7 +91,7 @@ export const ENTITY_FIELDS: Record<EntityType, ConditionFieldDef[]> = {
     { id: 'clientPartnerId',   label: 'Cliente',             type: 'text',   placeholder: 'ID do cliente' },
     { id: 'title',             label: 'Título',              type: 'text',   placeholder: 'Ex: Instalação' },
     { id: 'description',       label: 'Descrição',           type: 'text',   placeholder: 'Texto livre' },
-    { id: 'addressStreet',     label: 'Logradouro',          type: 'text',   placeholder: 'Ex: Rua XV de Novembro' },
+    { id: 'addressStreet',     label: 'Endereco',             type: 'text',   placeholder: 'Ex: Rua XV de Novembro' },
     { id: 'cep',               label: 'CEP',                 type: 'text',   placeholder: 'Ex: 01001-000' },
     { id: 'deadlineAt',        label: 'Prazo',               type: 'date' },
     { id: 'createdAt',         label: 'Data de Criação',     type: 'date' },

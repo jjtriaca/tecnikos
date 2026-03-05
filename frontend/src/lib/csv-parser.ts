@@ -176,7 +176,10 @@ const COLUMN_MAP: Record<string, string[]> = {
   isCliente: ["cliente"],
   isFornecedor: ["fornecedor"],
   isAtivo: ["ativo"],
-  addressStreet: ["endereco", "endereço", "logradouro", "rua"],
+  addressStreet: [
+    "nome (endereço)", "nome (endereco)",  // Sankhya: nome real da rua
+    "endereco", "endereço", "logradouro", "rua",
+  ],
 };
 
 /** Mapeia headers do arquivo para campos do Partner */
@@ -349,7 +352,7 @@ export const FIELD_LABELS: Record<string, string> = {
   personTypeSankhya: "Tipo Pessoa",
   phone: "Telefone",
   email: "Email",
-  addressStreet: "Endereço",
+  addressStreet: "Endereco",
   addressNumber: "Número",
   addressComp: "Complemento",
   neighborhood: "Bairro",

@@ -798,7 +798,7 @@ export default function SettingsPage() {
               />
             </div>
             <Field
-              label="Logradouro"
+              label="Endereco"
               value={form.addressStreet}
               onChange={(v) => setField("addressStreet", v)}
               disabled={!isAdmin}

@@ -559,7 +559,7 @@ export default function NewOrderPage() {
                     value={form.addressStreet}
                     onChange={onChange}
                     required
-                    placeholder="Logradouro"
+                    placeholder="Endereco"
                     className={inputClass}
                   />
                 </label>

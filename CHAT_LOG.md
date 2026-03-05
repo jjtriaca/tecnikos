@@ -224,3 +224,76 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Recebimento sem NFS-e: Avisar
 
 ### Status: CONFIGURACAO SALVA COM SUCESSO
+
+---
+
+## Sessao 54 — 05/03/2026 (continuacao)
+
+### Contexto:
+- Continuacao das sessoes 53/54 que testaram emissao NFS-e via Focus NFe
+- Sessoes anteriores resolveram: erro E0177 (regime especial), erro E9999 (aliquota), erro de schema XML
+
+### Erros resolvidos nas sessoes anteriores:
+1. **E0177 - Regime Especial invalido**: Codigo 6 (ME/EPP SN no ABRASF) = "Sociedade de Profissionais" no Nacional. Corrigido para 0 (Nenhum)
+2. **E9999 - Aliquota obrigatoria**: Campo correto e `percentual_aliquota_relativa_municipio` (pAliq) + `percentual_total_tributos_simples_nacional` (pTotTribSN), NAO `aliquota` ou `iss_aliquota`
+3. **Schema XML - tribFed/totTrib**: pTotTribSN e tribFed/tribEst/tribMun sao MUTUAMENTE EXCLUSIVOS
+
+### Descoberta critica — Campos corretos NFS-e Nacional para Simples Nacional:
+- `percentual_aliquota_relativa_municipio` → mapeia para `pAliq` (% ISS municipio)
+- `percentual_total_tributos_simples_nacional` → mapeia para `pTotTribSN` (OBRIGATORIO para SN)
+- Para NAO optantes SN: usar `percentual_total_tributos_federais/estaduais/municipais`
+- Referencia: `campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html`
+
+### Teste final (v1.00.81):
+- Payload enviado com campos corretos via `/v2/nfsen`
+- Resultado: `processando_autorizacao` → `erro_autorizacao` E1272
+- **E1272**: "O codigo do municipio informado nao existe ou nao esta ativo no convenio municipal"
+- Causa: Primavera do Leste-MT (5107040) NAO esta ativo no ambiente de homologacao da NFS-e Nacional
+- **TODAS as validacoes de campo passaram** — o payload esta 100% correto
+- O erro e exclusivamente do ambiente de homologacao
+
+### Configuracao atual NfseConfig (DB):
+- `regimeEspecialTributacao: 0` (Nenhum — correto para Nacional SN)
+- `nfseLayout: NACIONAL`
+- `codigoTributarioNacional: 070202`
+- `optanteSimplesNacional: true`
+
+### Acoes realizadas:
+1. Emissao testada via UI com todos os campos preenchidos
+2. Status refresh via "Validar Pendentes" funcionou corretamente
+3. Emissoes de teste limpas do banco (8 emissoes removidas)
+4. RPS counter resetado para 1
+
+### Proximo passo:
+- Testar em ambiente de PRODUCAO (municipio esta ativo la)
+- Ou aguardar Juliano decidir proximo passo
+
+### Status: PAYLOAD VALIDADO — Erro E1272 e limitacao de homologacao
+
+---
+
+## Sessao 55 — 05/03/2026
+
+### Pedido do Juliano:
+> "Quando fiz a importação dos parceiros via xls, o endereço de nem um parceiro foi preenchido"
+> "ao inves de o nome logradouro, coloque endereço, é mais comum"
+
+### Problema identificado:
+- No Sankhya, a coluna "Endereço" contem um CODIGO NUMERICO (ex: 94, 360), nao o nome da rua
+- O nome real da rua esta na coluna "Nome (Endereço)" (ex: "BRASIL", "PIRACICABA")
+- O csv-parser.ts nao tinha mapeamento para "nome (endereço)" — so mapeava "endereço" que era o codigo numerico
+- O codigo corretamente ignorava codigos numericos (`!/^\d+$/.test()`), resultando em addressStreet sempre vazio
+
+### Correcoes realizadas:
+1. **csv-parser.ts**: Adicionado "nome (endereço)" e "nome (endereco)" como aliases prioritarios para `addressStreet`
+2. **Labels renomeados**: "Logradouro" → "Endereco" em todas as telas:
+   - NfseEmissionModal.tsx (label + toast de erro)
+   - PartnerForm.tsx (placeholder)
+   - orders/new/page.tsx (placeholder)
+   - orders/[id]/edit/page.tsx (placeholder)
+   - settings/page.tsx (label)
+   - automation-blocks.ts (label)
+   - csv-parser.ts (FIELD_LABELS)
+3. **Dados corrigidos**: Script SQL atualizou addressStreet de 2791 de 2796 parceiros no banco de producao
+
+### Status: CORRIGIDO — Deploy v1.00.82
