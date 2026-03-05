@@ -7,6 +7,7 @@ import { CashAccountService } from './cash-account.service';
 import { TransferService } from './transfer.service';
 import { ReconciliationService } from './reconciliation.service';
 import { FinancialReportService } from './financial-report.service';
+import { CardSettlementService } from './card-settlement.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
 import { FinanceController } from './finance.controller';
@@ -24,6 +25,7 @@ import { NfseEmissionModule } from '../nfse-emission/nfse-emission.module';
     TransferService,
     ReconciliationService,
     FinancialReportService,
+    CardSettlementService,
     OfxParserService,
     CsvParserService,
   ],
@@ -36,6 +38,7 @@ import { NfseEmissionModule } from '../nfse-emission/nfse-emission.module';
     TransferService,
     ReconciliationService,
     FinancialReportService,
+    CardSettlementService,
   ],
 })
 export class FinanceModule {}

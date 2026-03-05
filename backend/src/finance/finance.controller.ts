@@ -9,6 +9,8 @@ import { CashAccountService } from './cash-account.service';
 import { TransferService } from './transfer.service';
 import { ReconciliationService } from './reconciliation.service';
 import { FinancialReportService } from './financial-report.service';
+import { CardSettlementService } from './card-settlement.service';
+import { SettleCardDto, BatchSettleCardDto } from './dto/card-settlement.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -35,6 +37,7 @@ export class FinanceController {
     private readonly transferService: TransferService,
     private readonly reconciliationService: ReconciliationService,
     private readonly reportService: FinancialReportService,
+    private readonly cardSettlementService: CardSettlementService,
   ) {}
 
   /* ── Payment Methods ──────────────────────────────────── */
@@ -219,6 +222,55 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reconciliationService.ignoreLine(lineId, user.companyId, notes);
+  }
+
+  /* ── Card Settlements (Baixa de Cartoes) ──────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('card-settlements/summary')
+  cardSettlementSummary(@CurrentUser() user: AuthenticatedUser) {
+    return this.cardSettlementService.summary(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('card-settlements')
+  findCardSettlements(
+    @Query() pagination: PaginationDto,
+    @Query('status') status: string | undefined,
+    @Query('dateFrom') dateFrom: string | undefined,
+    @Query('dateTo') dateTo: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cardSettlementService.findAll(user.companyId, pagination, { status, dateFrom, dateTo });
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('card-settlements/:id/settle')
+  settleCard(
+    @Param('id') id: string,
+    @Body() dto: SettleCardDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cardSettlementService.settle(id, user.companyId, dto, user.email);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('card-settlements/batch-settle')
+  batchSettleCards(
+    @Body() dto: BatchSettleCardDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cardSettlementService.settleBatch(user.companyId, dto, user.email);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('card-settlements/:id/cancel')
+  cancelCardSettlement(
+    @Param('id') id: string,
+    @Body('notes') notes: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cardSettlementService.cancel(id, user.companyId, notes);
   }
 
   /* ── Legacy Endpoints (backward compat) ────────────────── */

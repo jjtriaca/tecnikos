@@ -241,6 +241,52 @@ export const ENTRY_TYPE_CONFIG: Record<FinancialEntryType, { label: string; icon
   PAYABLE:    { label: 'A Pagar',   icon: '📤' },
 };
 
+/* Card Settlement (Baixa de Cartoes) */
+
+export type CardSettlementStatus = 'PENDING' | 'SETTLED' | 'CANCELLED';
+
+export interface CardSettlement {
+  id: string;
+  companyId: string;
+  financialEntryId: string;
+  paymentMethodCode?: string;
+  cardBrand?: string;
+  grossCents: number;
+  feePercent: number;
+  feeCents: number;
+  expectedNetCents: number;
+  expectedDate: string;
+  receivingDays: number;
+  status: CardSettlementStatus;
+  settledAt?: string;
+  actualAmountCents?: number;
+  differenceCents?: number;
+  cashAccountId?: string;
+  settledByName?: string;
+  notes?: string;
+  createdAt: string;
+  financialEntry?: {
+    id: string;
+    description?: string;
+    partner?: { id: string; name: string };
+  };
+}
+
+export interface CardSettlementSummary {
+  pendingCount: number;
+  pendingAmountCents: number;
+  expectedThisWeekCount: number;
+  expectedThisWeekCents: number;
+  overdueCount: number;
+  overdueCents: number;
+}
+
+export const CARD_SETTLEMENT_STATUS_CONFIG: Record<CardSettlementStatus, { label: string; color: string; bgColor: string; borderColor: string }> = {
+  PENDING:   { label: 'Pendente',  color: 'text-amber-700',  bgColor: 'bg-amber-50',  borderColor: 'border-amber-200' },
+  SETTLED:   { label: 'Baixado',   color: 'text-green-700',  bgColor: 'bg-green-50',  borderColor: 'border-green-200' },
+  CANCELLED: { label: 'Cancelado', color: 'text-slate-500',  bgColor: 'bg-slate-50',  borderColor: 'border-slate-200' },
+};
+
 export const ACTION_TYPE_OPTIONS = [
   { value: 'STATUS_CHANGE', label: 'Alterar Status' },
   { value: 'INTEREST_APPLY', label: 'Aplicar Juros' },

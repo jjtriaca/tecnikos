@@ -5,6 +5,7 @@ import { buildOrderBy } from '../common/util/build-order-by';
 import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
 import { RenegotiateDto } from './dto/renegotiate.dto';
 import { NfseEmissionService } from '../nfse-emission/nfse-emission.service';
+import { CardSettlementService } from './card-settlement.service';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
 const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt'];
@@ -17,6 +18,7 @@ export class FinanceService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => NfseEmissionService))
     private readonly nfseService: NfseEmissionService,
+    private readonly cardSettlementService: CardSettlementService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════
@@ -422,11 +424,41 @@ export class FinanceService {
 
       // Adjust cash account balance when PAID and cashAccountId is provided
       if (newStatus === 'PAID' && dto.cashAccountId) {
-        const deltaCents = entry.type === 'RECEIVABLE' ? entry.netCents : -entry.netCents;
-        await tx.cashAccount.update({
-          where: { id: dto.cashAccountId },
-          data: { currentBalanceCents: { increment: deltaCents } },
-        });
+        // Check if payment method has fee/delay (card payment)
+        let isCardWithDelay = false;
+        let pm: any = null;
+
+        if (dto.paymentMethod) {
+          pm = await tx.paymentMethod.findFirst({
+            where: { companyId, code: dto.paymentMethod, deletedAt: null },
+          });
+          if (pm && ((pm.feePercent && pm.feePercent > 0) || (pm.receivingDays && pm.receivingDays > 0))) {
+            isCardWithDelay = true;
+          }
+        }
+
+        if (isCardWithDelay) {
+          // Card payment: create settlement record, do NOT update cash account now
+          await this.cardSettlementService.createFromEntry(tx, {
+            id: entry.id,
+            companyId,
+            netCents: entry.netCents,
+            paidAt: data.paidAt,
+          }, {
+            code: pm.code,
+            feePercent: pm.feePercent || 0,
+            receivingDays: pm.receivingDays || 0,
+            cardBrand: dto.cardBrand,
+          });
+          this.logger.log(`Card settlement created for entry ${entry.id}, method=${pm.code}, fee=${pm.feePercent}%, days=${pm.receivingDays}`);
+        } else {
+          // Immediate payment (PIX, Dinheiro, etc.): update cash account now
+          const deltaCents = entry.type === 'RECEIVABLE' ? entry.netCents : -entry.netCents;
+          await tx.cashAccount.update({
+            where: { id: dto.cashAccountId },
+            data: { currentBalanceCents: { increment: deltaCents } },
+          });
+        }
       }
 
       return updated;

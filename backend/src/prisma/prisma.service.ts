@@ -16,6 +16,7 @@ export class PrismaService
     await this.ensureLocationLogTable();
     await this.ensureExecutionPauseTable();
     await this.ensureNfseEmissionTables();
+    await this.ensureCardSettlementTable();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -361,6 +362,42 @@ export class PrismaService
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Obra_companyId_active_idx" ON "Obra"("companyId", "active")`);
     } catch (err) {
       this.logger.warn('NFS-e Emission auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  /** Ensure CardSettlement table exists (self-healing migration) */
+  private async ensureCardSettlementTable(): Promise<void> {
+    try {
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "CardSettlement" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "companyId" TEXT NOT NULL,
+          "financialEntryId" TEXT NOT NULL,
+          "paymentMethodCode" TEXT,
+          "cardBrand" TEXT,
+          "grossCents" INTEGER NOT NULL,
+          "feePercent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+          "feeCents" INTEGER NOT NULL DEFAULT 0,
+          "expectedNetCents" INTEGER NOT NULL,
+          "expectedDate" TIMESTAMP(3) NOT NULL,
+          "receivingDays" INTEGER NOT NULL DEFAULT 0,
+          "status" TEXT NOT NULL DEFAULT 'PENDING',
+          "settledAt" TIMESTAMP(3),
+          "actualAmountCents" INTEGER,
+          "differenceCents" INTEGER,
+          "cashAccountId" TEXT,
+          "settledByName" TEXT,
+          "notes" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "CardSettlement_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardSettlement_companyId_status_idx" ON "CardSettlement"("companyId", "status")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardSettlement_companyId_expectedDate_idx" ON "CardSettlement"("companyId", "expectedDate")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardSettlement_financialEntryId_idx" ON "CardSettlement"("financialEntryId")`);
+    } catch (err) {
+      this.logger.warn('CardSettlement auto-migration check failed (non-fatal):', err);
     }
   }
 }

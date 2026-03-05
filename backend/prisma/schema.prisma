@@ -134,6 +134,7 @@ model Company {
   nfseConfig           NfseConfig?
   nfseEmissions        NfseEmission[]
   obras                Obra[]
+  cardSettlements      CardSettlement[]
 }
 
 model User {
@@ -615,6 +616,7 @@ model FinancialEntry {
 
   // Parcelas
   installments     FinancialInstallment[]
+  cardSettlements  CardSettlement[]
 
   @@index([companyId, type, status])
   @@index([companyId, deletedAt])
@@ -1049,6 +1051,7 @@ model CashAccount {
   transfersTo         AccountTransfer[]   @relation("TransferTo")
   statementLines      BankStatementLine[]
   financialEntries    FinancialEntry[]
+  cardSettlements     CardSettlement[]
 
   @@index([companyId, isActive])
   @@index([companyId, type])
@@ -1244,4 +1247,35 @@ model Obra {
 
   @@index([companyId, partnerId])
   @@index([companyId, active])
+}
+
+model CardSettlement {
+  id                  String   @id @default(uuid())
+  companyId           String
+  financialEntryId    String
+  paymentMethodCode   String?
+  cardBrand           String?
+  grossCents          Int
+  feePercent          Float    @default(0)
+  feeCents            Int      @default(0)
+  expectedNetCents    Int
+  expectedDate        DateTime
+  receivingDays       Int      @default(0)
+  status              String   @default("PENDING")
+  settledAt           DateTime?
+  actualAmountCents   Int?
+  differenceCents     Int?
+  cashAccountId       String?
+  settledByName       String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company          Company        @relation(fields: [companyId], references: [id])
+  financialEntry   FinancialEntry @relation(fields: [financialEntryId], references: [id])
+  cashAccount      CashAccount?   @relation(fields: [cashAccountId], references: [id])
+
+  @@index([companyId, status])
+  @@index([companyId, expectedDate])
+  @@index([financialEntryId])
 }

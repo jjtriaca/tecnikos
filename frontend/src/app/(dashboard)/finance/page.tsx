@@ -33,6 +33,7 @@ import CollectionRulesTab from "./components/CollectionRulesTab";
 import PaymentMethodsTab from "./components/PaymentMethodsTab";
 import CashAccountsTab from "./components/CashAccountsTab";
 import ReconciliationTab from "./components/ReconciliationTab";
+import CardSettlementTab from "./components/CardSettlementTab";
 import FinancialReportModal from "./components/FinancialReportModal";
 
 /* ── Legacy types (backward compat) ─────────────────────── */
@@ -87,13 +88,14 @@ function formatDate(dateStr: string) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "contas" | "conciliacao" | "formas" | "cobranca" | "repasses";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "cobranca" | "repasses";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
   { id: "receber", label: "A Receber", icon: "📥" },
   { id: "pagar", label: "A Pagar", icon: "📤" },
   { id: "parcelas", label: "Parcelas", icon: "📑" },
+  { id: "cartoes", label: "Baixa Cartoes", icon: "🔻" },
   { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
   { id: "conciliacao", label: "Conciliacao", icon: "🔄" },
   { id: "formas", label: "Formas Pgto", icon: "💳" },
@@ -377,6 +379,7 @@ export default function FinancePage() {
       {activeTab === "receber" && <EntriesTab type="RECEIVABLE" />}
       {activeTab === "pagar" && <EntriesTab type="PAYABLE" />}
       {activeTab === "parcelas" && <InstallmentsOverviewTab />}
+      {activeTab === "cartoes" && <CardSettlementTab />}
       {activeTab === "contas" && <CashAccountsTab />}
       {activeTab === "conciliacao" && <ReconciliationTab />}
       {activeTab === "formas" && <PaymentMethodsTab />}
@@ -916,6 +919,24 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                   </select>
                 </div>
               )}
+
+              {/* Card fee/delay info */}
+              {(() => {
+                const selPM = activePMs.find((p) => p.code === paymentMethod);
+                if (!selPM || (!selPM.feePercent && !selPM.receivingDays)) return null;
+                const fee = selPM.feePercent || 0;
+                const days = selPM.receivingDays || 0;
+                return (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
+                    <p className="font-medium mb-1">Pagamento com cartao</p>
+                    {fee > 0 && <p>Taxa da operadora: {fee.toFixed(2)}%</p>}
+                    {days > 0 && <p>Prazo de recebimento: {days} dia{days !== 1 ? "s" : ""}</p>}
+                    <p className="mt-1 text-blue-600">
+                      O saldo do caixa sera atualizado somente na baixa do cartao (aba Baixa Cartoes).
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Cash account (optional) */}
               {activeAccounts.length > 0 && (
