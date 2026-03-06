@@ -366,19 +366,26 @@ export default function CardSettlementTab() {
         id: "descricao",
         label: "Descricao",
         sortable: true,
-        sortKey: "description",
-        render: (cs) => (
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-slate-900 truncate">
-              {cs.financialEntry?.description || "—"}
-            </p>
-            {cs.financialEntry?.partner?.name && (
-              <p className="text-xs text-slate-500 truncate">
-                {cs.financialEntry.partner.name}
+        sortKey: "cardBrand",
+        render: (cs) => {
+          // Find matching card fee rate description
+          const matchingRate = feeRates.find(
+            (r) => r.brand === cs.cardBrand && Math.abs(r.feePercent - cs.feePercent) < 0.01,
+          );
+          const cardDesc = matchingRate?.description;
+          return (
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-900 truncate">
+                {cardDesc || cs.cardBrand || cs.paymentMethodCode || "—"}
               </p>
-            )}
-          </div>
-        ),
+              {cs.financialEntry?.partner?.name && (
+                <p className="text-xs text-slate-500 truncate">
+                  {cs.financialEntry.partner.name}
+                </p>
+              )}
+            </div>
+          );
+        },
       },
       {
         id: "bruto",
@@ -460,17 +467,6 @@ export default function CardSettlementTab() {
         },
       },
       {
-        id: "bandeira",
-        label: "Bandeira",
-        sortable: true,
-        sortKey: "cardBrand",
-        render: (cs) => (
-          <span className="text-xs text-slate-600">
-            {cs.cardBrand || cs.paymentMethodCode || "—"}
-          </span>
-        ),
-      },
-      {
         id: "status",
         label: "Status",
         sortable: true,
@@ -521,7 +517,7 @@ export default function CardSettlementTab() {
         },
       },
     ],
-    [],
+    [feeRates],
   );
 
   /* ── Table layout (drag/resize) ───────────────────────── */
