@@ -527,6 +527,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [payAction, setPayAction] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [cardBrand, setCardBrand] = useState("");
+  const [cardType, setCardType] = useState("CREDITO");
+  const [cardInstallments, setCardInstallments] = useState("1");
   const [activePMs, setActivePMs] = useState<PaymentMethod[]>([]);
   const [activeAccounts, setActiveAccounts] = useState<{ id: string; name: string; type: string; currentBalanceCents: number }[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
@@ -643,6 +645,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         status: action,
         paymentMethod,
         cardBrand: selectedPM?.requiresBrand ? cardBrand : undefined,
+        cardType: selectedPM?.requiresBrand ? cardType : undefined,
+        installments: selectedPM?.requiresBrand ? parseInt(cardInstallments) || 1 : undefined,
         cashAccountId: selectedAccountId || undefined,
       });
       const labels: Record<string, string> = { CONFIRMED: "confirmada", PAID: "paga" };
@@ -650,6 +654,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       setPayAction(null);
       setPaymentMethod("");
       setCardBrand("");
+      setCardType("CREDITO");
+      setCardInstallments("1");
       setSelectedAccountId("");
       await loadEntries();
     } catch {
@@ -888,7 +894,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       {/* Payment method modal */}
       {payAction && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); }} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); setCardType("CREDITO"); setCardInstallments("1"); }} />
           <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
             <div className="flex items-start gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
@@ -913,7 +919,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 </label>
                 <select
                   value={paymentMethod}
-                  onChange={(e) => { setPaymentMethod(e.target.value); setCardBrand(""); }}
+                  onChange={(e) => { setPaymentMethod(e.target.value); setCardBrand(""); setCardType("CREDITO"); setCardInstallments("1"); }}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                 >
                   <option value="">Selecione...</option>
@@ -924,19 +930,45 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
               </div>
 
               {(() => { const selPM = activePMs.find((p) => p.code === paymentMethod); return selPM?.requiresBrand; })() && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Bandeira do Cartao *</label>
-                  <select
-                    value={cardBrand}
-                    onChange={(e) => setCardBrand(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                  >
-                    <option value="">Selecione a bandeira...</option>
-                    {CARD_BRANDS.map((b) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Bandeira do Cartao *</label>
+                    <select
+                      value={cardBrand}
+                      onChange={(e) => setCardBrand(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                    >
+                      <option value="">Selecione a bandeira...</option>
+                      {CARD_BRANDS.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+                      <select
+                        value={cardType}
+                        onChange={(e) => setCardType(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                      >
+                        <option value="CREDITO">Credito</option>
+                        <option value="DEBITO">Debito</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Parcelas</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={48}
+                        value={cardInstallments}
+                        onChange={(e) => setCardInstallments(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                </>
               )}
 
               {/* Card fee/delay info */}
@@ -980,7 +1012,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); setSelectedAccountId(""); }}
+                onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); setCardType("CREDITO"); setCardInstallments("1"); setSelectedAccountId(""); }}
                 disabled={!!actionLoading}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
               >

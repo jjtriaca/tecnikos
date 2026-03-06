@@ -10,8 +10,10 @@ import { TransferService } from './transfer.service';
 import { ReconciliationService } from './reconciliation.service';
 import { FinancialReportService } from './financial-report.service';
 import { CardSettlementService } from './card-settlement.service';
+import { CardFeeRateService } from './card-fee-rate.service';
 import { FinancialAccountService } from './financial-account.service';
 import { SettleCardDto, BatchSettleCardDto } from './dto/card-settlement.dto';
+import { CreateCardFeeRateDto, UpdateCardFeeRateDto } from './dto/card-fee-rate.dto';
 import { CreateFinancialAccountDto, UpdateFinancialAccountDto } from './dto/financial-account.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -41,6 +43,7 @@ export class FinanceController {
     private readonly reportService: FinancialReportService,
     private readonly cardSettlementService: CardSettlementService,
     private readonly financialAccountService: FinancialAccountService,
+    private readonly cardFeeRateService: CardFeeRateService,
   ) {}
 
   /* ── Financial Accounts (Plano de Contas) ──────────────── */
@@ -312,6 +315,42 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.cardSettlementService.cancel(id, user.companyId, notes);
+  }
+
+  /* ── Card Fee Rates (Taxas de Cartao) ───────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('card-fee-rates')
+  findCardFeeRates(@CurrentUser() user: AuthenticatedUser) {
+    return this.cardFeeRateService.findAll(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('card-fee-rates')
+  createCardFeeRate(
+    @Body() dto: CreateCardFeeRateDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cardFeeRateService.create(user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('card-fee-rates/:id')
+  updateCardFeeRate(
+    @Param('id') id: string,
+    @Body() dto: UpdateCardFeeRateDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cardFeeRateService.update(id, user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Delete('card-fee-rates/:id')
+  deleteCardFeeRate(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cardFeeRateService.remove(id, user.companyId);
   }
 
   /* ── Legacy Endpoints (backward compat) ────────────────── */

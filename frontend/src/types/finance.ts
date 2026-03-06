@@ -285,6 +285,34 @@ export interface CardSettlementSummary {
   overdueCents: number;
 }
 
+export interface CardFeeRate {
+  id: string;
+  companyId: string;
+  brand: string;
+  type: string; // CREDITO | DEBITO
+  installmentFrom: number;
+  installmentTo: number;
+  feePercent: number;
+  receivingDays: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const CARD_BRANDS = [
+  'Visa',
+  'Mastercard',
+  'Elo',
+  'Hipercard',
+  'American Express',
+  'Outros',
+] as const;
+
+export const CARD_TYPES = [
+  { value: 'CREDITO', label: 'Credito' },
+  { value: 'DEBITO', label: 'Debito' },
+] as const;
+
 export const CARD_SETTLEMENT_STATUS_CONFIG: Record<CardSettlementStatus, { label: string; color: string; bgColor: string; borderColor: string }> = {
   PENDING:   { label: 'Pendente',  color: 'text-amber-700',  bgColor: 'bg-amber-50',  borderColor: 'border-amber-200' },
   SETTLED:   { label: 'Baixado',   color: 'text-green-700',  bgColor: 'bg-green-50',  borderColor: 'border-green-200' },

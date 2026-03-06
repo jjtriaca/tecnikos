@@ -6,6 +6,7 @@ import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto 
 import { RenegotiateDto } from './dto/renegotiate.dto';
 import { NfseEmissionService } from '../nfse-emission/nfse-emission.service';
 import { CardSettlementService } from './card-settlement.service';
+import { CardFeeRateService } from './card-fee-rate.service';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
 const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt'];
@@ -19,6 +20,7 @@ export class FinanceService {
     @Inject(forwardRef(() => NfseEmissionService))
     private readonly nfseService: NfseEmissionService,
     private readonly cardSettlementService: CardSettlementService,
+    private readonly cardFeeRateService: CardFeeRateService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════
@@ -494,7 +496,24 @@ export class FinanceService {
         }
 
         if (isCardWithDelay) {
-          // Card payment: create settlement record, do NOT update cash account now
+          // Card payment: lookup granular fee rate if brand/type/installments provided
+          let feePercent = pm.feePercent || 0;
+          let receivingDays = pm.receivingDays || 0;
+
+          if (dto.cardBrand && dto.cardType) {
+            const rateOverride = await this.cardFeeRateService.lookup(
+              companyId,
+              dto.cardBrand,
+              dto.cardType,
+              dto.installments || 1,
+            );
+            if (rateOverride) {
+              feePercent = rateOverride.feePercent;
+              receivingDays = rateOverride.receivingDays;
+              this.logger.log(`CardFeeRate override: brand=${dto.cardBrand}, type=${dto.cardType}, installments=${dto.installments || 1} → fee=${feePercent}%, days=${receivingDays}`);
+            }
+          }
+
           await this.cardSettlementService.createFromEntry(tx, {
             id: entry.id,
             companyId,
@@ -502,11 +521,11 @@ export class FinanceService {
             paidAt: data.paidAt,
           }, {
             code: pm.code,
-            feePercent: pm.feePercent || 0,
-            receivingDays: pm.receivingDays || 0,
+            feePercent,
+            receivingDays,
             cardBrand: dto.cardBrand,
           });
-          this.logger.log(`Card settlement created for entry ${entry.id}, method=${pm.code}, fee=${pm.feePercent}%, days=${pm.receivingDays}`);
+          this.logger.log(`Card settlement created for entry ${entry.id}, method=${pm.code}, fee=${feePercent}%, days=${receivingDays}`);
         } else {
           // Immediate payment (PIX, Dinheiro, etc.): update cash account now
           const deltaCents = entry.type === 'RECEIVABLE' ? entry.netCents : -entry.netCents;

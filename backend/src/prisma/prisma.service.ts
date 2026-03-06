@@ -19,6 +19,7 @@ export class PrismaService
     await this.ensureCardSettlementTable();
     await this.ensureFinancialAccountTable();
     await this.ensureServiceTable();
+    await this.ensureCardFeeRateTable();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -458,6 +459,31 @@ export class PrismaService
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Service_companyId_code_idx" ON "Service"("companyId", "code")`);
     } catch (err) {
       this.logger.warn('Service auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  private async ensureCardFeeRateTable(): Promise<void> {
+    try {
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "CardFeeRate" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "companyId" TEXT NOT NULL,
+          "brand" TEXT NOT NULL,
+          "type" TEXT NOT NULL,
+          "installmentFrom" INTEGER NOT NULL DEFAULT 1,
+          "installmentTo" INTEGER NOT NULL DEFAULT 1,
+          "feePercent" DOUBLE PRECISION NOT NULL,
+          "receivingDays" INTEGER NOT NULL DEFAULT 30,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "CardFeeRate_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "CardFeeRate_companyId_brand_type_installmentFrom_installmentTo_key" ON "CardFeeRate"("companyId", "brand", "type", "installmentFrom", "installmentTo")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardFeeRate_companyId_brand_type_idx" ON "CardFeeRate"("companyId", "brand", "type")`);
+    } catch (err) {
+      this.logger.warn('CardFeeRate auto-migration check failed (non-fatal):', err);
     }
   }
 }

@@ -137,6 +137,7 @@ model Company {
   cardSettlements      CardSettlement[]
   financialAccounts    FinancialAccount[]
   services             Service[]
+  cardFeeRates         CardFeeRate[]
 }
 
 model User {
@@ -1285,6 +1286,29 @@ model CardSettlement {
   @@index([companyId, status])
   @@index([companyId, expectedDate])
   @@index([financialEntryId])
+}
+
+// ========== Taxas de Cartão ==========
+
+model CardFeeRate {
+  id              String   @id @default(uuid())
+  companyId       String
+
+  brand           String   // Visa, Mastercard, Elo, Hipercard, American Express, Outros
+  type            String   // CREDITO, DEBITO
+  installmentFrom Int      @default(1) // Parcela inicial (ex: 1)
+  installmentTo   Int      @default(1) // Parcela final (ex: 1 = à vista, 6 = até 6x)
+  feePercent      Float    // Taxa % (ex: 1.99)
+  receivingDays   Int      @default(30) // Prazo de recebimento em dias
+
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company         Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, brand, type, installmentFrom, installmentTo])
+  @@index([companyId, brand, type])
 }
 
 // ========== Plano de Contas (v1.01) ==========

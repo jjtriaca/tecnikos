@@ -14,8 +14,9 @@ import type {
   CardSettlement,
   CardSettlementSummary,
   CashAccount,
+  CardFeeRate,
 } from "@/types/finance";
-import { CARD_SETTLEMENT_STATUS_CONFIG } from "@/types/finance";
+import { CARD_SETTLEMENT_STATUS_CONFIG, CARD_BRANDS, CARD_TYPES } from "@/types/finance";
 
 /* ── Helpers ────────────────────────────────────────────── */
 
@@ -157,6 +158,21 @@ export default function CardSettlementTab() {
   const [batchCashAccountId, setBatchCashAccountId] = useState("");
   const [batchNotes, setBatchNotes] = useState("");
 
+  // Fee Rates
+  const [showFeeRates, setShowFeeRates] = useState(false);
+  const [feeRates, setFeeRates] = useState<CardFeeRate[]>([]);
+  const [feeRatesLoading, setFeeRatesLoading] = useState(false);
+  const [feeForm, setFeeForm] = useState<{
+    id?: string;
+    brand: string;
+    type: string;
+    installmentFrom: number;
+    installmentTo: number;
+    feePercent: string;
+    receivingDays: string;
+  } | null>(null);
+  const [feeSaving, setFeeSaving] = useState(false);
+
   /* ── Effective status filter (default PENDING) ────────── */
   const effectiveStatus = filters.status || "PENDING";
 
@@ -182,6 +198,18 @@ export default function CardSettlementTab() {
       setCashAccounts(result);
     } catch {
       /* ignore */
+    }
+  }, []);
+
+  const loadFeeRates = useCallback(async () => {
+    setFeeRatesLoading(true);
+    try {
+      const result = await api.get<CardFeeRate[]>("/finance/card-fee-rates");
+      setFeeRates(result);
+    } catch {
+      /* ignore */
+    } finally {
+      setFeeRatesLoading(false);
     }
   }, []);
 
@@ -219,10 +247,106 @@ export default function CardSettlementTab() {
     loadCashAccounts();
   }, [loadSummary, loadCashAccounts]);
 
+  // Load fee rates when section opened
+  useEffect(() => {
+    if (showFeeRates) loadFeeRates();
+  }, [showFeeRates, loadFeeRates]);
+
   // Load settlements when filters/pagination change
   useEffect(() => {
     loadSettlements();
   }, [loadSettlements]);
+
+  /* ── Fee rate helpers ─────────────────────────────────── */
+
+  function openNewFeeForm() {
+    setFeeForm({
+      brand: CARD_BRANDS[0],
+      type: "CREDITO",
+      installmentFrom: 1,
+      installmentTo: 1,
+      feePercent: "",
+      receivingDays: "30",
+    });
+  }
+
+  function openEditFeeForm(rate: CardFeeRate) {
+    setFeeForm({
+      id: rate.id,
+      brand: rate.brand,
+      type: rate.type,
+      installmentFrom: rate.installmentFrom,
+      installmentTo: rate.installmentTo,
+      feePercent: String(rate.feePercent),
+      receivingDays: String(rate.receivingDays),
+    });
+  }
+
+  async function saveFeeRate() {
+    if (!feeForm) return;
+    const fee = parseFloat(feeForm.feePercent);
+    if (isNaN(fee) || fee < 0 || fee > 100) {
+      toast("Informe uma taxa valida (0-100).", "error");
+      return;
+    }
+    const days = parseInt(feeForm.receivingDays);
+    if (isNaN(days) || days < 0) {
+      toast("Informe dias de recebimento validos.", "error");
+      return;
+    }
+
+    setFeeSaving(true);
+    try {
+      if (feeForm.id) {
+        await api.patch(`/finance/card-fee-rates/${feeForm.id}`, {
+          feePercent: fee,
+          receivingDays: days,
+        });
+        toast("Taxa atualizada!", "success");
+      } else {
+        await api.post("/finance/card-fee-rates", {
+          brand: feeForm.brand,
+          type: feeForm.type,
+          installmentFrom: feeForm.installmentFrom,
+          installmentTo: feeForm.installmentTo,
+          feePercent: fee,
+          receivingDays: days,
+        });
+        toast("Taxa criada!", "success");
+      }
+      setFeeForm(null);
+      loadFeeRates();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao salvar taxa.";
+      toast(msg, "error");
+    } finally {
+      setFeeSaving(false);
+    }
+  }
+
+  async function deleteFeeRate(id: string) {
+    if (!window.confirm("Excluir esta taxa?")) return;
+    try {
+      await api.del(`/finance/card-fee-rates/${id}`);
+      toast("Taxa removida.", "success");
+      loadFeeRates();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao remover taxa.";
+      toast(msg, "error");
+    }
+  }
+
+  /* ── Group fee rates by brand for display ──────────────── */
+
+  const feeRatesByBrand = useMemo(() => {
+    const map = new Map<string, CardFeeRate[]>();
+    for (const r of feeRates) {
+      const list = map.get(r.brand) || [];
+      list.push(r);
+      map.set(r.brand, list);
+    }
+    return map;
+  }, [feeRates]);
 
   /* ── Column definitions ───────────────────────────────── */
 
@@ -595,6 +719,222 @@ export default function CardSettlementTab() {
             </div>
           </>
         ) : null}
+      </div>
+
+      {/* ── Fee Rates Section (Collapsible) ─────────────── */}
+      <div className="mb-6">
+        <button
+          onClick={() => setShowFeeRates(!showFeeRates)}
+          className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors"
+        >
+          <svg
+            className={`h-4 w-4 transition-transform ${showFeeRates ? "rotate-90" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+          Configurar Taxas por Bandeira
+          <span className="text-xs text-slate-400">({feeRates.length} taxas cadastradas)</span>
+        </button>
+
+        {showFeeRates && (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-semibold text-slate-800">Taxas de Cartao</h4>
+              <button
+                onClick={openNewFeeForm}
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+              >
+                + Nova Taxa
+              </button>
+            </div>
+
+            {/* Fee rate form (inline) */}
+            {feeForm && (
+              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <h5 className="text-xs font-semibold text-blue-800 mb-3">
+                  {feeForm.id ? "Editar Taxa" : "Nova Taxa"}
+                </h5>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Bandeira</label>
+                    <select
+                      value={feeForm.brand}
+                      onChange={(e) => setFeeForm({ ...feeForm, brand: e.target.value })}
+                      disabled={!!feeForm.id}
+                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white disabled:bg-slate-100"
+                    >
+                      {CARD_BRANDS.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Tipo</label>
+                    <select
+                      value={feeForm.type}
+                      onChange={(e) => setFeeForm({ ...feeForm, type: e.target.value })}
+                      disabled={!!feeForm.id}
+                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white disabled:bg-slate-100"
+                    >
+                      {CARD_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Parcelas De</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={48}
+                      value={feeForm.installmentFrom}
+                      onChange={(e) => setFeeForm({ ...feeForm, installmentFrom: parseInt(e.target.value) || 1 })}
+                      disabled={!!feeForm.id}
+                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Parcelas Ate</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={48}
+                      value={feeForm.installmentTo}
+                      onChange={(e) => setFeeForm({ ...feeForm, installmentTo: parseInt(e.target.value) || 1 })}
+                      disabled={!!feeForm.id}
+                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Taxa (%)</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={feeForm.feePercent}
+                      onChange={(e) => setFeeForm({ ...feeForm, feePercent: e.target.value })}
+                      placeholder="ex: 2.49"
+                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Dias Receb.</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={feeForm.receivingDays}
+                      onChange={(e) => setFeeForm({ ...feeForm, receivingDays: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-3">
+                  <button
+                    onClick={() => setFeeForm(null)}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={saveFeeRate}
+                    disabled={feeSaving}
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {feeSaving ? "Salvando..." : feeForm.id ? "Atualizar" : "Salvar"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Fee rates table */}
+            {feeRatesLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100" />
+                ))}
+              </div>
+            ) : feeRates.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-4">
+                Nenhuma taxa cadastrada. Clique em &quot;+ Nova Taxa&quot; para adicionar.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {[...feeRatesByBrand.entries()].map(([brand, rates]) => (
+                  <div key={brand}>
+                    <h5 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-blue-400" />
+                      {brand}
+                    </h5>
+                    <div className="rounded-lg border border-slate-200 overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="py-2 px-3 text-left font-medium text-slate-600">Tipo</th>
+                            <th className="py-2 px-3 text-center font-medium text-slate-600">Parcelas</th>
+                            <th className="py-2 px-3 text-right font-medium text-slate-600">Taxa (%)</th>
+                            <th className="py-2 px-3 text-right font-medium text-slate-600">Dias</th>
+                            <th className="py-2 px-3 text-center font-medium text-slate-600">Status</th>
+                            <th className="py-2 px-3 text-center font-medium text-slate-600">Acoes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rates.map((r) => (
+                            <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                              <td className="py-2 px-3">
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  r.type === "CREDITO"
+                                    ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                    : "bg-cyan-50 text-cyan-700 border border-cyan-200"
+                                }`}>
+                                  {r.type === "CREDITO" ? "Credito" : "Debito"}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-center text-slate-700">
+                                {r.installmentFrom === r.installmentTo
+                                  ? `${r.installmentFrom}x`
+                                  : `${r.installmentFrom}x - ${r.installmentTo}x`}
+                              </td>
+                              <td className="py-2 px-3 text-right font-semibold text-slate-800">
+                                {r.feePercent.toFixed(2)}%
+                              </td>
+                              <td className="py-2 px-3 text-right text-slate-600">
+                                {r.receivingDays}d
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <span className={`inline-block w-2 h-2 rounded-full ${r.isActive ? "bg-green-500" : "bg-slate-300"}`} />
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => openEditFeeForm(r)}
+                                    className="text-blue-600 hover:text-blue-800 font-medium"
+                                    title="Editar"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    onClick={() => deleteFeeRate(r.id)}
+                                    className="text-red-500 hover:text-red-700 font-medium"
+                                    title="Excluir"
+                                  >
+                                    Excluir
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Filters ───────────────────────────────────────── */}
