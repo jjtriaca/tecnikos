@@ -7,6 +7,7 @@ interface UseTableParamsOptions {
   defaultSortBy?: string;
   defaultSortOrder?: "asc" | "desc";
   defaultLimit?: number;
+  defaultFilters?: FilterValues;
   /** When set, persists search/sort/filters to localStorage under this key */
   persistKey?: string;
 }
@@ -42,7 +43,7 @@ export function useTableParams(opts?: UseTableParamsOptions) {
     },
   );
   const [filters, setFiltersRaw] = useState<FilterValues>(
-    persistedRef.current?.filters ?? {},
+    persistedRef.current?.filters ?? opts?.defaultFilters ?? {},
   );
 
   // Persist changes to localStorage

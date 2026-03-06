@@ -93,6 +93,7 @@ const ENTRY_FILTERS: FilterDefinition[] = [
     key: "status",
     label: "Status",
     type: "select",
+    placeholder: "Todos",
     options: [
       { value: "PENDING", label: "Pendente" },
       { value: "CONFIRMED", label: "Confirmado" },
@@ -504,7 +505,7 @@ function SummaryCard({
 function EntriesTab({ type }: { type: FinancialEntryType }) {
   const { user } = useAuth();
   const { fiscalEnabled } = useFiscalModule();
-  const tp = useTableParams({ defaultSortBy: "createdAt", defaultSortOrder: "desc" });
+  const tp = useTableParams({ defaultSortBy: "createdAt", defaultSortOrder: "desc", defaultFilters: { status: "PENDING" } });
   const allColumns = buildEntryColumns(type);
   const columns = fiscalEnabled ? allColumns : allColumns.filter((c) => c.id !== "nfseStatus");
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout(
