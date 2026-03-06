@@ -545,15 +545,6 @@ export default function CardSettlementTab() {
               >
                 Baixar
               </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCancel(cs);
-                }}
-                className="text-xs font-medium text-red-600 hover:text-red-800 transition-colors"
-              >
-                Cancelar
-              </button>
             </div>
           );
         },
