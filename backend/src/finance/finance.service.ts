@@ -380,6 +380,30 @@ export class FinanceService {
     return entry;
   }
 
+  async updateEntry(id: string, companyId: string, dto: UpdateFinancialEntryDto) {
+    const entry = await this.findOneEntry(id, companyId);
+
+    const data: any = {};
+    if (dto.description !== undefined) data.description = dto.description || null;
+    if (dto.notes !== undefined) data.notes = dto.notes || null;
+    if (dto.financialAccountId !== undefined) data.financialAccountId = dto.financialAccountId || null;
+    if (dto.partnerId !== undefined) data.partnerId = dto.partnerId;
+    if (dto.grossCents !== undefined) {
+      data.grossCents = dto.grossCents;
+      data.netCents = dto.grossCents - (entry.commissionCents || 0);
+    }
+    if (dto.dueDate !== undefined) data.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
+
+    return this.prisma.financialEntry.update({
+      where: { id },
+      data,
+      include: {
+        partner: { select: { id: true, name: true } },
+        financialAccount: { select: { id: true, code: true, name: true } },
+      },
+    });
+  }
+
   async changeEntryStatus(id: string, companyId: string, dto: ChangeEntryStatusDto) {
     const entry = await this.findOneEntry(id, companyId);
 

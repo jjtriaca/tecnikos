@@ -175,6 +175,14 @@ export default function CardSettlementTab() {
   } | null>(null);
   const [feeSaving, setFeeSaving] = useState(false);
 
+  // Edit entry modal
+  const [editModal, setEditModal] = useState<CardSettlement | null>(null);
+  const [editDesc, setEditDesc] = useState("");
+  const [editAccountId, setEditAccountId] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [postableAccounts, setPostableAccounts] = useState<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>([]);
+
   /* ── Effective status filter (default PENDING) ────────── */
   const effectiveStatus = filters.status || "PENDING";
 
@@ -247,6 +255,9 @@ export default function CardSettlementTab() {
   useEffect(() => {
     loadSummary();
     loadCashAccounts();
+    api.get<typeof postableAccounts>("/finance/accounts/postable")
+      .then(setPostableAccounts)
+      .catch(() => {});
   }, [loadSummary, loadCashAccounts]);
 
   // Load fee rates when section opened
@@ -357,6 +368,34 @@ export default function CardSettlementTab() {
     }
     return map;
   }, [feeRates]);
+
+  /* ── Edit entry helpers ──────────────────────────────── */
+
+  function openEditModal(cs: CardSettlement) {
+    setEditModal(cs);
+    setEditDesc(cs.financialEntry?.description || "");
+    setEditAccountId(cs.financialEntry?.financialAccountId || "");
+    setEditNotes(cs.financialEntry?.notes || "");
+  }
+
+  async function handleSaveEdit() {
+    if (!editModal?.financialEntry?.id) return;
+    setEditSaving(true);
+    try {
+      await api.patch(`/finance/entries/${editModal.financialEntry.id}`, {
+        description: editDesc || undefined,
+        financialAccountId: editAccountId || undefined,
+        notes: editNotes || undefined,
+      });
+      toast("Lancamento atualizado com sucesso!", "success");
+      setEditModal(null);
+      loadSettlements();
+    } catch {
+      toast("Erro ao atualizar lancamento.", "error");
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   /* ── Column definitions ───────────────────────────────── */
 
@@ -493,10 +532,25 @@ export default function CardSettlementTab() {
         align: "center" as const,
         render: (cs) => {
           if (cs.status !== "PENDING") {
-            return <span className="text-xs text-slate-400">—</span>;
+            return (
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={(e) => { e.stopPropagation(); openEditModal(cs); }}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                  Editar
+                </button>
+              </div>
+            );
           }
           return (
             <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); openEditModal(cs); }}
+                className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                Editar
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1423,6 +1477,99 @@ export default function CardSettlementTab() {
                 ) : (
                   "Confirmar Baixa em Lote"
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Entry Modal ─────────────────────────────── */}
+      {editModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setEditModal(null)}
+          />
+          <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">
+              Editar Lancamento
+            </h3>
+
+            <div className="space-y-4">
+              {/* Descricao */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Descricao
+                </label>
+                <input
+                  type="text"
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  placeholder="Descricao do lancamento..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Categoria */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Categoria
+                </label>
+                <select
+                  value={editAccountId}
+                  onChange={(e) => setEditAccountId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                >
+                  <option value="">Sem categoria</option>
+                  {(() => {
+                    const grouped = new Map<string, typeof postableAccounts>();
+                    for (const acc of postableAccounts) {
+                      const parentName = acc.parent ? `${acc.parent.code} - ${acc.parent.name}` : "Sem grupo";
+                      if (!grouped.has(parentName)) grouped.set(parentName, []);
+                      grouped.get(parentName)!.push(acc);
+                    }
+                    return Array.from(grouped.entries()).map(([group, accs]) => (
+                      <optgroup key={group} label={group}>
+                        {accs.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.code} - {a.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ));
+                  })()}
+                </select>
+              </div>
+
+              {/* Observacoes */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Observacoes
+                </label>
+                <textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Observacoes opcionais..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setEditModal(null)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={editSaving}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {editSaving ? "Salvando..." : "Salvar"}
               </button>
             </div>
           </div>

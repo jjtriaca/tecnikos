@@ -273,7 +273,10 @@ export interface CardSettlement {
   financialEntry?: {
     id: string;
     description?: string;
+    notes?: string;
+    financialAccountId?: string;
     partner?: { id: string; name: string };
+    financialAccount?: { id: string; code: string; name: string };
   };
   cardFeeRate?: {
     id: string;

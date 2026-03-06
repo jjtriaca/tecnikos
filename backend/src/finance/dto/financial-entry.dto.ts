@@ -80,6 +80,10 @@ export class UpdateFinancialEntryDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  financialAccountId?: string;
 }
 
 export class ChangeEntryStatusDto {

@@ -20,7 +20,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
-import { CreateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
+import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
 import { GenerateInstallmentsDto } from './dto/generate-installments.dto';
 import { RenegotiateDto } from './dto/renegotiate.dto';
 import { CreateCollectionRuleDto, UpdateCollectionRuleDto } from './dto/collection-rule.dto';
@@ -433,6 +433,16 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.createEntry(dto, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('entries/:id')
+  updateEntry(
+    @Param('id') id: string,
+    @Body() dto: UpdateFinancialEntryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateEntry(id, user.companyId, dto);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

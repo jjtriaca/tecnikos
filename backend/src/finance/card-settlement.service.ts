@@ -123,7 +123,11 @@ export class CardSettlementService {
         where,
         include: {
           financialEntry: {
-            select: { id: true, description: true, partner: { select: { id: true, name: true } } },
+            select: {
+              id: true, description: true, notes: true, financialAccountId: true,
+              partner: { select: { id: true, name: true } },
+              financialAccount: { select: { id: true, code: true, name: true } },
+            },
           },
           cardFeeRate: {
             select: { id: true, description: true, brand: true },
