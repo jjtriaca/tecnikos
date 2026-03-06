@@ -37,6 +37,7 @@ export class CardFeeRateService {
     return this.prisma.cardFeeRate.create({
       data: {
         companyId,
+        description: dto.description,
         brand: dto.brand,
         type: dto.type,
         installmentFrom: dto.installmentFrom,

@@ -482,6 +482,8 @@ export class PrismaService
       `);
       await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "CardFeeRate_companyId_brand_type_installmentFrom_installmentTo_key" ON "CardFeeRate"("companyId", "brand", "type", "installmentFrom", "installmentTo")`);
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardFeeRate_companyId_brand_type_idx" ON "CardFeeRate"("companyId", "brand", "type")`);
+      // v1.01.08: Add description column
+      await this.$executeRawUnsafe(`ALTER TABLE "CardFeeRate" ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT ''`);
     } catch (err) {
       this.logger.warn('CardFeeRate auto-migration check failed (non-fatal):', err);
     }

@@ -165,6 +165,7 @@ export default function CardSettlementTab() {
   const [feeRatesLoading, setFeeRatesLoading] = useState(false);
   const [feeForm, setFeeForm] = useState<{
     id?: string;
+    description: string;
     brand: string;
     type: string;
     installmentFrom: number;
@@ -262,6 +263,7 @@ export default function CardSettlementTab() {
 
   function openNewFeeForm() {
     setFeeForm({
+      description: "",
       brand: CARD_BRANDS[0],
       type: "CREDITO",
       installmentFrom: 1,
@@ -274,6 +276,7 @@ export default function CardSettlementTab() {
   function openEditFeeForm(rate: CardFeeRate) {
     setFeeForm({
       id: rate.id,
+      description: rate.description || "",
       brand: rate.brand,
       type: rate.type,
       installmentFrom: rate.installmentFrom,
@@ -285,6 +288,10 @@ export default function CardSettlementTab() {
 
   async function saveFeeRate() {
     if (!feeForm) return;
+    if (!feeForm.description.trim()) {
+      toast("Informe a descricao do cartao.", "error");
+      return;
+    }
     const fee = parseFloat(feeForm.feePercent);
     if (isNaN(fee) || fee < 0 || fee > 100) {
       toast("Informe uma taxa valida (0-100).", "error");
@@ -300,12 +307,14 @@ export default function CardSettlementTab() {
     try {
       if (feeForm.id) {
         await api.patch(`/finance/card-fee-rates/${feeForm.id}`, {
+          description: feeForm.description.trim(),
           feePercent: fee,
           receivingDays: days,
         });
         toast("Taxa atualizada!", "success");
       } else {
         await api.post("/finance/card-fee-rates", {
+          description: feeForm.description.trim(),
           brand: feeForm.brand,
           type: feeForm.type,
           installmentFrom: feeForm.installmentFrom,
@@ -807,6 +816,17 @@ export default function CardSettlementTab() {
                 <h5 className="text-xs font-semibold text-blue-800 mb-3">
                   {feeForm.id ? "Editar Taxa" : "Nova Taxa"}
                 </h5>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Descricao *</label>
+                    <input
+                      type="text"
+                      value={feeForm.description}
+                      onChange={(e) => setFeeForm({ ...feeForm, description: e.target.value })}
+                      placeholder="Ex: Visa Credito 1x, Mastercard Debito a vista..."
+                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   <div>
                     <label className="block text-xs text-slate-600 mb-1">Bandeira</label>
@@ -880,6 +900,7 @@ export default function CardSettlementTab() {
                     />
                   </div>
                 </div>
+                </div>
                 <div className="flex justify-end gap-2 mt-3">
                   <button
                     onClick={() => setFeeForm(null)}
@@ -921,6 +942,7 @@ export default function CardSettlementTab() {
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="py-2 px-3 text-left font-medium text-slate-600">Descricao</th>
                             <th className="py-2 px-3 text-left font-medium text-slate-600">Tipo</th>
                             <th className="py-2 px-3 text-center font-medium text-slate-600">Parcelas</th>
                             <th className="py-2 px-3 text-right font-medium text-slate-600">Taxa (%)</th>
@@ -932,6 +954,9 @@ export default function CardSettlementTab() {
                         <tbody>
                           {rates.map((r) => (
                             <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                              <td className="py-2 px-3 text-slate-800 font-medium">
+                                {r.description || "-"}
+                              </td>
                               <td className="py-2 px-3">
                                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                                   r.type === "CREDITO"

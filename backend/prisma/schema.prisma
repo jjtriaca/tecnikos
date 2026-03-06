@@ -1294,6 +1294,7 @@ model CardFeeRate {
   id              String   @id @default(uuid())
   companyId       String
 
+  description     String   @default("") // Ex: "Visa Crédito 1x", "Mastercard Débito à vista"
   brand           String   // Visa, Mastercard, Elo, Hipercard, American Express, Outros
   type            String   // CREDITO, DEBITO
   installmentFrom Int      @default(1) // Parcela inicial (ex: 1)

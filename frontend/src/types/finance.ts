@@ -288,6 +288,7 @@ export interface CardSettlementSummary {
 export interface CardFeeRate {
   id: string;
   companyId: string;
+  description: string;
   brand: string;
   type: string; // CREDITO | DEBITO
   installmentFrom: number;

@@ -2,6 +2,9 @@ import { IsString, IsNumber, IsOptional, IsBoolean, IsInt, Min, Max } from 'clas
 
 export class CreateCardFeeRateDto {
   @IsString()
+  description: string; // Ex: "Visa Crédito 1x"
+
+  @IsString()
   brand: string; // Visa, Mastercard, Elo, etc.
 
   @IsString()
@@ -26,6 +29,10 @@ export class CreateCardFeeRateDto {
 }
 
 export class UpdateCardFeeRateDto {
+  @IsOptional()
+  @IsString()
+  description?: string;
+
   @IsOptional()
   @IsNumber()
   @Min(0)

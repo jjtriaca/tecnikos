@@ -119,10 +119,6 @@ const partnerFetcher: LookupFetcher<PartnerSummary> = async (search, page, signa
 
 /* ── Payment method options ────────────────────────────── */
 
-const CARD_BRANDS = [
-  "Visa", "Mastercard", "Elo", "Hipercard", "American Express", "Outro",
-];
-
 /** Cached payment methods from API (loaded by EntriesTab) */
 let _cachedPaymentMethods: PaymentMethod[] = [];
 
@@ -527,7 +523,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   // Pay/Confirm with payment method
   const [payAction, setPayAction] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("");
-  const [cardBrand, setCardBrand] = useState("");
+  const [selectedCardRateId, setSelectedCardRateId] = useState("");
   const [activePMs, setActivePMs] = useState<PaymentMethod[]>([]);
   const [cardFeeRates, setCardFeeRates] = useState<CardFeeRate[]>([]);
   const [activeAccounts, setActiveAccounts] = useState<{ id: string; name: string; type: string; currentBalanceCents: number }[]>([]);
@@ -569,29 +565,17 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     return isDebit ? "DEBITO" : "CREDITO";
   }, [paymentMethod, activePMs]);
 
-  // Filter card fee rates by type and get unique brands
+  // Filter card fee rates by type
   const filteredCardRates = useMemo(() => {
     if (!cardType) return [];
     return cardFeeRates.filter((r) => r.type === cardType && r.isActive);
   }, [cardType, cardFeeRates]);
 
-  const filteredCardBrands = useMemo(() => {
-    const brands = [...new Set(filteredCardRates.map((r) => r.brand))].sort();
-    return brands.length > 0 ? brands : [];
-  }, [filteredCardRates]);
-
-  // Fee preview for selected brand
-  const selectedBrandPreview = useMemo(() => {
-    if (!cardBrand || !cardType) return null;
-    const rates = filteredCardRates.filter((r) => r.brand === cardBrand);
-    if (rates.length === 0) return null;
-    const fees = rates.map((r) => r.feePercent).sort((a, b) => a - b);
-    const days = rates.map((r) => r.receivingDays);
-    const minFee = fees[0];
-    const maxFee = fees[fees.length - 1];
-    const maxDays = Math.max(...days);
-    return { minFee, maxFee, maxDays, rateCount: rates.length };
-  }, [cardBrand, cardType, filteredCardRates]);
+  // Selected card rate object
+  const selectedCardRate = useMemo(() => {
+    if (!selectedCardRateId) return null;
+    return cardFeeRates.find((r) => r.id === selectedCardRateId) || null;
+  }, [selectedCardRateId, cardFeeRates]);
 
   const loadEntries = useCallback(async () => {
     try {
@@ -676,32 +660,26 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       return;
     }
     const selectedPM = activePMs.find((p) => p.code === paymentMethod);
-    if (selectedPM?.requiresBrand && !cardBrand) {
-      toast("Selecione a bandeira do cartão.", "error");
+    if (selectedPM?.requiresBrand && !selectedCardRateId) {
+      toast("Selecione o cartao.", "error");
       return;
     }
     const { entry, action } = payAction;
     setActionLoading(entry.id);
     try {
       const isCard = !!selectedPM?.requiresBrand;
-      // Find the default (1x) card fee rate for the selected brand
-      let cardFeeRateId: string | undefined;
-      if (isCard && cardBrand && cardType) {
-        const defaultRate = filteredCardRates.find((r) => r.brand === cardBrand && r.installmentFrom === 1);
-        if (defaultRate) cardFeeRateId = defaultRate.id;
-      }
       await api.patch(`/finance/entries/${entry.id}/status`, {
         status: action,
         paymentMethod,
-        cardBrand: isCard ? cardBrand : undefined,
-        cardFeeRateId: isCard ? cardFeeRateId : undefined,
+        cardBrand: isCard && selectedCardRate ? selectedCardRate.brand : undefined,
+        cardFeeRateId: isCard ? selectedCardRateId : undefined,
         cashAccountId: isCard ? undefined : (selectedAccountId || undefined),
       });
       const labels: Record<string, string> = { CONFIRMED: "confirmada", PAID: "paga" };
       toast(`Entrada ${labels[action]} com sucesso!`, "success");
       setPayAction(null);
       setPaymentMethod("");
-      setCardBrand("");
+      setSelectedCardRateId("");
       setSelectedAccountId("");
       await loadEntries();
     } catch {
@@ -940,7 +918,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       {/* Payment method modal */}
       {payAction && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); }} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); }} />
           <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
             <div className="flex items-start gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
@@ -965,7 +943,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 </label>
                 <select
                   value={paymentMethod}
-                  onChange={(e) => { setPaymentMethod(e.target.value); setCardBrand(""); }}
+                  onChange={(e) => { setPaymentMethod(e.target.value); setSelectedCardRateId(""); }}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                 >
                   <option value="">Selecione...</option>
@@ -978,45 +956,43 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
               {isCardPayment && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Cartao *</label>
-                  {filteredCardBrands.length === 0 ? (
+                  {filteredCardRates.length === 0 ? (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
                       <p className="font-medium">Nenhum cartao cadastrado para {cardType === "DEBITO" ? "debito" : "credito"}.</p>
-                      <p className="mt-1">Cadastre as taxas na aba <strong>Formas Pgto</strong> → Taxas de Cartao.</p>
+                      <p className="mt-1">Cadastre as taxas na aba <strong>Baixa Cartoes</strong> → Configurar Taxas por Bandeira.</p>
                     </div>
                   ) : (
                     <select
-                      value={cardBrand}
-                      onChange={(e) => setCardBrand(e.target.value)}
+                      value={selectedCardRateId}
+                      onChange={(e) => setSelectedCardRateId(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                     >
                       <option value="">Selecione o cartao...</option>
-                      {filteredCardBrands.map((b) => (
-                        <option key={b} value={b}>{b}</option>
+                      {filteredCardRates.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.description || `${r.brand} ${r.type === "CREDITO" ? "Credito" : "Debito"} ${r.installmentFrom}x`}
+                        </option>
                       ))}
                     </select>
                   )}
                 </div>
               )}
 
-              {/* Fee preview for selected brand */}
-              {isCardPayment && selectedBrandPreview && (
+              {/* Fee preview for selected card */}
+              {isCardPayment && selectedCardRate && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-700">{cardBrand} — {cardType === "DEBITO" ? "Debito" : "Credito"}</span>
-                    <span className="text-[10px] text-slate-400">{selectedBrandPreview.rateCount} taxa{selectedBrandPreview.rateCount > 1 ? "s" : ""}</span>
-                  </div>
-                  <div className="mt-1.5 flex gap-4">
+                  <div className="flex gap-4">
+                    <div>
+                      <span className="text-[10px] text-slate-400">Bandeira</span>
+                      <p className="font-medium text-slate-700">{selectedCardRate.brand}</p>
+                    </div>
                     <div>
                       <span className="text-[10px] text-slate-400">Taxa</span>
-                      <p className="font-medium text-slate-700">
-                        {selectedBrandPreview.minFee === selectedBrandPreview.maxFee
-                          ? `${selectedBrandPreview.minFee.toFixed(2)}%`
-                          : `${selectedBrandPreview.minFee.toFixed(2)}% — ${selectedBrandPreview.maxFee.toFixed(2)}%`}
-                      </p>
+                      <p className="font-medium text-slate-700">{selectedCardRate.feePercent.toFixed(2)}%</p>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400">Recebimento</span>
-                      <p className="font-medium text-slate-700">{selectedBrandPreview.maxDays} dias</p>
+                      <p className="font-medium text-slate-700">{selectedCardRate.receivingDays} dias</p>
                     </div>
                   </div>
                   <p className="mt-1.5 text-[10px] text-blue-600">
@@ -1025,8 +1001,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 </div>
               )}
 
-              {/* Card info when no brand selected yet */}
-              {isCardPayment && !selectedBrandPreview && filteredCardBrands.length > 0 && (
+              {/* Card info when no card selected yet */}
+              {isCardPayment && !selectedCardRate && filteredCardRates.length > 0 && (
                 <p className="text-[10px] text-blue-600">
                   O saldo do caixa sera atualizado na baixa (aba Baixa Cartoes).
                 </p>
@@ -1055,7 +1031,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                onClick={() => { setPayAction(null); setPaymentMethod(""); setCardBrand(""); setSelectedAccountId(""); }}
+                onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedAccountId(""); }}
                 disabled={!!actionLoading}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
               >
@@ -1063,7 +1039,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
               </button>
               <button
                 onClick={handlePayConfirm}
-                disabled={!!actionLoading || !paymentMethod || !!(activePMs.find((p) => p.code === paymentMethod)?.requiresBrand && !cardBrand)}
+                disabled={!!actionLoading || !paymentMethod || !!(activePMs.find((p) => p.code === paymentMethod)?.requiresBrand && !selectedCardRateId)}
                 className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
                 {actionLoading ? (
