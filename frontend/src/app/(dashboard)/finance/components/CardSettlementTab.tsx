@@ -532,25 +532,10 @@ export default function CardSettlementTab() {
         align: "center" as const,
         render: (cs) => {
           if (cs.status !== "PENDING") {
-            return (
-              <div className="flex items-center justify-center gap-2">
-                <button
-                  onClick={(e) => { e.stopPropagation(); openEditModal(cs); }}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  Editar
-                </button>
-              </div>
-            );
+            return <span className="text-xs text-slate-400">—</span>;
           }
           return (
             <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={(e) => { e.stopPropagation(); openEditModal(cs); }}
-                className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-              >
-                Editar
-              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

@@ -473,32 +473,53 @@ export class FinanceService {
         },
       });
 
-      // Reversal: undo cash account balance and cancel card settlement
+      // Reversal: undo all side effects (card settlements, cash accounts, fee expenses)
       if (isReversal) {
-        // Reverse cash account balance if it was a direct payment
-        if (entry.cashAccountId) {
-          // Check if there's a pending card settlement for this entry
-          const cardSettlement = await tx.cardSettlement.findFirst({
-            where: { financialEntryId: id, status: 'PENDING' },
-          });
+        // 1. Find ALL card settlements for this entry (any status)
+        const cardSettlements = await tx.cardSettlement.findMany({
+          where: { financialEntryId: id },
+        });
 
-          if (cardSettlement) {
-            // Card payment: cancel the card settlement (balance was never updated)
-            await tx.cardSettlement.update({
-              where: { id: cardSettlement.id },
-              data: { status: 'CANCELLED', notes: 'Estorno de recebimento' },
-            });
-            this.logger.log(`Card settlement ${cardSettlement.id} cancelled due to reversal of entry ${id}`);
-          } else {
-            // Direct payment: reverse the cash account balance
-            const deltaCents = entry.type === 'RECEIVABLE' ? -entry.netCents : entry.netCents;
+        for (const cs of cardSettlements) {
+          // If card settlement was already settled, reverse the cash account balance
+          if (cs.status === 'SETTLED' && cs.cashAccountId && cs.actualAmountCents) {
             await tx.cashAccount.update({
-              where: { id: entry.cashAccountId },
-              data: { currentBalanceCents: { increment: deltaCents } },
+              where: { id: cs.cashAccountId },
+              data: { currentBalanceCents: { increment: -cs.actualAmountCents } },
             });
-            this.logger.log(`Cash account ${entry.cashAccountId} reversed by ${deltaCents} cents for entry ${id}`);
+            this.logger.log(`Cash account ${cs.cashAccountId} reversed by -${cs.actualAmountCents} for settled card ${cs.id}`);
+          }
+
+          // Delete the card settlement entirely
+          await tx.cardSettlement.delete({ where: { id: cs.id } });
+          this.logger.log(`Card settlement ${cs.id} deleted due to reversal of entry ${id}`);
+        }
+
+        // 2. Delete any auto-generated fee expense entries for this card payment
+        if (cardSettlements.length > 0) {
+          const deleted = await tx.financialEntry.deleteMany({
+            where: {
+              companyId: entry.companyId,
+              type: 'PAYABLE',
+              description: { startsWith: 'Taxa cartão' },
+              notes: { contains: id },
+            },
+          });
+          if (deleted.count > 0) {
+            this.logger.log(`Deleted ${deleted.count} fee expense entries for reversed card payment ${id}`);
           }
         }
+
+        // 3. If it was a direct (non-card) payment with cashAccountId, reverse cash account
+        if (entry.cashAccountId && cardSettlements.length === 0) {
+          const deltaCents = entry.type === 'RECEIVABLE' ? -entry.netCents : entry.netCents;
+          await tx.cashAccount.update({
+            where: { id: entry.cashAccountId },
+            data: { currentBalanceCents: { increment: deltaCents } },
+          });
+          this.logger.log(`Cash account ${entry.cashAccountId} reversed by ${deltaCents} cents for entry ${id}`);
+        }
+
         return updated;
       }
 
