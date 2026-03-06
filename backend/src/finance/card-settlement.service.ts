@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { SettleCardDto, BatchSettleCardDto } from './dto/card-settlement.dto';
 import { FinancialAccountService } from './financial-account.service';
+import { CardFeeRateService } from './card-fee-rate.service';
 
 @Injectable()
 export class CardSettlementService {
@@ -11,6 +12,7 @@ export class CardSettlementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly financialAccountService: FinancialAccountService,
+    private readonly cardFeeRateService: CardFeeRateService,
   ) {}
 
   /**
@@ -144,7 +146,23 @@ export class CardSettlementService {
     });
     if (!cs) throw new NotFoundException('Baixa de cartão não encontrada');
 
-    const differenceCents = dto.actualAmountCents - cs.expectedNetCents;
+    // Recalculate fee if installments provided
+    let feePercent = cs.feePercent;
+    let feeCents = cs.feeCents;
+    let expectedNetCents = cs.expectedNetCents;
+
+    if (dto.installments && cs.cardBrand) {
+      const cardType = (cs.paymentMethodCode || '').toUpperCase().includes('DEBIT') ? 'DEBITO' : 'CREDITO';
+      const rate = await this.cardFeeRateService.lookup(companyId, cs.cardBrand, cardType, dto.installments);
+      if (rate) {
+        feePercent = rate.feePercent;
+        feeCents = Math.round(cs.grossCents * rate.feePercent / 100);
+        expectedNetCents = cs.grossCents - feeCents;
+        this.logger.log(`Fee recalculated: brand=${cs.cardBrand}, type=${cardType}, installments=${dto.installments} → fee=${feePercent}%, feeCents=${feeCents}`);
+      }
+    }
+
+    const differenceCents = dto.actualAmountCents - expectedNetCents;
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.cardSettlement.update({
@@ -153,6 +171,9 @@ export class CardSettlementService {
           status: 'SETTLED',
           settledAt: new Date(),
           actualAmountCents: dto.actualAmountCents,
+          feePercent,
+          feeCents,
+          expectedNetCents,
           differenceCents,
           cashAccountId: dto.cashAccountId,
           settledByName,
@@ -167,11 +188,11 @@ export class CardSettlementService {
       });
 
       // Auto-generate fee expense entry for DRE reporting
-      if (cs.feeCents > 0) {
-        await this.createFeeExpense(tx, companyId, cs, settledByName);
+      if (feeCents > 0) {
+        await this.createFeeExpense(tx, companyId, { ...cs, feeCents, feePercent }, settledByName);
       }
 
-      this.logger.log(`Card settlement ${id} settled: expected=${cs.expectedNetCents}, actual=${dto.actualAmountCents}, diff=${differenceCents}`);
+      this.logger.log(`Card settlement ${id} settled: expected=${expectedNetCents}, actual=${dto.actualAmountCents}, diff=${differenceCents}`);
       return updated;
     });
   }

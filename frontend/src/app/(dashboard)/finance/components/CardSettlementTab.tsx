@@ -150,6 +150,7 @@ export default function CardSettlementTab() {
   const [settleAmount, setSettleAmount] = useState("");
   const [settleCashAccountId, setSettleCashAccountId] = useState("");
   const [settleNotes, setSettleNotes] = useState("");
+  const [settleInstallments, setSettleInstallments] = useState<number>(1);
   const [settling, setSettling] = useState(false);
 
   // Batch
@@ -555,9 +556,12 @@ export default function CardSettlementTab() {
 
   function openSettleModal(cs: CardSettlement) {
     setSettleModal({ cs });
+    setSettleInstallments(1);
     setSettleAmount((cs.expectedNetCents / 100).toFixed(2));
     setSettleCashAccountId(cashAccounts.length > 0 ? cashAccounts[0].id : "");
     setSettleNotes("");
+    // Load fee rates if not loaded yet
+    if (feeRates.length === 0) loadFeeRates();
   }
 
   function closeSettleModal() {
@@ -565,6 +569,25 @@ export default function CardSettlementTab() {
     setSettleAmount("");
     setSettleCashAccountId("");
     setSettleNotes("");
+    setSettleInstallments(1);
+  }
+
+  function handleSettleInstallmentsChange(value: number) {
+    setSettleInstallments(value);
+    // Auto-recalculate amount based on new installments
+    if (settleModal) {
+      const cs = settleModal.cs;
+      const cardType = (cs.paymentMethodCode || "").toUpperCase().includes("DEBIT") ? "DEBITO" : "CREDITO";
+      const rate = feeRates.find(
+        (r) => r.brand === cs.cardBrand && r.type === cardType && r.isActive &&
+          r.installmentFrom <= value && r.installmentTo >= value,
+      );
+      if (rate) {
+        const feeCents = Math.round(cs.grossCents * rate.feePercent / 100);
+        const netCents = cs.grossCents - feeCents;
+        setSettleAmount((netCents / 100).toFixed(2));
+      }
+    }
   }
 
   async function handleSettle() {
@@ -585,6 +608,7 @@ export default function CardSettlementTab() {
       await api.patch(`/finance/card-settlements/${cs.id}/settle`, {
         actualAmountCents: Math.round(amountParsed * 100),
         cashAccountId: settleCashAccountId,
+        installments: settleInstallments,
         notes: settleNotes.trim() || undefined,
       });
       toast("Baixa realizada com sucesso!", "success");
@@ -659,10 +683,35 @@ export default function CardSettlementTab() {
     }
   }
 
-  /* ── Settle modal difference ──────────────────────────── */
+  /* ── Settle modal: available rates & fee calculation ──── */
+
+  const settleAvailableRates = useMemo(() => {
+    if (!settleModal) return [];
+    const cs = settleModal.cs;
+    const cardType = (cs.paymentMethodCode || "").toUpperCase().includes("DEBIT") ? "DEBITO" : "CREDITO";
+    return feeRates
+      .filter((r) => r.brand === cs.cardBrand && r.type === cardType && r.isActive)
+      .sort((a, b) => a.installmentFrom - b.installmentFrom);
+  }, [settleModal, feeRates]);
+
+  const settleCalculatedFee = useMemo(() => {
+    if (!settleModal || settleAvailableRates.length === 0) return null;
+    const rate = settleAvailableRates.find(
+      (r) => r.installmentFrom <= settleInstallments && r.installmentTo >= settleInstallments,
+    );
+    if (!rate) return null;
+    const feeCents = Math.round(settleModal.cs.grossCents * rate.feePercent / 100);
+    const netCents = settleModal.cs.grossCents - feeCents;
+    return { feePercent: rate.feePercent, feeCents, netCents, receivingDays: rate.receivingDays };
+  }, [settleModal, settleAvailableRates, settleInstallments]);
+
+  // Use calculated fee or fallback to settlement defaults
+  const effectiveFeePercent = settleCalculatedFee?.feePercent ?? settleModal?.cs.feePercent ?? 0;
+  const effectiveFeeCents = settleCalculatedFee?.feeCents ?? settleModal?.cs.feeCents ?? 0;
+  const effectiveNetCents = settleCalculatedFee?.netCents ?? settleModal?.cs.expectedNetCents ?? 0;
 
   const settleDifferenceCents = settleModal
-    ? Math.round(parseFloat(settleAmount || "0") * 100) - settleModal.cs.expectedNetCents
+    ? Math.round(parseFloat(settleAmount || "0") * 100) - effectiveNetCents
     : 0;
 
   function getDifferenceColor(diffCents: number): string {
@@ -1123,28 +1172,57 @@ export default function CardSettlementTab() {
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-slate-500">Bruto</span>
+                <span className="text-slate-500">Bandeira</span>
+                <span className="font-medium text-slate-700">
+                  {settleModal.cs.cardBrand || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Valor Bruto</span>
                 <span className="font-medium text-slate-700">
                   {formatCurrency(settleModal.cs.grossCents)}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Taxa</span>
-                <span className="font-medium text-slate-500">
-                  {settleModal.cs.feePercent.toFixed(2)}% (
-                  {formatCurrency(settleModal.cs.feeCents)})
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-slate-100 pt-2">
-                <span className="text-slate-500">Liq. Esperado</span>
-                <span className="font-semibold text-green-700">
-                  {formatCurrency(settleModal.cs.expectedNetCents)}
-                </span>
-              </div>
             </div>
 
-            {/* Amount input */}
+            {/* Parcelas + Fee calculation */}
             <div className="space-y-4">
+              {settleAvailableRates.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Parcelas *
+                  </label>
+                  <select
+                    value={settleInstallments}
+                    onChange={(e) => handleSettleInstallmentsChange(parseInt(e.target.value) || 1)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                  >
+                    {settleAvailableRates.map((r) => (
+                      <option key={r.id} value={r.installmentFrom}>
+                        {r.installmentFrom === r.installmentTo
+                          ? `${r.installmentFrom}x — ${r.feePercent.toFixed(2)}% (${r.receivingDays}d)`
+                          : `${r.installmentFrom}x a ${r.installmentTo}x — ${r.feePercent.toFixed(2)}% (${r.receivingDays}d)`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Fee preview */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Taxa</span>
+                  <span className="font-medium text-red-600">
+                    {effectiveFeePercent.toFixed(2)}% = {formatCurrency(effectiveFeeCents)}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-1.5">
+                  <span className="text-slate-500 font-medium">Liquido Esperado</span>
+                  <span className="font-bold text-green-700">
+                    {formatCurrency(effectiveNetCents)}
+                  </span>
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Valor Recebido (R$) *

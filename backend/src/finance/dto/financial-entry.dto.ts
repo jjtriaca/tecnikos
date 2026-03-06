@@ -100,13 +100,6 @@ export class ChangeEntryStatusDto {
 
   @IsOptional()
   @IsString()
-  cardType?: string; // CREDITO | DEBITO
-
-  @IsOptional()
-  installments?: number;
-
-  @IsOptional()
-  @IsString()
   cancelledReason?: string;
 
   @IsOptional()

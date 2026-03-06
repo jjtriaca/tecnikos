@@ -8,6 +8,10 @@ export class SettleCardDto {
   cashAccountId: string;
 
   @IsOptional()
+  @IsInt()
+  installments?: number;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 }

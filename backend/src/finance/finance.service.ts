@@ -6,7 +6,6 @@ import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto 
 import { RenegotiateDto } from './dto/renegotiate.dto';
 import { NfseEmissionService } from '../nfse-emission/nfse-emission.service';
 import { CardSettlementService } from './card-settlement.service';
-import { CardFeeRateService } from './card-fee-rate.service';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
 const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt'];
@@ -20,7 +19,6 @@ export class FinanceService {
     @Inject(forwardRef(() => NfseEmissionService))
     private readonly nfseService: NfseEmissionService,
     private readonly cardSettlementService: CardSettlementService,
-    private readonly cardFeeRateService: CardFeeRateService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════
@@ -480,39 +478,24 @@ export class FinanceService {
         return updated;
       }
 
-      // Adjust cash account balance when PAID and cashAccountId is provided
-      if (newStatus === 'PAID' && dto.cashAccountId) {
-        // Check if payment method has fee/delay (card payment)
-        let isCardWithDelay = false;
+      // Handle PAID status: create card settlement or update cash account
+      if (newStatus === 'PAID') {
+        let isCardPayment = false;
         let pm: any = null;
 
         if (dto.paymentMethod) {
           pm = await tx.paymentMethod.findFirst({
             where: { companyId, code: dto.paymentMethod, deletedAt: null },
           });
-          if (pm && ((pm.feePercent && pm.feePercent > 0) || (pm.receivingDays && pm.receivingDays > 0))) {
-            isCardWithDelay = true;
+          if (pm && pm.requiresBrand) {
+            isCardPayment = true;
           }
         }
 
-        if (isCardWithDelay) {
-          // Card payment: lookup granular fee rate if brand/type/installments provided
-          let feePercent = pm.feePercent || 0;
-          let receivingDays = pm.receivingDays || 0;
-
-          if (dto.cardBrand && dto.cardType) {
-            const rateOverride = await this.cardFeeRateService.lookup(
-              companyId,
-              dto.cardBrand,
-              dto.cardType,
-              dto.installments || 1,
-            );
-            if (rateOverride) {
-              feePercent = rateOverride.feePercent;
-              receivingDays = rateOverride.receivingDays;
-              this.logger.log(`CardFeeRate override: brand=${dto.cardBrand}, type=${dto.cardType}, installments=${dto.installments || 1} → fee=${feePercent}%, days=${receivingDays}`);
-            }
-          }
+        if (isCardPayment) {
+          // Card payment: create card settlement (cash account updated at settle time)
+          const feePercent = pm.feePercent || 0;
+          const receivingDays = pm.receivingDays || 0;
 
           await this.cardSettlementService.createFromEntry(tx, {
             id: entry.id,
@@ -526,7 +509,7 @@ export class FinanceService {
             cardBrand: dto.cardBrand,
           });
           this.logger.log(`Card settlement created for entry ${entry.id}, method=${pm.code}, fee=${feePercent}%, days=${receivingDays}`);
-        } else {
+        } else if (dto.cashAccountId) {
           // Immediate payment (PIX, Dinheiro, etc.): update cash account now
           const deltaCents = entry.type === 'RECEIVABLE' ? entry.netCents : -entry.netCents;
           await tx.cashAccount.update({
