@@ -22,7 +22,7 @@ export class CardSettlementService {
   async createFromEntry(
     tx: any, // Prisma transaction client
     entry: { id: string; companyId: string; netCents: number; paidAt: Date },
-    pm: { code: string; feePercent: number; receivingDays: number; cardBrand?: string },
+    pm: { code: string; feePercent: number; receivingDays: number; cardBrand?: string; cardFeeRateId?: string },
   ) {
     const grossCents = entry.netCents;
     const feeCents = Math.round(grossCents * pm.feePercent / 100);
@@ -36,6 +36,7 @@ export class CardSettlementService {
         financialEntryId: entry.id,
         paymentMethodCode: pm.code,
         cardBrand: pm.cardBrand || undefined,
+        cardFeeRateId: pm.cardFeeRateId || undefined,
         grossCents,
         feePercent: pm.feePercent,
         feeCents,
@@ -123,6 +124,9 @@ export class CardSettlementService {
         include: {
           financialEntry: {
             select: { id: true, description: true, partner: { select: { id: true, name: true } } },
+          },
+          cardFeeRate: {
+            select: { id: true, description: true, brand: true },
           },
         },
         orderBy,

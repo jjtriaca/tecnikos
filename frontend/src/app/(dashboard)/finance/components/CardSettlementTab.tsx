@@ -368,15 +368,18 @@ export default function CardSettlementTab() {
         sortable: true,
         sortKey: "cardBrand",
         render: (cs) => {
-          // Find matching card fee rate description
-          const matchingRate = feeRates.find(
-            (r) => r.brand === cs.cardBrand && Math.abs(r.feePercent - cs.feePercent) < 0.01,
-          );
-          const cardDesc = matchingRate?.description;
+          // Use direct relation first, fallback to fuzzy match for old data
+          const cardDesc = cs.cardFeeRate?.description
+            || feeRates.find(
+                (r) => r.brand === cs.cardBrand && Math.abs(r.feePercent - cs.feePercent) < 0.01,
+              )?.description
+            || cs.cardBrand
+            || cs.paymentMethodCode
+            || "—";
           return (
             <div className="min-w-0">
               <p className="text-sm font-medium text-slate-900 truncate">
-                {cardDesc || cs.cardBrand || cs.paymentMethodCode || "—"}
+                {cardDesc}
               </p>
               {cs.financialEntry?.partner?.name && (
                 <p className="text-xs text-slate-500 truncate">

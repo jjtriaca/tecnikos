@@ -521,6 +521,7 @@ export class FinanceService {
             feePercent,
             receivingDays,
             cardBrand,
+            cardFeeRateId: dto.cardFeeRateId,
           });
           this.logger.log(`Card settlement created for entry ${entry.id}, method=${pm.code}, fee=${feePercent}%, days=${receivingDays}`);
         } else if (dto.cashAccountId) {

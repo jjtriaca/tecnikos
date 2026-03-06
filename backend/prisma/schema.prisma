@@ -1276,12 +1276,14 @@ model CardSettlement {
   cashAccountId       String?
   settledByName       String?
   notes               String?
+  cardFeeRateId       String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   company          Company        @relation(fields: [companyId], references: [id])
   financialEntry   FinancialEntry @relation(fields: [financialEntryId], references: [id])
   cashAccount      CashAccount?   @relation(fields: [cashAccountId], references: [id])
+  cardFeeRate      CardFeeRate?   @relation(fields: [cardFeeRateId], references: [id])
 
   @@index([companyId, status])
   @@index([companyId, expectedDate])
@@ -1306,7 +1308,8 @@ model CardFeeRate {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  company         Company  @relation(fields: [companyId], references: [id])
+  company         Company         @relation(fields: [companyId], references: [id])
+  cardSettlements CardSettlement[]
 
   @@unique([companyId, brand, type, installmentFrom, installmentTo])
   @@index([companyId, brand, type])

@@ -269,10 +269,16 @@ export interface CardSettlement {
   settledByName?: string;
   notes?: string;
   createdAt: string;
+  cardFeeRateId?: string;
   financialEntry?: {
     id: string;
     description?: string;
     partner?: { id: string; name: string };
+  };
+  cardFeeRate?: {
+    id: string;
+    description: string;
+    brand: string;
   };
 }
 
