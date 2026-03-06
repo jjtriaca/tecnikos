@@ -353,6 +353,18 @@ export class FinanceController {
     return this.cardFeeRateService.remove(id, user.companyId);
   }
 
+  /* ── Dashboard Financeiro ────────────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('dashboard')
+  financeDashboard(
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.dashboardSummary(user.companyId, dateFrom, dateTo);
+  }
+
   /* ── Legacy Endpoints (backward compat) ────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

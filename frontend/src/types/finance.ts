@@ -367,3 +367,70 @@ export const ACCOUNT_TYPE_CONFIG: Record<FinancialAccountType, { label: string; 
   COST:    { label: 'Custo',   color: 'text-amber-700', bgColor: 'bg-amber-50' },
   EXPENSE: { label: 'Despesa', color: 'text-red-700',   bgColor: 'bg-red-50' },
 };
+
+/* ── Dashboard Financeiro ───────────────────────────────── */
+
+export interface DashboardSummaryBlock {
+  pendingCents: number;
+  confirmedCents: number;
+  paidCents: number;
+  totalCents: number;
+  pendingCount: number;
+  confirmedCount: number;
+  paidCount: number;
+  totalCount: number;
+}
+
+export interface CashFlowDay {
+  date: string;
+  receivableCents: number;
+  payableCents: number;
+}
+
+export interface DreGroupItem {
+  id: string;
+  code: string;
+  name: string;
+  totalCents: number;
+}
+
+export interface DreGroup extends DreGroupItem {
+  children: DreGroupItem[];
+}
+
+export interface DreSection {
+  groups: DreGroup[];
+  uncategorizedCents?: number;
+  totalCents: number;
+}
+
+export interface OverdueBucket {
+  count: number;
+  totalCents: number;
+}
+
+export interface FinanceDashboard {
+  dre: {
+    revenue: DreSection;
+    costs: DreSection;
+    expenses: DreSection;
+    grossProfitCents: number;
+    netResultCents: number;
+  };
+  summary: {
+    receivables: DashboardSummaryBlock;
+    payables: DashboardSummaryBlock;
+  };
+  cashFlow: CashFlowDay[];
+  cashAccounts: { id: string; name: string; type: string; currentBalanceCents: number }[];
+  overdue: {
+    buckets: Record<string, OverdueBucket>;
+    totalOverdueCents: number;
+    totalOverdueCount: number;
+  };
+  topAccounts: { code: string; name: string; totalCents: number; percentage: number }[];
+  cardSettlements: {
+    pending: { count: number; totalGross: number; totalNet: number; totalFee: number };
+    settled: { count: number; totalGross: number; totalNet: number; totalFee: number };
+  };
+}

@@ -6,6 +6,9 @@ import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto 
 import { RenegotiateDto } from './dto/renegotiate.dto';
 import { NfseEmissionService } from '../nfse-emission/nfse-emission.service';
 import { CardSettlementService } from './card-settlement.service';
+import { FinancialReportService } from './financial-report.service';
+import { CashAccountService } from './cash-account.service';
+import { InstallmentService } from './installment.service';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
 const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt'];
@@ -19,6 +22,9 @@ export class FinanceService {
     @Inject(forwardRef(() => NfseEmissionService))
     private readonly nfseService: NfseEmissionService,
     private readonly cardSettlementService: CardSettlementService,
+    private readonly reportService: FinancialReportService,
+    private readonly cashAccountService: CashAccountService,
+    private readonly installmentService: InstallmentService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════
@@ -720,5 +726,114 @@ export class FinanceService {
         parentEntry: { select: { id: true, description: true, grossCents: true, netCents: true } },
       },
     });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     Dashboard Financeiro — Agregação para o dashboard
+     ═══════════════════════════════════════════════════════════════ */
+
+  async dashboardSummary(companyId: string, dateFrom: string, dateTo: string) {
+    const startDate = new Date(dateFrom);
+    const endDate = new Date(`${dateTo}T23:59:59.999Z`);
+
+    const [dre, cashFlow, cashAccounts, overdue, cardSettlements] = await Promise.all([
+      this.reportService.generateDre(companyId, dateFrom, dateTo),
+      this.getDailyCashFlow(companyId, startDate, endDate),
+      this.cashAccountService.findActive(companyId),
+      this.installmentService.getOverdueAgingReport(companyId),
+      this.cardSettlementService.summary(companyId),
+    ]);
+
+    // Extract top 5 revenue accounts from DRE
+    const topAccounts: { code: string; name: string; totalCents: number; percentage: number }[] = [];
+    const totalRevenue = dre.revenue.totalCents || 1;
+    for (const group of dre.revenue.groups) {
+      if (group.children.length > 0) {
+        for (const child of group.children) {
+          topAccounts.push({
+            code: child.code,
+            name: child.name,
+            totalCents: child.totalCents,
+            percentage: Math.round((child.totalCents / totalRevenue) * 10000) / 100,
+          });
+        }
+      } else {
+        topAccounts.push({
+          code: group.code,
+          name: group.name,
+          totalCents: group.totalCents,
+          percentage: Math.round((group.totalCents / totalRevenue) * 10000) / 100,
+        });
+      }
+    }
+    topAccounts.sort((a, b) => b.totalCents - a.totalCents);
+
+    // Period-filtered summary (receivables/payables)
+    const periodEntries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        status: { not: 'CANCELLED' },
+        dueDate: { gte: startDate, lte: endDate },
+      },
+      select: { type: true, status: true, grossCents: true, netCents: true },
+    });
+
+    const buildSummary = (type: string) => {
+      const items = periodEntries.filter(e => e.type === type);
+      const byStatus = (s: string) => items.filter(e => e.status === s);
+      return {
+        pendingCents: byStatus('PENDING').reduce((sum, e) => sum + e.netCents, 0),
+        confirmedCents: byStatus('CONFIRMED').reduce((sum, e) => sum + e.netCents, 0),
+        paidCents: byStatus('PAID').reduce((sum, e) => sum + e.netCents, 0),
+        pendingCount: byStatus('PENDING').length,
+        confirmedCount: byStatus('CONFIRMED').length,
+        paidCount: byStatus('PAID').length,
+        totalCents: items.reduce((sum, e) => sum + e.netCents, 0),
+        totalCount: items.length,
+      };
+    };
+
+    return {
+      dre: {
+        revenue: dre.revenue,
+        costs: dre.costs,
+        expenses: dre.expenses,
+        grossProfitCents: dre.grossProfitCents,
+        netResultCents: dre.netResultCents,
+      },
+      summary: {
+        receivables: buildSummary('RECEIVABLE'),
+        payables: buildSummary('PAYABLE'),
+      },
+      cashFlow,
+      cashAccounts,
+      overdue,
+      topAccounts: topAccounts.slice(0, 5),
+      cardSettlements,
+    };
+  }
+
+  private async getDailyCashFlow(companyId: string, startDate: Date, endDate: Date) {
+    const rows: { date: string; receivableCents: string; payableCents: string }[] = await this.prisma.$queryRaw`
+      SELECT
+        TO_CHAR(fe."paidAt", 'YYYY-MM-DD') as date,
+        COALESCE(SUM(CASE WHEN fe.type = 'RECEIVABLE' THEN fe."netCents" ELSE 0 END), 0)::TEXT as "receivableCents",
+        COALESCE(SUM(CASE WHEN fe.type = 'PAYABLE' THEN fe."netCents" ELSE 0 END), 0)::TEXT as "payableCents"
+      FROM "FinancialEntry" fe
+      WHERE fe."companyId" = ${companyId}
+        AND fe."deletedAt" IS NULL
+        AND fe.status = 'PAID'
+        AND fe."paidAt" >= ${startDate}
+        AND fe."paidAt" <= ${endDate}
+      GROUP BY TO_CHAR(fe."paidAt", 'YYYY-MM-DD')
+      ORDER BY date ASC
+    `;
+
+    return rows.map(r => ({
+      date: r.date,
+      receivableCents: Number(r.receivableCents),
+      payableCents: Number(r.payableCents),
+    }));
   }
 }
