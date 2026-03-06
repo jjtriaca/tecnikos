@@ -430,7 +430,11 @@ export interface FinanceDashboard {
   };
   topAccounts: { code: string; name: string; totalCents: number; percentage: number }[];
   cardSettlements: {
-    pending: { count: number; totalGross: number; totalNet: number; totalFee: number };
-    settled: { count: number; totalGross: number; totalNet: number; totalFee: number };
+    pendingCount: number;
+    pendingAmountCents: number;
+    expectedThisWeekCount: number;
+    expectedThisWeekCents: number;
+    overdueCount: number;
+    overdueCents: number;
   };
 }

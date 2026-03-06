@@ -65,7 +65,7 @@ export default function CashBalances({ data, pendingCards }: CashBalancesProps) 
       )}
 
       {/* Card Settlements Alert */}
-      {pendingCards.pending.count > 0 && (
+      {pendingCards.pendingCount > 0 && (
         <Link
           href="/finance?tab=cartoes"
           className="mt-4 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3 hover:bg-amber-100 transition-colors"
@@ -74,7 +74,7 @@ export default function CashBalances({ data, pendingCards }: CashBalancesProps) 
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <span className="text-xs font-medium text-amber-700">
-            {pendingCards.pending.count} baixa{pendingCards.pending.count !== 1 ? "s" : ""} de cartão pendente{pendingCards.pending.count !== 1 ? "s" : ""} ({formatCurrency(pendingCards.pending.totalGross)})
+            {pendingCards.pendingCount} baixa{pendingCards.pendingCount !== 1 ? "s" : ""} de cartão pendente{pendingCards.pendingCount !== 1 ? "s" : ""} ({formatCurrency(pendingCards.pendingAmountCents)})
           </span>
           <svg className="h-3.5 w-3.5 text-amber-500 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
