@@ -1342,11 +1342,30 @@ export default function CardSettlementTab() {
               Baixa em Lote
             </h3>
 
-            <p className="text-sm text-slate-600 mb-4">
-              Serao baixados <strong>{selectedIds.size}</strong> lancamento
-              {selectedIds.size !== 1 ? "s" : ""} utilizando os valores esperados
-              (liquido) de cada um.
-            </p>
+            {(() => {
+              const selected = settlements.data.filter((cs) => selectedIds.has(cs.id));
+              const totalNet = selected.reduce((sum, cs) => sum + cs.expectedNetCents, 0);
+              const totalFees = selected.reduce((sum, cs) => sum + cs.feeCents, 0);
+              return (
+                <>
+                  <p className="text-sm text-slate-600 mb-3">
+                    Serao baixados <strong>{selectedIds.size}</strong> lancamento
+                    {selectedIds.size !== 1 ? "s" : ""} utilizando os valores esperados
+                    (liquido) de cada um.
+                  </p>
+                  <div className="flex gap-4 mb-4 p-3 bg-slate-50 rounded-lg">
+                    <div className="flex-1">
+                      <p className="text-xs text-slate-500">Total Liquido</p>
+                      <p className="text-base font-semibold text-green-700">{formatCurrency(totalNet)}</p>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-slate-500">Total Taxas</p>
+                      <p className="text-base font-semibold text-red-600">{formatCurrency(totalFees)}</p>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             <div className="space-y-4">
               {/* Cash account select */}
