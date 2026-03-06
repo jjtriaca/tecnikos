@@ -1405,16 +1405,6 @@ function EntryActions({
 
   return (
     <div className="flex gap-1.5 flex-wrap">
-      {/* Edit */}
-      {onEdit && (
-        <button
-          onClick={onEdit}
-          className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-          title="Editar"
-        >
-          Editar
-        </button>
-      )}
       {/* Status actions */}
       {statusButtons.map((btn) => (
         <button
@@ -1426,8 +1416,19 @@ function EntryActions({
         </button>
       ))}
 
-      {/* Installment actions */}
-      {hasInstallments ? (
+      {/* Edit (3rd position) */}
+      {onEdit && (
+        <button
+          onClick={onEdit}
+          className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+          title="Editar"
+        >
+          Editar
+        </button>
+      )}
+
+      {/* View installments (only if already has them) */}
+      {hasInstallments && (
         <button
           onClick={onViewInstallments}
           className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
@@ -1435,15 +1436,7 @@ function EntryActions({
         >
           Parcelas
         </button>
-      ) : !isTerminal ? (
-        <button
-          onClick={onInstallments}
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
-          title="Gerar parcelas"
-        >
-          Parcelar
-        </button>
-      ) : null}
+      )}
 
       {/* Renegotiate — only for non-terminal entries */}
       {!isTerminal && (
