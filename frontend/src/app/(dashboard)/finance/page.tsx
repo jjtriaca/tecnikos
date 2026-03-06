@@ -548,6 +548,13 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [nfseModal, setNfseModal] = useState<string | null>(null); // financialEntryId
   const [nfseWarnEntry, setNfseWarnEntry] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" } | null>(null);
 
+  // Edit entry modal
+  const [editEntry, setEditEntry] = useState<FinancialEntry | null>(null);
+  const [editDesc, setEditDesc] = useState("");
+  const [editAccountId, setEditAccountId] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
   const { toast } = useToast();
 
   // Determine if selected payment method is a card and filter available brands
@@ -612,6 +619,32 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       .then(setPostableAccounts)
       .catch(() => {});
   }, []);
+
+  function openEditEntry(e: FinancialEntry) {
+    setEditEntry(e);
+    setEditDesc(e.description || "");
+    setEditAccountId(e.financialAccount?.id || "");
+    setEditNotes(e.notes || "");
+  }
+
+  async function handleSaveEdit() {
+    if (!editEntry) return;
+    setEditSaving(true);
+    try {
+      await api.patch(`/finance/entries/${editEntry.id}`, {
+        description: editDesc || undefined,
+        financialAccountId: editAccountId || undefined,
+        notes: editNotes || undefined,
+      });
+      toast("Lancamento atualizado!", "success");
+      setEditEntry(null);
+      loadEntries();
+    } catch {
+      toast("Erro ao atualizar.", "error");
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   async function handleCancel(reason: string) {
     if (!cancelAction) return;
@@ -855,6 +888,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
                       onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
                       onEmitNfse={fiscalEnabled && type === "RECEIVABLE" ? () => setNfseModal(e.id) : undefined}
+                      onEdit={() => openEditEntry(e)}
                     />
                   </td>
                   {orderedColumns.map((col) => {
@@ -1250,6 +1284,71 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         defaultType={type}
         onClose={() => setShowReportModal(false)}
       />
+
+      {/* Edit Entry Modal */}
+      {editEntry && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditEntry(null)} />
+          <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Editar Lancamento</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Descricao</label>
+                <input
+                  type="text"
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  placeholder="Descricao do lancamento..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Categoria</label>
+                <select
+                  value={editAccountId}
+                  onChange={(e) => setEditAccountId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                >
+                  <option value="">Sem categoria</option>
+                  {(() => {
+                    const grouped = new Map<string, typeof postableAccounts>();
+                    for (const acc of postableAccounts) {
+                      const parentName = acc.parent ? `${acc.parent.code} - ${acc.parent.name}` : "Sem grupo";
+                      if (!grouped.has(parentName)) grouped.set(parentName, []);
+                      grouped.get(parentName)!.push(acc);
+                    }
+                    return Array.from(grouped.entries()).map(([group, accs]) => (
+                      <optgroup key={group} label={group}>
+                        {accs.map((a) => (
+                          <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                        ))}
+                      </optgroup>
+                    ));
+                  })()}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Observacoes</label>
+                <textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Observacoes opcionais..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => setEditEntry(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleSaveEdit} disabled={editSaving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
+                {editSaving ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1265,6 +1364,7 @@ function EntryActions({
   onViewInstallments,
   onRenegotiate,
   onEmitNfse,
+  onEdit,
 }: {
   entry: FinancialEntry;
   type: FinancialEntryType;
@@ -1274,6 +1374,7 @@ function EntryActions({
   onViewInstallments: () => void;
   onRenegotiate: () => void;
   onEmitNfse?: () => void;
+  onEdit?: () => void;
 }) {
   const { toast } = useToast();
   if (loading) {
@@ -1304,6 +1405,16 @@ function EntryActions({
 
   return (
     <div className="flex gap-1.5 flex-wrap">
+      {/* Edit */}
+      {onEdit && (
+        <button
+          onClick={onEdit}
+          className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+          title="Editar"
+        >
+          Editar
+        </button>
+      )}
       {/* Status actions */}
       {statusButtons.map((btn) => (
         <button
