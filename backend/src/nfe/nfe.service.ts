@@ -23,9 +23,15 @@ export class ProcessSupplierDecision {
   partnerId?: string;
 }
 
+export class ProcessFinanceDecision {
+  createEntry: boolean; // true = create PAYABLE entry, false = skip
+  dueDate?: string;     // optional override for due date
+}
+
 export class ProcessDecisions {
   supplier: ProcessSupplierDecision;
   items: ProcessItemDecision[];
+  finance?: ProcessFinanceDecision; // optional — if omitted, defaults to createEntry: true for backward compat
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -381,20 +387,30 @@ export class NfeService {
         });
       }
 
-      // ── 3. Create FinancialEntry PAYABLE ───────────────────────────
-      const financialEntry = await tx.financialEntry.create({
-        data: {
-          companyId,
-          partnerId: supplierId,
-          type: 'PAYABLE',
-          status: 'PENDING',
-          description: `NFe ${nfeImport.nfeNumber || ''} — ${nfeImport.supplierName || 'Fornecedor'}`,
-          grossCents: nfeImport.totalCents ?? 0,
-          netCents: nfeImport.totalCents ?? 0,
-          dueDate: nfeImport.issueDate ?? undefined,
-          notes: nfeImport.nfeKey ? `Chave NFe: ${nfeImport.nfeKey}` : undefined,
-        },
-      });
+      // ── 3. Create FinancialEntry PAYABLE (optional) ─────────────────
+      const shouldCreateEntry = decisions.finance?.createEntry !== false; // default true for backward compat
+      let financialEntryId: string | null = null;
+
+      if (shouldCreateEntry) {
+        const dueDate = decisions.finance?.dueDate
+          ? new Date(decisions.finance.dueDate)
+          : (nfeImport.issueDate ?? undefined);
+
+        const financialEntry = await tx.financialEntry.create({
+          data: {
+            companyId,
+            partnerId: supplierId,
+            type: 'PAYABLE',
+            status: 'PENDING',
+            description: `NFe ${nfeImport.nfeNumber || ''} — ${nfeImport.supplierName || 'Fornecedor'}`,
+            grossCents: nfeImport.totalCents ?? 0,
+            netCents: nfeImport.totalCents ?? 0,
+            dueDate,
+            notes: nfeImport.nfeKey ? `Chave NFe: ${nfeImport.nfeKey}` : undefined,
+          },
+        });
+        financialEntryId = financialEntry.id;
+      }
 
       // ── 4. Update NfeImport status ─────────────────────────────────
       await tx.nfeImport.update({
@@ -402,11 +418,11 @@ export class NfeService {
         data: {
           status: 'PROCESSED',
           supplierId,
-          financialEntryId: financialEntry.id,
+          financialEntryId,
         },
       });
 
-      return { financialEntryId: financialEntry.id };
+      return { financialEntryId };
     });
 
     // Return updated import with all relations

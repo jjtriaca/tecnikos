@@ -206,7 +206,7 @@ function SituacaoBadge({ situacao }: { situacao: string | number | null }) {
 }
 
 const SEFAZ_STATUS_CONFIG: Record<string, { label: string; classes: string }> = {
-  FETCHED: { label: "Pendente", classes: "bg-amber-50 text-amber-700 border-amber-200" },
+  FETCHED: { label: "Baixada", classes: "bg-amber-50 text-amber-700 border-amber-200" },
   IMPORTED: { label: "Importada", classes: "bg-green-50 text-green-700 border-green-200" },
   IGNORED: { label: "Ignorada", classes: "bg-slate-50 text-slate-500 border-slate-200" },
   EVENT: { label: "Evento", classes: "bg-purple-50 text-purple-700 border-purple-200" },
@@ -246,7 +246,7 @@ const SEFAZ_FILTERS: FilterDefinition[] = [
     label: "Status",
     type: "select",
     options: [
-      { value: "FETCHED", label: "Pendente" },
+      { value: "FETCHED", label: "Baixada" },
       { value: "IMPORTED", label: "Importada" },
       { value: "IGNORED", label: "Ignorada" },
       { value: "EVENT", label: "Evento" },
@@ -410,7 +410,8 @@ const STEPS = [
   { num: 1, label: "Upload XML" },
   { num: 2, label: "Fornecedor" },
   { num: 3, label: "Produtos" },
-  { num: 4, label: "Confirmacao" },
+  { num: 4, label: "Financeiro" },
+  { num: 5, label: "Confirmacao" },
 ];
 
 function StepIndicator({ current }: { current: number }) {
@@ -573,6 +574,10 @@ export default function NfePage() {
   const [productResults, setProductResults] = useState<Record<number, ProductSearchResult[]>>({});
   const [searchingProducts, setSearchingProducts] = useState<Record<number, boolean>>({});
 
+  // Step 4 - finance
+  const [createFinancialEntry, setCreateFinancialEntry] = useState(true);
+  const [financeDueDate, setFinanceDueDate] = useState("");
+
   /* ══════════════════════════════════════════════════════════ */
   /*  SEFAZ: Load config                                       */
   /* ══════════════════════════════════════════════════════════ */
@@ -703,8 +708,28 @@ export default function NfePage() {
   async function handleImportDoc(docId: string) {
     setImportingDocId(docId);
     try {
-      await api.post(`/nfe/sefaz/documents/${docId}/import`);
-      toast("Documento importado com sucesso!", "success");
+      const result = await api.post<NfeImport>(`/nfe/sefaz/documents/${docId}/import`);
+      toast("Documento importado! Preencha as decisoes.", "success");
+      // Open wizard with the imported data
+      setNfeData(result);
+      if (result.supplierId) {
+        setSupplierAction({ action: "LINK", partnerId: result.supplierId });
+      } else {
+        setSupplierAction({ action: "CREATE" });
+      }
+      setItemActions(
+        (result.items || []).map((item) => ({
+          itemNumber: item.itemNumber,
+          action: item.productId ? "LINK" : "CREATE",
+          productId: item.productId || undefined,
+        }))
+      );
+      setProductSearches({});
+      setProductResults({});
+      setCreateFinancialEntry(true);
+      setFinanceDueDate(result.issueDate ? result.issueDate.split("T")[0] : "");
+      setStep(2);
+      setWizardOpen(true);
       loadSefazDocs();
     } catch (err: any) {
       toast(err?.message || "Erro ao importar documento.", "error");
@@ -836,6 +861,8 @@ export default function NfePage() {
     setProductSearches({});
     setProductResults({});
     setDragOver(false);
+    setCreateFinancialEntry(true);
+    setFinanceDueDate("");
     setWizardOpen(true);
   }
 
@@ -869,6 +896,8 @@ export default function NfePage() {
         productId: item.productId || undefined,
       }));
       setItemActions(actions);
+      setCreateFinancialEntry(true);
+      setFinanceDueDate(result.issueDate ? result.issueDate.split("T")[0] : "");
       toast("XML processado com sucesso!", "success");
     } catch (err: any) {
       toast(err?.message || "Erro ao processar XML.", "error");
@@ -971,10 +1000,15 @@ export default function NfePage() {
       await api.post(`/nfe/imports/${nfeData.id}/process`, {
         supplier: supplierAction,
         items: itemActions,
+        finance: {
+          createEntry: createFinancialEntry,
+          dueDate: financeDueDate || undefined,
+        },
       });
       toast("NFe importada com sucesso!", "success");
       closeWizard();
       loadImports();
+      loadSefazDocs();
     } catch (err: any) {
       toast(err?.message || "Erro ao processar importacao.", "error");
     } finally {
@@ -1299,6 +1333,8 @@ export default function NfePage() {
       );
       setProductSearches({});
       setProductResults({});
+      setCreateFinancialEntry(true);
+      setFinanceDueDate(imp.issueDate ? imp.issueDate.split("T")[0] : "");
       setStep(2);
       setWizardOpen(true);
     }
@@ -2006,8 +2042,113 @@ export default function NfePage() {
                 </div>
               )}
 
-              {/* ── Step 4: Confirmacao ───────────────────── */}
+              {/* ── Step 4: Financeiro ─────────────────────── */}
               {step === 4 && nfeData && (
+                <div>
+                  <h3 className="text-base font-semibold text-slate-800 mb-4">Lancamento Financeiro</h3>
+
+                  <div className="space-y-4">
+                    {/* Financial entry toggle */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">Criar lancamento A Pagar</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Registra uma conta a pagar no valor de {formatCurrency(nfeData.totalCents)} vinculada ao fornecedor.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setCreateFinancialEntry(!createFinancialEntry)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            createFinancialEntry ? "bg-blue-600" : "bg-slate-300"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                              createFinancialEntry ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Due date (only if creating entry) */}
+                    {createFinancialEntry && (
+                      <div className="rounded-xl border border-slate-200 bg-white p-5">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Data de vencimento
+                        </label>
+                        <input
+                          type="date"
+                          value={financeDueDate}
+                          onChange={(e) => setFinanceDueDate(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                        <p className="text-xs text-slate-500 mt-1.5">
+                          {financeDueDate
+                            ? `Vencimento: ${new Date(financeDueDate + "T12:00:00").toLocaleDateString("pt-BR")}`
+                            : "Se nao informado, usara a data de emissao da NFe."}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Summary */}
+                    <div className={`rounded-xl border p-4 ${
+                      createFinancialEntry
+                        ? "border-blue-200 bg-blue-50"
+                        : "border-slate-200 bg-slate-50"
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {createFinancialEntry ? (
+                          <>
+                            <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                            </svg>
+                            <div>
+                              <p className="text-sm font-medium text-blue-800">
+                                Sera criado lancamento A Pagar de {formatCurrency(nfeData.totalCents)}
+                              </p>
+                              {financeDueDate && (
+                                <p className="text-xs text-blue-600 mt-0.5">
+                                  Vencimento: {new Date(financeDueDate + "T12:00:00").toLocaleDateString("pt-BR")}
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                            <p className="text-sm font-medium text-slate-600">
+                              Nenhum lancamento financeiro sera criado.
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Navigation */}
+                  <div className="flex justify-between mt-6">
+                    <button
+                      onClick={() => setStep(3)}
+                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      Voltar
+                    </button>
+                    <button
+                      onClick={() => setStep(5)}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+                    >
+                      Proximo
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Step 5: Confirmacao ───────────────────── */}
+              {step === 5 && nfeData && (
                 <div>
                   <h3 className="text-base font-semibold text-slate-800 mb-4">Confirmacao</h3>
 
@@ -2048,13 +2189,43 @@ export default function NfePage() {
                       </div>
                     </div>
 
-                    {/* Total / Financial */}
+                    {/* Financial summary */}
+                    <div className={`rounded-xl border p-4 ${
+                      createFinancialEntry
+                        ? "border-blue-200 bg-blue-50"
+                        : "border-slate-200 bg-slate-50"
+                    }`}>
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Financeiro</p>
+                      {createFinancialEntry ? (
+                        <div className="flex items-center gap-2">
+                          <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                            <p className="text-sm font-medium text-blue-800">
+                              Lancamento A Pagar: {formatCurrency(nfeData.totalCents)}
+                            </p>
+                            {financeDueDate && (
+                              <p className="text-xs text-blue-600 mt-0.5">
+                                Vencimento: {new Date(financeDueDate + "T12:00:00").toLocaleDateString("pt-BR")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <svg className="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                          </svg>
+                          <p className="text-sm text-slate-500">Nenhum lancamento financeiro</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Total */}
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Valor Total</p>
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Valor Total da NFe</p>
                       <p className="text-xl font-bold text-slate-900">{formatCurrency(nfeData.totalCents)}</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Sera criado um lancamento A Pagar com esse valor.
-                      </p>
                     </div>
 
                     {/* Warning */}
@@ -2066,8 +2237,8 @@ export default function NfePage() {
                         <div>
                           <p className="text-sm font-medium text-amber-800">Atencao</p>
                           <p className="text-xs text-amber-700 mt-1">
-                            Ao confirmar, serao criados automaticamente: parceiro (se necessario), produtos novos,
-                            equivalencias e um lancamento A Pagar.
+                            Ao confirmar, serao criados automaticamente: parceiro (se necessario), produtos novos
+                            {createFinancialEntry ? ", equivalencias e um lancamento A Pagar." : " e equivalencias."}
                           </p>
                         </div>
                       </div>
@@ -2077,7 +2248,7 @@ export default function NfePage() {
                   {/* Navigation */}
                   <div className="flex justify-between mt-6">
                     <button
-                      onClick={() => setStep(3)}
+                      onClick={() => setStep(4)}
                       className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                     >
                       Voltar

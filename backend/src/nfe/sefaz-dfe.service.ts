@@ -400,21 +400,7 @@ export class SefazDfeService {
               select: { id: true, status: true },
             });
 
-            // Auto-import: only for NEW procNFe documents with XML
-            if (!existing && docData.schema === 'procNFe' && doc.xml) {
-              try {
-                const nfeImport = await this.nfeService.upload(doc.xml, companyId, upserted.id);
-                await this.prisma.sefazDocument.update({
-                  where: { id: upserted.id },
-                  data: { status: 'IMPORTED', nfeImportId: nfeImport.id },
-                });
-                this.logger.log(`Auto-imported procNFe NSU ${doc.nsu} -> NfeImport ${nfeImport.id}`);
-              } catch (importErr) {
-                // If auto-import fails (e.g. duplicate nfeKey), log and continue
-                // Document stays as FETCHED for manual import later
-                this.logger.warn(`Auto-import failed for NSU ${doc.nsu}: ${(importErr as Error).message}`);
-              }
-            }
+            // Documents stay as FETCHED — operator must manually import via UI
 
             totalNewDocs++;
           } catch (err) {
