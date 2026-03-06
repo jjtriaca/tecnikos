@@ -560,16 +560,38 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     return !!pm?.requiresBrand;
   }, [paymentMethod, activePMs]);
 
-  const filteredCardBrands = useMemo(() => {
+  // Determine card type (CREDITO/DEBITO) from payment method
+  const cardType = useMemo(() => {
     const pm = activePMs.find((p) => p.code === paymentMethod);
-    if (!pm || !pm.requiresBrand) return CARD_BRANDS;
+    if (!pm || !pm.requiresBrand) return "";
     const text = (pm.code + " " + pm.name).toUpperCase();
     const isDebit = text.includes("DEBIT") || text.includes("DÉBITO") || text.includes("DEBITO");
-    const cardType = isDebit ? "DEBITO" : "CREDITO";
-    const brandsWithRates = cardFeeRates.filter((r) => r.type === cardType && r.isActive).map((r) => r.brand);
-    const uniqueBrands = [...new Set(brandsWithRates)].sort();
-    return uniqueBrands.length > 0 ? uniqueBrands : CARD_BRANDS;
-  }, [paymentMethod, activePMs, cardFeeRates]);
+    return isDebit ? "DEBITO" : "CREDITO";
+  }, [paymentMethod, activePMs]);
+
+  // Filter card fee rates by type and get unique brands
+  const filteredCardRates = useMemo(() => {
+    if (!cardType) return [];
+    return cardFeeRates.filter((r) => r.type === cardType && r.isActive);
+  }, [cardType, cardFeeRates]);
+
+  const filteredCardBrands = useMemo(() => {
+    const brands = [...new Set(filteredCardRates.map((r) => r.brand))].sort();
+    return brands.length > 0 ? brands : [];
+  }, [filteredCardRates]);
+
+  // Fee preview for selected brand
+  const selectedBrandPreview = useMemo(() => {
+    if (!cardBrand || !cardType) return null;
+    const rates = filteredCardRates.filter((r) => r.brand === cardBrand);
+    if (rates.length === 0) return null;
+    const fees = rates.map((r) => r.feePercent).sort((a, b) => a - b);
+    const days = rates.map((r) => r.receivingDays);
+    const minFee = fees[0];
+    const maxFee = fees[fees.length - 1];
+    const maxDays = Math.max(...days);
+    return { minFee, maxFee, maxDays, rateCount: rates.length };
+  }, [cardBrand, cardType, filteredCardRates]);
 
   const loadEntries = useCallback(async () => {
     try {
@@ -662,10 +684,17 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     setActionLoading(entry.id);
     try {
       const isCard = !!selectedPM?.requiresBrand;
+      // Find the default (1x) card fee rate for the selected brand
+      let cardFeeRateId: string | undefined;
+      if (isCard && cardBrand && cardType) {
+        const defaultRate = filteredCardRates.find((r) => r.brand === cardBrand && r.installmentFrom === 1);
+        if (defaultRate) cardFeeRateId = defaultRate.id;
+      }
       await api.patch(`/finance/entries/${entry.id}/status`, {
         status: action,
         paymentMethod,
         cardBrand: isCard ? cardBrand : undefined,
+        cardFeeRateId: isCard ? cardFeeRateId : undefined,
         cashAccountId: isCard ? undefined : (selectedAccountId || undefined),
       });
       const labels: Record<string, string> = { CONFIRMED: "confirmada", PAID: "paga" };
@@ -948,29 +977,59 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
 
               {isCardPayment && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Bandeira do Cartao *</label>
-                  <select
-                    value={cardBrand}
-                    onChange={(e) => setCardBrand(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                  >
-                    <option value="">Selecione a bandeira...</option>
-                    {filteredCardBrands.map((b) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Cartao *</label>
+                  {filteredCardBrands.length === 0 ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                      <p className="font-medium">Nenhum cartao cadastrado para {cardType === "DEBITO" ? "debito" : "credito"}.</p>
+                      <p className="mt-1">Cadastre as taxas na aba <strong>Formas Pgto</strong> → Taxas de Cartao.</p>
+                    </div>
+                  ) : (
+                    <select
+                      value={cardBrand}
+                      onChange={(e) => setCardBrand(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                    >
+                      <option value="">Selecione o cartao...</option>
+                      {filteredCardBrands.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               )}
 
-              {/* Card info */}
-              {isCardPayment && (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
-                  <p className="font-medium mb-1">Pagamento com cartao</p>
-                  <p>A taxa e as parcelas serao definidas na baixa do cartao.</p>
-                  <p className="mt-1 text-blue-600">
-                    O saldo do caixa sera atualizado somente na baixa (aba Baixa Cartoes).
+              {/* Fee preview for selected brand */}
+              {isCardPayment && selectedBrandPreview && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-700">{cardBrand} — {cardType === "DEBITO" ? "Debito" : "Credito"}</span>
+                    <span className="text-[10px] text-slate-400">{selectedBrandPreview.rateCount} taxa{selectedBrandPreview.rateCount > 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="mt-1.5 flex gap-4">
+                    <div>
+                      <span className="text-[10px] text-slate-400">Taxa</span>
+                      <p className="font-medium text-slate-700">
+                        {selectedBrandPreview.minFee === selectedBrandPreview.maxFee
+                          ? `${selectedBrandPreview.minFee.toFixed(2)}%`
+                          : `${selectedBrandPreview.minFee.toFixed(2)}% — ${selectedBrandPreview.maxFee.toFixed(2)}%`}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400">Recebimento</span>
+                      <p className="font-medium text-slate-700">{selectedBrandPreview.maxDays} dias</p>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-[10px] text-blue-600">
+                    O saldo do caixa sera atualizado na baixa (aba Baixa Cartoes).
                   </p>
                 </div>
+              )}
+
+              {/* Card info when no brand selected yet */}
+              {isCardPayment && !selectedBrandPreview && filteredCardBrands.length > 0 && (
+                <p className="text-[10px] text-blue-600">
+                  O saldo do caixa sera atualizado na baixa (aba Baixa Cartoes).
+                </p>
               )}
 
               {/* Cash account (optional — hidden for card payments) */}

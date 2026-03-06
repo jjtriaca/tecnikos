@@ -494,8 +494,22 @@ export class FinanceService {
 
         if (isCardPayment) {
           // Card payment: create card settlement (cash account updated at settle time)
-          const feePercent = pm.feePercent || 0;
-          const receivingDays = pm.receivingDays || 0;
+          let feePercent = pm.feePercent || 0;
+          let receivingDays = pm.receivingDays || 0;
+          let cardBrand = dto.cardBrand;
+
+          // If a specific card fee rate was selected, use its values
+          if (dto.cardFeeRateId) {
+            const cardRate = await tx.cardFeeRate.findFirst({
+              where: { id: dto.cardFeeRateId, companyId, isActive: true },
+            });
+            if (cardRate) {
+              feePercent = cardRate.feePercent;
+              receivingDays = cardRate.receivingDays;
+              cardBrand = cardRate.brand;
+              this.logger.log(`Using CardFeeRate ${cardRate.id}: brand=${cardRate.brand}, fee=${cardRate.feePercent}%, days=${cardRate.receivingDays}`);
+            }
+          }
 
           await this.cardSettlementService.createFromEntry(tx, {
             id: entry.id,
@@ -506,7 +520,7 @@ export class FinanceService {
             code: pm.code,
             feePercent,
             receivingDays,
-            cardBrand: dto.cardBrand,
+            cardBrand,
           });
           this.logger.log(`Card settlement created for entry ${entry.id}, method=${pm.code}, fee=${feePercent}%, days=${receivingDays}`);
         } else if (dto.cashAccountId) {

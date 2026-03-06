@@ -109,4 +109,8 @@ export class ChangeEntryStatusDto {
   @IsOptional()
   @IsString()
   cashAccountId?: string;
+
+  @IsOptional()
+  @IsString()
+  cardFeeRateId?: string;
 }
