@@ -1,38 +1,50 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: FASE 4 CONCLUIDA — Geracao SPED
+## Status: WhatsApp Test Send + Email SMTP — CONCLUIDO
 
-## Ultima sessao: 72 (07/03/2026)
+## Ultima sessao: 73 (07/03/2026)
 - Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
 - Sessao 63: Fix NFe Import Flow (v1.01.20)
 - Sessoes 64-68: 4 estudos fiscais completos
 - Sessao 69-70: Fase 1 — Fundacao Fiscal (regime, contabilista, impostos NFe)
 - Sessao 71: Fase 2 — NFS-e de Entrada + Fase 3 — Escrituracao e Relatorios (v1.01.22)
-- Sessao 72: Fase 4 — Geracao SPED (EFD-ICMS/IPI + EFD-Contribuicoes)
+- Sessao 72: Fase 4 — Geracao SPED + Deploy v1.01.23
+- Sessao 73: WhatsApp Test Send + Modulo Email SMTP
 
-## O que foi feito na Fase 4:
-- [x] Gerador EFD-ICMS/IPI (802 linhas) — Blocos 0,B,C,D,E,G,H,K,1,9
-- [x] Gerador EFD-Contribuicoes (763 linhas) — Blocos 0,A,C,D,F,M,1,9
-- [x] Controller SPED com 3 endpoints (gerar ICMS/IPI, gerar Contribuicoes, info)
-- [x] Frontend /fiscal/sped com seletor periodo, preview, download
-- [x] Sidebar: link "Geracao SPED" na secao Escrituracao
+## O que foi feito na sessao 73:
+### WhatsApp — Teste de Envio
+- [x] Endpoint `POST /whatsapp/test-send` — envia mensagem de teste para numero informado
+- [x] Frontend: secao "Teste de Envio" na pagina /settings/whatsapp (visivel quando conectado)
+- [x] Input com mascara de telefone (XX) XXXXX-XXXX + botao enviar + feedback
+
+### Email SMTP — Modulo Completo
+- [x] Model `EmailConfig` no Prisma schema (host, port, secure, user, pass criptografada, fromName, fromEmail)
+- [x] Migration `20260307150000_email_config`
+- [x] `EmailService` com nodemailer — getConfig, saveConfig, disconnect, testConnection, sendTestEmail, sendEmail
+- [x] `EmailController` com 5 endpoints — GET config, PUT config, POST test-connection, POST test-send, DELETE disconnect
+- [x] `EmailModule` registrado no AppModule
+- [x] DTOs com class-validator (UpdateEmailConfigDto, TestEmailConnectionDto, TestEmailSendDto)
+- [x] Frontend `/settings/email` — pagina completa com status, form SMTP, presets (Gmail/Outlook/Yahoo), teste envio
+- [x] Card "Email SMTP" na pagina /settings (ao lado do WhatsApp)
 - [x] Build backend + frontend: zero erros
-- [ ] Deploy pendente
 
-## Arquivos criados nesta sessao:
-- `backend/src/sped/sped-icms-ipi.generator.ts` — Gerador EFD-ICMS/IPI
-- `backend/src/sped/sped-contribuicoes.generator.ts` — Gerador EFD-Contribuicoes
-- `backend/src/sped/sped.controller.ts` — Controller SPED
-- `backend/src/sped/sped.module.ts` — Module SPED
-- `frontend/src/app/(dashboard)/fiscal/sped/page.tsx` — Pagina SPED
+## Arquivos criados/modificados:
+### Backend
+- `backend/src/whatsapp/whatsapp.controller.ts` — MODIFICADO (test-send endpoint)
+- `backend/src/email/email.service.ts` — NOVO
+- `backend/src/email/email.controller.ts` — NOVO
+- `backend/src/email/email.module.ts` — NOVO
+- `backend/src/email/dto/email-config.dto.ts` — NOVO
+- `backend/src/app.module.ts` — MODIFICADO (EmailModule)
+- `backend/prisma/schema.prisma` — MODIFICADO (EmailConfig model)
+- `backend/prisma/migrations/20260307150000_email_config/` — NOVO
 
-## Documentos de referencia:
-- `memory/projeto-modulo-fiscal.md` — Projeto consolidado com todas as fases
-- `memory/estudo-obrigacoes-fiscais-por-regime.md` — Obrigacoes SN/LP/LR
-- `memory/sped-fiscal-efd-icms-ipi.md` — EFD-ICMS/IPI detalhado
-- `memory/estudo-sped-contribuicoes.md` — EFD-Contribuicoes detalhado
+### Frontend
+- `frontend/src/app/(dashboard)/settings/whatsapp/page.tsx` — MODIFICADO (teste envio)
+- `frontend/src/app/(dashboard)/settings/email/page.tsx` — NOVO
+- `frontend/src/app/(dashboard)/settings/page.tsx` — MODIFICADO (card Email)
 
-## Versao atual: v1.01.22 (Fase 4 pendente deploy)
+## Versao atual: v1.01.23 (pendente deploy com estas mudancas)
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

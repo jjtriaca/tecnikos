@@ -1081,6 +1081,20 @@ export default function SettingsPage() {
               </div>
             </div>
           </a>
+          <a
+            href="/settings/email"
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-300 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-100 transition-colors">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800">Email SMTP</h4>
+                <p className="text-xs text-slate-500">Servidor de email para envio automatico</p>
+              </div>
+            </div>
+          </a>
         </div>
       )}
 

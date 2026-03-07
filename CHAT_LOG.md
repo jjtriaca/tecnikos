@@ -852,12 +852,35 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 
 ---
 
-## Pendente — Configuracao de Email
+## 2026-03-07 — Sessao 73: WhatsApp Test Send + Modulo Email SMTP
 
-### Decisoes do Juliano:
-- Provedor: **Gmail SMTP** (senha de app)
-- Escopo: **Tudo** (NFS-e, cobranca, OS, usuarios, reset senha, alertas sistema)
-- Cada tipo de email com **toggle para habilitar/desabilitar**
-- Status: **PAUSADO** — Juliano pediu para fazer depois
-- Dependencia instalada: `nodemailer`, `handlebars`, `@types/nodemailer` (ja no package.json)
-- Nenhum codigo de email foi criado ainda
+### Solicitacao do Juliano:
+- WhatsApp: colocar funcao de teste de envio de mensagem nas configuracoes
+- Email: criar modulo de cadastrar servidor email para envio automatico, com teste, ao lado do WhatsApp
+
+### O que foi implementado:
+
+#### WhatsApp — Teste de Envio
+- Endpoint `POST /whatsapp/test-send` no controller
+- Secao "Teste de Envio" no frontend `/settings/whatsapp` (visivel quando conectado)
+- Input com mascara telefone + botao enviar + feedback resultado
+
+#### Email SMTP — Modulo Completo
+- Model `EmailConfig` no Prisma (smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass criptografada AES-256-GCM, fromName, fromEmail)
+- Migration `20260307150000_email_config`
+- `EmailService` — getConfig, saveConfig, disconnect, testConnection, sendTestEmail, sendEmail
+- `EmailController` — 5 endpoints REST (config, test-connection, test-send, disconnect)
+- `EmailModule` registrado no AppModule
+- DTOs com class-validator
+- Frontend `/settings/email` — pagina completa com presets SMTP (Gmail/Outlook/Yahoo), teste conexao, teste envio
+- Card "Email SMTP" na pagina principal de Settings
+- Senha SMTP criptografada com AES-256-GCM (mesmo padrao WhatsApp)
+- Email de teste com template HTML profissional
+
+### Build: backend + frontend — zero erros
+### Status: pendente deploy
+
+### Nota — Escopo futuro email:
+- Toggles por tipo de email (NFS-e, cobranca, OS, etc.) serao implementados depois
+- O EmailService.sendEmail() ja esta exportado e pronto para uso pelo NotificationService e NfseEmissionService
+---

@@ -78,6 +78,48 @@ export class WhatsAppController {
     return { message: 'WhatsApp desconectado' };
   }
 
+  /**
+   * POST /whatsapp/test-send — Send a test message to verify WhatsApp is working
+   */
+  @Post('test-send')
+  @Roles('ADMIN')
+  async testSend(@Req() req: any, @Body() body: { phone: string }) {
+    const companyId = req.user.companyId;
+
+    const connected = await this.whatsAppService.isConnected(companyId);
+    if (!connected) {
+      return { success: false, error: 'WhatsApp nao esta conectado' };
+    }
+
+    try {
+      const phone = body.phone?.trim();
+      if (!phone) {
+        return { success: false, error: 'Numero de telefone obrigatorio' };
+      }
+
+      const result = await this.whatsAppService.sendText(
+        companyId,
+        phone,
+        '✅ Mensagem de teste do Tecnikos — WhatsApp configurado com sucesso!\n\n' +
+        `Enviado em: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
+      );
+
+      if (result) {
+        return {
+          success: true,
+          messageId: result.messages?.[0]?.id || null,
+        };
+      }
+
+      return { success: false, error: 'Erro ao enviar mensagem' };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Erro desconhecido ao enviar mensagem de teste',
+      };
+    }
+  }
+
   // ── Meta Webhook (PUBLIC — called by Meta) ────────────────
 
   /**

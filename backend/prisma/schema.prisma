@@ -155,6 +155,7 @@ model Company {
   cardFeeRates         CardFeeRate[]
   nfseEntradas         NfseEntrada[]
   fiscalPeriods        FiscalPeriod[]
+  emailConfig          EmailConfig?
 }
 
 model User {
@@ -1560,4 +1561,24 @@ model FiscalPeriod {
 
   @@unique([companyId, year, month])
   @@index([companyId, status])
+}
+
+// ========== Email Config (SMTP) ==========
+
+model EmailConfig {
+  id            String   @id @default(uuid())
+  companyId     String   @unique
+  smtpHost      String                    // ex: smtp.gmail.com
+  smtpPort      Int      @default(587)
+  smtpSecure    Boolean  @default(false)  // true = SSL/465, false = STARTTLS/587
+  smtpUser      String                    // SMTP username
+  smtpPass      String                    // Encrypted AES-256-GCM
+  fromName      String                    // Display name (ex: "Tecnikos")
+  fromEmail     String                    // Sender email (ex: noreply@empresa.com)
+  isConnected   Boolean  @default(false)
+  connectedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
 }
