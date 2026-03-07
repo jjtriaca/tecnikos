@@ -91,33 +91,13 @@ export class WhatsAppController {
       return { success: false, error: 'WhatsApp nao esta conectado' };
     }
 
-    try {
-      const phone = body.phone?.trim();
-      if (!phone) {
-        return { success: false, error: 'Numero de telefone obrigatorio' };
-      }
-
-      const result = await this.whatsAppService.sendText(
-        companyId,
-        phone,
-        '✅ Mensagem de teste do Tecnikos — WhatsApp configurado com sucesso!\n\n' +
-        `Enviado em: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
-      );
-
-      if (result) {
-        return {
-          success: true,
-          messageId: result.messages?.[0]?.id || null,
-        };
-      }
-
-      return { success: false, error: 'Erro ao enviar mensagem' };
-    } catch (err: any) {
-      return {
-        success: false,
-        error: err.message || 'Erro desconhecido ao enviar mensagem de teste',
-      };
+    const phone = body.phone?.trim();
+    if (!phone) {
+      return { success: false, error: 'Numero de telefone obrigatorio' };
     }
+
+    // Use sendTestMessage which throws on error (instead of sendText which swallows errors)
+    return this.whatsAppService.sendTestMessage(companyId, phone);
   }
 
   // ── Meta Webhook (PUBLIC — called by Meta) ────────────────

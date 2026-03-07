@@ -266,6 +266,54 @@ export class WhatsAppService {
   }
 
   /**
+   * Send a test message — returns { success, messageId?, error? } instead of null.
+   * Unlike sendText(), this method does NOT swallow errors — it propagates them.
+   */
+  async sendTestMessage(
+    companyId: string,
+    phone: string,
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const token = await this.getAccessToken(companyId);
+    const phoneNumberId = await this.getPhoneNumberId(companyId);
+
+    if (!token || !phoneNumberId) {
+      return { success: false, error: 'WhatsApp nao esta configurado' };
+    }
+
+    const formattedPhone = this.formatPhone(phone);
+    const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const message = `✅ Mensagem de teste do Tecnikos — WhatsApp configurado com sucesso!\n\nEnviado em: ${now}`;
+
+    try {
+      const res = await this.metaRequest(token, phoneNumberId, {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'text',
+        text: { body: message },
+      });
+
+      this.logger.log(`WhatsApp test sent to ${formattedPhone}`);
+      return {
+        success: true,
+        messageId: res.messages?.[0]?.id || undefined,
+      };
+    } catch (err: any) {
+      const errorMsg = err.message || 'Erro desconhecido';
+      this.logger.error(`WhatsApp test send failed to ${formattedPhone}: ${errorMsg}`);
+
+      // Provide user-friendly error messages for common Meta API errors
+      let friendlyError = errorMsg;
+      if (errorMsg.includes('Recipient phone number not in allowed list')) {
+        friendlyError = 'Numero nao esta na lista de destinatarios permitidos. No painel da Meta (API Setup), adicione este numero como destinatario de teste.';
+      } else if (errorMsg.includes('Invalid phone number')) {
+        friendlyError = 'Numero de telefone invalido. Verifique o formato (DDD + numero).';
+      }
+
+      return { success: false, error: friendlyError };
+    }
+  }
+
+  /**
    * Send media (image, document) via Meta WhatsApp Cloud API.
    */
   async sendMedia(
