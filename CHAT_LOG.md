@@ -735,7 +735,74 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Backend `npx tsc --noEmit`: 0 erros
 - Frontend `npx next build`: 0 erros, pagina /nfe/entrada compilando
 
-### Status: FASE 2 CONCLUIDA — Pronto para deploy
+### Status: FASE 2 CONCLUIDA — Deploy v1.01.21
+
+---
+
+## Sessao 71 (continuacao) — 07/03/2026
+
+### Fase 3 — Escrituracao e Relatorios
+
+#### 1. Schema Prisma + Migration:
+- Model `FiscalPeriod`: id, companyId, year, month, status (OPEN/CLOSED/FILED)
+- Campos de apuracao: ICMS (debito/credito/saldo/ST), IPI, PIS, COFINS, ISS (devido/retido)
+- Totais: totalEntradaCents, totalSaidaCents, quantidades NFe/NFS-e
+- Controle: closedAt, closedByName, filedAt, notes
+- Unique constraint: [companyId, year, month]
+- Migration `20260307130000_fiscal_period` aplicada
+
+#### 2. Backend — Service (`fiscal-period.service.ts`):
+- `findAll()`: lista periodos por ano
+- `findOrCreate()`: auto-cria periodo se nao existir
+- `calculate()`: apuracao completa — agrega NFe entrada (ICMS, IPI), NFS-e entrada (ISS retido, PIS, COFINS), NFS-e saida (ISS devido, PIS/COFINS debito baseado no regime)
+- `close()`: fecha periodo calculando apuracao e salvando resultados
+- `reopen()`: reabre periodo fechado
+- `getLivroEntradas()`: NFe importadas no periodo com todos os campos fiscais
+- `getServicosTomados()`: NFS-e entrada por competencia com retencoes
+- `getDashboard()`: overview com regime, apuracao atual, periodos, obrigacoes por regime
+
+#### 3. Backend — Controller (`fiscal-period.controller.ts`):
+- `GET /fiscal-periods/dashboard` — dashboard completo
+- `GET /fiscal-periods` — lista periodos
+- `GET /fiscal-periods/apuracao?year=&month=` — preview apuracao
+- `GET /fiscal-periods/livro-entradas?year=&month=` — livro entradas
+- `GET /fiscal-periods/servicos-tomados?year=&month=` — servicos tomados
+- `GET /fiscal-periods/:id` — detalhe periodo
+- `POST /fiscal-periods/close` — fechar periodo
+- `POST /fiscal-periods/:id/reopen` — reabrir periodo
+- `PATCH /fiscal-periods/:id/notes` — notas
+- Protegido com FiscalGuard + Roles (ADMIN, FISCAL, FINANCEIRO, LEITURA)
+
+#### 4. Frontend — Dashboard Fiscal (`/fiscal`):
+- Header com regime tributario, CNAE, perfil EFD
+- KPI cards: NFe entrada, NFS-e entrada, NFS-e saida, total entradas
+- Tabela de apuracao: ICMS, IPI, PIS, COFINS, ISS (debito x credito x saldo)
+- Nota informativa para SN (impostos incluidos no DAS)
+- Botao "Fechar Periodo" com calculo automatico
+- Obrigacoes fiscais com prazos e status vencido/pendente (variam por regime)
+- Historico de periodos com status e botao reabrir
+
+#### 5. Frontend — Livro de Entradas (`/fiscal/livro-entradas`):
+- Seletor de mes com setas < >
+- Cards resumo: total notas, valor total, ICMS, IPI, PIS+COFINS
+- Tabela completa: data, numero, emitente, CNPJ, CFOP, valor, BC ICMS, ICMS, ICMS-ST, IPI, PIS, COFINS
+- Linha de totais no rodape
+
+#### 6. Frontend — Servicos Tomados (`/fiscal/servicos-tomados`):
+- Seletor de mes com setas < >
+- Cards resumo: total NFS-e, valor servicos, ISS retido, total retencoes, valor liquido
+- Tabela: data, NFS-e, prestador, CNPJ/CPF, item LC 116, valor, aliquota ISS, ISS, retido, liquido
+- Linhas expandiveis com discriminacao, municipio, base calculo, competencia, retencoes federais
+
+#### 7. Sidebar — Secao Escrituracao:
+- Icone calculadora (fiscal)
+- Submenu: Dashboard Fiscal, Livro de Entradas, Servicos Tomados
+- Visivel para ADMIN, FISCAL, FINANCEIRO
+- Requer fiscalEnabled (requiresFiscal: true)
+
+#### 8. Build: Backend + Frontend 0 erros
+
+### Status: FASE 3 CONCLUIDA — Pronto para deploy
 
 ---
 

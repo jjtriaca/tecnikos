@@ -26,6 +26,7 @@ import { NfseEmissionModule } from './nfse-emission/nfse-emission.module';
 import { NfseEntradaModule } from './nfse-entrada/nfse-entrada.module';
 import { ObraModule } from './obra/obra.module';
 import { ServiceModule } from './service/service.module';
+import { FiscalPeriodModule } from './fiscal-period/fiscal-period.module';
 
 import { RequestLoggerMiddleware } from './common/logger/request-logger.middleware';
 import { AuditModule } from './common/audit/audit.module';
@@ -67,6 +68,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     NfseEntradaModule,
     ObraModule,
     ServiceModule,
+    FiscalPeriodModule,
   ],
   providers: [
     // Order matters: Throttle → JWT Auth → Roles

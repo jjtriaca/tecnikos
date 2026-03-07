@@ -154,6 +154,7 @@ model Company {
   services             Service[]
   cardFeeRates         CardFeeRate[]
   nfseEntradas         NfseEntrada[]
+  fiscalPeriods        FiscalPeriod[]
 }
 
 model User {
@@ -1499,4 +1500,64 @@ model Service {
 
   @@index([companyId])
   @@index([companyId, code])
+}
+
+// ========== Período Fiscal (Escrituração) ==========
+
+model FiscalPeriod {
+  id              String    @id @default(uuid())
+  companyId       String
+
+  year            Int       // 2026
+  month           Int       // 1-12
+  status          String    @default("OPEN") // OPEN | CLOSED | FILED
+
+  // Resumo quantitativo (preenchido ao fechar)
+  totalNfeEntrada     Int?  // Qtd NFe de entrada importadas
+  totalNfeSaida       Int?  // Qtd NFe de saída (se aplicável)
+  totalNfseEntrada    Int?  // Qtd NFS-e de entrada
+  totalNfseSaida      Int?  // Qtd NFS-e de saída emitidas
+
+  // ICMS (apuração)
+  icmsDebitoCents     Int?  // Total débitos ICMS
+  icmsCreditoCents    Int?  // Total créditos ICMS
+  icmsSaldoCents      Int?  // Saldo (positivo = a recolher)
+  icmsStCents         Int?  // ICMS-ST do período
+
+  // IPI (apuração)
+  ipiDebitoCents      Int?
+  ipiCreditoCents     Int?
+  ipiSaldoCents       Int?
+
+  // PIS (apuração)
+  pisDebitoCents      Int?
+  pisCreditoCents     Int?
+  pisSaldoCents       Int?
+
+  // COFINS (apuração)
+  cofinsDebitoCents   Int?
+  cofinsCreditoCents  Int?
+  cofinsSaldoCents    Int?
+
+  // ISS (apuração)
+  issDevidoCents      Int?  // Total ISS devido (NFS-e saída)
+  issRetidoCents      Int?  // Total ISS retido (NFS-e entrada)
+
+  // Total valores no período
+  totalEntradaCents   Int?  // Soma valor entradas (NFe + NFS-e)
+  totalSaidaCents     Int?  // Soma valor saídas (NFe + NFS-e)
+
+  // Controle de fechamento
+  closedAt            DateTime?
+  closedByName        String?
+  filedAt             DateTime?
+  notes               String?   // Observações do período
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, year, month])
+  @@index([companyId, status])
 }

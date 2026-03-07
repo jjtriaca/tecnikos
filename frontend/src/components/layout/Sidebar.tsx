@@ -94,6 +94,11 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
     </svg>
   ),
+  fiscal: (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+    </svg>
+  ),
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -112,6 +117,11 @@ const NAV_ITEMS: NavItem[] = [
     { label: "NFe Entrada", href: "/nfe" },
     { label: "NFS-e Entrada", href: "/nfe/entrada" },
     { label: "NFS-e Saída", href: "/nfe/saida" },
+  ] },
+  { label: "Escrituração", href: "/fiscal", icon: icons.fiscal, roles: ["ADMIN", "FISCAL", "FINANCEIRO"], requiresFiscal: true, children: [
+    { label: "Dashboard Fiscal", href: "/fiscal" },
+    { label: "Livro de Entradas", href: "/fiscal/livro-entradas" },
+    { label: "Serviços Tomados", href: "/fiscal/servicos-tomados" },
   ] },
   { label: "Relatórios", href: "/reports", icon: icons.reports, roles: ["ADMIN", "FINANCEIRO", "LEITURA"] },
   { label: "Usuários", href: "/users", icon: icons.users, roles: ["ADMIN"] },
