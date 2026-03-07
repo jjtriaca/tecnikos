@@ -899,6 +899,7 @@ model SefazConfig {
   lastFetchStatus     String?   // SUCCESS | ERROR | NO_DOCS
   lastFetchError      String?
   autoFetchEnabled    Boolean   @default(true)
+  autoManifestCiencia Boolean   @default(false) // Auto-manifestar ciência para novas resNFe
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -919,6 +920,8 @@ model SefazDocument {
   xmlContent    String?   // XML descomprimido completo
   nfeImportId   String?   // Vínculo com NfeImport quando processado
   status        String    @default("FETCHED") // FETCHED | IMPORTED | IGNORED | EVENT
+  manifestType  String?   // ciencia | confirmacao | desconhecimento | nao_realizada
+  manifestedAt  DateTime? // Data/hora da manifestação
   fetchedAt     DateTime  @default(now())
   createdAt     DateTime  @default(now())
 

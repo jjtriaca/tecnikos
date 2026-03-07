@@ -20,6 +20,8 @@ export class PrismaService
     await this.ensureFinancialAccountTable();
     await this.ensureServiceTable();
     await this.ensureCardFeeRateTable();
+    await this.ensureSefazManifestColumns();
+    await this.fixOrphanImportedStatus();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -486,6 +488,33 @@ export class PrismaService
       await this.$executeRawUnsafe(`ALTER TABLE "CardFeeRate" ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT ''`);
     } catch (err) {
       this.logger.warn('CardFeeRate auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  /** Ensure SEFAZ manifestation columns exist (self-healing migration) */
+  private async ensureSefazManifestColumns(): Promise<void> {
+    try {
+      await this.$executeRawUnsafe(`ALTER TABLE "SefazDocument" ADD COLUMN IF NOT EXISTS "manifestType" TEXT`);
+      await this.$executeRawUnsafe(`ALTER TABLE "SefazDocument" ADD COLUMN IF NOT EXISTS "manifestedAt" TIMESTAMP(3)`);
+      await this.$executeRawUnsafe(`ALTER TABLE "SefazConfig" ADD COLUMN IF NOT EXISTS "autoManifestCiencia" BOOLEAN NOT NULL DEFAULT false`);
+    } catch (err) {
+      this.logger.warn('SefazManifest auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  /** Fix orphan IMPORTED status - reset docs marked IMPORTED without linked NfeImport back to FETCHED */
+  private async fixOrphanImportedStatus(): Promise<void> {
+    try {
+      const result = await this.$executeRawUnsafe(`
+        UPDATE "SefazDocument"
+        SET status = 'FETCHED'
+        WHERE status = 'IMPORTED' AND "nfeImportId" IS NULL
+      `);
+      if (typeof result === 'number' && result > 0) {
+        this.logger.log(`Fixed ${result} SefazDocument(s) with orphan IMPORTED status → FETCHED`);
+      }
+    } catch (err) {
+      this.logger.warn('fixOrphanImportedStatus failed (non-fatal):', err);
     }
   }
 }

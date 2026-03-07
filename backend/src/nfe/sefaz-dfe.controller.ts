@@ -19,7 +19,7 @@ import { UserRole } from '@prisma/client';
 import type { Response } from 'express';
 import { SefazDfeService } from './sefaz-dfe.service';
 import { DanfeService } from './danfe.service';
-import { UpdateSefazConfigDto, SefazDocumentFilterDto } from './dto/sefaz-config.dto';
+import { UpdateSefazConfigDto, SefazDocumentFilterDto, ManifestDocumentDto } from './dto/sefaz-config.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
@@ -137,6 +137,18 @@ export class SefazDfeController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.importDocument(user.companyId, id);
+  }
+
+  /* ── Manifest Document (Manifestação do Destinatário) ────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
+  @Post('documents/:id/manifest')
+  manifestDocument(
+    @Param('id') id: string,
+    @Body() dto: ManifestDocumentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.manifestDocument(user.companyId, id, dto.tipo, dto.justificativa);
   }
 
   /* ── Ignore Document ─────────────────────────────────────────── */

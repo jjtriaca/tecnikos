@@ -1,0 +1,18 @@
+<svg width="360" height="72" viewBox="0 0 360 72" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60a5fa"/>
+      <stop offset="100%" style="stop-color:#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <!-- Icon -->
+  <rect x="2" y="6" width="60" height="60" rx="15" fill="url(#bg)"/>
+  <!-- T Bold -->
+  <rect x="13" y="17" width="34" height="7" rx="3.5" fill="#0f172a"/>
+  <rect x="26.5" y="17" width="7" height="34" rx="3.5" fill="#0f172a"/>
+  <!-- GPS Pin Outline -->
+  <path d="M47 27 C44 27, 41.5 29.5, 41.5 32.5 C41.5 36.5, 47 43, 47 43 C47 43, 52.5 36.5, 52.5 32.5 C52.5 29.5, 50 27, 47 27Z" fill="none" stroke="#0f172a" stroke-width="2" opacity="0.45"/>
+  <circle cx="47" cy="32.5" r="2.5" fill="#0f172a" opacity="0.5"/>
+  <!-- Wordmark -->
+  <text x="78" y="47" font-family="'Plus Jakarta Sans', 'Inter', sans-serif" font-weight="700" font-size="33" fill="white" letter-spacing="-0.3">tecnikos</text>
+</svg>

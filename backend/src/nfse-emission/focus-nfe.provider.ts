@@ -247,6 +247,67 @@ export class FocusNfeProvider {
     return Buffer.from(await response.arrayBuffer());
   }
 
+  // ========== MANIFEST NFe (Manifestação do Destinatário) ==========
+
+  async manifestNfe(
+    token: string,
+    environment: string,
+    nfeKey: string,
+    tipo: 'ciencia' | 'confirmacao' | 'desconhecimento' | 'nao_realizada',
+    justificativa?: string,
+  ): Promise<{ status: string; protocolo?: string; mensagem?: string }> {
+    const url = `${this.getBaseUrl(environment)}/v2/nfes_recebidas/${nfeKey}/manifesto`;
+    this.logger.log(`Manifesting NFe key=${nfeKey} type=${tipo} env=${environment}`);
+
+    const body: any = { tipo };
+    if (justificativa) body.justificativa = justificativa;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(token),
+      body: JSON.stringify(body),
+    });
+
+    const text = await response.text();
+    let result: any;
+    try {
+      result = JSON.parse(text);
+    } catch {
+      this.logger.error(`Focus NFe manifest non-JSON (${response.status}): ${text.substring(0, 200)}`);
+      throw new Error(`Focus NFe manifest error ${response.status}: ${text.substring(0, 200)}`);
+    }
+
+    if (!response.ok) {
+      this.logger.error(`Focus NFe manifest error: ${response.status} ${JSON.stringify(result)}`);
+      throw new Error(result.mensagem || `Focus NFe manifest error: ${response.status}`);
+    }
+
+    this.logger.log(`Manifest OK: key=${nfeKey} type=${tipo} status=${result.status}`);
+    return result;
+  }
+
+  // ========== DOWNLOAD NFe XML (after manifest) ==========
+
+  async downloadNfeXml(
+    token: string,
+    environment: string,
+    nfeKey: string,
+  ): Promise<string | null> {
+    const url = `${this.getBaseUrl(environment)}/v2/nfes_recebidas/${nfeKey}.xml`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: this.getHeaders(token).Authorization },
+    });
+
+    if (!response.ok) {
+      this.logger.warn(`Focus NFe XML download failed (${response.status}) for key=${nfeKey}`);
+      return null;
+    }
+
+    return await response.text();
+  }
+
   // ========== RESEND EMAIL ==========
 
   async resendEmail(

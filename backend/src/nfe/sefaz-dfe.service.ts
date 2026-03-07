@@ -9,6 +9,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
 import { NfeService } from './nfe.service';
+import { FocusNfeProvider } from '../nfse-emission/focus-nfe.provider';
 import { PaginatedResult } from '../common/dto/pagination.dto';
 import { SefazDocumentFilterDto } from './dto/sefaz-config.dto';
 
@@ -46,6 +47,7 @@ export interface SefazConfigInfo {
   certificateExpiry: string | null;
   environment: string;
   autoFetchEnabled: boolean;
+  autoManifestCiencia: boolean;
   lastNsu: string;
   lastFetchAt: string | null;
   lastFetchStatus: string | null;
@@ -65,6 +67,7 @@ export class SefazDfeService {
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
     private readonly nfeService: NfeService,
+    private readonly focusNfe: FocusNfeProvider,
   ) {
     this.xmlParser = new XMLParser({
       ignoreAttributes: false,
@@ -232,6 +235,7 @@ export class SefazDfeService {
         certificateExpiry: null,
         environment: 'PRODUCTION',
         autoFetchEnabled: true,
+        autoManifestCiencia: false,
         lastNsu: '000000000000000',
         lastFetchAt: null,
         lastFetchStatus: null,
@@ -245,6 +249,7 @@ export class SefazDfeService {
       certificateExpiry: config.certificateExpiry?.toISOString() ?? null,
       environment: config.environment,
       autoFetchEnabled: config.autoFetchEnabled,
+      autoManifestCiencia: config.autoManifestCiencia,
       lastNsu: config.lastNsu,
       lastFetchAt: config.lastFetchAt?.toISOString() ?? null,
       lastFetchStatus: config.lastFetchStatus,
@@ -256,7 +261,7 @@ export class SefazDfeService {
      updateConfig — Update environment or autoFetchEnabled
      ═══════════════════════════════════════════════════════════════════ */
 
-  async updateConfig(companyId: string, data: { environment?: string; autoFetchEnabled?: boolean }) {
+  async updateConfig(companyId: string, data: { environment?: string; autoFetchEnabled?: boolean; autoManifestCiencia?: boolean }) {
     const config = await this.prisma.sefazConfig.findUnique({ where: { companyId } });
     if (!config) {
       throw new NotFoundException('Configuração SEFAZ não encontrada. Faça upload do certificado primeiro.');
@@ -267,6 +272,7 @@ export class SefazDfeService {
       data: {
         ...(data.environment !== undefined && { environment: data.environment }),
         ...(data.autoFetchEnabled !== undefined && { autoFetchEnabled: data.autoFetchEnabled }),
+        ...(data.autoManifestCiencia !== undefined && { autoManifestCiencia: data.autoManifestCiencia }),
       },
     });
   }
@@ -810,6 +816,8 @@ export class SefazDfeService {
           situacao: true,
           nfeImportId: true,
           status: true,
+          manifestType: true,
+          manifestedAt: true,
           fetchedAt: true,
           // xmlContent excluded from list for performance
         },
@@ -834,6 +842,161 @@ export class SefazDfeService {
 
     if (!doc) throw new NotFoundException('Documento SEFAZ não encontrado');
     return doc;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     manifestDocument — Send manifestation event via Focus NFe
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async manifestDocument(
+    companyId: string,
+    sefazDocId: string,
+    tipo: 'ciencia' | 'confirmacao' | 'desconhecimento' | 'nao_realizada',
+    justificativa?: string,
+  ) {
+    const doc = await this.prisma.sefazDocument.findFirst({
+      where: { id: sefazDocId, companyId },
+    });
+
+    if (!doc) throw new NotFoundException('Documento SEFAZ não encontrado');
+    if (!doc.nfeKey) {
+      throw new BadRequestException('Documento sem chave NFe — não é possível manifestar');
+    }
+    if (doc.schema === 'resEvento') {
+      throw new BadRequestException('Não é possível manifestar eventos');
+    }
+
+    // Tipos conclusivos exigem justificativa
+    if ((tipo === 'desconhecimento' || tipo === 'nao_realizada') && !justificativa) {
+      throw new BadRequestException('Justificativa é obrigatória para este tipo de manifestação');
+    }
+
+    // Get Focus NFe token from NfseConfig
+    const { token, environment } = await this.getFocusNfeCredentials(companyId);
+
+    // Call Focus NFe API
+    const result = await this.focusNfe.manifestNfe(token, environment, doc.nfeKey, tipo, justificativa);
+
+    // Update document
+    const updated = await this.prisma.sefazDocument.update({
+      where: { id: sefazDocId },
+      data: {
+        manifestType: tipo,
+        manifestedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`Manifest OK: doc=${sefazDocId} key=${doc.nfeKey} type=${tipo}`);
+
+    // After ciência, try to download full XML if not already available
+    if (tipo === 'ciencia' && !doc.xmlContent) {
+      // Schedule XML download attempt (may not be available immediately)
+      setTimeout(() => this.tryDownloadFullXml(companyId, sefazDocId, doc.nfeKey!), 5000);
+    }
+
+    return { ...updated, focusResult: result };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     tryDownloadFullXml — Attempt to download procNFe XML after ciência
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private async tryDownloadFullXml(companyId: string, sefazDocId: string, nfeKey: string) {
+    try {
+      const { token, environment } = await this.getFocusNfeCredentials(companyId);
+      const xml = await this.focusNfe.downloadNfeXml(token, environment, nfeKey);
+
+      if (xml && xml.length > 100) {
+        await this.prisma.sefazDocument.update({
+          where: { id: sefazDocId },
+          data: {
+            xmlContent: xml,
+            schema: 'procNFe', // Upgrade from resNFe to procNFe
+          },
+        });
+        this.logger.log(`Full XML downloaded for key=${nfeKey} — upgraded to procNFe`);
+      } else {
+        this.logger.log(`Full XML not yet available for key=${nfeKey} — will retry on next fetch`);
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to download XML for key=${nfeKey}: ${err.message}`);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     getFocusNfeCredentials — Get Focus NFe token from NfseConfig
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private async getFocusNfeCredentials(companyId: string): Promise<{ token: string; environment: string }> {
+    const nfseConfig = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    if (!nfseConfig?.focusNfeToken) {
+      throw new BadRequestException(
+        'Token Focus NFe não configurado. Configure em Configurações > Fiscal > NFS-e.',
+      );
+    }
+
+    const token = this.encryption.decrypt(nfseConfig.focusNfeToken);
+    return { token, environment: nfseConfig.focusNfeEnvironment || 'PRODUCTION' };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     autoManifestNewDocs — Auto-manifest ciência for new resNFe docs
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private async autoManifestNewDocs(companyId: string) {
+    try {
+      const config = await this.prisma.sefazConfig.findUnique({ where: { companyId } });
+      if (!config?.autoManifestCiencia) return;
+
+      // Find resNFe docs without manifest
+      const pendingDocs = await this.prisma.sefazDocument.findMany({
+        where: {
+          companyId,
+          schema: 'resNFe',
+          status: 'FETCHED',
+          manifestType: null,
+          nfeKey: { not: null },
+        },
+        take: 10, // Process max 10 per cycle (SEFAZ rate limit: 20/hour)
+      });
+
+      if (pendingDocs.length === 0) return;
+
+      const { token, environment } = await this.getFocusNfeCredentials(companyId);
+
+      let manifested = 0;
+      for (const doc of pendingDocs) {
+        try {
+          await this.focusNfe.manifestNfe(token, environment, doc.nfeKey!, 'ciencia');
+          await this.prisma.sefazDocument.update({
+            where: { id: doc.id },
+            data: { manifestType: 'ciencia', manifestedAt: new Date() },
+          });
+          manifested++;
+
+          // Try downloading the XML
+          const xml = await this.focusNfe.downloadNfeXml(token, environment, doc.nfeKey!);
+          if (xml && xml.length > 100) {
+            await this.prisma.sefazDocument.update({
+              where: { id: doc.id },
+              data: { xmlContent: xml, schema: 'procNFe' },
+            });
+            this.logger.log(`Auto-manifest + XML downloaded: key=${doc.nfeKey}`);
+          }
+
+          // Small delay between manifests to avoid rate limiting
+          await new Promise(r => setTimeout(r, 1000));
+        } catch (err) {
+          this.logger.warn(`Auto-manifest failed for key=${doc.nfeKey}: ${err.message}`);
+        }
+      }
+
+      if (manifested > 0) {
+        this.logger.log(`Auto-manifested ciência for ${manifested} docs (company=${companyId})`);
+      }
+    } catch (err) {
+      this.logger.warn(`Auto-manifest error for company=${companyId}: ${err.message}`);
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -878,6 +1041,8 @@ export class SefazDfeService {
               `Company ${config.companyId}: ${result.newDocuments} new docs (NSU: ${result.lastNsu})`,
             );
           }
+          // Auto-manifest ciência for new resNFe docs (if enabled)
+          await this.autoManifestNewDocs(config.companyId);
         } catch (err) {
           this.logger.error(
             `SEFAZ fetch error for company ${config.companyId}: ${err.message}`,

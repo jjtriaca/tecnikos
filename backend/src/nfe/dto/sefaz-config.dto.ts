@@ -14,6 +14,19 @@ export class UpdateSefazConfigDto {
   @IsOptional()
   @IsBoolean()
   autoFetchEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  autoManifestCiencia?: boolean;
+}
+
+export class ManifestDocumentDto {
+  @IsIn(['ciencia', 'confirmacao', 'desconhecimento', 'nao_realizada'])
+  tipo: 'ciencia' | 'confirmacao' | 'desconhecimento' | 'nao_realizada';
+
+  @IsOptional()
+  @IsString()
+  justificativa?: string;
 }
 
 export class SefazDocumentFilterDto extends PaginationDto {

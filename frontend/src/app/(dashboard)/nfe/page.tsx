@@ -125,6 +125,7 @@ interface SefazConfigInfo {
   certificateExpiry: string | null;
   environment: "PRODUCTION" | "HOMOLOGATION";
   autoFetchEnabled: boolean;
+  autoManifestCiencia: boolean;
   lastFetchAt: string | null;
   lastFetchStatus: "SUCCESS" | "ERROR" | "NO_DOCS" | null;
   lastFetchError: string | null;
@@ -142,6 +143,8 @@ interface SefazDocument {
   nfeValue: number | null;
   situacao: string | null;
   status: "FETCHED" | "IMPORTED" | "IGNORED" | "EVENT";
+  manifestType: string | null;
+  manifestedAt: string | null;
   xmlContent: string | null;
   fetchedAt: string;
 }
@@ -254,6 +257,25 @@ const SEFAZ_STATUS_CONFIG: Record<string, { label: string; classes: string }> = 
 
 function SefazStatusBadge({ status }: { status: string }) {
   const cfg = SEFAZ_STATUS_CONFIG[status] || SEFAZ_STATUS_CONFIG.FETCHED;
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.classes}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+/* ── Manifest Badge ──────────────────────────────────────── */
+
+const MANIFEST_CONFIG: Record<string, { label: string; classes: string }> = {
+  ciencia: { label: "Ciencia", classes: "bg-cyan-50 text-cyan-700 border-cyan-200" },
+  confirmacao: { label: "Confirmada", classes: "bg-green-50 text-green-700 border-green-200" },
+  desconhecimento: { label: "Desconhecida", classes: "bg-amber-50 text-amber-700 border-amber-200" },
+  nao_realizada: { label: "Nao Realizada", classes: "bg-red-50 text-red-700 border-red-200" },
+};
+
+function ManifestBadge({ type }: { type: string | null }) {
+  if (!type) return null;
+  const cfg = MANIFEST_CONFIG[type] || { label: type, classes: "bg-slate-50 text-slate-500 border-slate-200" };
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.classes}`}>
       {cfg.label}
@@ -379,6 +401,12 @@ const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
     label: "Status",
     align: "center",
     render: (doc) => <SefazStatusBadge status={doc.status} />,
+  },
+  {
+    id: "manifestType",
+    label: "Manifesto",
+    align: "center",
+    render: (doc) => <ManifestBadge type={doc.manifestType} />,
   },
 ];
 
@@ -562,6 +590,8 @@ export default function NfePage() {
   // Action loading states
   const [importingDocId, setImportingDocId] = useState<string | null>(null);
   const [ignoringDocId, setIgnoringDocId] = useState<string | null>(null);
+  const [manifestingDocId, setManifestingDocId] = useState<string | null>(null);
+  const [manifestMenuDocId, setManifestMenuDocId] = useState<string | null>(null);
 
   /* ══════════════════════════════════════════════════════════ */
   /*  UPLOAD MANUAL STATE                                      */
@@ -674,6 +704,19 @@ export default function NfePage() {
     }, 600000);
     return () => clearInterval(interval);
   }, [activeTab, loadSefazDocs, loadSefazConfig]);
+
+  // Close manifest dropdown on outside click
+  useEffect(() => {
+    if (!manifestMenuDocId) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-manifest-menu]")) {
+        setManifestMenuDocId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [manifestMenuDocId]);
 
   /* ══════════════════════════════════════════════════════════ */
   /*  SEFAZ: Actions                                           */
@@ -788,6 +831,38 @@ export default function NfePage() {
       toast(err?.message || "Erro ao ignorar documento.", "error");
     } finally {
       setIgnoringDocId(null);
+    }
+  }
+
+  async function handleManifestDoc(docId: string, tipo: string, justificativa?: string) {
+    setManifestingDocId(docId);
+    setManifestMenuDocId(null);
+    try {
+      const body: { tipo: string; justificativa?: string } = { tipo };
+      if (justificativa) body.justificativa = justificativa;
+      await api.post(`/nfe/sefaz/documents/${docId}/manifest`, body);
+      const labels: Record<string, string> = {
+        ciencia: "Ciencia da Operacao",
+        confirmacao: "Confirmacao da Operacao",
+        desconhecimento: "Desconhecimento da Operacao",
+        nao_realizada: "Operacao Nao Realizada",
+      };
+      toast(`Manifesto "${labels[tipo] || tipo}" realizado com sucesso!`, "success");
+      loadSefazDocs();
+    } catch (err: any) {
+      toast(err?.message || "Erro ao manifestar documento.", "error");
+    } finally {
+      setManifestingDocId(null);
+    }
+  }
+
+  async function handleToggleAutoManifest(enabled: boolean) {
+    try {
+      await api.put("/nfe/sefaz/config", { autoManifestCiencia: enabled });
+      setSefazConfig((prev) => prev ? { ...prev, autoManifestCiencia: enabled } : prev);
+      toast(enabled ? "Manifesto automatico ativado." : "Manifesto automatico desativado.", "success");
+    } catch (err: any) {
+      toast(err?.message || "Erro ao atualizar configuracao.", "error");
     }
   }
 
@@ -1159,20 +1234,34 @@ export default function NfePage() {
               </div>
             </div>
 
-            {/* Auto-fetch toggle + Fetch Now */}
+            {/* Auto-fetch + Auto-manifest toggles + Fetch Now */}
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={sefazConfig.autoFetchEnabled}
-                    onChange={(e) => handleToggleAutoFetch(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600" />
-                </div>
-                <span className="text-sm text-slate-700">Busca automatica</span>
-              </label>
+              <div className="flex items-center gap-6">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={sefazConfig.autoFetchEnabled}
+                      onChange={(e) => handleToggleAutoFetch(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600" />
+                  </div>
+                  <span className="text-sm text-slate-700">Busca automatica</span>
+                </label>
+                <label className="flex items-center gap-2.5 cursor-pointer" title="Manifestar automaticamente Ciencia da Operacao para novas resNFe">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={sefazConfig.autoManifestCiencia}
+                      onChange={(e) => handleToggleAutoManifest(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600" />
+                  </div>
+                  <span className="text-sm text-slate-700">Manifesto automatico</span>
+                </label>
+              </div>
               <button
                 onClick={handleFetchNow}
                 disabled={fetching}
@@ -1236,7 +1325,7 @@ export default function NfePage() {
               <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "1000px", width: "max-content" }}>
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="py-3 px-3 text-xs font-semibold uppercase text-slate-600" style={{ width: "220px", minWidth: "220px" }}>
+                    <th className="py-3 px-3 text-xs font-semibold uppercase text-slate-600" style={{ width: "280px", minWidth: "280px" }}>
                       Acoes
                     </th>
                     {sefazOrderedColumns.map((col, idx) => (
@@ -1270,7 +1359,7 @@ export default function NfePage() {
                 <tbody className="divide-y divide-slate-100">
                   {sefazDocs.map((doc) => (
                     <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-3" style={{ width: "220px", minWidth: "220px" }}>
+                      <td className="py-3 px-3" style={{ width: "280px", minWidth: "280px" }}>
                         <div className="flex items-center gap-1 flex-wrap">
                           {doc.schema === "procNFe" && doc.status === "FETCHED" && (
                             <button
@@ -1297,6 +1386,101 @@ export default function NfePage() {
                                 "Ignorar"
                               )}
                             </button>
+                          )}
+                          {/* Manifestação do Destinatário */}
+                          {doc.schema !== "resEvento" && doc.nfeKey && !doc.manifestType && doc.status !== "IGNORED" && (
+                            <div className="relative" data-manifest-menu>
+                              <button
+                                onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
+                                disabled={manifestingDocId === doc.id}
+                                className="rounded border border-cyan-200 bg-cyan-50 px-2 py-1 text-xs font-medium text-cyan-700 hover:bg-cyan-100 transition-colors disabled:opacity-50"
+                              >
+                                {manifestingDocId === doc.id ? (
+                                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-cyan-300 border-t-cyan-700" />
+                                ) : (
+                                  "Manifestar"
+                                )}
+                              </button>
+                              {manifestMenuDocId === doc.id && (
+                                <div className="absolute left-0 top-full mt-1 z-30 min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+                                  <button
+                                    onClick={() => handleManifestDoc(doc.id, "ciencia")}
+                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-cyan-50 rounded-t-lg"
+                                  >
+                                    Ciencia da Operacao
+                                  </button>
+                                  <button
+                                    onClick={() => handleManifestDoc(doc.id, "confirmacao")}
+                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-green-50"
+                                  >
+                                    Confirmacao da Operacao
+                                  </button>
+                                  <button
+                                    onClick={() => handleManifestDoc(doc.id, "desconhecimento")}
+                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-amber-50"
+                                  >
+                                    Desconhecimento da Operacao
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const just = prompt("Justificativa (minimo 15 caracteres):");
+                                      if (just && just.length >= 15) {
+                                        handleManifestDoc(doc.id, "nao_realizada", just);
+                                      } else if (just) {
+                                        toast("Justificativa deve ter no minimo 15 caracteres.", "error");
+                                      }
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-red-50 rounded-b-lg"
+                                  >
+                                    Operacao Nao Realizada
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {doc.manifestType && !["confirmacao", "desconhecimento", "nao_realizada"].includes(doc.manifestType) && doc.status !== "IGNORED" && (
+                            <div className="relative" data-manifest-menu>
+                              <button
+                                onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
+                                disabled={manifestingDocId === doc.id}
+                                className="rounded border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100 transition-colors disabled:opacity-50"
+                              >
+                                {manifestingDocId === doc.id ? (
+                                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-teal-300 border-t-teal-700" />
+                                ) : (
+                                  "Confirmar/Recusar"
+                                )}
+                              </button>
+                              {manifestMenuDocId === doc.id && (
+                                <div className="absolute left-0 top-full mt-1 z-30 min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+                                  <button
+                                    onClick={() => handleManifestDoc(doc.id, "confirmacao")}
+                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-green-50 rounded-t-lg"
+                                  >
+                                    Confirmacao da Operacao
+                                  </button>
+                                  <button
+                                    onClick={() => handleManifestDoc(doc.id, "desconhecimento")}
+                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-amber-50"
+                                  >
+                                    Desconhecimento da Operacao
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const just = prompt("Justificativa (minimo 15 caracteres):");
+                                      if (just && just.length >= 15) {
+                                        handleManifestDoc(doc.id, "nao_realizada", just);
+                                      } else if (just) {
+                                        toast("Justificativa deve ter no minimo 15 caracteres.", "error");
+                                      }
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-red-50 rounded-b-lg"
+                                  >
+                                    Operacao Nao Realizada
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           )}
                           <button
                             onClick={() => handleViewXml(doc.id)}

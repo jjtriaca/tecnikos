@@ -949,5 +949,32 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
   - `location /zohoverify/verifyforzoho.html { return 200 '34977772'; }`
 - Reiniciado container nginx
 
-### Status: DNS CONFIGURADO — Aguardando propagacao para verificacao final no Zoho
+### Limpeza financeiro:
+- 3 lancamentos cancelados apagados do banco (DELETE FROM FinancialEntry WHERE status = 'CANCELLED')
+
+### Logo Tecnikos — V2 GPS Pin Contorno
+- Juliano escolheu estilo minimalista/moderno, paleta azul + branco
+- Conceito 4 (Signal T) → 4A (GPS Pin Integrado) → V2 (Pin Contorno + T Bold)
+- Arquivos SVG: `logo-full.svg`, `logo-full-dark.svg`, `logo-icon.svg`, `favicon.svg`
+- Aplicado em: favicon (layout.tsx), sidebar (Sidebar.tsx), login (auth + tech)
+- "FieldService" renomeado para "Tecnikos" em toda a UI
+
+### Deploy v1.01.28 — Logo Tecnikos + DNS Zoho
+- Logo aplicada em producao com sucesso
+- Favicon SVG configurado
+- Sidebar e paginas de login atualizadas
+
+### Status: v1.01.28 em producao — DNS Zoho aguardando propagacao
+
+### Verificacao DNS (sessao 75 — continuacao):
+- Acessado Registro.br → "Configurar zona DNS" — todos os 7 registros corretos na zona
+- Motivo da nao-propagacao: "Modo Avancado" do Registro.br estava em transicao (~30 min)
+- Apos transicao completar: DNS propagou com sucesso
+- **Zoho verificou TODOS os registros com exito** ✅ (MX x3, SPF, DKIM)
+- Email contato@tecnikos.com.br PRONTO para uso
+
+### WhatsApp Business API — Chip Vivo
+- Juliano comprou chip Vivo para numero dedicado
+- Ativando o chip antes de configurar no Meta Business
+
 ---

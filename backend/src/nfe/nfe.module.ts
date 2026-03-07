@@ -6,10 +6,11 @@ import { SefazDfeService } from './sefaz-dfe.service';
 import { SefazDfeController } from './sefaz-dfe.controller';
 import { DanfeService } from './danfe.service';
 import { EncryptionService } from '../common/encryption.service';
+import { FocusNfeProvider } from '../nfse-emission/focus-nfe.provider';
 
 @Module({
   controllers: [NfeController, SefazDfeController],
-  providers: [NfeService, NfeParserService, SefazDfeService, DanfeService, EncryptionService],
+  providers: [NfeService, NfeParserService, SefazDfeService, DanfeService, EncryptionService, FocusNfeProvider],
   exports: [NfeService, SefazDfeService, DanfeService],
 })
 export class NfeModule {}
