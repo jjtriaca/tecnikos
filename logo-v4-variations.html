@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Tecnikos — Conceito 4 Variações</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #f1f5f9;
+    padding: 32px;
+    color: #1e293b;
+  }
+  h1 { text-align: center; font-size: 24px; margin-bottom: 6px; }
+  .subtitle { text-align: center; color: #64748b; margin-bottom: 32px; font-size: 14px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+
+  .card h2 { font-size: 15px; color: #3b82f6; font-weight: 600; }
+  .card p { font-size: 12px; color: #64748b; text-align: center; line-height: 1.5; }
+
+  .logo-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 70px;
+    width: 100%;
+  }
+
+  .dark-bg {
+    background: #0f172a;
+    border-radius: 12px;
+    padding: 28px 32px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-only {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 4px;
+  }
+  .icon-only-label { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 4px; }
+
+  .section-title {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 40px 0 20px;
+    grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+
+<h1>Conceito 4 — Variações com GPS/Localização</h1>
+<p class="subtitle">Sinal de GPS substituindo WiFi | Versões clara e escura</p>
+
+<div class="grid">
+
+<!-- VARIAÇÃO 4A: GPS Pin no canto -->
+<div class="card">
+  <h2>4A — GPS Pin Integrado</h2>
+  <div class="logo-area">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4a" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Rounded square -->
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4a)"/>
+      <!-- T letterform -->
+      <rect x="14" y="17" width="30" height="5.5" rx="2.5" fill="white"/>
+      <rect x="25.5" y="17" width="5.5" height="30" rx="2.5" fill="white"/>
+      <!-- GPS pin -->
+      <path d="M42 30 C42 25, 47 20, 50 20 C53 20, 58 25, 58 30 C58 36, 50 44, 50 44 C50 44, 42 36, 42 30Z" fill="white" opacity="0.35"/>
+      <circle cx="50" cy="30" r="3" fill="white" opacity="0.5"/>
+      <!-- Wordmark -->
+      <text x="72" y="46" font-family="Inter, sans-serif" font-weight="700" font-size="32" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4ad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4ad)"/>
+      <rect x="14" y="17" width="30" height="5.5" rx="2.5" fill="#0f172a"/>
+      <rect x="25.5" y="17" width="5.5" height="30" rx="2.5" fill="#0f172a"/>
+      <path d="M42 30 C42 25, 47 20, 50 20 C53 20, 58 25, 58 30 C58 36, 50 44, 50 44 C50 44, 42 36, 42 30Z" fill="#0f172a" opacity="0.3"/>
+      <circle cx="50" cy="30" r="3" fill="#0f172a" opacity="0.4"/>
+      <text x="72" y="46" font-family="Inter, sans-serif" font-weight="700" font-size="32" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>Pin de GPS sutil no canto superior direito do icone. Indica localizacao e servicos em campo.</p>
+</div>
+
+<!-- VARIAÇÃO 4B: T vira pin -->
+<div class="card">
+  <h2>4B — T como Pin GPS</h2>
+  <div class="logo-area">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4b" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- GPS Pin shape as container -->
+      <path d="M30 4 C16 4, 4 14, 4 28 C4 42, 30 64, 30 64 C30 64, 56 42, 56 28 C56 14, 44 4, 30 4Z" fill="url(#g4b)"/>
+      <!-- T inside pin -->
+      <rect x="16" y="18" width="28" height="5" rx="2.5" fill="white"/>
+      <rect x="25" y="18" width="5" height="26" rx="2.5" fill="white"/>
+      <!-- Circle ring inside -->
+      <circle cx="30" cy="30" r="18" fill="none" stroke="white" stroke-width="1.5" opacity="0.2"/>
+      <!-- Wordmark -->
+      <text x="68" y="46" font-family="Outfit, sans-serif" font-weight="700" font-size="32" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4bd" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <path d="M30 4 C16 4, 4 14, 4 28 C4 42, 30 64, 30 64 C30 64, 56 42, 56 28 C56 14, 44 4, 30 4Z" fill="url(#g4bd)"/>
+      <rect x="16" y="18" width="28" height="5" rx="2.5" fill="#0f172a"/>
+      <rect x="25" y="18" width="5" height="26" rx="2.5" fill="#0f172a"/>
+      <circle cx="30" cy="30" r="18" fill="none" stroke="#0f172a" stroke-width="1.5" opacity="0.15"/>
+      <text x="68" y="46" font-family="Outfit, sans-serif" font-weight="700" font-size="32" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>O proprio icone tem formato de pin GPS com o "T" dentro. Associacao direta com localizacao.</p>
+</div>
+
+<!-- VARIAÇÃO 4C: Rounded square + pin outline no topo -->
+<div class="card">
+  <h2>4C — Pin Outline no Topo</h2>
+  <div class="logo-area">
+    <svg width="340" height="72" viewBox="0 0 340 72">
+      <defs>
+        <linearGradient id="g4c" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Main rounded square -->
+      <rect x="4" y="10" width="52" height="52" rx="14" fill="url(#g4c)"/>
+      <!-- T letterform -->
+      <rect x="16" y="22" width="28" height="5" rx="2.5" fill="white"/>
+      <rect x="26" y="22" width="5" height="28" rx="2.5" fill="white"/>
+      <!-- Small GPS pin on top-right corner -->
+      <path d="M48 2 C44.5 2, 41.5 5, 41.5 8.5 C41.5 12.5, 48 18, 48 18 C48 18, 54.5 12.5, 54.5 8.5 C54.5 5, 51.5 2, 48 2Z" fill="#ef4444"/>
+      <circle cx="48" cy="8.5" r="2.2" fill="white"/>
+      <!-- Wordmark -->
+      <text x="68" y="48" font-family="Inter, sans-serif" font-weight="700" font-size="32" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="340" height="72" viewBox="0 0 340 72">
+      <defs>
+        <linearGradient id="g4cd" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="4" y="10" width="52" height="52" rx="14" fill="url(#g4cd)"/>
+      <rect x="16" y="22" width="28" height="5" rx="2.5" fill="#0f172a"/>
+      <rect x="26" y="22" width="5" height="28" rx="2.5" fill="#0f172a"/>
+      <path d="M48 2 C44.5 2, 41.5 5, 41.5 8.5 C41.5 12.5, 48 18, 48 18 C48 18, 54.5 12.5, 54.5 8.5 C54.5 5, 51.5 2, 48 2Z" fill="#f87171"/>
+      <circle cx="48" cy="8.5" r="2.2" fill="#0f172a"/>
+      <text x="68" y="48" font-family="Inter, sans-serif" font-weight="700" font-size="32" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>Pin GPS vermelho no canto do icone azul. Contraste de cor chama atencao e indica localizacao ativa.</p>
+</div>
+
+<!-- VARIAÇÃO 4D: T com ondas de radar/GPS circular -->
+<div class="card">
+  <h2>4D — Radar GPS</h2>
+  <div class="logo-area">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Rounded square -->
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4d)"/>
+      <!-- T letterform -->
+      <rect x="14" y="17" width="30" height="5" rx="2.5" fill="white"/>
+      <rect x="25.5" y="17" width="5" height="30" rx="2.5" fill="white"/>
+      <!-- Circular GPS/radar waves from bottom of T -->
+      <circle cx="28" cy="47" r="6" fill="none" stroke="white" stroke-width="1.5" opacity="0.45"/>
+      <circle cx="28" cy="47" r="11" fill="none" stroke="white" stroke-width="1.2" opacity="0.25"/>
+      <circle cx="28" cy="47" r="16" fill="none" stroke="white" stroke-width="1" opacity="0.12"/>
+      <!-- Dot at GPS point -->
+      <circle cx="28" cy="47" r="2.5" fill="white"/>
+      <!-- Wordmark -->
+      <text x="72" y="46" font-family="Inter, sans-serif" font-weight="700" font-size="32" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4dd" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4dd)"/>
+      <rect x="14" y="17" width="30" height="5" rx="2.5" fill="#0f172a"/>
+      <rect x="25.5" y="17" width="5" height="30" rx="2.5" fill="#0f172a"/>
+      <circle cx="28" cy="47" r="6" fill="none" stroke="#0f172a" stroke-width="1.5" opacity="0.4"/>
+      <circle cx="28" cy="47" r="11" fill="none" stroke="#0f172a" stroke-width="1.2" opacity="0.2"/>
+      <circle cx="28" cy="47" r="16" fill="none" stroke="#0f172a" stroke-width="1" opacity="0.1"/>
+      <circle cx="28" cy="47" r="2.5" fill="#0f172a"/>
+      <text x="72" y="46" font-family="Inter, sans-serif" font-weight="700" font-size="32" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>Ondas de radar/GPS emanando da base do "T". Representa rastreamento e presenca em campo.</p>
+</div>
+
+<!-- VARIAÇÃO 4E: T + crosshair/target GPS -->
+<div class="card">
+  <h2>4E — GPS Crosshair</h2>
+  <div class="logo-area">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4e" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Rounded square -->
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4e)"/>
+      <!-- GPS crosshair circle -->
+      <circle cx="30" cy="34" r="16" fill="none" stroke="white" stroke-width="1.8" opacity="0.3"/>
+      <circle cx="30" cy="34" r="10" fill="none" stroke="white" stroke-width="1.5" opacity="0.2"/>
+      <!-- Crosshair lines -->
+      <line x1="30" y1="14" x2="30" y2="22" stroke="white" stroke-width="1.5" opacity="0.3"/>
+      <line x1="30" y1="46" x2="30" y2="54" stroke="white" stroke-width="1.5" opacity="0.3"/>
+      <line x1="10" y1="34" x2="18" stroke="white" stroke-width="1.5" opacity="0.3"/>
+      <line x1="42" y1="34" x2="50" y2="34" stroke="white" stroke-width="1.5" opacity="0.3"/>
+      <!-- T letterform (center) -->
+      <rect x="18" y="24" width="24" height="4.5" rx="2" fill="white"/>
+      <rect x="27" y="24" width="4.5" height="22" rx="2" fill="white"/>
+      <!-- Center dot -->
+      <circle cx="30" cy="34" r="2" fill="white" opacity="0.6"/>
+      <!-- Wordmark -->
+      <text x="72" y="46" font-family="Outfit, sans-serif" font-weight="700" font-size="32" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4ed" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4ed)"/>
+      <circle cx="30" cy="34" r="16" fill="none" stroke="#0f172a" stroke-width="1.8" opacity="0.25"/>
+      <circle cx="30" cy="34" r="10" fill="none" stroke="#0f172a" stroke-width="1.5" opacity="0.15"/>
+      <line x1="30" y1="14" x2="30" y2="22" stroke="#0f172a" stroke-width="1.5" opacity="0.25"/>
+      <line x1="30" y1="46" x2="30" y2="54" stroke="#0f172a" stroke-width="1.5" opacity="0.25"/>
+      <line x1="10" y1="34" x2="18" y2="34" stroke="#0f172a" stroke-width="1.5" opacity="0.25"/>
+      <line x1="42" y1="34" x2="50" y2="34" stroke="#0f172a" stroke-width="1.5" opacity="0.25"/>
+      <rect x="18" y="24" width="24" height="4.5" rx="2" fill="#0f172a"/>
+      <rect x="27" y="24" width="4.5" height="22" rx="2" fill="#0f172a"/>
+      <circle cx="30" cy="34" r="2" fill="#0f172a" opacity="0.5"/>
+      <text x="72" y="46" font-family="Outfit, sans-serif" font-weight="700" font-size="32" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>"T" dentro de mira GPS/crosshair. Precisao na localizacao + gestao tecnica no ponto exato.</p>
+</div>
+
+<!-- VARIAÇÃO 4F: Pin minimalista + T clean -->
+<div class="card">
+  <h2>4F — Pin Minimalista</h2>
+  <div class="logo-area">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4f" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Clean rounded square -->
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4f)"/>
+      <!-- T as the "stem" of a pin shape -->
+      <!-- Top bar of T -->
+      <rect x="14" y="16" width="30" height="5" rx="2.5" fill="white"/>
+      <!-- Vertical bar goes down and forms pin point -->
+      <path d="M25.5 16 L25.5 42 L30 52 L34.5 42 L34.5 16 Z" fill="white" rx="2"/>
+      <!-- Small dot/circle in the T -->
+      <circle cx="30" cy="30" r="4" fill="url(#g4f)"/>
+      <!-- Wordmark -->
+      <text x="72" y="46" font-family="Inter, sans-serif" font-weight="700" font-size="32" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4fd" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4fd)"/>
+      <rect x="14" y="16" width="30" height="5" rx="2.5" fill="#0f172a"/>
+      <path d="M25.5 16 L25.5 42 L30 52 L34.5 42 L34.5 16 Z" fill="#0f172a"/>
+      <circle cx="30" cy="30" r="4" fill="url(#g4fd)"/>
+      <text x="72" y="46" font-family="Inter, sans-serif" font-weight="700" font-size="32" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>A haste do "T" termina em ponta de pin GPS. Fusao elegante entre letra e simbolo de localizacao.</p>
+</div>
+
+<!-- VARIAÇÃO 4G: Route/path GPS -->
+<div class="card">
+  <h2>4G — Rota GPS</h2>
+  <div class="logo-area">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Rounded square -->
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4g)"/>
+      <!-- T letterform -->
+      <rect x="14" y="16" width="30" height="5" rx="2.5" fill="white"/>
+      <rect x="25.5" y="16" width="5" height="30" rx="2.5" fill="white"/>
+      <!-- Dotted route path -->
+      <circle cx="14" cy="50" r="2" fill="white" opacity="0.5"/>
+      <circle cx="20" cy="46" r="1.5" fill="white" opacity="0.4"/>
+      <circle cx="25" cy="50" r="1.5" fill="white" opacity="0.4"/>
+      <!-- Destination pin -->
+      <path d="M44 38 C41 38, 38.5 40.5, 38.5 43.5 C38.5 47, 44 52, 44 52 C44 52, 49.5 47, 49.5 43.5 C49.5 40.5, 47 38, 44 38Z" fill="white" opacity="0.6"/>
+      <circle cx="44" cy="43.5" r="2" fill="url(#g4g)"/>
+      <!-- Wordmark -->
+      <text x="72" y="46" font-family="Outfit, sans-serif" font-weight="700" font-size="32" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4gd" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4gd)"/>
+      <rect x="14" y="16" width="30" height="5" rx="2.5" fill="#0f172a"/>
+      <rect x="25.5" y="16" width="5" height="30" rx="2.5" fill="#0f172a"/>
+      <circle cx="14" cy="50" r="2" fill="#0f172a" opacity="0.4"/>
+      <circle cx="20" cy="46" r="1.5" fill="#0f172a" opacity="0.3"/>
+      <circle cx="25" cy="50" r="1.5" fill="#0f172a" opacity="0.3"/>
+      <path d="M44 38 C41 38, 38.5 40.5, 38.5 43.5 C38.5 47, 44 52, 44 52 C44 52, 49.5 47, 49.5 43.5 C49.5 40.5, 47 38, 44 38Z" fill="#0f172a" opacity="0.5"/>
+      <circle cx="44" cy="43.5" r="2" fill="url(#g4gd)"/>
+      <text x="72" y="46" font-family="Outfit, sans-serif" font-weight="700" font-size="32" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>Rota pontilhada com pin de destino ao lado do "T". Remete a despacho de tecnicos e rotas de servico.</p>
+</div>
+
+<!-- VARIAÇÃO 4H: T + semicircle GPS arcs (top) -->
+<div class="card">
+  <h2>4H — GPS Beacon</h2>
+  <div class="logo-area">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4h" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Rounded square -->
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4h)"/>
+      <!-- T letterform -->
+      <rect x="14" y="22" width="30" height="5" rx="2.5" fill="white"/>
+      <rect x="25.5" y="22" width="5" height="28" rx="2.5" fill="white"/>
+      <!-- GPS beacon arcs (semicircles above) -->
+      <path d="M22 18 A8 8 0 0 1 36 18" fill="none" stroke="white" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+      <path d="M17 14 A13 13 0 0 1 41 14" fill="none" stroke="white" stroke-width="1.8" opacity="0.3" stroke-linecap="round"/>
+      <path d="M12 10 A18 18 0 0 1 46 10" fill="none" stroke="white" stroke-width="1.5" opacity="0.15" stroke-linecap="round"/>
+      <!-- Pin point at bottom -->
+      <circle cx="28" cy="50" r="2.5" fill="white" opacity="0.7"/>
+      <!-- Wordmark -->
+      <text x="72" y="46" font-family="Inter, sans-serif" font-weight="800" font-size="30" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="340" height="68" viewBox="0 0 340 68">
+      <defs>
+        <linearGradient id="g4hd" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="56" height="56" rx="14" fill="url(#g4hd)"/>
+      <rect x="14" y="22" width="30" height="5" rx="2.5" fill="#0f172a"/>
+      <rect x="25.5" y="22" width="5" height="28" rx="2.5" fill="#0f172a"/>
+      <path d="M22 18 A8 8 0 0 1 36 18" fill="none" stroke="#0f172a" stroke-width="2" opacity="0.45" stroke-linecap="round"/>
+      <path d="M17 14 A13 13 0 0 1 41 14" fill="none" stroke="#0f172a" stroke-width="1.8" opacity="0.25" stroke-linecap="round"/>
+      <path d="M12 10 A18 18 0 0 1 46 10" fill="none" stroke="#0f172a" stroke-width="1.5" opacity="0.12" stroke-linecap="round"/>
+      <circle cx="28" cy="50" r="2.5" fill="#0f172a" opacity="0.6"/>
+      <text x="72" y="46" font-family="Inter, sans-serif" font-weight="800" font-size="30" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>Arcos de GPS/beacon acima do "T" (sinal sendo transmitido para cima). Ponto de localizacao na base.</p>
+</div>
+
+</div>
+
+<div style="text-align:center; margin-top:36px; color:#94a3b8; font-size:13px;">
+  8 variacoes — todas em SVG vetorial. Escolha sua favorita ou combine elementos!
+</div>
+
+</body>
+</html>

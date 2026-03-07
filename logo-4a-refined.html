@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Tecnikos — 4A Refinado (6 variações)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #f1f5f9;
+    padding: 32px;
+    color: #1e293b;
+  }
+  h1 { text-align: center; font-size: 22px; margin-bottom: 6px; }
+  .subtitle { text-align: center; color: #64748b; margin-bottom: 28px; font-size: 13px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: white;
+    border-radius: 16px;
+    padding: 28px 32px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+  .card h2 { font-size: 14px; color: #3b82f6; font-weight: 600; }
+  .card p { font-size: 11px; color: #64748b; text-align: center; line-height: 1.5; }
+
+  .logo-area {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 70px; width: 100%;
+  }
+  .dark-bg {
+    background: #0f172a; border-radius: 12px;
+    padding: 24px 28px; width: 100%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .icon-row {
+    display: flex; gap: 20px; align-items: center; justify-content: center;
+    padding: 12px 0;
+  }
+  .icon-label { font-size: 10px; color: #94a3b8; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>4A — GPS Pin Integrado (6 refinamentos)</h1>
+<p class="subtitle">Base: quadrado arredondado azul + "T" + pin GPS sutil</p>
+
+<div class="grid">
+
+<!-- V1: Pin mais definido, cantos mais arredondados -->
+<div class="card">
+  <h2>V1 — Pin Nítido + Cantos Suaves</h2>
+  <div class="logo-area">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#1d4ed8"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="60" height="60" rx="16" fill="url(#v1)"/>
+      <!-- T clean -->
+      <rect x="14" y="18" width="32" height="6" rx="3" fill="white"/>
+      <rect x="27" y="18" width="6" height="34" rx="3" fill="white"/>
+      <!-- GPS pin - mais definido -->
+      <path d="M46 28 C43.5 28, 41 30.5, 41 33 C41 36.5, 46 42, 46 42 C46 42, 51 36.5, 51 33 C51 30.5, 48.5 28, 46 28Z" fill="white" opacity="0.45"/>
+      <circle cx="46" cy="33" r="2" fill="white" opacity="0.7"/>
+      <!-- Wordmark -->
+      <text x="76" y="47" font-family="Outfit, sans-serif" font-weight="700" font-size="34" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v1d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="60" height="60" rx="16" fill="url(#v1d)"/>
+      <rect x="14" y="18" width="32" height="6" rx="3" fill="#0f172a"/>
+      <rect x="27" y="18" width="6" height="34" rx="3" fill="#0f172a"/>
+      <path d="M46 28 C43.5 28, 41 30.5, 41 33 C41 36.5, 46 42, 46 42 C46 42, 51 36.5, 51 33 C51 30.5, 48.5 28, 46 28Z" fill="#0f172a" opacity="0.4"/>
+      <circle cx="46" cy="33" r="2" fill="#0f172a" opacity="0.6"/>
+      <text x="76" y="47" font-family="Outfit, sans-serif" font-weight="700" font-size="34" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="icon-row">
+    <div>
+      <svg width="56" height="56" viewBox="0 0 60 60">
+        <rect x="0" y="0" width="60" height="60" rx="16" fill="#2563eb"/>
+        <rect x="12" y="12" width="32" height="6" rx="3" fill="white"/>
+        <rect x="25" y="12" width="6" height="34" rx="3" fill="white"/>
+        <path d="M44 22 C41.5 22, 39 24.5, 39 27 C39 30.5, 44 36, 44 36 C44 36, 49 30.5, 49 27 C49 24.5, 46.5 22, 44 22Z" fill="white" opacity="0.45"/>
+        <circle cx="44" cy="27" r="2" fill="white" opacity="0.7"/>
+      </svg>
+      <div class="icon-label">Favicon</div>
+    </div>
+    <div>
+      <svg width="40" height="40" viewBox="0 0 60 60">
+        <rect x="0" y="0" width="60" height="60" rx="16" fill="#2563eb"/>
+        <rect x="12" y="12" width="32" height="6" rx="3" fill="white"/>
+        <rect x="25" y="12" width="6" height="34" rx="3" fill="white"/>
+        <path d="M44 22 C41.5 22, 39 24.5, 39 27 C39 30.5, 44 36, 44 36 C44 36, 49 30.5, 49 27 C49 24.5, 46.5 22, 44 22Z" fill="white" opacity="0.45"/>
+        <circle cx="44" cy="27" r="2" fill="white" opacity="0.7"/>
+      </svg>
+      <div class="icon-label">Mini</div>
+    </div>
+  </div>
+  <p>Pin mais nitido e visivel. Cantos rx=16 ultra suaves. Gradiente azul profundo.</p>
+</div>
+
+<!-- V2: Pin outline (contorno) ao inves de preenchido -->
+<div class="card">
+  <h2>V2 — Pin Contorno + T Bold</h2>
+  <div class="logo-area">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="60" height="60" rx="15" fill="url(#v2)"/>
+      <!-- T mais bold -->
+      <rect x="13" y="17" width="34" height="7" rx="3.5" fill="white"/>
+      <rect x="26.5" y="17" width="7" height="34" rx="3.5" fill="white"/>
+      <!-- GPS pin outline -->
+      <path d="M47 27 C44 27, 41.5 29.5, 41.5 32.5 C41.5 36.5, 47 43, 47 43 C47 43, 52.5 36.5, 52.5 32.5 C52.5 29.5, 50 27, 47 27Z" fill="none" stroke="white" stroke-width="2" opacity="0.55"/>
+      <circle cx="47" cy="32.5" r="2.5" fill="white" opacity="0.55"/>
+      <!-- Wordmark -->
+      <text x="78" y="47" font-family="Plus Jakarta Sans, sans-serif" font-weight="700" font-size="33" fill="#1e293b" letter-spacing="-0.3">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v2d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="60" height="60" rx="15" fill="url(#v2d)"/>
+      <rect x="13" y="17" width="34" height="7" rx="3.5" fill="#0f172a"/>
+      <rect x="26.5" y="17" width="7" height="34" rx="3.5" fill="#0f172a"/>
+      <path d="M47 27 C44 27, 41.5 29.5, 41.5 32.5 C41.5 36.5, 47 43, 47 43 C47 43, 52.5 36.5, 52.5 32.5 C52.5 29.5, 50 27, 47 27Z" fill="none" stroke="#0f172a" stroke-width="2" opacity="0.45"/>
+      <circle cx="47" cy="32.5" r="2.5" fill="#0f172a" opacity="0.5"/>
+      <text x="78" y="47" font-family="Plus Jakarta Sans, sans-serif" font-weight="700" font-size="33" fill="white" letter-spacing="-0.3">tecnikos</text>
+    </svg>
+  </div>
+  <div class="icon-row">
+    <div>
+      <svg width="56" height="56" viewBox="0 0 60 60">
+        <rect x="0" y="0" width="60" height="60" rx="15" fill="#2563eb"/>
+        <rect x="11" y="11" width="34" height="7" rx="3.5" fill="white"/>
+        <rect x="24.5" y="11" width="7" height="34" rx="3.5" fill="white"/>
+        <path d="M45 21 C42 21, 39.5 23.5, 39.5 26.5 C39.5 30.5, 45 37, 45 37 C45 37, 50.5 30.5, 50.5 26.5 C50.5 23.5, 48 21, 45 21Z" fill="none" stroke="white" stroke-width="2" opacity="0.55"/>
+        <circle cx="45" cy="26.5" r="2.5" fill="white" opacity="0.55"/>
+      </svg>
+      <div class="icon-label">Favicon</div>
+    </div>
+  </div>
+  <p>Pin em contorno (stroke) mais sutil e elegante. "T" mais grosso e presente. Fonte Jakarta.</p>
+</div>
+
+<!-- V3: T + pin menor no canto inferior direito -->
+<div class="card">
+  <h2>V3 — Pin no Canto Inferior</h2>
+  <div class="logo-area">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v3" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#2563eb"/>
+          <stop offset="100%" style="stop-color:#1e40af"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="60" height="60" rx="14" fill="url(#v3)"/>
+      <!-- T centralizado e grande -->
+      <rect x="14" y="16" width="30" height="5.5" rx="2.8" fill="white"/>
+      <rect x="26" y="16" width="5.5" height="32" rx="2.8" fill="white"/>
+      <!-- Pin pequeno canto inferior direito -->
+      <path d="M49 44 C47 44, 45.5 45.5, 45.5 47.5 C45.5 50, 49 54, 49 54 C49 54, 52.5 50, 52.5 47.5 C52.5 45.5, 51 44, 49 44Z" fill="white" opacity="0.6"/>
+      <circle cx="49" cy="47.5" r="1.5" fill="url(#v3)"/>
+      <!-- Wordmark -->
+      <text x="78" y="47" font-family="Manrope, sans-serif" font-weight="700" font-size="33" fill="#1e293b" letter-spacing="-0.8">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v3d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="60" height="60" rx="14" fill="url(#v3d)"/>
+      <rect x="14" y="16" width="30" height="5.5" rx="2.8" fill="#0f172a"/>
+      <rect x="26" y="16" width="5.5" height="32" rx="2.8" fill="#0f172a"/>
+      <path d="M49 44 C47 44, 45.5 45.5, 45.5 47.5 C45.5 50, 49 54, 49 54 C49 54, 52.5 50, 52.5 47.5 C52.5 45.5, 51 44, 49 44Z" fill="#0f172a" opacity="0.5"/>
+      <circle cx="49" cy="47.5" r="1.5" fill="url(#v3d)"/>
+      <text x="78" y="47" font-family="Manrope, sans-serif" font-weight="700" font-size="33" fill="white" letter-spacing="-0.8">tecnikos</text>
+    </svg>
+  </div>
+  <div class="icon-row">
+    <div>
+      <svg width="56" height="56" viewBox="0 0 60 60">
+        <rect x="0" y="0" width="60" height="60" rx="14" fill="#1e40af"/>
+        <rect x="12" y="10" width="30" height="5.5" rx="2.8" fill="white"/>
+        <rect x="24" y="10" width="5.5" height="32" rx="2.8" fill="white"/>
+        <path d="M47 38 C45 38, 43.5 39.5, 43.5 41.5 C43.5 44, 47 48, 47 48 C47 48, 50.5 44, 50.5 41.5 C50.5 39.5, 49 38, 47 38Z" fill="white" opacity="0.6"/>
+        <circle cx="47" cy="41.5" r="1.5" fill="#1e40af"/>
+      </svg>
+      <div class="icon-label">Favicon</div>
+    </div>
+  </div>
+  <p>Pin reposicionado no canto inferior. Azul mais escuro/premium. Fonte Manrope compacta.</p>
+</div>
+
+<!-- V4: Flat single color (sem gradiente) -->
+<div class="card">
+  <h2>V4 — Flat Color (Sem Gradiente)</h2>
+  <div class="logo-area">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <rect x="2" y="6" width="60" height="60" rx="14" fill="#2563eb"/>
+      <!-- T -->
+      <rect x="14" y="18" width="32" height="6" rx="3" fill="white"/>
+      <rect x="27" y="18" width="6" height="32" rx="3" fill="white"/>
+      <!-- GPS pin flat -->
+      <path d="M46 29 C43.5 29, 41.5 31, 41.5 33.5 C41.5 37, 46 42, 46 42 C46 42, 50.5 37, 50.5 33.5 C50.5 31, 48.5 29, 46 29Z" fill="white" opacity="0.4"/>
+      <circle cx="46" cy="33.5" r="2" fill="white" opacity="0.65"/>
+      <!-- Wordmark -->
+      <text x="78" y="47" font-family="Inter, sans-serif" font-weight="700" font-size="33" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <rect x="2" y="6" width="60" height="60" rx="14" fill="#3b82f6"/>
+      <rect x="14" y="18" width="32" height="6" rx="3" fill="#0f172a"/>
+      <rect x="27" y="18" width="6" height="32" rx="3" fill="#0f172a"/>
+      <path d="M46 29 C43.5 29, 41.5 31, 41.5 33.5 C41.5 37, 46 42, 46 42 C46 42, 50.5 37, 50.5 33.5 C50.5 31, 48.5 29, 46 29Z" fill="#0f172a" opacity="0.35"/>
+      <circle cx="46" cy="33.5" r="2" fill="#0f172a" opacity="0.55"/>
+      <text x="78" y="47" font-family="Inter, sans-serif" font-weight="700" font-size="33" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="icon-row">
+    <div>
+      <svg width="56" height="56" viewBox="0 0 60 60">
+        <rect x="0" y="0" width="60" height="60" rx="14" fill="#2563eb"/>
+        <rect x="12" y="12" width="32" height="6" rx="3" fill="white"/>
+        <rect x="25" y="12" width="6" height="32" rx="3" fill="white"/>
+        <path d="M44 23 C41.5 23, 39.5 25, 39.5 27.5 C39.5 31, 44 36, 44 36 C44 36, 48.5 31, 48.5 27.5 C48.5 25, 46.5 23, 44 23Z" fill="white" opacity="0.4"/>
+        <circle cx="44" cy="27.5" r="2" fill="white" opacity="0.65"/>
+      </svg>
+      <div class="icon-label">Favicon</div>
+    </div>
+  </div>
+  <p>Cor solida sem gradiente — maximo minimalismo. Reproduz perfeitamente em qualquer tamanho.</p>
+</div>
+
+<!-- V5: Squircle (superellipse) shape -->
+<div class="card">
+  <h2>V5 — Squircle (iOS Style)</h2>
+  <div class="logo-area">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v5" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#1d4ed8"/>
+        </linearGradient>
+        <clipPath id="squircle">
+          <path d="M32 6 C52 6, 62 6, 62 6 C62 6, 62 16, 62 36 C62 56, 62 66, 62 66 C62 66, 52 66, 32 66 C12 66, 2 66, 2 66 C2 66, 2 56, 2 36 C2 16, 2 6, 2 6 C2 6, 12 6, 32 6Z"/>
+        </clipPath>
+      </defs>
+      <!-- Squircle shape -->
+      <rect x="2" y="6" width="60" height="60" rx="18" fill="url(#v5)"/>
+      <!-- T -->
+      <rect x="14" y="18" width="32" height="5.5" rx="2.8" fill="white"/>
+      <rect x="27" y="18" width="5.5" height="33" rx="2.8" fill="white"/>
+      <!-- GPS pin -->
+      <path d="M46 28 C43.5 28, 41 30.5, 41 33 C41 36.5, 46 42, 46 42 C46 42, 51 36.5, 51 33 C51 30.5, 48.5 28, 46 28Z" fill="white" opacity="0.4"/>
+      <circle cx="46" cy="33" r="2" fill="white" opacity="0.65"/>
+      <!-- Wordmark -->
+      <text x="78" y="46" font-family="Outfit, sans-serif" font-weight="800" font-size="32" fill="#1e293b" letter-spacing="-1">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v5d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="60" height="60" rx="18" fill="url(#v5d)"/>
+      <rect x="14" y="18" width="32" height="5.5" rx="2.8" fill="#0f172a"/>
+      <rect x="27" y="18" width="5.5" height="33" rx="2.8" fill="#0f172a"/>
+      <path d="M46 28 C43.5 28, 41 30.5, 41 33 C41 36.5, 46 42, 46 42 C46 42, 51 36.5, 51 33 C51 30.5, 48.5 28, 46 28Z" fill="#0f172a" opacity="0.35"/>
+      <circle cx="46" cy="33" r="2" fill="#0f172a" opacity="0.55"/>
+      <text x="78" y="46" font-family="Outfit, sans-serif" font-weight="800" font-size="32" fill="white" letter-spacing="-1">tecnikos</text>
+    </svg>
+  </div>
+  <div class="icon-row">
+    <div>
+      <svg width="56" height="56" viewBox="0 0 60 60">
+        <rect x="0" y="0" width="60" height="60" rx="18" fill="#1d4ed8"/>
+        <rect x="12" y="12" width="32" height="5.5" rx="2.8" fill="white"/>
+        <rect x="25" y="12" width="5.5" height="33" rx="2.8" fill="white"/>
+        <path d="M44 22 C41.5 22, 39 24.5, 39 27 C39 30.5, 44 36, 44 36 C44 36, 49 30.5, 49 27 C49 24.5, 46.5 22, 44 22Z" fill="white" opacity="0.4"/>
+        <circle cx="44" cy="27" r="2" fill="white" opacity="0.65"/>
+      </svg>
+      <div class="icon-label">App Icon</div>
+    </div>
+  </div>
+  <p>Formato squircle (rx=18) estilo app iOS/Android. Extra bold (-1 spacing). Profissional e moderno.</p>
+</div>
+
+<!-- V6: Outlined square (borda ao invés de preenchido) -->
+<div class="card">
+  <h2>V6 — Outlined Frame</h2>
+  <div class="logo-area">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v6" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Outlined square -->
+      <rect x="2" y="6" width="60" height="60" rx="14" fill="none" stroke="url(#v6)" stroke-width="3"/>
+      <!-- T in blue -->
+      <rect x="16" y="19" width="30" height="5.5" rx="2.8" fill="#2563eb"/>
+      <rect x="28" y="19" width="5.5" height="31" rx="2.8" fill="#2563eb"/>
+      <!-- GPS pin in blue -->
+      <path d="M46 30 C44 30, 42 32, 42 34 C42 37, 46 41.5, 46 41.5 C46 41.5, 50 37, 50 34 C50 32, 48 30, 46 30Z" fill="#3b82f6" opacity="0.5"/>
+      <circle cx="46" cy="34" r="1.8" fill="#2563eb" opacity="0.7"/>
+      <!-- Wordmark -->
+      <text x="78" y="47" font-family="Inter, sans-serif" font-weight="700" font-size="33" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="360" height="72" viewBox="0 0 360 72">
+      <defs>
+        <linearGradient id="v6d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="60" height="60" rx="14" fill="none" stroke="url(#v6d)" stroke-width="3"/>
+      <rect x="16" y="19" width="30" height="5.5" rx="2.8" fill="#60a5fa"/>
+      <rect x="28" y="19" width="5.5" height="31" rx="2.8" fill="#60a5fa"/>
+      <path d="M46 30 C44 30, 42 32, 42 34 C42 37, 46 41.5, 46 41.5 C46 41.5, 50 37, 50 34 C50 32, 48 30, 46 30Z" fill="#60a5fa" opacity="0.4"/>
+      <circle cx="46" cy="34" r="1.8" fill="#60a5fa" opacity="0.6"/>
+      <text x="78" y="47" font-family="Inter, sans-serif" font-weight="700" font-size="33" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="icon-row">
+    <div>
+      <svg width="56" height="56" viewBox="0 0 60 60">
+        <rect x="2" y="2" width="56" height="56" rx="14" fill="none" stroke="#2563eb" stroke-width="3"/>
+        <rect x="14" y="13" width="30" height="5.5" rx="2.8" fill="#2563eb"/>
+        <rect x="26" y="13" width="5.5" height="31" rx="2.8" fill="#2563eb"/>
+        <path d="M44 24 C42 24, 40 26, 40 28 C40 31, 44 35.5, 44 35.5 C44 35.5, 48 31, 48 28 C48 26, 46 24, 44 24Z" fill="#3b82f6" opacity="0.5"/>
+        <circle cx="44" cy="28" r="1.8" fill="#2563eb" opacity="0.7"/>
+      </svg>
+      <div class="icon-label">Favicon</div>
+    </div>
+  </div>
+  <p>Quadrado em contorno (sem preenchimento). Estilo line-art premium. Leveza e sofisticacao.</p>
+</div>
+
+</div>
+
+<div style="text-align:center; margin-top:32px; color:#94a3b8; font-size:12px; max-width:700px; margin-left:auto; margin-right:auto; line-height:1.6;">
+  <strong>Diferenças-chave:</strong> V1 = pin nitido + cantos suaves | V2 = pin contorno + T bold | V3 = pin embaixo + azul escuro | V4 = cor flat sem gradiente | V5 = squircle iOS + extra bold | V6 = frame contorno (outlined)
+</div>
+
+</body>
+</html>

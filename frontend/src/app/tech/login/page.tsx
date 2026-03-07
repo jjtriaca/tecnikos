@@ -44,13 +44,10 @@ export default function TechLoginPage() {
         <div className="rounded-3xl bg-white px-7 py-8 shadow-2xl shadow-black/20">
           {/* Brand */}
           <div className="flex items-center gap-2.5 mb-6">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-600/30">
-              <svg className="h-4.5 w-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-icon.svg" alt="Tecnikos" className="h-9 w-9" />
             <div>
-              <div className="text-sm font-bold text-slate-900">FieldService</div>
+              <div className="text-sm font-bold text-slate-900">Tecnikos</div>
               <div className="text-[10px] text-slate-400">Portal do Tecnico</div>
             </div>
           </div>

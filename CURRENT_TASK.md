@@ -1,39 +1,47 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 73 CONCLUIDA — Aguardando proxima tarefa
+## Status: SESSAO 74 — Zoho Mail DNS CONFIGURADO, aguardando propagacao
 
-## Ultima sessao: 73 (07/03/2026)
+## Ultima sessao: 74 (07/03/2026)
 - Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
 - Sessao 63: Fix NFe Import Flow (v1.01.20)
 - Sessoes 64-68: 4 estudos fiscais completos
 - Sessao 69-70: Fase 1 — Fundacao Fiscal (regime, contabilista, impostos NFe)
 - Sessao 71: Fase 2 — NFS-e de Entrada + Fase 3 — Escrituracao e Relatorios (v1.01.22)
 - Sessao 72: Fase 4 — Geracao SPED + Deploy v1.01.23
-- Sessao 73: WhatsApp Test Send + Modulo Email SMTP + Fix + Privacy Page (v1.01.24-26)
+- Sessao 73: WhatsApp Test Send + Modulo Email SMTP + Fix + Privacy Page (v1.01.24-27)
+- Sessao 74: Zoho Mail setup + DNS config COMPLETO
 
-## O que foi feito na sessao 73:
-### WhatsApp — Teste de Envio
-- [x] Endpoint `POST /whatsapp/test-send` — envia mensagem de teste para numero informado
-- [x] Frontend: secao "Teste de Envio" na pagina /settings/whatsapp (visivel quando conectado)
-- [x] Input com mascara de telefone (XX) XXXXX-XXXX + botao enviar + feedback
-- [x] Fix: `sendTestMessage()` no WhatsAppService que propaga erros (v1.01.25)
+## O que foi feito na sessao 74:
+### Zoho Mail — Email Profissional
+- [x] Conta Zoho Workplace criada (Mail 10GB plan)
+- [x] Dominio tecnikos.com.br adicionado no Zoho
+- [x] Habilitado "Modo Avancado" DNS no Registro.br
+- [x] Verificacao dominio via arquivo HTML no servidor (nginx location block)
+- [x] Email contato@tecnikos.com.br criado como Superadministrador
+- [x] Registros MX adicionados no Registro.br (10 mx.zoho.com, 20 mx2.zoho.com, 50 mx3.zoho.com)
+- [x] Registro SPF adicionado (v=spf1 include:zohomail.com ~all)
+- [x] Registro DKIM adicionado (zmail._domainkey com chave RSA)
+- [x] "Zona DNS atualizada com sucesso!" confirmado pelo Registro.br
+- [ ] Verificacao final no Zoho (aguardando propagacao DNS — pode levar ate 24h, normalmente 15-60min)
 
-### Email SMTP — Modulo Completo
-- [x] Model `EmailConfig` no Prisma schema (host, port, secure, user, pass criptografada, fromName, fromEmail)
-- [x] Migration `20260307150000_email_config`
-- [x] `EmailService` com nodemailer — getConfig, saveConfig, disconnect, testConnection, sendTestEmail, sendEmail
-- [x] `EmailController` com 5 endpoints — GET config, PUT config, POST test-connection, POST test-send, DELETE disconnect
-- [x] `EmailModule` registrado no AppModule
-- [x] DTOs com class-validator (UpdateEmailConfigDto, TestEmailConnectionDto, TestEmailSendDto)
-- [x] Frontend `/settings/email` — pagina completa com status, form SMTP, presets (Gmail/Outlook/Yahoo), teste envio
-- [x] Card "Email SMTP" na pagina /settings (ao lado do WhatsApp)
+### Para verificar propagacao:
+- Acessar https://mailadmin.zoho.com/hosting?domain=tecnikos.com.br
+- Clicar "Verificar todos os registros" na pagina de Mapeamento de DNS
+- Todos os 5 registros devem ficar verdes (MX x3, SPF, DKIM)
 
-### Meta WhatsApp App — Publicacao Live
-- [x] Pagina `/privacy` criada (Politica de Privacidade publica)
-- [x] Privacy Policy URL configurada no Meta Developer Console
-- [x] App Meta publicado em modo Live (v1.01.26)
+### PENDENTE — WhatsApp (parado)
+- Comprar chip dedicado para WhatsApp Business API
+- Adicionar numero real no Meta > API Setup
+- Gerar token permanente do System User "Tecnikos API"
+- Configurar no Tecnikos com novo Phone Number ID e token
 
-## Versao atual: v1.01.26 (Fix PFX Legacy Encryption) — em producao
+### Alteracoes no servidor (nginx.conf):
+- 2 location blocks adicionados para Zoho verification:
+  - HTTP (porta 80): `/zohoverify/verifyforzoho.html`
+  - HTTPS (porta 443): `/zohoverify/verifyforzoho.html`
+
+## Versao atual: v1.01.27 — em producao
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Tecnikos — Conceitos de Logo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Sora:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #f1f5f9;
+    padding: 40px;
+    color: #1e293b;
+  }
+  h1 { text-align: center; font-size: 28px; margin-bottom: 8px; }
+  .subtitle { text-align: center; color: #64748b; margin-bottom: 40px; font-size: 15px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+
+  .card h2 { font-size: 16px; color: #3b82f6; font-weight: 600; }
+  .card p { font-size: 13px; color: #64748b; text-align: center; line-height: 1.5; }
+
+  .logo-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+    width: 100%;
+  }
+
+  .dark-bg {
+    background: #0f172a;
+    border-radius: 12px;
+    padding: 32px 40px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .variants {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .variant-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<h1>Tecnikos — Conceitos de Logo</h1>
+<p class="subtitle">Estilo minimalista/moderno | Paleta azul + branco | Vetorial SVG</p>
+
+<div class="grid">
+
+<!-- CONCEITO 1: Bolt T -->
+<div class="card">
+  <h2>Conceito 1 — Bolt T</h2>
+  <div class="logo-area">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <!-- Icon: T with lightning bolt integrated -->
+      <defs>
+        <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Rounded square background -->
+      <rect x="2" y="6" width="52" height="52" rx="12" fill="url(#g1)"/>
+      <!-- T with bolt -->
+      <path d="M16 18 L42 18 L42 24 L32 24 L32 28 L36 28 L28 46 L28 36 L24 36 L24 24 L16 24 Z" fill="white"/>
+      <!-- Wordmark -->
+      <text x="68" y="43" font-family="Outfit, sans-serif" font-weight="700" font-size="32" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g1d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="52" height="52" rx="12" fill="url(#g1d)"/>
+      <path d="M16 18 L42 18 L42 24 L32 24 L32 28 L36 28 L28 46 L28 36 L24 36 L24 24 L16 24 Z" fill="#0f172a"/>
+      <text x="68" y="43" font-family="Outfit, sans-serif" font-weight="700" font-size="32" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>O "T" integra um raio sutil, representando energia e agilidade nos servicos tecnicos.</p>
+</div>
+
+<!-- CONCEITO 2: Hex Grid -->
+<div class="card">
+  <h2>Conceito 2 — Hex Tech</h2>
+  <div class="logo-area">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#1d4ed8"/>
+        </linearGradient>
+      </defs>
+      <!-- Hexagon -->
+      <polygon points="28,6 50,17 50,39 28,50 6,39 6,17" fill="none" stroke="url(#g2)" stroke-width="3"/>
+      <!-- Inner T -->
+      <text x="17" y="37" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="26" fill="#2563eb">T</text>
+      <!-- Three dots = network nodes -->
+      <circle cx="28" cy="56" r="2.5" fill="#3b82f6"/>
+      <circle cx="52" cy="42" r="2" fill="#93c5fd" opacity="0.7"/>
+      <circle cx="4" cy="42" r="2" fill="#93c5fd" opacity="0.7"/>
+      <!-- Wordmark -->
+      <text x="64" y="37" font-family="Space Grotesk, sans-serif" font-weight="600" font-size="30" fill="#1e293b" letter-spacing="1">TECNIKOS</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g2d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <polygon points="28,6 50,17 50,39 28,50 6,39 6,17" fill="none" stroke="url(#g2d)" stroke-width="3"/>
+      <text x="17" y="37" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="26" fill="#60a5fa">T</text>
+      <circle cx="28" cy="56" r="2.5" fill="#60a5fa"/>
+      <circle cx="52" cy="42" r="2" fill="#93c5fd" opacity="0.5"/>
+      <circle cx="4" cy="42" r="2" fill="#93c5fd" opacity="0.5"/>
+      <text x="64" y="37" font-family="Space Grotesk, sans-serif" font-weight="600" font-size="30" fill="white" letter-spacing="1">TECNIKOS</text>
+    </svg>
+  </div>
+  <p>Hexagono tecnico com "T" central e nos de rede. Remete a engenharia, precisao e conectividade.</p>
+</div>
+
+<!-- CONCEITO 3: Clean Wordmark -->
+<div class="card">
+  <h2>Conceito 3 — Clean Wordmark</h2>
+  <div class="logo-area">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#2563eb"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <!-- Accent bar -->
+      <rect x="8" y="8" width="4" height="48" rx="2" fill="url(#g3)"/>
+      <!-- Wordmark with K highlight -->
+      <text x="22" y="44" font-family="Sora, sans-serif" font-weight="800" font-size="36" fill="#1e293b" letter-spacing="-1">tecni</text>
+      <text x="167" y="44" font-family="Sora, sans-serif" font-weight="800" font-size="36" fill="#2563eb" letter-spacing="-1">kos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g3d" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#93c5fd"/>
+        </linearGradient>
+      </defs>
+      <rect x="8" y="8" width="4" height="48" rx="2" fill="url(#g3d)"/>
+      <text x="22" y="44" font-family="Sora, sans-serif" font-weight="800" font-size="36" fill="white" letter-spacing="-1">tecni</text>
+      <text x="167" y="44" font-family="Sora, sans-serif" font-weight="800" font-size="36" fill="#60a5fa" letter-spacing="-1">kos</text>
+    </svg>
+  </div>
+  <p>Wordmark puro com barra lateral de acento. O "kos" em azul destaca a identidade unica da marca.</p>
+</div>
+
+<!-- CONCEITO 4: Signal T -->
+<div class="card">
+  <h2>Conceito 4 — Signal T</h2>
+  <div class="logo-area">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g4" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6"/>
+          <stop offset="100%" style="stop-color:#2563eb"/>
+        </linearGradient>
+      </defs>
+      <!-- Rounded square -->
+      <rect x="2" y="6" width="52" height="52" rx="14" fill="url(#g4)"/>
+      <!-- T letterform -->
+      <rect x="14" y="16" width="28" height="5" rx="2.5" fill="white"/>
+      <rect x="24" y="16" width="5" height="32" rx="2.5" fill="white"/>
+      <!-- Signal arcs -->
+      <path d="M40 20 Q48 28 40 36" fill="none" stroke="white" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+      <path d="M44 16 Q55 28 44 40" fill="none" stroke="white" stroke-width="2" opacity="0.3" stroke-linecap="round"/>
+      <!-- Wordmark -->
+      <text x="66" y="43" font-family="Inter, sans-serif" font-weight="700" font-size="30" fill="#1e293b" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g4d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="6" width="52" height="52" rx="14" fill="url(#g4d)"/>
+      <rect x="14" y="16" width="28" height="5" rx="2.5" fill="#0f172a"/>
+      <rect x="24" y="16" width="5" height="32" rx="2.5" fill="#0f172a"/>
+      <path d="M40 20 Q48 28 40 36" fill="none" stroke="#0f172a" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+      <path d="M44 16 Q55 28 44 40" fill="none" stroke="#0f172a" stroke-width="2" opacity="0.3" stroke-linecap="round"/>
+      <text x="66" y="43" font-family="Inter, sans-serif" font-weight="700" font-size="30" fill="white" letter-spacing="-0.5">tecnikos</text>
+    </svg>
+  </div>
+  <p>"T" com arcos de sinal WiFi/radio. Transmite conectividade, servicos remotos e gestao em campo.</p>
+</div>
+
+<!-- CONCEITO 5: Wrench + T -->
+<div class="card">
+  <h2>Conceito 5 — Tool Mark</h2>
+  <div class="logo-area">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g5" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#2563eb"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <!-- Circle bg -->
+      <circle cx="28" cy="32" r="26" fill="url(#g5)"/>
+      <!-- Stylized wrench/T combo -->
+      <rect x="16" y="16" width="24" height="4.5" rx="2" fill="white"/>
+      <rect x="25" y="16" width="4.5" height="26" rx="2" fill="white"/>
+      <!-- Wrench head detail -->
+      <path d="M22 42 L25 39 L29.5 39 L32.5 42 L30 46 L25 46 Z" fill="white"/>
+      <!-- Wordmark -->
+      <text x="64" y="27" font-family="Outfit, sans-serif" font-weight="700" font-size="28" fill="#1e293b" letter-spacing="0">Tecnikos</text>
+      <text x="64" y="47" font-family="Inter, sans-serif" font-weight="400" font-size="11" fill="#64748b" letter-spacing="2">FIELD SERVICE</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g5d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <circle cx="28" cy="32" r="26" fill="url(#g5d)"/>
+      <rect x="16" y="16" width="24" height="4.5" rx="2" fill="#0f172a"/>
+      <rect x="25" y="16" width="4.5" height="26" rx="2" fill="#0f172a"/>
+      <path d="M22 42 L25 39 L29.5 39 L32.5 42 L30 46 L25 46 Z" fill="#0f172a"/>
+      <text x="64" y="27" font-family="Outfit, sans-serif" font-weight="700" font-size="28" fill="white" letter-spacing="0">Tecnikos</text>
+      <text x="64" y="47" font-family="Inter, sans-serif" font-weight="400" font-size="11" fill="#94a3b8" letter-spacing="2">FIELD SERVICE</text>
+    </svg>
+  </div>
+  <p>"T" que vira chave de ferramenta na base. Referencia direta a servicos tecnicos + tagline "Field Service".</p>
+</div>
+
+<!-- CONCEITO 6: Geometric K -->
+<div class="card">
+  <h2>Conceito 6 — Geo K</h2>
+  <div class="logo-area">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g6" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#2563eb"/>
+          <stop offset="100%" style="stop-color:#3b82f6"/>
+        </linearGradient>
+      </defs>
+      <!-- Geometric K mark -->
+      <rect x="4" y="8" width="7" height="48" rx="2" fill="url(#g6)"/>
+      <polygon points="11,32 32,8 42,8 20,32 42,56 32,56" fill="url(#g6)" opacity="0.85"/>
+      <!-- Accent dot -->
+      <circle cx="45" cy="32" r="4" fill="#60a5fa"/>
+      <!-- Wordmark -->
+      <text x="60" y="28" font-family="Sora, sans-serif" font-weight="700" font-size="24" fill="#1e293b" letter-spacing="-0.5">TECNIKOS</text>
+      <line x1="60" y1="36" x2="290" y2="36" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="60" y="50" font-family="Inter, sans-serif" font-weight="400" font-size="11" fill="#64748b" letter-spacing="3">GESTAO DE SERVICOS</text>
+    </svg>
+  </div>
+  <div class="dark-bg">
+    <svg width="320" height="64" viewBox="0 0 320 64">
+      <defs>
+        <linearGradient id="g6d" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#60a5fa"/>
+          <stop offset="100%" style="stop-color:#93c5fd"/>
+        </linearGradient>
+      </defs>
+      <rect x="4" y="8" width="7" height="48" rx="2" fill="url(#g6d)"/>
+      <polygon points="11,32 32,8 42,8 20,32 42,56 32,56" fill="url(#g6d)" opacity="0.85"/>
+      <circle cx="45" cy="32" r="4" fill="#93c5fd"/>
+      <text x="60" y="28" font-family="Sora, sans-serif" font-weight="700" font-size="24" fill="white" letter-spacing="-0.5">TECNIKOS</text>
+      <line x1="60" y1="36" x2="290" y2="36" stroke="#334155" stroke-width="1"/>
+      <text x="60" y="50" font-family="Inter, sans-serif" font-weight="400" font-size="11" fill="#94a3b8" letter-spacing="3">GESTAO DE SERVICOS</text>
+    </svg>
+  </div>
+  <p>"K" geometrico como simbolo da marca. Angular e moderno com tagline "Gestao de Servicos".</p>
+</div>
+
+</div>
+
+<div style="text-align:center; margin-top:40px; color:#94a3b8; font-size:13px;">
+  Todos os conceitos em SVG vetorial — escalaveis para qualquer tamanho sem perda de qualidade.
+</div>
+
+</body>
+</html>

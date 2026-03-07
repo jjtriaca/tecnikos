@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Tecnikos — Gestao Inteligente de Servicos Tecnicos",
   description: "Plataforma SaaS para empresas que gerenciam equipes de tecnicos em campo. Ordens de servico, despacho, financeiro e automacao.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

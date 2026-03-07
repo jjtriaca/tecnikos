@@ -902,5 +902,52 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Toggles por tipo de email (NFS-e, cobranca, OS, etc.) serao implementados depois
 - O EmailService.sendEmail() ja esta exportado e pronto para uso pelo NotificationService e NfseEmissionService
 
-### Status: SESSAO 73 CONCLUIDA — v1.01.26 em producao
+### Deploy v1.01.27 — sendTestMessage com Template hello_world
+- Problema: em modo Live, Meta nao permite texto livre para iniciar conversa (so template)
+- Solucao: `sendTestMessage()` agora usa template `hello_world` (pre-aprovado em todas as contas WhatsApp Business)
+- Template funciona tanto em Development quanto em Live mode
+- Frontend: texto atualizado informando uso do template
+
+### WhatsApp — Pendente numero real
+- Numero de teste da Meta (+1 555 173 4927) so envia para lista de permitidos
+- Tentou usar (66) 99986-1230 mas ja esta registrado em WhatsApp pessoal
+- Decisao: comprar chip pre-pago dedicado para WhatsApp Business API
+- System User "Tecnikos API" criado com WhatsApp Business Account atribuida
+- Quando tiver o chip: adicionar numero no Meta > API Setup > verificar > gerar token permanente > configurar no Tecnikos
+
+### Status: SESSAO 74 — v1.01.27 em producao
+---
+
+## Sessao 74 — 07/03/2026
+
+### Email com dominio tecnikos.com.br
+- Juliano quer configurar emails profissionais com o dominio (ex: contato@tecnikos.com.br)
+- Dominio comprado no Registro.br — necessario servico de email externo
+- Recomendado Zoho Mail (plano Mail 10GB — mais barato confiavel)
+- Juliano assinou Zoho Workplace Mail 10GB
+
+### Zoho Mail — Configuracao
+1. [x] Conta criada no Zoho (julianojosetriaca@gmail.com)
+2. [x] Dominio tecnikos.com.br adicionado
+3. [x] Habilitado "Modo Avancado" no Registro.br para editar zona DNS
+4. [x] DNS em transicao (~2h) — impossivel adicionar registros TXT/MX nesse periodo
+5. [x] Verificacao por HTML file: criado endpoint nginx `/zohoverify/verifyforzoho.html` que retorna `34977772`
+   - Adicionado location block no servidor HTTP (porta 80) e HTTPS (porta 443) no nginx.conf
+   - Zoho verificou dominio com sucesso
+6. [x] Email contato@tecnikos.com.br criado como Superadministrador
+7. [x] Registros DNS adicionados no Registro.br (zona DNS abriu mesmo durante transicao):
+   - MX: tecnikos.com.br MX 10 mx.zoho.com ✅
+   - MX: tecnikos.com.br MX 20 mx2.zoho.com ✅
+   - MX: tecnikos.com.br MX 50 mx3.zoho.com ✅
+   - TXT (SPF): tecnikos.com.br TXT v=spf1 include:zohomail.com ~all ✅
+   - TXT (DKIM): zmail._domainkey.tecnikos.com.br TXT v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCYKwDYwp0cm5WJnMGCiaG4Bzgtuh6MqCeVSvAaZwYoUhfS07MxGwyRqu4DO+5mrBM6uV/6evqZzlmNK9F6gWYqvGuSrCZ+1M53WconstWkDwnZ7BDN7lKOovGjaU+u5Qz1mDdeX+Yr8iu7zShV6TiepYSPSXUt+OPHQQmnROHZ+QIDAQAB ✅
+   - "Zona DNS atualizada com sucesso!" confirmado pelo Registro.br
+8. [ ] Verificacao no Zoho: DNS ainda propagando (Zoho informou "registros podem demorar dependendo do TTL")
+
+### Alteracoes no servidor:
+- nginx.conf: adicionado 2 location blocks para Zoho verification (HTTP + HTTPS)
+  - `location /zohoverify/verifyforzoho.html { return 200 '34977772'; }`
+- Reiniciado container nginx
+
+### Status: DNS CONFIGURADO — Aguardando propagacao para verificacao final no Zoho
 ---
