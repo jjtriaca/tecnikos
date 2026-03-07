@@ -878,9 +878,29 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Email de teste com template HTML profissional
 
 ### Build: backend + frontend — zero erros
-### Status: pendente deploy
+
+### Deploy v1.01.24 — WhatsApp Test Send + Email SMTP
+- Deploy realizado com sucesso
+- Migration `20260307150000_email_config` aplicada em producao
+
+### Fix v1.01.25 — Erro Propagacao WhatsApp Test Send
+- Problema: teste de envio retornava "Erro ao enviar mensagem" generico
+- Causa: `sendText()` engolia erros (retornava null), perdia a mensagem de erro da Meta API
+- Erro real: `#131030 Recipient phone number not in allowed list` (app em modo Development)
+- Solucao: criado `sendTestMessage()` no WhatsAppService que propaga erros com mensagens amigaveis em portugues
+- Controller atualizado para usar `sendTestMessage()` ao inves de `sendText()`
+
+### Fix v1.01.26 — Pagina de Politica de Privacidade + Publicacao Meta App
+- Meta exigia Privacy Policy URL para publicar o app
+- Criada pagina `/privacy` (publica, fora do dashboard) — `frontend/src/app/privacy/page.tsx`
+- 9 secoes: coleta de dados, uso, WhatsApp API, protecao, compartilhamento, retencao, direitos LGPD, contato, alteracoes
+- URL: https://tecnikos.com.br/privacy
+- Configurado no Meta App: Privacy Policy URL, Terms of Service URL, Categoria "Negocios e Paginas"
+- **App Meta publicado com sucesso em modo Live** — teste de envio agora funciona para qualquer numero
 
 ### Nota — Escopo futuro email:
 - Toggles por tipo de email (NFS-e, cobranca, OS, etc.) serao implementados depois
 - O EmailService.sendEmail() ja esta exportado e pronto para uso pelo NotificationService e NfseEmissionService
+
+### Status: SESSAO 73 CONCLUIDA — v1.01.26 em producao
 ---

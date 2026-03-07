@@ -268,6 +268,8 @@ export class WhatsAppService {
   /**
    * Send a test message — returns { success, messageId?, error? } instead of null.
    * Unlike sendText(), this method does NOT swallow errors — it propagates them.
+   * Uses the "hello_world" template (available on all WhatsApp Business accounts)
+   * which works in both Development and Live mode without restrictions.
    */
   async sendTestMessage(
     companyId: string,
@@ -281,18 +283,21 @@ export class WhatsAppService {
     }
 
     const formattedPhone = this.formatPhone(phone);
-    const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const message = `✅ Mensagem de teste do Tecnikos — WhatsApp configurado com sucesso!\n\nEnviado em: ${now}`;
 
     try {
+      // Use hello_world template — it's pre-approved on all WhatsApp Business accounts
+      // and works in both Development and Live mode (no "allowed list" restriction)
       const res = await this.metaRequest(token, phoneNumberId, {
         messaging_product: 'whatsapp',
         to: formattedPhone,
-        type: 'text',
-        text: { body: message },
+        type: 'template',
+        template: {
+          name: 'hello_world',
+          language: { code: 'en_US' },
+        },
       });
 
-      this.logger.log(`WhatsApp test sent to ${formattedPhone}`);
+      this.logger.log(`WhatsApp test template sent to ${formattedPhone}`);
       return {
         success: true,
         messageId: res.messages?.[0]?.id || undefined,
@@ -307,6 +312,8 @@ export class WhatsAppService {
         friendlyError = 'Numero nao esta na lista de destinatarios permitidos. No painel da Meta (API Setup), adicione este numero como destinatario de teste.';
       } else if (errorMsg.includes('Invalid phone number')) {
         friendlyError = 'Numero de telefone invalido. Verifique o formato (DDD + numero).';
+      } else if (errorMsg.includes('Template name does not exist')) {
+        friendlyError = 'Template hello_world nao encontrado. Verifique no painel da Meta se o template existe na sua conta.';
       }
 
       return { success: false, error: friendlyError };
