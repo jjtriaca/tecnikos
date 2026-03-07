@@ -802,7 +802,53 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 
 #### 8. Build: Backend + Frontend 0 erros
 
-### Status: FASE 3 CONCLUIDA — Pronto para deploy
+### Status: FASE 3 CONCLUIDA — Deploy v1.01.22
+
+---
+
+## Sessao 72 — 07/03/2026
+
+### FASE 4 — Geracao SPED (EFD-ICMS/IPI + EFD-Contribuicoes)
+
+#### 1. Backend — Gerador EFD-ICMS/IPI (`sped-icms-ipi.generator.ts`, 802 linhas):
+- Blocos: 0 (abertura/empresa/participantes/produtos), B (ISS vazio), C (NFe mercadorias com C100/C170/C190), D (transporte vazio), E (apuracao ICMS com E100/E110), G/H/K (vazios), 1 (info complementar 1010), 9 (fechamento/controle)
+- Participantes enriquecidos da tabela Partner
+- Itens (C170) com CST ICMS/IPI/PIS/COFINS, bases, aliquotas, valores
+- C190 agrupado por CST+CFOP+aliquota
+- E110 soma creditos (entrada) e debitos (saida) por CFOP
+- Contagem automatica de registros no Bloco 9
+
+#### 2. Backend — Gerador EFD-Contribuicoes (`sped-contribuicoes.generator.ts`, 763 linhas):
+- Blocos: 0 (abertura/contabilista/regime/estabelecimento/participantes/unidades/produtos), A (NFS-e servicos entrada+saida), C (NFe mercadorias), D/F (vazios), M (apuracao PIS/COFINS com M100/M200/M210/M500/M600/M610), 1 (info complementar), 9 (fechamento)
+- Regime LP: PIS 0.65%/COFINS 3.00% cumulativo (CST entrada 70, saida 01, COD_CONT 51)
+- Regime LR: PIS 1.65%/COFINS 7.60% nao-cumulativo (CST entrada 50, saida 01, COD_CONT 01)
+- Creditos PIS/COFINS apenas para LR (M100/M105, M500/M505)
+- NfseEntrada como entrada (IND_OPER=0), NfseEmission como saida (IND_OPER=1)
+- NFe items com CST do item quando disponivel, fallback para regime
+
+#### 3. Backend — Controller SPED (`sped.controller.ts`):
+- `GET /sped/efd-icms-ipi?year=&month=&preview=` — gera/baixa EFD-ICMS/IPI
+- `GET /sped/efd-contribuicoes?year=&month=&preview=` — gera/baixa EFD-Contribuicoes
+- `GET /sped/info` — informacao de obrigatoriedade por regime (SN dispensado, LP/LR obrigatorio)
+- Content-Type: `text/plain; charset=iso-8859-1`, Content-Disposition para download
+- Preview mode retorna JSON com conteudo e contagem de linhas
+- Protegido com FiscalGuard + Roles (ADMIN, FISCAL)
+
+#### 4. Frontend — Pagina SPED (`/fiscal/sped`):
+- Seletor de periodo (mes anterior como padrao)
+- Info do regime tributario com CNAE e perfil EFD
+- Grid de arquivos SPED: EFD-ICMS/IPI, EFD-Contribuicoes, DeSTDA
+- Cards com: nome, descricao, obrigatoriedade, prazo, botoes gerar/visualizar
+- DeSTDA com nota informativa (gerado pelo SEDIF-SN oficial)
+- Modal de preview com conteudo do arquivo e botao para baixar
+- Secao de instrucoes de uso e aviso sobre validacao no PVA
+- Download via fetch + blob + createElement anchor
+
+#### 5. Sidebar: link "Geracao SPED" adicionado na secao Escrituracao
+
+#### 6. Build: Backend + Frontend 0 erros
+
+### Status: FASE 4 CONCLUIDA — Pronto para deploy
 
 ---
 

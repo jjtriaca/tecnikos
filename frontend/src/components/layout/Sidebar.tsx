@@ -122,6 +122,7 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Dashboard Fiscal", href: "/fiscal" },
     { label: "Livro de Entradas", href: "/fiscal/livro-entradas" },
     { label: "Serviços Tomados", href: "/fiscal/servicos-tomados" },
+    { label: "Geração SPED", href: "/fiscal/sped" },
   ] },
   { label: "Relatórios", href: "/reports", icon: icons.reports, roles: ["ADMIN", "FINANCEIRO", "LEITURA"] },
   { label: "Usuários", href: "/users", icon: icons.users, roles: ["ADMIN"] },
