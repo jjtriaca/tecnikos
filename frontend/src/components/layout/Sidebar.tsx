@@ -109,8 +109,9 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Resultados", href: "/results" },
   ] },
   { label: "NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN", "FISCAL"], requiresFiscal: true, children: [
-    { label: "Entrada", href: "/nfe" },
-    { label: "Saída", href: "/nfe/saida" },
+    { label: "NFe Entrada", href: "/nfe" },
+    { label: "NFS-e Entrada", href: "/nfe/entrada" },
+    { label: "NFS-e Saída", href: "/nfe/saida" },
   ] },
   { label: "Relatórios", href: "/reports", icon: icons.reports, roles: ["ADMIN", "FINANCEIRO", "LEITURA"] },
   { label: "Usuários", href: "/users", icon: icons.users, roles: ["ADMIN"] },

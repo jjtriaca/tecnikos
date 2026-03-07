@@ -23,6 +23,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { ProductModule } from './product/product.module';
 import { NfeModule } from './nfe/nfe.module';
 import { NfseEmissionModule } from './nfse-emission/nfse-emission.module';
+import { NfseEntradaModule } from './nfse-entrada/nfse-entrada.module';
 import { ObraModule } from './obra/obra.module';
 import { ServiceModule } from './service/service.module';
 
@@ -63,6 +64,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     ProductModule,
     NfeModule,
     NfseEmissionModule,
+    NfseEntradaModule,
     ObraModule,
     ServiceModule,
   ],

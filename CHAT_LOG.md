@@ -451,6 +451,294 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 
 ---
 
+## Sessao 63 — 06/03/2026
+
+### Continuacao da Sessao 62 (contexto compactado):
+- Sessoes 61-62 implementaram: Dashboard Financeiro (v1.01.18-19), Auditoria do sistema, Inicio fix NFe Import
+
+### Pedido do Juliano:
+> "Notas ja aparecem como importadas, deveria ser operador manual"
+> "O financeiro tem que pedir confirmacao tbm!"
+
+### Implementacao — Fix Fluxo NFe Import:
+
+#### 1. Backend — Removida auto-importacao (sefaz-dfe.service.ts):
+- Bloco que auto-importava procNFe durante fetch SEFAZ (linhas 403-417) REMOVIDO
+- Documentos agora ficam como FETCHED ate operador importar manualmente
+
+#### 2. Backend — Lancamento financeiro opcional (nfe.service.ts):
+- Nova classe `ProcessFinanceDecision`: `{ createEntry: boolean, dueDate?: string }`
+- `ProcessDecisions` agora inclui `finance?: ProcessFinanceDecision`
+- Metodo `process()` condicional: so cria FinancialEntry se `finance.createEntry !== false`
+- Backward compatible: se `finance` omitido, cria entry (default true)
+
+#### 3. Frontend — Wizard NFe com 5 steps (nfe/page.tsx):
+- STEPS alterado de 4 para 5: Upload XML → Fornecedor → Produtos → **Financeiro** → Confirmacao
+- Novo step 4 (Financeiro):
+  - Toggle "Criar lancamento A Pagar" (default: ativado)
+  - Campo data de vencimento (opcional, default = data emissao da NFe)
+  - Resumo visual da decisao (azul se criar, cinza se nao)
+- Step 5 (Confirmacao) atualizado:
+  - Mostra resumo da decisao financeira (criara ou nao)
+  - Warning atualizado conforme decisao financeira
+- `handleProcess()` envia `finance: { createEntry, dueDate }` no body
+- Estados adicionados: `createFinancialEntry`, `financeDueDate`
+
+#### 4. Frontend — Botao "Importar" abre wizard (SEFAZ tab):
+- `handleImportDoc()` reescrito: importa XML via backend → abre wizard no step 2
+- Operador toma TODAS as decisoes: fornecedor, produtos, financeiro
+- Label status FETCHED alterado de "Pendente" para "Baixada"
+- Filtro correspondente atualizado
+
+### Status: CONCLUIDO — Deploy v1.01.20
+
+---
+
+## Sessao 64 — 06/03/2026
+
+### Pedido do Juliano:
+> Estudo completo sobre questoes fiscais: SPED Fiscal para Simples Nacional, escrituracao de notas de entrada, NFS-e de entrada, SPED vs DeSTDA, formato SPED, NFS-e vs NFe no tratamento fiscal
+
+### Status: CONCLUIDO — Estudo salvo em `memory/estudo-fiscal-sped-nfe-nfse.md`
+
+### Resultado do Estudo:
+1. **SPED Fiscal (EFD-ICMS/IPI)**: SLS Obras DISPENSADA (Protocolo ICMS 03/2011, SN)
+2. **DeSTDA**: Obrigacao correta para SN (mensal, dia 28, SEDIF-SN) — ST + DIFAL + Antecipacao
+3. **Livros obrigatorios SN**: Registro de Entradas, Servicos Prestados, Servicos Tomados
+4. **NFS-e de entrada**: NAO distribuida pela SEFAZ — opcoes: ADN, upload XML, portal municipal, manual
+5. **NFe vs NFS-e**: NFe = ICMS/IPI (estadual), NFS-e = ISS (municipal), livros diferentes
+6. **Formato SPED**: texto pipe-delimited, 10 blocos, leiaute 020 vigente 01/2026
+7. **Novidades 2026**: PGDAS-D multa automatica, DEFIS com multa, CBS/IBS no leiaute EFD
+
+---
+
+## Sessao 65 — 06/03/2026
+
+### Pedido do Juliano:
+> Estudo COMPLETO sobre todas as obrigacoes fiscais brasileiras por regime tributario: Simples Nacional, Lucro Presumido, Lucro Real, obrigacoes estaduais (foco MT), municipais, e quadro comparativo.
+
+### Status: CONCLUIDO — Estudo salvo em `memory/estudo-obrigacoes-fiscais-por-regime.md`
+
+### Resultado do Estudo (9 secoes):
+1. **Simples Nacional**: PGDAS-D (mensal, dia 20, formula aliquota efetiva com RBT12 e Fator R), DEFIS (anual, 31/mar, 13+ campos por estabelecimento), DeSTDA (mensal, dia 28, SEDIF-SN, ST+DIFAL+antecipacao), DAS (guia unica, dia 20), Livros obrigatorios (Caixa, Reg. Entradas, Inventario, Servicos Prestados/Tomados)
+2. **Lucro Presumido**: EFD-Contribuicoes (PIS 0,65% + COFINS 3% cumulativo), DCTFWeb (mensal), ECF (anual jul), ECD (anual mai, condicional), IRPJ/CSLL trimestrais com bases de presuncao
+3. **Bases de presuncao construcao civil CONFIRMADAS**: Empreitada total c/ material = 8% IRPJ / 12% CSLL; Parcial/mao de obra = 32% IRPJ / 32% CSLL
+4. **Novidade 2026 (LC 224/2025)**: Acrescimo 10% nos percentuais sobre receita > R$ 5 mi/ano
+5. **Lucro Real**: Tudo do Presumido MAIS EFD ICMS/IPI, LALUR/LACS, PIS/COFINS nao-cumulativo (9,25% - creditos), apuracao trimestral vs anual (estimativa mensal)
+6. **Creditos PIS/COFINS (LR)**: Insumos, energia, alugueis, depreciacao, servicos PJ, frete. Conceito STJ: essencialidade/relevancia
+7. **Obrigacoes estaduais MT**: GIA DISPENSADA, SINTEGRA DISPENSADO, EFD dia 20, ST via EFD, DeSTDA para SN, centralizacao inscricao (Portaria 059/2025)
+8. **Obrigacoes municipais**: NFS-e Nacional obrigatoria 2026 (LC 214/2025), DES tendencia extincao, ISS 2-5%
+9. **Quadro comparativo completo**: 4 tabelas cruzando cada obrigacao x regime (SN/LP/LR)
+
+### Reforma Tributaria (timeline):
+- 2026: CBS/IBS destaque informativo nas NF-e, sem recolhimento
+- 2027: PIS/COFINS extintos, CBS em vigor, EFD-Contribuicoes tende extincao
+- 2033: ICMS/ISS extintos, IBS pleno, ST extinta (exceto combustiveis)
+
+---
+
+## Sessao 66 — 06/03/2026
+
+### Pedido do Juliano:
+> Estudo COMPLETO sobre NFS-e de entrada (servicos tomados) e ISS para implementacao em sistema ERP brasileiro.
+
+### Status: CONCLUIDO — Estudo salvo em `memory/estudo-nfse-entrada-iss-completo.md`
+
+### Resultado do Estudo (6 secoes):
+1. **NFS-e de Entrada — Importacao**: Layout XML ABRASF 2.04 (CompNfse/InfNfse com todos os campos), Layout Nacional DPS (infNFSe/DPS/infDPS com todas as tags), diferencas entre layouts, deteccao automatica por namespace/root element, campos obrigatorios para escrituracao
+2. **ISS — Regras de Retencao**: Art. 6o LC 116/2003, lista completa de 13 subitens com retencao obrigatoria (3.05, 7.02, 7.04, 7.05, 7.09, 7.10, 7.12, 7.16, 7.17, 7.19, 11.02, 17.05, 17.10), aliquota minima 2% / maxima 5% (LC 157/2016 art. 8o-A), contabilizacao ISS retido vs devido, ISS no Simples Nacional (segregacao no DAS, aliquota na NF, Fator R)
+3. **Escrituracao de Servicos Tomados**: Livro de Registro (campos completos), EFD-Contribuicoes Bloco A (registros A100/A170 — dispensado para SN), EFD ICMS/IPI Bloco B (registros B020/B025 — exclusivo DF), CFPS (existe mas nao padronizado, desnecessario no Tecnikos)
+4. **Parser XML NFS-e**: Interface `NfseEntradaParsed` completa (35+ campos), mapeamento tag-a-tag ABRASF vs Nacional, conversao cTribNac -> Item LC 116 (funcao pronta), funcao `detectNfseLayout()` pronta
+5. **ADN (Ambiente de Dados Nacional)**: API REST com mTLS + certificado ICP-Brasil, endpoints GET /dfe/{NSU} e consulta por chave, limitacoes (1h entre consultas, 50 docs/lote, 3 meses disponibilidade), ~5.565 municipios aderidos (marco/2026), ~1.843 com sistema ativo
+6. **Recomendacoes Tecnikos**: Prioridade 1 = upload XML manual com parser dual, Prioridade 2 = digitacao manual, Prioridade 3 = integracao ADN (longo prazo)
+
+---
+
+## Sessao 67 — 06/03/2026
+
+### Pedido do Juliano:
+> Estudo COMPLETO sobre EFD-Contribuicoes (SPED PIS/COFINS) para implementacao em sistema ERP brasileiro.
+
+### Status: CONCLUIDO — Estudo salvo em `memory/estudo-sped-contribuicoes.md`
+
+### Resultado do Estudo (10 secoes):
+1. **Obrigatoriedade**: Lucro Real e Presumido OBRIGATORIOS, SN dispensado. Prazo: 10o dia util do 2o mes subsequente. Multa: 0,02%/dia sobre receita bruta (max 1%), calculada automaticamente desde jan/2020.
+2. **Formato arquivo**: ASCII ISO 8859-1, pipe-delimitado, mensal, centralizado pela matriz. Regras de campos: N sem milhar, virgula decimal, datas ddmmaaaa.
+3. **Blocos**: 0 (abertura/cadastros), A (servicos/NFS-e), C (mercadorias/NFe), D (transporte), F (demais operacoes), M (apuracao PIS/COFINS), 1 (complemento), 9 (encerramento).
+4. **Campos detalhados** de TODOS os registros principais: 0000, 0001, 0100, 0110, 0120, 0140, 0150, 0190, 0200, A001, A010, A100, A170, C001, C010, C100, C170, F001, F010, F100, M001, M100, M105, M200, M210, M500, M600, M610, 9900, 9999.
+5. **Regras por regime**: Lucro Real = nao-cumulativo (PIS 1,65%, COFINS 7,6%, COM creditos), Lucro Presumido = cumulativo (PIS 0,65%, COFINS 3%, SEM creditos).
+6. **CST PIS/COFINS completos**: Saida (01-49), Entrada (50-99), regras praticas por regime.
+7. **Relacao NFS-e/NFe**: Servico prestado = Bloco A saida, Servico tomado = Bloco A entrada, Mercadoria = Bloco C, Demais = Bloco F.
+8. **Exemplo arquivo minimo valido**: Empresa LP, 1 NFS-e, PIS R$65 + COFINS R$300.
+9. **Decisoes de implementacao**: Fase 1 = LP cumulativo (simples), Fase 2 = LR nao-cumulativo (creditos). Dados ja disponiveis no Tecnikos mapeados para registros SPED.
+10. **Modelo de dados sugerido**: EfdContribuicao + EfdContribuicaoItem.
+
+---
+
+## Sessao 68 — 06/03/2026
+
+### Pedido do Juliano:
+> Estudo COMPLETO sobre SPED Fiscal (EFD-ICMS/IPI) para implementacao em sistema ERP brasileiro. Todos os blocos, registros, campos, regras, CST, CSOSN, CFOP, layout tecnico, exemplo de arquivo.
+
+### Status: CONCLUIDO — Estudo salvo em `memory/sped-fiscal-efd-icms-ipi.md`
+
+### Resultado do Estudo (13 secoes):
+1. **Obrigatoriedade**: SN dispensado (regra geral), LP/LR depende da UF. Prazo: dia 20 do mes seguinte. Multa federal: 0,02%/dia (max 1%) sobre receita bruta. Multa estadual: varia por UF.
+2. **Layout tecnico**: ASCII ISO 8859-1, pipe-delimitado, datas ddmmaaaa, valores com virgula decimal sem milhar. Perfis A/B/C. Leiaute 020 vigente 2026.
+3. **Estrutura blocos**: 0 (abertura/cadastros), B (ISS), C (mercadorias/ICMS/IPI), D (transporte/comunicacao), E (apuracao ICMS/IPI), G (CIAP), H (inventario), K (producao/estoque), 1 (outras info), 9 (encerramento).
+4. **Bloco 0 detalhado**: Registros 0000, 0001, 0005, 0100, 0150, 0190, 0200, 0990 — todos os campos com tipo, tamanho, casas decimais e obrigatoriedade.
+5. **Bloco C detalhado**: C001, C100 (29 campos — NFe/NF), C170 (38 campos — itens), C190 (12 campos — analitico por CST+CFOP+aliquota), C990.
+6. **Bloco E detalhado**: E001, E100 (periodo), E110 (15 campos — apuracao ICMS com formula completa), E111 (ajustes), E116 (obrigacoes recolhimento), E990.
+7. **Bloco H detalhado**: H001, H005 (totais inventario com MOT_INV), H010 (11 campos — itens estoque com IND_PROP), H990.
+8. **Bloco 9 detalhado**: 9001, 9900 (totalizacao por tipo registro), 9990, 9999.
+9. **CST ICMS completo**: Tabela A (origem 0-8) + Tabela B (tributacao 00-90). CSOSN SN (101-900) com equivalencia CST. CSOSN continua valido (Ajuste SINIEF 34/2023 revogou unificacao).
+10. **CFOPs principais**: Entradas (1102/2102 comercio, 1403/2403 ST, 1551/2551 ativo), Saidas (5102/6102 venda, 5405 substituido, 6404 ST interestadual, 6108 DIFAL consumidor final).
+11. **Credito ICMS**: Direito em compras revenda/industrializacao, sem direito uso/consumo, ativo via CIAP, SN CSOSN 101/201 permite credito ao destinatario.
+12. **ST e DIFAL**: Substituto (recolhe cadeia), Substituido (CST 060/CSOSN 500), DIFAL = aliquota interna - interestadual, SN dispensado DIFAL nao-contribuinte (ADI STF).
+13. **Exemplo arquivo minimo valido**: 55 linhas com blocos 0, C, E e 9 (demais vazios), 1 NFe entrada 2 itens, credito ICMS R$ 150.
+
+### Consideracoes SLS Obras:
+- SLS Obras (SN/EPP): DISPENSADA do SPED Fiscal
+- Para clientes Tecnikos LP/LR: gerador de arquivo seria necessario
+
+---
+
+## Sessao 69 — 06/03/2026
+
+### Contexto:
+- Continuacao da sessao 68 (contexto compactado)
+- 4 agentes de pesquisa lancados nas sessoes 65-68, todos CONCLUIDOS
+- Analise completa do schema Prisma realizada
+
+### Consolidacao do Projeto Modulo Fiscal:
+- Todos os 4 estudos consolidados em documento unico: `memory/projeto-modulo-fiscal.md`
+- Analise de gaps entre sistema atual e requisitos fiscais completa
+- Plano de implementacao em 4 fases definido
+
+### Fases planejadas:
+1. **Fase 1 — Fundacao**: taxRegime na Company, expansao NFe parser (campos tributarios), expandir NfeImportItem
+2. **Fase 2 — NFS-e Entrada**: Model NfseEntrada, parser dual ABRASF+Nacional, upload XML, digitacao manual
+3. **Fase 3 — Escrituracao e Relatorios**: FiscalPeriod, Livro Entradas, Servicos Tomados, apuracao ICMS/PIS/COFINS
+4. **Fase 4 — Geracao SPED**: EFD-ICMS/IPI, EFD-Contribuicoes, DeSTDA (arquivos TXT)
+
+### Gaps identificados:
+- Company: falta taxRegime, crt, cnae, contabilista
+- NfeImportItem: falta cstIcms, baseIcms, icms, ipi, pis, cofins, st, frete, seguro, desconto
+- NFe Parser: so extrai dados basicos, precisa extrair todos os impostos
+- NFS-e Entrada: nao existe (so tem saida)
+- Periodo Fiscal / Apuracao: nao existe
+- SPED generators: nao existem
+
+### Status: DOCUMENTO DE PROJETO CRIADO — Aguardando decisao do usuario para iniciar implementacao
+
+---
+
+## Sessao 70 — 06/03/2026
+
+### Contexto:
+- Continuacao da sessao 69 (contexto compactado)
+- Usuario autorizou implementacao da Fase 1 com "Pode fazer"
+- Sessao 69 ja tinha implementado: schema Prisma, migration SQL, NFe parser expandido, NFe service atualizado, endpoints fiscal-config backend
+- Faltava: frontend fiscal config UI + dados tributarios na NFe page + build final
+
+### Implementacao concluida (Fase 1 Frontend):
+
+#### 1. Frontend `/settings/fiscal` — Regime Tributario + Contabilista:
+- **fetchFiscalConfig()**: carrega dados do `GET /companies/fiscal-config` no mount
+- **handleSaveFiscal()**: salva via `PATCH /companies/fiscal-config`
+- **Secao Regime Tributario**: seletor SN/LP/LR, CRT auto-calculado (readonly), Perfil EFD (A/B/C), CNAE, SUFRAMA
+- **Secao Contabilista Responsavel**: nome, CPF, CRC, CNPJ escritorio, CEP, telefone, email
+- **Botao "Salvar Dados Fiscais"**: com dirty check independente do botao NFS-e
+- **Separador visual**: linha horizontal com label "Configuracoes NFS-e (Saida)" entre fiscal e NFS-e
+- Titulo da pagina atualizado de "Configuracoes Fiscais (NFS-e)" para "Configuracoes Fiscais"
+
+#### 2. Frontend `/nfe` — Dados Tributarios na NFe Importada:
+- **NfeItem interface expandida**: +24 campos tributarios (cstIcms, baseIcms, aliqIcms, icmsCents, etc.)
+- **NfeImport interface expandida**: +14 campos de totais (indOper, finNfe, icmsCents, ipiCents, etc.)
+- **Resumo impostos no Step 1**: apos XML processado, mostra grid de impostos (ICMS, ICMS ST, IPI, PIS, COFINS, frete, seguro, desconto, outras despesas) — so aparece se existirem valores > 0
+- **Coluna CFOP na tabela de itens**: adicionada entre NCM e Unidade
+- **Sub-linha de impostos por item**: abaixo de cada item na tabela, linha sutil mostrando CST, ICMS (valor + aliquota), ICMS ST, IPI, PIS, COFINS — so aparece se existir algum imposto no item
+- **React.Fragment**: usado para renderizar 2 `<tr>` por item (principal + impostos)
+
+#### 3. Build verificado:
+- Backend: `npx tsc --noEmit` — 0 erros
+- Frontend: `npx next build` — 0 erros, todas as paginas compilam
+
+### Resumo completo da Fase 1 (sessoes 69-70):
+| Componente | Arquivo | Status |
+|---|---|---|
+| Schema Prisma | `schema.prisma` | ✅ Company + NfeImport + NfeImportItem |
+| Migration SQL | `20260306200000_fiscal_module_phase1/` | ✅ Aplicada |
+| NFe Parser | `nfe-parser.service.ts` | ✅ ICMS (21 variantes), IPI, PIS, COFINS |
+| NFe Service | `nfe.service.ts` | ✅ Salva todos os campos |
+| Company Service | `company.service.ts` | ✅ getFiscalConfig + updateFiscalConfig |
+| Company Controller | `company.controller.ts` | ✅ GET/PATCH fiscal-config |
+| Settings Fiscal UI | `settings/fiscal/page.tsx` | ✅ Regime + Contabilista |
+| NFe Entrada UI | `nfe/page.tsx` | ✅ Impostos no resumo + por item |
+
+### Status: FASE 1 CONCLUIDA — Pronto para deploy
+
+---
+
+## Sessao 71 — 07/03/2026
+
+### Contexto:
+- Continuacao da sessao 70 (contexto compactado)
+- Sessao 70 concluiu Fase 1 (fundacao fiscal)
+- Usuario autorizou "Fase 2" — NFS-e de Entrada
+
+### Implementacao concluida (Fase 2 — NFS-e de Entrada):
+
+#### 1. Schema Prisma + Migration:
+- Model `NfseEntrada` com 50+ campos: identificacao, prestador (link Partner), tomador, servico, valores em centavos, construcao civil, XML content, status
+- Relations: Company (1:N), Partner (1:N com named relation "NfseEntradaPrestador")
+- 4 indexes: companyId, companyId+competencia, companyId+status, prestadorCnpjCpf
+- Migration `20260306210000_nfse_entrada/migration.sql` aplicada
+
+#### 2. Backend — Parser XML (`nfse-entrada-parser.service.ts`):
+- Interface `ParsedNfseEntrada` com 35+ campos normalizados
+- Deteccao automatica de layout: ABRASF 2.04 vs Nacional/SPED
+- `parseAbrasf()`: navega CompNfse > Nfse > InfNfse com multiplos fallback paths
+- `parseNacional()`: navega NFSe > infNFSe > DPS > infDPS
+- Helpers: `dig()` (deep object navigation), `toCents()`, `str()`, `toFloat()`, `extractCnpjCpf()`
+- Usa fast-xml-parser
+
+#### 3. Backend — Service (`nfse-entrada.service.ts`):
+- `uploadXml()`: parse XML + auto-link prestador por CNPJ + create record
+- `createManual()`: criacao via formulario com auto-link prestador
+- `findAll()`: paginado com search (numero, razaoSocial, CNPJ, discriminacao), filtros competencia e status, ordenacao dinamica
+- `findOne()`, `update()` (whitelist de campos), `cancel()` (soft), `linkPrestador()` (auto-adiciona tipo FORNECEDOR)
+
+#### 4. Backend — Controller (`nfse-entrada.controller.ts`):
+- `POST /nfse-entrada/upload` — FileInterceptor, ADMIN/FISCAL
+- `POST /nfse-entrada/manual` — ADMIN/FISCAL
+- `GET /nfse-entrada` — lista paginada, ADMIN/FISCAL/FINANCEIRO/LEITURA
+- `GET /nfse-entrada/:id` — detalhe
+- `PATCH /nfse-entrada/:id` — update
+- `DELETE /nfse-entrada/:id` — cancel
+- `PATCH /nfse-entrada/:id/link-prestador` — vincular parceiro
+
+#### 5. Frontend — Pagina `/nfe/entrada/page.tsx`:
+- Upload XML drag & drop (raw fetch com FormData)
+- Formulario manual com secoes: Identificacao, Prestador, Servico, Valores (R$), Construcao Civil
+- Cards de resumo: total notas, valor servicos, ISS retido
+- FilterBar com filtros competencia + status + busca
+- Tabela com DraggableHeader + SortableHeader + useTableLayout + useTableParams
+- Linhas expandiveis com detalhes fiscais completos
+- Acao cancelar usando raw fetch DELETE
+- Conversao reais/centavos com helper `reaisToCents()`
+
+#### 6. Sidebar atualizado:
+- Submenu NFe: "NFe Entrada" | "NFS-e Entrada" | "NFS-e Saída"
+
+#### 7. Build verificado:
+- Backend `npx tsc --noEmit`: 0 erros
+- Frontend `npx next build`: 0 erros, pagina /nfe/entrada compilando
+
+### Status: FASE 2 CONCLUIDA — Pronto para deploy
+
+---
+
 ## Pendente — Configuracao de Email
 
 ### Decisoes do Juliano:

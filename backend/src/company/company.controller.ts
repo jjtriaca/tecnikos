@@ -78,6 +78,23 @@ export class CompanyController {
     return this.service.toggleFiscalModule(user.companyId, fiscalEnabled);
   }
 
+  /* ── Fiscal Config (Tax Regime + Accountant) ──── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
+  @Get('fiscal-config')
+  getFiscalConfig(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getFiscalConfig(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch('fiscal-config')
+  updateFiscalConfig(
+    @Body() body: Record<string, any>,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateFiscalConfig(user.companyId, body);
+  }
+
   /** Admin-only: soft delete */
   @Roles(UserRole.ADMIN)
   @Delete(':id')

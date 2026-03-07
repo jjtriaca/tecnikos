@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import PasswordInput from "@/components/ui/PasswordInput";
@@ -31,12 +31,37 @@ interface NfeItem {
   productCode: string;
   description: string;
   ncm: string;
+  cfop: string | null;
   unit: string;
   quantity: number;
   unitPriceCents: number;
   totalCents: number;
   productId: string | null;
   productDescription: string | null;
+  // Tax fields (Phase 1)
+  cstIcms: string | null;
+  baseIcmsCents: number | null;
+  aliqIcms: number | null;
+  icmsCents: number | null;
+  baseIcmsStCents: number | null;
+  aliqIcmsSt: number | null;
+  icmsStCents: number | null;
+  cstIpi: string | null;
+  baseIpiCents: number | null;
+  aliqIpi: number | null;
+  ipiCents: number | null;
+  cstPis: string | null;
+  basePisCents: number | null;
+  aliqPis: number | null;
+  pisCents: number | null;
+  cstCofins: string | null;
+  baseCofinsCents: number | null;
+  aliqCofins: number | null;
+  cofinsCents: number | null;
+  freteCents: number | null;
+  seguroCents: number | null;
+  descontoCents: number | null;
+  outrasDespCents: number | null;
 }
 
 interface NfeImport {
@@ -52,6 +77,21 @@ interface NfeImport {
   supplierMatchedName: string | null;
   items: NfeItem[];
   createdAt: string;
+  // Tax totals (Phase 1)
+  indOper: number | null;
+  finNfe: number | null;
+  baseIcmsCents: number | null;
+  icmsCents: number | null;
+  baseIcmsStCents: number | null;
+  icmsStCents: number | null;
+  ipiCents: number | null;
+  pisCents: number | null;
+  cofinsCents: number | null;
+  freteCents: number | null;
+  seguroCents: number | null;
+  descontoCents: number | null;
+  outrasDespCents: number | null;
+  infCpl: string | null;
 }
 
 interface SupplierAction {
@@ -1743,6 +1783,72 @@ export default function NfePage() {
                           <p className="text-sm font-medium text-slate-900">{nfeData.items?.length || 0} itens</p>
                         </div>
                       </div>
+
+                      {/* Tax totals summary */}
+                      {(nfeData.icmsCents || nfeData.ipiCents || nfeData.pisCents || nfeData.cofinsCents || nfeData.icmsStCents) && (
+                        <div className="mt-4 pt-3 border-t border-green-200">
+                          <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                            Impostos da Nota
+                          </p>
+                          <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-2">
+                            {nfeData.icmsCents != null && nfeData.icmsCents > 0 && (
+                              <div>
+                                <p className="text-[10px] text-slate-400">ICMS</p>
+                                <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.icmsCents)}</p>
+                              </div>
+                            )}
+                            {nfeData.icmsStCents != null && nfeData.icmsStCents > 0 && (
+                              <div>
+                                <p className="text-[10px] text-slate-400">ICMS ST</p>
+                                <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.icmsStCents)}</p>
+                              </div>
+                            )}
+                            {nfeData.ipiCents != null && nfeData.ipiCents > 0 && (
+                              <div>
+                                <p className="text-[10px] text-slate-400">IPI</p>
+                                <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.ipiCents)}</p>
+                              </div>
+                            )}
+                            {nfeData.pisCents != null && nfeData.pisCents > 0 && (
+                              <div>
+                                <p className="text-[10px] text-slate-400">PIS</p>
+                                <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.pisCents)}</p>
+                              </div>
+                            )}
+                            {nfeData.cofinsCents != null && nfeData.cofinsCents > 0 && (
+                              <div>
+                                <p className="text-[10px] text-slate-400">COFINS</p>
+                                <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.cofinsCents)}</p>
+                              </div>
+                            )}
+                            {nfeData.freteCents != null && nfeData.freteCents > 0 && (
+                              <div>
+                                <p className="text-[10px] text-slate-400">Frete</p>
+                                <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.freteCents)}</p>
+                              </div>
+                            )}
+                            {nfeData.seguroCents != null && nfeData.seguroCents > 0 && (
+                              <div>
+                                <p className="text-[10px] text-slate-400">Seguro</p>
+                                <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.seguroCents)}</p>
+                              </div>
+                            )}
+                            {nfeData.descontoCents != null && nfeData.descontoCents > 0 && (
+                              <div>
+                                <p className="text-[10px] text-slate-400">Desconto</p>
+                                <p className="text-xs font-medium text-green-600">{formatCurrency(nfeData.descontoCents)}</p>
+                              </div>
+                            )}
+                            {nfeData.outrasDespCents != null && nfeData.outrasDespCents > 0 && (
+                              <div>
+                                <p className="text-[10px] text-slate-400">Outras Desp.</p>
+                                <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.outrasDespCents)}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1924,6 +2030,7 @@ export default function NfePage() {
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Codigo</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Descricao</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-16">NCM</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-14">CFOP</th>
                           <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 w-12">Unid</th>
                           <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-600 w-14">Qtd</th>
                           <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-600 w-24">Preco Unit.</th>
@@ -1937,14 +2044,15 @@ export default function NfePage() {
                           const action = ia?.action || "CREATE";
                           const isLinkedAuto = item.productId && action === "LINK";
 
-                          return (
-                            <tr key={item.itemNumber} className="hover:bg-slate-50 transition-colors">
+                          return (<React.Fragment key={item.itemNumber}>
+                            <tr className="hover:bg-slate-50 transition-colors">
                               <td className="px-3 py-2 text-slate-500 text-xs">{item.itemNumber}</td>
                               <td className="px-3 py-2 text-slate-700 font-mono text-xs">{item.productCode}</td>
                               <td className="px-3 py-2 text-slate-900 text-xs max-w-[180px] truncate" title={item.description}>
                                 {item.description}
                               </td>
                               <td className="px-3 py-2 text-slate-500 text-xs">{item.ncm}</td>
+                              <td className="px-3 py-2 text-slate-500 text-xs">{item.cfop || "\u2014"}</td>
                               <td className="px-3 py-2 text-center text-slate-500 text-xs">{item.unit}</td>
                               <td className="px-3 py-2 text-right text-slate-700 text-xs">{item.quantity}</td>
                               <td className="px-3 py-2 text-right text-slate-700 text-xs">{formatCurrency(item.unitPriceCents)}</td>
@@ -2018,7 +2126,33 @@ export default function NfePage() {
                                 )}
                               </td>
                             </tr>
-                          );
+                            {/* Tax detail sub-row */}
+                            {(item.icmsCents || item.ipiCents || item.pisCents || item.cofinsCents || item.icmsStCents) ? (
+                              <tr className="bg-slate-50/60 border-b border-slate-100">
+                                <td></td>
+                                <td colSpan={9} className="px-3 py-1.5">
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] text-slate-500">
+                                    {item.cstIcms && <span>CST: <b className="text-slate-600">{item.cstIcms}</b></span>}
+                                    {item.icmsCents != null && item.icmsCents > 0 && (
+                                      <span>ICMS: <b className="text-slate-600">{formatCurrency(item.icmsCents)}</b>{item.aliqIcms ? ` (${item.aliqIcms}%)` : ""}</span>
+                                    )}
+                                    {item.icmsStCents != null && item.icmsStCents > 0 && (
+                                      <span>ICMS ST: <b className="text-slate-600">{formatCurrency(item.icmsStCents)}</b></span>
+                                    )}
+                                    {item.ipiCents != null && item.ipiCents > 0 && (
+                                      <span>IPI: <b className="text-slate-600">{formatCurrency(item.ipiCents)}</b>{item.aliqIpi ? ` (${item.aliqIpi}%)` : ""}</span>
+                                    )}
+                                    {item.pisCents != null && item.pisCents > 0 && (
+                                      <span>PIS: <b className="text-slate-600">{formatCurrency(item.pisCents)}</b>{item.aliqPis ? ` (${item.aliqPis}%)` : ""}</span>
+                                    )}
+                                    {item.cofinsCents != null && item.cofinsCents > 0 && (
+                                      <span>COFINS: <b className="text-slate-600">{formatCurrency(item.cofinsCents)}</b>{item.aliqCofins ? ` (${item.aliqCofins}%)` : ""}</span>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </React.Fragment>);
                         })}
                       </tbody>
                     </table>

@@ -142,4 +142,60 @@ export class CompanyService {
     });
     return { fiscalEnabled };
   }
+
+  /* ── Fiscal Config (Tax Regime + Accountant) ─────── */
+
+  async getFiscalConfig(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        taxRegime: true,
+        crt: true,
+        cnae: true,
+        suframa: true,
+        fiscalProfile: true,
+        contabilistName: true,
+        contabilistCpf: true,
+        contabilistCrc: true,
+        contabilistCnpj: true,
+        contabilistCep: true,
+        contabilistPhone: true,
+        contabilistEmail: true,
+      },
+    });
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+    return company;
+  }
+
+  async updateFiscalConfig(companyId: string, data: Record<string, any>) {
+    const FISCAL_FIELDS = [
+      'taxRegime', 'crt', 'cnae', 'suframa', 'fiscalProfile',
+      'contabilistName', 'contabilistCpf', 'contabilistCrc',
+      'contabilistCnpj', 'contabilistCep', 'contabilistPhone', 'contabilistEmail',
+    ];
+
+    const updateData: Record<string, unknown> = {};
+    for (const key of FISCAL_FIELDS) {
+      if (data[key] !== undefined) {
+        updateData[key] = data[key];
+      }
+    }
+
+    // Auto-set CRT based on taxRegime
+    if (updateData.taxRegime) {
+      const regimeToCrt: Record<string, number> = { SN: 1, LP: 3, LR: 3 };
+      updateData.crt = regimeToCrt[updateData.taxRegime as string] ?? 3;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return this.getFiscalConfig(companyId);
+    }
+
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: updateData,
+    });
+
+    return this.getFiscalConfig(companyId);
+  }
 }

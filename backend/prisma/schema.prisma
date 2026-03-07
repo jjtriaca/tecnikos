@@ -107,6 +107,21 @@ model Company {
   evalClientWeight Int    @default(60)  // peso do cliente em % (0-100)
   evalMinRating    Float  @default(3.0) // nota mínima para receber demandas (1.0-5.0)
 
+  // Configurações Fiscais
+  taxRegime         String   @default("SN")  // SN | LP | LR (Simples Nacional | Lucro Presumido | Lucro Real)
+  crt               Int      @default(1)     // Código Regime Tributário: 1=SN, 2=SN excesso sublimite, 3=Regime Normal
+  cnae              String?                  // CNAE principal (7 dígitos, ex: "4120400")
+  suframa           String?                  // Inscrição SUFRAMA
+  fiscalProfile     String   @default("A")   // Perfil EFD ICMS/IPI: A (detalhado) | B (sintético) | C (simplificado)
+  // Contabilista (SPED Reg 0100)
+  contabilistName   String?
+  contabilistCpf    String?
+  contabilistCrc    String?
+  contabilistCnpj   String?
+  contabilistCep    String?
+  contabilistPhone  String?
+  contabilistEmail  String?
+
   status        String   @default("ATIVA")
   commissionBps Int      @default(1000) // 10.00% (basis points)
   fiscalEnabled Boolean  @default(false) // Módulo fiscal (NFS-e) habilitado
@@ -138,6 +153,7 @@ model Company {
   financialAccounts    FinancialAccount[]
   services             Service[]
   cardFeeRates         CardFeeRate[]
+  nfseEntradas         NfseEntrada[]
 }
 
 model User {
@@ -219,6 +235,7 @@ model Partner {
   whatsappMessages     WhatsAppMessage[]
   productEquivalents   ProductEquivalent[]
   obras                Obra[]
+  nfseEntradasPrestador NfseEntrada[] @relation("NfseEntradaPrestador")
 
   @@index([companyId])
   @@index([email])
@@ -791,6 +808,23 @@ model NfeImport {
   status        String   @default("PENDING") // PENDING, PROCESSED, CANCELLED
   financialEntryId String? // Lançamento financeiro criado automaticamente
   sefazDocumentId  String? // Link com SefazDocument (null = upload manual)
+  // Campos fiscais expandidos (Fase 1 - Módulo Fiscal)
+  indOper           Int?      // 0=Entrada, 1=Saída
+  finNfe            Int?      // Finalidade: 1=Normal, 2=Complementar, 3=Ajuste, 4=Devolução
+  codSit            String?   // Código Situação: 00=Regular, 01=Extemporâneo, etc.
+  baseIcmsCents     Int?      // BC ICMS total
+  icmsCents         Int?      // Valor ICMS total
+  baseIcmsStCents   Int?      // BC ICMS-ST total
+  icmsStCents       Int?      // Valor ICMS-ST total
+  ipiCents          Int?      // Valor IPI total
+  pisCents          Int?      // Valor PIS total
+  cofinsCents       Int?      // Valor COFINS total
+  freteCents        Int?      // Valor total do frete
+  seguroCents       Int?      // Valor total do seguro
+  descontoCents     Int?      // Valor total de descontos
+  outrasDespCents   Int?      // Valor outras despesas acessórias
+  infCpl            String?   // Informações complementares da nota
+  xmlContent        String?   // XML completo para referência futura (SPED)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -815,6 +849,31 @@ model NfeImportItem {
   totalCents      Int?     // Total do item em centavos
   productId       String?  // Product vinculado (se existir)
   action          String   @default("PENDING") // PENDING, LINKED, CREATED, SKIPPED
+  // Campos tributários expandidos (Fase 1 - Módulo Fiscal)
+  cstIcms           String?   // CST ICMS (3 dígitos: origem + tributação, ex: "000", "060")
+  modBcIcms         Int?      // Modalidade BC ICMS: 0=MVA, 1=Pauta, 2=PreçoTab, 3=ValorOper
+  baseIcmsCents     Int?      // Base de cálculo ICMS
+  aliqIcms          Float?    // Alíquota ICMS %
+  icmsCents         Int?      // Valor ICMS
+  baseIcmsStCents   Int?      // BC ICMS Substituição Tributária
+  aliqIcmsSt        Float?    // Alíquota ICMS-ST %
+  icmsStCents       Int?      // Valor ICMS-ST
+  cstIpi            String?   // CST IPI (2 dígitos, ex: "00", "49", "99")
+  baseIpiCents      Int?      // BC IPI
+  aliqIpi           Float?    // Alíquota IPI %
+  ipiCents          Int?      // Valor IPI
+  cstPis            String?   // CST PIS (2 dígitos, ex: "01", "50", "70", "99")
+  basePisCents      Int?      // BC PIS
+  aliqPis           Float?    // Alíquota PIS %
+  pisCents          Int?      // Valor PIS
+  cstCofins         String?   // CST COFINS (2 dígitos, ex: "01", "50", "70", "99")
+  baseCofinsCents   Int?      // BC COFINS
+  aliqCofins        Float?    // Alíquota COFINS %
+  cofinsCents       Int?      // Valor COFINS
+  freteCents        Int?      // Valor do frete rateado para este item
+  seguroCents       Int?      // Valor do seguro rateado
+  descontoCents     Int?      // Valor de desconto
+  outrasDespCents   Int?      // Outras despesas acessórias
   createdAt       DateTime @default(now())
 
   nfeImport NfeImport @relation(fields: [nfeImportId], references: [id])
@@ -1340,6 +1399,82 @@ model FinancialAccount {
   @@unique([companyId, code])
   @@index([companyId, parentId])
   @@index([companyId, type])
+}
+
+// ========== NFS-e de Entrada (Serviços Tomados) ==========
+
+model NfseEntrada {
+  id                String   @id @default(uuid())
+  companyId         String
+
+  // Identificação
+  numero            String?    // Número da NFS-e
+  codigoVerificacao String?    // Código de verificação/autenticidade
+  dataEmissao       DateTime?  // Data de emissão
+  competencia       String?    // Competência "AAAA-MM"
+  layout            String?    // ABRASF | NACIONAL | MANUAL
+
+  // Prestador (quem emitiu a nota — fornecedor do serviço)
+  prestadorId       String?    // Partner vinculado (se existir)
+  prestadorCnpjCpf  String?    // CNPJ ou CPF do prestador
+  prestadorRazaoSocial String? // Razão social
+  prestadorIm       String?    // Inscrição Municipal
+  prestadorMunicipio String?   // Código IBGE do município
+  prestadorUf       String?    // UF
+
+  // Tomador (a empresa = Company)
+  tomadorCnpj       String?    // CNPJ da empresa tomadora
+
+  // Serviço
+  itemListaServico  String?    // Item LC 116 (ex: "7.02")
+  codigoCnae        String?    // CNAE do serviço
+  codigoTribMunicipio String?  // Código tributário municipal
+  codigoTribNacional String?   // cTribNac (Nacional)
+  discriminacao     String?    // Descrição do serviço
+  municipioServico  String?    // IBGE do município de prestação
+  naturezaOperacao  String?    // 1-6 (ABRASF)
+  exigibilidadeIss  String?    // 1-7 (ABRASF)
+
+  // Valores (em centavos)
+  valorServicosCents  Int?
+  valorDeducoesCents  Int?
+  baseCalculoCents    Int?
+  aliquotaIss         Float?
+  issRetido           Boolean  @default(false)
+  valorIssCents       Int?
+  valorPisCents       Int?
+  valorCofinsCents    Int?
+  valorInssCents      Int?
+  valorIrCents        Int?
+  valorCsllCents      Int?
+  outrasRetCents      Int?
+  descontoIncondCents Int?
+  descontoCondCents   Int?
+  valorLiquidoCents   Int?
+
+  // Construção Civil
+  codigoObra          String?  // CNO/CEI
+  art                 String?  // ART/RRT
+
+  // Links
+  financialEntryId    String?
+  obraId              String?
+
+  // XML armazenado
+  xmlContent          String?
+
+  // Controle
+  status              String   @default("ACTIVE") // ACTIVE | CANCELLED
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  prestador Partner?  @relation("NfseEntradaPrestador", fields: [prestadorId], references: [id])
+
+  @@index([companyId])
+  @@index([companyId, competencia])
+  @@index([companyId, status])
+  @@index([prestadorCnpjCpf])
 }
 
 // ========== Cadastro de Serviços ==========

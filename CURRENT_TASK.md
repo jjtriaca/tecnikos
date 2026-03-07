@@ -1,41 +1,48 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: ✅ CONCLUÍDO — Polimento pós-segurança (v1.00.47)
+## Status: ✅ FASE 2 CONCLUIDA — NFS-e de Entrada
 
-## Última sessão completada: 50 (25/02/2026)
-- Sessão 48: Security Hardening (v1.00.45) — 8 itens críticos
-- Sessão 49: Infra de deploy Docker + Nginx (v1.00.46)
-- Sessão 50: Swagger, Logger, CI/CD, Health (v1.00.47)
+## Última sessão: 71 (07/03/2026)
+- Sessões 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
+- Sessão 63: Fix NFe Import Flow (v1.01.20)
+- Sessões 64-68: 4 estudos fiscais completos
+- Sessão 69-70: Fase 1 — Fundação Fiscal (regime, contabilista, impostos NFe)
+- Sessão 71: Fase 2 — NFS-e de Entrada completa (backend + frontend)
 
-## Checklist de produção:
-### Segurança (vermelho) — ✅ COMPLETO
-- [x] JWT Secret forte (v1.00.45)
-- [x] Helmet headers (v1.00.45)
-- [x] Rate limiting diferenciado (v1.00.45)
-- [x] OTP removido do console.log (v1.00.45)
-- [x] Senha mínima 8 chars (v1.00.45)
-- [x] CORS configurável (v1.00.45)
-- [x] Middleware server-side (v1.00.45)
-- [x] Error boundary + 404 (v1.00.45)
+## O que foi feito na Fase 2:
+- [x] Model NfseEntrada no Prisma (50+ campos, indexes, FK)
+- [x] Migration SQL aplicada (20260306210000_nfse_entrada)
+- [x] Parser XML dual: ABRASF 2.04 + Nacional/SPED (nfse-entrada-parser.service.ts)
+- [x] Service CRUD completo (upload XML, manual, findAll, findOne, update, cancel, linkPrestador)
+- [x] Controller REST com 7 endpoints protegidos por roles
+- [x] Module registrado no app.module.ts
+- [x] Frontend: pagina /nfe/entrada com upload XML + formulario manual
+- [x] Frontend: tabela com DraggableHeader/SortableHeader, filtros, paginacao, detalhes expandiveis
+- [x] Frontend: cards de resumo (total notas, valor servicos, ISS retido)
+- [x] Sidebar: link NFS-e Entrada adicionado no submenu NFe
+- [x] Build backend + frontend: zero erros
 
-### Infraestrutura (vermelho) — ✅ COMPLETO
-- [x] Docker multi-stage (v1.00.46)
-- [x] Nginx reverse proxy HTTPS (v1.00.46)
-- [x] Deploy script automatizado (v1.00.46)
+## Projeto Fiscal — Próximas Fases
 
-### Polimento (amarelo) — ✅ COMPLETO
-- [x] Console.log → NestJS Logger (v1.00.47)
-- [x] Swagger/OpenAPI /api/docs (v1.00.47)
-- [x] GitHub Actions CI/CD (v1.00.47)
-- [x] Health endpoint enriquecido + /health/db (v1.00.47)
-- [x] Frontend Dockerfile build arg (v1.00.47)
+### FASE 3: Escrituração e Relatórios
+- [ ] Model FiscalPeriod
+- [ ] Relatório Livro de Entradas
+- [ ] Relatório Serviços Tomados
+- [ ] Dashboard Fiscal com obrigações e prazos
 
-### Pendente (pode polir depois de ir para produção):
-- [ ] TypeScript strict — limpar 93 `as any` no backend (requer prisma generate)
-- [ ] Testes unitários/integração
-- [ ] Sentry/error tracking
-- [ ] Image optimization (next/image)
-- [ ] Acessibilidade (aria-labels, keyboard nav)
+### FASE 4: Geração SPED
+- [ ] Gerador EFD-ICMS/IPI (arquivo TXT)
+- [ ] Gerador EFD-Contribuições (arquivo TXT)
+- [ ] DeSTDA para SN
+
+## Documentos de referência:
+- `memory/projeto-modulo-fiscal.md` — Projeto consolidado com todas as fases
+- `memory/estudo-obrigacoes-fiscais-por-regime.md` — Obrigações SN/LP/LR
+- `memory/sped-fiscal-efd-icms-ipi.md` — EFD-ICMS/IPI detalhado
+- `memory/estudo-sped-contribuicoes.md` — EFD-Contribuições detalhado
+- `memory/estudo-nfse-entrada-iss-completo.md` — NFS-e entrada + ISS
+
+## Versão atual: v1.01.20 (pendente deploy com fase 1)
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

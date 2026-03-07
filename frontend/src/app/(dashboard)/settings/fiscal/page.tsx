@@ -7,8 +7,38 @@ import PasswordInput from "@/components/ui/PasswordInput";
 import { useFiscalModule } from "@/contexts/FiscalModuleContext";
 
 /* ===================================================================
-   FISCAL SETTINGS — NFS-e Configuration (Focus NFe)
+   FISCAL SETTINGS — Tax Regime + NFS-e Configuration
    =================================================================== */
+
+interface FiscalConfig {
+  taxRegime: string;
+  crt: number;
+  cnae: string | null;
+  suframa: string | null;
+  fiscalProfile: string;
+  contabilistName: string | null;
+  contabilistCpf: string | null;
+  contabilistCrc: string | null;
+  contabilistCnpj: string | null;
+  contabilistCep: string | null;
+  contabilistPhone: string | null;
+  contabilistEmail: string | null;
+}
+
+const EMPTY_FISCAL: FiscalConfig = {
+  taxRegime: "SN",
+  crt: 1,
+  cnae: null,
+  suframa: null,
+  fiscalProfile: "A",
+  contabilistName: null,
+  contabilistCpf: null,
+  contabilistCrc: null,
+  contabilistCnpj: null,
+  contabilistCep: null,
+  contabilistPhone: null,
+  contabilistEmail: null,
+};
 
 interface NfseConfig {
   id?: string;
@@ -102,17 +132,22 @@ function editableSnapshot(c: NfseConfig, t: string): string {
 export default function FiscalSettingsPage() {
   const { fiscalEnabled, refresh: refreshFiscal } = useFiscalModule();
   const [config, setConfig] = useState<NfseConfig>(EMPTY_CONFIG);
+  const [fiscal, setFiscal] = useState<FiscalConfig>(EMPTY_FISCAL);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingFiscal, setSavingFiscal] = useState(false);
   const [togglingModule, setTogglingModule] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [token, setToken] = useState("");
   const [savedSnapshot, setSavedSnapshot] = useState<string>("");
+  const [savedFiscalSnapshot, setSavedFiscalSnapshot] = useState<string>("");
   const successTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentSnapshot = editableSnapshot(config, token);
   const isDirty = savedSnapshot !== "" && currentSnapshot !== savedSnapshot;
+  const fiscalSnapshot = JSON.stringify(fiscal);
+  const isFiscalDirty = savedFiscalSnapshot !== "" && fiscalSnapshot !== savedFiscalSnapshot;
 
   function flashSuccess(msg = "Configuracoes salvas com sucesso!", ms = 3000) {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -139,9 +174,22 @@ export default function FiscalSettingsPage() {
     }
   }, []);
 
+  const fetchFiscalConfig = useCallback(async () => {
+    try {
+      const data = await api.get<FiscalConfig>("/companies/fiscal-config");
+      if (data) {
+        setFiscal(data);
+        setSavedFiscalSnapshot(JSON.stringify(data));
+      }
+    } catch {
+      // Fiscal config not available — use defaults
+    }
+  }, []);
+
   useEffect(() => {
     fetchConfig();
-  }, [fetchConfig]);
+    fetchFiscalConfig();
+  }, [fetchConfig, fetchFiscalConfig]);
 
   async function handleSave() {
     setSaving(true);
@@ -187,6 +235,25 @@ export default function FiscalSettingsPage() {
     }
   }
 
+  async function handleSaveFiscal() {
+    setSavingFiscal(true);
+    setErrorMsg(null);
+    try {
+      const payload: Record<string, any> = {};
+      for (const [key, value] of Object.entries(fiscal)) {
+        payload[key] = value;
+      }
+      const result = await api.patch<FiscalConfig>("/companies/fiscal-config", payload);
+      setFiscal(result);
+      setSavedFiscalSnapshot(JSON.stringify(result));
+      flashSuccess("Configuracoes fiscais salvas com sucesso!");
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Erro ao salvar configuracoes fiscais");
+    } finally {
+      setSavingFiscal(false);
+    }
+  }
+
   async function handleToggleFiscal() {
     setTogglingModule(true);
     setErrorMsg(null);
@@ -227,9 +294,9 @@ export default function FiscalSettingsPage() {
           <span className="text-slate-300">/</span>
           <span className="text-sm text-slate-700 font-medium">Fiscal</span>
         </div>
-        <h1 className="text-2xl font-bold text-slate-900">Configuracoes Fiscais (NFS-e)</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Configuracoes Fiscais</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Configure a emissao de Nota Fiscal de Servico Eletronica via Focus NFe
+          Regime tributario, dados do contabilista e emissao de NFS-e
         </p>
       </div>
 
@@ -288,6 +355,182 @@ export default function FiscalSettingsPage() {
       )}
 
       {!fiscalEnabled ? null : (<>
+
+      {/* ── Regime Tributario ── */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+          <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+          Regime Tributario
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className={labelClass}>Regime de Tributacao</label>
+            <select
+              value={fiscal.taxRegime}
+              onChange={(e) => {
+                const regime = e.target.value;
+                const crtMap: Record<string, number> = { SN: 1, LP: 3, LR: 3 };
+                setFiscal({ ...fiscal, taxRegime: regime, crt: crtMap[regime] ?? 3 });
+              }}
+              className={inputClass}
+            >
+              <option value="SN">Simples Nacional</option>
+              <option value="LP">Lucro Presumido</option>
+              <option value="LR">Lucro Real</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>CRT (Cod. Regime Trib.)</label>
+            <input
+              type="number"
+              value={fiscal.crt}
+              readOnly
+              className={inputClass + " bg-slate-50 text-slate-500 cursor-not-allowed"}
+            />
+            <p className="text-xs text-slate-400 mt-1">Definido automaticamente pelo regime</p>
+          </div>
+          <div>
+            <label className={labelClass}>Perfil EFD (SPED)</label>
+            <select
+              value={fiscal.fiscalProfile}
+              onChange={(e) => setFiscal({ ...fiscal, fiscalProfile: e.target.value })}
+              className={inputClass}
+            >
+              <option value="A">A — Completo</option>
+              <option value="B">B — Intermediario</option>
+              <option value="C">C — Simplificado</option>
+            </select>
+            <p className="text-xs text-slate-400 mt-1">Determina nivel de detalhamento no SPED Fiscal</p>
+          </div>
+          <div>
+            <label className={labelClass}>CNAE Principal</label>
+            <input
+              type="text"
+              value={fiscal.cnae || ""}
+              onChange={(e) => setFiscal({ ...fiscal, cnae: e.target.value || null })}
+              placeholder="Ex: 4321500"
+              maxLength={7}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Inscricao SUFRAMA</label>
+            <input
+              type="text"
+              value={fiscal.suframa || ""}
+              onChange={(e) => setFiscal({ ...fiscal, suframa: e.target.value || null })}
+              placeholder="Se aplicavel"
+              className={inputClass}
+            />
+            <p className="text-xs text-slate-400 mt-1">Apenas para empresas na Zona Franca de Manaus</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Contabilista Responsavel ── */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+          <svg className="w-4 h-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          Contabilista Responsavel
+          <span className="text-xs font-normal text-slate-400 ml-1">(obrigatorio para SPED)</span>
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className={labelClass}>Nome</label>
+            <input
+              type="text"
+              value={fiscal.contabilistName || ""}
+              onChange={(e) => setFiscal({ ...fiscal, contabilistName: e.target.value || null })}
+              placeholder="Nome completo"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>CPF</label>
+            <input
+              type="text"
+              value={fiscal.contabilistCpf || ""}
+              onChange={(e) => setFiscal({ ...fiscal, contabilistCpf: e.target.value || null })}
+              placeholder="000.000.000-00"
+              maxLength={14}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>CRC</label>
+            <input
+              type="text"
+              value={fiscal.contabilistCrc || ""}
+              onChange={(e) => setFiscal({ ...fiscal, contabilistCrc: e.target.value || null })}
+              placeholder="Registro no CRC"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>CNPJ Escritorio</label>
+            <input
+              type="text"
+              value={fiscal.contabilistCnpj || ""}
+              onChange={(e) => setFiscal({ ...fiscal, contabilistCnpj: e.target.value || null })}
+              placeholder="00.000.000/0000-00"
+              maxLength={18}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>CEP</label>
+            <input
+              type="text"
+              value={fiscal.contabilistCep || ""}
+              onChange={(e) => setFiscal({ ...fiscal, contabilistCep: e.target.value || null })}
+              placeholder="00000-000"
+              maxLength={9}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Telefone</label>
+            <input
+              type="text"
+              value={fiscal.contabilistPhone || ""}
+              onChange={(e) => setFiscal({ ...fiscal, contabilistPhone: e.target.value || null })}
+              placeholder="(00) 00000-0000"
+              className={inputClass}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className={labelClass}>Email</label>
+            <input
+              type="email"
+              value={fiscal.contabilistEmail || ""}
+              onChange={(e) => setFiscal({ ...fiscal, contabilistEmail: e.target.value || null })}
+              placeholder="contabilidade@email.com"
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        {/* Fiscal config save button */}
+        <div className="flex justify-end mt-6 pt-4 border-t border-slate-100">
+          <button
+            onClick={handleSaveFiscal}
+            disabled={savingFiscal || !isFiscalDirty}
+            className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {savingFiscal ? "Salvando..." : "Salvar Dados Fiscais"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Separator — NFS-e Configuration ── */}
+      <div className="relative mb-6">
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+        <div className="relative flex justify-center">
+          <span className="bg-slate-50 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Configuracoes NFS-e (Saida)
+          </span>
+        </div>
+      </div>
 
       {/* ── Focus NFe Connection ── */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
