@@ -502,16 +502,42 @@ export class PrismaService
     }
   }
 
-  /** Fix orphan IMPORTED status - reset docs marked IMPORTED without linked NfeImport back to FETCHED */
+  /** Fix orphan IMPORTED status - only docs processed through wizard should be IMPORTED */
   private async fixOrphanImportedStatus(): Promise<void> {
     try {
-      const result = await this.$executeRawUnsafe(`
+      // Case 1: IMPORTED without any NfeImport link
+      const r1 = await this.$executeRawUnsafe(`
         UPDATE "SefazDocument"
         SET status = 'FETCHED'
         WHERE status = 'IMPORTED' AND "nfeImportId" IS NULL
       `);
-      if (typeof result === 'number' && result > 0) {
-        this.logger.log(`Fixed ${result} SefazDocument(s) with orphan IMPORTED status → FETCHED`);
+      if (typeof r1 === 'number' && r1 > 0) {
+        this.logger.log(`Fixed ${r1} SefazDocument(s) without nfeImportId → FETCHED`);
+      }
+
+      // Case 2: IMPORTED linked to PENDING NfeImport (auto-imported, never processed)
+      const r2 = await this.$executeRawUnsafe(`
+        UPDATE "SefazDocument"
+        SET status = 'FETCHED', "nfeImportId" = NULL
+        WHERE status = 'IMPORTED'
+          AND "nfeImportId" IS NOT NULL
+          AND "nfeImportId" IN (SELECT id FROM "NfeImport" WHERE status = 'PENDING')
+      `);
+      if (typeof r2 === 'number' && r2 > 0) {
+        this.logger.log(`Fixed ${r2} SefazDocument(s) linked to PENDING NfeImport → FETCHED`);
+        // Clean up orphan NfeImportItems and NfeImports
+        await this.$executeRawUnsafe(`
+          DELETE FROM "NfeImportItem"
+          WHERE "nfeImportId" IN (
+            SELECT id FROM "NfeImport" WHERE status = 'PENDING'
+              AND id NOT IN (SELECT "nfeImportId" FROM "SefazDocument" WHERE "nfeImportId" IS NOT NULL)
+          )
+        `);
+        await this.$executeRawUnsafe(`
+          DELETE FROM "NfeImport"
+          WHERE status = 'PENDING'
+            AND id NOT IN (SELECT "nfeImportId" FROM "SefazDocument" WHERE "nfeImportId" IS NOT NULL)
+        `);
       }
     } catch (err) {
       this.logger.warn('fixOrphanImportedStatus failed (non-fatal):', err);

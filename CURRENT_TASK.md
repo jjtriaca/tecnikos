@@ -1,8 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 74 CONCLUIDA — v1.01.28 em producao
+## Status: SESSAO 75 CONCLUIDA — v1.01.29 em producao
 
-## Ultima sessao: 74 (07/03/2026)
+## Ultima sessao: 75 (07/03/2026)
 - Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
 - Sessao 63: Fix NFe Import Flow (v1.01.20)
 - Sessoes 64-68: 4 estudos fiscais completos
@@ -11,38 +11,43 @@
 - Sessao 72: Fase 4 — Geracao SPED + Deploy v1.01.23
 - Sessao 73: WhatsApp Test Send + Modulo Email SMTP + Fix + Privacy Page (v1.01.24-27)
 - Sessao 74: Zoho Mail DNS + Logo Tecnikos + Deploy v1.01.28
+- Sessao 75: Manifestacao do Destinatario + Fix IMPORTED + Deploy v1.01.29
 
-## O que foi feito na sessao 74:
-### Zoho Mail — Email Profissional
-- [x] Conta Zoho Workplace criada (Mail 10GB plan)
-- [x] Dominio tecnikos.com.br adicionado no Zoho
-- [x] Habilitado "Modo Avancado" DNS no Registro.br
-- [x] Verificacao dominio via arquivo HTML no servidor (nginx location block)
-- [x] Email contato@tecnikos.com.br criado como Superadministrador
-- [x] Registros MX adicionados (10 mx.zoho.com, 20 mx2.zoho.com, 50 mx3.zoho.com)
-- [x] Registro SPF adicionado (v=spf1 include:zohomail.com ~all)
-- [x] Registro DKIM adicionado (zmail._domainkey com chave RSA)
-- [x] "Zona DNS atualizada com sucesso!" confirmado pelo Registro.br
-- [ ] Verificacao final no Zoho (aguardando propagacao DNS)
+## O que foi feito na sessao 75:
 
-### Logo Tecnikos — V2 GPS Pin Contorno
-- [x] Logo criada: V2 (Pin Contorno + T Bold) — estilo minimalista/moderno, azul + branco
-- [x] Arquivos SVG em `brand/` e `frontend/public/`
-- [x] Aplicada no favicon, sidebar, login (admin e tecnico)
-- [x] "FieldService" renomeado para "Tecnikos"
-- [x] Deploy v1.01.28
+### Zoho Mail — DNS Verificado
+- [x] DNS propagou com sucesso (MX, SPF, DKIM)
+- [x] Zoho verificou TODOS os registros com exito
+- [x] Email contato@tecnikos.com.br PRONTO para uso
 
-### Limpeza
-- [x] 3 lancamentos financeiros cancelados apagados do banco
+### SMTP — Configurado e Funcionando
+- [x] Campos preenchidos: smtp.zoho.com, porta 587, STARTTLS, contato@tecnikos.com.br
+- [x] Senha configurada e teste de envio realizado com sucesso
 
-### Status DNS (verificado sessao 75):
-- Todos os 7 registros confirmados na zona DNS do Registro.br (A, 3xMX, SPF, DKIM, CNAME)
-- "Modo Avancado" do Registro.br AINDA em transicao (~28 min a partir de 18:06)
-- Apos concluir transicao: DNS propaga automaticamente e Zoho verifica
-- Para verificar: https://mailadmin.zoho.com/hosting?domain=tecnikos.com.br → "Verificar todos os registros"
+### Manifestacao do Destinatario — COMPLETA
+- [x] Backend: endpoint POST /nfe/sefaz/documents/:id/manifest
+- [x] Backend: FocusNfeProvider.manifestNfe() + downloadNfeXml()
+- [x] Backend: Auto-manifesto ciencia (cron apos fetch, max 10/ciclo)
+- [x] Backend: Download XML apos ciencia (procNFe upgrade)
+- [x] Frontend: Botao "Manifestar" com dropdown (Ciencia, Confirmacao, Desconhecimento, Nao Realizada)
+- [x] Frontend: Botao "Confirmar/Recusar" para docs ja com ciencia
+- [x] Frontend: Toggle "Manifesto automatico" na area de config SEFAZ
+- [x] Frontend: Coluna "Manifesto" na tabela com ManifestBadge
+- [x] Frontend: Click-outside handler para fechar dropdown
+- [x] Migration: 20260307190000_sefaz_manifestation
+- [x] Self-healing: ensureSefazManifestColumns() no PrismaService
+
+### Fix Status IMPORTADA
+- [x] Self-healing: fixOrphanImportedStatus() — reseta IMPORTED sem nfeImportId para FETCHED
+- [x] Verificacao: nenhum orfao encontrado (49 docs IMPORTED todos com nfeImportId)
+
+### Deploy v1.01.29
+- [x] Backend: 0 erros TypeScript
+- [x] Frontend: 0 erros build
+- [x] Deploy: sucesso, v1.01.29 online
 
 ### PENDENTE — WhatsApp (parado)
-- Comprar chip dedicado para WhatsApp Business API
+- Comprar chip dedicado para WhatsApp Business API — Chip Vivo comprado, ativacao pendente
 - Adicionar numero real no Meta > API Setup
 - Gerar token permanente do System User "Tecnikos API"
 - Configurar no Tecnikos com novo Phone Number ID e token
@@ -50,7 +55,7 @@
 ## Projetos Futuros
 - **Registro de marca INPI**: Solicitar registro da marca "Tecnikos" no INPI (Instituto Nacional da Propriedade Industrial). Logo SVG disponivel em `brand/`.
 
-## Versao atual: v1.01.28 — em producao
+## Versao atual: v1.01.29 — em producao
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

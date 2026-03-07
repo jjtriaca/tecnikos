@@ -1325,7 +1325,7 @@ export default function NfePage() {
               <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "1000px", width: "max-content" }}>
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="py-3 px-3 text-xs font-semibold uppercase text-slate-600" style={{ width: "280px", minWidth: "280px" }}>
+                    <th className="py-2 px-2 text-[10px] font-semibold uppercase text-slate-600" style={{ width: "200px", minWidth: "200px" }}>
                       Acoes
                     </th>
                     {sefazOrderedColumns.map((col, idx) => (
@@ -1359,16 +1359,16 @@ export default function NfePage() {
                 <tbody className="divide-y divide-slate-100">
                   {sefazDocs.map((doc) => (
                     <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-3" style={{ width: "280px", minWidth: "280px" }}>
-                        <div className="flex items-center gap-1 flex-wrap">
+                      <td className="py-2 px-2" style={{ width: "200px", minWidth: "200px" }}>
+                        <div className="flex items-center gap-0.5 flex-wrap">
                           {doc.schema === "procNFe" && doc.status === "FETCHED" && (
                             <button
                               onClick={() => handleImportDoc(doc.id)}
                               disabled={importingDocId === doc.id}
-                              className="rounded border border-green-200 bg-green-50 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
+                              className="rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
                             >
                               {importingDocId === doc.id ? (
-                                <div className="h-3 w-3 animate-spin rounded-full border-2 border-green-300 border-t-green-700" />
+                                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-green-300 border-t-green-700" />
                               ) : (
                                 "Importar"
                               )}
@@ -1378,10 +1378,10 @@ export default function NfePage() {
                             <button
                               onClick={() => handleIgnoreDoc(doc.id)}
                               disabled={ignoringDocId === doc.id}
-                              className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                              className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
                             >
                               {ignoringDocId === doc.id ? (
-                                <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
                               ) : (
                                 "Ignorar"
                               )}
@@ -1393,31 +1393,31 @@ export default function NfePage() {
                               <button
                                 onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
                                 disabled={manifestingDocId === doc.id}
-                                className="rounded border border-cyan-200 bg-cyan-50 px-2 py-1 text-xs font-medium text-cyan-700 hover:bg-cyan-100 transition-colors disabled:opacity-50"
+                                className="rounded border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 hover:bg-cyan-100 transition-colors disabled:opacity-50"
                               >
                                 {manifestingDocId === doc.id ? (
-                                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-cyan-300 border-t-cyan-700" />
+                                  <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-cyan-300 border-t-cyan-700" />
                                 ) : (
                                   "Manifestar"
                                 )}
                               </button>
                               {manifestMenuDocId === doc.id && (
-                                <div className="absolute left-0 top-full mt-1 z-30 min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+                                <div className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-slate-200 bg-white shadow-lg py-0.5">
                                   <button
                                     onClick={() => handleManifestDoc(doc.id, "ciencia")}
-                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-cyan-50 rounded-t-lg"
+                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-cyan-50"
                                   >
                                     Ciencia da Operacao
                                   </button>
                                   <button
                                     onClick={() => handleManifestDoc(doc.id, "confirmacao")}
-                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-green-50"
+                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-green-50"
                                   >
                                     Confirmacao da Operacao
                                   </button>
                                   <button
                                     onClick={() => handleManifestDoc(doc.id, "desconhecimento")}
-                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-amber-50"
+                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-amber-50"
                                   >
                                     Desconhecimento da Operacao
                                   </button>
@@ -1430,9 +1430,9 @@ export default function NfePage() {
                                         toast("Justificativa deve ter no minimo 15 caracteres.", "error");
                                       }
                                     }}
-                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-red-50 rounded-b-lg"
+                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-red-50"
                                   >
-                                    Operacao Nao Realizada
+                                    Nao Realizada
                                   </button>
                                 </div>
                               )}
@@ -1443,25 +1443,25 @@ export default function NfePage() {
                               <button
                                 onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
                                 disabled={manifestingDocId === doc.id}
-                                className="rounded border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100 transition-colors disabled:opacity-50"
+                                className="rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 hover:bg-teal-100 transition-colors disabled:opacity-50"
                               >
                                 {manifestingDocId === doc.id ? (
-                                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-teal-300 border-t-teal-700" />
+                                  <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-teal-300 border-t-teal-700" />
                                 ) : (
-                                  "Confirmar/Recusar"
+                                  "Confirmar"
                                 )}
                               </button>
                               {manifestMenuDocId === doc.id && (
-                                <div className="absolute left-0 top-full mt-1 z-30 min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+                                <div className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-slate-200 bg-white shadow-lg py-0.5">
                                   <button
                                     onClick={() => handleManifestDoc(doc.id, "confirmacao")}
-                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-green-50 rounded-t-lg"
+                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-green-50"
                                   >
                                     Confirmacao da Operacao
                                   </button>
                                   <button
                                     onClick={() => handleManifestDoc(doc.id, "desconhecimento")}
-                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-amber-50"
+                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-amber-50"
                                   >
                                     Desconhecimento da Operacao
                                   </button>
@@ -1474,9 +1474,9 @@ export default function NfePage() {
                                         toast("Justificativa deve ter no minimo 15 caracteres.", "error");
                                       }
                                     }}
-                                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-red-50 rounded-b-lg"
+                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-red-50"
                                   >
-                                    Operacao Nao Realizada
+                                    Nao Realizada
                                   </button>
                                 </div>
                               )}
@@ -1484,7 +1484,7 @@ export default function NfePage() {
                           )}
                           <button
                             onClick={() => handleViewXml(doc.id)}
-                            className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                            className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 transition-colors"
                             title="Visualizar XML"
                           >
                             XML
@@ -1493,23 +1493,19 @@ export default function NfePage() {
                             <>
                               <button
                                 onClick={() => handleDownloadFile(doc.id, "xml")}
-                                className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                className="rounded border border-indigo-200 bg-indigo-50 px-1 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
                                 title="Salvar XML"
                               >
-                                <svg className="h-3 w-3 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <svg className="h-2.5 w-2.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
-                                XML
                               </button>
                               <button
                                 onClick={() => handleDownloadFile(doc.id, "danfe")}
-                                className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
+                                className="rounded border border-red-200 bg-red-50 px-1 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors"
                                 title="Salvar DANFE PDF"
                               >
-                                <svg className="h-3 w-3 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                </svg>
-                                DANFE
+                                PDF
                               </button>
                             </>
                           )}

@@ -978,3 +978,48 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Ativando o chip antes de configurar no Meta Business
 
 ---
+
+## Sessao 75 — 07/03/2026
+
+### Manifestacao do Destinatario — Implementacao Completa
+
+#### Contexto:
+- Juliano compartilhou estudo sobre resNFe vs procNFe (diferenca entre resumo e XML completo)
+- Pediu implementacao de Manifestacao do Destinatario com opcao de manifesto automatico
+
+#### Backend (implementado na sessao anterior):
+1. **Schema Prisma**: `autoManifestCiencia` na SefazConfig, `manifestType`/`manifestedAt` na SefazDocument
+2. **Migration**: `20260307190000_sefaz_manifestation`
+3. **FocusNfeProvider**: metodos `manifestNfe()` e `downloadNfeXml()` via Focus NFe API
+4. **SefazDfeService**: `manifestDocument()`, `tryDownloadFullXml()`, `autoManifestNewDocs()`, `getFocusNfeCredentials()`
+5. **SefazDfeController**: endpoint `POST /nfe/sefaz/documents/:id/manifest`
+6. **DTO**: `ManifestDocumentDto` (tipo + justificativa), `autoManifestCiencia` no UpdateSefazConfigDto
+
+#### Frontend (implementado nesta sessao):
+1. **SefazConfigInfo**: campo `autoManifestCiencia` adicionado
+2. **ManifestBadge**: componente para exibir tipo de manifesto (Ciencia, Confirmada, Desconhecida, Nao Realizada)
+3. **Coluna "Manifesto"**: adicionada na tabela SEFAZ com ManifestBadge
+4. **Botao "Manifestar"**: dropdown com 4 opcoes (Ciencia, Confirmacao, Desconhecimento, Nao Realizada)
+   - Para docs sem manifesto: botao "Manifestar" com dropdown completo
+   - Para docs com ciencia: botao "Confirmar/Recusar" com 3 opcoes restantes
+   - "Nao Realizada" pede justificativa (min 15 chars) via prompt
+5. **Toggle "Manifesto automatico"**: ao lado do toggle "Busca automatica" na area de config SEFAZ
+6. **Click-outside handler**: fecha dropdown de manifesto ao clicar fora
+7. **Handler `handleManifestDoc()`**: chama API + toast de sucesso/erro + reload
+
+#### Fix Status IMPORTADA:
+- Juliano pediu: "Nas notas com status importada, devem ter sido importada pela contabilidade. Quero que fique status importada somente as que foram importada dentro do sistema Tecnikos"
+- Solucao: self-healing query `fixOrphanImportedStatus()` no PrismaService — reseta docs IMPORTED sem nfeImportId para FETCHED
+- Verificacao: todos os 49 docs IMPORTED tinham nfeImportId preenchido (nenhum orfao encontrado)
+
+### SMTP Zoho — Configurado e Funcionando
+- Senha do contato@tecnikos.com.br configurada pelo Juliano
+- Teste de envio de email realizado com sucesso
+- Email profissional 100% operacional (envio + recebimento)
+
+### Deploy v1.01.29 — Manifestacao + Fix IMPORTED
+- Backend: 0 erros TypeScript
+- Frontend: 0 erros build
+- Deploy: sucesso, v1.01.29 online
+
+---
