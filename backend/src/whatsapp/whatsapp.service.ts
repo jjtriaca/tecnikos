@@ -572,6 +572,11 @@ export class WhatsAppService {
   formatPhone(phone: string): string {
     let digits = phone.replace(/\D/g, '');
 
+    // Strip leading zero (common in Brazilian phones: 066... → 66...)
+    if (digits.startsWith('0') && !digits.startsWith('00')) {
+      digits = digits.substring(1);
+    }
+
     // Already has country code
     if (digits.startsWith('55') && digits.length >= 12) {
       return digits;
