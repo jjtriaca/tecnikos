@@ -67,34 +67,36 @@ export class NfeService {
       }
     }
 
-    // Try to find existing supplier by CNPJ
+    // Try to find existing supplier by CNPJ (normalized — strip non-digits for comparison)
     let supplierId: string | null = null;
     if (parsed.supplier.cnpj) {
-      const supplier = await this.prisma.partner.findFirst({
-        where: {
-          companyId,
-          document: parsed.supplier.cnpj,
-          deletedAt: null,
-        },
-      });
-      if (supplier) {
-        supplierId = supplier.id;
+      const cnpjDigits = parsed.supplier.cnpj.replace(/\D/g, '');
+      const suppliers: { id: string }[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM "Partner" WHERE "companyId" = $1 AND "deletedAt" IS NULL AND regexp_replace(document, '[^0-9]', '', 'g') = $2 LIMIT 1`,
+        companyId,
+        cnpjDigits,
+      );
+      if (suppliers.length > 0) {
+        supplierId = suppliers[0].id;
       }
     }
 
-    // Try to match items to existing products by code
-    const productMatches = new Map<string, string>(); // productCode -> productId
-    for (const item of parsed.items) {
-      if (item.productCode) {
-        const product = await this.prisma.product.findFirst({
-          where: {
-            companyId,
-            code: item.productCode,
-            deletedAt: null,
-          },
-        });
-        if (product) {
-          productMatches.set(item.productCode, product.id);
+    // Try to match items to existing products via ProductEquivalent (supplier code mapping)
+    const productMatches = new Map<string, string>(); // supplierProductCode -> productId
+    if (supplierId) {
+      for (const item of parsed.items) {
+        if (item.productCode) {
+          const equivalent = await this.prisma.productEquivalent.findFirst({
+            where: {
+              supplierId,
+              supplierCode: item.productCode,
+              product: { companyId, deletedAt: null },
+            },
+            select: { productId: true },
+          });
+          if (equivalent) {
+            productMatches.set(item.productCode, equivalent.productId);
+          }
         }
       }
     }
@@ -287,14 +289,25 @@ export class NfeService {
     }
 
     // Validate supplier decision
+    if (!decisions.supplier) {
+      throw new BadRequestException('Decisão do fornecedor é obrigatória');
+    }
     if (decisions.supplier.action === 'LINK' && !decisions.supplier.partnerId) {
       throw new BadRequestException(
         'partnerId é obrigatório quando a ação do fornecedor é LINK',
       );
     }
 
+    // Normalize item decisions: filter out nulls, map IGNORE→SKIP for frontend compat
+    const itemDecisions = (decisions.items || [])
+      .filter((item): item is ProcessItemDecision => item != null)
+      .map((item) => ({
+        ...item,
+        action: (item.action === ('IGNORE' as any) ? 'SKIP' : item.action) as ProcessItemDecision['action'],
+      }));
+
     // Validate item decisions
-    for (const itemDecision of decisions.items) {
+    for (const itemDecision of itemDecisions) {
       if (itemDecision.action === 'LINK' && !itemDecision.productId) {
         throw new BadRequestException(
           `productId é obrigatório quando a ação do item ${itemDecision.itemNumber} é LINK`,
@@ -344,7 +357,7 @@ export class NfeService {
       }
 
       // ── 2. Process each item ───────────────────────────────────────
-      for (const itemDecision of decisions.items) {
+      for (const itemDecision of itemDecisions) {
         const nfeItem = nfeImport.items.find(
           (i) => i.itemNumber === itemDecision.itemNumber,
         );
