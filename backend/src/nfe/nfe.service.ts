@@ -305,14 +305,84 @@ export class NfeService {
       throw new NotFoundException('Importação de NFe não encontrada');
     }
 
+    // ── Re-validate matches for PENDING imports ──────────────────
+    if (nfeImport.status === 'PENDING') {
+      let needsRefresh = false;
+
+      // 1. Re-validate supplier by CNPJ
+      if (nfeImport.supplierCnpj) {
+        const cnpjDigits = nfeImport.supplierCnpj.replace(/\D/g, '');
+        const suppliers: { id: string }[] = await this.prisma.$queryRawUnsafe(
+          `SELECT id FROM "Partner" WHERE "companyId" = $1 AND "deletedAt" IS NULL AND regexp_replace(document, '[^0-9]', '', 'g') = $2 LIMIT 1`,
+          companyId,
+          cnpjDigits,
+        );
+        const freshSupplierId = suppliers.length > 0 ? suppliers[0].id : null;
+
+        if (freshSupplierId !== nfeImport.supplierId) {
+          await this.prisma.nfeImport.update({
+            where: { id },
+            data: { supplierId: freshSupplierId },
+          });
+          nfeImport.supplierId = freshSupplierId;
+          needsRefresh = true;
+        }
+      }
+
+      // 2. Re-validate product matches via ProductEquivalent
+      for (const item of nfeImport.items) {
+        const isDeletedProduct = item.product && item.product.deletedAt;
+        const hasNoMatch = !item.productId && item.action === 'PENDING';
+
+        if (isDeletedProduct || hasNoMatch) {
+          // Try to find a fresh match
+          let freshProductId: string | null = null;
+          if (nfeImport.supplierId && item.productCode) {
+            const eq = await this.prisma.productEquivalent.findFirst({
+              where: {
+                supplierId: nfeImport.supplierId,
+                supplierCode: item.productCode,
+                product: { companyId, deletedAt: null },
+              },
+              select: { productId: true },
+            });
+            freshProductId = eq?.productId ?? null;
+          }
+
+          const newAction = freshProductId ? 'LINKED' : 'PENDING';
+          if (item.productId !== freshProductId || item.action !== newAction) {
+            await this.prisma.nfeImportItem.update({
+              where: { id: item.id },
+              data: { productId: freshProductId, action: newAction },
+            });
+            needsRefresh = true;
+          }
+        }
+      }
+
+      // Re-fetch with fresh data if anything changed
+      if (needsRefresh) {
+        return this.findOneImport(id, companyId);
+      }
+    }
+
     // Enrich with supplier name
     let supplierMatchedName: string | null = null;
     if (nfeImport.supplierId) {
       const supplier = await this.prisma.partner.findUnique({
         where: { id: nfeImport.supplierId },
-        select: { name: true },
+        select: { name: true, deletedAt: true },
       });
-      supplierMatchedName = supplier?.name ?? null;
+      if (supplier && !supplier.deletedAt) {
+        supplierMatchedName = supplier.name ?? null;
+      } else {
+        // Supplier was deleted — unlink
+        await this.prisma.nfeImport.update({
+          where: { id },
+          data: { supplierId: null },
+        });
+        nfeImport.supplierId = null;
+      }
     }
 
     return { ...nfeImport, supplierMatchedName };
