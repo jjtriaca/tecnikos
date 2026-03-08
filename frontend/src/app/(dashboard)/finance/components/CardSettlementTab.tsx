@@ -402,6 +402,30 @@ export default function CardSettlementTab() {
   const columnDefs: ColumnDefinition<CardSettlement>[] = useMemo(
     () => [
       {
+        id: "acoes",
+        label: "Acoes",
+        sortable: false,
+        align: "center" as const,
+        render: (cs) => {
+          if (cs.status !== "PENDING") {
+            return <span className="text-xs text-slate-400">—</span>;
+          }
+          return (
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSettleModal(cs);
+                }}
+                className="rounded-lg bg-green-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+              >
+                Baixar
+              </button>
+            </div>
+          );
+        },
+      },
+      {
         id: "descricao",
         label: "Descricao",
         sortable: true,
@@ -525,30 +549,6 @@ export default function CardSettlementTab() {
           );
         },
       },
-      {
-        id: "acoes",
-        label: "Acoes",
-        sortable: false,
-        align: "center" as const,
-        render: (cs) => {
-          if (cs.status !== "PENDING") {
-            return <span className="text-xs text-slate-400">—</span>;
-          }
-          return (
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openSettleModal(cs);
-                }}
-                className="rounded-lg bg-green-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
-              >
-                Baixar
-              </button>
-            </div>
-          );
-        },
-      },
     ],
     [feeRates],
   );
@@ -561,7 +561,7 @@ export default function CardSettlementTab() {
     reorderColumns,
     columnWidths,
     setColumnWidth,
-  } = useTableLayout("card-settlements", columnDefs);
+  } = useTableLayout("card-settlements-v2", columnDefs);
 
   /* ── Selection helpers ────────────────────────────────── */
 

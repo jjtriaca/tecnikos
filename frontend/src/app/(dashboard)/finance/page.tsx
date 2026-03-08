@@ -138,6 +138,11 @@ function paymentMethodLabel(method?: string, brand?: string) {
 function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<FinancialEntry>[] {
   const cols: ColumnDefinition<FinancialEntry>[] = [
     {
+      id: "actions",
+      label: "Ações",
+      render: () => null as any,
+    },
+    {
       id: "description",
       label: "Descrição",
       render: (e) => (
@@ -509,7 +514,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const allColumns = buildEntryColumns(type);
   const columns = fiscalEnabled ? allColumns : allColumns.filter((c) => c.id !== "nfseStatus");
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout(
-    `finance-entries-${type}`,
+    `finance-v2-${type}`,
     columns,
   );
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
@@ -817,9 +822,6 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
           <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "700px", width: "max-content" }}>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 w-[160px]">
-                  Ações
-                </th>
                 {orderedColumns.map((col, idx) => (
                   <DraggableHeader
                     key={col.id}
@@ -852,49 +854,53 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
             <tbody>
               {entries.map((e) => (
                 <tr key={e.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                  <td className="py-3 px-4">
-                    <EntryActions
-                      entry={e}
-                      type={type}
-                      loading={actionLoading === e.id}
-                      onAction={async (action) => {
-                        if (action === "REVERSED") {
-                          setReverseAction({ entry: e });
-                          return;
-                        }
-                        if (action === "CANCELLED") {
-                          setCancelAction({ entry: e });
-                        } else if (fiscalEnabled && type === "RECEIVABLE" && e.nfseStatus !== "AUTHORIZED") {
-                          // Check NFS-e before payment on receivables (only when fiscal module is enabled)
-                          try {
-                            const check = await api.get<{ requiresNfse: boolean; behavior: string; nfseStatus: string | null }>(
-                              `/nfse-emission/check-payment/${e.id}`,
-                            );
-                            if (check.requiresNfse && check.behavior === "BLOCK") {
-                              toast("NFS-e obrigatoria! Emita a nota antes de receber.", "error");
-                              setNfseModal(e.id);
-                              return;
-                            }
-                            if (check.requiresNfse && check.behavior === "WARN") {
-                              setNfseWarnEntry({ entry: e, action });
-                              return;
-                            }
-                          } catch { /* config not found, proceed */ }
-                          setPayAction({ entry: e, action });
-                        } else {
-                          setPayAction({ entry: e, action });
-                        }
-                      }}
-                      onInstallments={() => setInstallmentModal({ entryId: e.id, netCents: e.netCents })}
-                      onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
-                      onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
-                      onEmitNfse={fiscalEnabled && type === "RECEIVABLE" ? () => setNfseModal(e.id) : undefined}
-                      onEdit={() => openEditEntry(e)}
-                    />
-                  </td>
                   {orderedColumns.map((col) => {
                     const w = columnWidths[col.id];
                     const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};
+                    if (col.id === "actions") {
+                      return (
+                        <td key={col.id} style={tdStyle} className="py-3 px-4">
+                          <EntryActions
+                            entry={e}
+                            type={type}
+                            loading={actionLoading === e.id}
+                            onAction={async (action) => {
+                              if (action === "REVERSED") {
+                                setReverseAction({ entry: e });
+                                return;
+                              }
+                              if (action === "CANCELLED") {
+                                setCancelAction({ entry: e });
+                              } else if (fiscalEnabled && type === "RECEIVABLE" && e.nfseStatus !== "AUTHORIZED") {
+                                // Check NFS-e before payment on receivables (only when fiscal module is enabled)
+                                try {
+                                  const check = await api.get<{ requiresNfse: boolean; behavior: string; nfseStatus: string | null }>(
+                                    `/nfse-emission/check-payment/${e.id}`,
+                                  );
+                                  if (check.requiresNfse && check.behavior === "BLOCK") {
+                                    toast("NFS-e obrigatoria! Emita a nota antes de receber.", "error");
+                                    setNfseModal(e.id);
+                                    return;
+                                  }
+                                  if (check.requiresNfse && check.behavior === "WARN") {
+                                    setNfseWarnEntry({ entry: e, action });
+                                    return;
+                                  }
+                                } catch { /* config not found, proceed */ }
+                                setPayAction({ entry: e, action });
+                              } else {
+                                setPayAction({ entry: e, action });
+                              }
+                            }}
+                            onInstallments={() => setInstallmentModal({ entryId: e.id, netCents: e.netCents })}
+                            onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
+                            onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
+                            onEmitNfse={fiscalEnabled && type === "RECEIVABLE" ? () => setNfseModal(e.id) : undefined}
+                            onEdit={() => openEditEntry(e)}
+                          />
+                        </td>
+                      );
+                    }
                     return (
                       <td key={col.id} style={tdStyle} className={`py-3 px-4 ${col.className || ""} ${col.align === "right" ? "text-right" : ""}`}>
                         {col.render(e)}

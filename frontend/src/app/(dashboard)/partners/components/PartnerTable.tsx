@@ -175,7 +175,7 @@ function makePartnerColumns(
   ];
 
   // Actions column — always present (audit for all, edit/delete for editors)
-  cols.push({
+  cols.unshift({
     id: "actions",
     label: "Ações",
     align: "right",
@@ -225,7 +225,7 @@ export default function PartnerTable({ partners, canEdit, onEdit, onDelete, sort
     expandedAuditId,
     (id) => setExpandedAuditId((prev) => (prev === id ? null : id)),
   );
-  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout("partners", columns);
+  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout("partners-v2", columns);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "auto", overflowY: "hidden" }}>

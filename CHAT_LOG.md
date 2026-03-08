@@ -1023,3 +1023,48 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Deploy: sucesso, v1.01.29 online
 
 ---
+
+## Sessao 76 — 07/03/2026
+
+### Finalidade Fiscal do Produto
+- Juliano identificou requisito fiscal: campo "finalidade" (destinacao) do produto no wizard de importacao NFe
+- Opcoes: Uso/Consumo, Revenda, Ativo Imobilizado, Mat. Prima, Material Obra
+- Default: MATERIAL_OBRA (atividade principal da SLS Obras)
+
+### Implementacao Finalidade:
+
+#### Backend:
+1. **Schema**: campo `finalidade String?` no model Product
+2. **NfeService**: campo `finalidade` no `ProcessItemDecision`, passado em `process()` para CREATE e LINK
+3. **Self-healing**: `ensureProductFinalidadeColumn()` no PrismaService
+
+#### Frontend:
+1. **NFe Wizard Step 3**: coluna "Finalidade" com select dropdown por item
+2. **Products page**: campo finalidade no cadastro de produto (modal) + coluna na tabela com badges coloridos
+3. **Products interface**: campo `finalidade?: string` adicionado
+
+### Coluna Acoes — Primeira em TODO o Sistema
+- Juliano pediu: "Botão de ação está no final da linha, mude para a primeira coluna"
+- Todas as 8 tabelas foram alteradas:
+
+| Tabela | Antes | Depois |
+|--------|-------|--------|
+| NFe SEFAZ | Fixed th/td first (nao draggable) | ColumnDef first (draggable) |
+| NFe Upload | Fixed th/td first (nao draggable) | ColumnDef first (draggable) |
+| Products | Fixed th/td last | ColumnDef first (draggable) |
+| Services | Fixed th/td last | ColumnDef first (draggable) |
+| Orders | cols.push last | cols.unshift first |
+| Partners | cols.push last | cols.unshift first |
+| Finance | Fixed th/td first (nao draggable) | ColumnDef first (draggable) |
+| CardSettlement | columnDefs last | columnDefs first |
+| Users | Plain HTML (sem DraggableHeader) | Full refactor com DraggableHeader |
+
+### DraggableHeader em Todas as Colunas
+- Juliano pediu: "tem que poder regular a largura das colunas e movimentar qualquer coluna"
+- Coluna de acoes agora participa do sistema DraggableHeader (redimensionar + reordenar)
+- Layout de colunas persistido via useTableLayout (sobrevive logoff)
+- TableIds atualizados para v2 em todas as tabelas (reset de layout existente)
+
+### Deploy v1.01.31
+
+---

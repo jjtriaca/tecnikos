@@ -103,6 +103,7 @@ interface ItemAction {
   itemNumber: number;
   action: "CREATE" | "LINK" | "IGNORE";
   productId?: string;
+  finalidade?: string;
 }
 
 interface PartnerSearchResult {
@@ -341,6 +342,11 @@ const SEFAZ_FILTERS: FilterDefinition[] = [
 
 const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
   {
+    id: "actions",
+    label: "Acoes",
+    render: () => null as any,
+  },
+  {
     id: "nsu",
     label: "NSU",
     sortable: true,
@@ -426,6 +432,11 @@ const UPLOAD_FILTERS: FilterDefinition[] = [
 ];
 
 const UPLOAD_COLUMNS: ColumnDefinition<NfeImport>[] = [
+  {
+    id: "actions",
+    label: "Acoes",
+    render: () => null as any,
+  },
   {
     id: "nfeNumber",
     label: "N. NFe",
@@ -567,7 +578,7 @@ export default function NfePage() {
     reorderColumns: sefazReorderColumns,
     columnWidths: sefazColumnWidths,
     setColumnWidth: sefazSetColumnWidth,
-  } = useTableLayout("nfe-sefaz-docs", SEFAZ_COLUMNS);
+  } = useTableLayout("nfe-sefaz-v2", SEFAZ_COLUMNS);
 
   // Fetch button
   const [fetching, setFetching] = useState(false);
@@ -617,7 +628,7 @@ export default function NfePage() {
     reorderColumns: uploadReorderColumns,
     columnWidths: uploadColumnWidths,
     setColumnWidth: uploadSetColumnWidth,
-  } = useTableLayout("nfe-upload-imports", UPLOAD_COLUMNS);
+  } = useTableLayout("nfe-upload-v2", UPLOAD_COLUMNS);
 
   /* ---- Wizard state ---- */
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -805,6 +816,7 @@ export default function NfePage() {
           itemNumber: item.itemNumber,
           action: item.productId ? "LINK" : "CREATE",
           productId: item.productId || undefined,
+          finalidade: "MATERIAL_OBRA",
         }))
       );
       setProductSearches({});
@@ -1081,6 +1093,14 @@ export default function NfePage() {
     );
   }
 
+  function updateItemFinalidade(itemNumber: number, finalidade: string) {
+    setItemActions((prev) =>
+      prev.map((ia) =>
+        ia.itemNumber === itemNumber ? { ...ia, finalidade } : ia
+      )
+    );
+  }
+
   async function searchProducts(itemNumber: number, query: string) {
     setProductSearches((prev) => ({ ...prev, [itemNumber]: query }));
     if (query.length < 2) {
@@ -1325,9 +1345,6 @@ export default function NfePage() {
               <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "1000px", width: "max-content" }}>
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="py-2 px-2 text-[10px] font-semibold uppercase text-slate-600" style={{ width: "200px", minWidth: "200px" }}>
-                      Acoes
-                    </th>
                     {sefazOrderedColumns.map((col, idx) => (
                       <DraggableHeader
                         key={col.id}
@@ -1359,161 +1376,97 @@ export default function NfePage() {
                 <tbody className="divide-y divide-slate-100">
                   {sefazDocs.map((doc) => (
                     <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-2 px-2" style={{ width: "200px", minWidth: "200px" }}>
-                        <div className="flex items-center gap-0.5 flex-wrap">
-                          {doc.schema === "procNFe" && doc.status === "FETCHED" && (
-                            <button
-                              onClick={() => handleImportDoc(doc.id)}
-                              disabled={importingDocId === doc.id}
-                              className="rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
-                            >
-                              {importingDocId === doc.id ? (
-                                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-green-300 border-t-green-700" />
-                              ) : (
-                                "Importar"
-                              )}
-                            </button>
-                          )}
-                          {doc.status === "FETCHED" && (
-                            <button
-                              onClick={() => handleIgnoreDoc(doc.id)}
-                              disabled={ignoringDocId === doc.id}
-                              className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
-                            >
-                              {ignoringDocId === doc.id ? (
-                                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-                              ) : (
-                                "Ignorar"
-                              )}
-                            </button>
-                          )}
-                          {/* Manifestação do Destinatário */}
-                          {doc.schema !== "resEvento" && doc.nfeKey && !doc.manifestType && doc.status !== "IGNORED" && (
-                            <div className="relative" data-manifest-menu>
-                              <button
-                                onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
-                                disabled={manifestingDocId === doc.id}
-                                className="rounded border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 hover:bg-cyan-100 transition-colors disabled:opacity-50"
-                              >
-                                {manifestingDocId === doc.id ? (
-                                  <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-cyan-300 border-t-cyan-700" />
-                                ) : (
-                                  "Manifestar"
-                                )}
-                              </button>
-                              {manifestMenuDocId === doc.id && (
-                                <div className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-slate-200 bg-white shadow-lg py-0.5">
-                                  <button
-                                    onClick={() => handleManifestDoc(doc.id, "ciencia")}
-                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-cyan-50"
-                                  >
-                                    Ciencia da Operacao
-                                  </button>
-                                  <button
-                                    onClick={() => handleManifestDoc(doc.id, "confirmacao")}
-                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-green-50"
-                                  >
-                                    Confirmacao da Operacao
-                                  </button>
-                                  <button
-                                    onClick={() => handleManifestDoc(doc.id, "desconhecimento")}
-                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-amber-50"
-                                  >
-                                    Desconhecimento da Operacao
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      const just = prompt("Justificativa (minimo 15 caracteres):");
-                                      if (just && just.length >= 15) {
-                                        handleManifestDoc(doc.id, "nao_realizada", just);
-                                      } else if (just) {
-                                        toast("Justificativa deve ter no minimo 15 caracteres.", "error");
-                                      }
-                                    }}
-                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-red-50"
-                                  >
-                                    Nao Realizada
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {doc.manifestType && !["confirmacao", "desconhecimento", "nao_realizada"].includes(doc.manifestType) && doc.status !== "IGNORED" && (
-                            <div className="relative" data-manifest-menu>
-                              <button
-                                onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
-                                disabled={manifestingDocId === doc.id}
-                                className="rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 hover:bg-teal-100 transition-colors disabled:opacity-50"
-                              >
-                                {manifestingDocId === doc.id ? (
-                                  <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-teal-300 border-t-teal-700" />
-                                ) : (
-                                  "Confirmar"
-                                )}
-                              </button>
-                              {manifestMenuDocId === doc.id && (
-                                <div className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-slate-200 bg-white shadow-lg py-0.5">
-                                  <button
-                                    onClick={() => handleManifestDoc(doc.id, "confirmacao")}
-                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-green-50"
-                                  >
-                                    Confirmacao da Operacao
-                                  </button>
-                                  <button
-                                    onClick={() => handleManifestDoc(doc.id, "desconhecimento")}
-                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-amber-50"
-                                  >
-                                    Desconhecimento da Operacao
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      const just = prompt("Justificativa (minimo 15 caracteres):");
-                                      if (just && just.length >= 15) {
-                                        handleManifestDoc(doc.id, "nao_realizada", just);
-                                      } else if (just) {
-                                        toast("Justificativa deve ter no minimo 15 caracteres.", "error");
-                                      }
-                                    }}
-                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-red-50"
-                                  >
-                                    Nao Realizada
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          <button
-                            onClick={() => handleViewXml(doc.id)}
-                            className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 transition-colors"
-                            title="Visualizar XML"
-                          >
-                            XML
-                          </button>
-                          {doc.schema === "procNFe" && (
-                            <>
-                              <button
-                                onClick={() => handleDownloadFile(doc.id, "xml")}
-                                className="rounded border border-indigo-200 bg-indigo-50 px-1 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
-                                title="Salvar XML"
-                              >
-                                <svg className="h-2.5 w-2.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => handleDownloadFile(doc.id, "danfe")}
-                                className="rounded border border-red-200 bg-red-50 px-1 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors"
-                                title="Salvar DANFE PDF"
-                              >
-                                PDF
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
                       {sefazOrderedColumns.map((col) => {
                         const w = sefazColumnWidths[col.id];
                         const tdStyle: React.CSSProperties = w ? { width: w, minWidth: w, maxWidth: w, overflow: "hidden" } : {};
+                        if (col.id === "actions") {
+                          return (
+                            <td key="actions" style={tdStyle} className="py-2 px-2">
+                              <div className="flex items-center gap-0.5 flex-wrap">
+                                {doc.schema === "procNFe" && doc.status === "FETCHED" && (
+                                  <button
+                                    onClick={() => handleImportDoc(doc.id)}
+                                    disabled={importingDocId === doc.id}
+                                    className="rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
+                                  >
+                                    {importingDocId === doc.id ? (
+                                      <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-green-300 border-t-green-700" />
+                                    ) : (
+                                      "Importar"
+                                    )}
+                                  </button>
+                                )}
+                                {doc.status === "FETCHED" && (
+                                  <button
+                                    onClick={() => handleIgnoreDoc(doc.id)}
+                                    disabled={ignoringDocId === doc.id}
+                                    className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                                  >
+                                    {ignoringDocId === doc.id ? (
+                                      <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                                    ) : (
+                                      "Ignorar"
+                                    )}
+                                  </button>
+                                )}
+                                {doc.schema !== "resEvento" && doc.nfeKey && !doc.manifestType && doc.status !== "IGNORED" && (
+                                  <div className="relative" data-manifest-menu>
+                                    <button
+                                      onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
+                                      disabled={manifestingDocId === doc.id}
+                                      className="rounded border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 hover:bg-cyan-100 transition-colors disabled:opacity-50"
+                                    >
+                                      {manifestingDocId === doc.id ? (
+                                        <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-cyan-300 border-t-cyan-700" />
+                                      ) : (
+                                        "Manifestar"
+                                      )}
+                                    </button>
+                                    {manifestMenuDocId === doc.id && (
+                                      <div className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-slate-200 bg-white shadow-lg py-0.5">
+                                        <button onClick={() => handleManifestDoc(doc.id, "ciencia")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-cyan-50">Ciencia da Operacao</button>
+                                        <button onClick={() => handleManifestDoc(doc.id, "confirmacao")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-green-50">Confirmacao da Operacao</button>
+                                        <button onClick={() => handleManifestDoc(doc.id, "desconhecimento")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-amber-50">Desconhecimento da Operacao</button>
+                                        <button onClick={() => { const just = prompt("Justificativa (minimo 15 caracteres):"); if (just && just.length >= 15) { handleManifestDoc(doc.id, "nao_realizada", just); } else if (just) { toast("Justificativa deve ter no minimo 15 caracteres.", "error"); } }} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-red-50">Nao Realizada</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {doc.manifestType && !["confirmacao", "desconhecimento", "nao_realizada"].includes(doc.manifestType) && doc.status !== "IGNORED" && (
+                                  <div className="relative" data-manifest-menu>
+                                    <button
+                                      onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
+                                      disabled={manifestingDocId === doc.id}
+                                      className="rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 hover:bg-teal-100 transition-colors disabled:opacity-50"
+                                    >
+                                      {manifestingDocId === doc.id ? (
+                                        <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-teal-300 border-t-teal-700" />
+                                      ) : (
+                                        "Confirmar"
+                                      )}
+                                    </button>
+                                    {manifestMenuDocId === doc.id && (
+                                      <div className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-slate-200 bg-white shadow-lg py-0.5">
+                                        <button onClick={() => handleManifestDoc(doc.id, "confirmacao")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-green-50">Confirmacao da Operacao</button>
+                                        <button onClick={() => handleManifestDoc(doc.id, "desconhecimento")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-amber-50">Desconhecimento da Operacao</button>
+                                        <button onClick={() => { const just = prompt("Justificativa (minimo 15 caracteres):"); if (just && just.length >= 15) { handleManifestDoc(doc.id, "nao_realizada", just); } else if (just) { toast("Justificativa deve ter no minimo 15 caracteres.", "error"); } }} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-red-50">Nao Realizada</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                <button onClick={() => handleViewXml(doc.id)} className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 transition-colors" title="Visualizar XML">XML</button>
+                                {doc.schema === "procNFe" && (
+                                  <>
+                                    <button onClick={() => handleDownloadFile(doc.id, "xml")} className="rounded border border-indigo-200 bg-indigo-50 px-1 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors" title="Salvar XML">
+                                      <svg className="h-2.5 w-2.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    </button>
+                                    <button onClick={() => handleDownloadFile(doc.id, "danfe")} className="rounded border border-red-200 bg-red-50 px-1 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors" title="Salvar DANFE PDF">PDF</button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        }
                         return (
                           <td key={col.id} style={tdStyle} className={`py-3 px-3 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}>
                             {col.render(doc)}
@@ -1549,6 +1502,7 @@ export default function NfePage() {
           itemNumber: item.itemNumber,
           action: item.productId ? "LINK" : "CREATE",
           productId: item.productId || undefined,
+          finalidade: "MATERIAL_OBRA",
         }))
       );
       setProductSearches({});
@@ -1607,9 +1561,6 @@ export default function NfePage() {
               <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "800px", width: "max-content" }}>
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600" style={{ width: "100px", minWidth: "100px" }}>
-                      Acoes
-                    </th>
                     {uploadOrderedColumns.map((col, idx) => (
                       <DraggableHeader
                         key={col.id}
@@ -1641,21 +1592,25 @@ export default function NfePage() {
                 <tbody className="divide-y divide-slate-100">
                   {imports.map((imp) => (
                     <tr key={imp.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4" style={{ width: "100px", minWidth: "100px" }}>
-                        {imp.status === "PENDING" ? (
-                          <button
-                            onClick={() => handleOpenProcess(imp)}
-                            className="text-blue-600 hover:text-blue-700 text-xs font-medium hover:underline"
-                          >
-                            Processar
-                          </button>
-                        ) : (
-                          <span className="text-slate-400 text-xs">{"\u2014"}</span>
-                        )}
-                      </td>
                       {uploadOrderedColumns.map((col) => {
                         const w = uploadColumnWidths[col.id];
                         const tdStyle: React.CSSProperties = w ? { width: w, minWidth: w, maxWidth: w, overflow: "hidden" } : {};
+                        if (col.id === "actions") {
+                          return (
+                            <td key="actions" style={tdStyle} className="py-3 px-4">
+                              {imp.status === "PENDING" ? (
+                                <button
+                                  onClick={() => handleOpenProcess(imp)}
+                                  className="text-blue-600 hover:text-blue-700 text-xs font-medium hover:underline"
+                                >
+                                  Processar
+                                </button>
+                              ) : (
+                                <span className="text-slate-400 text-xs">{"\u2014"}</span>
+                              )}
+                            </td>
+                          );
+                        }
                         return (
                           <td key={col.id} style={tdStyle} className={`py-3 px-4 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}>
                             {col.render(imp)}
@@ -2206,6 +2161,8 @@ export default function NfePage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-52">Acao</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-36">Finalidade</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-10">#</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Codigo</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Descricao</th>
@@ -2215,7 +2172,6 @@ export default function NfePage() {
                           <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-600 w-14">Qtd</th>
                           <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-600 w-24">Preco Unit.</th>
                           <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-600 w-24">Total</th>
-                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-52">Acao</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -2226,17 +2182,6 @@ export default function NfePage() {
 
                           return (<React.Fragment key={item.itemNumber}>
                             <tr className="hover:bg-slate-50 transition-colors">
-                              <td className="px-3 py-2 text-slate-500 text-xs">{item.itemNumber}</td>
-                              <td className="px-3 py-2 text-slate-700 font-mono text-xs">{item.productCode}</td>
-                              <td className="px-3 py-2 text-slate-900 text-xs max-w-[180px] truncate" title={item.description}>
-                                {item.description}
-                              </td>
-                              <td className="px-3 py-2 text-slate-500 text-xs">{item.ncm}</td>
-                              <td className="px-3 py-2 text-slate-500 text-xs">{item.cfop || "\u2014"}</td>
-                              <td className="px-3 py-2 text-center text-slate-500 text-xs">{item.unit}</td>
-                              <td className="px-3 py-2 text-right text-slate-700 text-xs">{item.quantity}</td>
-                              <td className="px-3 py-2 text-right text-slate-700 text-xs">{formatCurrency(item.unitPriceCents)}</td>
-                              <td className="px-3 py-2 text-right font-medium text-slate-900 text-xs">{formatCurrency(item.totalCents)}</td>
                               <td className="px-3 py-2">
                                 {isLinkedAuto ? (
                                   <div className="flex items-center gap-1.5">
@@ -2305,11 +2250,37 @@ export default function NfePage() {
                                   </div>
                                 )}
                               </td>
+                              <td className="px-3 py-2">
+                                {action !== "IGNORE" ? (
+                                  <select
+                                    value={ia?.finalidade || "MATERIAL_OBRA"}
+                                    onChange={(e) => updateItemFinalidade(item.itemNumber, e.target.value)}
+                                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  >
+                                    <option value="USO_CONSUMO">Uso/Consumo</option>
+                                    <option value="REVENDA">Revenda</option>
+                                    <option value="ATIVO_IMOBILIZADO">Ativo Imobilizado</option>
+                                    <option value="MATERIA_PRIMA">Mat. Prima</option>
+                                    <option value="MATERIAL_OBRA">Material Obra</option>
+                                  </select>
+                                ) : (
+                                  <span className="text-slate-400 text-xs">{"\u2014"}</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-slate-500 text-xs">{item.itemNumber}</td>
+                              <td className="px-3 py-2 text-slate-700 font-mono text-xs">{item.productCode}</td>
+                              <td className="px-3 py-2 text-slate-900 text-xs max-w-[180px] truncate" title={item.description}>{item.description}</td>
+                              <td className="px-3 py-2 text-slate-500 text-xs">{item.ncm}</td>
+                              <td className="px-3 py-2 text-slate-500 text-xs">{item.cfop || "\u2014"}</td>
+                              <td className="px-3 py-2 text-center text-slate-500 text-xs">{item.unit}</td>
+                              <td className="px-3 py-2 text-right text-slate-700 text-xs">{item.quantity}</td>
+                              <td className="px-3 py-2 text-right text-slate-700 text-xs">{formatCurrency(item.unitPriceCents)}</td>
+                              <td className="px-3 py-2 text-right font-medium text-slate-900 text-xs">{formatCurrency(item.totalCents)}</td>
                             </tr>
                             {/* Tax detail sub-row */}
                             {(item.icmsCents || item.ipiCents || item.pisCents || item.cofinsCents || item.icmsStCents) ? (
                               <tr className="bg-slate-50/60 border-b border-slate-100">
-                                <td></td>
+                                <td colSpan={2}></td>
                                 <td colSpan={9} className="px-3 py-1.5">
                                   <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] text-slate-500">
                                     {item.cstIcms && <span>CST: <b className="text-slate-600">{item.cstIcms}</b></span>}

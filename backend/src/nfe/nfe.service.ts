@@ -16,6 +16,7 @@ export class ProcessItemDecision {
   itemNumber: number;
   action: 'CREATE' | 'LINK' | 'SKIP';
   productId?: string; // required for LINK
+  finalidade?: string; // USO_CONSUMO | REVENDA | ATIVO_IMOBILIZADO | MATERIA_PRIMA | MATERIAL_OBRA
 }
 
 export class ProcessSupplierDecision {
@@ -360,6 +361,7 @@ export class NfeService {
               lastPurchasePriceCents: nfeItem.unitPriceCents,
               costCents: nfeItem.unitPriceCents,
               averageCostCents: nfeItem.unitPriceCents,
+              finalidade: itemDecision.finalidade || undefined,
             },
           });
           productId = newProduct.id;
@@ -375,10 +377,13 @@ export class NfeService {
           }
           productId = product.id;
 
-          // Update lastPurchasePriceCents on existing product
+          // Update lastPurchasePriceCents and finalidade on existing product
           await tx.product.update({
             where: { id: productId },
-            data: { lastPurchasePriceCents: nfeItem.unitPriceCents },
+            data: {
+              lastPurchasePriceCents: nfeItem.unitPriceCents,
+              ...(itemDecision.finalidade ? { finalidade: itemDecision.finalidade } : {}),
+            },
           });
         }
         // SKIP: productId stays null

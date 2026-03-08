@@ -79,6 +79,11 @@ const SERVICE_FILTERS: FilterDefinition[] = [
 
 const SERVICE_COLUMNS: ColumnDefinition<Service>[] = [
   {
+    id: "actions",
+    label: "Acoes",
+    render: () => null as any,
+  },
+  {
     id: "code",
     label: "Código",
     sortable: true,
@@ -168,7 +173,7 @@ export default function ServicesPage() {
 
   // Table state
   const tp = useTableParams({ persistKey: "services-list" });
-  const { orderedColumns: columns, reorderColumns: onReorder, setColumnWidth: onResize, columnWidths } = useTableLayout("services-table", SERVICE_COLUMNS);
+  const { orderedColumns: columns, reorderColumns: onReorder, setColumnWidth: onResize, columnWidths } = useTableLayout("services-v2", SERVICE_COLUMNS);
 
   // Data
   const [services, setServices] = useState<Service[]>([]);
@@ -451,21 +456,18 @@ export default function ServicesPage() {
                     )}
                   </DraggableHeader>
                 ))}
-                <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider w-24">
-                  Ações
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="py-12 text-center text-slate-400">
+                  <td colSpan={columns.length} className="py-12 text-center text-slate-400">
                     Carregando...
                   </td>
                 </tr>
               ) : services.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="py-12 text-center text-slate-400">
+                  <td colSpan={columns.length} className="py-12 text-center text-slate-400">
                     Nenhum serviço encontrado.
                   </td>
                 </tr>
@@ -480,23 +482,24 @@ export default function ServicesPage() {
                       <td
                         key={col.id}
                         className="px-4 py-3 whitespace-nowrap"
-                        style={{ width: columnWidths[col.id], textAlign: col.align || "left" }}
+                        style={{ width: columnWidths[col.id], textAlign: col.id === "actions" ? "center" : col.align || "left" }}
                       >
-                        {col.render(service)}
+                        {col.id === "actions" ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteTarget(service);
+                            }}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium"
+                            title="Excluir"
+                          >
+                            Excluir
+                          </button>
+                        ) : (
+                          col.render(service)
+                        )}
                       </td>
                     ))}
-                    <td className="px-4 py-3 whitespace-nowrap text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget(service);
-                        }}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium"
-                        title="Excluir"
-                      >
-                        Excluir
-                      </button>
-                    </td>
                   </tr>
                 ))
               )}

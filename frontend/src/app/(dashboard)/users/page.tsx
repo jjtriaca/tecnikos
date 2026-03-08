@@ -1,11 +1,16 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AuditLogDrawer from "@/components/ui/AuditLogDrawer";
 import PasswordInput from "@/components/ui/PasswordInput";
+import SortableHeader from "@/components/ui/SortableHeader";
+import DraggableHeader from "@/components/ui/DraggableHeader";
+import { useTableParams } from "@/hooks/useTableParams";
+import { useTableLayout } from "@/hooks/useTableLayout";
+import type { ColumnDefinition } from "@/lib/types/table";
 import { toTitleCase } from "@/lib/brazil-utils";
 
 type User = {
@@ -34,10 +39,89 @@ const ROLE_COLORS: Record<string, string> = {
 
 const ALL_ROLES = ["ADMIN", "DESPACHO", "FINANCEIRO", "FISCAL", "LEITURA"];
 
-const COLUMN_COUNT = 4; // name, email, roles, actions
+/* ── Column definitions ───────────────────────────────── */
+
+function buildUserColumns(
+  expandedAuditId: string | null,
+  setExpandedAuditId: React.Dispatch<React.SetStateAction<string | null>>,
+  startEdit: (user: User) => void,
+  handleDeleteClick: (id: string, name: string) => void,
+): ColumnDefinition<User>[] {
+  return [
+    {
+      id: "acoes",
+      label: "Acoes",
+      sortable: false,
+      align: "center" as const,
+      render: (u) => (
+        <div className="flex items-center justify-center gap-1.5">
+          <button
+            onClick={() => setExpandedAuditId((prev) => (prev === u.id ? null : u.id))}
+            title="Historico de alteracoes"
+            className={`rounded border px-1.5 py-1 text-xs transition-colors ${expandedAuditId === u.id ? "border-blue-300 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"}`}
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <button
+            onClick={() => startEdit(u)}
+            className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            Editar
+          </button>
+          <button
+            onClick={() => handleDeleteClick(u.id, u.name)}
+            className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
+          >
+            Desativar
+          </button>
+        </div>
+      ),
+    },
+    {
+      id: "nome",
+      label: "Nome",
+      sortable: true,
+      sortKey: "name",
+      render: (u) => (
+        <span className="font-medium text-slate-900">{u.name}</span>
+      ),
+    },
+    {
+      id: "email",
+      label: "Email",
+      sortable: true,
+      sortKey: "email",
+      render: (u) => (
+        <span className="text-slate-600">{u.email}</span>
+      ),
+    },
+    {
+      id: "papeis",
+      label: "Papeis",
+      sortable: false,
+      render: (u) => (
+        <div className="flex flex-wrap gap-1">
+          {u.roles.map((r) => (
+            <span
+              key={r}
+              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                ROLE_COLORS[r] || "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {ROLE_LABELS[r] || r}
+            </span>
+          ))}
+        </div>
+      ),
+    },
+  ];
+}
 
 export default function UsersPage() {
   const { toast } = useToast();
+  const tp = useTableParams({ persistKey: "users", defaultSortBy: "name", defaultSortOrder: "asc" });
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -170,6 +254,31 @@ export default function UsersPage() {
     setShowConfirmModal(false);
     setDeactivateTarget(null);
   }
+
+  /* ── Table columns & layout ──────────────────────────── */
+
+  const columnDefs = useMemo(
+    () => buildUserColumns(expandedAuditId, setExpandedAuditId, startEdit, handleDeleteClick),
+    [expandedAuditId],
+  );
+
+  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } =
+    useTableLayout("users-v2", columnDefs);
+
+  const COLUMN_COUNT = orderedColumns.length;
+
+  /* ── Client-side sort ────────────────────────────────── */
+
+  const sortedUsers = useMemo(() => {
+    if (!tp.sort.column || !tp.sort.order) return users;
+    const col = tp.sort.column as keyof User;
+    const dir = tp.sort.order === "asc" ? 1 : -1;
+    return [...users].sort((a, b) => {
+      const va = (a[col] ?? "") as string;
+      const vb = (b[col] ?? "") as string;
+      return va.localeCompare(vb, "pt-BR", { sensitivity: "base" }) * dir;
+    });
+  }, [users, tp.sort.column, tp.sort.order]);
 
   const leituraSelected = form.roles.includes("LEITURA");
   const hasNonLeitura = form.roles.some((r) => r !== "LEITURA");
@@ -316,71 +425,82 @@ export default function UsersPage() {
           Nenhum usuario cadastrado.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-sm">
+        <div
+          className="rounded-xl border border-slate-200 bg-white shadow-sm"
+          style={{ overflowX: "auto", overflowY: "hidden" }}
+        >
+          <table
+            className="text-sm"
+            style={{ tableLayout: "fixed", minWidth: "700px", width: "max-content" }}
+          >
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="py-3 px-4 text-left font-medium text-slate-600">
-                  Nome
-                </th>
-                <th className="py-3 px-4 text-left font-medium text-slate-600">
-                  Email
-                </th>
-                <th className="py-3 px-4 text-left font-medium text-slate-600">
-                  Papeis
-                </th>
-                <th className="py-3 px-4 text-right font-medium text-slate-600">
-                  Acoes
-                </th>
+                {orderedColumns.map((col, idx) => (
+                  <DraggableHeader
+                    key={col.id}
+                    index={idx}
+                    columnId={col.id}
+                    onReorder={reorderColumns}
+                    onResize={setColumnWidth}
+                    width={columnWidths[col.id]}
+                  >
+                    {col.sortable ? (
+                      <SortableHeader
+                        as="div"
+                        label={col.label}
+                        column={col.sortKey || col.id}
+                        currentColumn={tp.sort.column}
+                        currentOrder={tp.sort.order}
+                        onToggle={tp.toggleSort}
+                        align={col.align}
+                      />
+                    ) : (
+                      <div
+                        className={`py-3 px-4 text-xs font-semibold uppercase text-slate-600 ${
+                          col.align === "right"
+                            ? "text-right"
+                            : col.align === "center"
+                              ? "text-center"
+                              : "text-left"
+                        }`}
+                      >
+                        {col.label}
+                      </div>
+                    )}
+                  </DraggableHeader>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {sortedUsers.map((u) => (
                 <React.Fragment key={u.id}>
                   <tr className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-3 px-4 font-medium text-slate-900">
-                      {u.name}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">{u.email}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex flex-wrap gap-1">
-                        {u.roles.map((r) => (
-                          <span
-                            key={r}
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              ROLE_COLORS[r] || "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {ROLE_LABELS[r] || r}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex justify-end gap-1.5">
-                        <button
-                          onClick={() => setExpandedAuditId((prev) => (prev === u.id ? null : u.id))}
-                          title="Historico de alteracoes"
-                          className={`rounded border px-1.5 py-1 text-xs transition-colors ${expandedAuditId === u.id ? "border-blue-300 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"}`}
+                    {orderedColumns.map((col) => {
+                      const w = columnWidths[col.id];
+                      const tdStyle: React.CSSProperties = w
+                        ? {
+                            width: `${w}px`,
+                            minWidth: `${w}px`,
+                            maxWidth: `${w}px`,
+                            overflow: "hidden",
+                          }
+                        : {};
+                      return (
+                        <td
+                          key={col.id}
+                          style={tdStyle}
+                          className={`py-3 px-4 ${
+                            col.align === "right"
+                              ? "text-right"
+                              : col.align === "center"
+                                ? "text-center"
+                                : "text-left"
+                          }`}
                         >
-                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => startEdit(u)}
-                          className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(u.id, u.name)}
-                          className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
-                        >
-                          Desativar
-                        </button>
-                      </div>
-                    </td>
+                          {col.render(u)}
+                        </td>
+                      );
+                    })}
                   </tr>
                   <AuditLogDrawer
                     entityType="USER"

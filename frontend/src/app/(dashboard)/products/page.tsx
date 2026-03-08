@@ -94,8 +94,29 @@ const PRODUCT_FILTERS: FilterDefinition[] = [
 
 /* ── Column definitions ───────────────────────────────── */
 
+const FINALIDADE_OPTIONS = [
+  { value: "USO_CONSUMO", label: "Uso/Consumo" },
+  { value: "REVENDA", label: "Revenda" },
+  { value: "ATIVO_IMOBILIZADO", label: "Ativo Imobilizado" },
+  { value: "MATERIA_PRIMA", label: "Mat. Prima" },
+  { value: "MATERIAL_OBRA", label: "Material Obra" },
+];
+
+const FINALIDADE_BADGE: Record<string, string> = {
+  USO_CONSUMO: "bg-sky-50 text-sky-700 border-sky-200",
+  REVENDA: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  ATIVO_IMOBILIZADO: "bg-purple-50 text-purple-700 border-purple-200",
+  MATERIA_PRIMA: "bg-amber-50 text-amber-700 border-amber-200",
+  MATERIAL_OBRA: "bg-orange-50 text-orange-700 border-orange-200",
+};
+
 function buildProductColumns(): ColumnDefinition<Product>[] {
   return [
+    {
+      id: "actions",
+      label: "Acoes",
+      render: () => null as any,
+    },
     {
       id: "code",
       label: "Codigo",
@@ -115,6 +136,23 @@ function buildProductColumns(): ColumnDefinition<Product>[] {
           {p.description}
         </span>
       ),
+    },
+    {
+      id: "finalidade",
+      label: "Finalidade",
+      sortable: true,
+      sortKey: "finalidade",
+      render: (p) => {
+        const fin = p.finalidade;
+        if (!fin) return <span className="text-sm text-slate-400">—</span>;
+        const opt = FINALIDADE_OPTIONS.find((o) => o.value === fin);
+        const badge = FINALIDADE_BADGE[fin] || "bg-slate-100 text-slate-600 border-slate-200";
+        return (
+          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border ${badge}`}>
+            {opt?.label || fin}
+          </span>
+        );
+      },
     },
     {
       id: "brand",
@@ -216,6 +254,7 @@ interface ProductForm {
   cstCofins: string;
   costCents: string;
   salePriceCents: string;
+  finalidade: string;
   minStock: string;
   maxStock: string;
   location: string;
@@ -244,6 +283,7 @@ const EMPTY_FORM: ProductForm = {
   cstCofins: "",
   costCents: "",
   salePriceCents: "",
+  finalidade: "",
   minStock: "",
   maxStock: "",
   location: "",
@@ -273,6 +313,7 @@ function productToForm(p: Product): ProductForm {
     cstCofins: p.cstCofins || "",
     costCents: centsToInputStr(p.costCents),
     salePriceCents: centsToInputStr(p.salePriceCents),
+    finalidade: p.finalidade || "",
     minStock: p.minStock != null ? String(p.minStock) : "",
     maxStock: p.maxStock != null ? String(p.maxStock) : "",
     location: p.location || "",
@@ -303,6 +344,7 @@ function formToPayload(f: ProductForm) {
     cstCofins: f.cstCofins || undefined,
     costCents: f.costCents ? parseBRLToCents(f.costCents) : undefined,
     salePriceCents: f.salePriceCents ? parseBRLToCents(f.salePriceCents) : undefined,
+    finalidade: f.finalidade || undefined,
     minStock: f.minStock ? parseInt(f.minStock, 10) : undefined,
     maxStock: f.maxStock ? parseInt(f.maxStock, 10) : undefined,
     location: f.location || undefined,
@@ -318,7 +360,7 @@ export default function ProductsPage() {
   const tp = useTableParams({ defaultSortBy: "description", defaultSortOrder: "asc" });
   const columns = buildProductColumns();
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout(
-    "products-list",
+    "products-v2",
     columns,
   );
 
@@ -626,9 +668,6 @@ export default function ProductsPage() {
                     )}
                   </DraggableHeader>
                 ))}
-                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-right w-[80px]">
-                  Acoes
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -648,6 +687,29 @@ export default function ProductsPage() {
                           overflow: "hidden",
                         }
                       : {};
+                    if (col.id === "actions") {
+                      return (
+                        <td key={col.id} style={tdStyle} className="py-3 px-4 text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditProduct(p);
+                            }}
+                            className="rounded p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Editar"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                          </button>
+                        </td>
+                      );
+                    }
                     return (
                       <td
                         key={col.id}
@@ -660,25 +722,6 @@ export default function ProductsPage() {
                       </td>
                     );
                   })}
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditProduct(p);
-                      }}
-                      className="rounded p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                      title="Editar"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -848,6 +891,21 @@ export default function ProductsPage() {
                       placeholder="Ex: Eletrico, Hidraulico..."
                       className={inputClass}
                     />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Finalidade</label>
+                    <select
+                      value={form.finalidade}
+                      onChange={(e) => setField("finalidade", e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">— Selecione —</option>
+                      {FINALIDADE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className={labelClass}>Status</label>

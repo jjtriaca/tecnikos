@@ -737,6 +737,9 @@ model Product {
   origin      String?   // 0=Nacional, 1=Estrangeira importação, etc.
   category    String?   // Categoria livre
 
+  // Finalidade Fiscal
+  finalidade  String?   // USO_CONSUMO | REVENDA | ATIVO_IMOBILIZADO | MATERIA_PRIMA | MATERIAL_OBRA
+
   // Aba Impostos
   icmsRate    Float?    // Alíquota ICMS %
   ipiRate     Float?    // Alíquota IPI %

@@ -25,6 +25,7 @@ export interface Product {
   profitMarginPercent?: number;
   lastPurchasePriceCents?: number;
   averageCostCents?: number;
+  finalidade?: string;
   currentStock: number;
   minStock?: number;
   maxStock?: number;

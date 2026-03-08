@@ -21,6 +21,7 @@ export class PrismaService
     await this.ensureServiceTable();
     await this.ensureCardFeeRateTable();
     await this.ensureSefazManifestColumns();
+    await this.ensureProductFinalidadeColumn();
     await this.fixOrphanImportedStatus();
   }
 
@@ -499,6 +500,15 @@ export class PrismaService
       await this.$executeRawUnsafe(`ALTER TABLE "SefazConfig" ADD COLUMN IF NOT EXISTS "autoManifestCiencia" BOOLEAN NOT NULL DEFAULT false`);
     } catch (err) {
       this.logger.warn('SefazManifest auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  /** Ensure Product.finalidade column exists (self-healing migration) */
+  private async ensureProductFinalidadeColumn(): Promise<void> {
+    try {
+      await this.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "finalidade" TEXT`);
+    } catch (err) {
+      this.logger.warn('Product finalidade auto-migration check failed (non-fatal):', err);
     }
   }
 
