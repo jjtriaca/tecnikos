@@ -20,6 +20,11 @@ const TYPE_LABELS: Record<string, string> = {
   STATUS_CHANGE: "Mudança de Status",
   ASSIGNMENT: "Atribuição",
   REMINDER: "Lembrete",
+  CONTRACT_SENT: "Contrato Enviado",
+  CONTRACT_ACCEPTED: "Contrato Aceito",
+  OS_ATRIBUIDA: "OS Atribuída",
+  OS_CONCLUIDA: "OS Concluída",
+  PROXIMIDADE: "Proximidade",
 };
 
 const CHANNEL_COLORS: Record<string, string> = {

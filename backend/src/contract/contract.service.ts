@@ -92,18 +92,46 @@ export class ContractService {
         type: 'CONTRACT_SENT',
       });
     } else if (channel === 'EMAIL' && partner.email && this.email) {
+      let emailStatus = 'SENT';
       try {
-        await this.email.sendEmail(
+        const result = await this.email.sendEmail(
           companyId,
           partner.email,
           `Contrato para aceite: ${contractName}`,
           this.buildEmailHtml(partner.name, contractName, contractUrl, company.name),
         );
+        emailStatus = result?.success ? 'SENT' : 'FAILED';
       } catch (err) {
+        emailStatus = 'FAILED';
         this.logger.error(`Failed to send contract email: ${err.message}`);
       }
+      // Log email notification in DB (email path doesn't go through NotificationService)
+      await this.prisma.notification.create({
+        data: {
+          companyId,
+          channel: 'EMAIL',
+          recipientEmail: partner.email,
+          message,
+          type: 'CONTRACT_SENT',
+          status: emailStatus,
+          sentAt: new Date(),
+        },
+      }).catch(() => {});
     } else {
-      this.logger.log(`📄 [CONTRACT] ${contractName} → ${partner.name} (${channel}): ${contractUrl}`);
+      // No channel available — log as MOCK so it appears in notifications
+      this.logger.warn(`📄 [CONTRACT] No channel available for ${partner.name} (${channel}, phone: ${partner.phone || 'N/A'}, email: ${partner.email || 'N/A'})`);
+      await this.prisma.notification.create({
+        data: {
+          companyId,
+          channel: 'MOCK',
+          recipientPhone: partner.phone,
+          recipientEmail: partner.email,
+          message: `[SEM CANAL] ${message}`,
+          type: 'CONTRACT_SENT',
+          status: 'FAILED',
+          sentAt: new Date(),
+        },
+      }).catch(() => {});
     }
 
     this.logger.log(`📄 Contract "${contractName}" sent to ${partner.name} via ${channel} — token: ${token}`);
