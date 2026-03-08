@@ -364,8 +364,8 @@ const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
     id: "nfeKey",
     label: "Chave NFe",
     render: (doc) => (
-      <span className="font-mono text-xs text-slate-500 truncate block max-w-[180px]" title={doc.nfeKey || ""}>
-        {truncateKey(doc.nfeKey, 25)}
+      <span className="font-mono text-xs text-slate-500 break-all leading-tight" title={doc.nfeKey || ""}>
+        {doc.nfeKey || "\u2014"}
       </span>
     ),
   },
@@ -376,7 +376,7 @@ const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
     sortKey: "emitterName",
     render: (doc) => (
       <div>
-        <p className="text-xs text-slate-900 font-medium truncate max-w-[160px]" title={doc.emitterName || ""}>
+        <p className="text-xs text-slate-900 font-medium leading-tight" title={doc.emitterName || ""}>
           {doc.emitterName || "\u2014"}
         </p>
         <p className="text-xs text-slate-400">{formatCnpj(doc.emitterCnpj)}</p>
@@ -450,7 +450,7 @@ const UPLOAD_COLUMNS: ColumnDefinition<NfeImport>[] = [
     id: "accessKey",
     label: "Chave",
     render: (imp) => (
-      <span className="font-mono text-xs text-slate-500 truncate block max-w-[200px]" title={imp.accessKey}>
+      <span className="font-mono text-xs text-slate-500 break-all leading-tight" title={imp.accessKey}>
         {imp.accessKey}
       </span>
     ),
