@@ -1055,7 +1055,11 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
   const enabledStages = config.stages.filter(s => s.enabled);
   if (enabledStages.length === 0) {
     blocks[0].next = endId;
-    return { version: 2, blocks };
+    const earlyResult: any = { version: 2, blocks };
+    if (config.technicianOnboarding?.enabled) {
+      earlyResult.technicianOnboarding = config.technicianOnboarding;
+    }
+    return earlyResult;
   }
 
   // For each enabled stage, collect blocks
