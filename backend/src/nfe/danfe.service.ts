@@ -6,6 +6,7 @@ import * as bwipjs from 'bwip-js';
 
 /* ══════════════════════════════════════════════════════════════════════
    DanfeService — Generates standard Brazilian DANFE PDF from NFe XML
+   Layout follows MOC (Manual de Orientação do Contribuinte) standard.
    ══════════════════════════════════════════════════════════════════════ */
 
 interface DanfeItem {
@@ -35,6 +36,7 @@ interface DanfeData {
   issueDate: string;
   issueDateRaw: string;
   entryExitDate: string;
+  exitTime: string;
   entryExit: number; // 0=entrada, 1=saida
   natOp: string;
   protocol: string;
@@ -108,6 +110,9 @@ interface DanfeData {
     ipiDevol: number;
     totalNf: number;
     approxTax: number;
+    totalServicos: number;
+    bcIssqn: number;
+    issqn: number;
   };
   info: string;
   infoFisco: string;
@@ -160,6 +165,7 @@ export class DanfeService {
     const emit = infNFe.emit ?? {};
     const dest = infNFe.dest ?? {};
     const total = infNFe.total?.ICMSTot ?? {};
+    const issqnTot = infNFe.total?.ISSQNtot ?? {};
     const infAdic = infNFe.infAdic ?? {};
     const transp = infNFe.transp ?? {};
     const cobr = infNFe.cobr ?? {};
@@ -247,11 +253,13 @@ export class DanfeService {
 
     const dhSaiEnt = String(ide.dhSaiEnt ?? '');
     let entryExitDate = '';
+    let exitTime = '';
     if (dhSaiEnt) {
       try {
         const d = new Date(dhSaiEnt);
         if (!isNaN(d.getTime())) {
           entryExitDate = d.toLocaleDateString('pt-BR');
+          exitTime = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
       } catch { /* keep raw */ }
     }
@@ -279,6 +287,7 @@ export class DanfeService {
       issueDate,
       issueDateRaw,
       entryExitDate,
+      exitTime,
       entryExit: Number(ide.tpNF ?? 1),
       natOp: String(ide.natOp ?? ''),
       protocol,
@@ -289,7 +298,7 @@ export class DanfeService {
         ie: String(emit.IE ?? ''),
         ieSubTrib: String(emit.IEST ?? ''),
         im: String(emit.IM ?? ''),
-        address: `${emitEnd.xLgr ?? ''}, ${emitEnd.nro ?? 'S/N'}`,
+        address: `${emitEnd.xLgr ?? ''} N.${emitEnd.nro ?? 'S/N'}`,
         neighborhood: String(emitEnd.xBairro ?? ''),
         city: String(emitEnd.xMun ?? ''),
         uf: String(emitEnd.UF ?? ''),
@@ -300,7 +309,7 @@ export class DanfeService {
         name: String(dest.xNome ?? ''),
         cnpj: this.formatCnpj(String(dest.CNPJ ?? dest.CPF ?? '')),
         ie: String(dest.IE ?? ''),
-        address: `${destEnd.xLgr ?? ''}, ${destEnd.nro ?? 'S/N'}`,
+        address: `${destEnd.xLgr ?? ''} N. ${destEnd.nro ?? 'S/N'}`,
         neighborhood: String(destEnd.xBairro ?? ''),
         city: String(destEnd.xMun ?? ''),
         uf: String(destEnd.UF ?? ''),
@@ -348,6 +357,9 @@ export class DanfeService {
         ipiDevol: parseFloat(String(total.vIPIDevol ?? '0')),
         totalNf: parseFloat(String(total.vNF ?? '0')),
         approxTax: parseFloat(String(total.vTotTrib ?? '0')),
+        totalServicos: parseFloat(String(issqnTot.vServ ?? '0')),
+        bcIssqn: parseFloat(String(issqnTot.vBC ?? '0')),
+        issqn: parseFloat(String(issqnTot.vISS ?? '0')),
       },
       info: String(infAdic.infCpl ?? ''),
       infoFisco: String(infAdic.infAdFisco ?? ''),
@@ -355,7 +367,7 @@ export class DanfeService {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     Build standard DANFE PDF
+     Build standard DANFE PDF — MOC layout
      ═══════════════════════════════════════════════════════════════════ */
 
   private async buildPdf(data: DanfeData): Promise<Buffer> {
@@ -385,17 +397,13 @@ export class DanfeService {
       doc.on('error', reject);
 
       const LX = 10;
-      const PW = doc.page.width - 20;
+      const PW = doc.page.width - 20; // ~575
       const PH = doc.page.height - 20;
       let y = 10;
+      let cx = 0;
 
-      // Font sizes
-      const F5 = 5;
-      const F6 = 6;
-      const F7 = 7;
-      const F8 = 8;
-      const F9 = 9;
-      const F10 = 10;
+      const F5 = 5, F6 = 6, F7 = 7, F8 = 8, F9 = 9, F10 = 10;
+      const RH = 18; // standard row height
 
       // ── Helpers ─────────────────────────────────────────────
       const box = (x: number, by: number, w: number, h: number) => {
@@ -432,13 +440,13 @@ export class DanfeService {
       const canhTextW = PW - 100;
       box(LX, y, canhTextW, canhH);
       doc.font('Helvetica').fontSize(F6).fillColor('#000')
-        .text(`RECEBEMOS DE ${data.emitter.name} OS PRODUTOS/SERVICOS CONSTANTES DA NOTA FISCAL INDICADA AO LADO`, LX + 3, y + 2, { width: canhTextW - 6 });
+        .text(`RECEBEMOS DE ${data.emitter.name} OS PRODUTOS CONSTANTES DA NOTA FISCAL INDICADA AO LADO`, LX + 3, y + 2, { width: canhTextW - 6 });
       // Data recebimento + Assinatura
       const halfCanh = canhTextW / 2;
       box(LX, y + 16, halfCanh, canhH - 16);
       label(LX, y + 16, 'DATA DE RECEBIMENTO');
       box(LX + halfCanh, y + 16, halfCanh, canhH - 16);
-      label(LX + halfCanh, y + 16, 'IDENTIFICACAO E ASSINATURA DO RECEBEDOR');
+      label(LX + halfCanh, y + 16, 'IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR');
 
       // NF-e box (right of canhoto)
       const nfeBoxX = LX + canhTextW;
@@ -447,7 +455,7 @@ export class DanfeService {
         .text('NF-e', nfeBoxX + 2, y + 3, { width: 96, align: 'center' });
       doc.font('Helvetica-Bold').fontSize(F8)
         .text(`N. ${data.nfeNumber}`, nfeBoxX + 2, y + 15, { width: 96, align: 'center' })
-        .text(`SERIE ${data.nfeSeries}`, nfeBoxX + 2, y + 25, { width: 96, align: 'center' });
+        .text(`SÉRIE ${data.nfeSeries}`, nfeBoxX + 2, y + 25, { width: 96, align: 'center' });
 
       y += canhH;
 
@@ -459,363 +467,293 @@ export class DanfeService {
       // ══════════════════════════════════════════════════════════
       // HEADER: Emitente | DANFE | Barcode+Chave+Protocolo
       // ══════════════════════════════════════════════════════════
-      const H1 = 90;
-      const emitW = PW * 0.42;
-      const danfeW = PW * 0.16;
+      const H1 = 95;
+      const emitW = Math.round(PW * 0.38);
+      const danfeW = Math.round(PW * 0.20);
       const barcW = PW - emitW - danfeW;
 
-      // Emitente
+      // Emitente (left column)
       box(LX, y, emitW, H1);
       doc.font('Helvetica-Bold').fontSize(F9).fillColor('#000')
-        .text(data.emitter.name, LX + 4, y + 8, { width: emitW - 8 });
-      let emitY = y + 25;
+        .text(data.emitter.name, LX + 4, y + 10, { width: emitW - 8 });
+      let emitY = y + 32;
       doc.font('Helvetica').fontSize(F6)
         .text(data.emitter.address, LX + 4, emitY, { width: emitW - 8 });
       emitY += 9;
-      doc.text(`Bairro ${data.emitter.neighborhood}, ${data.emitter.city} - ${data.emitter.uf}`, LX + 4, emitY, { width: emitW - 8 });
+      doc.text(`Bairro ${data.emitter.neighborhood},${data.emitter.city} - ${data.emitter.uf}`, LX + 4, emitY, { width: emitW - 8 });
       emitY += 9;
-      doc.text(`Fone: ${data.emitter.phone}  CEP:${data.emitter.cep}`, LX + 4, emitY, { width: emitW - 8 });
+      doc.text(`Fone: ${data.emitter.phone}, CEP:${data.emitter.cep}`, LX + 4, emitY, { width: emitW - 8 });
 
-      // DANFE title
+      // DANFE title (center column)
       const dX = LX + emitW;
       box(dX, y, danfeW, H1);
       doc.font('Helvetica-Bold').fontSize(12).fillColor('#000')
         .text('DANFE', dX, y + 4, { width: danfeW, align: 'center' });
       doc.font('Helvetica').fontSize(F5)
-        .text('Documento Auxiliar da\nNota Fiscal Eletronica', dX + 3, y + 18, { width: danfeW - 6, align: 'center' });
-      // Entry/Exit
+        .text('Documento\nAuxiliar da Nota\nFiscal Eletrônica', dX + 3, y + 18, { width: danfeW - 6, align: 'center' });
+      // Entry/Exit indicator
       doc.font('Helvetica').fontSize(F6)
-        .text('0 - ENTRADA', dX + 6, y + 36)
-        .text('1 - SAIDA', dX + 6, y + 44);
-      doc.rect(dX + danfeW - 22, y + 34, 16, 16).stroke('#000');
+        .text('0 - ENTRADA', dX + 6, y + 40)
+        .text('1 - SAÍDA', dX + 6, y + 48);
+      doc.rect(dX + danfeW - 22, y + 39, 16, 16).stroke('#000');
       doc.font('Helvetica-Bold').fontSize(F10)
-        .text(String(data.entryExit), dX + danfeW - 22, y + 37, { width: 16, align: 'center' });
+        .text(String(data.entryExit), dX + danfeW - 22, y + 42, { width: 16, align: 'center' });
       // Number / Series / Page
       doc.font('Helvetica-Bold').fontSize(F7)
-        .text(`N. ${data.nfeNumber}`, dX + 3, y + 56, { width: danfeW - 6, align: 'center' })
-        .text(`SERIE ${data.nfeSeries}`, dX + 3, y + 65, { width: danfeW - 6, align: 'center' });
+        .text(`N. ${data.nfeNumber}`, dX + 3, y + 62, { width: danfeW - 6, align: 'center' })
+        .text(`SÉRIE ${data.nfeSeries}`, dX + 3, y + 71, { width: danfeW - 6, align: 'center' });
       doc.font('Helvetica').fontSize(F6)
-        .text('FOLHA 1/1', dX + 3, y + 75, { width: danfeW - 6, align: 'center' });
+        .text('FOLHA 1/1', dX + 3, y + 82, { width: danfeW - 6, align: 'center' });
 
-      // Barcode + Key + Protocol
+      // Barcode + Key + Protocol (right column)
       const bX = dX + danfeW;
       box(bX, y, barcW, H1);
-
       if (barcodeImg) {
         try {
           doc.image(barcodeImg, bX + 8, y + 4, { width: barcW - 16, height: 28 });
         } catch { /* skip */ }
       }
-
-      // Chave de Acesso
       doc.font('Helvetica').fontSize(F5)
         .text('CHAVE DE ACESSO', bX + 3, y + 35, { width: barcW - 6, align: 'center' });
       doc.font('Helvetica-Bold').fontSize(F6)
         .text(this.formatNfeKey(data.nfeKey), bX + 3, y + 43, { width: barcW - 6, align: 'center' });
-
-      // Consulta autenticidade
       doc.font('Helvetica').fontSize(F5)
-        .text('Consulta de autenticidade no portal nacional da NF-e www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizadora', bX + 3, y + 54, { width: barcW - 6, align: 'center' });
-
-      // Protocol
+        .text('Consulta de autenticidade no portal nacional da NF-e www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizadora', bX + 3, y + 56, { width: barcW - 6, align: 'center' });
       if (data.protocol) {
         doc.font('Helvetica').fontSize(F5)
-          .text('PROTOCOLO DE AUTORIZACAO DE USO', bX + 3, y + 68, { width: barcW - 6, align: 'center' });
+          .text('PROTOCOLO DE AUTORIZAÇÃO DE USO', bX + 3, y + 72, { width: barcW - 6, align: 'center' });
         doc.font('Helvetica-Bold').fontSize(F7)
-          .text(`${data.protocol} ${data.protocolDate}`, bX + 3, y + 76, { width: barcW - 6, align: 'center' });
+          .text(`${data.protocol} ${data.protocolDate}`, bX + 3, y + 80, { width: barcW - 6, align: 'center' });
       }
 
       y += H1;
 
       // ══════════════════════════════════════════════════════════
-      // BLOCO 2: NATUREZA DA OPERACAO + INSCRICOES + CNPJ
+      // NATUREZA DA OPERAÇÃO (full width — protocol is in header)
       // ══════════════════════════════════════════════════════════
-      const H2 = 18;
-
-      // Natureza da Operacao
-      const natW = PW * 0.55;
-      box(LX, y, natW, H2);
-      label(LX, y, 'NATUREZA DA OPERACAO');
-      val(LX, y, data.natOp, { w: natW, bold: true });
-
-      // Inscricao Estadual
-      const ieW = (PW - natW) / 3;
-      box(LX + natW, y, ieW, H2);
-      label(LX + natW, y, 'INSCRICAO ESTADUAL');
-      val(LX + natW, y, data.emitter.ie, { w: ieW });
-
-      // IE Subst. Trib.
-      box(LX + natW + ieW, y, ieW, H2);
-      label(LX + natW + ieW, y, 'INSC. EST. SUBST. TRIB.');
-      val(LX + natW + ieW, y, data.emitter.ieSubTrib, { w: ieW });
-
-      // CNPJ
-      box(LX + natW + ieW * 2, y, ieW, H2);
-      label(LX + natW + ieW * 2, y, 'CNPJ');
-      val(LX + natW + ieW * 2, y, data.emitter.cnpj, { w: ieW });
-
-      y += H2;
+      box(LX, y, PW, RH);
+      label(LX, y, 'NATUREZA DA OPERAÇÃO');
+      val(LX, y, data.natOp, { w: PW, bold: true });
+      y += RH;
 
       // ══════════════════════════════════════════════════════════
-      // BLOCO 3: DESTINATARIO / REMETENTE
+      // INSCRIÇÃO ESTADUAL | INSC. EST. SUBST. TRIB. | CNPJ
       // ══════════════════════════════════════════════════════════
-      y += 2;
-      sectionTitle('DESTINATARIO / REMETENTE', y + 7);
+      const ieColW = Math.round(PW / 3);
+      const cnpjColW = PW - ieColW * 2;
+      box(LX, y, ieColW, RH);
+      label(LX, y, 'INSCRIÇÃO ESTADUAL');
+      val(LX, y, data.emitter.ie, { w: ieColW });
+      box(LX + ieColW, y, ieColW, RH);
+      label(LX + ieColW, y, 'INSC. ESTADUAL DO SUBST. TRIBUTÁRIO');
+      val(LX + ieColW, y, data.emitter.ieSubTrib, { w: ieColW });
+      box(LX + ieColW * 2, y, cnpjColW, RH);
+      label(LX + ieColW * 2, y, 'CNPJ');
+      val(LX + ieColW * 2, y, data.emitter.cnpj, { w: cnpjColW });
+      y += RH;
+
+      // ══════════════════════════════════════════════════════════
+      // DESTINATÁRIO/REMETENTE
+      // ══════════════════════════════════════════════════════════
+      y += 1;
+      sectionTitle('DESTINATÁRIO/REMETENTE', y + 7);
       y += 8;
-      const RH = 18;
 
-      // Row 1: Nome + CNPJ + Data
-      const destNameW = PW * 0.55;
-      const destCnpjW = PW * 0.25;
-      const destDateW = PW - destNameW - destCnpjW;
-
-      box(LX, y, destNameW, RH);
-      label(LX, y, 'NOME / RAZAO SOCIAL');
-      val(LX, y, data.recipient.name, { w: destNameW, bold: true });
-
-      box(LX + destNameW, y, destCnpjW, RH);
-      label(LX + destNameW, y, 'CNPJ/CPF');
-      val(LX + destNameW, y, data.recipient.cnpj, { w: destCnpjW });
-
-      box(LX + destNameW + destCnpjW, y, destDateW, RH);
-      label(LX + destNameW + destCnpjW, y, 'DATA DA EMISSAO');
-      val(LX + destNameW + destCnpjW, y, data.issueDate, { w: destDateW, align: 'center' });
-
+      // Row 1: Nome/Razão Social | CNPJ/CPF | Data Emissão
+      const dNameW = Math.round(PW * 0.55);
+      const dCnpjW = Math.round(PW * 0.25);
+      const dDateW = PW - dNameW - dCnpjW;
+      box(LX, y, dNameW, RH);
+      label(LX, y, 'NOME/RAZÃO SOCIAL');
+      val(LX, y, data.recipient.name, { w: dNameW, bold: true });
+      box(LX + dNameW, y, dCnpjW, RH);
+      label(LX + dNameW, y, 'CNPJ/CPF');
+      val(LX + dNameW, y, data.recipient.cnpj, { w: dCnpjW });
+      box(LX + dNameW + dCnpjW, y, dDateW, RH);
+      label(LX + dNameW + dCnpjW, y, 'DATA DA EMISSÃO');
+      val(LX + dNameW + dCnpjW, y, data.issueDate, { w: dDateW, align: 'center' });
       y += RH;
 
-      // Row 2: Endereco + Bairro + CEP + Data Entrada/Saida
-      const addrW = PW * 0.38;
-      const bairroW = PW * 0.22;
-      const cepW = PW * 0.15;
-      const dEntW = PW - addrW - bairroW - cepW;
-
-      box(LX, y, addrW, RH);
-      label(LX, y, 'ENDERECO');
-      val(LX, y, data.recipient.address, { w: addrW });
-
-      box(LX + addrW, y, bairroW, RH);
-      label(LX + addrW, y, 'BAIRRO/DISTRITO');
-      val(LX + addrW, y, data.recipient.neighborhood, { w: bairroW });
-
-      box(LX + addrW + bairroW, y, cepW, RH);
-      label(LX + addrW + bairroW, y, 'CEP');
-      val(LX + addrW + bairroW, y, data.recipient.cep, { w: cepW });
-
-      box(LX + addrW + bairroW + cepW, y, dEntW, RH);
-      label(LX + addrW + bairroW + cepW, y, 'DATA ENTRADA/SAIDA');
-      val(LX + addrW + bairroW + cepW, y, data.entryExitDate, { w: dEntW, align: 'center' });
-
+      // Row 2: Endereço | Bairro | CEP | Data Entrada/Saída
+      const dAddrW = Math.round(PW * 0.38);
+      const dBairroW = Math.round(PW * 0.22);
+      const dCepW = Math.round(PW * 0.15);
+      const dEntW = PW - dAddrW - dBairroW - dCepW;
+      box(LX, y, dAddrW, RH);
+      label(LX, y, 'ENDEREÇO');
+      val(LX, y, data.recipient.address, { w: dAddrW });
+      box(LX + dAddrW, y, dBairroW, RH);
+      label(LX + dAddrW, y, 'BAIRRO/DISTRITO');
+      val(LX + dAddrW, y, data.recipient.neighborhood, { w: dBairroW });
+      box(LX + dAddrW + dBairroW, y, dCepW, RH);
+      label(LX + dAddrW + dBairroW, y, 'CEP');
+      val(LX + dAddrW + dBairroW, y, data.recipient.cep, { w: dCepW });
+      box(LX + dAddrW + dBairroW + dCepW, y, dEntW, RH);
+      label(LX + dAddrW + dBairroW + dCepW, y, 'DATA DA ENTRADA/SAÍDA');
+      val(LX + dAddrW + dBairroW + dCepW, y, data.entryExitDate, { w: dEntW, align: 'center' });
       y += RH;
 
-      // Row 3: Municipio + Fone + UF + IE
-      const munW = PW * 0.38;
-      const foneW = PW * 0.22;
-      const ufW = PW * 0.08;
-      const ieDestW = PW - munW - foneW - ufW;
-
-      box(LX, y, munW, RH);
-      label(LX, y, 'MUNICIPIO');
-      val(LX, y, data.recipient.city, { w: munW });
-
-      box(LX + munW, y, foneW, RH);
-      label(LX + munW, y, 'FONE/FAX');
-      val(LX + munW, y, data.recipient.phone, { w: foneW });
-
-      box(LX + munW + foneW, y, ufW, RH);
-      label(LX + munW + foneW, y, 'UF');
-      val(LX + munW + foneW, y, data.recipient.uf, { w: ufW, align: 'center' });
-
-      box(LX + munW + foneW + ufW, y, ieDestW, RH);
-      label(LX + munW + foneW + ufW, y, 'INSCRICAO ESTADUAL');
-      val(LX + munW + foneW + ufW, y, data.recipient.inscEst, { w: ieDestW });
-
+      // Row 3: Município | Fone | UF | IE | Hora Saída
+      const dMunW = Math.round(PW * 0.34);
+      const dFoneW = Math.round(PW * 0.18);
+      const dUfW = Math.round(PW * 0.06);
+      const dIeW = Math.round(PW * 0.22);
+      const dHoraW = PW - dMunW - dFoneW - dUfW - dIeW;
+      cx = LX;
+      box(cx, y, dMunW, RH); label(cx, y, 'MUNICÍPIO'); val(cx, y, data.recipient.city, { w: dMunW }); cx += dMunW;
+      box(cx, y, dFoneW, RH); label(cx, y, 'FONE/FAX'); val(cx, y, data.recipient.phone, { w: dFoneW }); cx += dFoneW;
+      box(cx, y, dUfW, RH); label(cx, y, 'UF'); val(cx, y, data.recipient.uf, { w: dUfW, align: 'center' }); cx += dUfW;
+      box(cx, y, dIeW, RH); label(cx, y, 'INSCRIÇÃO ESTADUAL'); val(cx, y, data.recipient.inscEst, { w: dIeW }); cx += dIeW;
+      box(cx, y, dHoraW, RH); label(cx, y, 'HORA DA SAÍDA'); val(cx, y, data.exitTime, { w: dHoraW, align: 'center' });
       y += RH;
 
       // ══════════════════════════════════════════════════════════
-      // BLOCO 4: FATURA / DUPLICATA
+      // FATURA/DUPLICATA
       // ══════════════════════════════════════════════════════════
       if (data.duplicates.length > 0 || data.invoice.number) {
-        y += 2;
+        y += 1;
         sectionTitle('FATURA/DUPLICATA', y + 7);
         y += 8;
-        const fatH = 18;
-
-        // Show duplicates inline
         const dupText = data.duplicates.map(d =>
-          `${d.number ? d.number + ':' : ''} Venc=${d.dueDate} Val=${d.value}`
+          `${d.number ? d.number + ':' : ''} Venc=${d.dueDate} Valor=${d.value}`
         ).join('  |  ');
         const displayText = dupText || `Fatura: ${data.invoice.number}  Valor: ${data.invoice.value}`;
-
-        box(LX, y, PW, fatH);
+        box(LX, y, PW, RH);
         val(LX, y, displayText, { w: PW, size: F6 });
-        y += fatH;
+        y += RH;
       }
 
       // ══════════════════════════════════════════════════════════
-      // BLOCO 5: CALCULO DO IMPOSTO
+      // CÁLCULO DE IMPOSTO
       // ══════════════════════════════════════════════════════════
-      y += 2;
-      sectionTitle('CALCULO DO IMPOSTO', y + 7);
+      y += 1;
+      sectionTitle('CÁLCULO DE IMPOSTO', y + 7);
       y += 8;
-      const TH = 18;
-      const tw = PW / 7;
 
-      const taxRow1 = [
-        { l: 'BASE CALCULO ICMS', v: this.formatMoney(data.totals.bcIcms) },
+      // Row 1: 5 columns (standard DANFE)
+      const t5w = PW / 5;
+      const taxR1 = [
+        { l: 'BASE DE CÁLCULO DO ICMS', v: this.formatMoney(data.totals.bcIcms) },
         { l: 'VALOR DO ICMS', v: this.formatMoney(data.totals.icms) },
-        { l: 'BASE CALC. ICMS ST', v: this.formatMoney(data.totals.bcIcmsSt) },
+        { l: 'BASE DE CÁLCULO DO ICMS ST', v: this.formatMoney(data.totals.bcIcmsSt) },
         { l: 'VALOR DO ICMS ST', v: this.formatMoney(data.totals.icmsSt) },
-        { l: 'V.IMP. IMPORTACAO', v: '0,00' },
-        { l: 'VALOR DO IPI', v: this.formatMoney(data.totals.ipi) },
-        { l: 'VALOR TOTAL PRODUTOS', v: this.formatMoney(data.totals.totalProducts) },
+        { l: 'VALOR TOTAL DOS PRODUTOS', v: this.formatMoney(data.totals.totalProducts) },
       ];
-
-      taxRow1.forEach((t, i) => {
-        const tx = LX + i * tw;
-        box(tx, y, tw, TH);
+      taxR1.forEach((t, i) => {
+        const tx = LX + i * t5w;
+        const w = i === 4 ? PW - t5w * 4 : t5w;
+        box(tx, y, w, RH);
         label(tx, y, t.l);
-        val(tx, y, t.v, { w: tw, align: 'right' });
+        val(tx, y, t.v, { w, align: 'right' });
       });
-      y += TH;
+      y += RH;
 
-      const taxRow2 = [
+      // Row 2: 6 columns (standard DANFE)
+      const t6w = PW / 6;
+      const taxR2 = [
         { l: 'VALOR DO FRETE', v: this.formatMoney(data.totals.freight) },
         { l: 'VALOR DO SEGURO', v: this.formatMoney(data.totals.insurance) },
         { l: 'DESCONTO', v: this.formatMoney(data.totals.discount) },
-        { l: 'OUTRAS DESP. ACESS.', v: this.formatMoney(data.totals.otherExpenses) },
-        { l: 'VALOR DO IPI DEVOL.', v: this.formatMoney(data.totals.ipiDevol) },
-        { l: 'V. APROX. TRIBUTOS', v: this.formatMoney(data.totals.approxTax) },
+        { l: 'OUTRAS DESPESAS ACESSÓRIAS', v: this.formatMoney(data.totals.otherExpenses) },
+        { l: 'VALOR DO IPI', v: this.formatMoney(data.totals.ipi) },
         { l: 'VALOR TOTAL DA NOTA', v: this.formatMoney(data.totals.totalNf) },
       ];
-
-      taxRow2.forEach((t, i) => {
-        const tx = LX + i * tw;
-        box(tx, y, tw, TH);
+      taxR2.forEach((t, i) => {
+        const tx = LX + i * t6w;
+        const w = i === 5 ? PW - t6w * 5 : t6w;
+        box(tx, y, w, RH);
         label(tx, y, t.l);
-        val(tx, y, t.v, { w: tw, align: 'right', bold: i === 6 });
+        val(tx, y, t.v, { w, align: 'right', bold: i === 5 });
       });
-      y += TH;
+      y += RH;
 
       // ══════════════════════════════════════════════════════════
-      // BLOCO 6: TRANSPORTADOR / VOLUMES
+      // TRANSPORTADOR/VOLUMES TRANSPORTADOS
       // ══════════════════════════════════════════════════════════
-      y += 2;
-      sectionTitle('TRANSPORTADOR / VOLUMES TRANSPORTADOS', y + 7);
+      y += 1;
+      sectionTitle('TRANSPORTADOR/VOLUMES TRANSPORTADOS', y + 7);
       y += 8;
 
-      // Row 1: Razao Social, Frete, Codigo ANTT, Placa, UF, CNPJ/CPF
-      const trNameW = PW * 0.30;
-      const trFreteW = PW * 0.14;
-      const trAnttW = PW * 0.12;
-      const trPlacaW = PW * 0.14;
-      const trUfW = PW * 0.06;
-      const trCnpjW = PW - trNameW - trFreteW - trAnttW - trPlacaW - trUfW;
-
-      box(LX, y, trNameW, RH);
-      label(LX, y, 'RAZAO SOCIAL');
-      val(LX, y, data.transport.name, { w: trNameW });
-
-      box(LX + trNameW, y, trFreteW, RH);
-      label(LX + trNameW, y, 'FRETE POR CONTA');
-      val(LX + trNameW, y, data.transport.modFrete, { w: trFreteW, size: F6 });
-
-      box(LX + trNameW + trFreteW, y, trAnttW, RH);
-      label(LX + trNameW + trFreteW, y, 'CODIGO ANTT');
-      val(LX + trNameW + trFreteW, y, data.transport.antt, { w: trAnttW });
-
-      const plX = LX + trNameW + trFreteW + trAnttW;
-      box(plX, y, trPlacaW, RH);
-      label(plX, y, 'PLACA DO VEICULO');
-      val(plX, y, data.transport.plate, { w: trPlacaW });
-
-      box(plX + trPlacaW, y, trUfW, RH);
-      label(plX + trPlacaW, y, 'UF');
-      val(plX + trPlacaW, y, data.transport.plateUf, { w: trUfW, align: 'center' });
-
-      box(plX + trPlacaW + trUfW, y, trCnpjW, RH);
-      label(plX + trPlacaW + trUfW, y, 'CNPJ/CPF');
-      val(plX + trPlacaW + trUfW, y, data.transport.cnpj, { w: trCnpjW });
-
+      // Row 1: Razão Social | Frete Por Conta | Código ANTT | Placa | UF | CNPJ/CPF
+      const trNW = Math.round(PW * 0.30);
+      const trFW = Math.round(PW * 0.14);
+      const trAW = Math.round(PW * 0.12);
+      const trPW2 = Math.round(PW * 0.14);
+      const trUW = Math.round(PW * 0.06);
+      const trCW = PW - trNW - trFW - trAW - trPW2 - trUW;
+      cx = LX;
+      box(cx, y, trNW, RH); label(cx, y, 'RAZÃO SOCIAL'); val(cx, y, data.transport.name, { w: trNW }); cx += trNW;
+      box(cx, y, trFW, RH); label(cx, y, 'FRETE POR CONTA'); val(cx, y, data.transport.modFrete, { w: trFW, size: F6 }); cx += trFW;
+      box(cx, y, trAW, RH); label(cx, y, 'CÓDIGO ANTT'); val(cx, y, data.transport.antt, { w: trAW }); cx += trAW;
+      box(cx, y, trPW2, RH); label(cx, y, 'PLACA DO VEÍCULO'); val(cx, y, data.transport.plate, { w: trPW2 }); cx += trPW2;
+      box(cx, y, trUW, RH); label(cx, y, 'UF'); val(cx, y, data.transport.plateUf, { w: trUW, align: 'center' }); cx += trUW;
+      box(cx, y, trCW, RH); label(cx, y, 'CNPJ/CPF'); val(cx, y, data.transport.cnpj, { w: trCW });
       y += RH;
 
-      // Row 2: Endereco, Municipio, UF, IE
-      const trAddrW = PW * 0.38;
-      const trCityW = PW * 0.30;
-      const trUf2W = PW * 0.06;
-      const trIeW = PW - trAddrW - trCityW - trUf2W;
-
-      box(LX, y, trAddrW, RH);
-      label(LX, y, 'ENDERECO');
-      val(LX, y, data.transport.address, { w: trAddrW });
-
-      box(LX + trAddrW, y, trCityW, RH);
-      label(LX + trAddrW, y, 'MUNICIPIO');
-      val(LX + trAddrW, y, data.transport.city, { w: trCityW });
-
-      box(LX + trAddrW + trCityW, y, trUf2W, RH);
-      label(LX + trAddrW + trCityW, y, 'UF');
-      val(LX + trAddrW + trCityW, y, data.transport.uf, { w: trUf2W, align: 'center' });
-
-      box(LX + trAddrW + trCityW + trUf2W, y, trIeW, RH);
-      label(LX + trAddrW + trCityW + trUf2W, y, 'INSCRICAO ESTADUAL');
-      val(LX + trAddrW + trCityW + trUf2W, y, data.transport.ie, { w: trIeW });
-
+      // Row 2: Endereço | Município | UF | Inscrição Estadual
+      const trAdW = Math.round(PW * 0.38);
+      const trMW = Math.round(PW * 0.30);
+      const trU2W = Math.round(PW * 0.06);
+      const trIW = PW - trAdW - trMW - trU2W;
+      cx = LX;
+      box(cx, y, trAdW, RH); label(cx, y, 'ENDEREÇO'); val(cx, y, data.transport.address, { w: trAdW }); cx += trAdW;
+      box(cx, y, trMW, RH); label(cx, y, 'MUNICÍPIO'); val(cx, y, data.transport.city, { w: trMW }); cx += trMW;
+      box(cx, y, trU2W, RH); label(cx, y, 'UF'); val(cx, y, data.transport.uf, { w: trU2W, align: 'center' }); cx += trU2W;
+      box(cx, y, trIW, RH); label(cx, y, 'INSCRIÇÃO ESTADUAL'); val(cx, y, data.transport.ie, { w: trIW });
       y += RH;
 
-      // Row 3: Quantidade, Especie, Marca, Numero, Peso Bruto, Peso Liquido
-      const vColW = PW / 6;
-      const volFields = [
+      // Row 3: Quantidade | Espécie | Marca | Número | Peso Bruto | Peso Líquido
+      const vW = PW / 6;
+      const vols = [
         { l: 'QUANTIDADE', v: data.transport.qty },
-        { l: 'ESPECIE', v: data.transport.species },
+        { l: 'ESPÉCIE', v: data.transport.species },
         { l: 'MARCA', v: data.transport.brand },
-        { l: 'NUMERO', v: data.transport.numVol },
+        { l: 'NÚMERO', v: data.transport.numVol },
         { l: 'PESO BRUTO', v: data.transport.grossWeight },
-        { l: 'PESO LIQUIDO', v: data.transport.netWeight },
+        { l: 'PESO LÍQUIDO', v: data.transport.netWeight },
       ];
-
-      volFields.forEach((f, i) => {
-        const fx = LX + i * vColW;
-        box(fx, y, vColW, RH);
+      vols.forEach((f, i) => {
+        const fx = LX + i * vW;
+        const w = i === 5 ? PW - vW * 5 : vW;
+        box(fx, y, w, RH);
         label(fx, y, f.l);
-        val(fx, y, f.v, { w: vColW, align: i >= 4 ? 'right' : 'center' });
+        val(fx, y, f.v, { w, align: i >= 4 ? 'right' : 'center' });
       });
       y += RH;
 
       // ══════════════════════════════════════════════════════════
-      // BLOCO 7: DADOS DOS PRODUTOS / SERVICOS
+      // DADOS DOS PRODUTOS/SERVIÇOS
       // ══════════════════════════════════════════════════════════
-      y += 2;
-      sectionTitle('DADOS DOS PRODUTOS / SERVICOS', y + 7);
+      y += 1;
+      sectionTitle('DADOS DOS PRODUTOS/SERVIÇOS', y + 7);
       y += 8;
 
-      // Column definitions
-      const itemCols = [
-        { l: 'COD. PROD', w: PW * 0.07 },
-        { l: 'DESCRICAO DOS PRODUTOS/SERVICOS', w: PW * 0.24 },
-        { l: 'NCM/SH', w: PW * 0.07 },
-        { l: 'CST', w: PW * 0.04 },
-        { l: 'CFOP', w: PW * 0.05 },
-        { l: 'UN.', w: PW * 0.04 },
-        { l: 'QUANT.', w: PW * 0.07 },
-        { l: 'V. UNITARIO', w: PW * 0.08 },
-        { l: 'V. DESC.', w: PW * 0.06 },
-        { l: 'V. TOTAL', w: PW * 0.07 },
-        { l: 'BC ICMS', w: PW * 0.07 },
-        { l: 'V. ICMS', w: PW * 0.06 },
-        { l: 'ALIQ ICMS', w: PW * 0.04 },
-        { l: 'V. IPI', w: PW * 0.04 },
+      // Standard DANFE product columns (14 columns — MOC standard)
+      const pCols = [
+        { l: 'CÓDIGO\nPRODUTO', w: 44 },
+        { l: 'DESCRIÇÃO DO PRODUTO / SERVIÇO', w: 0 }, // auto-fill remaining
+        { l: 'NCM/SH', w: 40 },
+        { l: 'CST', w: 20 },
+        { l: 'CFOP', w: 26 },
+        { l: 'UN', w: 18 },
+        { l: 'QUANTI-\nDADE', w: 42 },
+        { l: 'VALOR\nUNITÁRIO', w: 50 },
+        { l: 'VALOR\nTOTAL', w: 48 },
+        { l: 'B.CÁLC.\nDO ICMS', w: 48 },
+        { l: 'VALOR\nDO ICMS', w: 40 },
+        { l: 'VALOR\nDO IPI', w: 34 },
+        { l: 'ALÍQ.\nICMS', w: 30 },
+        { l: 'ALÍQ.\nIPI', w: 26 },
       ];
 
-      // Adjust last column to fill remaining width
-      const totalColW = itemCols.reduce((s, c) => s + c.w, 0);
-      if (totalColW < PW) {
-        itemCols[1].w += PW - totalColW;
-      }
+      // Calculate auto-fill width for description column
+      const fixedW = pCols.reduce((s, c) => s + c.w, 0);
+      pCols[1].w = PW - fixedW;
 
       // Header row
-      const hdrH = 20;
-      let cx = LX;
-      itemCols.forEach((col) => {
+      const hdrH = 22;
+      cx = LX;
+      pCols.forEach((col) => {
         box(cx, y, col.w, hdrH);
         doc.font('Helvetica-Bold').fontSize(F5).fillColor('#000')
           .text(col.l, cx + 1, y + 2, { width: col.w - 2, align: 'center' });
@@ -824,15 +762,15 @@ export class DanfeService {
       y += hdrH;
 
       // Item rows
-      const itemRowH = 11;
+      const rowH = 13;
       for (const item of data.items) {
-        // Page break check
-        if (y + itemRowH > PH - 80) {
+        // Page break check (leave room for ISSQN + info sections)
+        if (y + rowH > PH - 90) {
           doc.addPage();
           y = 15;
         }
 
-        const rowValues = [
+        const rowVals = [
           item.code,
           item.description,
           item.ncm,
@@ -841,48 +779,79 @@ export class DanfeService {
           item.unit,
           this.formatQty(item.quantity),
           this.formatMoney(item.unitPrice),
-          item.discount > 0 ? this.formatMoney(item.discount) : '',
           this.formatMoney(item.total),
           item.bcIcms > 0 ? this.formatMoney(item.bcIcms) : '',
           item.icmsValue > 0 ? this.formatMoney(item.icmsValue) : '',
-          item.icmsRate > 0 ? this.formatMoney(item.icmsRate) : '',
           item.ipiValue > 0 ? this.formatMoney(item.ipiValue) : '',
+          item.icmsRate > 0 ? this.formatMoney(item.icmsRate) : '',
+          item.ipiRate > 0 ? this.formatMoney(item.ipiRate) : '',
         ];
 
         cx = LX;
-        rowValues.forEach((v, i) => {
-          box(cx, y, itemCols[i].w, itemRowH);
-          const align = i >= 6 ? 'right' : i <= 0 ? 'center' : 'left';
-          doc.font('Helvetica').fontSize(F5).fillColor('#000')
-            .text(v, cx + 1, y + 2, {
-              width: itemCols[i].w - 2,
+        rowVals.forEach((v, i) => {
+          box(cx, y, pCols[i].w, rowH);
+          const align = i >= 6 ? 'right' : i === 0 ? 'center' : 'left';
+          doc.font('Helvetica').fontSize(F6).fillColor('#000')
+            .text(v, cx + 1, y + 3, {
+              width: pCols[i].w - 2,
               align,
               ellipsis: true,
               lineBreak: false,
             });
-          cx += itemCols[i].w;
+          cx += pCols[i].w;
         });
-        y += itemRowH;
+        y += rowH;
       }
 
       // ══════════════════════════════════════════════════════════
-      // BLOCO 8: INFORMACOES COMPLEMENTARES
+      // CÁLCULO DO ISSQN
       // ══════════════════════════════════════════════════════════
-      y += 2;
+      if (y + RH + RH + 50 > PH) { doc.addPage(); y = 15; }
+      y += 1;
+      sectionTitle('CÁLCULO DO ISSQN', y + 7);
+      y += 8;
+      const issqnW = PW / 4;
+      const issqnFields = [
+        { l: 'INSCRIÇÃO MUNICIPAL', v: data.emitter.im || '' },
+        { l: 'VALOR TOTAL DOS SERVIÇOS', v: this.formatMoney(data.totals.totalServicos) },
+        { l: 'BASE DE CÁLCULO DE ISSQN', v: this.formatMoney(data.totals.bcIssqn) },
+        { l: 'VALOR DO ISSQN', v: this.formatMoney(data.totals.issqn) },
+      ];
+      issqnFields.forEach((f, i) => {
+        const fx = LX + i * issqnW;
+        const w = i === 3 ? PW - issqnW * 3 : issqnW;
+        box(fx, y, w, RH);
+        label(fx, y, f.l);
+        val(fx, y, f.v, { w, align: i >= 1 ? 'right' : 'left' });
+      });
+      y += RH;
+
+      // ══════════════════════════════════════════════════════════
+      // DADOS ADICIONAIS
+      // ══════════════════════════════════════════════════════════
+      y += 1;
+      sectionTitle('DADOS ADICIONAIS', y + 7);
+      y += 8;
+
       const infoText = [data.infoFisco, data.info].filter(Boolean).join('\n');
-      if (infoText) {
-        if (y + 50 > PH) {
-          doc.addPage();
-          y = 15;
-        }
-        sectionTitle('INFORMACOES COMPLEMENTARES', y + 7);
-        y += 8;
+      const infoH = Math.max(45, Math.min(80, Math.ceil((infoText.length || 1) / 100) * 8 + 10));
 
-        const infoH = Math.min(80, Math.max(30, Math.ceil(infoText.length / 120) * 8 + 10));
-        box(LX, y, PW, infoH);
-        doc.font('Helvetica').fontSize(F5).fillColor('#000')
-          .text(infoText, LX + 2, y + 2, { width: PW - 4 });
+      // Page break check
+      if (y + infoH > PH) {
+        doc.addPage();
+        y = 15;
+        sectionTitle('DADOS ADICIONAIS', y + 7);
+        y += 8;
       }
+
+      const infoLeftW = Math.round(PW * 0.65);
+      const infoRightW = PW - infoLeftW;
+      box(LX, y, infoLeftW, infoH);
+      label(LX, y, 'INFORMAÇÕES COMPLEMENTARES');
+      doc.font('Helvetica').fontSize(F5).fillColor('#000')
+        .text(infoText, LX + 2, y + 8, { width: infoLeftW - 4, lineBreak: true });
+      box(LX + infoLeftW, y, infoRightW, infoH);
+      label(LX + infoLeftW, y, 'RESERVADO AO FISCO');
 
       doc.end();
     });
