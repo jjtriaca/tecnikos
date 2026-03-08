@@ -123,8 +123,11 @@ export default function WorkflowPage() {
     }
 
     const enabledStages = config.stages.filter(s => s.enabled);
-    if (enabledStages.length === 0) {
-      toast("Ative pelo menos uma etapa", "error");
+    const hasOnboarding = config.technicianOnboarding?.enabled &&
+      (config.technicianOnboarding.onNewTechnician?.enabled ||
+       config.technicianOnboarding.onNewSpecialization?.enabled);
+    if (enabledStages.length === 0 && !hasOnboarding) {
+      toast("Ative pelo menos uma etapa ou o onboarding de técnico", "error");
       return;
     }
 
@@ -233,6 +236,10 @@ export default function WorkflowPage() {
       Object.values(s.autoActions).filter(a => a.enabled).length +
       Object.values(s.timeControl).filter(a => a.enabled).length;
   }, 0);
+  const onboardingTriggers = [
+    config.technicianOnboarding?.onNewTechnician?.enabled,
+    config.technicianOnboarding?.onNewSpecialization?.enabled,
+  ].filter(Boolean).length;
 
   /* ── Render: LIST ──────────────────────────────────────── */
 
@@ -466,6 +473,9 @@ export default function WorkflowPage() {
             <h3 className="text-sm font-semibold text-slate-700">Resumo</h3>
             <p className="text-xs text-slate-500 mt-1">
               {totalEnabled} {totalEnabled === 1 ? "etapa ativa" : "etapas ativas"} · {totalActions} {totalActions === 1 ? "ação configurada" : "ações configuradas"}
+              {onboardingTriggers > 0 && (
+                <> · {onboardingTriggers} {onboardingTriggers === 1 ? "gatilho de onboarding" : "gatilhos de onboarding"}</>
+              )}
             </p>
             {totalEnabled > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
