@@ -430,7 +430,7 @@ export class DanfeService {
 
       const sectionTitle = (text: string, sy: number) => {
         doc.font('Helvetica-Bold').fontSize(F5).fillColor('#000')
-          .text(text, LX + 1, sy);
+          .text(text, LX + 1, sy - 6);
       };
 
       // ══════════════════════════════════════════════════════════
@@ -529,11 +529,16 @@ export class DanfeService {
       y += H1;
 
       // ══════════════════════════════════════════════════════════
-      // NATUREZA DA OPERAÇÃO (full width — protocol is in header)
+      // NATUREZA DA OPERAÇÃO | PROTOCOLO DE AUTORIZAÇÃO
       // ══════════════════════════════════════════════════════════
-      box(LX, y, PW, RH);
+      const natW = Math.round(PW * 0.60);
+      const protW = PW - natW;
+      box(LX, y, natW, RH);
       label(LX, y, 'NATUREZA DA OPERAÇÃO');
-      val(LX, y, data.natOp, { w: PW, bold: true });
+      val(LX, y, data.natOp, { w: natW, bold: true });
+      box(LX + natW, y, protW, RH);
+      label(LX + natW, y, 'PROTOCOLO DE AUTORIZAÇÃO DE USO');
+      val(LX + natW, y, `${data.protocol} ${data.protocolDate}`, { w: protW, size: F6 });
       y += RH;
 
       // ══════════════════════════════════════════════════════════
@@ -728,22 +733,24 @@ export class DanfeService {
       sectionTitle('DADOS DOS PRODUTOS/SERVIÇOS', y + 7);
       y += 8;
 
-      // Standard DANFE product columns (14 columns — MOC standard)
+      // Standard DANFE product columns (16 columns — matching reference)
       const pCols = [
-        { l: 'CÓDIGO\nPRODUTO', w: 44 },
-        { l: 'DESCRIÇÃO DO PRODUTO / SERVIÇO', w: 0 }, // auto-fill remaining
-        { l: 'NCM/SH', w: 40 },
+        { l: 'CÓD.\nPROD', w: 34 },
+        { l: 'DESCRIÇÃO DOS PRODUTOS/SERVIÇOS', w: 0 }, // auto-fill remaining
+        { l: 'NCM/SH', w: 38 },
         { l: 'CST', w: 20 },
         { l: 'CFOP', w: 26 },
-        { l: 'UN', w: 18 },
-        { l: 'QUANTI-\nDADE', w: 42 },
-        { l: 'VALOR\nUNITÁRIO', w: 50 },
-        { l: 'VALOR\nTOTAL', w: 48 },
-        { l: 'B.CÁLC.\nDO ICMS', w: 48 },
-        { l: 'VALOR\nDO ICMS', w: 40 },
-        { l: 'VALOR\nDO IPI', w: 34 },
-        { l: 'ALÍQ.\nICMS', w: 30 },
-        { l: 'ALÍQ.\nIPI', w: 26 },
+        { l: 'UN.', w: 18 },
+        { l: 'QUANT.', w: 34 },
+        { l: 'V.\nUNITÁRIO', w: 42 },
+        { l: 'V.\nDESC.', w: 32 },
+        { l: '%\nDESC.', w: 25 },
+        { l: 'V.\nTOTAL', w: 40 },
+        { l: 'BC\nICMS', w: 40 },
+        { l: 'V.\nICMS', w: 32 },
+        { l: 'VALOR\nIPI', w: 28 },
+        { l: 'ALÍQUOTA\nICMS', w: 28 },
+        { l: 'ALÍQUOTA\nIPI', w: 22 },
       ];
 
       // Calculate auto-fill width for description column
@@ -770,6 +777,10 @@ export class DanfeService {
           y = 15;
         }
 
+        const discPct = item.discount > 0 && item.total > 0
+          ? (item.discount / item.total * 100).toFixed(2)
+          : '';
+
         const rowVals = [
           item.code,
           item.description,
@@ -779,6 +790,8 @@ export class DanfeService {
           item.unit,
           this.formatQty(item.quantity),
           this.formatMoney(item.unitPrice),
+          item.discount > 0 ? this.formatMoney(item.discount) : '',
+          discPct,
           this.formatMoney(item.total),
           item.bcIcms > 0 ? this.formatMoney(item.bcIcms) : '',
           item.icmsValue > 0 ? this.formatMoney(item.icmsValue) : '',
