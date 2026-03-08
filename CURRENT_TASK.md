@@ -33,7 +33,7 @@
 - [x] Frontend: Pagina publica /contract/[token] — visualizacao e aceite de contrato
 - [x] Frontend: Config salva/restaurada no JSON V2 do workflow (compileToV2/decompileFromV2)
 - [x] Build: backend 0 erros, frontend 0 erros
-- [ ] Deploy pendente
+- [x] Deploy: v1.01.59 em producao + migration SQL aplicada
 
 ## O que foi feito na sessao 79:
 
@@ -105,7 +105,7 @@
 ## Projetos Futuros
 - **Registro de marca INPI**: Solicitar registro da marca "Tecnikos" no INPI (Instituto Nacional da Propriedade Industrial). Logo SVG disponivel em `brand/`.
 
-## Versao atual: v1.01.58 — em producao
+## Versao atual: v1.01.59 — em producao
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

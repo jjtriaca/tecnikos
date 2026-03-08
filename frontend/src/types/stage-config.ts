@@ -263,6 +263,85 @@ export interface TechnicianOnboardingConfig {
   };
 }
 
+const DEFAULT_CONTRACT_CONTENT = `CONTRATO DE PRESTACAO DE SERVICOS TECNICOS
+
+IDENTIFICACAO DAS PARTES
+
+CONTRATANTE: {empresa}
+CONTRATADO(A): {nome}
+
+1. OBJETO DO CONTRATO
+
+O presente contrato tem por objeto a prestacao de servicos tecnicos especializados pelo CONTRATADO(A) em favor da CONTRATANTE, na qualidade de tecnico autonomo, conforme demandas encaminhadas por meio da plataforma Tecnikos.
+
+2. OBRIGACOES DO CONTRATADO(A)
+
+2.1. Executar os servicos tecnicos designados com diligencia, qualidade e dentro dos prazos estabelecidos em cada Ordem de Servico (OS).
+2.2. Comparecer aos locais de atendimento devidamente identificado e com os equipamentos necessarios.
+2.3. Registrar na plataforma Tecnikos todas as etapas do atendimento, incluindo fotos, anotacoes e confirmacoes solicitadas.
+2.4. Manter sigilo sobre informacoes confidenciais da CONTRATANTE e de seus clientes.
+2.5. Zelar pela boa imagem da CONTRATANTE perante os clientes durante os atendimentos.
+2.6. Comunicar imediatamente qualquer impedimento ou atraso na execucao dos servicos.
+
+3. OBRIGACOES DA CONTRATANTE
+
+3.1. Disponibilizar acesso a plataforma Tecnikos para recebimento e gestao das Ordens de Servico.
+3.2. Fornecer as informacoes necessarias para a execucao dos servicos.
+3.3. Efetuar os pagamentos conforme valores e prazos acordados para cada servico.
+
+4. REMUNERACAO
+
+4.1. O CONTRATADO(A) sera remunerado conforme os valores definidos em cada Ordem de Servico aceita.
+4.2. O pagamento sera realizado apos a conclusao e aprovacao do servico pela CONTRATANTE.
+4.3. Eventuais descontos por atraso, retrabalho ou avaliacao insatisfatoria serao comunicados previamente.
+
+5. VIGENCIA
+
+5.1. Este contrato tem vigencia por prazo indeterminado, podendo ser rescindido por qualquer das partes mediante comunicacao previa de 30 (trinta) dias.
+
+6. RESCISAO
+
+6.1. O presente contrato podera ser rescindido imediatamente em caso de:
+  a) Descumprimento de qualquer clausula por qualquer das partes;
+  b) Conduta inadequada do CONTRATADO(A) durante os atendimentos;
+  c) Avaliacao media inferior ao minimo estabelecido pela CONTRATANTE;
+  d) Inatividade superior a 90 (noventa) dias sem justificativa.
+
+7. DISPOSICOES GERAIS
+
+7.1. Este contrato nao gera vinculo empregaticio entre as partes.
+7.2. O CONTRATADO(A) e responsavel por suas obrigacoes fiscais e previdenciarias.
+7.3. O aceite digital deste contrato tem validade juridica conforme a Lei 14.063/2020.
+
+Data: {data}`;
+
+const DEFAULT_SPECIALIZATION_CONTRACT = `TERMO DE ACEITE — NOVA ESPECIALIZACAO
+
+IDENTIFICACAO
+
+EMPRESA: {empresa}
+TECNICO(A): {nome}
+ESPECIALIZACAO: {especializacao}
+
+1. OBJETO
+
+Pelo presente termo, o(a) tecnico(a) acima identificado(a) declara estar ciente e de acordo com a atribuicao da nova especializacao indicada, comprometendo-se a:
+
+1.1. Executar os servicos relacionados a esta especializacao com competencia e diligencia.
+1.2. Manter-se atualizado(a) sobre as melhores praticas e procedimentos da area.
+1.3. Participar de eventuais treinamentos ou capacitacoes solicitados pela empresa.
+
+2. RESPONSABILIDADES
+
+2.1. O(A) tecnico(a) declara possuir conhecimento e habilidade para executar servicos desta especializacao.
+2.2. Caso necessite de capacitacao adicional, devera comunicar a empresa antes de aceitar ordens de servico.
+
+3. VIGENCIA
+
+Este termo entra em vigor na data do aceite digital e permanece valido enquanto a especializacao estiver ativa no cadastro do(a) tecnico(a).
+
+Data: {data}`;
+
 export function createDefaultOnboarding(): TechnicianOnboardingConfig {
   return {
     enabled: false,
@@ -270,25 +349,25 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       enabled: false,
       sendContractLink: false,
       channel: 'WHATSAPP',
-      contractName: 'Contrato de Prestação de Serviços',
-      contractContent: '',
+      contractName: 'Contrato de Prestacao de Servicos Tecnicos',
+      contractContent: DEFAULT_CONTRACT_CONTENT,
       requireSignature: false,
       requireAcceptance: true,
       blockUntilAccepted: true,
       expirationDays: 7,
-      notifyMessage: 'Olá {nome}, você recebeu um contrato para aceite. Acesse o link para visualizar.',
+      notifyMessage: 'Ola {nome}, voce recebeu um contrato da {empresa} para aceite como tecnico. Acesse o link para visualizar e aceitar.',
     },
     onNewSpecialization: {
       enabled: false,
       sendContractLink: false,
       channel: 'WHATSAPP',
-      contractName: 'Contrato de Nova Especialização',
-      contractContent: '',
+      contractName: 'Termo de Aceite — Nova Especializacao',
+      contractContent: DEFAULT_SPECIALIZATION_CONTRACT,
       requireSignature: false,
       requireAcceptance: true,
       blockUntilAccepted: false,
       expirationDays: 7,
-      notifyMessage: 'Olá {nome}, uma nova especialização foi atribuída. Aceite o contrato no link.',
+      notifyMessage: 'Ola {nome}, uma nova especializacao foi atribuida a voce na {empresa}. Acesse o link para aceitar.',
     },
   };
 }
