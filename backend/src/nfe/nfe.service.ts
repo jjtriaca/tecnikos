@@ -538,6 +538,14 @@ export class NfeService {
         },
       });
 
+      // ── 5. Update linked SefazDocument status to IMPORTED ─────────
+      if (nfeImport.sefazDocumentId) {
+        await tx.sefazDocument.update({
+          where: { id: nfeImport.sefazDocumentId },
+          data: { status: 'IMPORTED' },
+        });
+      }
+
       return { financialEntryId };
     });
 

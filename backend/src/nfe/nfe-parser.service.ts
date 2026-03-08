@@ -98,6 +98,9 @@ export class NfeParserService {
     this.parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
+      // Disable auto number parsing — prevents CNPJ/chave NFe losing precision
+      // All numeric conversions are handled explicitly with parseFloat/toCents
+      numberParseOptions: { leadingZeros: false, hex: false, skipLike: /.*/ },
     });
   }
 

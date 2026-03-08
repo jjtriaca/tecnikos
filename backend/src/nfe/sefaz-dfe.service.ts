@@ -72,6 +72,8 @@ export class SefazDfeService {
     this.xmlParser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
+      // Disable auto number parsing — prevents CNPJ/chave NFe/NSU losing precision
+      numberParseOptions: { leadingZeros: false, hex: false, skipLike: /.*/ },
     });
   }
 
