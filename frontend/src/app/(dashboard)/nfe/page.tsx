@@ -11,6 +11,7 @@ import Pagination from "@/components/ui/Pagination";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
+import SearchLookupModal from "@/components/ui/SearchLookupModal";
 
 /* ── Types (Upload Manual) ─────────────────────────────────── */
 
@@ -105,6 +106,8 @@ interface ItemAction {
   action: "CREATE" | "LINK" | "IGNORE";
   productId?: string;
   finalidade?: string;
+  linkedProductName?: string;
+  linkedProductCode?: string;
 }
 
 interface PartnerSearchResult {
@@ -655,9 +658,7 @@ export default function NfePage() {
 
   // Step 3 - products
   const [itemActions, setItemActions] = useState<ItemAction[]>([]);
-  const [productSearches, setProductSearches] = useState<Record<number, string>>({});
-  const [productResults, setProductResults] = useState<Record<number, ProductSearchResult[]>>({});
-  const [searchingProducts, setSearchingProducts] = useState<Record<number, boolean>>({});
+  const [productLookupItem, setProductLookupItem] = useState<number | null>(null);
 
   // Step 4 - finance
   const [createFinancialEntry, setCreateFinancialEntry] = useState(true);
@@ -826,8 +827,7 @@ export default function NfePage() {
           };
         })
       );
-      setProductSearches({});
-      setProductResults({});
+      setProductLookupItem(null);
       setCreateFinancialEntry(true);
       setFinanceDueDate(result.issueDate ? result.issueDate.split("T")[0] : "");
       setStep(2);
@@ -1036,8 +1036,7 @@ export default function NfePage() {
     setPartnerSearch("");
     setPartnerResults([]);
     setItemActions([]);
-    setProductSearches({});
-    setProductResults({});
+    setProductLookupItem(null);
     setDragOver(false);
     setCreateFinancialEntry(true);
     setFinanceDueDate("");
@@ -1152,29 +1151,27 @@ export default function NfePage() {
     );
   }
 
-  async function searchProducts(itemNumber: number, query: string) {
-    setProductSearches((prev) => ({ ...prev, [itemNumber]: query }));
-    if (query.length < 2) {
-      setProductResults((prev) => ({ ...prev, [itemNumber]: [] }));
-      return;
-    }
-    setSearchingProducts((prev) => ({ ...prev, [itemNumber]: true }));
-    try {
-      const res = await api.get<PaginatedResponse<ProductSearchResult>>(
-        `/products?search=${encodeURIComponent(query)}&limit=10`
-      );
-      setProductResults((prev) => ({ ...prev, [itemNumber]: res.data || [] }));
-    } catch {
-      setProductResults((prev) => ({ ...prev, [itemNumber]: [] }));
-    } finally {
-      setSearchingProducts((prev) => ({ ...prev, [itemNumber]: false }));
-    }
-  }
+  const productLookupFetcher = useCallback(async (search: string, page: number, signal: AbortSignal) => {
+    const res = await api.get<PaginatedResponse<ProductSearchResult>>(
+      `/products?search=${encodeURIComponent(search)}&page=${page}&limit=10`,
+      { signal }
+    );
+    return {
+      data: res.data || [],
+      meta: { total: res.meta?.total || 0, page: res.meta?.page || page, limit: 10, totalPages: res.meta?.totalPages || 1 },
+    };
+  }, []);
 
-  function selectProduct(itemNumber: number, product: ProductSearchResult) {
-    updateItemAction(itemNumber, "LINK", product.id);
-    setProductSearches((prev) => ({ ...prev, [itemNumber]: product.description }));
-    setProductResults((prev) => ({ ...prev, [itemNumber]: [] }));
+  function handleProductSelected(product: ProductSearchResult) {
+    if (productLookupItem == null) return;
+    updateItemAction(productLookupItem, "LINK", product.id);
+    // Store description in itemActions for display
+    setItemActions((prev) =>
+      prev.map((ia) =>
+        ia.itemNumber === productLookupItem ? { ...ia, linkedProductName: product.description, linkedProductCode: product.code } : ia
+      )
+    );
+    setProductLookupItem(null);
   }
 
   /* ── Step 4: Process ───────────────────────────────────── */
@@ -1580,8 +1577,7 @@ export default function NfePage() {
           };
         })
       );
-      setProductSearches({});
-      setProductResults({});
+      setProductLookupItem(null);
       setCreateFinancialEntry(true);
       setFinanceDueDate(imp.issueDate ? imp.issueDate.split("T")[0] : "");
       setStep(2);
@@ -2293,40 +2289,32 @@ export default function NfePage() {
                                     </select>
 
                                     {action === "LINK" && (
-                                      <div className="relative">
-                                        <input
-                                          type="text"
-                                          value={productSearches[item.itemNumber] || ""}
-                                          onChange={(e) => searchProducts(item.itemNumber, e.target.value)}
-                                          placeholder="Buscar produto..."
-                                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                        />
-                                        {searchingProducts[item.itemNumber] && (
-                                          <div className="absolute right-2 top-1.5">
-                                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
-                                          </div>
-                                        )}
-                                        {(productResults[item.itemNumber] || []).length > 0 && (
-                                          <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-36 overflow-y-auto">
-                                            {(productResults[item.itemNumber] || []).map((prod) => (
-                                              <button
-                                                key={prod.id}
-                                                onClick={() => selectProduct(item.itemNumber, prod)}
-                                                className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-blue-50 transition-colors"
-                                              >
-                                                <span className="font-medium text-slate-900 truncate">{prod.description}</span>
-                                                <span className="text-slate-400 ml-2 flex-shrink-0">{prod.code}</span>
-                                              </button>
-                                            ))}
-                                          </div>
-                                        )}
-                                        {ia?.productId && (
-                                          <p className="text-xs text-green-600 mt-0.5 flex items-center gap-1">
-                                            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                      <div>
+                                        {ia?.productId ? (
+                                          <div className="flex items-center gap-1">
+                                            <svg className="h-3.5 w-3.5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                             </svg>
-                                            Produto selecionado
-                                          </p>
+                                            <span className="text-xs text-green-700 truncate" title={ia.linkedProductName}>
+                                              {ia.linkedProductName || "Selecionado"}
+                                            </span>
+                                            <button
+                                              onClick={() => setProductLookupItem(item.itemNumber)}
+                                              className="text-xs text-blue-600 hover:text-blue-800 underline ml-1 flex-shrink-0"
+                                            >
+                                              trocar
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            onClick={() => setProductLookupItem(item.itemNumber)}
+                                            className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:border-blue-400 transition-colors"
+                                          >
+                                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                            </svg>
+                                            Selecionar produto...
+                                          </button>
                                         )}
                                       </div>
                                     )}
@@ -2409,6 +2397,23 @@ export default function NfePage() {
                   </div>
                 </div>
               )}
+
+              {/* Product Lookup Modal */}
+              <SearchLookupModal<ProductSearchResult>
+                open={productLookupItem != null}
+                title="Selecionar Produto"
+                placeholder="Buscar por nome, codigo ou NCM..."
+                fetcher={productLookupFetcher}
+                keyExtractor={(p) => p.id}
+                renderItem={(p) => (
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-900">{p.description}</span>
+                    <span className="text-xs text-slate-400 ml-2">{p.code}</span>
+                  </div>
+                )}
+                onSelect={handleProductSelected}
+                onClose={() => setProductLookupItem(null)}
+              />
 
               {/* ── Step 4: Financeiro ─────────────────────── */}
               {step === 4 && nfeData && (
