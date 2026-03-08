@@ -25,6 +25,23 @@ export class PartnerService {
     @Optional() @Inject(ContractService) private readonly contractService?: ContractService,
   ) {}
 
+  /** Sanitize phone: remove non-digits, strip leading zero, limit to DDD+number */
+  private sanitizePhone(phone?: string | null): string | null {
+    if (!phone) return null;
+    let digits = phone.replace(/\D/g, '');
+    if (!digits) return null;
+    // Strip leading zeros
+    while (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    // If it has country code 55 and is too long, keep as-is
+    if (digits.startsWith('55') && digits.length >= 12) {
+      // Remove country code — store only DDD+number
+      digits = digits.substring(2);
+    }
+    return digits || null;
+  }
+
   /** Fire-and-forget automation dispatch */
   private dispatchAutomation(event: AutomationEvent): void {
     this.automationEngine?.dispatch(event).catch(() => {});
@@ -192,6 +209,8 @@ export class PartnerService {
 
   async create(companyId: string, data: CreatePartnerDto & { forceDuplicate?: boolean }, actor?: AuthenticatedUser) {
     const { specializationIds, password, forceDuplicate, ...rest } = data;
+    // Sanitize phone before saving
+    if (rest.phone) rest.phone = this.sanitizePhone(rest.phone) as any;
     const createData: any = { companyId, ...rest };
 
     // Check for duplicate document
@@ -258,6 +277,8 @@ export class PartnerService {
   async update(id: string, companyId: string, data: UpdatePartnerDto, actor?: AuthenticatedUser) {
     const existing = await this.findOne(id, companyId);
     const { specializationIds, password, ...rest } = data;
+    // Sanitize phone before saving
+    if (rest.phone !== undefined) rest.phone = this.sanitizePhone(rest.phone) as any;
     const updateData: any = {};
     const beforeFields: Record<string, any> = {};
     const afterFields: Record<string, any> = {};

@@ -69,7 +69,12 @@ export function maskCep(v: string): string {
 }
 
 export function maskPhone(v: string): string {
-  const d = v.replace(/\D/g, "").slice(0, 11);
+  let d = v.replace(/\D/g, "");
+  // Strip leading zeros (common in Sankhya imports: 066... → 66...)
+  while (d.startsWith("0")) d = d.substring(1);
+  // Remove country code 55 if present
+  if (d.startsWith("55") && d.length >= 12) d = d.substring(2);
+  d = d.slice(0, 11);
   if (d.length <= 10) {
     return d.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d)/, "$1-$2");
   }
