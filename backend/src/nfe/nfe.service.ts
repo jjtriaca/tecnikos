@@ -323,6 +323,23 @@ export class NfeService {
       throw new NotFoundException('Importação de NFe não encontrada');
     }
 
+    // ── Backfill duplicatasJson if missing (for imports before this field existed) ──
+    if (!nfeImport.duplicatasJson && nfeImport.xmlContent) {
+      try {
+        const parsed = this.parser.parse(nfeImport.xmlContent);
+        if (parsed.duplicatas.length > 0) {
+          const json = JSON.stringify(parsed.duplicatas);
+          await this.prisma.nfeImport.update({
+            where: { id },
+            data: { duplicatasJson: json },
+          });
+          (nfeImport as any).duplicatasJson = json;
+        }
+      } catch {
+        // Ignore parse errors for backfill
+      }
+    }
+
     // ── Re-validate matches for PENDING imports ──────────────────
     if (nfeImport.status === 'PENDING') {
       let needsRefresh = false;
