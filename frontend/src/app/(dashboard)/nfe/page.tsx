@@ -37,7 +37,7 @@ interface NfeItem {
   unitPriceCents: number;
   totalCents: number;
   productId: string | null;
-  product: { id: string; description: string; code: string; finalidade: string | null } | null;
+  product: { id: string; description: string; code: string; finalidade: string | null; deletedAt: string | null } | null;
   productDescription: string | null;
   // Tax fields (Phase 1)
   cstIcms: string | null;
@@ -816,12 +816,15 @@ export default function NfePage() {
         setSupplierAction({ action: "CREATE" });
       }
       setItemActions(
-        (result.items || []).map((item) => ({
-          itemNumber: item.itemNumber,
-          action: item.productId ? "LINK" : "CREATE",
-          productId: item.productId || undefined,
-          finalidade: item.product?.finalidade || "USO_CONSUMO",
-        }))
+        (result.items || []).map((item) => {
+          const validProduct = item.product && !item.product.deletedAt;
+          return {
+            itemNumber: item.itemNumber,
+            action: validProduct && item.productId ? "LINK" : "CREATE",
+            productId: validProduct ? (item.productId || undefined) : undefined,
+            finalidade: validProduct ? (item.product?.finalidade || "USO_CONSUMO") : "USO_CONSUMO",
+          };
+        })
       );
       setProductSearches({});
       setProductResults({});
@@ -1547,12 +1550,15 @@ export default function NfePage() {
         setSupplierAction({ action: "CREATE" });
       }
       setItemActions(
-        (imp.items || []).map((item) => ({
-          itemNumber: item.itemNumber,
-          action: item.productId ? "LINK" : "CREATE",
-          productId: item.productId || undefined,
-          finalidade: item.product?.finalidade || "USO_CONSUMO",
-        }))
+        (imp.items || []).map((item) => {
+          const validProduct = item.product && !item.product.deletedAt;
+          return {
+            itemNumber: item.itemNumber,
+            action: validProduct && item.productId ? "LINK" : "CREATE",
+            productId: validProduct ? (item.productId || undefined) : undefined,
+            finalidade: validProduct ? (item.product?.finalidade || "USO_CONSUMO") : "USO_CONSUMO",
+          };
+        })
       );
       setProductSearches({});
       setProductResults({});

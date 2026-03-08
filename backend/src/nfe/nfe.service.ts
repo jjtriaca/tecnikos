@@ -208,7 +208,7 @@ export class NfeService {
       include: {
         items: {
           include: {
-            product: { select: { id: true, description: true, code: true, finalidade: true } },
+            product: { select: { id: true, description: true, code: true, finalidade: true, deletedAt: true } },
           },
           orderBy: { itemNumber: 'asc' },
         },
@@ -294,7 +294,7 @@ export class NfeService {
       include: {
         items: {
           include: {
-            product: { select: { id: true, description: true, code: true, finalidade: true } },
+            product: { select: { id: true, description: true, code: true, finalidade: true, deletedAt: true } },
           },
           orderBy: { itemNumber: 'asc' },
         },
@@ -595,7 +595,7 @@ export class NfeService {
       include: {
         items: {
           include: {
-            product: { select: { id: true, description: true, code: true, finalidade: true } },
+            product: { select: { id: true, description: true, code: true, finalidade: true, deletedAt: true } },
           },
           orderBy: { itemNumber: 'asc' },
         },

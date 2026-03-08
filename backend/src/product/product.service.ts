@@ -192,6 +192,21 @@ export class ProductService {
 
   async delete(id: string, companyId: string) {
     await this.findOne(id, companyId);
+
+    // Clean up NfeImportItems on PENDING imports that reference this product
+    await this.prisma.$executeRaw`
+      UPDATE "NfeImportItem" SET "productId" = NULL, "action" = 'PENDING'
+      WHERE "productId" = ${id}
+        AND "nfeImportId" IN (
+          SELECT i.id FROM "NfeImport" i WHERE i.status = 'PENDING'
+        )
+    `;
+
+    // Delete ProductEquivalents
+    await this.prisma.productEquivalent.deleteMany({
+      where: { productId: id },
+    });
+
     return this.prisma.product.update({
       where: { id },
       data: { deletedAt: new Date() },
