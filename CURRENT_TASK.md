@@ -54,11 +54,18 @@
 - [x] Frontend: 0 erros build
 - [x] Deploy: sucesso
 
-### PENDENTE — WhatsApp (parado)
-- Comprar chip dedicado para WhatsApp Business API — Chip Vivo comprado, ativacao pendente
-- Adicionar numero real no Meta > API Setup
-- Gerar token permanente do System User "Tecnikos API"
-- Configurar no Tecnikos com novo Phone Number ID e token
+### WhatsApp Business API — CONCLUIDO (08/03/2026)
+- [x] Chip Vivo comprado e ativado: +55 66 9665-2916
+- [x] Numero adicionado e verificado no Meta WhatsApp Manager (WABA: SLS Sol e Lazer Soluções)
+- [x] Token permanente gerado do System User "Tecnikos API" (nunca expira)
+- [x] Credenciais configuradas no Tecnikos (Phone Number ID: 996592133539837)
+- [x] Numero registrado via API (POST /register)
+- [x] Template "teste_conexao" criado (pt_BR, UTILITY)
+- [x] Cartao de pagamento adicionado no Meta (Mastercard *9767)
+- [x] Verificacao da empresa Meta: em andamento
+- [x] Mensagem de teste enviada com sucesso para +5566999861230
+- PENDENTE: Configurar webhook no Meta (Callback URL + Verify Token do Tecnikos)
+- PENDENTE: Template de teste aprovado pelo Meta (status PENDING)
 
 ## Projetos Futuros
 - **Registro de marca INPI**: Solicitar registro da marca "Tecnikos" no INPI (Instituto Nacional da Propriedade Industrial). Logo SVG disponivel em `brand/`.

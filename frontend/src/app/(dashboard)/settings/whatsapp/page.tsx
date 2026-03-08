@@ -542,8 +542,8 @@ export default function WhatsAppSettingsPage() {
             Teste de Envio
           </h3>
           <p className="text-xs text-slate-500 mb-4">
-            Envie uma mensagem de teste (template &quot;hello_world&quot;) para
-            verificar se o WhatsApp esta funcionando corretamente.
+            Envie uma mensagem de teste para verificar se o WhatsApp
+            esta funcionando corretamente.
           </p>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
