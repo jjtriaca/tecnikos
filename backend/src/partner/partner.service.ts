@@ -30,26 +30,47 @@ export class PartnerService {
     this.automationEngine?.dispatch(event).catch(() => {});
   }
 
-  /** Fire-and-forget: check default workflow for technician onboarding config and send contract */
+  /** Fire-and-forget: check ANY workflow for technician onboarding config and send contract */
   private async dispatchTechnicianContract(
     companyId: string,
     partnerId: string,
     trigger: 'onNewTechnician' | 'onNewSpecialization',
   ): Promise<void> {
-    if (!this.contractService) return;
+    if (!this.contractService) {
+      this.logger.warn(`📄 ContractService not available — skipping dispatch`);
+      return;
+    }
     try {
-      // Get default workflow template
-      const defaultWorkflow = await this.prisma.workflowTemplate.findFirst({
-        where: { companyId, isDefault: true, deletedAt: null },
+      // Search ALL workflows for technician onboarding config (default first, then others)
+      const workflows = await this.prisma.workflowTemplate.findMany({
+        where: { companyId, deletedAt: null },
+        orderBy: { isDefault: 'desc' },
       });
-      if (!defaultWorkflow) return;
 
-      const steps = defaultWorkflow.steps as any;
-      const onboarding = steps?.technicianOnboarding;
-      if (!onboarding?.enabled) return;
+      this.logger.log(`📄 Checking ${workflows.length} workflow(s) for onboarding config (trigger: ${trigger})`);
+
+      let onboarding: any = null;
+      for (const wf of workflows) {
+        const steps = wf.steps as any;
+        if (steps?.technicianOnboarding?.enabled) {
+          onboarding = steps.technicianOnboarding;
+          this.logger.log(`📄 Found onboarding config in workflow "${wf.name}" (${wf.id})`);
+          break;
+        }
+      }
+
+      if (!onboarding) {
+        this.logger.log(`📄 No onboarding config found in any workflow — skipping`);
+        return;
+      }
 
       const triggerConfig = onboarding[trigger];
-      if (!triggerConfig?.enabled || !triggerConfig?.sendContractLink) return;
+      if (!triggerConfig?.enabled || !triggerConfig?.sendContractLink) {
+        this.logger.log(`📄 Trigger "${trigger}" not enabled or sendContractLink off — skipping`);
+        return;
+      }
+
+      this.logger.log(`📄 Sending contract to partner ${partnerId} via ${triggerConfig.channel || 'WHATSAPP'}...`);
 
       await this.contractService.sendContract({
         companyId,
@@ -61,9 +82,9 @@ export class PartnerService {
         channel: triggerConfig.channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP',
       });
 
-      this.logger.log(`📄 Contract dispatched for partner ${partnerId} (${trigger})`);
+      this.logger.log(`📄 Contract dispatched for partner ${partnerId} (${trigger}) ✅`);
     } catch (err) {
-      this.logger.error(`Failed to dispatch technician contract: ${err.message}`);
+      this.logger.error(`Failed to dispatch technician contract: ${err.message}`, err.stack);
     }
   }
 
