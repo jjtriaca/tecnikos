@@ -633,6 +633,7 @@ export default function NfePage() {
   /* ---- Wizard state ---- */
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState(1);
+  const [wizardStartStep, setWizardStartStep] = useState(1);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [nfeData, setNfeData] = useState<NfeImport | null>(null);
@@ -824,6 +825,7 @@ export default function NfePage() {
       setCreateFinancialEntry(true);
       setFinanceDueDate(result.issueDate ? result.issueDate.split("T")[0] : "");
       setStep(2);
+      setWizardStartStep(2);
       setWizardOpen(true);
       loadSefazDocs();
     } catch (err: any) {
@@ -980,6 +982,7 @@ export default function NfePage() {
 
   function openWizard() {
     setStep(1);
+    setWizardStartStep(1);
     setNfeData(null);
     setSupplierAction({ action: "CREATE" });
     setPartnerSearch("");
@@ -1510,6 +1513,7 @@ export default function NfePage() {
       setCreateFinancialEntry(true);
       setFinanceDueDate(imp.issueDate ? imp.issueDate.split("T")[0] : "");
       setStep(2);
+      setWizardStartStep(2);
       setWizardOpen(true);
     }
 
@@ -2133,10 +2137,10 @@ export default function NfePage() {
                   {/* Navigation */}
                   <div className="flex justify-between mt-6">
                     <button
-                      onClick={() => setStep(1)}
+                      onClick={() => wizardStartStep >= 2 ? closeWizard() : setStep(1)}
                       className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                     >
-                      Voltar
+                      {wizardStartStep >= 2 ? "Cancelar" : "Voltar"}
                     </button>
                     <button
                       onClick={() => setStep(3)}

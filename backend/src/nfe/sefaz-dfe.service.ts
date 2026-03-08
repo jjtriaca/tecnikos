@@ -629,7 +629,7 @@ export class SefazDfeService {
     if (resNFe) {
       schema = 'resNFe';
       nfeKey = String(resNFe.chNFe ?? '');
-      emitterCnpj = String(resNFe.CNPJ ?? '');
+      emitterCnpj = resNFe.CNPJ != null ? String(resNFe.CNPJ).padStart(14, '0') : '';
       emitterName = String(resNFe.xNome ?? '');
       issueDate = resNFe.dhEmi ? new Date(String(resNFe.dhEmi)) : null;
       nfeValue = resNFe.vNF ? Math.round(parseFloat(String(resNFe.vNF)) * 100) : null;
@@ -652,7 +652,11 @@ export class SefazDfeService {
             ? String(infNFe['@_Id']).replace(/^NFe/, '')
             : null;
 
-        emitterCnpj = String(emit?.CNPJ ?? emit?.CPF ?? '');
+        emitterCnpj = emit?.CNPJ != null
+          ? String(emit.CNPJ).padStart(14, '0')
+          : emit?.CPF != null
+            ? String(emit.CPF).padStart(11, '0')
+            : '';
         emitterName = String(emit?.xNome ?? '');
         issueDate = ide?.dhEmi ? new Date(String(ide.dhEmi)) : null;
 
@@ -667,7 +671,7 @@ export class SefazDfeService {
     if (resEvento) {
       schema = 'resEvento';
       nfeKey = String(resEvento.chNFe ?? '');
-      emitterCnpj = String(resEvento.CNPJ ?? '');
+      emitterCnpj = resEvento.CNPJ != null ? String(resEvento.CNPJ).padStart(14, '0') : '';
       issueDate = resEvento.dhEvento ? new Date(String(resEvento.dhEvento)) : null;
       emitterName = String(resEvento.xEvento ?? resEvento.tpEvento ?? '');
     }

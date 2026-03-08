@@ -160,7 +160,13 @@ export class NfeParserService {
       throw new BadRequestException('XML inválido: elemento <emit> não encontrado');
     }
 
-    const supplierCnpj = String(emit.CNPJ ?? emit.CPF ?? '');
+    // CNPJ/CPF: fast-xml-parser may parse as number, dropping leading zeros — pad back
+    let supplierCnpj = '';
+    if (emit.CNPJ != null) {
+      supplierCnpj = String(emit.CNPJ).padStart(14, '0');
+    } else if (emit.CPF != null) {
+      supplierCnpj = String(emit.CPF).padStart(11, '0');
+    }
     const supplierName = String(emit.xNome ?? '');
 
     // ── Items (det) ──────────────────────────────────────────────────

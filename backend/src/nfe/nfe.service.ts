@@ -185,7 +185,17 @@ export class NfeService {
       },
     });
 
-    return nfeImport;
+    // Enrich response with matched supplier name for frontend wizard
+    let supplierMatchedName: string | null = null;
+    if (nfeImport.supplierId) {
+      const supplier = await this.prisma.partner.findUnique({
+        where: { id: nfeImport.supplierId },
+        select: { name: true },
+      });
+      supplierMatchedName = supplier?.name ?? null;
+    }
+
+    return { ...nfeImport, supplierMatchedName };
   }
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -265,7 +275,17 @@ export class NfeService {
       throw new NotFoundException('Importação de NFe não encontrada');
     }
 
-    return nfeImport;
+    // Enrich with supplier name
+    let supplierMatchedName: string | null = null;
+    if (nfeImport.supplierId) {
+      const supplier = await this.prisma.partner.findUnique({
+        where: { id: nfeImport.supplierId },
+        select: { name: true },
+      });
+      supplierMatchedName = supplier?.name ?? null;
+    }
+
+    return { ...nfeImport, supplierMatchedName };
   }
 
   /* ═══════════════════════════════════════════════════════════════════
