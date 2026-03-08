@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { NfeParserService } from './nfe-parser.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 
@@ -43,6 +44,7 @@ export class ProcessDecisions {
 export class NfeService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly codeGenerator: CodeGeneratorService,
     private readonly parser: NfeParserService,
   ) {}
 
@@ -305,9 +307,11 @@ export class NfeService {
       let supplierId: string;
 
       if (decisions.supplier.action === 'CREATE') {
+        const partnerCode = await this.codeGenerator.generateCode(companyId, 'PARTNER');
         const newPartner = await tx.partner.create({
           data: {
             companyId,
+            code: partnerCode,
             partnerTypes: ['FORNECEDOR'],
             personType: 'PJ',
             name: nfeImport.supplierName || 'Fornecedor NFe',
@@ -442,9 +446,11 @@ export class NfeService {
           ? new Date(decisions.finance.dueDate)
           : (nfeImport.issueDate ?? undefined);
 
+        const finCode = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
         const financialEntry = await tx.financialEntry.create({
           data: {
             companyId,
+            code: finCode,
             partnerId: supplierId,
             type: 'PAYABLE',
             status: 'PENDING',

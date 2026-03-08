@@ -712,14 +712,32 @@ export class SefazDfeService {
       );
     }
 
+    // If there's already a pending NfeImport for this doc, reuse it (user cancelled wizard before)
+    if (doc.nfeImportId) {
+      const existingImport = await this.prisma.nfeImport.findFirst({
+        where: { id: doc.nfeImportId, status: 'PENDING' },
+        include: {
+          items: {
+            include: {
+              product: { select: { id: true, description: true, code: true } },
+            },
+            orderBy: { itemNumber: 'asc' },
+          },
+        },
+      });
+      if (existingImport) {
+        return existingImport; // Reuse existing pending import
+      }
+    }
+
     // Use existing NfeService.upload() to parse and create NfeImport
     const nfeImport = await this.nfeService.upload(doc.xmlContent, companyId, sefazDocId);
 
-    // Update SefazDocument status
+    // Link SefazDocument to NfeImport but keep status as FETCHED
+    // Status changes to IMPORTED only after process() completes successfully
     await this.prisma.sefazDocument.update({
       where: { id: sefazDocId },
       data: {
-        status: 'IMPORTED',
         nfeImportId: nfeImport.id,
       },
     });

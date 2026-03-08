@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ForbiddenException, Optional, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException, Optional, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { AutomationEngineService, AutomationEvent } from '../automation/automation-engine.service';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { UpdatePartnerDto } from './dto/update-partner.dto';
@@ -16,6 +17,7 @@ export class PartnerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly codeGenerator: CodeGeneratorService,
     @Optional() @Inject(AutomationEngineService) private readonly automationEngine?: AutomationEngineService,
   ) {}
 
@@ -100,15 +102,60 @@ export class PartnerService {
     return partner;
   }
 
-  async create(companyId: string, data: CreatePartnerDto, actor?: AuthenticatedUser) {
-    const { specializationIds, password, ...rest } = data;
+  /**
+   * Check for duplicate documents (CNPJ/CPF) within the same company.
+   * Returns matching partners so the frontend can show a warning or block.
+   */
+  async checkDuplicateDocument(
+    companyId: string,
+    document: string,
+    excludeId?: string,
+  ): Promise<{ id: string; name: string; document: string | null; documentType: string | null; ie: string | null; partnerTypes: string[] }[]> {
+    if (!document) return [];
+    const cleanDoc = document.replace(/\D/g, '');
+    if (!cleanDoc) return [];
+
+    const where: any = {
+      companyId,
+      deletedAt: null,
+      document: { contains: cleanDoc, mode: 'insensitive' },
+    };
+    if (excludeId) where.id = { not: excludeId };
+
+    return this.prisma.partner.findMany({
+      where,
+      select: { id: true, name: true, document: true, documentType: true, ie: true, partnerTypes: true },
+    });
+  }
+
+  async create(companyId: string, data: CreatePartnerDto & { forceDuplicate?: boolean }, actor?: AuthenticatedUser) {
+    const { specializationIds, password, forceDuplicate, ...rest } = data;
     const createData: any = { companyId, ...rest };
+
+    // Check for duplicate document
+    if (data.document) {
+      const duplicates = await this.checkDuplicateDocument(companyId, data.document);
+      if (duplicates.length > 0) {
+        const isCnpj = data.documentType === 'CNPJ';
+        if (isCnpj && !forceDuplicate) {
+          throw new ConflictException({
+            message: `CNPJ ${data.document} já cadastrado para: ${duplicates.map(d => d.name).join(', ')}`,
+            duplicates,
+          });
+        }
+        // CPF: allow but frontend will have warned the user
+      }
+    }
 
     if (password && data.partnerTypes?.includes('TECNICO')) {
       createData.passwordHash = await bcrypt.hash(password, 10);
     }
     delete createData.password;
     delete createData.specializationIds;
+    delete createData.forceDuplicate;
+
+    // Auto-generate sequential code
+    createData.code = await this.codeGenerator.generateCode(companyId, 'PARTNER');
 
     const partner = await this.prisma.partner.create({ data: createData });
 

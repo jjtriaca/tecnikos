@@ -15,6 +15,7 @@ import { toTitleCase } from "@/lib/brazil-utils";
 
 type User = {
   id: string;
+  code: string | null;
   name: string;
   email: string;
   roles: string[];
@@ -78,6 +79,13 @@ function buildUserColumns(
           </button>
         </div>
       ),
+    },
+    {
+      id: "code",
+      label: "Código",
+      sortable: true,
+      sortKey: "code",
+      render: (u) => <span className="font-mono text-xs text-slate-500">{u.code || "—"}</span>,
     },
     {
       id: "nome",
@@ -263,7 +271,7 @@ export default function UsersPage() {
   );
 
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } =
-    useTableLayout("users-v2", columnDefs);
+    useTableLayout("users-v3", columnDefs);
 
   const COLUMN_COUNT = orderedColumns.length;
 

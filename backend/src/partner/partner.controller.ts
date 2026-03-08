@@ -35,6 +35,15 @@ export class PartnerController {
     return this.service.findBySpecializations(user.companyId, specializationIds);
   }
 
+  @Get('check-duplicate')
+  checkDuplicate(
+    @Query('document') document: string,
+    @Query('excludeId') excludeId: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.checkDuplicateDocument(user.companyId, document, excludeId);
+  }
+
   @Get(':id')
   findOne(
     @Param('id') id: string,

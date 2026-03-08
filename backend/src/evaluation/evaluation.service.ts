@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class EvaluationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly codeGenerator: CodeGeneratorService,
+  ) {}
 
   async createGestorEvaluation(
     serviceOrderId: string,
@@ -27,11 +31,13 @@ export class EvaluationService {
       );
     }
 
+    const code = await this.codeGenerator.generateCode(companyId, 'EVALUATION');
     const evaluation = await this.prisma.evaluation.create({
       data: {
         serviceOrderId,
         partnerId,
         companyId,
+        code,
         evaluatorType: 'GESTOR',
         score,
         comment,
@@ -50,11 +56,13 @@ export class EvaluationService {
   ): Promise<string> {
     const token = randomUUID();
 
+    const code = await this.codeGenerator.generateCode(companyId, 'EVALUATION');
     await this.prisma.evaluation.create({
       data: {
         serviceOrderId,
         partnerId,
         companyId,
+        code,
         evaluatorType: 'CLIENTE',
         score: 0,
         token,

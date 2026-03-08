@@ -8,6 +8,7 @@ export type InstallmentStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED' | '
 
 export interface FinancialEntry {
   id: string;
+  code?: string | null;
   companyId: string;
   serviceOrderId?: string;
   partnerId?: string;

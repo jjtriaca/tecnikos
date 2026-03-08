@@ -13,6 +13,7 @@ type PartnerSpec = { id: string; specializationId: string; specialization: Speci
 
 export type Partner = {
   id: string;
+  code: string | null;
   partnerTypes: string[];
   personType: "PF" | "PJ";
   name: string;
@@ -99,6 +100,12 @@ function makePartnerColumns(
   onToggleAudit: (id: string) => void,
 ): ColumnDefinition<Partner>[] {
   const cols: ColumnDefinition<Partner>[] = [
+    {
+      id: "code",
+      label: "Código",
+      sortable: true,
+      render: (p) => <span className="font-mono text-xs text-slate-500">{p.code || "—"}</span>,
+    },
     {
       id: "name",
       label: "Nome",
@@ -225,7 +232,7 @@ export default function PartnerTable({ partners, canEdit, onEdit, onDelete, sort
     expandedAuditId,
     (id) => setExpandedAuditId((prev) => (prev === id ? null : id)),
   );
-  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout("partners-v2", columns);
+  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout("partners-v3", columns);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "auto", overflowY: "hidden" }}>

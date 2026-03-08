@@ -22,6 +22,7 @@ export class PrismaService
     await this.ensureCardFeeRateTable();
     await this.ensureSefazManifestColumns();
     await this.ensureProductFinalidadeColumn();
+    await this.ensureCodeColumns();
     await this.fixOrphanImportedStatus();
   }
 
@@ -509,6 +510,92 @@ export class PrismaService
       await this.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "finalidade" TEXT`);
     } catch (err) {
       this.logger.warn('Product finalidade auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  /** Ensure code columns + CodeCounter table exist, backfill existing records */
+  private async ensureCodeColumns(): Promise<void> {
+    const tables = ['Partner', 'ServiceOrder', 'FinancialEntry', 'Evaluation', 'User'];
+    try {
+      // Add code column to each table if missing
+      for (const table of tables) {
+        await this.$executeRawUnsafe(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "code" TEXT`);
+        await this.$executeRawUnsafe(
+          `CREATE UNIQUE INDEX IF NOT EXISTS "${table}_companyId_code_key" ON "${table}"("companyId", "code") WHERE "code" IS NOT NULL`,
+        );
+      }
+
+      // Ensure CodeCounter table exists
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "CodeCounter" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "companyId" TEXT NOT NULL,
+          "entity" TEXT NOT NULL,
+          "prefix" TEXT NOT NULL,
+          "nextNumber" INTEGER NOT NULL DEFAULT 1,
+          CONSTRAINT "CodeCounter_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "CodeCounter_companyId_entity_key" ON "CodeCounter"("companyId", "entity")`,
+      );
+
+      // Backfill codes for all companies
+      const companies: { id: string }[] = await this.$queryRawUnsafe(`SELECT id FROM "Company" WHERE "deletedAt" IS NULL`);
+
+      const entityConfig: { entity: string; table: string; prefix: string }[] = [
+        { entity: 'PARTNER', table: 'Partner', prefix: 'PAR' },
+        { entity: 'SERVICE_ORDER', table: 'ServiceOrder', prefix: 'OS' },
+        { entity: 'FINANCIAL_ENTRY', table: 'FinancialEntry', prefix: 'FIN' },
+        { entity: 'EVALUATION', table: 'Evaluation', prefix: 'AVA' },
+        { entity: 'USER', table: 'User', prefix: 'USR' },
+      ];
+
+      for (const company of companies) {
+        for (const cfg of entityConfig) {
+          // Count records without code
+          const countResult: { count: bigint }[] = await this.$queryRawUnsafe(
+            `SELECT COUNT(*) as count FROM "${cfg.table}" WHERE "companyId" = $1 AND code IS NULL`,
+            company.id,
+          );
+          const count = Number(countResult[0]?.count ?? 0);
+          if (count === 0) continue;
+
+          // Get current counter
+          const counterResult: { nextNumber: number }[] = await this.$queryRawUnsafe(
+            `SELECT "nextNumber" FROM "CodeCounter" WHERE "companyId" = $1 AND "entity" = $2`,
+            company.id, cfg.entity,
+          );
+          let nextNum = counterResult[0]?.nextNumber ?? 1;
+
+          // Backfill records ordered by createdAt
+          const records: { id: string }[] = await this.$queryRawUnsafe(
+            `SELECT id FROM "${cfg.table}" WHERE "companyId" = $1 AND code IS NULL ORDER BY "createdAt" ASC`,
+            company.id,
+          );
+
+          for (const record of records) {
+            const code = `${cfg.prefix}-${String(nextNum).padStart(5, '0')}`;
+            await this.$executeRawUnsafe(
+              `UPDATE "${cfg.table}" SET code = $1 WHERE id = $2`,
+              code, record.id,
+            );
+            nextNum++;
+          }
+
+          // Upsert counter
+          await this.$executeRawUnsafe(
+            `INSERT INTO "CodeCounter" ("id", "companyId", "entity", "prefix", "nextNumber")
+             VALUES (gen_random_uuid(), $1, $2, $3, $4)
+             ON CONFLICT ("companyId", "entity") DO UPDATE SET "nextNumber" = GREATEST("CodeCounter"."nextNumber", $4)`,
+            company.id, cfg.entity, cfg.prefix, nextNum,
+          );
+
+          this.logger.log(`Backfilled ${records.length} ${cfg.entity} codes for company ${company.id}`);
+        }
+      }
+    } catch (err) {
+      this.logger.warn('Code columns auto-migration failed (non-fatal):', err);
     }
   }
 

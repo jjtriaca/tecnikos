@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
 import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
@@ -19,6 +20,7 @@ export class FinanceService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly codeGenerator: CodeGeneratorService,
     @Inject(forwardRef(() => NfseEmissionService))
     private readonly nfseService: NfseEmissionService,
     private readonly cardSettlementService: CardSettlementService,
@@ -234,9 +236,13 @@ export class FinanceService {
       netCents = data.grossCents - commissionCents;
     }
 
+    // Auto-generate sequential code
+    const code = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+
     const entry = await this.prisma.financialEntry.create({
       data: {
         companyId,
+        code,
         serviceOrderId: data.serviceOrderId || undefined,
         partnerId: data.partnerId || undefined,
         type: data.type,

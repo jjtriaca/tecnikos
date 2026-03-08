@@ -1,8 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 76 CONCLUIDA — v1.01.31 em producao
+## Status: SESSAO 77 CONCLUIDA — v1.01.32 em producao
 
-## Ultima sessao: 76 (07/03/2026)
+## Ultima sessao: 77 (07/03/2026)
 - Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
 - Sessao 63: Fix NFe Import Flow (v1.01.20)
 - Sessoes 64-68: 4 estudos fiscais completos
@@ -13,35 +13,27 @@
 - Sessao 74: Zoho Mail DNS + Logo Tecnikos + Deploy v1.01.28
 - Sessao 75: Manifestacao do Destinatario + Fix IMPORTED + Deploy v1.01.29-30
 - Sessao 76: Finalidade Fiscal + Acoes Primeira Coluna + DraggableHeader em tudo (v1.01.31)
+- Sessao 77: Codigos Sequenciais (SKU) + Deteccao Duplicados (v1.01.32)
 
-## O que foi feito na sessao 76:
+## O que foi feito na sessao 77:
 
-### Finalidade Fiscal do Produto
-- [x] Backend: campo `finalidade String?` no Product (schema.prisma)
-- [x] Backend: `ProcessItemDecision.finalidade` no nfe.service.ts
-- [x] Backend: `process()` passa finalidade para CREATE e LINK de produtos
-- [x] Backend: Self-healing `ensureProductFinalidadeColumn()` no PrismaService
-- [x] Frontend: Coluna "Finalidade" no wizard Step 3 com select dropdown
-- [x] Frontend: Campo finalidade no cadastro de Products (modal + tabela com badges)
-- [x] Frontend: Interface Product com campo `finalidade?: string`
+### Codigos Sequenciais (SKU) em Todos os Cadastros
+- [x] Schema: `code String?` + `@@unique([companyId, code])` em Partner, ServiceOrder, FinancialEntry, Evaluation, User
+- [x] CodeCounter model para geracao atomica de codigos por empresa+entidade
+- [x] CodeGeneratorService: generateCode() com upsert+increment atomico
+- [x] PrismaService: self-healing ensureCodeColumns() — cria colunas, tabela, backfill
+- [x] Backend: auto-geracao de codigo em partner, order, finance, evaluation, user, nfe services
+- [x] Frontend: coluna "Codigo" em Partners, Orders, Finance, Users (layout v3)
 
-### Coluna Acoes — Primeira em TODO o Sistema
-- [x] NFe SEFAZ: Fixed th/td → ColumnDef first (draggable)
-- [x] NFe Upload: Fixed th/td → ColumnDef first (draggable)
-- [x] Products: Fixed th/td last → ColumnDef first (draggable)
-- [x] Services: Fixed th/td last → ColumnDef first (draggable)
-- [x] Orders: cols.push → cols.unshift (first)
-- [x] Partners: cols.push → cols.unshift (first)
-- [x] Finance: Fixed th/td first → ColumnDef first (draggable)
-- [x] CardSettlement: columnDefs last → columnDefs first
-- [x] Users: Plain HTML → Full refactor com DraggableHeader/SortableHeader/useTableLayout
+### Deteccao de Duplicados
+- [x] Backend: checkDuplicateDocument() no PartnerService
+- [x] Backend: GET /partners/check-duplicate endpoint
+- [x] Frontend: PartnerForm — check onBlur CPF/CNPJ
+- [x] CNPJ: block (nao permite cadastro duplicado)
+- [x] CPF: warning com checkbox "Cadastrar mesmo assim (produtor rural com IE diferente)"
+- [x] NFe: duplicidade ja coberta pela unicidade da chave de acesso (nfeKey)
 
-### DraggableHeader em Todas as Colunas (incluindo Acoes)
-- [x] Todas as colunas (incluindo acoes) participam de DraggableHeader
-- [x] Layout de colunas persistido via useTableLayout (sobrevive logoff)
-- [x] TableIds atualizados para v2 (reset de layout para novo default)
-
-### Deploy v1.01.31
+### Deploy v1.01.32
 - [x] Backend: 0 erros TypeScript
 - [x] Frontend: 0 erros build
 - [x] Deploy: sucesso

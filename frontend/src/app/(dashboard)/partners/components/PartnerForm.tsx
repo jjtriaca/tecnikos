@@ -101,6 +101,8 @@ export default function PartnerForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [lookingUpCnpj, setLookingUpCnpj] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ name: string; document: string; ie: string | null }[] | null>(null);
+  const [forceDuplicate, setForceDuplicate] = useState(false);
 
   const isTecnico = form.partnerTypes.includes("TECNICO");
 
@@ -133,6 +135,23 @@ export default function PartnerForm({
           : [...f.specializationIds, specId],
       };
     });
+  }
+
+  async function checkDocumentDuplicate(doc: string) {
+    if (!doc) return;
+    const digits = doc.replace(/\D/g, "");
+    if (digits.length < 11) return;
+    try {
+      const params = new URLSearchParams({ document: digits });
+      if (editingId) params.set("excludeId", editingId);
+      const res = (await api.get(`/partners/check-duplicate?${params}`)) as any[];
+      if (res.length > 0) {
+        setDuplicateWarning(res.map((d: any) => ({ name: d.name, document: d.document, ie: d.ie })));
+      } else {
+        setDuplicateWarning(null);
+        setForceDuplicate(false);
+      }
+    } catch { /* ignore */ }
   }
 
   async function handleLookupCnpj() {
@@ -180,9 +199,23 @@ export default function PartnerForm({
     setFormError(null);
     setSaving(true);
 
+    // Block CNPJ duplicates on frontend side
+    if (duplicateWarning && duplicateWarning.length > 0 && form.personType === "PJ" && !editingId) {
+      setFormError("CNPJ já cadastrado. Edite o cadastro existente.");
+      setSaving(false);
+      return;
+    }
+    // Block CPF duplicates if user didn't confirm
+    if (duplicateWarning && duplicateWarning.length > 0 && form.personType === "PF" && !forceDuplicate && !editingId) {
+      setFormError("Marque a opção para confirmar o cadastro com CPF duplicado.");
+      setSaving(false);
+      return;
+    }
+
     try {
       const payload: any = { ...form };
       payload.documentType = form.personType === "PJ" ? "CNPJ" : "CPF";
+      if (forceDuplicate) payload.forceDuplicate = true;
       if (!form.password) delete payload.password;
       if (!isTecnico) {
         delete payload.password;
@@ -271,7 +304,7 @@ export default function PartnerForm({
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input placeholder="Nome completo *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
-              <input placeholder="CPF" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} className={inputClass + " w-full"} />
+              <input placeholder="CPF" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " w-full"} />
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
               <input type="checkbox" checked={form.isRuralProducer} onChange={(e) => setForm((f) => ({ ...f, isRuralProducer: e.target.checked }))} className="rounded border-slate-300" />
@@ -287,7 +320,7 @@ export default function PartnerForm({
         {form.personType === "PJ" && (
           <div className="space-y-3">
             <div className="flex gap-2">
-              <input placeholder="CNPJ" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCnpj(e.target.value) }))} className={inputClass + " flex-1"} />
+              <input placeholder="CNPJ" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCnpj(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " flex-1"} />
               <button type="button" onClick={handleLookupCnpj} disabled={lookingUpCnpj || form.document.replace(/\D/g, "").length !== 14} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50 transition-colors whitespace-nowrap">
                 {lookingUpCnpj ? "Buscando..." : "Buscar CNPJ"}
               </button>
@@ -372,6 +405,36 @@ export default function PartnerForm({
                   );
                 })}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Duplicate Warning */}
+        {duplicateWarning && duplicateWarning.length > 0 && (
+          <div className="rounded-lg bg-amber-50 border border-amber-300 px-4 py-3">
+            <p className="text-sm font-medium text-amber-800 mb-1">
+              Documento já cadastrado{form.personType === "PF" ? " (CPF)" : " (CNPJ)"}:
+            </p>
+            <ul className="text-sm text-amber-700 list-disc pl-5 mb-2">
+              {duplicateWarning.map((d, i) => (
+                <li key={i}>
+                  {d.name}{d.ie ? ` (IE: ${d.ie})` : ""}
+                </li>
+              ))}
+            </ul>
+            {form.personType === "PF" && (
+              <label className="flex items-center gap-2 text-sm text-amber-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={forceDuplicate}
+                  onChange={(e) => setForceDuplicate(e.target.checked)}
+                  className="rounded border-amber-400 text-amber-600"
+                />
+                Cadastrar mesmo assim (ex: produtor rural com IE diferente)
+              </label>
+            )}
+            {form.personType === "PJ" && (
+              <p className="text-xs text-amber-600">CNPJ duplicado não é permitido. Edite o cadastro existente.</p>
             )}
           </div>
         )}

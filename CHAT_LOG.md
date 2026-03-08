@@ -1068,3 +1068,33 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 ### Deploy v1.01.31
 
 ---
+
+## Sessao 77 — 07/03/2026
+
+### Codigos Sequenciais (SKU) em Todos os Cadastros
+- Juliano pediu codigos de registro em todos os cadastros sem codigo
+- Entidades: Partner, ServiceOrder, FinancialEntry, Evaluation, User
+- Formato: PREFIX-00001 (PAR, OS, FIN, AVA, USR)
+- Auto-gerado na criacao, editavel manualmente pelo usuario
+- CodeCounter model para controle atomico por empresa+entidade
+
+### Deteccao de Duplicados
+- Juliano pediu mecanismo anti-duplicidade:
+  - Mesmo CNPJ em parceiros
+  - Mesmo CPF em parceiros (com opcao de aceitar — produtor rural usa mesmo CPF com IE diferente)
+  - Mesmo codigo SKU
+  - NFe do mesmo CNPJ com numero duplicado
+- CPF: warning (permite cadastrar), CNPJ: block (impede duplicata)
+
+### Implementacao Tecnica
+- Schema: `code String?` + `@@unique([companyId, code])` em Partner, ServiceOrder, FinancialEntry, Evaluation, User
+- CodeCounter model: controle atomico upsert+increment
+- CodeGeneratorService: global via PrismaModule
+- PrismaService: self-healing ensureCodeColumns() (cria colunas, tabela, backfill)
+- Backend: codigo auto-gerado em todos os services (partner, order, finance, evaluation, user, nfe)
+- Frontend: coluna Codigo em partners, orders, finance, users (layout v3)
+- PartnerForm: check-duplicate endpoint, warning CPF (checkbox aceitar), block CNPJ
+- Build: frontend 0 erros, backend 0 erros
+- Deploy: v1.01.32
+
+---

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { AuditService } from '../common/audit/audit.service';
 import { UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/auth.types';
@@ -9,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 export class UserService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly codeGenerator: CodeGeneratorService,
     private readonly audit: AuditService,
   ) {}
 
@@ -17,6 +19,7 @@ export class UserService {
       where: { companyId, deletedAt: null },
       select: {
         id: true,
+        code: true,
         name: true,
         email: true,
         roles: true,
@@ -72,10 +75,12 @@ export class UserService {
     if (existing) throw new ConflictException('Email já cadastrado');
 
     const passwordHash = await bcrypt.hash(data.password, 10);
+    const code = await this.codeGenerator.generateCode(data.companyId, 'USER');
 
     const created = await this.prisma.user.create({
       data: {
         companyId: data.companyId,
+        code,
         name: data.name,
         email: data.email,
         passwordHash,
@@ -83,6 +88,7 @@ export class UserService {
       },
       select: {
         id: true,
+        code: true,
         name: true,
         email: true,
         roles: true,

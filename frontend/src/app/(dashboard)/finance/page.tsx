@@ -143,6 +143,12 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       render: () => null as any,
     },
     {
+      id: "code",
+      label: "Código",
+      sortable: true,
+      render: (e) => <span className="font-mono text-xs text-slate-500">{e.code || "—"}</span>,
+    },
+    {
       id: "description",
       label: "Descrição",
       render: (e) => (
@@ -514,7 +520,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const allColumns = buildEntryColumns(type);
   const columns = fiscalEnabled ? allColumns : allColumns.filter((c) => c.id !== "nfseStatus");
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout(
-    `finance-v2-${type}`,
+    `finance-v3-${type}`,
     columns,
   );
   const [entries, setEntries] = useState<FinancialEntry[]>([]);

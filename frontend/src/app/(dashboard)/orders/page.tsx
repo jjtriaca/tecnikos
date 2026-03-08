@@ -19,6 +19,7 @@ import { exportToCSV, fmtDate, fmtDateTime, fmtMoney, fmtStatus, type ExportColu
 
 type ServiceOrder = {
   id: string;
+  code: string | null;
   title: string;
   description?: string;
   addressText: string;
@@ -260,6 +261,12 @@ function makeColumns(
 ): ColumnDefinition<ServiceOrder>[] {
   const cols: ColumnDefinition<ServiceOrder>[] = [
     {
+      id: "code",
+      label: "Código",
+      sortable: true,
+      render: (order) => <span className="font-mono text-xs text-slate-500">{order.code || "—"}</span>,
+    },
+    {
       id: "title",
       label: "Título",
       sortable: true,
@@ -417,7 +424,7 @@ export default function OrdersPage() {
     (id) => setExpandedAuditId((prev) => (prev === id ? null : id)),
   );
 
-  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout("orders-v2", columns);
+  const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout("orders-v3", columns);
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });

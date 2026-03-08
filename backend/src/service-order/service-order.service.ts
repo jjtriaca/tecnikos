@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { ServiceOrderStatus } from '@prisma/client';
 import { NotificationService } from '../notification/notification.service';
 import { AutomationEngineService, AutomationEvent } from '../automation/automation-engine.service';
@@ -24,6 +25,7 @@ export class ServiceOrderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly codeGenerator: CodeGeneratorService,
     @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
     @Optional() @Inject(AutomationEngineService) private readonly automationEngine?: AutomationEngineService,
     @Optional() @Inject(WaitForService) private readonly waitForService?: WaitForService,
@@ -44,9 +46,13 @@ export class ServiceOrderService {
   }
 
   async create(data: CreateServiceOrderDto & { companyId: string }, actor?: AuthenticatedUser) {
+    // Auto-generate sequential code
+    const code = await this.codeGenerator.generateCode(data.companyId, 'SERVICE_ORDER');
+
     const result = await this.prisma.serviceOrder.create({
       data: {
         companyId: data.companyId,
+        code,
         title: data.title,
         description: data.description,
         addressText: data.addressText,
