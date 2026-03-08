@@ -781,16 +781,6 @@ export default function ProductsPage() {
               {modalTab === "geral" && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <div>
-                    <label className={labelClass}>Codigo</label>
-                    <input
-                      type="text"
-                      value={form.code}
-                      onChange={(e) => setField("code", e.target.value)}
-                      placeholder="SKU / codigo interno"
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
                     <label className={labelClass}>Codigo de Barras</label>
                     <input
                       type="text"

@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 
 @Injectable()
 export class ServiceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly codeGenerator: CodeGeneratorService,
+  ) {}
 
   async findAll(
     companyId: string,
@@ -58,10 +62,12 @@ export class ServiceService {
   }
 
   async create(companyId: string, dto: CreateServiceDto) {
+    const code = await this.codeGenerator.generateCode(companyId, 'SERVICE');
+
     return this.prisma.service.create({
       data: {
         companyId,
-        code: dto.code,
+        code,
         name: dto.name,
         description: dto.description,
         unit: dto.unit || 'SV',
@@ -74,10 +80,11 @@ export class ServiceService {
 
   async update(id: string, companyId: string, dto: UpdateServiceDto) {
     await this.findOne(id, companyId);
+    const { code: _code, ...updateData } = dto as any;
     return this.prisma.service.update({
       where: { id },
       data: {
-        ...dto,
+        ...updateData,
         updatedAt: new Date(),
       },
     });

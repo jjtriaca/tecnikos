@@ -6,7 +6,9 @@ export type CodeEntity =
   | 'SERVICE_ORDER'
   | 'FINANCIAL_ENTRY'
   | 'EVALUATION'
-  | 'USER';
+  | 'USER'
+  | 'PRODUCT'
+  | 'SERVICE';
 
 const ENTITY_PREFIX: Record<CodeEntity, string> = {
   PARTNER: 'PAR',
@@ -14,6 +16,8 @@ const ENTITY_PREFIX: Record<CodeEntity, string> = {
   FINANCIAL_ENTRY: 'FIN',
   EVALUATION: 'AVA',
   USER: 'USR',
+  PRODUCT: 'PRD',
+  SERVICE: 'SRV',
 };
 
 @Injectable()

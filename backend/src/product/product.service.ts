@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -21,7 +22,10 @@ const PRODUCT_SORTABLE = [
 
 @Injectable()
 export class ProductService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly codeGenerator: CodeGeneratorService,
+  ) {}
 
   /* ═══════════════════════════════════════════════════════════════
      findAll — Paginated list with filters
@@ -101,22 +105,12 @@ export class ProductService {
      ═══════════════════════════════════════════════════════════════ */
 
   async create(data: CreateProductDto, companyId: string) {
-    // Validate unique code within company (if code provided)
-    if (data.code) {
-      const existing = await this.prisma.product.findFirst({
-        where: { companyId, code: data.code, deletedAt: null },
-      });
-      if (existing) {
-        throw new BadRequestException(
-          `Já existe um produto com o código "${data.code}" nesta empresa`,
-        );
-      }
-    }
+    const code = await this.codeGenerator.generateCode(companyId, 'PRODUCT');
 
     return this.prisma.product.create({
       data: {
         companyId,
-        code: data.code,
+        code,
         barcode: data.barcode,
         description: data.description,
         brand: data.brand,
@@ -156,22 +150,9 @@ export class ProductService {
   async update(id: string, companyId: string, data: UpdateProductDto) {
     const product = await this.findOne(id, companyId);
 
-    // Validate unique code if code is being changed
-    if (data.code && data.code !== product.code) {
-      const existing = await this.prisma.product.findFirst({
-        where: { companyId, code: data.code, deletedAt: null, id: { not: id } },
-      });
-      if (existing) {
-        throw new BadRequestException(
-          `Já existe um produto com o código "${data.code}" nesta empresa`,
-        );
-      }
-    }
-
     return this.prisma.product.update({
       where: { id },
       data: {
-        code: data.code,
         barcode: data.barcode,
         description: data.description,
         brand: data.brand,

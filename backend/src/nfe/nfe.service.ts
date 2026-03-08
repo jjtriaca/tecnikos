@@ -354,10 +354,11 @@ export class NfeService {
 
         if (itemDecision.action === 'CREATE') {
           // Create new Product from NFe item data
+          const productCode = await this.codeGenerator.generateCode(companyId, 'PRODUCT');
           const newProduct = await tx.product.create({
             data: {
               companyId,
-              code: nfeItem.productCode || undefined,
+              code: productCode,
               description: nfeItem.description || 'Produto NFe',
               unit: nfeItem.unit || 'UN',
               ncm: nfeItem.ncm || undefined,

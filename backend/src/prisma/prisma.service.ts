@@ -515,7 +515,7 @@ export class PrismaService
 
   /** Ensure code columns + CodeCounter table exist, backfill existing records */
   private async ensureCodeColumns(): Promise<void> {
-    const tables = ['Partner', 'ServiceOrder', 'FinancialEntry', 'Evaluation', 'User'];
+    const tables = ['Partner', 'ServiceOrder', 'FinancialEntry', 'Evaluation', 'User', 'Product', 'Service'];
     try {
       // Add code column to each table if missing
       for (const table of tables) {
@@ -549,6 +549,8 @@ export class PrismaService
         { entity: 'FINANCIAL_ENTRY', table: 'FinancialEntry', prefix: 'FIN' },
         { entity: 'EVALUATION', table: 'Evaluation', prefix: 'AVA' },
         { entity: 'USER', table: 'User', prefix: 'USR' },
+        { entity: 'PRODUCT', table: 'Product', prefix: 'PRD' },
+        { entity: 'SERVICE', table: 'Service', prefix: 'SRV' },
       ];
 
       for (const company of companies) {

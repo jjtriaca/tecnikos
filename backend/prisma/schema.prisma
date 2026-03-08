@@ -1517,8 +1517,8 @@ model Service {
 
   company     Company   @relation(fields: [companyId], references: [id])
 
+  @@unique([companyId, code])
   @@index([companyId])
-  @@index([companyId, code])
 }
 
 // ========== Período Fiscal (Escrituração) ==========
