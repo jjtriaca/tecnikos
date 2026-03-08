@@ -4,36 +4,66 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { NfeParserService } from './nfe-parser.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 
 /* ══════════════════════════════════════════════════════════════════════
-   Types — classes (not interfaces) for emitDecoratorMetadata compat
+   Types — DTO classes with class-validator decorators
+   (whitelist: true strips properties without decorators)
    ══════════════════════════════════════════════════════════════════════ */
 
 export class ProcessItemDecision {
+  @IsNumber()
   itemNumber: number;
+
+  @IsString()
   action: 'CREATE' | 'LINK' | 'SKIP';
-  productId?: string; // required for LINK
-  finalidade?: string; // USO_CONSUMO | REVENDA | ATIVO_IMOBILIZADO | MATERIA_PRIMA | MATERIAL_OBRA
+
+  @IsOptional()
+  @IsString()
+  productId?: string;
+
+  @IsOptional()
+  @IsString()
+  finalidade?: string;
 }
 
 export class ProcessSupplierDecision {
+  @IsString()
   action: 'CREATE' | 'LINK';
+
+  @IsOptional()
+  @IsString()
   partnerId?: string;
 }
 
 export class ProcessFinanceDecision {
-  createEntry: boolean; // true = create PAYABLE entry, false = skip
-  dueDate?: string;     // optional override for due date
+  @IsBoolean()
+  createEntry: boolean;
+
+  @IsOptional()
+  @IsString()
+  dueDate?: string;
 }
 
 export class ProcessDecisions {
+  @ValidateNested()
+  @Type(() => ProcessSupplierDecision)
   supplier: ProcessSupplierDecision;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProcessItemDecision)
   items: ProcessItemDecision[];
-  finance?: ProcessFinanceDecision; // optional — if omitted, defaults to createEntry: true for backward compat
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ProcessFinanceDecision)
+  finance?: ProcessFinanceDecision;
 }
 
 /* ══════════════════════════════════════════════════════════════════════

@@ -730,7 +730,34 @@ export class SefazDfeService {
         },
       });
       if (existingImport) {
-        return existingImport; // Reuse existing pending import
+        // Re-try supplier matching if not yet linked (CNPJ padding fix may help now)
+        let { supplierId } = existingImport;
+        if (!supplierId && existingImport.supplierCnpj) {
+          const cnpjDigits = existingImport.supplierCnpj.replace(/\D/g, '').padStart(14, '0');
+          const suppliers: { id: string }[] = await this.prisma.$queryRawUnsafe(
+            `SELECT id FROM "Partner" WHERE "companyId" = $1 AND "deletedAt" IS NULL AND regexp_replace(document, '[^0-9]', '', 'g') = $2 LIMIT 1`,
+            companyId,
+            cnpjDigits,
+          );
+          if (suppliers.length > 0) {
+            supplierId = suppliers[0].id;
+            await this.prisma.nfeImport.update({
+              where: { id: existingImport.id },
+              data: { supplierId },
+            });
+            existingImport.supplierId = supplierId;
+          }
+        }
+        // Enrich with supplier name
+        let supplierMatchedName: string | null = null;
+        if (supplierId) {
+          const supplier = await this.prisma.partner.findUnique({
+            where: { id: supplierId },
+            select: { name: true },
+          });
+          supplierMatchedName = supplier?.name ?? null;
+        }
+        return { ...existingImport, supplierMatchedName };
       }
     }
 
