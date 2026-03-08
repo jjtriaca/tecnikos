@@ -1,8 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 77 CONCLUIDA — v1.01.32 em producao
+## Status: SESSAO 78 CONCLUIDA — v1.01.39 em producao
 
-## Ultima sessao: 77 (07/03/2026)
+## Ultima sessao: 78 (07/03/2026)
 - Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
 - Sessao 63: Fix NFe Import Flow (v1.01.20)
 - Sessoes 64-68: 4 estudos fiscais completos
@@ -14,8 +14,24 @@
 - Sessao 75: Manifestacao do Destinatario + Fix IMPORTED + Deploy v1.01.29-30
 - Sessao 76: Finalidade Fiscal + Acoes Primeira Coluna + DraggableHeader em tudo (v1.01.31)
 - Sessao 77: Codigos Sequenciais (SKU) + Deteccao Duplicados (v1.01.32)
+- Sessao 78: Reverter Importacao NFe (v1.01.39)
 
-## O que foi feito na sessao 77:
+## O que foi feito na sessao 78:
+
+### Reverter Importacao NFe
+- [x] Backend: NfeService.revert() — reverte importacao PROCESSED em transaction
+  - Deleta FinancialEntry (bloqueia se PAID)
+  - Deleta Products CREATED + seus ProductEquivalents
+  - Reseta NfeImportItems para PENDING
+  - Reseta NfeImport para PENDING
+  - Reseta SefazDocument para FETCHED
+- [x] Backend: POST /nfe/imports/:id/revert (ADMIN + FISCAL)
+- [x] Frontend aba Upload: botao "Reverter" (vermelho) para imports PROCESSED
+- [x] Frontend aba SEFAZ: botao "Reverter" para docs IMPORTED
+- [x] Build: backend 0 erros, frontend 0 erros
+- [x] Deploy: v1.01.39 em producao
+
+### Sessao 77 (anterior):
 
 ### Codigos Sequenciais (SKU) em Todos os Cadastros
 - [x] Schema: `code String?` + `@@unique([companyId, code])` em Partner, ServiceOrder, FinancialEntry, Evaluation, User
@@ -47,7 +63,7 @@
 ## Projetos Futuros
 - **Registro de marca INPI**: Solicitar registro da marca "Tecnikos" no INPI (Instituto Nacional da Propriedade Industrial). Logo SVG disponivel em `brand/`.
 
-## Versao atual: v1.01.31 — em producao
+## Versao atual: v1.01.39 — em producao
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

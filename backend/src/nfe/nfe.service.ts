@@ -641,6 +641,31 @@ export class NfeService {
         data: { action: 'PENDING', productId: null },
       });
 
+      // ── 3b. Re-match items via ProductEquivalent ───────────────
+      if (nfeImport.supplierId) {
+        const freshItems = await tx.nfeImportItem.findMany({
+          where: { nfeImportId: id },
+        });
+        for (const item of freshItems) {
+          if (item.productCode) {
+            const eq = await tx.productEquivalent.findFirst({
+              where: {
+                supplierId: nfeImport.supplierId,
+                supplierCode: item.productCode,
+                product: { companyId, deletedAt: null },
+              },
+              select: { productId: true },
+            });
+            if (eq) {
+              await tx.nfeImportItem.update({
+                where: { id: item.id },
+                data: { productId: eq.productId, action: 'LINKED' },
+              });
+            }
+          }
+        }
+      }
+
       // ── 4. Reset NfeImport status ────────────────────────────────
       await tx.nfeImport.update({
         where: { id },
