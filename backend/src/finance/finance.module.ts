@@ -3,6 +3,7 @@ import { FinanceService } from './finance.service';
 import { InstallmentService } from './installment.service';
 import { CollectionService } from './collection.service';
 import { PaymentMethodService } from './payment-method.service';
+import { PaymentInstrumentService } from './payment-instrument.service';
 import { CashAccountService } from './cash-account.service';
 import { TransferService } from './transfer.service';
 import { ReconciliationService } from './reconciliation.service';
@@ -23,6 +24,7 @@ import { NfseEmissionModule } from '../nfse-emission/nfse-emission.module';
     InstallmentService,
     CollectionService,
     PaymentMethodService,
+    PaymentInstrumentService,
     CashAccountService,
     TransferService,
     ReconciliationService,
@@ -38,6 +40,7 @@ import { NfseEmissionModule } from '../nfse-emission/nfse-emission.module';
     InstallmentService,
     CollectionService,
     PaymentMethodService,
+    PaymentInstrumentService,
     CashAccountService,
     TransferService,
     ReconciliationService,

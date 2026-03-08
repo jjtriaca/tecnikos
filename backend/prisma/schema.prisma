@@ -145,6 +145,7 @@ model Company {
   sefazConfig          SefazConfig?
   sefazDocuments       SefazDocument[]
   paymentMethods       PaymentMethod[]
+  paymentInstruments   PaymentInstrument[]
   cashAccounts         CashAccount[]
   nfseConfig           NfseConfig?
   nfseEmissions        NfseEmission[]
@@ -607,8 +608,9 @@ model FinancialEntry {
   cancelledByName   String?
 
   // Referências para cadastros (v2.2)
-  paymentMethodId   String?           // FK para PaymentMethod
-  cashAccountId     String?           // FK para CashAccount (conta de recebimento/pagamento)
+  paymentMethodId      String?           // FK para PaymentMethod
+  cashAccountId        String?           // FK para CashAccount (conta de recebimento/pagamento)
+  paymentInstrumentId  String?           // FK para PaymentInstrument (instrumento especifico)
 
   // Parcelas e Juros (v2.0)
   installmentCount    Int?              // Nro de parcelas (null = à vista)
@@ -639,8 +641,9 @@ model FinancialEntry {
   company          Company        @relation(fields: [companyId], references: [id])
   serviceOrder     ServiceOrder?  @relation(fields: [serviceOrderId], references: [id])
   partner          Partner?       @relation(fields: [partnerId], references: [id])
-  paymentMethodRef PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
-  cashAccountRef   CashAccount?   @relation(fields: [cashAccountId], references: [id])
+  paymentMethodRef    PaymentMethod?    @relation(fields: [paymentMethodId], references: [id])
+  cashAccountRef      CashAccount?      @relation(fields: [cashAccountId], references: [id])
+  paymentInstrumentRef PaymentInstrument? @relation(fields: [paymentInstrumentId], references: [id])
   nfseEmission     NfseEmission?    @relation(fields: [nfseEmissionId], references: [id])
   financialAccount FinancialAccount? @relation(fields: [financialAccountId], references: [id])
   obra             Obra?          @relation(fields: [obraId], references: [id])
@@ -1110,11 +1113,39 @@ model PaymentMethod {
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
 
-  company          Company          @relation(fields: [companyId], references: [id])
-  financialEntries FinancialEntry[]
+  company            Company              @relation(fields: [companyId], references: [id])
+  financialEntries   FinancialEntry[]
+  paymentInstruments PaymentInstrument[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
+}
+
+// ========== Instrumentos de Pagamento da Empresa (v1.01) ==========
+
+model PaymentInstrument {
+  id              String    @id @default(uuid())
+  companyId       String
+  paymentMethodId String    // FK -> PaymentMethod (tipo generico: PIX, Cartao, etc.)
+  name            String    // "Mastercard Final 9767", "PIX CNPJ", "Conta Bradesco"
+  cardLast4       String?   // Ultimos 4 digitos (para cartoes)
+  cardBrand       String?   // Visa, Mastercard, Elo, Amex, Hipercard
+  bankName        String?   // Nome do banco (para transferencias/boletos)
+  cashAccountId   String?   // FK -> CashAccount (vincular a conta bancaria)
+  details         String?   // Informacoes adicionais
+  isActive        Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  company          Company          @relation(fields: [companyId], references: [id])
+  paymentMethod    PaymentMethod    @relation(fields: [paymentMethodId], references: [id])
+  cashAccount      CashAccount?     @relation(fields: [cashAccountId], references: [id])
+  financialEntries FinancialEntry[]
+
+  @@index([companyId, isActive])
+  @@index([companyId, paymentMethodId])
 }
 
 // ========== Caixas e Contas Bancarias (v2.2) ==========
@@ -1144,6 +1175,7 @@ model CashAccount {
   statementLines      BankStatementLine[]
   financialEntries    FinancialEntry[]
   cardSettlements     CardSettlement[]
+  paymentInstruments  PaymentInstrument[]
 
   @@index([companyId, isActive])
   @@index([companyId, type])

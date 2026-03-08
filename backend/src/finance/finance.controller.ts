@@ -5,6 +5,7 @@ import { FinanceService } from './finance.service';
 import { InstallmentService } from './installment.service';
 import { CollectionService } from './collection.service';
 import { PaymentMethodService } from './payment-method.service';
+import { PaymentInstrumentService } from './payment-instrument.service';
 import { CashAccountService } from './cash-account.service';
 import { TransferService } from './transfer.service';
 import { ReconciliationService } from './reconciliation.service';
@@ -25,6 +26,7 @@ import { GenerateInstallmentsDto } from './dto/generate-installments.dto';
 import { RenegotiateDto } from './dto/renegotiate.dto';
 import { CreateCollectionRuleDto, UpdateCollectionRuleDto } from './dto/collection-rule.dto';
 import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-method.dto';
+import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
 import { CreateCashAccountDto, UpdateCashAccountDto } from './dto/cash-account.dto';
 import { CreateTransferDto } from './dto/transfer.dto';
 import { MatchLineDto } from './dto/reconciliation.dto';
@@ -37,6 +39,7 @@ export class FinanceController {
     private readonly installmentService: InstallmentService,
     private readonly collectionService: CollectionService,
     private readonly paymentMethodService: PaymentMethodService,
+    private readonly paymentInstrumentService: PaymentInstrumentService,
     private readonly cashAccountService: CashAccountService,
     private readonly transferService: TransferService,
     private readonly reconciliationService: ReconciliationService,
@@ -130,6 +133,57 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.paymentMethodService.remove(id, user.companyId);
+  }
+
+  /* ── Payment Instruments (Instrumentos da Empresa) ───── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('payment-instruments')
+  findPaymentInstruments(@CurrentUser() user: AuthenticatedUser) {
+    return this.paymentInstrumentService.findAll(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('payment-instruments/active')
+  findActivePaymentInstruments(@CurrentUser() user: AuthenticatedUser) {
+    return this.paymentInstrumentService.findActive(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('payment-instruments/by-method/:paymentMethodId')
+  findInstrumentsByMethod(
+    @Param('paymentMethodId') paymentMethodId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentInstrumentService.findByMethod(user.companyId, paymentMethodId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('payment-instruments')
+  createPaymentInstrument(
+    @Body() dto: CreatePaymentInstrumentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentInstrumentService.create(user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('payment-instruments/:id')
+  updatePaymentInstrument(
+    @Param('id') id: string,
+    @Body() dto: UpdatePaymentInstrumentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentInstrumentService.update(id, user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Delete('payment-instruments/:id')
+  deletePaymentInstrument(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentInstrumentService.remove(id, user.companyId);
   }
 
   /* ── Cash Accounts ────────────────────────────────────── */

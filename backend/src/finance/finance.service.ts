@@ -450,6 +450,7 @@ export class FinanceService {
       data.paymentMethod = null;
       data.cardBrand = null;
       data.cashAccountId = null;
+      data.paymentInstrumentId = null;
       // Append reversal log to notes
       const who = dto.cancelledByName || 'Sistema';
       const logLine = `[${timestamp}] ESTORNO por ${who}: ${notes || 'sem motivo'}`;
@@ -462,6 +463,7 @@ export class FinanceService {
         if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
         if (dto.cardBrand) data.cardBrand = dto.cardBrand;
         if (dto.cashAccountId) data.cashAccountId = dto.cashAccountId;
+        if (dto.paymentInstrumentId) data.paymentInstrumentId = dto.paymentInstrumentId;
         // Append payment log to notes
         const payLog = `[${timestamp}] RECEBIDO via ${dto.paymentMethod || 'N/A'}`;
         data.notes = entry.notes ? `${entry.notes}\n${payLog}` : payLog;

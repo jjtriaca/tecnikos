@@ -52,6 +52,10 @@ export interface FinancialEntry {
   // v1.01 — Plano de Contas
   financialAccountId?: string | null;
   financialAccount?: { id: string; code: string; name: string } | null;
+
+  // v1.01 — Instrumento de Pagamento
+  paymentInstrumentId?: string | null;
+  paymentInstrumentRef?: PaymentInstrument | null;
 }
 
 export interface FinancialInstallment {
@@ -329,6 +333,54 @@ export const CARD_SETTLEMENT_STATUS_CONFIG: Record<CardSettlementStatus, { label
   SETTLED:   { label: 'Baixado',   color: 'text-green-700',  bgColor: 'bg-green-50',  borderColor: 'border-green-200' },
   CANCELLED: { label: 'Cancelado', color: 'text-slate-500',  bgColor: 'bg-slate-50',  borderColor: 'border-slate-200' },
 };
+
+/* Payment Instruments (Instrumentos Especificos da Empresa) */
+
+export interface PaymentInstrument {
+  id: string;
+  companyId: string;
+  paymentMethodId: string;
+  name: string;
+  cardLast4?: string | null;
+  cardBrand?: string | null;
+  bankName?: string | null;
+  cashAccountId?: string | null;
+  details?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+  paymentMethod?: { id: string; name: string; code: string; requiresBrand?: boolean };
+  cashAccount?: { id: string; name: string; bankName?: string | null } | null;
+}
+
+/* DRE Payment Breakdown */
+
+export interface DrePaymentByMethod {
+  code: string;
+  name: string;
+  receivableCents: number;
+  payableCents: number;
+  netCents: number;
+  count: number;
+}
+
+export interface DrePaymentByInstrument {
+  id: string;
+  name: string;
+  methodName: string;
+  receivableCents: number;
+  payableCents: number;
+  netCents: number;
+  count: number;
+}
+
+export interface DrePaymentBreakdown {
+  byMethod: DrePaymentByMethod[];
+  byInstrument: DrePaymentByInstrument[];
+  noMethodCents: { receivableCents: number; payableCents: number; count: number };
+}
 
 export const ACTION_TYPE_OPTIONS = [
   { value: 'STATUS_CHANGE', label: 'Alterar Status' },

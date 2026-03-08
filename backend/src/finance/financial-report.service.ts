@@ -652,7 +652,7 @@ export class FinancialReportService {
      ═══════════════════════════════════════════════════════════════════ */
 
   async generateDre(companyId: string, dateFrom: string, dateTo: string) {
-    // Fetch all PAID entries in the period that have a financialAccount
+    // Fetch all PAID entries in the period
     const entries = await this.prisma.financialEntry.findMany({
       where: {
         companyId,
@@ -666,6 +666,12 @@ export class FinancialReportService {
       include: {
         financialAccount: {
           select: { id: true, code: true, name: true, type: true, parentId: true },
+        },
+        paymentInstrumentRef: {
+          select: {
+            id: true, name: true,
+            paymentMethod: { select: { id: true, name: true, code: true } },
+          },
         },
       },
     });
@@ -759,6 +765,76 @@ export class FinancialReportService {
     const grossProfit = totalRevenue - totalCosts;
     const netResult = grossProfit - totalExpenses;
 
+    // ── Payment method breakdown ────────────────────────────
+    // Group by generic payment method (paymentMethod field = code like PIX, CARTAO_CREDITO)
+    const byMethodMap = new Map<string, { name: string; receivableCents: number; payableCents: number; count: number }>();
+    // Group by specific instrument (paymentInstrumentId)
+    const byInstrumentMap = new Map<string, { name: string; methodName: string; receivableCents: number; payableCents: number; count: number }>();
+    let noMethodReceivable = 0;
+    let noMethodPayable = 0;
+    let noMethodCount = 0;
+
+    for (const entry of entries) {
+      const cents = entry.netCents;
+      const isReceivable = entry.type === 'RECEIVABLE';
+
+      // By generic method
+      const methodCode = entry.paymentMethod || '_SEM_FORMA';
+      if (entry.paymentMethod) {
+        const existing = byMethodMap.get(methodCode) || { name: methodCode, receivableCents: 0, payableCents: 0, count: 0 };
+        if (isReceivable) existing.receivableCents += cents;
+        else existing.payableCents += cents;
+        existing.count++;
+        byMethodMap.set(methodCode, existing);
+      } else {
+        if (isReceivable) noMethodReceivable += cents;
+        else noMethodPayable += cents;
+        noMethodCount++;
+      }
+
+      // By specific instrument
+      if (entry.paymentInstrumentRef) {
+        const pi = entry.paymentInstrumentRef as any;
+        const existing = byInstrumentMap.get(pi.id) || {
+          name: pi.name,
+          methodName: pi.paymentMethod?.name || '',
+          receivableCents: 0,
+          payableCents: 0,
+          count: 0,
+        };
+        if (isReceivable) existing.receivableCents += cents;
+        else existing.payableCents += cents;
+        existing.count++;
+        byInstrumentMap.set(pi.id, existing);
+      }
+    }
+
+    // Fetch payment method names for display
+    const allMethods = await this.prisma.paymentMethod.findMany({
+      where: { companyId, deletedAt: null },
+      select: { code: true, name: true },
+    });
+    const methodNameMap = new Map(allMethods.map(m => [m.code, m.name]));
+
+    const paymentByMethod = Array.from(byMethodMap.entries()).map(([code, data]) => ({
+      code,
+      name: methodNameMap.get(code) || data.name,
+      receivableCents: data.receivableCents,
+      payableCents: data.payableCents,
+      netCents: data.receivableCents - data.payableCents,
+      count: data.count,
+    })).sort((a, b) => (b.receivableCents + b.payableCents) - (a.receivableCents + a.payableCents));
+
+    const paymentByInstrument = Array.from(byInstrumentMap.entries()).map(([id, data]) => ({
+      id,
+      name: data.name,
+      methodName: data.methodName,
+      receivableCents: data.receivableCents,
+      payableCents: data.payableCents,
+      netCents: data.receivableCents - data.payableCents,
+      count: data.count,
+    })).sort((a, b) => (b.receivableCents + b.payableCents) - (a.receivableCents + a.payableCents));
+
     return {
       period: { dateFrom, dateTo },
       revenue: { groups: revenue, uncategorizedCents: uncategorizedRevenue, totalCents: totalRevenue },
@@ -766,6 +842,11 @@ export class FinancialReportService {
       expenses: { groups: expenses, uncategorizedCents: uncategorizedExpense, totalCents: totalExpenses },
       grossProfitCents: grossProfit,
       netResultCents: netResult,
+      paymentBreakdown: {
+        byMethod: paymentByMethod,
+        byInstrument: paymentByInstrument,
+        noMethodCents: { receivableCents: noMethodReceivable, payableCents: noMethodPayable, count: noMethodCount },
+      },
       generatedAt: new Date().toISOString(),
     };
   }

@@ -25,6 +25,31 @@ interface DreSection {
   totalCents: number;
 }
 
+interface PaymentByMethod {
+  code: string;
+  name: string;
+  receivableCents: number;
+  payableCents: number;
+  netCents: number;
+  count: number;
+}
+
+interface PaymentByInstrument {
+  id: string;
+  name: string;
+  methodName: string;
+  receivableCents: number;
+  payableCents: number;
+  netCents: number;
+  count: number;
+}
+
+interface PaymentBreakdown {
+  byMethod: PaymentByMethod[];
+  byInstrument: PaymentByInstrument[];
+  noMethodCents: { receivableCents: number; payableCents: number; count: number };
+}
+
 interface DreData {
   period: { dateFrom: string; dateTo: string };
   revenue: DreSection;
@@ -32,6 +57,7 @@ interface DreData {
   expenses: DreSection;
   grossProfitCents: number;
   netResultCents: number;
+  paymentBreakdown?: PaymentBreakdown;
   generatedAt: string;
 }
 
@@ -39,10 +65,13 @@ function fmt(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+type PaymentView = "none" | "byMethod" | "byInstrument";
+
 export default function DreReport() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<DreData | null>(null);
+  const [paymentView, setPaymentView] = useState<PaymentView>("none");
 
   // Default period: current month
   const now = new Date();
@@ -167,6 +196,90 @@ export default function DreReport() {
               {fmt(data.netResultCents)}
             </span>
           </div>
+
+          {/* Payment Breakdown Toggle */}
+          <div className="mt-4 flex items-center gap-2">
+            <label className="text-xs font-medium text-slate-600">Agrupar por pagamento:</label>
+            <select
+              value={paymentView}
+              onChange={(e) => setPaymentView(e.target.value as PaymentView)}
+              className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+            >
+              <option value="none">Nenhum</option>
+              <option value="byMethod">Por forma de pagamento</option>
+              <option value="byInstrument">Por instrumento</option>
+            </select>
+          </div>
+
+          {/* Payment by Method */}
+          {paymentView === "byMethod" && data.paymentBreakdown && (
+            <div className="mt-3">
+              <div className="flex justify-between items-center py-2 px-3 rounded-t-lg bg-indigo-100 text-indigo-800 font-semibold text-sm">
+                <span>DETALHAMENTO POR FORMA DE PAGAMENTO</span>
+                <span>{data.paymentBreakdown.byMethod.length} forma(s)</span>
+              </div>
+              <div className="border border-t-0 rounded-b-lg divide-y divide-slate-100">
+                <div className="grid grid-cols-5 gap-2 py-1.5 px-3 bg-slate-50 text-[10px] font-semibold text-slate-500 uppercase">
+                  <span className="col-span-2">Forma</span>
+                  <span className="text-right">Recebido</span>
+                  <span className="text-right">Pago</span>
+                  <span className="text-right">Saldo</span>
+                </div>
+                {data.paymentBreakdown.byMethod.map((item) => (
+                  <div key={item.code} className="grid grid-cols-5 gap-2 py-1.5 px-3 text-xs text-slate-700">
+                    <span className="col-span-2 font-medium">{item.name} <span className="text-slate-400">({item.count})</span></span>
+                    <span className="text-right text-green-700">{fmt(item.receivableCents)}</span>
+                    <span className="text-right text-red-700">{fmt(item.payableCents)}</span>
+                    <span className={`text-right font-medium ${item.netCents >= 0 ? "text-green-700" : "text-red-700"}`}>{fmt(item.netCents)}</span>
+                  </div>
+                ))}
+                {data.paymentBreakdown.noMethodCents.count > 0 && (
+                  <div className="grid grid-cols-5 gap-2 py-1.5 px-3 text-xs text-slate-500 italic">
+                    <span className="col-span-2">Sem forma definida ({data.paymentBreakdown.noMethodCents.count})</span>
+                    <span className="text-right">{fmt(data.paymentBreakdown.noMethodCents.receivableCents)}</span>
+                    <span className="text-right">{fmt(data.paymentBreakdown.noMethodCents.payableCents)}</span>
+                    <span className="text-right">{fmt(data.paymentBreakdown.noMethodCents.receivableCents - data.paymentBreakdown.noMethodCents.payableCents)}</span>
+                  </div>
+                )}
+                {data.paymentBreakdown.byMethod.length === 0 && data.paymentBreakdown.noMethodCents.count === 0 && (
+                  <div className="py-2 px-3 text-xs text-slate-400 text-center">Nenhum dado no periodo</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Payment by Instrument */}
+          {paymentView === "byInstrument" && data.paymentBreakdown && (
+            <div className="mt-3">
+              <div className="flex justify-between items-center py-2 px-3 rounded-t-lg bg-violet-100 text-violet-800 font-semibold text-sm">
+                <span>DETALHAMENTO POR INSTRUMENTO</span>
+                <span>{data.paymentBreakdown.byInstrument.length} instrumento(s)</span>
+              </div>
+              <div className="border border-t-0 rounded-b-lg divide-y divide-slate-100">
+                <div className="grid grid-cols-6 gap-2 py-1.5 px-3 bg-slate-50 text-[10px] font-semibold text-slate-500 uppercase">
+                  <span className="col-span-2">Instrumento</span>
+                  <span>Tipo</span>
+                  <span className="text-right">Recebido</span>
+                  <span className="text-right">Pago</span>
+                  <span className="text-right">Saldo</span>
+                </div>
+                {data.paymentBreakdown.byInstrument.map((item) => (
+                  <div key={item.id} className="grid grid-cols-6 gap-2 py-1.5 px-3 text-xs text-slate-700">
+                    <span className="col-span-2 font-medium">{item.name} <span className="text-slate-400">({item.count})</span></span>
+                    <span className="text-slate-500">{item.methodName}</span>
+                    <span className="text-right text-green-700">{fmt(item.receivableCents)}</span>
+                    <span className="text-right text-red-700">{fmt(item.payableCents)}</span>
+                    <span className={`text-right font-medium ${item.netCents >= 0 ? "text-green-700" : "text-red-700"}`}>{fmt(item.netCents)}</span>
+                  </div>
+                ))}
+                {data.paymentBreakdown.byInstrument.length === 0 && (
+                  <div className="py-2 px-3 text-xs text-slate-400 text-center">
+                    Nenhum instrumento associado no periodo. Cadastre instrumentos na aba &quot;Instrumentos&quot;.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <p className="text-[10px] text-slate-400 text-right mt-2">
             Gerado em {new Date(data.generatedAt).toLocaleString("pt-BR")}

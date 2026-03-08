@@ -1118,3 +1118,50 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 4. **Ambos**: recarregam listas apos reverter com sucesso
 
 ---
+
+## Sessao 78b — 08/03/2026
+
+### WhatsApp Business API — Configuracao Completa
+- Chip Vivo ativado: +55 66 9665-2916
+- Numero verificado no Meta WhatsApp Manager (WABA: SLS Sol e Lazer Solucoes)
+- Token permanente gerado (System User "Tecnikos API")
+- Phone Number ID: 996592133539837
+- Numero registrado via Graph API (POST /register)
+- Template "teste_conexao" criado (pt_BR, UTILITY, status PENDING)
+- Mensagem de teste enviada com sucesso
+- Webhook configurado (messages subscrito)
+- Fix: sendTestMessage usa texto direto em vez de hello_world (v1.01.56)
+
+---
+
+## Sessao 79 — 08/03/2026
+
+### Pedido do Juliano:
+> "No contas a pagar precisamos botar a opcao de cadastrar os meios de pagamento da empresa, na tela de pagar uma conta esta buscando as formas de pagamento, e acho que tem que ser separado, pois se fizermos a opcao de cadastrar as formas de pagamento da empresa, poderiamos cadastrar cartoes de credito/debito com seus numeros ficando mais facil na hora de fazer conciliacao bancaria, e no dre poderia mostrar gastos com diferentes tipos de pagamento"
+
+### Decisoes:
+- Instrumentos especificos (ex: "Mastercard Final 9767", "PIX CNPJ") separados dos tipos genericos (PIX, Cartao)
+- DRE com agrupamento por forma de pagamento generica E por instrumento especifico
+
+### Implementacao — Instrumentos de Pagamento:
+
+#### Backend:
+1. **Prisma Schema**: novo model `PaymentInstrument` + campo `paymentInstrumentId` em FinancialEntry
+2. **Migration**: `20260308210000_add_payment_instrument/migration.sql`
+3. **PaymentInstrumentService**: CRUD (findAll, findActive, findByMethod, create, update, remove)
+4. **DTO**: CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto
+5. **Endpoints**: GET/POST/PATCH/DELETE /finance/payment-instruments + GET by-method/:id
+6. **Finance Module**: PaymentInstrumentService registrado
+7. **ChangeEntryStatus**: salva paymentInstrumentId ao marcar PAID, limpa no estorno
+8. **DRE**: paymentBreakdown com byMethod e byInstrument no retorno
+
+#### Frontend:
+1. **Types**: interfaces PaymentInstrument, DrePaymentByMethod, DrePaymentByInstrument, DrePaymentBreakdown
+2. **PaymentInstrumentsTab**: aba completa com CRUD (lista cards, modal criar/editar, toggle ativo, delete)
+3. **Modal Pagamento**: dropdown de instrumento apos selecionar forma de pagamento (carrega por metodo)
+4. **DreReport**: select "Agrupar por pagamento" (nenhum / por forma / por instrumento)
+5. **Nova aba "Instrumentos"**: adicionada ao menu de abas do financeiro
+
+### Status: BUILD OK — Backend 0 erros, Frontend 0 erros
+
+---

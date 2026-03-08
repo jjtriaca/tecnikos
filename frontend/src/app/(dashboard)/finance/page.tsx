@@ -22,6 +22,7 @@ import type {
   FinancialEntryStatus,
   FinanceSummaryV2,
   PaymentMethod,
+  PaymentInstrument,
   CardFeeRate,
 } from "@/types/finance";
 import { ENTRY_STATUS_CONFIG, NFSE_STATUS_CONFIG } from "@/types/finance";
@@ -31,6 +32,7 @@ import RenegotiationModal from "./components/RenegotiationModal";
 import NfseEmissionModal from "./components/NfseEmissionModal";
 import CollectionRulesTab from "./components/CollectionRulesTab";
 import PaymentMethodsTab from "./components/PaymentMethodsTab";
+import PaymentInstrumentsTab from "./components/PaymentInstrumentsTab";
 import CashAccountsTab from "./components/CashAccountsTab";
 import ReconciliationTab from "./components/ReconciliationTab";
 import CardSettlementTab from "./components/CardSettlementTab";
@@ -61,7 +63,7 @@ function formatDate(dateStr: string) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "cobranca";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "instrumentos" | "cobranca";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
@@ -72,6 +74,7 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
   { id: "conciliacao", label: "Conciliacao", icon: "🔄" },
   { id: "formas", label: "Formas Pgto", icon: "💳" },
+  { id: "instrumentos", label: "Instrumentos", icon: "🏷️" },
   { id: "cobranca", label: "Cobranca", icon: "⚡" },
 ];
 
@@ -362,6 +365,7 @@ export default function FinancePage() {
       {activeTab === "contas" && <CashAccountsTab />}
       {activeTab === "conciliacao" && <ReconciliationTab />}
       {activeTab === "formas" && <PaymentMethodsTab />}
+      {activeTab === "instrumentos" && <PaymentInstrumentsTab />}
       {activeTab === "cobranca" && <CollectionRulesTab />}
     </div>
   );
@@ -540,6 +544,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [cardFeeRates, setCardFeeRates] = useState<CardFeeRate[]>([]);
   const [activeAccounts, setActiveAccounts] = useState<{ id: string; name: string; type: string; currentBalanceCents: number }[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
+  const [availableInstruments, setAvailableInstruments] = useState<PaymentInstrument[]>([]);
+  const [selectedInstrumentId, setSelectedInstrumentId] = useState("");
 
   // Report modal
   const [showReportModal, setShowReportModal] = useState(false);
@@ -719,6 +725,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         cardBrand: isCard && selectedCardRate ? selectedCardRate.brand : undefined,
         cardFeeRateId: isCard ? selectedCardRateId : undefined,
         cashAccountId: isCard ? undefined : (selectedAccountId || undefined),
+        paymentInstrumentId: selectedInstrumentId || undefined,
       });
       const labels: Record<string, string> = { CONFIRMED: "confirmada", PAID: "paga" };
       toast(`Entrada ${labels[action]} com sucesso!`, "success");
@@ -726,6 +733,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       setPaymentMethod("");
       setSelectedCardRateId("");
       setSelectedAccountId("");
+      setSelectedInstrumentId("");
+      setAvailableInstruments([]);
       await loadEntries();
     } catch {
       toast("Erro ao atualizar status.", "error");
@@ -965,7 +974,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       {/* Payment method modal */}
       {payAction && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); }} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); }} />
           <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
             <div className="flex items-start gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
@@ -990,7 +999,21 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 </label>
                 <select
                   value={paymentMethod}
-                  onChange={(e) => { setPaymentMethod(e.target.value); setSelectedCardRateId(""); }}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    setPaymentMethod(code);
+                    setSelectedCardRateId("");
+                    setSelectedInstrumentId("");
+                    // Load instruments for this payment method
+                    const pm = activePMs.find((p) => p.code === code);
+                    if (pm) {
+                      api.get<PaymentInstrument[]>(`/finance/payment-instruments/by-method/${pm.id}`)
+                        .then(setAvailableInstruments)
+                        .catch(() => setAvailableInstruments([]));
+                    } else {
+                      setAvailableInstruments([]);
+                    }
+                  }}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                 >
                   <option value="">Selecione...</option>
@@ -1074,11 +1097,32 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                   <p className="mt-0.5 text-[10px] text-slate-400">Selecione para atualizar o saldo automaticamente</p>
                 </div>
               )}
+
+              {/* Payment Instrument (optional) */}
+              {paymentMethod && availableInstruments.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Instrumento</label>
+                  <select
+                    value={selectedInstrumentId}
+                    onChange={(e) => setSelectedInstrumentId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                  >
+                    <option value="">Nenhum (generico)</option>
+                    {availableInstruments.map((pi) => (
+                      <option key={pi.id} value={pi.id}>
+                        {pi.name}
+                        {pi.cardLast4 ? ` (*${pi.cardLast4})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-0.5 text-[10px] text-slate-400">Selecione o instrumento especifico para conciliacao</p>
+                </div>
+              )}
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedAccountId(""); }}
+                onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedAccountId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); }}
                 disabled={!!actionLoading}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
               >
