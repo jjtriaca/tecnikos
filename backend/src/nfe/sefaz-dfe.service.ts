@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import * as crypto from 'crypto';
 import * as tls from 'tls';
@@ -59,7 +59,7 @@ export interface SefazConfigInfo {
    ══════════════════════════════════════════════════════════════════════ */
 
 @Injectable()
-export class SefazDfeService {
+export class SefazDfeService implements OnModuleInit {
   private readonly logger = new Logger(SefazDfeService.name);
   private readonly xmlParser: XMLParser;
 
@@ -75,6 +75,73 @@ export class SefazDfeService {
       // Disable auto number parsing — prevents CNPJ/chave NFe/NSU losing precision
       numberParseOptions: { leadingZeros: false, hex: false, skipLike: /.*/ },
     });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     onModuleInit — Fix historical corrupted data (one-time, idempotent)
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async onModuleInit() {
+    try {
+      await this.fixHistoricalData();
+    } catch (err) {
+      this.logger.error(`Failed to fix historical data: ${err.message}`);
+    }
+  }
+
+  private async fixHistoricalData() {
+    // 1. Fix SefazDocument status: FETCHED → IMPORTED for already-processed imports
+    const statusFixed = await this.prisma.$executeRawUnsafe(`
+      UPDATE "SefazDocument" sd
+      SET status = 'IMPORTED'
+      FROM "NfeImport" ni
+      WHERE sd."nfeImportId" = ni.id
+        AND ni.status = 'PROCESSED'
+        AND sd.status = 'FETCHED'
+    `);
+    if (statusFixed > 0) {
+      this.logger.log(`Fixed ${statusFixed} SefazDocument(s) status: FETCHED → IMPORTED`);
+    }
+
+    // 2. Fix corrupted nfeKey (scientific notation) by re-parsing from xmlContent
+    const corrupted = await this.prisma.sefazDocument.findMany({
+      where: {
+        nfeKey: { contains: 'e+' },
+        xmlContent: { not: null },
+      },
+      select: { id: true, xmlContent: true, schema: true, nsu: true },
+    });
+
+    for (const doc of corrupted) {
+      try {
+        const fixedData = this.parseSefazDocument(doc.xmlContent!, doc.nsu, doc.schema);
+        if (fixedData.nfeKey && !fixedData.nfeKey.includes('e+') && !fixedData.nfeKey.includes('E+')) {
+          await this.prisma.sefazDocument.update({
+            where: { id: doc.id },
+            data: { nfeKey: fixedData.nfeKey },
+          });
+          this.logger.log(`Fixed nfeKey for SefazDocument ${doc.id}: ${fixedData.nfeKey}`);
+
+          // Also fix linked NfeImport nfeKey
+          const linked = await this.prisma.nfeImport.findFirst({
+            where: { sefazDocumentId: doc.id },
+          });
+          if (linked && linked.nfeKey && linked.nfeKey.includes('e+')) {
+            await this.prisma.nfeImport.update({
+              where: { id: linked.id },
+              data: { nfeKey: fixedData.nfeKey },
+            });
+            this.logger.log(`Fixed nfeKey for linked NfeImport ${linked.id}`);
+          }
+        }
+      } catch (err) {
+        this.logger.error(`Failed to fix nfeKey for SefazDocument ${doc.id}: ${err.message}`);
+      }
+    }
+
+    if (corrupted.length > 0) {
+      this.logger.log(`Processed ${corrupted.length} SefazDocument(s) with corrupted nfeKey`);
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════════════
