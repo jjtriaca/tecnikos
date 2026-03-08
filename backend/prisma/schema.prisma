@@ -891,6 +891,10 @@ model NfeImportItem {
   seguroCents       Int?      // Valor do seguro rateado
   descontoCents     Int?      // Valor de desconto
   outrasDespCents   Int?      // Outras despesas acessórias
+  // Snapshots para reversão
+  prevStockQty               Float?    // Estoque antes da importação
+  prevAvgCostCents           Int?      // Custo médio antes da importação
+  prevLastPurchasePriceCents Int?      // Último preço compra antes da importação
   createdAt       DateTime @default(now())
 
   nfeImport NfeImport @relation(fields: [nfeImportId], references: [id])

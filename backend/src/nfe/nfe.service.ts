@@ -208,7 +208,7 @@ export class NfeService {
       include: {
         items: {
           include: {
-            product: { select: { id: true, description: true, code: true } },
+            product: { select: { id: true, description: true, code: true, finalidade: true } },
           },
           orderBy: { itemNumber: 'asc' },
         },
@@ -294,7 +294,7 @@ export class NfeService {
       include: {
         items: {
           include: {
-            product: { select: { id: true, description: true, code: true } },
+            product: { select: { id: true, description: true, code: true, finalidade: true } },
           },
           orderBy: { itemNumber: 'asc' },
         },
@@ -407,6 +407,8 @@ export class NfeService {
       }
 
       // ── 2. Process each item ───────────────────────────────────────
+      const STOCK_FINALIDADES = ['REVENDA', 'MATERIA_PRIMA', 'MATERIAL_OBRA'];
+
       for (const itemDecision of itemDecisions) {
         const nfeItem = nfeImport.items.find(
           (i) => i.itemNumber === itemDecision.itemNumber,
@@ -414,9 +416,16 @@ export class NfeService {
         if (!nfeItem) continue;
 
         let productId: string | null = null;
+        let prevStockQty: number | null = null;
+        let prevAvgCostCents: number | null = null;
+        let prevLastPurchasePriceCents: number | null = null;
 
         if (itemDecision.action === 'CREATE') {
-          // Create new Product from NFe item data
+          // Determine if this finalidade adds stock
+          const finalidade = itemDecision.finalidade || undefined;
+          const addsStock = !!finalidade && STOCK_FINALIDADES.includes(finalidade);
+          const qty = nfeItem.quantity ?? 0;
+
           const productCode = await this.codeGenerator.generateCode(companyId, 'PRODUCT');
           const newProduct = await tx.product.create({
             data: {
@@ -429,12 +438,17 @@ export class NfeService {
               lastPurchasePriceCents: nfeItem.unitPriceCents,
               costCents: nfeItem.unitPriceCents,
               averageCostCents: nfeItem.unitPriceCents,
-              finalidade: itemDecision.finalidade || undefined,
+              currentStock: addsStock ? qty : 0,
+              finalidade,
             },
           });
           productId = newProduct.id;
+
+          // Snapshot: product was new, so previous values are all zero/null
+          prevStockQty = 0;
+          prevAvgCostCents = null;
+          prevLastPurchasePriceCents = null;
         } else if (itemDecision.action === 'LINK') {
-          // Validate product belongs to company
           const product = await tx.product.findFirst({
             where: { id: itemDecision.productId!, companyId, deletedAt: null },
           });
@@ -445,20 +459,44 @@ export class NfeService {
           }
           productId = product.id;
 
-          // Update lastPurchasePriceCents and finalidade on existing product
+          // Save snapshot BEFORE updating
+          prevStockQty = product.currentStock;
+          prevAvgCostCents = product.averageCostCents;
+          prevLastPurchasePriceCents = product.lastPurchasePriceCents;
+
+          // Determine finalidade: decision overrides product's existing
+          const finalidade = itemDecision.finalidade || product.finalidade || null;
+          const addsStock = !!finalidade && STOCK_FINALIDADES.includes(finalidade);
+          const qty = nfeItem.quantity ?? 0;
+
+          // Calculate new stock and average cost
+          const updateData: any = {
+            lastPurchasePriceCents: nfeItem.unitPriceCents,
+            costCents: nfeItem.unitPriceCents,
+            ...(itemDecision.finalidade ? { finalidade: itemDecision.finalidade } : {}),
+          };
+
+          if (addsStock && qty > 0) {
+            const oldStock = product.currentStock;
+            const newStock = oldStock + qty;
+            const oldAvg = product.averageCostCents ?? 0;
+            const price = nfeItem.unitPriceCents ?? 0;
+            const newAvg = oldStock > 0
+              ? Math.round((oldAvg * oldStock + price * qty) / newStock)
+              : price;
+            updateData.currentStock = newStock;
+            updateData.averageCostCents = newAvg;
+          }
+
           await tx.product.update({
             where: { id: productId },
-            data: {
-              lastPurchasePriceCents: nfeItem.unitPriceCents,
-              ...(itemDecision.finalidade ? { finalidade: itemDecision.finalidade } : {}),
-            },
+            data: updateData,
           });
         }
         // SKIP: productId stays null
 
         // Create ProductEquivalent for linked/created products
         if (productId && nfeItem.productCode) {
-          // Check if equivalent already exists
           const existingEq = await tx.productEquivalent.findFirst({
             where: {
               productId,
@@ -468,7 +506,6 @@ export class NfeService {
           });
 
           if (existingEq) {
-            // Update existing equivalent with latest price
             await tx.productEquivalent.update({
               where: { id: existingEq.id },
               data: {
@@ -491,12 +528,15 @@ export class NfeService {
           }
         }
 
-        // Update NfeImportItem
+        // Update NfeImportItem with action + snapshots
         await tx.nfeImportItem.update({
           where: { id: nfeItem.id },
           data: {
             productId,
             action: itemDecision.action === 'SKIP' ? 'SKIPPED' : itemDecision.action === 'CREATE' ? 'CREATED' : 'LINKED',
+            prevStockQty,
+            prevAvgCostCents,
+            prevLastPurchasePriceCents,
           },
         });
       }
@@ -555,7 +595,7 @@ export class NfeService {
       include: {
         items: {
           include: {
-            product: { select: { id: true, description: true, code: true } },
+            product: { select: { id: true, description: true, code: true, finalidade: true } },
           },
           orderBy: { itemNumber: 'asc' },
         },
@@ -603,7 +643,32 @@ export class NfeService {
         });
       }
 
-      // ── 2. Handle products created by this import ────────────────
+      // ── 2. Restore product snapshots (stock, prices) for LINKED items ─
+      const linkedItems = nfeImport.items.filter(
+        (i) => i.action === 'LINKED' && i.productId,
+      );
+
+      for (const item of linkedItems) {
+        const restoreData: any = {};
+        if (item.prevStockQty !== null && item.prevStockQty !== undefined) {
+          restoreData.currentStock = item.prevStockQty;
+        }
+        if (item.prevAvgCostCents !== null && item.prevAvgCostCents !== undefined) {
+          restoreData.averageCostCents = item.prevAvgCostCents;
+        }
+        if (item.prevLastPurchasePriceCents !== null && item.prevLastPurchasePriceCents !== undefined) {
+          restoreData.lastPurchasePriceCents = item.prevLastPurchasePriceCents;
+          restoreData.costCents = item.prevLastPurchasePriceCents;
+        }
+        if (Object.keys(restoreData).length > 0) {
+          await tx.product.update({
+            where: { id: item.productId! },
+            data: restoreData,
+          });
+        }
+      }
+
+      // ── 3. Handle products CREATED by this import ──────────────────
       const createdItems = nfeImport.items.filter(
         (i) => i.action === 'CREATED' && i.productId,
       );
@@ -624,10 +689,8 @@ export class NfeService {
         });
 
         if (otherRefs === 0) {
-          // Safe to delete — no other references
           await tx.product.delete({ where: { id: item.productId! } });
         } else {
-          // Used elsewhere — soft delete
           await tx.product.update({
             where: { id: item.productId! },
             data: { deletedAt: new Date() },
@@ -635,13 +698,19 @@ export class NfeService {
         }
       }
 
-      // ── 3. Reset all NfeImportItems ──────────────────────────────
+      // ── 4. Reset all NfeImportItems ──────────────────────────────
       await tx.nfeImportItem.updateMany({
         where: { nfeImportId: id },
-        data: { action: 'PENDING', productId: null },
+        data: {
+          action: 'PENDING',
+          productId: null,
+          prevStockQty: null,
+          prevAvgCostCents: null,
+          prevLastPurchasePriceCents: null,
+        },
       });
 
-      // ── 3b. Re-match items via ProductEquivalent ───────────────
+      // ── 5. Re-match items via ProductEquivalent ────────────────
       if (nfeImport.supplierId) {
         const freshItems = await tx.nfeImportItem.findMany({
           where: { nfeImportId: id },
@@ -666,7 +735,7 @@ export class NfeService {
         }
       }
 
-      // ── 4. Reset NfeImport status ────────────────────────────────
+      // ── 6. Reset NfeImport status ────────────────────────────────
       await tx.nfeImport.update({
         where: { id },
         data: {
@@ -675,7 +744,7 @@ export class NfeService {
         },
       });
 
-      // ── 5. Reset SefazDocument status to FETCHED ─────────────────
+      // ── 7. Reset SefazDocument status to FETCHED ─────────────────
       if (nfeImport.sefazDocumentId) {
         await tx.sefazDocument.update({
           where: { id: nfeImport.sefazDocumentId },

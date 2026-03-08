@@ -22,6 +22,7 @@ export class PrismaService
     await this.ensureCardFeeRateTable();
     await this.ensureSefazManifestColumns();
     await this.ensureProductFinalidadeColumn();
+    await this.ensureNfeImportItemSnapshots();
     await this.ensureCodeColumns();
     await this.fixOrphanImportedStatus();
   }
@@ -501,6 +502,17 @@ export class PrismaService
       await this.$executeRawUnsafe(`ALTER TABLE "SefazConfig" ADD COLUMN IF NOT EXISTS "autoManifestCiencia" BOOLEAN NOT NULL DEFAULT false`);
     } catch (err) {
       this.logger.warn('SefazManifest auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  /** Ensure NfeImportItem snapshot columns exist for revert (self-healing migration) */
+  private async ensureNfeImportItemSnapshots(): Promise<void> {
+    try {
+      await this.$executeRawUnsafe(`ALTER TABLE "NfeImportItem" ADD COLUMN IF NOT EXISTS "prevStockQty" DOUBLE PRECISION`);
+      await this.$executeRawUnsafe(`ALTER TABLE "NfeImportItem" ADD COLUMN IF NOT EXISTS "prevAvgCostCents" INTEGER`);
+      await this.$executeRawUnsafe(`ALTER TABLE "NfeImportItem" ADD COLUMN IF NOT EXISTS "prevLastPurchasePriceCents" INTEGER`);
+    } catch (err) {
+      this.logger.warn('NfeImportItem snapshot auto-migration check failed (non-fatal):', err);
     }
   }
 

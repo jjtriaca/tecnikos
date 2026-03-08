@@ -37,6 +37,7 @@ interface NfeItem {
   unitPriceCents: number;
   totalCents: number;
   productId: string | null;
+  product: { id: string; description: string; code: string; finalidade: string | null } | null;
   productDescription: string | null;
   // Tax fields (Phase 1)
   cstIcms: string | null;
@@ -819,7 +820,7 @@ export default function NfePage() {
           itemNumber: item.itemNumber,
           action: item.productId ? "LINK" : "CREATE",
           productId: item.productId || undefined,
-          finalidade: "MATERIAL_OBRA",
+          finalidade: item.product?.finalidade || "USO_CONSUMO",
         }))
       );
       setProductSearches({});
@@ -1550,7 +1551,7 @@ export default function NfePage() {
           itemNumber: item.itemNumber,
           action: item.productId ? "LINK" : "CREATE",
           productId: item.productId || undefined,
-          finalidade: "MATERIAL_OBRA",
+          finalidade: item.product?.finalidade || "USO_CONSUMO",
         }))
       );
       setProductSearches({});
@@ -2309,7 +2310,7 @@ export default function NfePage() {
                               <td className="px-3 py-2">
                                 {action !== "IGNORE" ? (
                                   <select
-                                    value={ia?.finalidade || "MATERIAL_OBRA"}
+                                    value={ia?.finalidade || "USO_CONSUMO"}
                                     onChange={(e) => updateItemFinalidade(item.itemNumber, e.target.value)}
                                     className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                   >
