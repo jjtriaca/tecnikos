@@ -969,6 +969,29 @@ export default function NfePage() {
     }
   }
 
+  async function handleOpenDanfe(docId: string) {
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`/api/nfe/sefaz/documents/${docId}/danfe`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Erro ao gerar DANFE");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, "_blank");
+      if (!win) {
+        toast("Nao foi possivel abrir o PDF. Verifique se o bloqueador de pop-ups esta desativado.", "error");
+        URL.revokeObjectURL(url);
+      }
+    } catch (err: any) {
+      toast(err?.message || "Erro ao gerar DANFE.", "error");
+    }
+  }
+
   function isCertExpiringSoon(): boolean {
     if (!sefazConfig?.certificateExpiry) return false;
     const expiry = new Date(sefazConfig.certificateExpiry);
@@ -1495,13 +1518,10 @@ export default function NfePage() {
                                     )}
                                   </button>
                                 )}
-                                <button onClick={() => handleViewXml(doc.id)} className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 transition-colors" title="Visualizar XML">XML</button>
                                 {doc.schema === "procNFe" && (
                                   <>
-                                    <button onClick={() => handleDownloadFile(doc.id, "xml")} className="rounded border border-indigo-200 bg-indigo-50 px-1 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors" title="Salvar XML">
-                                      <svg className="h-2.5 w-2.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                    </button>
-                                    <button onClick={() => handleDownloadFile(doc.id, "danfe")} className="rounded border border-red-200 bg-red-50 px-1 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors" title="Salvar DANFE PDF">PDF</button>
+                                    <button onClick={() => handleDownloadFile(doc.id, "xml")} className="rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors" title="Baixar XML">XML</button>
+                                    <button onClick={() => handleOpenDanfe(doc.id)} className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors" title="Visualizar DANFE">PDF</button>
                                   </>
                                 )}
                               </div>
