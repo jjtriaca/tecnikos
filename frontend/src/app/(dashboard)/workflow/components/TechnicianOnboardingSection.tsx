@@ -116,7 +116,7 @@ function TriggerSection({
               className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
             />
             <div className="flex flex-wrap gap-1 mt-1">
-              {['{nome}', '{empresa}', '{especializacao}', '{data}'].map((v) => (
+              {['{nome}', '{empresa}', '{cnpj_empresa}', '{endereco_empresa}', '{documento}', '{email}', '{telefone}', '{especializacao}', '{data}'].map((v) => (
                 <button
                   key={v}
                   type="button"

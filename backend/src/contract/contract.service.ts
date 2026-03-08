@@ -48,6 +48,19 @@ export class ContractService {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Empresa não encontrada');
 
+    // Replace template variables in contract content
+    const today = new Date().toLocaleDateString('pt-BR');
+    const companyDisplay = company.tradeName || company.name;
+    const resolvedContent = contractContent
+      .replace(/\{nome\}/gi, partner.name)
+      .replace(/\{empresa\}/gi, companyDisplay)
+      .replace(/\{data\}/gi, today)
+      .replace(/\{documento\}/gi, partner.document || '')
+      .replace(/\{email\}/gi, partner.email || '')
+      .replace(/\{telefone\}/gi, partner.phone || '')
+      .replace(/\{cnpj_empresa\}/gi, company.cnpj || '')
+      .replace(/\{endereco_empresa\}/gi, [company.addressStreet, company.addressNumber, company.neighborhood, company.city, company.state].filter(Boolean).join(', '));
+
     // Generate token and calculate expiration
     const token = randomUUID();
     const expiresAt = new Date();
@@ -61,7 +74,7 @@ export class ContractService {
         serviceOrderId: serviceOrderId || null,
         token,
         contractName,
-        contractContent,
+        contractContent: resolvedContent,
         blockUntilAccepted,
         sentVia: channel,
         expiresAt,

@@ -263,84 +263,113 @@ export interface TechnicianOnboardingConfig {
   };
 }
 
-const DEFAULT_CONTRACT_CONTENT = `CONTRATO DE PRESTACAO DE SERVICOS TECNICOS
+const DEFAULT_CONTRACT_CONTENT = `CONTRATO DE PRESTACAO DE SERVICOS TECNICOS TERCEIRIZADOS
 
-IDENTIFICACAO DAS PARTES
+CONTRATANTE: {empresa}, inscrita no CNPJ sob n. {cnpj_empresa}, com sede em {endereco_empresa}, neste ato representada por seus administradores legais.
 
-CONTRATANTE: {empresa}
-CONTRATADO(A): {nome}
+CONTRATADO(A): {nome}, portador(a) do documento n. {documento}, doravante denominado(a) PRESTADOR(A).
 
-1. OBJETO DO CONTRATO
+As partes acima qualificadas celebram o presente Contrato de Prestacao de Servicos Terceirizados, que se regera pelas clausulas e condicoes a seguir.
 
-O presente contrato tem por objeto a prestacao de servicos tecnicos especializados pelo CONTRATADO(A) em favor da CONTRATANTE, na qualidade de tecnico autonomo, conforme demandas encaminhadas por meio da plataforma Tecnikos.
+--- CLAUSULA 1 — OBJETO ---
 
-2. OBRIGACOES DO CONTRATADO(A)
+1.1. O presente contrato tem por objeto a prestacao de servicos tecnicos especializados pelo(a) PRESTADOR(A) em favor da CONTRATANTE, na qualidade de profissional autonomo terceirizado, sem vinculo empregaticio, conforme demandas encaminhadas por meio da plataforma Tecnikos.
 
-2.1. Executar os servicos tecnicos designados com diligencia, qualidade e dentro dos prazos estabelecidos em cada Ordem de Servico (OS).
-2.2. Comparecer aos locais de atendimento devidamente identificado e com os equipamentos necessarios.
-2.3. Registrar na plataforma Tecnikos todas as etapas do atendimento, incluindo fotos, anotacoes e confirmacoes solicitadas.
-2.4. Manter sigilo sobre informacoes confidenciais da CONTRATANTE e de seus clientes.
-2.5. Zelar pela boa imagem da CONTRATANTE perante os clientes durante os atendimentos.
-2.6. Comunicar imediatamente qualquer impedimento ou atraso na execucao dos servicos.
+1.2. Os servicos serao prestados conforme Ordens de Servico (OS) emitidas pela CONTRATANTE, contendo descricao, local, prazo e valor de cada atendimento.
 
-3. OBRIGACOES DA CONTRATANTE
+1.3. O(A) PRESTADOR(A) possui liberdade para aceitar ou recusar as OS oferecidas, sem penalidade por recusa, desde que comunique em tempo habil.
+
+--- CLAUSULA 2 — OBRIGACOES DO(A) PRESTADOR(A) ---
+
+2.1. Executar os servicos com diligencia, qualidade tecnica e dentro dos prazos definidos em cada OS.
+2.2. Comparecer aos locais de atendimento devidamente identificado(a), uniformizado(a) quando exigido, e portando ferramentas e EPIs adequados.
+2.3. Registrar na plataforma Tecnikos todas as etapas do atendimento conforme exigido no fluxo de trabalho: check-in, fotos, anotacoes, checklist, materiais utilizados e finalizacao.
+2.4. Manter sigilo absoluto sobre informacoes da CONTRATANTE, seus clientes, processos internos, dados tecnicos e comerciais, durante e apos a vigencia deste contrato.
+2.5. Zelar pela boa imagem da CONTRATANTE perante clientes e terceiros durante os atendimentos.
+2.6. Comunicar imediatamente qualquer impedimento, atraso ou impossibilidade na execucao dos servicos.
+2.7. Manter seus dados cadastrais atualizados na plataforma, incluindo telefone, email e especializacoes.
+2.8. Arcar com todos os custos de deslocamento, alimentacao, ferramentas proprias e demais despesas inerentes a execucao dos servicos, salvo quando expressamente previsto na OS.
+
+--- CLAUSULA 3 — OBRIGACOES DA CONTRATANTE ---
 
 3.1. Disponibilizar acesso a plataforma Tecnikos para recebimento e gestao das Ordens de Servico.
-3.2. Fornecer as informacoes necessarias para a execucao dos servicos.
-3.3. Efetuar os pagamentos conforme valores e prazos acordados para cada servico.
+3.2. Fornecer informacoes claras e completas sobre cada servico a ser executado.
+3.3. Efetuar os pagamentos nos valores e prazos acordados, conforme definido em cada OS aprovada.
+3.4. Avaliar os servicos prestados de forma justa e transparente.
+3.5. Fornecer materiais e pecas necessarios quando previsto na OS.
 
-4. REMUNERACAO
+--- CLAUSULA 4 — REMUNERACAO E PAGAMENTO ---
 
-4.1. O CONTRATADO(A) sera remunerado conforme os valores definidos em cada Ordem de Servico aceita.
-4.2. O pagamento sera realizado apos a conclusao e aprovacao do servico pela CONTRATANTE.
-4.3. Eventuais descontos por atraso, retrabalho ou avaliacao insatisfatoria serao comunicados previamente.
+4.1. O(A) PRESTADOR(A) sera remunerado(a) conforme os valores definidos em cada Ordem de Servico aceita e concluida.
+4.2. O pagamento sera processado apos a conclusao do servico E aprovacao pelo gestor da CONTRATANTE.
+4.3. Eventuais ajustes por retrabalho, atraso injustificado ou avaliacao insatisfatoria serao comunicados previamente e podera haver reducao proporcional nos valores.
+4.4. Os pagamentos serao realizados por meio de transferencia bancaria, PIX ou outro meio acordado entre as partes.
+4.5. O(A) PRESTADOR(A) e responsavel pela emissao de nota fiscal ou recibo quando aplicavel, conforme legislacao vigente.
 
-5. VIGENCIA
+--- CLAUSULA 5 — VIGENCIA E RENOVACAO ---
 
-5.1. Este contrato tem vigencia por prazo indeterminado, podendo ser rescindido por qualquer das partes mediante comunicacao previa de 30 (trinta) dias.
+5.1. Este contrato tem vigencia por prazo indeterminado a partir da data do aceite digital.
+5.2. Qualquer das partes podera rescindir o contrato mediante comunicacao previa de 30 (trinta) dias.
+5.3. A rescisao nao desobriga o(a) PRESTADOR(A) de concluir as OS ja aceitas e em andamento.
 
-6. RESCISAO
+--- CLAUSULA 6 — RESCISAO IMEDIATA ---
 
-6.1. O presente contrato podera ser rescindido imediatamente em caso de:
-  a) Descumprimento de qualquer clausula por qualquer das partes;
-  b) Conduta inadequada do CONTRATADO(A) durante os atendimentos;
-  c) Avaliacao media inferior ao minimo estabelecido pela CONTRATANTE;
-  d) Inatividade superior a 90 (noventa) dias sem justificativa.
+6.1. O presente contrato podera ser rescindido imediatamente, sem necessidade de aviso previo, em caso de:
+  a) Descumprimento grave de qualquer clausula contratual;
+  b) Conduta inadequada, desrespeitosa ou antiética durante os atendimentos;
+  c) Danos dolosos ou por negligencia grave aos bens da CONTRATANTE ou de seus clientes;
+  d) Violacao de sigilo ou uso indevido de informacoes confidenciais;
+  e) Avaliacao media inferior a 3.0 (tres) estrelas em um periodo de 90 dias;
+  f) Inatividade superior a 90 (noventa) dias sem justificativa;
+  g) Fraude ou adulteracao de registros na plataforma.
 
-7. DISPOSICOES GERAIS
+--- CLAUSULA 7 — PROPRIEDADE INTELECTUAL E DADOS ---
 
-7.1. Este contrato nao gera vinculo empregaticio entre as partes.
-7.2. O CONTRATADO(A) e responsavel por suas obrigacoes fiscais e previdenciarias.
-7.3. O aceite digital deste contrato tem validade juridica conforme a Lei 14.063/2020.
+7.1. Todos os registros, fotos, relatorios e dados inseridos na plataforma Tecnikos durante a execucao dos servicos sao de propriedade da CONTRATANTE.
+7.2. O(A) PRESTADOR(A) nao podera utilizar, divulgar ou compartilhar dados de clientes da CONTRATANTE para qualquer finalidade alheia ao servico contratado.
+7.3. O(A) PRESTADOR(A) autoriza o uso de suas avaliacoes e indicadores de desempenho pela CONTRATANTE para fins internos de gestao de qualidade.
 
-Data: {data}`;
+--- CLAUSULA 8 — RESPONSABILIDADE CIVIL ---
+
+8.1. O(A) PRESTADOR(A) assume total responsabilidade por danos causados a terceiros ou a bens do cliente durante a execucao dos servicos, quando comprovada sua culpa ou dolo.
+8.2. A CONTRATANTE nao se responsabiliza por acidentes, furtos ou perdas ocorridos durante o deslocamento ou execucao dos servicos pelo(a) PRESTADOR(A).
+8.3. O(A) PRESTADOR(A) devera manter seguro de responsabilidade civil profissional quando exigido pela natureza dos servicos.
+
+--- CLAUSULA 9 — INEXISTENCIA DE VINCULO EMPREGATICIO ---
+
+9.1. As partes declaram expressamente que o presente contrato nao gera vinculo empregaticio, nos termos dos artigos 593 a 609 do Codigo Civil e art. 442-B da CLT (incluido pela Lei 13.467/2017).
+9.2. O(A) PRESTADOR(A) possui autonomia na execucao dos servicos, assumindo seus proprios riscos.
+9.3. O(A) PRESTADOR(A) e exclusivamente responsavel por suas obrigacoes fiscais, previdenciarias e trabalhistas, incluindo contribuicao ao INSS como contribuinte individual.
+
+--- CLAUSULA 10 — DISPOSICOES FINAIS ---
+
+10.1. O aceite digital deste contrato tem plena validade juridica, conforme a Lei 14.063/2020 (assinaturas eletronicas) e o Marco Civil da Internet (Lei 12.965/2014).
+10.2. Ao aceitar este contrato, serao registrados a data, hora, endereco IP e identificador do dispositivo utilizado, constituindo prova valida do consentimento.
+10.3. Quaisquer alteracoes neste contrato deverao ser formalizadas por aditivo aceito por ambas as partes.
+10.4. As partes elegem o foro da comarca da sede da CONTRATANTE para dirimir quaisquer controversias oriundas deste contrato.
+
+{empresa}, {data}
+
+CONTRATANTE: {empresa}
+PRESTADOR(A): {nome} — Documento: {documento}`;
 
 const DEFAULT_SPECIALIZATION_CONTRACT = `TERMO DE ACEITE — NOVA ESPECIALIZACAO
 
-IDENTIFICACAO
-
-EMPRESA: {empresa}
-TECNICO(A): {nome}
+CONTRATANTE: {empresa} (CNPJ: {cnpj_empresa})
+PRESTADOR(A): {nome} (Documento: {documento})
 ESPECIALIZACAO: {especializacao}
 
-1. OBJETO
+Pelo presente termo, o(a) prestador(a) acima identificado(a) declara estar ciente e de acordo com a atribuicao da nova especializacao indicada, assumindo os seguintes compromissos:
 
-Pelo presente termo, o(a) tecnico(a) acima identificado(a) declara estar ciente e de acordo com a atribuicao da nova especializacao indicada, comprometendo-se a:
+1. Executar os servicos relacionados a esta especializacao com competencia, diligencia e qualidade tecnica.
+2. Manter-se atualizado(a) sobre as melhores praticas, normas tecnicas e procedimentos da area.
+3. Participar de treinamentos ou capacitacoes solicitados pela empresa, quando aplicavel.
+4. Declarar possuir conhecimento e habilidade tecnica para executar servicos desta especializacao.
+5. Comunicar a empresa caso necessite de capacitacao adicional antes de aceitar ordens de servico.
 
-1.1. Executar os servicos relacionados a esta especializacao com competencia e diligencia.
-1.2. Manter-se atualizado(a) sobre as melhores praticas e procedimentos da area.
-1.3. Participar de eventuais treinamentos ou capacitacoes solicitados pela empresa.
+Este termo entra em vigor na data do aceite digital e permanece valido enquanto a especializacao estiver ativa no cadastro do(a) prestador(a). O aceite digital tem validade juridica conforme Lei 14.063/2020.
 
-2. RESPONSABILIDADES
-
-2.1. O(A) tecnico(a) declara possuir conhecimento e habilidade para executar servicos desta especializacao.
-2.2. Caso necessite de capacitacao adicional, devera comunicar a empresa antes de aceitar ordens de servico.
-
-3. VIGENCIA
-
-Este termo entra em vigor na data do aceite digital e permanece valido enquanto a especializacao estiver ativa no cadastro do(a) tecnico(a).
-
-Data: {data}`;
+{empresa}, {data}`;
 
 export function createDefaultOnboarding(): TechnicianOnboardingConfig {
   return {
