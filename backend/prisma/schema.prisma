@@ -841,6 +841,7 @@ model NfeImport {
   descontoCents     Int?      // Valor total de descontos
   outrasDespCents   Int?      // Valor outras despesas acessórias
   infCpl            String?   // Informações complementares da nota
+  duplicatasJson    String?   // JSON array of {number, dueDate, valueCents} from cobr/dup
   xmlContent        String?   // XML completo para referência futura (SPED)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

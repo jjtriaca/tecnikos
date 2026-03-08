@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import PasswordInput from "@/components/ui/PasswordInput";
@@ -94,6 +94,13 @@ interface NfeImport {
   descontoCents: number | null;
   outrasDespCents: number | null;
   infCpl: string | null;
+  duplicatasJson: string | null;
+}
+
+interface NfeDuplicata {
+  number: string;
+  dueDate: string;
+  valueCents: number;
 }
 
 interface SupplierAction {
@@ -664,6 +671,16 @@ export default function NfePage() {
   const [createFinancialEntry, setCreateFinancialEntry] = useState(true);
   const [financeDueDate, setFinanceDueDate] = useState("");
 
+  // Duplicatas parsed from XML
+  const parsedDuplicatas: NfeDuplicata[] = useMemo(() => {
+    if (!nfeData?.duplicatasJson) return [];
+    try {
+      return JSON.parse(nfeData.duplicatasJson) as NfeDuplicata[];
+    } catch {
+      return [];
+    }
+  }, [nfeData?.duplicatasJson]);
+
   /* ══════════════════════════════════════════════════════════ */
   /*  SEFAZ: Load config                                       */
   /* ══════════════════════════════════════════════════════════ */
@@ -1186,6 +1203,13 @@ export default function NfePage() {
         finance: {
           createEntry: createFinancialEntry,
           dueDate: financeDueDate || undefined,
+          installments: parsedDuplicatas.length > 0
+            ? parsedDuplicatas.map((d) => ({
+                number: parseInt(d.number) || 1,
+                dueDate: d.dueDate,
+                valueCents: d.valueCents,
+              }))
+            : undefined,
         },
       });
       toast("NFe importada com sucesso!", "success");
@@ -2445,8 +2469,41 @@ export default function NfePage() {
                       </div>
                     </div>
 
-                    {/* Due date (only if creating entry) */}
-                    {createFinancialEntry && (
+                    {/* Duplicatas or manual due date (only if creating entry) */}
+                    {createFinancialEntry && parsedDuplicatas.length > 0 && (
+                      <div className="rounded-xl border border-slate-200 bg-white p-5">
+                        <div className="flex items-center gap-2 mb-3">
+                          <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-sm font-medium text-slate-700">
+                            Parcelas da NFe ({parsedDuplicatas.length} {parsedDuplicatas.length === 1 ? "parcela" : "parcelas"})
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          {parsedDuplicatas.map((dup, idx) => (
+                            <div key={idx} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-4 py-2.5">
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs font-semibold text-slate-500 bg-slate-200 rounded px-2 py-0.5">
+                                  {dup.number || String(idx + 1).padStart(3, "0")}
+                                </span>
+                                <span className="text-sm text-slate-700">
+                                  Venc: {new Date(dup.dueDate + "T12:00:00").toLocaleDateString("pt-BR")}
+                                </span>
+                              </div>
+                              <span className="text-sm font-medium text-slate-900">
+                                {formatCurrency(dup.valueCents)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-green-600 mt-2">
+                          Parcelas carregadas automaticamente da nota fiscal.
+                        </p>
+                      </div>
+                    )}
+
+                    {createFinancialEntry && parsedDuplicatas.length === 0 && (
                       <div className="rounded-xl border border-slate-200 bg-white p-5">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           Data de vencimento
@@ -2481,11 +2538,15 @@ export default function NfePage() {
                               <p className="text-sm font-medium text-blue-800">
                                 Sera criado lancamento A Pagar de {formatCurrency(nfeData.totalCents)}
                               </p>
-                              {financeDueDate && (
+                              {parsedDuplicatas.length > 0 ? (
+                                <p className="text-xs text-blue-600 mt-0.5">
+                                  {parsedDuplicatas.length} {parsedDuplicatas.length === 1 ? "parcela" : "parcelas"} da nota fiscal
+                                </p>
+                              ) : financeDueDate ? (
                                 <p className="text-xs text-blue-600 mt-0.5">
                                   Vencimento: {new Date(financeDueDate + "T12:00:00").toLocaleDateString("pt-BR")}
                                 </p>
-                              )}
+                              ) : null}
                             </div>
                           </>
                         ) : (
@@ -2578,11 +2639,15 @@ export default function NfePage() {
                             <p className="text-sm font-medium text-blue-800">
                               Lancamento A Pagar: {formatCurrency(nfeData.totalCents)}
                             </p>
-                            {financeDueDate && (
+                            {parsedDuplicatas.length > 0 ? (
+                              <p className="text-xs text-blue-600 mt-0.5">
+                                {parsedDuplicatas.length} {parsedDuplicatas.length === 1 ? "parcela" : "parcelas"} da nota fiscal
+                              </p>
+                            ) : financeDueDate ? (
                               <p className="text-xs text-blue-600 mt-0.5">
                                 Vencimento: {new Date(financeDueDate + "T12:00:00").toLocaleDateString("pt-BR")}
                               </p>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       ) : (

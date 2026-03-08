@@ -64,6 +64,12 @@ export interface ParsedNfeTotals {
   outrasDespCents: number | null;
 }
 
+export interface ParsedNfeDuplicata {
+  number: string;
+  dueDate: string; // ISO date string (YYYY-MM-DD)
+  valueCents: number;
+}
+
 export interface ParsedNfe {
   nfeNumber: string;
   nfeSeries: string;
@@ -81,6 +87,8 @@ export interface ParsedNfe {
   totalCents: number;
   // Fiscal totals
   totals: ParsedNfeTotals;
+  // Cobrança (duplicatas/parcelas)
+  duplicatas: ParsedNfeDuplicata[];
   // Additional info
   infCpl: string | null;
 }
@@ -243,6 +251,16 @@ export class NfeParserService {
       outrasDespCents: icmsTot?.vOutro ? this.toCents(String(icmsTot.vOutro)) : null,
     };
 
+    // ── Cobrança (duplicatas/parcelas) ─────────────────────────────
+    const cobr = infNFe.cobr;
+    const dupRaw = cobr?.dup;
+    const dupArray: any[] = Array.isArray(dupRaw) ? dupRaw : dupRaw ? [dupRaw] : [];
+    const duplicatas: ParsedNfeDuplicata[] = dupArray.map((dup: any) => ({
+      number: String(dup.nDup ?? ''),
+      dueDate: String(dup.dVenc ?? ''),
+      valueCents: this.toCents(String(dup.vDup ?? '0')),
+    }));
+
     // ── Additional info ────────────────────────────────────────────
     const infAdic = infNFe.infAdic;
     const infCpl = infAdic?.infCpl ? String(infAdic.infCpl) : null;
@@ -261,6 +279,7 @@ export class NfeParserService {
       items,
       totalCents,
       totals,
+      duplicatas,
       infCpl,
     };
   }

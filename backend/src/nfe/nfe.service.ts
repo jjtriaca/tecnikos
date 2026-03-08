@@ -41,13 +41,30 @@ export class ProcessSupplierDecision {
   partnerId?: string;
 }
 
+export class ProcessInstallmentDecision {
+  @IsNumber()
+  number: number;
+
+  @IsString()
+  dueDate: string;
+
+  @IsNumber()
+  valueCents: number;
+}
+
 export class ProcessFinanceDecision {
   @IsBoolean()
   createEntry: boolean;
 
   @IsOptional()
   @IsString()
-  dueDate?: string;
+  dueDate?: string; // Single due date (when no installments)
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProcessInstallmentDecision)
+  installments?: ProcessInstallmentDecision[]; // From XML duplicatas
 }
 
 export class ProcessDecisions {
@@ -160,6 +177,7 @@ export class NfeService {
         descontoCents: parsed.totals.descontoCents,
         outrasDespCents: parsed.totals.outrasDespCents,
         infCpl: parsed.infCpl,
+        duplicatasJson: parsed.duplicatas.length > 0 ? JSON.stringify(parsed.duplicatas) : null,
         xmlContent: xmlContent, // Store full XML for SPED reference
         items: {
           create: parsed.items.map((item) => {
@@ -616,9 +634,15 @@ export class NfeService {
       let financialEntryId: string | null = null;
 
       if (shouldCreateEntry) {
-        const dueDate = decisions.finance?.dueDate
-          ? new Date(decisions.finance.dueDate)
-          : (nfeImport.issueDate ?? undefined);
+        const installments = decisions.finance?.installments;
+        const hasInstallments = installments && installments.length > 0;
+
+        // Due date: first installment date, or user-provided, or issue date
+        const dueDate = hasInstallments
+          ? new Date(installments[0].dueDate)
+          : decisions.finance?.dueDate
+            ? new Date(decisions.finance.dueDate)
+            : (nfeImport.issueDate ?? undefined);
 
         const finCode = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
         const financialEntry = await tx.financialEntry.create({
@@ -632,10 +656,27 @@ export class NfeService {
             grossCents: nfeImport.totalCents ?? 0,
             netCents: nfeImport.totalCents ?? 0,
             dueDate,
+            installmentCount: hasInstallments ? installments.length : null,
             notes: nfeImport.nfeKey ? `Chave NFe: ${nfeImport.nfeKey}` : undefined,
           },
         });
         financialEntryId = financialEntry.id;
+
+        // Create installment records from XML duplicatas
+        if (hasInstallments) {
+          for (const inst of installments) {
+            await tx.financialInstallment.create({
+              data: {
+                financialEntryId: financialEntry.id,
+                installmentNumber: inst.number,
+                dueDate: new Date(inst.dueDate),
+                amountCents: inst.valueCents,
+                totalCents: inst.valueCents,
+                status: 'PENDING',
+              },
+            });
+          }
+        }
       }
 
       // ── 4. Update NfeImport status ─────────────────────────────────
