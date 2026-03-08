@@ -64,4 +64,15 @@ export class NfeController {
   ) {
     return this.service.process(id, user.companyId, decisions);
   }
+
+  /* ── Revert processed import ───────────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
+  @Post('imports/:id/revert')
+  revert(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.revert(id, user.companyId);
+  }
 }

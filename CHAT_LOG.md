@@ -1098,3 +1098,23 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Deploy: v1.01.32
 
 ---
+
+## Sessao 78 — 07/03/2026
+
+### Reverter Importacao NFe
+- Juliano pediu: reverter nota ja importada apagando todos os lancamentos criados, voltar status para "baixada" para re-importar
+
+#### Backend:
+1. **NfeService.revert()**: metodo que reverte uma importacao PROCESSED
+   - Valida status PROCESSED
+   - Bloqueia se FinancialEntry esta PAID
+   - Em transaction: deleta FinancialEntry, deleta Products CREATED (com ProductEquivalents), reseta NfeImportItems para PENDING, reseta NfeImport para PENDING, reseta SefazDocument para FETCHED
+2. **NfeController**: endpoint `POST /nfe/imports/:id/revert` (ADMIN + FISCAL)
+
+#### Frontend:
+1. **Aba Upload Manual**: botao "Reverter" (vermelho) para imports PROCESSED, com confirmacao
+2. **Aba SEFAZ**: botao "Reverter" para docs IMPORTED com nfeImportId vinculado
+3. **Interface SefazDocument**: campo `nfeImportId` adicionado
+4. **Ambos**: recarregam listas apos reverter com sucesso
+
+---

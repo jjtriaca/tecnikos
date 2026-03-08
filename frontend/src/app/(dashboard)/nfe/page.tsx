@@ -144,6 +144,7 @@ interface SefazDocument {
   nfeValue: number | null;
   situacao: string | null;
   status: "FETCHED" | "IMPORTED" | "IGNORED" | "EVENT";
+  nfeImportId: string | null;
   manifestType: string | null;
   manifestedAt: string | null;
   xmlContent: string | null;
@@ -601,6 +602,7 @@ export default function NfePage() {
   // Action loading states
   const [importingDocId, setImportingDocId] = useState<string | null>(null);
   const [ignoringDocId, setIgnoringDocId] = useState<string | null>(null);
+  const [revertingDocId, setRevertingDocId] = useState<string | null>(null);
   const [manifestingDocId, setManifestingDocId] = useState<string | null>(null);
   const [manifestMenuDocId, setManifestMenuDocId] = useState<string | null>(null);
 
@@ -832,6 +834,25 @@ export default function NfePage() {
       toast(err?.message || "Erro ao importar documento.", "error");
     } finally {
       setImportingDocId(null);
+    }
+  }
+
+  async function handleRevertSefazDoc(doc: SefazDocument) {
+    if (!doc.nfeImportId) {
+      toast("Documento nao possui importacao vinculada.", "error");
+      return;
+    }
+    if (!confirm("Tem certeza que deseja reverter esta importacao? Todos os lancamentos financeiros e produtos criados serao apagados.")) return;
+    setRevertingDocId(doc.id);
+    try {
+      await api.post(`/nfe/imports/${doc.nfeImportId}/revert`);
+      toast("Importacao revertida com sucesso.", "success");
+      loadSefazDocs();
+      loadImports();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || "Erro ao reverter importacao.", "error");
+    } finally {
+      setRevertingDocId(null);
     }
   }
 
@@ -1457,6 +1478,19 @@ export default function NfePage() {
                                     )}
                                   </div>
                                 )}
+                                {doc.status === "IMPORTED" && doc.nfeImportId && (
+                                  <button
+                                    onClick={() => handleRevertSefazDoc(doc)}
+                                    disabled={revertingDocId === doc.id}
+                                    className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                                  >
+                                    {revertingDocId === doc.id ? (
+                                      <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-red-300 border-t-red-700" />
+                                    ) : (
+                                      "Reverter"
+                                    )}
+                                  </button>
+                                )}
                                 <button onClick={() => handleViewXml(doc.id)} className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 transition-colors" title="Visualizar XML">XML</button>
                                 {doc.schema === "procNFe" && (
                                   <>
@@ -1493,6 +1527,17 @@ export default function NfePage() {
   /* ══════════════════════════════════════════════════════════ */
 
   function renderUploadManualTab() {
+    async function handleRevertImport(impId: string) {
+      if (!confirm("Tem certeza que deseja reverter esta importacao? Todos os lancamentos financeiros e produtos criados serao apagados.")) return;
+      try {
+        await api.post(`/nfe/imports/${impId}/revert`);
+        toast("Importacao revertida com sucesso.", "success");
+        loadImports();
+      } catch (err: any) {
+        toast(err?.response?.data?.message || "Erro ao reverter importacao.", "error");
+      }
+    }
+
     function handleOpenProcess(imp: NfeImport) {
       setNfeData(imp);
       if (imp.supplierId) {
@@ -1608,6 +1653,13 @@ export default function NfePage() {
                                   className="text-blue-600 hover:text-blue-700 text-xs font-medium hover:underline"
                                 >
                                   Processar
+                                </button>
+                              ) : imp.status === "PROCESSED" ? (
+                                <button
+                                  onClick={() => handleRevertImport(imp.id)}
+                                  className="text-red-600 hover:text-red-700 text-xs font-medium hover:underline"
+                                >
+                                  Reverter
                                 </button>
                               ) : (
                                 <span className="text-slate-400 text-xs">{"\u2014"}</span>

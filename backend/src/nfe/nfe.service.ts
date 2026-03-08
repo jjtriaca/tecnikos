@@ -562,4 +562,104 @@ export class NfeService {
       },
     });
   }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     revert — Undo a processed import: delete created records, reset status
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async revert(id: string, companyId: string) {
+    const nfeImport = await this.prisma.nfeImport.findFirst({
+      where: { id, companyId },
+      include: { items: true },
+    });
+
+    if (!nfeImport) {
+      throw new NotFoundException('Importação de NFe não encontrada');
+    }
+
+    if (nfeImport.status !== 'PROCESSED') {
+      throw new BadRequestException(
+        'Somente importações com status PROCESSADO podem ser revertidas',
+      );
+    }
+
+    // Check if financial entry is paid — block revert
+    if (nfeImport.financialEntryId) {
+      const entry = await this.prisma.financialEntry.findUnique({
+        where: { id: nfeImport.financialEntryId },
+      });
+      if (entry && entry.status === 'PAID') {
+        throw new BadRequestException(
+          'Lançamento financeiro já está pago. Cancele o pagamento antes de reverter.',
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // ── 1. Delete FinancialEntry created by this import ──────────
+      if (nfeImport.financialEntryId) {
+        await tx.financialEntry.delete({
+          where: { id: nfeImport.financialEntryId },
+        });
+      }
+
+      // ── 2. Handle products created by this import ────────────────
+      const createdItems = nfeImport.items.filter(
+        (i) => i.action === 'CREATED' && i.productId,
+      );
+
+      for (const item of createdItems) {
+        // Delete ProductEquivalents for this product
+        await tx.productEquivalent.deleteMany({
+          where: { productId: item.productId! },
+        });
+
+        // Check if product is referenced by other imports
+        const otherRefs = await tx.nfeImportItem.count({
+          where: {
+            productId: item.productId!,
+            id: { not: item.id },
+            action: { not: 'PENDING' },
+          },
+        });
+
+        if (otherRefs === 0) {
+          // Safe to delete — no other references
+          await tx.product.delete({ where: { id: item.productId! } });
+        } else {
+          // Used elsewhere — soft delete
+          await tx.product.update({
+            where: { id: item.productId! },
+            data: { deletedAt: new Date() },
+          });
+        }
+      }
+
+      // ── 3. Reset all NfeImportItems ──────────────────────────────
+      await tx.nfeImportItem.updateMany({
+        where: { nfeImportId: id },
+        data: { action: 'PENDING', productId: null },
+      });
+
+      // ── 4. Reset NfeImport status ────────────────────────────────
+      await tx.nfeImport.update({
+        where: { id },
+        data: {
+          status: 'PENDING',
+          financialEntryId: null,
+        },
+      });
+
+      // ── 5. Reset SefazDocument status to FETCHED ─────────────────
+      if (nfeImport.sefazDocumentId) {
+        await tx.sefazDocument.update({
+          where: { id: nfeImport.sefazDocumentId },
+          data: { status: 'FETCHED' },
+        });
+      }
+    });
+
+    // Return updated import
+    return this.findOneImport(id, companyId);
+  }
 }
