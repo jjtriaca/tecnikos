@@ -131,6 +131,11 @@ export class DanfeService {
     this.xmlParser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
+      numberParseOptions: {
+        leadingZeros: false,
+        hex: false,
+        skipLike: /.*/, // Don't parse ANY values as numbers — keep all as strings
+      },
     });
   }
 
@@ -361,8 +366,8 @@ export class DanfeService {
         barcodeImg = await bwipjs.toBuffer({
           bcid: 'code128',
           text: data.nfeKey,
-          scale: 2,
-          height: 12,
+          scale: 3,
+          height: 15,
           includetext: false,
         });
       } catch { /* barcode generation failed, skip */ }
@@ -371,7 +376,7 @@ export class DanfeService {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
         size: 'A4',
-        margins: { top: 15, bottom: 15, left: 15, right: 15 },
+        margins: { top: 10, bottom: 10, left: 10, right: 10 },
       });
 
       const chunks: Buffer[] = [];
@@ -379,10 +384,10 @@ export class DanfeService {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      const LX = 15; // left margin
-      const PW = doc.page.width - 30; // page width (usable)
-      const PH = doc.page.height - 30; // page height (usable)
-      let y = 15;
+      const LX = 10;
+      const PW = doc.page.width - 20;
+      const PH = doc.page.height - 20;
+      let y = 10;
 
       // Font sizes
       const F5 = 5;
@@ -391,11 +396,10 @@ export class DanfeService {
       const F8 = 8;
       const F9 = 9;
       const F10 = 10;
-      const F14 = 14;
 
       // ── Helpers ─────────────────────────────────────────────
       const box = (x: number, by: number, w: number, h: number) => {
-        doc.lineWidth(0.5).rect(x, by, w, h).stroke('#000');
+        doc.lineWidth(0.4).rect(x, by, w, h).stroke('#000');
       };
 
       const label = (x: number, by: number, text: string, w?: number) => {
@@ -409,7 +413,7 @@ export class DanfeService {
         doc.font(opts?.bold ? 'Helvetica-Bold' : 'Helvetica')
           .fontSize(opts?.size ?? F7)
           .fillColor('#000')
-          .text(text, x + 1.5, by + (opts?.offsetY ?? 7), {
+          .text(text || '', x + 1.5, by + (opts?.offsetY ?? 7), {
             width: (opts?.w ?? 100) - 3,
             align: opts?.align ?? 'left',
             lineBreak: false,
@@ -418,68 +422,107 @@ export class DanfeService {
 
       const sectionTitle = (text: string, sy: number) => {
         doc.font('Helvetica-Bold').fontSize(F5).fillColor('#000')
-          .text(text, LX + 1, sy - 7);
+          .text(text, LX + 1, sy);
       };
 
       // ══════════════════════════════════════════════════════════
-      // BLOCO 1: HEADER (Emitente + DANFE + Barcode)
+      // CANHOTO (Recibo de entrega)
       // ══════════════════════════════════════════════════════════
-      const H1 = 80;
-      const danfeW = 70;
-      const nfeW = 120;
-      const emitW = PW - danfeW - nfeW;
+      const canhH = 38;
+      const canhTextW = PW - 100;
+      box(LX, y, canhTextW, canhH);
+      doc.font('Helvetica').fontSize(F6).fillColor('#000')
+        .text(`RECEBEMOS DE ${data.emitter.name} OS PRODUTOS/SERVICOS CONSTANTES DA NOTA FISCAL INDICADA AO LADO`, LX + 3, y + 2, { width: canhTextW - 6 });
+      // Data recebimento + Assinatura
+      const halfCanh = canhTextW / 2;
+      box(LX, y + 16, halfCanh, canhH - 16);
+      label(LX, y + 16, 'DATA DE RECEBIMENTO');
+      box(LX + halfCanh, y + 16, halfCanh, canhH - 16);
+      label(LX + halfCanh, y + 16, 'IDENTIFICACAO E ASSINATURA DO RECEBEDOR');
 
-      // Emitente box
+      // NF-e box (right of canhoto)
+      const nfeBoxX = LX + canhTextW;
+      box(nfeBoxX, y, 100, canhH);
+      doc.font('Helvetica-Bold').fontSize(F10).fillColor('#000')
+        .text('NF-e', nfeBoxX + 2, y + 3, { width: 96, align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(F8)
+        .text(`N. ${data.nfeNumber}`, nfeBoxX + 2, y + 15, { width: 96, align: 'center' })
+        .text(`SERIE ${data.nfeSeries}`, nfeBoxX + 2, y + 25, { width: 96, align: 'center' });
+
+      y += canhH;
+
+      // Dashed cut line
+      doc.save().lineWidth(0.5).dash(3, { space: 3 })
+        .moveTo(LX, y + 2).lineTo(LX + PW, y + 2).stroke('#999').restore();
+      y += 6;
+
+      // ══════════════════════════════════════════════════════════
+      // HEADER: Emitente | DANFE | Barcode+Chave+Protocolo
+      // ══════════════════════════════════════════════════════════
+      const H1 = 90;
+      const emitW = PW * 0.42;
+      const danfeW = PW * 0.16;
+      const barcW = PW - emitW - danfeW;
+
+      // Emitente
       box(LX, y, emitW, H1);
       doc.font('Helvetica-Bold').fontSize(F9).fillColor('#000')
-        .text(data.emitter.name, LX + 3, y + 5, { width: emitW - 6 });
-      doc.font('Helvetica').fontSize(F6).fillColor('#000')
-        .text(data.emitter.address, LX + 3, y + 22, { width: emitW - 6 })
-        .text(`Bairro ${data.emitter.neighborhood}`, LX + 3, y + 30, { width: emitW - 6 })
-        .text(`${data.emitter.city} - ${data.emitter.uf}`, LX + 3, y + 38, { width: emitW - 6 })
-        .text(`CEP:${data.emitter.cep}  Fone: ${data.emitter.phone}`, LX + 3, y + 46, { width: emitW - 6 });
+        .text(data.emitter.name, LX + 4, y + 8, { width: emitW - 8 });
+      let emitY = y + 25;
+      doc.font('Helvetica').fontSize(F6)
+        .text(data.emitter.address, LX + 4, emitY, { width: emitW - 8 });
+      emitY += 9;
+      doc.text(`Bairro ${data.emitter.neighborhood}, ${data.emitter.city} - ${data.emitter.uf}`, LX + 4, emitY, { width: emitW - 8 });
+      emitY += 9;
+      doc.text(`Fone: ${data.emitter.phone}  CEP:${data.emitter.cep}`, LX + 4, emitY, { width: emitW - 8 });
 
-      // DANFE title box
+      // DANFE title
       const dX = LX + emitW;
       box(dX, y, danfeW, H1);
-      doc.font('Helvetica-Bold').fontSize(F14).fillColor('#000')
-        .text('DANFE', dX, y + 3, { width: danfeW, align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(12).fillColor('#000')
+        .text('DANFE', dX, y + 4, { width: danfeW, align: 'center' });
       doc.font('Helvetica').fontSize(F5)
-        .text('Documento Auxiliar da\nNota Fiscal Eletronica', dX + 2, y + 18, { width: danfeW - 4, align: 'center' });
-      // Entry/Exit indicator
+        .text('Documento Auxiliar da\nNota Fiscal Eletronica', dX + 3, y + 18, { width: danfeW - 6, align: 'center' });
+      // Entry/Exit
       doc.font('Helvetica').fontSize(F6)
-        .text('0 - ENTRADA', dX + 5, y + 38, { width: 50 })
-        .text('1 - SAIDA', dX + 5, y + 46, { width: 50 });
-      // Entry/Exit box with number
-      doc.rect(dX + danfeW - 20, y + 36, 16, 14).stroke('#000');
+        .text('0 - ENTRADA', dX + 6, y + 36)
+        .text('1 - SAIDA', dX + 6, y + 44);
+      doc.rect(dX + danfeW - 22, y + 34, 16, 16).stroke('#000');
       doc.font('Helvetica-Bold').fontSize(F10)
-        .text(String(data.entryExit), dX + danfeW - 20, y + 39, { width: 16, align: 'center' });
-      // Page number
+        .text(String(data.entryExit), dX + danfeW - 22, y + 37, { width: 16, align: 'center' });
+      // Number / Series / Page
+      doc.font('Helvetica-Bold').fontSize(F7)
+        .text(`N. ${data.nfeNumber}`, dX + 3, y + 56, { width: danfeW - 6, align: 'center' })
+        .text(`SERIE ${data.nfeSeries}`, dX + 3, y + 65, { width: danfeW - 6, align: 'center' });
       doc.font('Helvetica').fontSize(F6)
-        .text(`N. ${data.nfeNumber}`, dX + 2, y + 56, { width: danfeW - 4, align: 'center' })
-        .text(`SERIE ${data.nfeSeries}`, dX + 2, y + 63, { width: danfeW - 4, align: 'center' })
-        .text(`FOLHA 1/1`, dX + 2, y + 70, { width: danfeW - 4, align: 'center' });
+        .text('FOLHA 1/1', dX + 3, y + 75, { width: danfeW - 6, align: 'center' });
 
-      // NFe number + barcode box
-      const nX = dX + danfeW;
-      box(nX, y, nfeW, H1);
-      // Barcode
+      // Barcode + Key + Protocol
+      const bX = dX + danfeW;
+      box(bX, y, barcW, H1);
+
       if (barcodeImg) {
         try {
-          doc.image(barcodeImg, nX + 5, y + 4, { width: nfeW - 10, height: 30 });
-        } catch { /* skip if image fails */ }
+          doc.image(barcodeImg, bX + 8, y + 4, { width: barcW - 16, height: 28 });
+        } catch { /* skip */ }
       }
-      // Access key label
+
+      // Chave de Acesso
       doc.font('Helvetica').fontSize(F5)
-        .text('CHAVE DE ACESSO', nX + 2, y + 37, { width: nfeW - 4, align: 'center' });
+        .text('CHAVE DE ACESSO', bX + 3, y + 35, { width: barcW - 6, align: 'center' });
       doc.font('Helvetica-Bold').fontSize(F6)
-        .text(this.formatNfeKey(data.nfeKey), nX + 2, y + 44, { width: nfeW - 4, align: 'center' });
+        .text(this.formatNfeKey(data.nfeKey), bX + 3, y + 43, { width: barcW - 6, align: 'center' });
+
+      // Consulta autenticidade
+      doc.font('Helvetica').fontSize(F5)
+        .text('Consulta de autenticidade no portal nacional da NF-e www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizadora', bX + 3, y + 54, { width: barcW - 6, align: 'center' });
+
       // Protocol
       if (data.protocol) {
         doc.font('Helvetica').fontSize(F5)
-          .text('PROTOCOLO DE AUTORIZACAO DE USO', nX + 2, y + 58, { width: nfeW - 4, align: 'center' });
-        doc.font('Helvetica-Bold').fontSize(F6)
-          .text(`${data.protocol} ${data.protocolDate}`, nX + 2, y + 66, { width: nfeW - 4, align: 'center' });
+          .text('PROTOCOLO DE AUTORIZACAO DE USO', bX + 3, y + 68, { width: barcW - 6, align: 'center' });
+        doc.font('Helvetica-Bold').fontSize(F7)
+          .text(`${data.protocol} ${data.protocolDate}`, bX + 3, y + 76, { width: barcW - 6, align: 'center' });
       }
 
       y += H1;
