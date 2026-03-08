@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException, Optional, Inject } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, ConflictException, Optional, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { AutomationEngineService, AutomationEvent } from '../automation/automation-engine.service';
+import { ContractService } from '../contract/contract.service';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { UpdatePartnerDto } from './dto/update-partner.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
@@ -14,16 +15,56 @@ const SORTABLE_COLUMNS = ['name', 'document', 'email', 'phone', 'status', 'ratin
 
 @Injectable()
 export class PartnerService {
+  private readonly logger = new Logger(PartnerService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly codeGenerator: CodeGeneratorService,
     @Optional() @Inject(AutomationEngineService) private readonly automationEngine?: AutomationEngineService,
+    @Optional() @Inject(ContractService) private readonly contractService?: ContractService,
   ) {}
 
   /** Fire-and-forget automation dispatch */
   private dispatchAutomation(event: AutomationEvent): void {
     this.automationEngine?.dispatch(event).catch(() => {});
+  }
+
+  /** Fire-and-forget: check default workflow for technician onboarding config and send contract */
+  private async dispatchTechnicianContract(
+    companyId: string,
+    partnerId: string,
+    trigger: 'onNewTechnician' | 'onNewSpecialization',
+  ): Promise<void> {
+    if (!this.contractService) return;
+    try {
+      // Get default workflow template
+      const defaultWorkflow = await this.prisma.workflowTemplate.findFirst({
+        where: { companyId, isDefault: true, deletedAt: null },
+      });
+      if (!defaultWorkflow) return;
+
+      const steps = defaultWorkflow.steps as any;
+      const onboarding = steps?.technicianOnboarding;
+      if (!onboarding?.enabled) return;
+
+      const triggerConfig = onboarding[trigger];
+      if (!triggerConfig?.enabled || !triggerConfig?.sendContractLink) return;
+
+      await this.contractService.sendContract({
+        companyId,
+        partnerId,
+        contractName: triggerConfig.contractName || 'Contrato de Prestação de Serviços',
+        contractContent: triggerConfig.contractContent || '',
+        blockUntilAccepted: triggerConfig.blockUntilAccepted ?? true,
+        expirationDays: triggerConfig.expirationDays ?? 7,
+        channel: triggerConfig.channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP',
+      });
+
+      this.logger.log(`📄 Contract dispatched for partner ${partnerId} (${trigger})`);
+    } catch (err) {
+      this.logger.error(`Failed to dispatch technician contract: ${err.message}`);
+    }
   }
 
   async findAll(
@@ -185,6 +226,11 @@ export class PartnerService {
       data: { status: partner.status, personType: partner.personType, partnerTypes: data.partnerTypes, state: partner.state ?? undefined, city: partner.city ?? undefined, name: partner.name, rating: partner.rating },
     });
 
+    // Dispatch technician contract if partner is TECNICO
+    if (data.partnerTypes?.includes('TECNICO')) {
+      this.dispatchTechnicianContract(companyId, partner.id, 'onNewTechnician').catch(() => {});
+    }
+
     return this.findOne(partner.id, companyId);
   }
 
@@ -249,6 +295,22 @@ export class PartnerService {
         companyId, entity: 'PARTNER', entityId: id, eventType: 'partner_updated',
         data: { status: existing.status, personType: existing.personType, partnerTypes: existing.partnerTypes, state: (existing as any).state, city: (existing as any).city, name: existing.name, rating: existing.rating },
       });
+
+      // Dispatch technician contract: new TECNICO assignment
+      const wasTecnico = existing.partnerTypes.includes('TECNICO');
+      const isTecnico = data.partnerTypes?.includes('TECNICO') ?? wasTecnico;
+      if (!wasTecnico && isTecnico) {
+        this.dispatchTechnicianContract(companyId, id, 'onNewTechnician').catch(() => {});
+      }
+
+      // Dispatch technician contract: new specialization added
+      if (isTecnico && specializationIds !== undefined) {
+        const existingSpecIds = (existing as any).specializations?.map((s: any) => s.specialization?.id || s.specializationId) ?? [];
+        const newSpecIds = specializationIds.filter((sid: string) => !existingSpecIds.includes(sid));
+        if (newSpecIds.length > 0) {
+          this.dispatchTechnicianContract(companyId, id, 'onNewSpecialization').catch(() => {});
+        }
+      }
     }
 
     return this.findOne(id, companyId);

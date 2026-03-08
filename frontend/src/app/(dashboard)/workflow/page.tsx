@@ -6,9 +6,11 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import StageSection from "./components/StageSection";
+import TechnicianOnboardingSection from "./components/TechnicianOnboardingSection";
 import {
   type WorkflowFormConfig,
   type StageConfig,
+  type TechnicianOnboardingConfig,
   createDefaultConfig,
   compileToV2,
   decompileFromV2,
@@ -443,6 +445,18 @@ export default function WorkflowPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Technician Onboarding Section */}
+      <div>
+        <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+          👷 Onboarding de Tecnico
+          <span className="text-xs font-normal text-slate-400">&mdash; configure contratos e aceites</span>
+        </h2>
+        <TechnicianOnboardingSection
+          config={config.technicianOnboarding}
+          onChange={(onboarding: TechnicianOnboardingConfig) => setConfig({ ...config, technicianOnboarding: onboarding })}
+        />
       </div>
 
       {/* Summary + Save */}

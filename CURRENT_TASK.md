@@ -1,8 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 79 CONCLUIDA — v1.01.57 em producao
+## Status: SESSAO 80 EM ANDAMENTO — Contratos de Tecnico
 
-## Ultima sessao: 79 (08/03/2026)
+## Ultima sessao: 80 (08/03/2026)
 - Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
 - Sessao 63: Fix NFe Import Flow (v1.01.20)
 - Sessoes 64-68: 4 estudos fiscais completos
@@ -15,7 +15,25 @@
 - Sessao 76: Finalidade Fiscal + Acoes Primeira Coluna + DraggableHeader em tudo (v1.01.31)
 - Sessao 77: Codigos Sequenciais (SKU) + Deteccao Duplicados (v1.01.32)
 - Sessao 78: Reverter Importacao NFe (v1.01.39) + WhatsApp Business API (v1.01.56)
-- Sessao 79: Instrumentos de Pagamento (v1.01.57)
+- Sessao 79: Instrumentos de Pagamento (v1.01.58)
+- Sessao 80: Contratos de Tecnico (onboarding via workflow)
+
+## O que foi feito na sessao 80:
+
+### Sistema de Contrato/Aceite de Tecnicos
+- [x] Schema: modelo TechnicianContract (token, status, conteudo snapshot, aceite com IP/UA)
+- [x] Migration: 20260309000000_technician_contracts
+- [x] Backend: ContractModule (service + controller + public controller)
+- [x] Backend: sendContract(), getByToken(), markViewed(), acceptContract(), cancelContract()
+- [x] Backend: Endpoint publico GET/POST /contract/:token (com @Public() e Throttle)
+- [x] Backend: Endpoint autenticado GET /contracts/partner/:id, POST /contracts/send, POST /contracts/:id/cancel
+- [x] Backend: Integracao no PartnerService — dispara contrato ao criar TECNICO ou nova especializacao
+- [x] Frontend: TechnicianOnboardingConfig no WorkflowFormConfig (stage-config.ts)
+- [x] Frontend: TechnicianOnboardingSection (secao "Novo Tecnico" no workflow editor)
+- [x] Frontend: Pagina publica /contract/[token] — visualizacao e aceite de contrato
+- [x] Frontend: Config salva/restaurada no JSON V2 do workflow (compileToV2/decompileFromV2)
+- [x] Build: backend 0 erros, frontend 0 erros
+- [ ] Deploy pendente
 
 ## O que foi feito na sessao 79:
 
@@ -32,7 +50,7 @@
 - [x] Frontend: Dropdown instrumento no modal de pagamento
 - [x] Frontend: DreReport com toggle agrupamento por pagamento
 - [x] Build: backend 0 erros, frontend 0 erros
-- [x] Deploy: v1.01.57 em producao
+- [x] Deploy: v1.01.58 em producao
 
 ### Sessao 78 (anterior):
 
@@ -87,7 +105,7 @@
 ## Projetos Futuros
 - **Registro de marca INPI**: Solicitar registro da marca "Tecnikos" no INPI (Instituto Nacional da Propriedade Industrial). Logo SVG disponivel em `brand/`.
 
-## Versao atual: v1.01.57 — em producao
+## Versao atual: v1.01.58 — em producao
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

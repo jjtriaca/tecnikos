@@ -157,6 +157,7 @@ model Company {
   nfseEntradas         NfseEntrada[]
   fiscalPeriods        FiscalPeriod[]
   emailConfig          EmailConfig?
+  technicianContracts  TechnicianContract[]
   codeCounters         CodeCounter[]
 }
 
@@ -244,6 +245,7 @@ model Partner {
   productEquivalents   ProductEquivalent[]
   obras                Obra[]
   nfseEntradasPrestador NfseEntrada[] @relation("NfseEntradaPrestador")
+  technicianContracts   TechnicianContract[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -325,7 +327,8 @@ model ServiceOrder {
   attachments      Attachment[]
   evaluations      Evaluation[]
   locationLogs     TechnicianLocationLog[]
-  executionPauses  ExecutionPause[]
+  executionPauses      ExecutionPause[]
+  technicianContracts  TechnicianContract[]
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -1636,6 +1639,40 @@ model EmailConfig {
   updatedAt     DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id])
+}
+
+// ========== Contratos de Técnico ==========
+
+model TechnicianContract {
+  id              String    @id @default(uuid())
+  companyId       String
+  partnerId       String
+  serviceOrderId  String?   // OS que disparou o envio (se via workflow)
+  token           String    @unique
+  contractName    String    // Snapshot do nome do contrato
+  contractContent String    // Snapshot do conteúdo HTML/texto
+  status          String    @default("PENDING") // PENDING, VIEWED, ACCEPTED, EXPIRED, CANCELLED
+  blockUntilAccepted Boolean @default(true)
+  sentAt          DateTime  @default(now())
+  sentVia         String?   // WHATSAPP, EMAIL
+  viewedAt        DateTime?
+  acceptedAt      DateTime?
+  acceptedIp      String?
+  acceptedUserAgent String?
+  expiresAt       DateTime
+  cancelledAt     DateTime?
+  cancelledReason String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  partner      Partner       @relation(fields: [partnerId], references: [id])
+  serviceOrder ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
+
+  @@index([companyId])
+  @@index([partnerId])
+  @@index([token])
+  @@index([companyId, status])
 }
 
 // ========== Contadores de Código Sequencial ==========

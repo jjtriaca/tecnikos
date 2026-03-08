@@ -231,11 +231,74 @@ export const LINK_PAGE_FIELDS = [
   { field: 'company',     label: 'Nome da empresa',    icon: '🏢' },
 ] as const;
 
+/* ── Configuração de Onboarding de Técnico ──────────────────── */
+
+export interface TechnicianOnboardingConfig {
+  enabled: boolean;
+
+  onNewTechnician: {
+    enabled: boolean;        // Disparar quando parceiro é marcado como TÉCNICO
+    sendContractLink: boolean;
+    channel: string;         // WHATSAPP | EMAIL
+    contractName: string;
+    contractContent: string; // HTML/texto do contrato
+    requireSignature: boolean;
+    requireAcceptance: boolean;
+    blockUntilAccepted: boolean;
+    expirationDays: number;
+    notifyMessage: string;   // Mensagem de notificação
+  };
+
+  onNewSpecialization: {
+    enabled: boolean;        // Disparar quando nova especialização é atribuída
+    sendContractLink: boolean;
+    channel: string;
+    contractName: string;
+    contractContent: string;
+    requireSignature: boolean;
+    requireAcceptance: boolean;
+    blockUntilAccepted: boolean;
+    expirationDays: number;
+    notifyMessage: string;
+  };
+}
+
+export function createDefaultOnboarding(): TechnicianOnboardingConfig {
+  return {
+    enabled: false,
+    onNewTechnician: {
+      enabled: false,
+      sendContractLink: false,
+      channel: 'WHATSAPP',
+      contractName: 'Contrato de Prestação de Serviços',
+      contractContent: '',
+      requireSignature: false,
+      requireAcceptance: true,
+      blockUntilAccepted: true,
+      expirationDays: 7,
+      notifyMessage: 'Olá {nome}, você recebeu um contrato para aceite. Acesse o link para visualizar.',
+    },
+    onNewSpecialization: {
+      enabled: false,
+      sendContractLink: false,
+      channel: 'WHATSAPP',
+      contractName: 'Contrato de Nova Especialização',
+      contractContent: '',
+      requireSignature: false,
+      requireAcceptance: true,
+      blockUntilAccepted: false,
+      expirationDays: 7,
+      notifyMessage: 'Olá {nome}, uma nova especialização foi atribuída. Aceite o contrato no link.',
+    },
+  };
+}
+
 export interface WorkflowFormConfig {
   name: string;
   isDefault: boolean;
   triggerEvent: string;
   stages: StageConfig[];
+  technicianOnboarding: TechnicianOnboardingConfig;
 }
 
 /* ── Constantes ────────────────────────────────────────────── */
@@ -584,6 +647,7 @@ export function createDefaultConfig(): WorkflowFormConfig {
     isDefault: false,
     triggerEvent: 'os_created',
     stages: OS_STATUSES.map(s => createEmptyStage(s.status, s.label, s.icon)),
+    technicianOnboarding: createDefaultOnboarding(),
   };
 }
 
@@ -1266,7 +1330,14 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
     blocks[0].next = endId;
   }
 
-  return { version: 2, blocks: [...blocks.slice(0, 1), ...flatBlocks, ...blocks.slice(1)] };
+  const result: any = { version: 2, blocks: [...blocks.slice(0, 1), ...flatBlocks, ...blocks.slice(1)] };
+
+  // Persist technician onboarding config alongside blocks
+  if (config.technicianOnboarding?.enabled) {
+    result.technicianOnboarding = config.technicianOnboarding;
+  }
+
+  return result;
 }
 
 /* ── Decompilador: V2/V1 → WorkflowFormConfig ──────────────── */
@@ -1275,6 +1346,14 @@ const TECH_TYPES = new Set(['STEP', 'PHOTO', 'NOTE', 'GPS', 'CHECKLIST', 'FORM',
 
 export function decompileFromV2(steps: any): WorkflowFormConfig | null {
   const config = createDefaultConfig();
+
+  // Restore technician onboarding config if present
+  if (steps?.technicianOnboarding) {
+    config.technicianOnboarding = {
+      ...createDefaultOnboarding(),
+      ...steps.technicianOnboarding,
+    };
+  }
 
   // V1 format (array of steps)
   if (Array.isArray(steps)) {

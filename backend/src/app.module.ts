@@ -29,6 +29,7 @@ import { ServiceModule } from './service/service.module';
 import { FiscalPeriodModule } from './fiscal-period/fiscal-period.module';
 import { SpedModule } from './sped/sped.module';
 import { EmailModule } from './email/email.module';
+import { ContractModule } from './contract/contract.module';
 
 import { RequestLoggerMiddleware } from './common/logger/request-logger.middleware';
 import { AuditModule } from './common/audit/audit.module';
@@ -73,6 +74,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     FiscalPeriodModule,
     SpedModule,
     EmailModule,
+    ContractModule,
   ],
   providers: [
     // Order matters: Throttle → JWT Auth → Roles
