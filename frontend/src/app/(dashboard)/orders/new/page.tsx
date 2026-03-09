@@ -158,6 +158,27 @@ export default function NewOrderPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [newAddressLabel, setNewAddressLabel] = useState("");
 
+  // Commission + return states
+  const [companyCommission, setCompanyCommission] = useState<{
+    commissionBps: number; overrideEnabled: boolean; minBps: number | null; maxBps: number | null;
+  }>({ commissionBps: 1000, overrideEnabled: false, minBps: null, maxBps: null });
+  const [isReturn, setIsReturn] = useState(false);
+  const [returnPaidToTech, setReturnPaidToTech] = useState(true);
+  const [techCommissionValue, setTechCommissionValue] = useState("");
+  const [commissionError, setCommissionError] = useState<string | null>(null);
+
+  // Load company commission config on mount
+  useEffect(() => {
+    api.get<any>("/company/me").then(c => {
+      setCompanyCommission({
+        commissionBps: c.commissionBps ?? 1000,
+        overrideEnabled: c.commissionOverrideEnabled ?? false,
+        minBps: c.commissionMinBps ?? null,
+        maxBps: c.commissionMaxBps ?? null,
+      });
+    }).catch(() => {});
+  }, []);
+
   // Buscar obras + enderecos de atendimento do cliente selecionado
   useEffect(() => {
     setObras([]);
@@ -208,6 +229,18 @@ export default function NewOrderPage() {
     estimatedDurationMinutes: "",
   });
 
+  // Auto-recalculate tech commission when value or commission config changes
+  function recalcTechCommission(valueCentsStr: string, bps: number) {
+    const v = parseFloat(valueCentsStr);
+    if (!isNaN(v) && v > 0) {
+      const commission = (v * bps) / 10000;
+      setTechCommissionValue(commission.toFixed(2));
+    } else {
+      setTechCommissionValue("");
+    }
+    setCommissionError(null);
+  }
+
   function onChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) {
@@ -217,6 +250,14 @@ export default function NewOrderPage() {
       // Quando estado muda, limpa cidade selecionada
       setSelectedCity(null);
       setForm((f) => ({ ...f, state: value }));
+      return;
+    }
+
+    if (name === "valueCents") {
+      setForm((f) => ({ ...f, valueCents: value }));
+      if (!isReturn || returnPaidToTech) {
+        recalcTechCommission(value, companyCommission.commissionBps);
+      }
       return;
     }
 
@@ -350,6 +391,36 @@ export default function NewOrderPage() {
         return;
       }
 
+      // Calcular comissão do técnico
+      let finalCommissionBps = companyCommission.commissionBps;
+      let finalTechCents = Math.round(valueNum * finalCommissionBps / 10000);
+
+      if (isReturn && !returnPaidToTech) {
+        finalCommissionBps = 0;
+        finalTechCents = 0;
+      } else if (companyCommission.overrideEnabled && techCommissionValue) {
+        finalTechCents = Math.round(parseFloat(techCommissionValue) * 100);
+        if (isNaN(finalTechCents) || finalTechCents < 0) {
+          setError("Valor do técnico inválido");
+          setLoading(false);
+          return;
+        }
+        finalCommissionBps = valueNum > 0 ? Math.round((finalTechCents / valueNum) * 10000) : 0;
+        // Validar faixa min/max
+        if (companyCommission.minBps != null && finalCommissionBps < companyCommission.minBps) {
+          const minPct = (companyCommission.minBps / 100).toFixed(2);
+          setError(`Comissão abaixo do mínimo permitido (${minPct}%)`);
+          setLoading(false);
+          return;
+        }
+        if (companyCommission.maxBps != null && finalCommissionBps > companyCommission.maxBps) {
+          const maxPct = (companyCommission.maxBps / 100).toFixed(2);
+          setError(`Comissão acima do máximo permitido (${maxPct}%)`);
+          setLoading(false);
+          return;
+        }
+      }
+
       // Compor endereço
       const cityName = selectedCity?.nome || "";
       const addressText = composeAddressText({
@@ -446,6 +517,11 @@ export default function NewOrderPage() {
           : acceptTimeoutMode === 'from_flow' ? undefined
           : acceptTimeoutMode === 'hours' ? acceptTimeoutValue * 60
           : acceptTimeoutValue,
+        // Comissão e retorno (v1.01.81)
+        commissionBps: finalCommissionBps,
+        techCommissionCents: finalTechCents,
+        isReturn,
+        returnPaidToTech: isReturn ? returnPaidToTech : true,
         // Tempo para clicar a caminho (null = usa do fluxo)
         enRouteTimeoutMinutes: isAgendaMode ? undefined
           : enRouteTimeoutMode === 'from_flow' ? undefined
@@ -583,9 +659,9 @@ export default function NewOrderPage() {
 
           {/* Atribuir Técnico */}
           <CollapsibleSection
-            title="Atribuir Tecnico"
+            title="Atribuir Técnico"
             icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
-            summary={techMode === "BY_SPECIALIZATION" ? (selectedSpecs.length ? selectedSpecs.map(s => s.name).join(", ") : "Por especializacao") : techMode === "DIRECTED" ? (selectedTechs.length ? selectedTechs.map(t => t.name).join(", ") : "Direcionado") : selectedWorkflow?.name || "Por fluxo"}
+            summary={techMode === "BY_SPECIALIZATION" ? (selectedSpecs.length ? selectedSpecs.map(s => s.name).join(", ") : "Por especialização") : techMode === "DIRECTED" ? (selectedTechs.length ? selectedTechs.map(t => t.name).join(", ") : "Direcionado") : selectedWorkflow?.name || "Por fluxo"}
           >
             <TechAssignmentSection
               mode={techMode}
@@ -707,7 +783,7 @@ export default function NewOrderPage() {
 
           {/* Endereco do Servico */}
           <CollapsibleSection
-            title="Endereco do Servico"
+            title="Endereço do Serviço"
             icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
             defaultOpen={true}
             summary={form.addressStreet ? [form.addressStreet, form.addressNumber, selectedCity?.nome || ""].filter(Boolean).join(", ") : ""}
@@ -889,6 +965,118 @@ export default function NewOrderPage() {
                 className={inputClass}
               />
             </label>
+          </div>
+
+          {/* Retorno + Comissão do Técnico */}
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            {/* Retorno */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isReturn}
+                onChange={(e) => {
+                  const ret = e.target.checked;
+                  setIsReturn(ret);
+                  if (ret && !returnPaidToTech) {
+                    setTechCommissionValue("0.00");
+                  } else {
+                    recalcTechCommission(form.valueCents, companyCommission.commissionBps);
+                  }
+                }}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-slate-700">Retorno de atendimento anterior</span>
+            </label>
+
+            {isReturn && (
+              <div className="ml-6 space-y-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="returnPaid"
+                    checked={returnPaidToTech}
+                    onChange={() => {
+                      setReturnPaidToTech(true);
+                      recalcTechCommission(form.valueCents, companyCommission.commissionBps);
+                    }}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-600">Lançar valor para o técnico</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="returnPaid"
+                    checked={!returnPaidToTech}
+                    onChange={() => {
+                      setReturnPaidToTech(false);
+                      setTechCommissionValue("0.00");
+                      setCommissionError(null);
+                    }}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-600">Obrigação do técnico (sem comissão)</span>
+                </label>
+              </div>
+            )}
+
+            {/* Comissão do técnico */}
+            {(!isReturn || returnPaidToTech) && (
+              <div className="flex items-end gap-3">
+                <div className="flex flex-col gap-1 flex-1">
+                  <span className="text-sm font-medium text-slate-700">Valor do técnico (R$)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={techCommissionValue}
+                    onChange={(e) => {
+                      if (!companyCommission.overrideEnabled) return;
+                      const val = e.target.value;
+                      setTechCommissionValue(val);
+                      // Validar faixa
+                      const v = parseFloat(form.valueCents);
+                      const tc = parseFloat(val);
+                      if (!isNaN(v) && v > 0 && !isNaN(tc)) {
+                        const bps = Math.round((tc / v) * 10000);
+                        if (companyCommission.minBps != null && bps < companyCommission.minBps) {
+                          setCommissionError(`Mínimo: ${(companyCommission.minBps / 100).toFixed(2)}%`);
+                        } else if (companyCommission.maxBps != null && bps > companyCommission.maxBps) {
+                          setCommissionError(`Máximo: ${(companyCommission.maxBps / 100).toFixed(2)}%`);
+                        } else {
+                          setCommissionError(null);
+                        }
+                      }
+                    }}
+                    readOnly={!companyCommission.overrideEnabled}
+                    className={`${inputClass} ${companyCommission.overrideEnabled ? "" : "bg-slate-100 text-slate-500 cursor-not-allowed"} ${commissionError ? "border-red-400 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                    placeholder="0.00"
+                  />
+                  {commissionError && (
+                    <span className="text-xs text-red-600">{commissionError}</span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1 w-28">
+                  <span className="text-sm font-medium text-slate-700">Comissão %</span>
+                  <input
+                    type="text"
+                    readOnly
+                    value={(() => {
+                      const v = parseFloat(form.valueCents);
+                      const tc = parseFloat(techCommissionValue);
+                      if (!isNaN(v) && v > 0 && !isNaN(tc)) {
+                        return ((tc / v) * 100).toFixed(2) + "%";
+                      }
+                      return (companyCommission.commissionBps / 100).toFixed(2) + "%";
+                    })()}
+                    className={`${inputClass} bg-slate-100 text-slate-500 cursor-not-allowed text-center`}
+                  />
+                </div>
+              </div>
+            )}
+            {isReturn && !returnPaidToTech && (
+              <p className="text-xs text-amber-600 ml-1">Técnico não receberá comissão neste retorno</p>
+            )}
           </div>
 
           {/* Agendamento — aparece sempre (exceto agenda CLT que usa AgendaSelector) */}

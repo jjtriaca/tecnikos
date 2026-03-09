@@ -1165,3 +1165,84 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 ### Status: BUILD OK — Backend 0 erros, Frontend 0 erros
 
 ---
+
+## Sessao 08-09/03/2026 — Agenda CLT + WhatsApp Fix
+
+### Agenda de Despacho CLT (v1.01.72)
+- Implementacao completa em 5 fases:
+  - Fase 1: Schema (scheduledStartAt, estimatedDurationMinutes) + Backend (findAgenda, checkConflicts)
+  - Fase 2: Workflow Config (scheduleConfig no stage-config.ts, UI toggle "Regime de Agenda" no StageSection)
+  - Fase 3: AgendaSelector component + integracao na criacao de OS
+  - Fase 4: Pagina /agenda (grade semanal), sidebar, widget "Agenda do Dia" no dashboard
+  - Fase 5: Build + Deploy v1.01.72 + migration aplicada
+
+### WhatsApp — Mensagens nao entregues
+- **Problema reportado**: "O Iago nao recebeu a mensagem no WhatsApp" — notificacao de contrato marcada como SENT mas nao entregue
+- **Causa raiz**: Meta WhatsApp Business API requer template aprovado para iniciar conversa fora da janela de 24h
+- **Fix 1 (v1.01.73)**: `sendTextWithTemplateFallback()` — tenta texto → fallback template `notificacao_tecnikos` → fallback `teste_conexao`
+- **Fix 2 (v1.01.74)**: Auto-captura WABA ID no webhook handler + deploy
+
+### WhatsApp — WABA ID e Templates
+- **WABA ID encontrado via Meta Business Suite**: 1421505052856896 (SLS Sol e Lazer Solucoes)
+- **Business ID**: 2115296342089072
+- Salvo no banco (WhatsAppConfig.metaWabaId)
+- **Templates existentes**: teste_conexao (APPROVED), hello_world (APPROVED)
+- **Template criado**: notificacao_tecnikos (PENDING aprovacao Meta) — "Tecnikos informa:\n{{1}}\nPara mais detalhes, acesse tecnikos.com.br"
+
+### WhatsApp — Webhooks corrigidos
+- **Problema**: App Tecnikos NAO estava subscrito na WABA para receber webhooks
+- **Fix**: POST /{WABA-ID}/subscribed_apps → success
+- Agora status updates e mensagens recebidas serao processados
+
+### WhatsApp — ENCRYPTION_KEY mismatch (v1.01.75)
+- **Problema**: Notificacoes de contrato falhando ("Falhou") para Iago e Juliano
+- **Causa raiz**: Ao adicionar `ENCRYPTION_KEY` ao docker-compose.production.yml na sessao anterior, o EncryptionService passou a usar a chave explicita para decriptar o token WhatsApp — mas o token foi encriptado com a chave derivada do JWT_SECRET (fallback)
+- **Erro no log**: `Failed to decrypt token for company: Unsupported state or unable to authenticate data`
+- **Fix**: Removido `ENCRYPTION_KEY: ${ENCRYPTION_KEY}` do docker-compose.production.yml — restaura uso do fallback key (scryptSync do JWT_SECRET)
+- **Deploy v1.01.75**: Backend reiniciado, token decriptado com sucesso
+- **Reenvio**: Contratos reenviados por WhatsApp para Juliano (66999861230) e Iago (66999733515) — ambos 200 OK
+- **Contrato duplicado do Iago (4a23873c)**: cancelado, mantido apenas o mais recente (81b07ee6)
+
+### Versoes deployadas
+- v1.01.72: Agenda CLT
+- v1.01.73: WhatsApp template fallback
+- v1.01.74: Webhook WABA auto-capture
+- v1.01.75: Fix ENCRYPTION_KEY mismatch + reenvio contratos
+- v1.01.76: Fix BigInt serialization + checkbox "Usar endereco do cliente" na OS
+
+### BigInt Serialization Fix (v1.01.76)
+- **Problema**: Erro "Do not know how to serialize a BigInt" ao criar OS
+- **Causa**: Campo `totalPausedMs BigInt` no schema Prisma retornado no JSON sem serializer
+- **Fix**: Polyfill `BigInt.prototype.toJSON` em `backend/src/main.ts`
+
+### Checkbox "Usar endereco do cadastro do cliente" (v1.01.76)
+- **Solicitacao do Juliano**: Campo para preencher automaticamente o endereco da OS com o endereco do cadastro do cliente
+- Checkbox aparece na secao Endereco quando um cliente esta selecionado
+- Ao marcar, preenche: estado, cidade, CEP, rua, numero, complemento, bairro
+- Auto-seleciona a cidade no LookupField (busca IBGE)
+- Implementado em: `orders/new/page.tsx` e `orders/[id]/edit/page.tsx`
+- PartnerSummary expandido para incluir campos de endereco
+
+### Agenda integrada na pagina de OS como aba (v1.01.77)
+- **Solicitacao do Juliano**: Agenda deve ficar dentro da pagina Ordens de Servico, nao separada
+- **Padrao**: Mesmo sistema de abas do Financeiro (border-b-2, icones, condicional)
+- **Abas**: Lista (tabela atual) | Agenda (visao 11 dias)
+- **AgendaView**: 11 colunas (5 dias antes + hoje + 5 depois), cards por dia, auto-scroll no hoje
+- **Filtros**: Tecnico e Status inline, navegacao ±5 dias e botao "Hoje"
+- **Sidebar**: Item "Agenda" removido
+- **Rota /agenda**: Redireciona para /orders?tab=agenda
+- **Persistencia**: Tab ativa salva em localStorage
+- Arquivos: `AgendaView.tsx` (novo), `orders/page.tsx` (abas), `Sidebar.tsx` (removido), `agenda/page.tsx` (redirect)
+
+### Campos de Agendamento nos formularios de OS (v1.01.78)
+- **Bug reportado pelo Juliano**: OS criada nao aparecia na aba Agenda
+- **Causa raiz**: O formulario de criacao de OS nao tinha campos para definir `scheduledStartAt` e `estimatedDurationMinutes`. Esses campos so eram preenchidos no modo "Agenda CLT" (workflow com SCHEDULE_CONFIG). A agenda so mostra OS com `scheduledStartAt` preenchido.
+- **Fix**: Adicionada secao "Agendamento" (opcional) nos formularios de criacao e edicao de OS
+  - Campos: Data/hora do servico + Duracao estimada (min)
+  - Hint: "Preencha para que a OS apareca na aba Agenda"
+  - No form de edicao: pre-popula valores existentes
+  - Backend: Nenhuma mudanca (DTOs ja aceitavam esses campos)
+- **Arquivos**: `orders/new/page.tsx`, `orders/[id]/edit/page.tsx`
+- **Versoes deployadas**: v1.01.78 (frontend only)
+
+---

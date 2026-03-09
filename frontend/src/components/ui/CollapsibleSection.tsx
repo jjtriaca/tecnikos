@@ -71,28 +71,26 @@ export default function CollapsibleSection({
       <button
         type="button"
         onClick={toggle}
-        className="w-full flex items-center justify-between group cursor-pointer"
+        className="w-full flex items-center gap-2 group cursor-pointer"
       >
-        <div className="flex items-center gap-2">
-          {icon && <span className="text-slate-400 flex-shrink-0">{icon}</span>}
-          <span className="text-sm font-semibold text-slate-700">{title}</span>
-          {subtitle && (
-            <span className="text-xs text-slate-400 font-normal">{subtitle}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Summary when collapsed */}
-          {!isOpen && summary && (
-            <span className="text-xs text-slate-500 max-w-[200px] truncate">{summary}</span>
-          )}
-          {/* Chevron */}
-          <svg
-            className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
+        {icon && <span className="text-slate-400 flex-shrink-0">{icon}</span>}
+        <span className="text-sm font-semibold text-slate-700 flex-shrink-0">{title}</span>
+        {subtitle && (
+          <span className="text-xs text-slate-400 font-normal flex-shrink-0">{subtitle}</span>
+        )}
+        {/* Summary — fills remaining space */}
+        {!isOpen && summary && (
+          <span className="text-sm text-slate-500 truncate flex-1 text-right">{summary}</span>
+        )}
+        {!isOpen && !summary && <span className="flex-1" />}
+        {isOpen && <span className="flex-1" />}
+        {/* Chevron */}
+        <svg
+          className={`h-4 w-4 text-slate-400 transition-transform duration-200 flex-shrink-0 ${isOpen ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
 
       {/* Collapsible content with smooth animation */}

@@ -109,7 +109,6 @@ const icons = {
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: icons.dashboard, roles: ["ADMIN", "DESPACHO", "FINANCEIRO", "FISCAL", "LEITURA"] },
   { label: "Ordens de Serviço", href: "/orders", icon: icons.orders, roles: ["ADMIN", "DESPACHO", "LEITURA"] },
-  { label: "Agenda", href: "/agenda", icon: icons.agenda, roles: ["ADMIN", "DESPACHO", "LEITURA"] },
   { label: "Cadastros", href: "/partners", icon: icons.partners, roles: ["ADMIN", "DESPACHO"], children: [
     { label: "Parceiros", href: "/partners" },
     { label: "Produtos", href: "/products" },

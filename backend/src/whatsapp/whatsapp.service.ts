@@ -498,6 +498,22 @@ export class WhatsAppService {
     if (body.object !== 'whatsapp_business_account') return;
 
     for (const entry of body.entry || []) {
+      // Auto-discover and save WABA ID from webhook payload
+      if (entry.id) {
+        try {
+          const config = await this.prisma.whatsAppConfig.findFirst({ where: { companyId } });
+          if (config && !config.metaWabaId) {
+            await this.prisma.whatsAppConfig.update({
+              where: { id: config.id },
+              data: { metaWabaId: entry.id },
+            });
+            this.logger.log(`📋 Auto-discovered WABA ID: ${entry.id} for company ${companyId}`);
+          }
+        } catch (err) {
+          this.logger.warn(`Failed to auto-save WABA ID: ${err.message}`);
+        }
+      }
+
       for (const change of entry.changes || []) {
         if (change.field !== 'messages') continue;
 

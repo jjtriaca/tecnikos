@@ -1,5 +1,11 @@
 // C:\Users\Juliano\sistema-terceirizacao\backend\src\main.ts
 
+// BigInt JSON serialization polyfill — Prisma returns BigInt for BigInt schema fields
+// Without this, JSON.stringify throws "Do not know how to serialize a BigInt"
+(BigInt.prototype as any).toJSON = function () {
+  return Number(this);
+};
+
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';

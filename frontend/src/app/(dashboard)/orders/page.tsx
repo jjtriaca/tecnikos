@@ -16,6 +16,13 @@ import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
 import { exportToCSV, fmtDate, fmtDateTime, fmtMoney, fmtStatus, type ExportColumn } from "@/lib/export-utils";
+import AgendaView from "@/components/os/AgendaView";
+
+type OrdersTabId = "lista" | "agenda";
+const ORDERS_TABS: { id: OrdersTabId; label: string; icon: string }[] = [
+  { id: "lista", label: "Lista", icon: "📋" },
+  { id: "agenda", label: "Agenda", icon: "📅" },
+];
 
 type ServiceOrder = {
   id: string;
@@ -401,6 +408,22 @@ export default function OrdersPage() {
   const canEdit = authUser?.roles?.some(r => r === "ADMIN" || r === "DESPACHO") ?? false;
   const canDelete = authUser?.roles?.includes("ADMIN") ?? false;
 
+  // Tab state with localStorage persistence + URL deep-link support
+  const [activeTab, setActiveTab] = useState<OrdersTabId>(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlTab = urlParams.get("tab");
+      if (urlTab === "agenda") return "agenda";
+      const saved = localStorage.getItem("orders-active-tab");
+      if (saved === "lista" || saved === "agenda") return saved;
+    }
+    return "lista";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("orders-active-tab", activeTab);
+  }, [activeTab]);
+
   const [cancelTarget, setCancelTarget] = useState<ServiceOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceOrder | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -503,22 +526,26 @@ export default function OrdersPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Ordens de Serviço</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Ordens de Servico</h1>
           <p className="text-sm text-slate-500">
-            {meta.total} ordem{meta.total !== 1 ? "s" : ""} encontrada{meta.total !== 1 ? "s" : ""}
+            {activeTab === "lista"
+              ? `${meta.total} ordem${meta.total !== 1 ? "s" : ""} encontrada${meta.total !== 1 ? "s" : ""}`
+              : "Visualizacao dos servicos agendados"}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportCSV}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-            title="Exportar CSV"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            CSV
-          </button>
+          {activeTab === "lista" && (
+            <button
+              onClick={handleExportCSV}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+              title="Exportar CSV"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              CSV
+            </button>
+          )}
           {canEdit && (
             <Link
               href="/orders/new"
@@ -530,6 +557,26 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        {ORDERS_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+            }`}
+          >
+            <span>{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Lista Tab Content */}
+      {activeTab === "lista" && <>
       {/* Filter Bar */}
       <FilterBar
         filters={ORDER_FILTERS}
@@ -623,6 +670,10 @@ export default function OrdersPage() {
 
       {/* Pagination */}
       <Pagination meta={meta} onPageChange={tp.setPage} />
+      </>}
+
+      {/* Agenda Tab Content */}
+      {activeTab === "agenda" && <AgendaView />}
 
       {/* Cancel Modal */}
       <ConfirmModal

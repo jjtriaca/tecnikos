@@ -124,6 +124,9 @@ model Company {
 
   status        String   @default("ATIVA")
   commissionBps Int      @default(1000) // 10.00% (basis points)
+  commissionOverrideEnabled Boolean @default(false) // Operador pode ajustar comissao na OS
+  commissionMinBps          Int?                    // Min % comissao (basis points), null = sem limite
+  commissionMaxBps          Int?                    // Max % comissao (basis points), null = sem limite
   fiscalEnabled Boolean  @default(false) // Módulo fiscal (NFS-e) habilitado
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -309,6 +312,12 @@ model ServiceOrder {
 
   // Obra vinculada (v1.00.88)
   obraId           String?
+
+  // Comissao do tecnico (v1.01.81)
+  commissionBps       Int?       // Comissao customizada (basis points), null = usa default da empresa
+  techCommissionCents Int?       // Valor em centavos que vai para o tecnico
+  isReturn            Boolean @default(false) // Retorno de atendimento anterior
+  returnPaidToTech    Boolean @default(true)  // Se retorno: paga o tecnico ou obrigacao dele
 
   // Agendamento CLT (v1.01.72)
   scheduledStartAt          DateTime?  // Data/hora agendada para inicio do servico

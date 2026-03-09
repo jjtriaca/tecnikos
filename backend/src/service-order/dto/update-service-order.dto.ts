@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsDateString, IsArray, Min, Matches } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString, IsArray, IsBoolean, Min, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateServiceOrderDto {
@@ -121,4 +121,25 @@ export class UpdateServiceOrderDto {
   @IsNumber()
   @Min(15, { message: 'Duração mínima é 15 minutos' })
   estimatedDurationMinutes?: number;
+
+  // Comissao do tecnico (v1.01.81)
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  commissionBps?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  techCommissionCents?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isReturn?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  returnPaidToTech?: boolean;
 }

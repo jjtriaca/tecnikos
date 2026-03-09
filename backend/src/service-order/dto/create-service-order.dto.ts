@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsDateString, IsArray, Min, Matches, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsDateString, IsArray, IsBoolean, Min, Matches, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateServiceOrderDto {
@@ -122,4 +122,25 @@ export class CreateServiceOrderDto {
   @IsOptional()
   @IsString()
   assignedPartnerId?: string;
+
+  // Comissao do tecnico (v1.01.81)
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  commissionBps?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  techCommissionCents?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isReturn?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  returnPaidToTech?: boolean;
 }

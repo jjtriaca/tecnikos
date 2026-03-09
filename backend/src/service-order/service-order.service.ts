@@ -81,6 +81,11 @@ export class ServiceOrderService {
         // Agendamento CLT (v1.01.72)
         scheduledStartAt: data.scheduledStartAt ? new Date(data.scheduledStartAt) : undefined,
         estimatedDurationMinutes: data.estimatedDurationMinutes ?? undefined,
+        // Comissão e retorno (v1.01.81)
+        commissionBps: data.commissionBps ?? undefined,
+        techCommissionCents: data.techCommissionCents ?? undefined,
+        isReturn: data.isReturn ?? undefined,
+        returnPaidToTech: data.returnPaidToTech ?? undefined,
         // Pre-atribuicao (BY_AGENDA): tecnico ja definido + status ATRIBUIDA
         ...(data.techAssignmentMode === 'BY_AGENDA' && data.assignedPartnerId ? {
           assignedPartnerId: data.assignedPartnerId,
@@ -430,6 +435,19 @@ export class ServiceOrderService {
     }
     if (data.estimatedDurationMinutes !== undefined) {
       checkField('estimatedDurationMinutes', data.estimatedDurationMinutes, (so as any).estimatedDurationMinutes);
+    }
+    // Comissão e retorno (v1.01.81)
+    if (data.commissionBps !== undefined) {
+      checkField('commissionBps', data.commissionBps, (so as any).commissionBps);
+    }
+    if (data.techCommissionCents !== undefined) {
+      checkField('techCommissionCents', data.techCommissionCents, (so as any).techCommissionCents);
+    }
+    if (data.isReturn !== undefined) {
+      checkField('isReturn', data.isReturn, (so as any).isReturn);
+    }
+    if (data.returnPaidToTech !== undefined) {
+      checkField('returnPaidToTech', data.returnPaidToTech, (so as any).returnPaidToTech);
     }
 
     if (Object.keys(updateData).length === 0) return so;

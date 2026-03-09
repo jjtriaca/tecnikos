@@ -15,7 +15,7 @@ const ALLOWED_FIELDS: (keyof UpdateCompanyDto)[] = [
   'cep', 'addressStreet', 'addressNumber', 'addressComp',
   'neighborhood', 'city', 'state',
   'ownerName', 'ownerCpf', 'ownerPhone', 'ownerEmail',
-  'commissionBps',
+  'commissionBps', 'commissionOverrideEnabled', 'commissionMinBps', 'commissionMaxBps',
   'evalGestorWeight', 'evalClientWeight', 'evalMinRating',
 ];
 

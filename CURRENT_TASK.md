@@ -1,8 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 80 EM ANDAMENTO — Contratos de Tecnico
+## Status: SESSAO 81 CONCLUIDA — Enderecos de Atendimento
 
-## Ultima sessao: 80 (08/03/2026)
+## Ultima sessao: 81 (09/03/2026)
 - Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
 - Sessao 63: Fix NFe Import Flow (v1.01.20)
 - Sessoes 64-68: 4 estudos fiscais completos
@@ -16,151 +16,46 @@
 - Sessao 77: Codigos Sequenciais (SKU) + Deteccao Duplicados (v1.01.32)
 - Sessao 78: Reverter Importacao NFe (v1.01.39) + WhatsApp Business API (v1.01.56)
 - Sessao 79: Instrumentos de Pagamento (v1.01.58)
-- Sessao 80: Contratos de Tecnico (onboarding via workflow)
+- Sessao 80: Contratos de Tecnico (onboarding via workflow) (v1.01.68-72)
+- Sessao 81: Enderecos de Atendimento + Fix Agenda + Seletor Endereco OS (v1.01.78-79)
 
-## O que foi feito na sessao 80:
+## O que foi feito na sessao 81:
 
-### Sistema de Contrato/Aceite de Tecnicos
-- [x] Schema: modelo TechnicianContract (token, status, conteudo snapshot, aceite com IP/UA)
-- [x] Migration: 20260309000000_technician_contracts
-- [x] Backend: ContractModule (service + controller + public controller)
-- [x] Backend: sendContract(), getByToken(), markViewed(), acceptContract(), cancelContract()
-- [x] Backend: Endpoint publico GET/POST /contract/:token (com @Public() e Throttle)
-- [x] Backend: Endpoint autenticado GET /contracts/partner/:id, POST /contracts/send, POST /contracts/:id/cancel
-- [x] Backend: Integracao no PartnerService — dispara contrato ao criar TECNICO ou nova especializacao
-- [x] Frontend: TechnicianOnboardingConfig no WorkflowFormConfig (stage-config.ts)
-- [x] Frontend: TechnicianOnboardingSection (secao "Novo Tecnico" no workflow editor)
-- [x] Frontend: Pagina publica /contract/[token] — visualizacao e aceite de contrato
-- [x] Frontend: Config salva/restaurada no JSON V2 do workflow (compileToV2/decompileFromV2)
+### Fix Agenda (v1.01.78)
+- [x] Diagnostico: OS-00003 nao aparecia na Agenda porque scheduledStartAt era NULL
+- [x] Campos scheduledStartAt e estimatedDurationMinutes adicionados nos forms de OS (new + edit)
+- [x] OS-00003 atualizada manualmente no DB de producao para ter scheduledStartAt
+- [x] Deploy: v1.01.78 em producao (frontend only)
+
+### Enderecos de Atendimento por Parceiro (v1.01.79)
+- [x] Schema: modelo ServiceAddress (uuid, companyId, partnerId, label, endereco completo, active)
+- [x] Migration: 20260309190000_add_service_addresses (aplicada diretamente via SQL)
+- [x] Backend: ServiceAddressModule (controller, service, dto, module) seguindo padrao Obra
+- [x] Backend: Endpoints GET/POST/PUT/PATCH /service-addresses (Roles: ADMIN, DESPACHO, FINANCEIRO)
+- [x] Frontend: ServiceAddressesSection no cadastro de parceiros (CLIENTE)
+- [x] Frontend: Seletor de endereco no form de OS (new + edit) com radio buttons:
+  - Endereco principal do cadastro
+  - Enderecos de atendimento salvos
+  - "Novo endereco de atendimento" (expande campos + label para salvar)
+- [x] Auto-save: novo endereco com label preenchido e salvo automaticamente no parceiro
+- [x] Auto-detect: ao editar OS, detecta qual endereco esta selecionado (main/saved/new)
+- [x] Readonly preview quando selecionado endereco principal ou salvo
 - [x] Build: backend 0 erros, frontend 0 erros
-- [x] Deploy: v1.01.59 em producao + migration SQL aplicada
-- [x] Modelos de contrato padrao (DEFAULT_CONTRACT_CONTENT + DEFAULT_SPECIALIZATION_CONTRACT)
-- [x] Deploy: v1.01.60 em producao
-- [x] Fix: validacao workflow aceita onboarding sem etapas (v1.01.61)
-- [x] Fix: dispatchTechnicianContract busca TODOS os workflows, nao so default (v1.01.62)
-- [x] Fix: log de notificacao para email e mock (v1.01.63)
-- [x] Fix: compileToV2 early return perdendo technicianOnboarding (v1.01.64) — ROOT CAUSE
-- [x] Fix: formatPhone strip leading zero para Meta API (v1.01.65)
-- [x] Fix: sanitizePhone + 1465 phones corrigidos no DB + maskPhone frontend (v1.01.66)
-- [x] Fix: substituicao de variaveis {nome}/{empresa}/etc no contrato + contrato 10 clausulas (v1.01.67)
-- [x] Assinatura digital: requireSignature/requireAcceptance/signatureData no schema (v1.01.68)
-- [x] Migration: 20260309010000_contract_signature_fields
-- [x] Backend: flags passadas no sendContract, retornadas no getByToken, signatureData validada e salva no accept
-- [x] Frontend: componente SignaturePad (canvas touch/mouse)
-- [x] Frontend: pagina /contract/[token] com assinatura digital quando requireSignature=true
-- [x] Variavel {razao_social} adicionada: backend (substituicao), frontend (templates + botoes)
-- [x] Deploy: v1.01.68 em producao + migration aplicada
+- [x] Deploy: v1.01.79 em producao
 
-## O que foi feito na sessao 79:
+## Versao atual: v1.01.79 — em producao
 
-### Instrumentos de Pagamento da Empresa
-- [x] Schema: modelo PaymentInstrument + campo paymentInstrumentId em FinancialEntry
-- [x] Migration: 20260308210000_add_payment_instrument
-- [x] Backend: PaymentInstrumentService CRUD (findAll, findActive, findByMethod, create, update, remove)
-- [x] Backend: DTOs (CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto)
-- [x] Backend: Endpoints GET/POST/PATCH/DELETE /finance/payment-instruments
-- [x] Backend: paymentInstrumentId salvo no fluxo de pagamento (changeEntryStatus)
-- [x] Backend: DRE com paymentBreakdown (byMethod + byInstrument)
-- [x] Frontend: Interface PaymentInstrument + tipos DRE breakdown
-- [x] Frontend: PaymentInstrumentsTab (aba CRUD completa)
-- [x] Frontend: Dropdown instrumento no modal de pagamento
-- [x] Frontend: DreReport com toggle agrupamento por pagamento
-- [x] Build: backend 0 erros, frontend 0 erros
-- [x] Deploy: v1.01.58 em producao
+## IDs importantes WhatsApp Meta:
+- WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — conta DESABILITADA pelo Meta
+- Business ID: 2115296342089072
+- Phone Number ID: 996592133539837
+- App ID: 950743807617295
+- System User ID: 122102184027217286
 
-### Sessao 78 (anterior):
-
-### Reverter Importacao NFe
-- [x] Backend: NfeService.revert() — reverte importacao PROCESSED
-- [x] Frontend: botoes "Reverter" nas abas Upload e SEFAZ
-- [x] Deploy: v1.01.39 em producao
-
-### WhatsApp Business API
-- [x] Chip Vivo ativado (+55 66 9665-2916)
-- [x] Token permanente gerado, webhook configurado
-- [x] Fix sendTestMessage (texto direto em vez de hello_world)
-- [x] Deploy: v1.01.56 em producao
-
-### Sessao 77 (anterior):
-
-### Codigos Sequenciais (SKU) em Todos os Cadastros
-- [x] Schema: `code String?` + `@@unique([companyId, code])` em Partner, ServiceOrder, FinancialEntry, Evaluation, User
-- [x] CodeCounter model para geracao atomica de codigos por empresa+entidade
-- [x] CodeGeneratorService: generateCode() com upsert+increment atomico
-- [x] PrismaService: self-healing ensureCodeColumns() — cria colunas, tabela, backfill
-- [x] Backend: auto-geracao de codigo em partner, order, finance, evaluation, user, nfe services
-- [x] Frontend: coluna "Codigo" em Partners, Orders, Finance, Users (layout v3)
-
-### Deteccao de Duplicados
-- [x] Backend: checkDuplicateDocument() no PartnerService
-- [x] Backend: GET /partners/check-duplicate endpoint
-- [x] Frontend: PartnerForm — check onBlur CPF/CNPJ
-- [x] CNPJ: block (nao permite cadastro duplicado)
-- [x] CPF: warning com checkbox "Cadastrar mesmo assim (produtor rural com IE diferente)"
-- [x] NFe: duplicidade ja coberta pela unicidade da chave de acesso (nfeKey)
-
-### Deploy v1.01.32
-- [x] Backend: 0 erros TypeScript
-- [x] Frontend: 0 erros build
-- [x] Deploy: sucesso
-
-### WhatsApp Business API — CONCLUIDO (08/03/2026)
-- [x] Chip Vivo comprado e ativado: +55 66 9665-2916
-- [x] Numero adicionado e verificado no Meta WhatsApp Manager (WABA: SLS Sol e Lazer Soluções)
-- [x] Token permanente gerado do System User "Tecnikos API" (nunca expira)
-- [x] Credenciais configuradas no Tecnikos (Phone Number ID: 996592133539837)
-- [x] Numero registrado via API (POST /register)
-- [x] Template "teste_conexao" criado (pt_BR, UTILITY)
-- [x] Cartao de pagamento adicionado no Meta (Mastercard *9767)
-- [x] Verificacao da empresa Meta: em andamento
-- [x] Mensagem de teste enviada com sucesso para +5566999861230
-- [x] Webhook configurado no Meta (Callback URL + Verify Token + campo messages assinado)
-- [x] Fix: sendTestMessage usa texto em vez de hello_world (v1.01.56)
-- PENDENTE: Template "teste_conexao" aprovado pelo Meta (status PENDING)
-
-## Projetos Futuros
-- **Registro de marca INPI**: Solicitar registro da marca "Tecnikos" no INPI (Instituto Nacional da Propriedade Industrial). Logo SVG disponivel em `brand/`.
-
-- [x] Sininho notificacao: contador nao-lidas (readAt null) + mark-read apos 3s na pagina (v1.01.69)
-- [x] Migration: 20260309020000_notification_read_at (campo readAt em Notification)
-- [x] Backend: countUnread + markAllRead + endpoint POST /notifications/mark-read
-- [x] Header: badge com animate-pulse + auto-reset quando abre /notifications (3s delay)
-- [x] Notificacao CONTRACT_ACCEPTED criada ao aceitar contrato (canal SYSTEM)
-- [x] Frontend: canal SYSTEM (purple) + PENDENTE_CONTRATO (orange) nos status labels/colors
-- [x] ContractsSection: componente inline no PartnerForm (ver contratos, aceite, assinatura, conteudo)
-- [x] Filtro PENDENTE_CONTRATO adicionado na pagina de parceiros
-- [x] Deploy: v1.01.69 em producao + migration aplicada
-- [x] Fix: email validation — aceitar salvar parceiro sem email (ValidateIf + clean empty strings)
-- [x] Botao cancelar contrato no ContractsSection (confirm + auto-reload)
-- [x] Backend: cancelContract remove PartnerSpecialization vinculada + reativa parceiro se nenhum pendente
-- [x] Link contrato-especializacao: campos specializationId e trigger no TechnicianContract
-- [x] Migration: 20260309030000_contract_specialization_link
-- [x] dispatchTechnicianContract: passa trigger e specializationId (1 contrato por especializacao nova)
-- [x] Deploy: v1.01.70 em producao + migration aplicada
-- [x] Variaveis de template: clique insere na posicao do cursor (em vez de copiar)
-- [x] Expiracao do contrato: opcoes dias, meses, anos ou indeterminado (backend converte para dias)
-- [x] Contratos de teste do Juliano deletados (4 registros)
-- [x] Deploy: v1.01.71 em producao
-
-### Agenda CLT (v1.01.72)
-- [x] Schema: campos scheduledStartAt + estimatedDurationMinutes na ServiceOrder
-- [x] Migration: 20260309100000_scheduling_fields (indices companyId+scheduledStartAt, assignedPartnerId+scheduledStartAt)
-- [x] Backend DTOs: campos nos Create e Update DTOs
-- [x] Backend Service: findAgenda(), checkConflicts(), create/update com scheduling
-- [x] Backend Controller: endpoints GET /agenda e GET /check-conflicts
-- [x] Backend: BY_AGENDA mode — OS nasce como ATRIBUIDA com tecnico pre-atribuido
-- [x] Frontend stage-config.ts: tipo scheduleConfig + compile/decompile V2
-- [x] Frontend StageSection.tsx: toggle "Regime de Agenda (CLT)" na etapa ABERTA
-- [x] Frontend AgendaSelector.tsx: componente grade semanal com selecao de tecnico+data+hora
-- [x] Frontend orders/new: detecta fluxo com agenda, mostra AgendaSelector, envia BY_AGENDA
-- [x] Frontend /agenda page: visao semanal completa com filtros
-- [x] Frontend Sidebar: entrada "Agenda" (icone calendario)
-- [x] Frontend Dashboard: widget "Agenda do Dia" com link para /agenda
-- [x] Build: backend 0 erros, frontend 0 erros
-
-- [x] Deploy: v1.01.72 em producao + migration aplicada
-
-## Versao atual: v1.01.72 — em producao
+## PENDENTES:
+- [ ] Meta WhatsApp: apelar desabilitacao da conta WABA (aguardando revisao 24-72h)
+- [ ] Template notificacao_teknikos: PENDING aprovacao Meta
+- [ ] Testar envio WhatsApp completo apos reativacao da WABA
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

@@ -32,6 +32,9 @@ type CompanyData = {
   logoHeight: number | null;
   status: string;
   commissionBps: number;
+  commissionOverrideEnabled: boolean;
+  commissionMinBps: number | null;
+  commissionMaxBps: number | null;
   evalGestorWeight: number;
   evalClientWeight: number;
   evalMinRating: number;
@@ -65,6 +68,9 @@ type CompanyForm = {
   ownerPhone: string;
   ownerEmail: string;
   commissionPercent: string;
+  commissionOverrideEnabled: boolean;
+  commissionMinPercent: string;
+  commissionMaxPercent: string;
   evalGestorWeight: string;
   evalClientWeight: string;
   evalMinRating: string;
@@ -133,6 +139,9 @@ function companyToForm(c: CompanyData): CompanyForm {
     ownerPhone: c.ownerPhone || "",
     ownerEmail: c.ownerEmail || "",
     commissionPercent: (c.commissionBps / 100).toFixed(2),
+    commissionOverrideEnabled: c.commissionOverrideEnabled ?? false,
+    commissionMinPercent: c.commissionMinBps != null ? (c.commissionMinBps / 100).toFixed(2) : "",
+    commissionMaxPercent: c.commissionMaxBps != null ? (c.commissionMaxBps / 100).toFixed(2) : "",
     evalGestorWeight: String(c.evalGestorWeight ?? 40),
     evalClientWeight: String(c.evalClientWeight ?? 60),
     evalMinRating: String(c.evalMinRating ?? 3.0),
@@ -164,6 +173,9 @@ export default function SettingsPage() {
     neighborhood: "", city: "", state: "",
     ownerName: "", ownerCpf: "", ownerPhone: "", ownerEmail: "",
     commissionPercent: "",
+    commissionOverrideEnabled: false,
+    commissionMinPercent: "",
+    commissionMaxPercent: "",
     evalGestorWeight: "40", evalClientWeight: "60", evalMinRating: "3.0",
   });
 
@@ -393,6 +405,9 @@ export default function SettingsPage() {
         ownerPhone: form.ownerPhone || null,
         ownerEmail: form.ownerEmail || null,
         commissionBps,
+        commissionOverrideEnabled: form.commissionOverrideEnabled,
+        commissionMinBps: form.commissionMinPercent ? Math.round(parseFloat(form.commissionMinPercent) * 100) : null,
+        commissionMaxBps: form.commissionMaxPercent ? Math.round(parseFloat(form.commissionMaxPercent) * 100) : null,
         evalGestorWeight,
         evalClientWeight,
         evalMinRating,
@@ -931,6 +946,65 @@ export default function SettingsPage() {
                 Percentual descontado do valor bruto da OS. Atual: {(company.commissionBps / 100).toFixed(2)}%
               </p>
             </div>
+
+            {/* Override de comissao na OS */}
+            <div className="col-span-full border-t border-slate-100 pt-3 mt-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.commissionOverrideEnabled}
+                  onChange={(e) => setForm(f => ({ ...f, commissionOverrideEnabled: e.target.checked }))}
+                  disabled={!isAdmin}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-200"
+                />
+                <span className="text-xs font-medium text-slate-600">
+                  Permitir operador ajustar comissão ao lançar OS
+                </span>
+              </label>
+              {form.commissionOverrideEnabled && (
+                <div className="grid grid-cols-2 gap-4 mt-3 ml-6">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Comissão mínima (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={form.commissionMinPercent}
+                      onChange={(e) => setForm(f => ({ ...f, commissionMinPercent: e.target.value }))}
+                      disabled={!isAdmin}
+                      placeholder="Ex: 5.00"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Comissão máxima (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={form.commissionMaxPercent}
+                      onChange={(e) => setForm(f => ({ ...f, commissionMaxPercent: e.target.value }))}
+                      disabled={!isAdmin}
+                      placeholder="Ex: 25.00"
+                      className={inputClass}
+                    />
+                  </div>
+                  <p className="col-span-2 text-xs text-slate-400">
+                    Faixa permitida para o operador definir a comissão do técnico ao criar/editar uma OS.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ID e Status */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <span className="text-xs font-medium text-slate-500">ID da Empresa</span>
               <p className="mt-1 text-xs font-mono text-slate-700 break-all">{company.id}</p>
