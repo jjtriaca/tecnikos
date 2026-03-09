@@ -110,6 +110,24 @@ export class ServiceOrderController {
     return this.service.duplicate(id, user.companyId, user);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Get(':id/finalize-preview')
+  finalizePreview(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.finalizePreview(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/finalize')
+  finalize(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.finalize(id, user.companyId, user);
+  }
+
   /* ---- Generic :id routes ---- */
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)

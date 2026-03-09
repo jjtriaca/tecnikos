@@ -1246,3 +1246,42 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - **Versoes deployadas**: v1.01.78 (frontend only)
 
 ---
+
+## Sessao 82 — 09/03/2026 (continuacao)
+
+### Pedido do Juliano:
+1. Enderecos de atendimento: completar HTML edit form + deploy (continuacao sessao 81)
+2. Collapsible sections: "Atribuir tecnico, Tempo aceitar, Tempo a caminho devem ser expandiveis"
+3. Auto-collapse por IntersectionObserver (scroll pra fora recolhe)
+4. Default endereco = ultimo atendido
+5. Fix ortografia nos forms (acentos faltando)
+6. Fix texto summary do endereco (letras pequenas)
+7. Retorno de atendimento anterior (checkbox + opcao pagar tecnico ou nao)
+8. Comissao tecnico: Settings com override (min/max %) + display na OS
+9. Validacao: recusar comissao fora da faixa
+
+### Implementacao:
+
+#### CollapsibleSection + Spelling (v1.01.80)
+- Componente `CollapsibleSection` criado com IntersectionObserver
+- Wrapped: TechAssignment, Accept timeout, EnRoute timeout, Endereco, Agendamento
+- hideHeader prop no TechAssignmentSection
+- Default address: ultimo atendido (orderBy createdAt desc)
+- Fix ortografia: acrescentados acentos em "Técnico", "Endereço", "especialização"
+- Summary text: text-sm truncate flex-1 text-right
+
+#### Comissao + Retorno (v1.01.81)
+- Schema: Company — commissionOverrideEnabled, commissionMinBps, commissionMaxBps
+- Schema: ServiceOrder — commissionBps, techCommissionCents, isReturn, returnPaidToTech
+- Migration 20260309200000_commission_override_return
+- Settings page: secao "Comissao de Tecnico" com checkbox override + campos min/max %
+- OS Form (new + edit):
+  - Checkbox "Retorno de atendimento anterior"
+  - Radio: Lancar valor / Obrigacao do tecnico (sem comissao)
+  - Valor do tecnico (R$): auto-calc, editavel se override
+  - Comissao %: read-only, calculado
+  - Validacao min/max no submit
+- Backend service: create + update persistem novos campos
+- Deploy v1.01.81 em producao
+
+---

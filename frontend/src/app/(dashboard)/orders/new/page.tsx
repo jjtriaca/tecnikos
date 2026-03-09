@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import Link from "next/link";
 import LookupField from "@/components/ui/LookupField";
@@ -53,8 +53,19 @@ const clientFetcher: LookupFetcher<PartnerSummary> = async (search, page, signal
 const inputClass =
   "rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
 
-export default function NewOrderPage() {
+export default function NewOrderPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-12"><svg className="h-8 w-8 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg></div>}>
+      <NewOrderPage />
+    </Suspense>
+  );
+}
+
+function NewOrderPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnFromId = searchParams.get("returnFrom");
+  const [returnLoading, setReturnLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<PartnerSummary | null>(null);
@@ -228,6 +239,90 @@ export default function NewOrderPage() {
     scheduledStartAt: "",
     estimatedDurationMinutes: "",
   });
+
+  // Load original OS for return pre-population
+  useEffect(() => {
+    if (!returnFromId) return;
+    let cancelled = false;
+    setReturnLoading(true);
+    (async () => {
+      try {
+        const orig = await api.get<any>(`/service-orders/${returnFromId}`);
+        if (cancelled) return;
+
+        // Pre-populate form fields
+        const valueBrl = orig.valueCents ? (orig.valueCents / 100).toFixed(2) : "";
+        setForm(f => ({
+          ...f,
+          title: `Retorno: ${orig.title || ""}`,
+          description: orig.description || "",
+          state: orig.state || "",
+          cep: orig.cep ? maskCep(orig.cep) : "",
+          addressStreet: orig.addressStreet || "",
+          addressNumber: orig.addressNumber || "",
+          addressComp: orig.addressComp || "",
+          neighborhood: orig.neighborhood || "",
+          valueCents: valueBrl,
+          contactPersonName: orig.contactPersonName || "",
+          deadlineAt: "",
+          scheduledStartAt: "",
+          estimatedDurationMinutes: "",
+        }));
+
+        // Mark as return
+        setIsReturn(true);
+        setReturnPaidToTech(true);
+
+        // Select client
+        if (orig.clientPartnerId) {
+          try {
+            const client = await api.get<PartnerSummary>(`/partners/${orig.clientPartnerId}`);
+            if (!cancelled) setSelectedClient(client);
+          } catch { /* ignore */ }
+        }
+
+        // Select city
+        if (orig.state && orig.city) {
+          try {
+            const cities = await fetchCitiesByState(orig.state);
+            const found = cities.find((c: IBGECity) => c.nome.toLowerCase() === orig.city.toLowerCase());
+            if (found && !cancelled) setSelectedCity(found);
+          } catch { /* ignore */ }
+        }
+
+        // Select obra
+        if (orig.obraId) {
+          setSelectedObraId(orig.obraId);
+        }
+
+        // Select tech if assigned (directed mode)
+        if (orig.assignedPartnerId && orig.assignedPartner) {
+          setTechMode("DIRECTED");
+          setSelectedTechs([{
+            id: orig.assignedPartner.id,
+            name: orig.assignedPartner.name,
+            phone: orig.assignedPartner.phone || null,
+          }]);
+        }
+
+        // Recalc commission with value
+        if (valueBrl) {
+          const v = parseFloat(valueBrl);
+          if (!isNaN(v) && v > 0) {
+            // Will be auto-recalculated when companyCommission loads, for now use default
+          }
+        }
+
+        // Scroll to return section after a short delay
+        setTimeout(() => {
+          const el = document.getElementById("return-section");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 600);
+      } catch { /* ignore load errors */ }
+      finally { if (!cancelled) setReturnLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [returnFromId]);
 
   // Auto-recalculate tech commission when value or commission config changes
   function recalcTechCommission(valueCentsStr: string, bps: number) {
@@ -558,8 +653,18 @@ export default function NewOrderPage() {
       </div>
 
       <h1 className="text-2xl font-bold text-slate-900 mb-6">
-        Nova Ordem de Serviço
+        {returnFromId ? "Retorno de Atendimento" : "Nova Ordem de Serviço"}
       </h1>
+
+      {returnLoading && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
+          <svg className="h-4 w-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span className="text-sm text-blue-700">Carregando dados da OS original...</span>
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit}
@@ -968,7 +1073,7 @@ export default function NewOrderPage() {
           </div>
 
           {/* Retorno + Comissão do Técnico */}
-          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div id="return-section" className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             {/* Retorno */}
             <label className="flex items-center gap-2 cursor-pointer">
               <input

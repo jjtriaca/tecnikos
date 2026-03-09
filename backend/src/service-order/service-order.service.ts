@@ -5,6 +5,7 @@ import { ServiceOrderStatus } from '@prisma/client';
 import { NotificationService } from '../notification/notification.service';
 import { AutomationEngineService, AutomationEvent } from '../automation/automation-engine.service';
 import { WaitForService } from '../workflow/wait-for.service';
+import { WorkflowEngineService } from '../workflow/workflow-engine.service';
 import { AuditService } from '../common/audit/audit.service';
 import { CreateServiceOrderDto } from './dto/create-service-order.dto';
 import { UpdateServiceOrderDto } from './dto/update-service-order.dto';
@@ -29,6 +30,7 @@ export class ServiceOrderService {
     @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
     @Optional() @Inject(AutomationEngineService) private readonly automationEngine?: AutomationEngineService,
     @Optional() @Inject(WaitForService) private readonly waitForService?: WaitForService,
+    @Optional() @Inject(WorkflowEngineService) private readonly workflowEngine?: WorkflowEngineService,
   ) {}
 
   /** Fire-and-forget automation dispatch + WAIT_FOR early trigger check */
@@ -554,6 +556,212 @@ export class ServiceOrderService {
     this.dispatchAutomation({
       companyId, entity: 'SERVICE_ORDER', entityId: id, eventType: 'deleted',
       data: { status: (result as any).status, title: (result as any).title, description: (result as any).description, addressStreet: (result as any).addressStreet, cep: (result as any).cep, deadlineAt: (result as any).deadlineAt?.toISOString(), createdAt: (result as any).createdAt?.toISOString() },
+    });
+
+    return result;
+  }
+
+  /* ── Finalize (Confirmar OS) ─────────────────────── */
+
+  async finalizePreview(id: string, companyId: string) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: {
+        company: true,
+        assignedPartner: { select: { id: true, name: true } },
+        clientPartner: { select: { id: true, name: true } },
+        ledger: true,
+      },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)) {
+      throw new BadRequestException('OS já está em status terminal');
+    }
+    if (so.ledger) {
+      throw new BadRequestException('OS já foi finalizada (repasse já existe)');
+    }
+
+    // Check workflow completeness
+    let needsTechFinalization = false;
+    const techName = so.assignedPartner?.name || null;
+    if (so.workflowTemplateId && this.workflowEngine) {
+      try {
+        const progress = await this.workflowEngine.getProgress(id, companyId);
+        if (progress && !(progress as any).isComplete) {
+          needsTechFinalization = true;
+        }
+      } catch { /* no workflow progress = no issue */ }
+    }
+
+    // Calculate financial entries preview
+    const grossCents = so.valueCents;
+    const effectiveBps = (so as any).commissionBps ?? so.company.commissionBps;
+    const effectiveTechCents = (so as any).techCommissionCents ?? Math.round((grossCents * effectiveBps) / 10000);
+    const companyKeeps = grossCents - effectiveTechCents;
+
+    const entries: Array<{
+      type: 'RECEIVABLE' | 'PAYABLE';
+      partnerName: string | null;
+      description: string;
+      grossCents: number;
+      commissionBps: number;
+      commissionCents: number;
+      netCents: number;
+    }> = [];
+
+    // RECEIVABLE (a receber do cliente)
+    if (so.clientPartnerId) {
+      entries.push({
+        type: 'RECEIVABLE',
+        partnerName: so.clientPartner?.name || null,
+        description: `A receber OS: ${so.title}`,
+        grossCents,
+        commissionBps: 0,
+        commissionCents: 0,
+        netCents: grossCents,
+      });
+    }
+
+    // PAYABLE (a pagar ao tecnico)
+    const isReturn = (so as any).isReturn ?? false;
+    const returnPaidToTech = (so as any).returnPaidToTech ?? true;
+    const shouldPayTech = so.assignedPartnerId && (!isReturn || returnPaidToTech);
+    if (shouldPayTech) {
+      entries.push({
+        type: 'PAYABLE',
+        partnerName: so.assignedPartner?.name || null,
+        description: `Repasse técnico OS: ${so.title}`,
+        grossCents,
+        commissionBps: effectiveBps,
+        commissionCents: companyKeeps,
+        netCents: effectiveTechCents,
+      });
+    }
+
+    return {
+      needsTechFinalization,
+      techName,
+      osTitle: so.title,
+      osCode: (so as any).code,
+      isReturn,
+      returnPaidToTech,
+      entries,
+    };
+  }
+
+  async finalize(id: string, companyId: string, actor: AuthenticatedUser) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: {
+        company: true,
+        assignedPartner: { select: { id: true, name: true } },
+        clientPartner: { select: { id: true, name: true } },
+        ledger: true,
+      },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)) {
+      throw new BadRequestException('OS já está em status terminal');
+    }
+    if (so.ledger) {
+      throw new BadRequestException('OS já foi finalizada');
+    }
+
+    const grossCents = so.valueCents;
+    const effectiveBps = (so as any).commissionBps ?? so.company.commissionBps;
+    const effectiveTechCents = (so as any).techCommissionCents ?? Math.round((grossCents * effectiveBps) / 10000);
+    const companyKeeps = grossCents - effectiveTechCents;
+
+    const isReturn = (so as any).isReturn ?? false;
+    const returnPaidToTech = (so as any).returnPaidToTech ?? true;
+    const shouldPayTech = so.assignedPartnerId && (!isReturn || returnPaidToTech);
+
+    // Generate codes before transaction
+    const codes: string[] = [];
+    if (so.clientPartnerId) {
+      codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+    }
+    if (shouldPayTech) {
+      codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const createdEntries: any[] = [];
+      let codeIdx = 0;
+
+      // 1. RECEIVABLE (a receber do cliente)
+      if (so.clientPartnerId) {
+        const receivable = await tx.financialEntry.create({
+          data: {
+            companyId,
+            code: codes[codeIdx++],
+            serviceOrderId: id,
+            partnerId: so.clientPartnerId,
+            type: 'RECEIVABLE',
+            status: 'PENDING',
+            description: `A receber OS: ${so.title}`,
+            grossCents,
+            netCents: grossCents,
+          },
+        });
+        createdEntries.push(receivable);
+      }
+
+      // 2. PAYABLE (a pagar ao tecnico)
+      if (shouldPayTech) {
+        const payable = await tx.financialEntry.create({
+          data: {
+            companyId,
+            code: codes[codeIdx++],
+            serviceOrderId: id,
+            partnerId: so.assignedPartnerId!,
+            type: 'PAYABLE',
+            status: 'CONFIRMED',
+            description: `Repasse técnico OS: ${so.title}`,
+            grossCents,
+            commissionBps: effectiveBps,
+            commissionCents: companyKeeps,
+            netCents: effectiveTechCents,
+            confirmedAt: new Date(),
+          },
+        });
+        createdEntries.push(payable);
+      }
+
+      // 3. ServiceOrderLedger (backward compat)
+      await tx.serviceOrderLedger.create({
+        data: {
+          serviceOrderId: id,
+          grossCents,
+          commissionBps: effectiveBps,
+          commissionCents: companyKeeps,
+          netCents: effectiveTechCents,
+          confirmedAt: new Date(),
+        },
+      });
+
+      // 4. Update OS status to CONCLUIDA
+      const updated = await tx.serviceOrder.update({
+        where: { id },
+        data: {
+          status: ServiceOrderStatus.CONCLUIDA,
+          completedAt: so.completedAt || new Date(),
+        },
+      });
+
+      return { entries: createdEntries, status: updated.status };
+    });
+
+    // Fire-and-forget: audit + automation
+    this.audit.log({
+      companyId, entityType: 'SERVICE_ORDER', entityId: id,
+      action: 'FINALIZED', actorType: 'USER', actorId: actor?.id, actorName: actor?.email,
+      after: { status: 'CONCLUIDA', entriesCreated: result.entries.length },
+    });
+
+    this.dispatchAutomation({
+      companyId, entity: 'SERVICE_ORDER', entityId: id, eventType: 'completed',
+      data: { status: 'CONCLUIDA', oldStatus: so.status, valueCents: so.valueCents, title: so.title },
     });
 
     return result;

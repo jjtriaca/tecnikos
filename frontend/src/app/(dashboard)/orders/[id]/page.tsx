@@ -9,6 +9,7 @@ import LocationPickerModal from "@/components/ui/LocationPickerModal";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import NfseEmissionModal from "@/app/(dashboard)/finance/components/NfseEmissionModal";
+import FinalizeOrderModal from "@/components/os/FinalizeOrderModal";
 
 type AttachmentType = {
   id: string;
@@ -53,6 +54,11 @@ type ServiceOrder = {
   pausedAt?: string | null;
   pauseCount?: number;
   totalPausedMs?: number;
+  // Finalizacao (v1.01.82)
+  code?: string;
+  clientPartnerId?: string | null;
+  isReturn?: boolean;
+  returnPaidToTech?: boolean;
 };
 
 type WorkflowStepLog = {
@@ -230,6 +236,7 @@ export default function OrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const { toast } = useToast();
 
   // Gestor Evaluation state
@@ -465,15 +472,48 @@ export default function OrderDetailPage() {
           <p className="mt-1 text-sm text-slate-500">ID: {order.id}</p>
         </div>
 
-        {user?.roles?.includes("ADMIN") && (
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            disabled={deleting}
-            className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-          >
-            {deleting ? "Excluindo..." : "Excluir"}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Confirmar — visivel em OS nao-terminal com valor */}
+          {!["CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status) && order.valueCents > 0 && (
+            <button
+              onClick={() => setShowFinalizeModal(true)}
+              className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+            >
+              Confirmar
+            </button>
+          )}
+
+          {/* Editar — visivel em OS nao-terminal */}
+          {!["CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status) && (
+            <Link
+              href={`/orders/${id}/edit`}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Editar
+            </Link>
+          )}
+
+          {/* Retorno — visivel em OS finalizadas */}
+          {["CONCLUIDA", "APROVADA"].includes(order.status) && (
+            <button
+              onClick={() => router.push(`/orders/new?returnFrom=${order.id}`)}
+              className="rounded-lg border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+            >
+              Retorno
+            </button>
+          )}
+
+          {/* Excluir (ADMIN) */}
+          {user?.roles?.includes("ADMIN") && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              disabled={deleting}
+              className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              {deleting ? "Excluindo..." : "Excluir"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Info cards */}
@@ -1033,6 +1073,17 @@ export default function OrderDetailPage() {
         addressText={order.addressText}
         onConfirm={handleConfirmLocation}
         onClose={() => setLocationPickerOpen(false)}
+      />
+
+      <FinalizeOrderModal
+        open={showFinalizeModal}
+        orderId={order.id}
+        onClose={() => setShowFinalizeModal(false)}
+        onFinalized={() => {
+          setShowFinalizeModal(false);
+          toast("OS finalizada com sucesso!", "success");
+          loadOrder();
+        }}
       />
     </div>
   );
