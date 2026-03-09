@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import sharp from 'sharp';
 
 export interface MetaMessageResponse {
   messaging_product: string;
@@ -73,7 +76,7 @@ export class WhatsAppService {
    */
   async saveConfig(
     companyId: string,
-    data: { metaAccessToken: string; metaPhoneNumberId: string; metaWabaId?: string },
+    data: { metaAccessToken: string; metaPhoneNumberId: string; metaWabaId?: string; metaAppId?: string },
   ): Promise<WhatsAppConfigInfo> {
     const encryptedToken = this.encryption.encrypt(data.metaAccessToken);
     const verifyToken = crypto.randomBytes(16).toString('hex');
@@ -85,6 +88,7 @@ export class WhatsAppService {
         metaAccessToken: encryptedToken,
         metaPhoneNumberId: data.metaPhoneNumberId,
         metaWabaId: data.metaWabaId || null,
+        metaAppId: data.metaAppId || null,
         metaVerifyToken: verifyToken,
         isConnected: true,
         connectedAt: new Date(),
@@ -93,10 +97,16 @@ export class WhatsAppService {
         metaAccessToken: encryptedToken,
         metaPhoneNumberId: data.metaPhoneNumberId,
         metaWabaId: data.metaWabaId || null,
+        metaAppId: data.metaAppId || null,
         isConnected: true,
         connectedAt: new Date(),
       },
     });
+
+    // Sync company logo as WhatsApp profile picture (fire-and-forget)
+    this.syncProfilePicture(companyId).catch(err =>
+      this.logger.warn(`Failed to sync profile picture: ${err.message}`),
+    );
 
     return this.getConfig(companyId);
   }
@@ -274,6 +284,7 @@ export class WhatsAppService {
     companyId: string,
     phone: string,
     message: string,
+    forceTemplate = false,
   ): Promise<boolean> {
     const token = await this.getAccessToken(companyId);
     const phoneNumberId = await this.getPhoneNumberId(companyId);
@@ -286,18 +297,24 @@ export class WhatsAppService {
     const formattedPhone = this.formatPhone(phone);
 
     // 1. Try sending regular text (works within 24h conversation window)
-    try {
-      await this.metaRequest(token, phoneNumberId, {
-        messaging_product: 'whatsapp',
-        to: formattedPhone,
-        type: 'text',
-        text: { body: message },
-      });
+    //    SKIP if forceTemplate — business-initiated messages (welcome, contract)
+    //    must use templates because Meta silently drops text outside 24h window
+    if (!forceTemplate) {
+      try {
+        await this.metaRequest(token, phoneNumberId, {
+          messaging_product: 'whatsapp',
+          to: formattedPhone,
+          type: 'text',
+          text: { body: message },
+        });
 
-      this.logger.log(`📱 WhatsApp text sent to ${formattedPhone}`);
-      return true;
-    } catch (textErr: any) {
-      this.logger.warn(`📱 WhatsApp text failed (likely outside 24h window), trying template: ${textErr.message}`);
+        this.logger.log(`📱 WhatsApp text sent to ${formattedPhone}`);
+        return true;
+      } catch (textErr: any) {
+        this.logger.warn(`📱 WhatsApp text failed (likely outside 24h window), trying template: ${textErr.message}`);
+      }
+    } else {
+      this.logger.log(`📱 forceTemplate=true — skipping text, sending via template to ${formattedPhone}`);
     }
 
     // 2. Fallback: send via template "notificacao_tecnikos" with the message as body
@@ -562,7 +579,7 @@ export class WhatsAppService {
         phone: { in: phoneSuffixes },
         deletedAt: null,
       },
-      select: { id: true },
+      select: { id: true, name: true },
     });
 
     // Check for duplicate by whatsappMsgId
@@ -585,6 +602,61 @@ export class WhatsAppService {
         status: 'RECEIVED',
       },
     });
+
+    // Check for pending CLT welcome message awaiting reply
+    if (partner?.id) {
+      try {
+        const pendingWelcome = await this.prisma.technicianContract.findFirst({
+          where: {
+            partnerId: partner.id,
+            companyId,
+            contractType: 'WELCOME',
+            status: { in: ['PENDING', 'VIEWED'] },
+          },
+        });
+
+        if (pendingWelcome) {
+          // Accept: store reply message
+          await this.prisma.technicianContract.update({
+            where: { id: pendingWelcome.id },
+            data: {
+              status: 'ACCEPTED',
+              acceptedAt: new Date(),
+              replyMessage: content,
+            },
+          });
+
+          // Reactivate partner if blocked
+          if (pendingWelcome.blockUntilAccepted) {
+            const partnerData = await this.prisma.partner.findUnique({
+              where: { id: partner.id },
+              select: { status: true, name: true },
+            });
+            if (partnerData?.status === 'PENDENTE_CONTRATO') {
+              await this.prisma.partner.update({
+                where: { id: partner.id },
+                data: { status: 'ATIVO' },
+              });
+              this.logger.log(`✅ CLT tech ${partnerData.name} activated after WhatsApp reply: "${content.substring(0, 50)}"`);
+            }
+          }
+
+          // Log notification
+          await this.prisma.notification.create({
+            data: {
+              companyId,
+              channel: 'SYSTEM',
+              message: `${partner.name} confirmou participação via WhatsApp: "${content.substring(0, 100)}"`,
+              type: 'WELCOME_ACCEPTED',
+              status: 'SENT',
+              sentAt: new Date(),
+            },
+          }).catch(() => {});
+        }
+      } catch (err) {
+        this.logger.error(`Failed to process CLT welcome reply: ${err.message}`);
+      }
+    }
   }
 
   /**
@@ -634,6 +706,144 @@ export class WhatsAppService {
         return msg.reaction?.emoji || '[Reacao]';
       default:
         return '';
+    }
+  }
+
+  // ── Profile Picture Sync ─────────────────────────────────
+
+  /**
+   * Sync company logo as WhatsApp Business profile picture.
+   * Uses Meta Resumable Upload API → Business Profile API.
+   * Called automatically when: (1) WhatsApp is connected, (2) company logo changes.
+   */
+  async syncProfilePicture(companyId: string): Promise<boolean> {
+    const config = await this.prisma.whatsAppConfig.findUnique({
+      where: { companyId },
+      select: {
+        metaAccessToken: true,
+        metaPhoneNumberId: true,
+        metaAppId: true,
+        isConnected: true,
+      },
+    });
+
+    if (!config?.isConnected || !config.metaAccessToken || !config.metaPhoneNumberId || !config.metaAppId) {
+      this.logger.log('📷 Profile sync skipped — WhatsApp not fully configured');
+      return false;
+    }
+
+    // Get company logo
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { logoUrl: true, name: true },
+    });
+
+    if (!company?.logoUrl) {
+      this.logger.log('📷 Profile sync skipped — no company logo');
+      return false;
+    }
+
+    // Resolve logo path
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const logoPath = company.logoUrl.startsWith('/uploads/')
+      ? path.join(process.cwd(), company.logoUrl)
+      : path.join(uploadsDir, company.logoUrl);
+
+    if (!fs.existsSync(logoPath)) {
+      this.logger.warn(`📷 Logo file not found: ${logoPath}`);
+      return false;
+    }
+
+    const token = this.encryption.decrypt(config.metaAccessToken);
+
+    try {
+      // Process image: make square with white background, min 640x640, PNG for quality
+      const rawBuffer = fs.readFileSync(logoPath);
+      const metadata = await sharp(rawBuffer).metadata();
+      const origW = metadata.width || 640;
+      const origH = metadata.height || 640;
+
+      // Target: square, at least 640px, max 1024px
+      const side = Math.max(Math.min(Math.max(origW, origH), 1024), 640);
+
+      // Resize logo to fit inside the square (with padding)
+      const padding = Math.round(side * 0.1); // 10% padding on each side
+      const innerSize = side - padding * 2;
+
+      const resizedLogo = await sharp(rawBuffer)
+        .resize(innerSize, innerSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+        .toBuffer();
+
+      // Compose on white square background
+      const imgBuffer = await sharp({
+        create: { width: side, height: side, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
+      })
+        .composite([{ input: resizedLogo, top: padding, left: padding }])
+        .png({ quality: 95 })
+        .toBuffer();
+
+      const fileSize = imgBuffer.length;
+      this.logger.log(`📷 Processed logo: ${origW}x${origH} → ${side}x${side} square (${fileSize} bytes)`);
+
+      // Step 1: Create resumable upload session
+      const sessionRes = await fetch(`${this.metaApiUrl}/${config.metaAppId}/uploads`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file_length: fileSize,
+          file_type: 'image/png',
+          file_name: 'company-logo.png',
+        }),
+      });
+      const sessionData = await sessionRes.json() as any;
+      if (!sessionData.id) {
+        this.logger.error(`📷 Upload session failed: ${JSON.stringify(sessionData)}`);
+        return false;
+      }
+
+      // Step 2: Upload the processed image
+      const uploadRes = await fetch(`${this.metaApiUrl}/${sessionData.id}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `OAuth ${token}`,
+          'file_offset': '0',
+          'Content-Type': 'application/octet-stream',
+        },
+        body: new Uint8Array(imgBuffer),
+      });
+      const uploadData = await uploadRes.json() as any;
+      if (!uploadData.h) {
+        this.logger.error(`📷 Image upload failed: ${JSON.stringify(uploadData)}`);
+        return false;
+      }
+
+      // Step 3: Set as profile picture
+      const profileRes = await fetch(`${this.metaApiUrl}/${config.metaPhoneNumberId}/whatsapp_business_profile`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          profile_picture_handle: uploadData.h,
+        }),
+      });
+      const profileData = await profileRes.json() as any;
+
+      if (profileData.success) {
+        this.logger.log(`📷 WhatsApp profile picture synced with ${company.name} logo ✅`);
+        return true;
+      } else {
+        this.logger.error(`📷 Profile update failed: ${JSON.stringify(profileData)}`);
+        return false;
+      }
+    } catch (err) {
+      this.logger.error(`📷 Profile picture sync error: ${err.message}`);
+      return false;
     }
   }
 

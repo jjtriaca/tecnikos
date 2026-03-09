@@ -34,6 +34,7 @@ export type Partner = {
   neighborhood: string | null;
   city: string | null;
   state: string | null;
+  regime: string | null;
   status: string;
   specializations: PartnerSpec[];
   createdAt: string;

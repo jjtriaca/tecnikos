@@ -36,6 +36,7 @@ export default function WhatsAppSettingsPage() {
   // Form fields
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [accessToken, setAccessToken] = useState("");
+  const [appId, setAppId] = useState("");
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Test send
@@ -109,6 +110,7 @@ export default function WhatsAppSettingsPage() {
       const result = await api.put<WhatsAppConfig>("/whatsapp/config", {
         metaAccessToken: accessToken.trim(),
         metaPhoneNumberId: phoneNumberId.trim(),
+        ...(appId.trim() ? { metaAppId: appId.trim() } : {}),
       });
       setConfig(result);
       setAccessToken("");
@@ -324,6 +326,23 @@ export default function WhatsAppSettingsPage() {
               <p className="text-xs text-slate-400 mt-1">
                 Gere um token permanente no painel da Meta: Business Settings
                 &rarr; System Users &rarr; Generate Token
+              </p>
+            </div>
+
+            {/* App ID */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                App ID <span className="text-slate-400 font-normal">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={appId}
+                onChange={(e) => setAppId(e.target.value)}
+                placeholder="Ex: 950743807617295"
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                ID do App Meta. Necessario para sincronizar a logo da empresa como foto do perfil WhatsApp.
               </p>
             </div>
 

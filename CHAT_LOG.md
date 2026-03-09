@@ -1285,3 +1285,128 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Deploy v1.01.81 em producao
 
 ---
+
+## Sessao 83 — 09/03/2026
+
+### Pedido do Juliano:
+1. Botao "Confirmar" na OS: finaliza a OS, cria lancamentos financeiros (a receber + a pagar)
+   - Verifica se workflow do tecnico esta incompleto → mostra aviso
+   - Se sim: tela com preview dos lancamentos para confirmar
+   - Se nao precisa finalizacao do tecnico: pula direto para preview
+2. Botao "Retorno" em OS finalizadas: abre nova OS pre-populada com dados da original
+   - Rola automaticamente para secao de retorno
+
+### Implementacao:
+
+#### Backend — Endpoints Finalizar OS
+- WorkflowEngineService injetado no ServiceOrderService
+- `finalizePreview()`: verifica workflow completeness, calcula entries preview
+  - RECEIVABLE (se tem cliente): valor total da OS
+  - PAYABLE (se tem tecnico e nao e retorno sem pagamento): valor liquido do tecnico
+- `finalize()`: cria entries + ledger em $transaction, status → CONCLUIDA
+  - Gera codigos FIN-xxxxx antes do transaction
+  - Audit log + automation dispatch apos transaction
+- Controller: GET :id/finalize-preview + POST :id/finalize (Roles: ADMIN, DESPACHO)
+
+#### Frontend — FinalizeOrderModal
+- Componente multi-step: loading → warning → preview → confirming → error
+- Step 1 (Warning): icone amber, nome tecnico + OS, botoes Cancelar/Continuar
+- Step 2 (Preview): cards com badge A Receber (verde) / A Pagar (vermelho)
+  - Breakdown: valor bruto, comissao %, valor liquido
+  - Nota amber para retorno sem pagamento ao tecnico
+
+#### Frontend — Botoes no header da OS detalhe
+- Confirmar (verde): visivel em OS nao-terminal com valor
+- Editar (borda): visivel em OS nao-terminal
+- Retorno (azul borda): visivel em CONCLUIDA/APROVADA
+- Excluir (vermelho): visivel para ADMIN
+
+#### Frontend — Pre-populacao de Retorno
+- useSearchParams + returnFrom query param no form /orders/new
+- Carrega OS original via API e pre-popula todos os campos
+- Marca isReturn=true, seleciona cliente/tecnico/cidade/obra
+- Auto-scroll para secao de retorno (id="return-section")
+- Titulo pagina: "Retorno de Atendimento"
+- Suspense wrapper para Next.js 15
+
+#### Deploy v1.01.82
+- Backend 0 erros, Frontend 0 erros
+- Deploy concluido: v1.01.82 em producao
+
+---
+
+## 2026-03-09 — Sessao 84: Verificacao WABA + Regime CLT Onboarding
+
+### Decisoes do Usuario
+- Tecnicos CLT devem receber mensagem de boas-vindas (sem contrato formal)
+- A confirmacao pode ser via WhatsApp (resposta) OU via link (como PJ)
+- Checkbox no workflow para marcar se quer ou nao aguardar confirmacao
+- Campo regime (CLT/PJ) no cadastro de parceiro
+
+### Verificacao WABA
+- WABA reativada: numero LIVE, quality GREEN
+- 3 templates APPROVED: notificacao_teknikos, teste_conexao, hello_world
+- Business verification completa
+- Typo no perfil WhatsApp: tecnicos.com.br → tecnikos.com.br (Juliano vai corrigir)
+
+### Implementacao — Regime CLT Onboarding (v1.01.83)
+
+#### Backend
+- Prisma: `regime` (CLT/PJ) no Partner, `contractType` (CONTRACT/WELCOME) e `replyMessage` no TechnicianContract
+- Migration: 20260309210000_add_regime_and_welcome
+- DTO: `regime` com validacao @IsIn(['CLT', 'PJ'])
+- ContractService.sendWelcomeMessage(): resolve variaveis, cria TechnicianContract tipo WELCOME
+  - Suporta confirmVia: 'WHATSAPP' (resposta) ou 'LINK' (aceite via browser)
+  - Se waitForReply: bloqueia parceiro (PENDENTE_CONTRATO), senao aceita direto
+  - Email HTML com botao "Confirmar Participacao" quando via link
+- PartnerService: dispatch condicional — partner.regime === 'CLT' → welcome, senao → contrato PJ
+- WhatsApp webhook (handleMetaIncomingMessage): detecta pendingWelcome, grava replyMessage, ativa tecnico
+
+#### Frontend
+- TechnicianOnboardingConfig: 5 novos campos por trigger (sendWelcomeMessage, welcomeChannel, welcomeMessage, welcomeWaitForReply, welcomeConfirmVia)
+- TechnicianOnboardingSection: UI dividida em blocos PJ (borda cinza) e CLT (borda verde)
+  - PJ: contrato existente inalterado
+  - CLT: toggle boas-vindas, canal, mensagem com variaveis, toggle aguardar confirmacao, seletor confirmar via
+- PartnerForm: seletor PJ (Terceirizado) / CLT (Funcionario) visivel quando TECNICO marcado
+- PartnerTable: tipo Partner estendido com `regime: string | null`
+
+#### Deploy v1.01.83
+- Backend 0 erros, Frontend 0 erros
+- Migration aplicada com sucesso
+- Deploy concluido: v1.01.83 em producao
+
+---
+
+## 2026-03-10 — Fix WhatsApp Template Delivery
+
+### Problema
+- Mensagem de boas-vindas CLT enviada via WhatsApp: sistema marcou como SENT mas nao chegou no celular
+- Root cause: Meta aceita texto via API (200 OK) mesmo fora da janela de 24h, mas nao entrega
+- O metodo sendTextWithTemplateFallback() retornava true no texto e nunca tentava o fallback via template
+- Mensagens business-initiated (boas-vindas, contratos) precisam SEMPRE usar template
+
+### Fix (v1.01.84)
+- WhatsAppService: adicionado parametro `forceTemplate` em sendTextWithTemplateFallback()
+  - Quando true: pula tentativa de texto plain, envia direto via template notificacao_tecnikos
+- NotificationService: propagado `forceTemplate` via SendNotificationDto
+- ContractService: marcado `forceTemplate: true` para WELCOME_SENT e CONTRACT_SENT
+- Teste direto via API Meta: template enviado com sucesso (200, message accepted)
+- Deploy v1.01.84 em producao
+
+### Foto de Perfil WhatsApp (v1.01.85)
+
+#### Decisao do Usuario
+- Foto de perfil do WhatsApp deve ser a logo da empresa (SLS), nao a do Teknikos
+- O sistema ja tem a logo na config da empresa — WhatsApp deve usar a mesma automaticamente
+- Isso deve ser padrao do sistema para qualquer novo cliente
+
+#### Implementacao
+- Prisma: `metaAppId` adicionado ao WhatsAppConfig (necessario para upload de media via Meta API)
+- Migration: 20260310001500_add_meta_app_id (com backfill do appId existente)
+- WhatsAppService.syncProfilePicture(): novo metodo que sincroniza logo como foto de perfil
+- Chamado automaticamente em: saveConfig() (ao conectar) e uploadLogo() (ao trocar logo)
+- Frontend: campo App ID (opcional) na pagina de config WhatsApp
+- CompanyService: injecao @Optional() do WhatsAppService para sync apos upload
+- Deploy v1.01.85 em producao
+
+---

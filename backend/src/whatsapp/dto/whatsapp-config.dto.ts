@@ -12,4 +12,8 @@ export class UpdateWhatsAppConfigDto {
   @IsOptional()
   @IsString()
   metaWabaId?: string;
+
+  @IsOptional()
+  @IsString()
+  metaAppId?: string;
 }

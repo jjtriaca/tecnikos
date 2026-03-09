@@ -1,6 +1,7 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Optional, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
@@ -21,7 +22,12 @@ const ALLOWED_FIELDS: (keyof UpdateCompanyDto)[] = [
 
 @Injectable()
 export class CompanyService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CompanyService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly whatsApp?: WhatsAppService,
+  ) {}
 
   async findOne(id: string) {
     const company = await this.prisma.company.findFirst({
@@ -96,6 +102,13 @@ export class CompanyService {
       where: { id: companyId },
       data: { logoUrl },
     });
+
+    // Sync logo as WhatsApp profile picture (fire-and-forget)
+    if (this.whatsApp) {
+      this.whatsApp.syncProfilePicture(companyId).catch(err =>
+        this.logger.warn(`WhatsApp profile picture sync failed: ${err.message}`),
+      );
+    }
 
     return { logoUrl };
   }

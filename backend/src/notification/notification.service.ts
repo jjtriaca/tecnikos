@@ -10,6 +10,8 @@ export interface SendNotificationDto {
   recipientEmail?: string;
   message: string;
   type: string;
+  /** Force template delivery (skip text attempt). Use for business-initiated messages. */
+  forceTemplate?: boolean;
 }
 
 @Injectable()
@@ -36,7 +38,7 @@ export class NotificationService {
         if (connected) {
           // Use sendTextWithTemplateFallback to handle 24h window rule:
           // tries text first, falls back to template if outside conversation window
-          const success = await this.whatsApp.sendTextWithTemplateFallback(dto.companyId, dto.recipientPhone, dto.message);
+          const success = await this.whatsApp.sendTextWithTemplateFallback(dto.companyId, dto.recipientPhone, dto.message, dto.forceTemplate);
           status = success ? 'SENT' : 'FAILED';
           this.logger.log(`📱 [WHATSAPP] ${dto.type} → ${dto.recipientPhone}: ${status}`);
         } else {

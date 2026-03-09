@@ -108,4 +108,9 @@ export class CreatePartnerDto {
   @IsArray()
   @IsString({ each: true })
   specializationIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['CLT', 'PJ'], { message: 'Regime deve ser CLT ou PJ' })
+  regime?: string;
 }

@@ -43,6 +43,7 @@ export class WhatsAppController {
       metaAccessToken: dto.metaAccessToken,
       metaPhoneNumberId: dto.metaPhoneNumberId,
       metaWabaId: dto.metaWabaId,
+      metaAppId: dto.metaAppId,
     });
   }
 

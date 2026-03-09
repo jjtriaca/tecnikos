@@ -116,6 +116,7 @@ export class ContractService {
         recipientPhone: partner.phone,
         message,
         type: 'CONTRACT_SENT',
+        forceTemplate: true, // Business-initiated — must use template
       });
     } else if (channel === 'EMAIL' && partner.email && this.email) {
       let emailStatus = 'SENT';
@@ -162,6 +163,156 @@ export class ContractService {
 
     this.logger.log(`📄 Contract "${contractName}" sent to ${partner.name} via ${channel} — token: ${token}`);
     return contract;
+  }
+
+  /* ── Send Welcome Message (CLT) ───────────────────── */
+
+  async sendWelcomeMessage(opts: {
+    companyId: string;
+    partnerId: string;
+    channel: 'WHATSAPP' | 'EMAIL';
+    message: string;
+    waitForReply: boolean;
+    confirmVia?: 'WHATSAPP' | 'LINK';
+  }) {
+    const partner = await this.prisma.partner.findFirst({
+      where: { id: opts.partnerId, companyId: opts.companyId, deletedAt: null },
+    });
+    if (!partner) throw new NotFoundException('Parceiro não encontrado');
+
+    const company = await this.prisma.company.findUnique({ where: { id: opts.companyId } });
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+
+    // Resolve template variables
+    const today = new Date().toLocaleDateString('pt-BR');
+    const companyDisplay = company.tradeName || company.name;
+    const resolvedMessage = opts.message
+      .replace(/\{nome\}/gi, partner.name)
+      .replace(/\{empresa\}/gi, companyDisplay)
+      .replace(/\{razao_social\}/gi, company.name)
+      .replace(/\{data\}/gi, today)
+      .replace(/\{documento\}/gi, partner.document || '')
+      .replace(/\{email\}/gi, partner.email || '')
+      .replace(/\{telefone\}/gi, partner.phone || '')
+      .replace(/\{cnpj_empresa\}/gi, company.cnpj || '')
+      .replace(/\{endereco_empresa\}/gi, [company.addressStreet, company.addressNumber, company.neighborhood, company.city, company.state].filter(Boolean).join(', '));
+
+    // Generate token (used for link confirmation, or just as ID)
+    const token = randomUUID();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 36500); // ~100 years (welcome doesn't expire)
+
+    const confirmVia = opts.confirmVia || 'WHATSAPP';
+    const shouldBlock = opts.waitForReply;
+
+    // Create TechnicianContract record with type WELCOME
+    const contract = await this.prisma.technicianContract.create({
+      data: {
+        companyId: opts.companyId,
+        partnerId: opts.partnerId,
+        contractType: 'WELCOME',
+        token,
+        contractName: 'Mensagem de Boas-Vindas (CLT)',
+        contractContent: resolvedMessage,
+        status: shouldBlock ? 'PENDING' : 'ACCEPTED',
+        blockUntilAccepted: shouldBlock,
+        requireSignature: false,
+        requireAcceptance: shouldBlock,
+        sentVia: opts.channel,
+        expiresAt,
+        acceptedAt: shouldBlock ? null : new Date(),
+      },
+    });
+
+    // Block partner if waiting for reply
+    if (shouldBlock && partner.status === 'ATIVO') {
+      await this.prisma.partner.update({
+        where: { id: opts.partnerId },
+        data: { status: 'PENDENTE_CONTRATO' },
+      });
+    }
+
+    // Build message to send
+    let finalMessage = resolvedMessage;
+
+    // If confirmation via link, append contract URL
+    if (shouldBlock && confirmVia === 'LINK') {
+      const baseUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+      const contractUrl = `${baseUrl}/contract/${token}`;
+      finalMessage += `\n\nPara confirmar, acesse: ${contractUrl}`;
+    }
+
+    // Send notification
+    if (opts.channel === 'WHATSAPP' && partner.phone && this.notifications) {
+      await this.notifications.send({
+        companyId: opts.companyId,
+        channel: 'WHATSAPP',
+        recipientPhone: partner.phone,
+        message: finalMessage,
+        type: 'WELCOME_SENT',
+        forceTemplate: true, // Business-initiated — must use template (text is silently dropped outside 24h window)
+      });
+    } else if (opts.channel === 'EMAIL' && partner.email && this.email) {
+      try {
+        await this.email.sendEmail(
+          opts.companyId,
+          partner.email,
+          `Bem-vindo(a) à equipe ${companyDisplay}!`,
+          this.buildWelcomeEmailHtml(partner.name, companyDisplay, shouldBlock && confirmVia === 'LINK' ? `${process.env.FRONTEND_URL || 'https://tecnikos.com.br'}/contract/${token}` : undefined),
+        );
+      } catch (err) {
+        this.logger.error(`Failed to send welcome email: ${err.message}`);
+      }
+      await this.prisma.notification.create({
+        data: {
+          companyId: opts.companyId,
+          channel: 'EMAIL',
+          recipientEmail: partner.email,
+          message: finalMessage,
+          type: 'WELCOME_SENT',
+          status: 'SENT',
+          sentAt: new Date(),
+        },
+      }).catch(() => {});
+    } else {
+      this.logger.warn(`📄 [WELCOME] No channel available for ${partner.name}`);
+      await this.prisma.notification.create({
+        data: {
+          companyId: opts.companyId,
+          channel: 'MOCK',
+          recipientPhone: partner.phone,
+          recipientEmail: partner.email,
+          message: `[SEM CANAL] ${finalMessage}`,
+          type: 'WELCOME_SENT',
+          status: 'FAILED',
+          sentAt: new Date(),
+        },
+      }).catch(() => {});
+    }
+
+    this.logger.log(`👋 Welcome message sent to ${partner.name} via ${opts.channel} (waitForReply: ${shouldBlock}, confirmVia: ${confirmVia})`);
+    return contract;
+  }
+
+  private buildWelcomeEmailHtml(name: string, company: string, confirmUrl?: string): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #1e3a5f;">Bem-vindo(a) à equipe ${company}!</h2>
+        <p>Olá <strong>${name}</strong>,</p>
+        <p>Você foi cadastrado(a) como técnico(a) em nosso sistema de gestão de serviços.</p>
+        ${confirmUrl ? `
+          <p>Para confirmar sua participação, clique no botão abaixo:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${confirmUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+              Confirmar Participação
+            </a>
+          </div>
+        ` : ''}
+        <p>Em breve você receberá suas primeiras ordens de serviço pela plataforma Tecnikos.</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+        <p style="color: #94a3b8; font-size: 12px;">Tecnikos — Gestão de Serviços Técnicos</p>
+      </div>
+    `;
   }
 
   /* ── Public: Get Contract by Token ─────────────────── */

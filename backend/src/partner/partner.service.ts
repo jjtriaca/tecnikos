@@ -83,8 +83,40 @@ export class PartnerService {
       }
 
       const triggerConfig = onboarding[trigger];
-      if (!triggerConfig?.enabled || !triggerConfig?.sendContractLink) {
-        this.logger.log(`📄 Trigger "${trigger}" not enabled or sendContractLink off — skipping`);
+      if (!triggerConfig?.enabled) {
+        this.logger.log(`📄 Trigger "${trigger}" not enabled — skipping`);
+        return;
+      }
+
+      // Check partner regime for CLT vs PJ dispatch
+      const partner = await this.prisma.partner.findUnique({ where: { id: partnerId } });
+      if (!partner) {
+        this.logger.warn(`📄 Partner ${partnerId} not found — skipping dispatch`);
+        return;
+      }
+
+      if (partner.regime === 'CLT') {
+        // CLT: send welcome message instead of contract
+        if (triggerConfig.sendWelcomeMessage && triggerConfig.welcomeMessage) {
+          this.logger.log(`👋 CLT tech — sending welcome message to ${partner.name}`);
+          await this.contractService.sendWelcomeMessage({
+            companyId,
+            partnerId,
+            channel: triggerConfig.welcomeChannel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP',
+            message: triggerConfig.welcomeMessage,
+            waitForReply: triggerConfig.welcomeWaitForReply ?? false,
+            confirmVia: triggerConfig.welcomeConfirmVia || 'WHATSAPP',
+          });
+          this.logger.log(`👋 Welcome message dispatched for CLT tech ${partner.name} ✅`);
+        } else {
+          this.logger.log(`📄 CLT tech but sendWelcomeMessage off — skipping`);
+        }
+        return;
+      }
+
+      // PJ (default): send contract — existing behavior
+      if (!triggerConfig.sendContractLink) {
+        this.logger.log(`📄 Trigger "${trigger}" sendContractLink off — skipping`);
         return;
       }
 

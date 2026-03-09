@@ -51,6 +51,14 @@ function ConfigRow({ children, visible }: { children: React.ReactNode; visible: 
 
 /* ── Sub-section for a trigger (new tech or new specialization) ── */
 
+const WELCOME_VARIABLES = ['{nome}', '{empresa}', '{razao_social}', '{telefone}', '{email}', '{data}'];
+const CONTRACT_VARIABLES = ['{nome}', '{empresa}', '{razao_social}', '{cnpj_empresa}', '{endereco_empresa}', '{documento}', '{email}', '{telefone}', '{especializacao}', '{data}'];
+
+const CONFIRM_VIA_OPTIONS = [
+  { value: 'WHATSAPP', label: 'Resposta WhatsApp' },
+  { value: 'LINK', label: 'Link de confirmacao' },
+] as const;
+
 function TriggerSection({
   title,
   hint,
@@ -63,6 +71,7 @@ function TriggerSection({
   onChange: (c: TechnicianOnboardingConfig['onNewTechnician']) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const welcomeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const update = (patch: Partial<TechnicianOnboardingConfig['onNewTechnician']>) =>
     onChange({ ...triggerConfig, ...patch });
 
@@ -77,7 +86,24 @@ function TriggerSection({
     const text = triggerConfig.contractContent;
     const newText = text.substring(0, start) + variable + text.substring(end);
     update({ contractContent: newText });
-    // Restore cursor position after React re-render
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const pos = start + variable.length;
+      textarea.setSelectionRange(pos, pos);
+    });
+  };
+
+  const insertWelcomeVariable = (variable: string) => {
+    const textarea = welcomeTextareaRef.current;
+    if (!textarea) {
+      update({ welcomeMessage: (triggerConfig.welcomeMessage || '') + variable });
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = triggerConfig.welcomeMessage || '';
+    const newText = text.substring(0, start) + variable + text.substring(end);
+    update({ welcomeMessage: newText });
     requestAnimationFrame(() => {
       textarea.focus();
       const pos = start + variable.length;
@@ -97,135 +123,231 @@ function TriggerSection({
       />
 
       <ConfigRow visible={triggerConfig.enabled}>
-        {/* Send contract link */}
-        <Toggle
-          checked={triggerConfig.sendContractLink}
-          onChange={(v) => update({ sendContractLink: v })}
-          label="Enviar link de contrato"
-          hint="Envia um link para o tecnico visualizar e aceitar o contrato"
-        />
-
-        <ConfigRow visible={triggerConfig.sendContractLink}>
-          {/* Channel */}
-          <label className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">Canal:</span>
-            <select
-              value={triggerConfig.channel}
-              onChange={(e) => update({ channel: e.target.value })}
-              className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-            >
-              {CHANNEL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value.toUpperCase()}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* Contract name */}
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-slate-500">Nome do contrato:</span>
-            <input
-              type="text"
-              value={triggerConfig.contractName}
-              onChange={(e) => update({ contractName: e.target.value })}
-              placeholder="Ex: Contrato de Prestacao de Servicos"
-              className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-            />
-          </label>
-
-          {/* Contract content */}
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-slate-500">Conteudo do contrato:</span>
-            <textarea
-              ref={textareaRef}
-              value={triggerConfig.contractContent}
-              onChange={(e) => update({ contractContent: e.target.value })}
-              placeholder="Digite o texto do contrato que o tecnico devera aceitar..."
-              rows={6}
-              className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
-            />
-            <div className="flex flex-wrap gap-1 mt-1">
-              <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
-              {['{nome}', '{empresa}', '{razao_social}', '{cnpj_empresa}', '{endereco_empresa}', '{documento}', '{email}', '{telefone}', '{especializacao}', '{data}'].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => insertVariable(v)}
-                  title={`Inserir ${v} na posicao do cursor`}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-purple-100 hover:text-purple-600 transition-colors"
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
+        {/* ── PJ: Send contract link ── */}
+        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded">PJ</span>
+            <span className="text-xs text-slate-500">Terceirizado</span>
           </div>
+          <Toggle
+            checked={triggerConfig.sendContractLink}
+            onChange={(v) => update({ sendContractLink: v })}
+            label="Enviar link de contrato"
+            hint="Envia um link para o tecnico PJ visualizar e aceitar o contrato"
+          />
 
-          {/* Notification message */}
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-slate-500">Mensagem de notificacao:</span>
-            <textarea
-              value={triggerConfig.notifyMessage}
-              onChange={(e) => update({ notifyMessage: e.target.value })}
-              placeholder="Mensagem enviada junto com o link..."
-              rows={2}
-              className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-none"
-            />
-          </label>
+          <ConfigRow visible={triggerConfig.sendContractLink}>
+            {/* Channel */}
+            <label className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Canal:</span>
+              <select
+                value={triggerConfig.channel}
+                onChange={(e) => update({ channel: e.target.value })}
+                className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+              >
+                {CHANNEL_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value.toUpperCase()}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          {/* Options row */}
-          <div className="flex flex-wrap gap-4">
-            <SubToggle
-              checked={triggerConfig.requireAcceptance}
-              onChange={(v) => update({ requireAcceptance: v })}
-              label="Pedir aceite"
-            />
-            <SubToggle
-              checked={triggerConfig.requireSignature}
-              onChange={(v) => update({ requireSignature: v })}
-              label="Pedir assinatura digital"
-            />
-            <SubToggle
-              checked={triggerConfig.blockUntilAccepted}
-              onChange={(v) => update({ blockUntilAccepted: v })}
-              label="Bloquear tecnico ate aceitar"
-            />
-          </div>
-
-          {/* Expiration */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">Validade:</span>
-            <select
-              value={expirationUnit}
-              onChange={(e) => {
-                const unit = e.target.value as 'days' | 'months' | 'years' | 'indefinite';
-                if (unit === 'indefinite') {
-                  update({ expirationUnit: unit, expirationDays: 0 });
-                } else {
-                  update({ expirationUnit: unit, expirationDays: triggerConfig.expirationDays || 7 });
-                }
-              }}
-              className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-            >
-              {EXPIRATION_UNITS.map((u) => (
-                <option key={u.value} value={u.value}>{u.label}</option>
-              ))}
-            </select>
-            {expirationUnit !== 'indefinite' && (
+            {/* Contract name */}
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-slate-500">Nome do contrato:</span>
               <input
-                type="number"
-                value={triggerConfig.expirationDays}
-                min={1}
-                max={expirationUnit === 'years' ? 10 : expirationUnit === 'months' ? 120 : 365}
-                onChange={(e) => update({ expirationDays: parseInt(e.target.value) || 7 })}
-                className="text-xs rounded border border-slate-300 px-2 py-1 w-16 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                type="text"
+                value={triggerConfig.contractName}
+                onChange={(e) => update({ contractName: e.target.value })}
+                placeholder="Ex: Contrato de Prestacao de Servicos"
+                className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
               />
-            )}
-            {expirationUnit === 'indefinite' && (
-              <span className="text-xs text-slate-400 italic">Sem data de expiracao</span>
-            )}
+            </label>
+
+            {/* Contract content */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-500">Conteudo do contrato:</span>
+              <textarea
+                ref={textareaRef}
+                value={triggerConfig.contractContent}
+                onChange={(e) => update({ contractContent: e.target.value })}
+                placeholder="Digite o texto do contrato que o tecnico devera aceitar..."
+                rows={6}
+                className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
+              />
+              <div className="flex flex-wrap gap-1 mt-1">
+                <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                {CONTRACT_VARIABLES.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => insertVariable(v)}
+                    title={`Inserir ${v} na posicao do cursor`}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-purple-100 hover:text-purple-600 transition-colors"
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Notification message */}
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-slate-500">Mensagem de notificacao:</span>
+              <textarea
+                value={triggerConfig.notifyMessage}
+                onChange={(e) => update({ notifyMessage: e.target.value })}
+                placeholder="Mensagem enviada junto com o link..."
+                rows={2}
+                className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-none"
+              />
+            </label>
+
+            {/* Options row */}
+            <div className="flex flex-wrap gap-4">
+              <SubToggle
+                checked={triggerConfig.requireAcceptance}
+                onChange={(v) => update({ requireAcceptance: v })}
+                label="Pedir aceite"
+              />
+              <SubToggle
+                checked={triggerConfig.requireSignature}
+                onChange={(v) => update({ requireSignature: v })}
+                label="Pedir assinatura digital"
+              />
+              <SubToggle
+                checked={triggerConfig.blockUntilAccepted}
+                onChange={(v) => update({ blockUntilAccepted: v })}
+                label="Bloquear tecnico ate aceitar"
+              />
+            </div>
+
+            {/* Expiration */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Validade:</span>
+              <select
+                value={expirationUnit}
+                onChange={(e) => {
+                  const unit = e.target.value as 'days' | 'months' | 'years' | 'indefinite';
+                  if (unit === 'indefinite') {
+                    update({ expirationUnit: unit, expirationDays: 0 });
+                  } else {
+                    update({ expirationUnit: unit, expirationDays: triggerConfig.expirationDays || 7 });
+                  }
+                }}
+                className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+              >
+                {EXPIRATION_UNITS.map((u) => (
+                  <option key={u.value} value={u.value}>{u.label}</option>
+                ))}
+              </select>
+              {expirationUnit !== 'indefinite' && (
+                <input
+                  type="number"
+                  value={triggerConfig.expirationDays}
+                  min={1}
+                  max={expirationUnit === 'years' ? 10 : expirationUnit === 'months' ? 120 : 365}
+                  onChange={(e) => update({ expirationDays: parseInt(e.target.value) || 7 })}
+                  className="text-xs rounded border border-slate-300 px-2 py-1 w-16 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                />
+              )}
+              {expirationUnit === 'indefinite' && (
+                <span className="text-xs text-slate-400 italic">Sem data de expiracao</span>
+              )}
+            </div>
+          </ConfigRow>
+        </div>
+
+        {/* ── CLT: Welcome message ── */}
+        <div className="rounded-lg border border-green-200 bg-green-50/30 p-3 space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 bg-green-100 px-1.5 py-0.5 rounded">CLT</span>
+            <span className="text-xs text-slate-500">Funcionario</span>
           </div>
-        </ConfigRow>
+          <Toggle
+            checked={triggerConfig.sendWelcomeMessage ?? false}
+            onChange={(v) => update({ sendWelcomeMessage: v })}
+            label="Enviar mensagem de boas-vindas"
+            hint="Para tecnicos CLT — envia mensagem sem contrato formal"
+          />
+
+          <ConfigRow visible={triggerConfig.sendWelcomeMessage ?? false}>
+            {/* Channel */}
+            <label className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Canal:</span>
+              <select
+                value={triggerConfig.welcomeChannel || 'WHATSAPP'}
+                onChange={(e) => update({ welcomeChannel: e.target.value })}
+                className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+              >
+                {CHANNEL_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value.toUpperCase()}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Welcome message */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-500">Mensagem de boas-vindas:</span>
+              <textarea
+                ref={welcomeTextareaRef}
+                value={triggerConfig.welcomeMessage || ''}
+                onChange={(e) => update({ welcomeMessage: e.target.value })}
+                placeholder="Digite a mensagem de boas-vindas para tecnicos CLT..."
+                rows={3}
+                className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
+              />
+              <div className="flex flex-wrap gap-1 mt-1">
+                <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                {WELCOME_VARIABLES.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => insertWelcomeVariable(v)}
+                    title={`Inserir ${v} na posicao do cursor`}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-green-100 hover:text-green-600 transition-colors"
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Wait for reply + confirm via */}
+            <div className="space-y-2">
+              <SubToggle
+                checked={triggerConfig.welcomeWaitForReply ?? false}
+                onChange={(v) => update({ welcomeWaitForReply: v })}
+                label="Aguardar confirmacao do tecnico"
+              />
+
+              {(triggerConfig.welcomeWaitForReply ?? false) && (
+                <div className="ml-5 space-y-2 animate-fadeIn">
+                  <label className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500">Confirmar via:</span>
+                    <select
+                      value={triggerConfig.welcomeConfirmVia || 'WHATSAPP'}
+                      onChange={(e) => update({ welcomeConfirmVia: e.target.value })}
+                      className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                    >
+                      {CONFIRM_VIA_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="text-[10px] text-slate-400 italic">
+                    {(triggerConfig.welcomeConfirmVia || 'WHATSAPP') === 'WHATSAPP'
+                      ? 'O tecnico confirma respondendo qualquer mensagem no WhatsApp'
+                      : 'O tecnico confirma clicando em um link (igual ao contrato PJ)'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </ConfigRow>
+        </div>
       </ConfigRow>
     </div>
   );

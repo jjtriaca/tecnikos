@@ -265,6 +265,12 @@ export interface TechnicianOnboardingConfig {
     expirationDays: number;
     expirationUnit?: 'days' | 'months' | 'years' | 'indefinite';
     notifyMessage: string;   // Mensagem de notificação
+    // CLT welcome message
+    sendWelcomeMessage: boolean;
+    welcomeChannel: string;       // WHATSAPP | EMAIL
+    welcomeMessage: string;       // Texto da mensagem
+    welcomeWaitForReply: boolean; // Aguardar confirmação do técnico
+    welcomeConfirmVia: string;    // WHATSAPP | LINK — como o técnico confirma
   };
 
   onNewSpecialization: {
@@ -279,6 +285,12 @@ export interface TechnicianOnboardingConfig {
     expirationDays: number;
     expirationUnit?: 'days' | 'months' | 'years' | 'indefinite';
     notifyMessage: string;
+    // CLT welcome message
+    sendWelcomeMessage: boolean;
+    welcomeChannel: string;
+    welcomeMessage: string;
+    welcomeWaitForReply: boolean;
+    welcomeConfirmVia: string;
   };
 }
 
@@ -405,6 +417,11 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       expirationDays: 7,
       expirationUnit: 'days',
       notifyMessage: 'Ola {nome}, voce recebeu um contrato da {empresa} para aceite como tecnico. Acesse o link para visualizar e aceitar.',
+      sendWelcomeMessage: false,
+      welcomeChannel: 'WHATSAPP',
+      welcomeMessage: 'Ola {nome}, seja bem-vindo(a) a equipe da {empresa}! Voce foi cadastrado(a) como tecnico(a) em nosso sistema. Em breve voce recebera suas primeiras ordens de servico pela plataforma Teknikos. Por favor, responda esta mensagem confirmando sua participacao.',
+      welcomeWaitForReply: true,
+      welcomeConfirmVia: 'WHATSAPP',
     },
     onNewSpecialization: {
       enabled: false,
@@ -418,6 +435,11 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       expirationDays: 7,
       expirationUnit: 'days',
       notifyMessage: 'Ola {nome}, uma nova especializacao foi atribuida a voce na {empresa}. Acesse o link para aceitar.',
+      sendWelcomeMessage: false,
+      welcomeChannel: 'WHATSAPP',
+      welcomeMessage: 'Ola {nome}, uma nova especializacao foi atribuida a voce na {empresa}. Por favor, confirme respondendo esta mensagem.',
+      welcomeWaitForReply: false,
+      welcomeConfirmVia: 'WHATSAPP',
     },
   };
 }

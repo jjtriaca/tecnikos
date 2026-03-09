@@ -31,6 +31,7 @@ const TYPE_LABELS: Record<string, string> = {
 const EMPTY_FORM = {
   partnerTypes: ["CLIENTE"] as string[],
   personType: "PJ" as PersonType,
+  regime: "" as string,
   name: "",
   tradeName: "",
   document: "",
@@ -77,6 +78,7 @@ export default function PartnerForm({
       return {
         partnerTypes: editingPartner.partnerTypes || [],
         personType: editingPartner.personType,
+        regime: (editingPartner as any).regime || "",
         name: editingPartner.name,
         tradeName: editingPartner.tradeName || "",
         document: editingPartner.document || "",
@@ -119,9 +121,16 @@ export default function PartnerForm({
         newTypes = [...f.partnerTypes, type];
       }
       const updates: any = { partnerTypes: newTypes };
-      if (type === "TECNICO" && has) {
-        updates.password = "";
-        updates.specializationIds = [];
+      if (type === "TECNICO") {
+        if (has) {
+          // Desmarcou TECNICO
+          updates.password = "";
+          updates.specializationIds = [];
+          updates.regime = "";
+        } else if (!f.regime) {
+          // Marcou TECNICO pela primeira vez
+          updates.regime = "PJ";
+        }
       }
       return { ...f, ...updates };
     });
@@ -226,6 +235,9 @@ export default function PartnerForm({
       if (!isTecnico) {
         delete payload.password;
         delete payload.specializationIds;
+        payload.regime = null;
+      } else {
+        payload.regime = form.regime || null;
       }
 
       if (editingId) {
@@ -269,6 +281,32 @@ export default function PartnerForm({
               </label>
             ))}
           </div>
+
+          {/* Regime do Técnico (CLT/PJ) */}
+          {isTecnico && (
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Regime do Técnico</label>
+              <div className="flex gap-1">
+                {([
+                  { v: "PJ", l: "PJ (Terceirizado)" },
+                  { v: "CLT", l: "CLT (Funcionário)" },
+                ] as const).map((r) => (
+                  <button
+                    key={r.v}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, regime: r.v }))}
+                    className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
+                      form.regime === r.v
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-slate-600 border-slate-300 hover:border-blue-300"
+                    }`}
+                  >
+                    {r.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Person Type */}

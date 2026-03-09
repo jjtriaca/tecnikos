@@ -224,6 +224,7 @@ model Partner {
   // Campos específicos de TECNICO
   passwordHash  String?  // Login do técnico
   rating        Float    @default(5.0) // Avaliação do técnico (1-5)
+  regime        String?  // "CLT" | "PJ" — regime do técnico
 
   // Endereço
   cep           String?
@@ -1086,6 +1087,7 @@ model WhatsAppConfig {
   metaAccessToken     String?  // Encrypted AES-256-GCM
   metaPhoneNumberId   String?  // Phone Number ID from Meta dashboard
   metaWabaId          String?  // WhatsApp Business Account ID
+  metaAppId           String?  // Meta App ID (for uploads)
   metaVerifyToken     String   // Auto-generated for webhook verification
   isConnected         Boolean  @default(false)
   connectedAt         DateTime?
@@ -1693,9 +1695,11 @@ model TechnicianContract {
   specializationId String?  // Especialização que disparou o envio (se trigger onNewSpecialization)
   trigger         String?   // onNewTechnician | onNewSpecialization
   token           String    @unique
+  contractType    String    @default("CONTRACT") // "CONTRACT" (PJ) | "WELCOME" (CLT)
   contractName    String    // Snapshot do nome do contrato
   contractContent String    // Snapshot do conteúdo HTML/texto
   status          String    @default("PENDING") // PENDING, VIEWED, ACCEPTED, EXPIRED, CANCELLED
+  replyMessage    String?   // Resposta do técnico (CLT) — ex: "sim, aceito"
   blockUntilAccepted Boolean @default(true)
   requireSignature  Boolean @default(false)
   requireAcceptance Boolean @default(true)
