@@ -17,6 +17,7 @@ import {
 import type { Partner } from "./PartnerTable";
 import type { Specialization } from "./SpecializationsTab";
 import ObrasSection from "./ObrasSection";
+import ContractsSection from "./ContractsSection";
 
 type PersonType = "PF" | "PJ";
 
@@ -407,6 +408,11 @@ export default function PartnerForm({
               </div>
             )}
           </div>
+        )}
+
+        {/* Contracts Section — only when editing a TECNICO */}
+        {editingId && isTecnico && (
+          <ContractsSection partnerId={editingId} />
         )}
 
         {/* Duplicate Warning */}

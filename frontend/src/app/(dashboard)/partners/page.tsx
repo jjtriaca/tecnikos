@@ -35,6 +35,7 @@ const PARTNER_FILTERS: FilterDefinition[] = [
       { value: "ATIVO", label: "Ativo" },
       { value: "INATIVO", label: "Inativo" },
       { value: "EM_TREINAMENTO", label: "Em Treinamento" },
+      { value: "PENDENTE_CONTRATO", label: "Pendente Contrato" },
     ],
   },
   {

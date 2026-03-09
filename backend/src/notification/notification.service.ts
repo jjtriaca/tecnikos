@@ -105,13 +105,22 @@ export class NotificationService {
   }
 
   /**
-   * Count unread/recent notifications.
+   * Count unread notifications (readAt is null).
    */
-  async countRecent(companyId: string, sinceHours = 24) {
-    const since = new Date();
-    since.setHours(since.getHours() - sinceHours);
+  async countUnread(companyId: string) {
     return this.prisma.notification.count({
-      where: { companyId, createdAt: { gte: since } },
+      where: { companyId, readAt: null },
     });
+  }
+
+  /**
+   * Mark all notifications as read for a company.
+   */
+  async markAllRead(companyId: string) {
+    const result = await this.prisma.notification.updateMany({
+      where: { companyId, readAt: null },
+      data: { readAt: new Date() },
+    });
+    return { marked: result.count };
   }
 }

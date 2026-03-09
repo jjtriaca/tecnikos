@@ -55,12 +55,14 @@ const STATUS_COLORS: Record<string, string> = {
   ATIVO: "bg-green-100 text-green-800",
   INATIVO: "bg-red-100 text-red-800",
   EM_TREINAMENTO: "bg-amber-100 text-amber-800",
+  PENDENTE_CONTRATO: "bg-orange-100 text-orange-800",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   ATIVO: "Ativo",
   INATIVO: "Inativo",
   EM_TREINAMENTO: "Em Treinamento",
+  PENDENTE_CONTRATO: "Pendente Contrato",
 };
 
 function formatDocument(p: Partner) {

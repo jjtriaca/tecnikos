@@ -257,6 +257,18 @@ export class ContractService {
       }
     }
 
+    // Create notification for the company (internal log)
+    await this.prisma.notification.create({
+      data: {
+        companyId: contract.companyId,
+        channel: 'SYSTEM',
+        message: `O tecnico ${contract.partner.name} aceitou o contrato "${contract.contractName}"${contract.requireSignature ? ' (com assinatura digital)' : ''}.`,
+        type: 'CONTRACT_ACCEPTED',
+        status: 'SENT',
+        sentAt: new Date(),
+      },
+    }).catch(() => {});
+
     this.logger.log(`✅ Contract "${contract.contractName}" accepted by ${contract.partner.name}`);
     return { success: true };
   }

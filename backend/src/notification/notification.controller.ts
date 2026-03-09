@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -15,7 +15,12 @@ export class NotificationController {
   }
 
   @Get('count')
-  countRecent(@CurrentUser() user: AuthenticatedUser) {
-    return this.service.countRecent(user.companyId);
+  countUnread(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.countUnread(user.companyId);
+  }
+
+  @Post('mark-read')
+  markAllRead(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.markAllRead(user.companyId);
   }
 }

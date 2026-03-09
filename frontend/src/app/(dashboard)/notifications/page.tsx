@@ -29,6 +29,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 const CHANNEL_COLORS: Record<string, string> = {
   MOCK: "bg-slate-100 text-slate-600",
+  SYSTEM: "bg-purple-100 text-purple-700",
   WHATSAPP: "bg-green-100 text-green-700",
   EMAIL: "bg-blue-100 text-blue-700",
   SMS: "bg-amber-100 text-amber-700",

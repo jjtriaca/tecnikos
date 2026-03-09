@@ -36,6 +36,20 @@
 - [x] Deploy: v1.01.59 em producao + migration SQL aplicada
 - [x] Modelos de contrato padrao (DEFAULT_CONTRACT_CONTENT + DEFAULT_SPECIALIZATION_CONTRACT)
 - [x] Deploy: v1.01.60 em producao
+- [x] Fix: validacao workflow aceita onboarding sem etapas (v1.01.61)
+- [x] Fix: dispatchTechnicianContract busca TODOS os workflows, nao so default (v1.01.62)
+- [x] Fix: log de notificacao para email e mock (v1.01.63)
+- [x] Fix: compileToV2 early return perdendo technicianOnboarding (v1.01.64) — ROOT CAUSE
+- [x] Fix: formatPhone strip leading zero para Meta API (v1.01.65)
+- [x] Fix: sanitizePhone + 1465 phones corrigidos no DB + maskPhone frontend (v1.01.66)
+- [x] Fix: substituicao de variaveis {nome}/{empresa}/etc no contrato + contrato 10 clausulas (v1.01.67)
+- [x] Assinatura digital: requireSignature/requireAcceptance/signatureData no schema (v1.01.68)
+- [x] Migration: 20260309010000_contract_signature_fields
+- [x] Backend: flags passadas no sendContract, retornadas no getByToken, signatureData validada e salva no accept
+- [x] Frontend: componente SignaturePad (canvas touch/mouse)
+- [x] Frontend: pagina /contract/[token] com assinatura digital quando requireSignature=true
+- [x] Variavel {razao_social} adicionada: backend (substituicao), frontend (templates + botoes)
+- [x] Deploy: v1.01.68 em producao + migration aplicada
 
 ## O que foi feito na sessao 79:
 
@@ -107,7 +121,7 @@
 ## Projetos Futuros
 - **Registro de marca INPI**: Solicitar registro da marca "Tecnikos" no INPI (Instituto Nacional da Propriedade Industrial). Logo SVG disponivel em `brand/`.
 
-## Versao atual: v1.01.60 — em producao
+## Versao atual: v1.01.68 — em producao
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

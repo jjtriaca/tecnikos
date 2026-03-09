@@ -464,9 +464,11 @@ model Notification {
   type           String    // "PROXIMIDADE", "STATUS_CHANGE", "OS_ATRIBUIDA", "OS_CONCLUIDA", "LEMBRETE"
   status         String    @default("PENDING") // "PENDING", "SENT", "FAILED"
   sentAt         DateTime?
+  readAt         DateTime? // Marcada como lida quando abre a tela de notificações
   createdAt      DateTime  @default(now())
 
   @@index([companyId])
+  @@index([companyId, readAt])
   @@index([serviceOrderId])
 }
 
