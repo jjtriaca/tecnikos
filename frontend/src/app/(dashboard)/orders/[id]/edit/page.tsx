@@ -25,8 +25,17 @@ import {
 } from "@/lib/brazil-utils";
 
 /* ---- Types ---- */
-type PartnerSummary = { id: string; name: string; document: string | null; phone: string | null };
+type PartnerSummary = {
+  id: string; name: string; document: string | null; phone: string | null;
+  cep: string | null; addressStreet: string | null; addressNumber: string | null;
+  addressComp: string | null; neighborhood: string | null; city: string | null; state: string | null;
+};
 type ObraSummary = { id: string; name: string; cno: string; city: string; state: string; active: boolean };
+type ServiceAddressSummary = {
+  id: string; label: string;
+  cep: string | null; addressStreet: string; addressNumber: string | null;
+  addressComp: string | null; neighborhood: string | null; city: string; state: string;
+};
 
 const STATUS_LABELS: Record<string, string> = {
   ABERTA: "Aberta",
@@ -101,6 +110,12 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   const [enRouteTimeoutMode, setEnRouteTimeoutMode] = useState<'minutes' | 'hours' | 'from_flow'>('from_flow');
   const [enRouteTimeoutValue, setEnRouteTimeoutValue] = useState<number>(30);
 
+  // Service address states
+  const [serviceAddresses, setServiceAddresses] = useState<ServiceAddressSummary[]>([]);
+  const [addressSource, setAddressSource] = useState<"main" | "saved" | "new">("new");
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+  const [newAddressLabel, setNewAddressLabel] = useState("");
+
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -113,6 +128,8 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     valueCents: "",
     deadlineAt: "",
     contactPersonName: "",
+    scheduledStartAt: "",
+    estimatedDurationMinutes: "",
   });
 
   useEffect(() => {
@@ -136,6 +153,8 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         valueCents: order.valueCents != null ? (order.valueCents / 100).toFixed(2) : "",
         deadlineAt: order.deadlineAt ? formatDatetimeLocal(order.deadlineAt) : "",
         contactPersonName: order.contactPersonName || "",
+        scheduledStartAt: order.scheduledStartAt ? formatDatetimeLocal(order.scheduledStartAt) : "",
+        estimatedDurationMinutes: order.estimatedDurationMinutes != null ? String(order.estimatedDurationMinutes) : "",
       });
 
       // Pre-populate accept timeout
@@ -175,15 +194,51 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
           name: order.clientPartner.name,
           document: order.clientPartner.document || null,
           phone: order.clientPartner.phone || null,
+          cep: order.clientPartner.cep || null,
+          addressStreet: order.clientPartner.addressStreet || null,
+          addressNumber: order.clientPartner.addressNumber || null,
+          addressComp: order.clientPartner.addressComp || null,
+          neighborhood: order.clientPartner.neighborhood || null,
+          city: order.clientPartner.city || null,
+          state: order.clientPartner.state || null,
         });
       }
 
-      // Pre-populate obras do cliente e obraId da OS
+      // Pre-populate obras e enderecos de atendimento do cliente
       if (order.clientPartner) {
         try {
           const obrasRes = await api.get<ObraSummary[]>(`/obras?partnerId=${order.clientPartner.id}&activeOnly=true`);
           setObras(Array.isArray(obrasRes) ? obrasRes : []);
           if (order.obraId) setSelectedObraId(order.obraId);
+        } catch { /* ignore */ }
+        try {
+          const addrsRes = await api.get<ServiceAddressSummary[]>(`/service-addresses?partnerId=${order.clientPartner.id}&activeOnly=true`);
+          const addrs = Array.isArray(addrsRes) ? addrsRes : [];
+          setServiceAddresses(addrs);
+
+          // Auto-detect address source based on current OS address
+          const osStreet = (order.addressStreet || "").toLowerCase().trim();
+          const osCity = (order.city || "").toLowerCase().trim();
+          if (osStreet) {
+            // Check main partner address
+            const partnerStreet = (order.clientPartner.addressStreet || "").toLowerCase().trim();
+            const partnerCity = (order.clientPartner.city || "").toLowerCase().trim();
+            if (partnerStreet && osStreet === partnerStreet && osCity === partnerCity) {
+              setAddressSource("main");
+            } else {
+              // Check saved service addresses
+              const match = addrs.find(a =>
+                a.addressStreet.toLowerCase().trim() === osStreet &&
+                a.city.toLowerCase().trim() === osCity
+              );
+              if (match) {
+                setAddressSource("saved");
+                setSelectedAddressId(match.id);
+              } else {
+                setAddressSource("new");
+              }
+            }
+          }
         } catch { /* ignore */ }
       }
 
@@ -238,16 +293,23 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     });
   }, [id]);
 
-  // Recarregar obras quando cliente muda (após load inicial)
+  // Recarregar obras e enderecos quando cliente muda (apos load inicial)
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   useEffect(() => {
     if (!initialLoadDone) { if (!loading) setInitialLoadDone(true); return; }
     setObras([]);
     setSelectedObraId("");
+    setServiceAddresses([]);
+    setAddressSource("new");
+    setSelectedAddressId("");
+    setNewAddressLabel("");
     if (!selectedClient) return;
     let cancelled = false;
     api.get<ObraSummary[]>(`/obras?partnerId=${selectedClient.id}&activeOnly=true`)
       .then(res => { if (!cancelled) setObras(Array.isArray(res) ? res : []); })
+      .catch(() => {});
+    api.get<ServiceAddressSummary[]>(`/service-addresses?partnerId=${selectedClient.id}&activeOnly=true`)
+      .then(res => { if (!cancelled) setServiceAddresses(Array.isArray(res) ? res : []); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [selectedClient?.id, initialLoadDone, loading]);
@@ -297,6 +359,42 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
       }
     } catch { /* ignore */ }
     finally { setCepLoading(false); }
+  }
+
+  // Preencher endereco a partir de um objeto de endereco
+  async function fillAddress(addr: { state?: string | null; cep?: string | null; addressStreet?: string | null; addressNumber?: string | null; addressComp?: string | null; neighborhood?: string | null; city?: string | null }) {
+    const updates: Partial<typeof form> = {};
+    if (addr.state) updates.state = addr.state;
+    if (addr.cep) updates.cep = maskCep(addr.cep);
+    if (addr.addressStreet) updates.addressStreet = addr.addressStreet;
+    if (addr.addressNumber) updates.addressNumber = addr.addressNumber;
+    if (addr.addressComp) updates.addressComp = addr.addressComp || "";
+    if (addr.neighborhood) updates.neighborhood = addr.neighborhood;
+    setForm((f) => ({ ...f, ...updates }));
+    if (addr.state && addr.city) {
+      try {
+        const cities = await fetchCitiesByState(addr.state);
+        const found = cities.find((c) => c.nome.toLowerCase() === addr.city!.toLowerCase());
+        if (found) setSelectedCity(found);
+      } catch { /* ignore */ }
+    }
+  }
+
+  // Ao mudar fonte de endereco
+  function handleAddressSourceChange(source: "main" | "saved" | "new", addrId?: string) {
+    setAddressSource(source);
+    if (source === "main" && selectedClient) {
+      setSelectedAddressId("");
+      fillAddress(selectedClient);
+    } else if (source === "saved" && addrId) {
+      setSelectedAddressId(addrId);
+      const addr = serviceAddresses.find(a => a.id === addrId);
+      if (addr) fillAddress(addr);
+    } else if (source === "new") {
+      setSelectedAddressId("");
+      setForm(f => ({ ...f, state: "", cep: "", addressStreet: "", addressNumber: "", addressComp: "", neighborhood: "" }));
+      setSelectedCity(null);
+    }
   }
 
   // City fetcher — busca IBGE e filtra client-side
@@ -371,6 +469,23 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
       });
       setGeocodingMsg(null);
 
+      // Salvar novo endereco de atendimento se label preenchido
+      if (addressSource === "new" && newAddressLabel.trim() && selectedClient) {
+        try {
+          await api.post("/service-addresses", {
+            partnerId: selectedClient.id,
+            label: newAddressLabel.trim(),
+            cep: form.cep ? form.cep.replace(/\D/g, "") : undefined,
+            addressStreet: form.addressStreet,
+            addressNumber: form.addressNumber || undefined,
+            addressComp: form.addressComp || undefined,
+            neighborhood: form.neighborhood || undefined,
+            city: cityName,
+            state: form.state,
+          });
+        } catch { /* silently ignore — OS update is more important */ }
+      }
+
       await api.put(`/service-orders/${id}`, {
         title: form.title,
         description: form.description || undefined,
@@ -393,6 +508,9 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         requiredSpecializationIds: techMode === "BY_SPECIALIZATION" ? selectedSpecs.map((s) => s.id) : [],
         directedTechnicianIds: techMode === "DIRECTED" ? selectedTechs.map((t) => t.id) : [],
         workflowTemplateId: techMode === "BY_WORKFLOW" ? selectedWorkflow?.id || undefined : undefined,
+        // Agendamento
+        scheduledStartAt: form.scheduledStartAt ? new Date(form.scheduledStartAt).toISOString() : null,
+        estimatedDurationMinutes: form.estimatedDurationMinutes ? parseInt(form.estimatedDurationMinutes) || null : null,
         // Contato no local
         contactPersonName: form.contactPersonName || undefined,
         // Obra vinculada
@@ -476,7 +594,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
             modalPlaceholder="Nome, documento ou telefone..."
             value={selectedClient}
             displayValue={(c) => c.name}
-            onChange={(c) => setSelectedClient(c)}
+            onChange={(c) => { setSelectedClient(c); setAddressSource("new"); }}
             fetcher={clientFetcher}
             keyExtractor={(c) => c.id}
             renderItem={(c) => (
@@ -659,125 +777,160 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
             )}
           </div>
 
-          {/* Separador Endereço */}
+          {/* Endereco do Servico */}
           <div className="border-t border-slate-200 pt-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-3">
               <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              Endereço
+              Endereco do Servico
             </h3>
 
-            <div className="space-y-3">
-              {/* Estado + Cidade */}
-              <div className="grid grid-cols-2 gap-4">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-slate-700">Estado *</span>
-                  <select
-                    name="state"
-                    value={form.state}
-                    onChange={onChange}
+            {/* Seletor de enderecos — so aparece quando tem cliente selecionado */}
+            {selectedClient && (selectedClient.addressStreet || serviceAddresses.length > 0) && (
+              <div className="space-y-1.5 mb-4">
+                {/* Endereco principal do cadastro */}
+                {selectedClient.addressStreet && (
+                  <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                    style={{ borderColor: addressSource === "main" ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
+                    <input type="radio" name="addressSource" checked={addressSource === "main"}
+                      onChange={() => handleAddressSourceChange("main")}
+                      className="mt-0.5 text-blue-600 focus:ring-blue-200" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-slate-700">Endereco do cadastro</span>
+                      <p className="text-xs text-slate-500 truncate">
+                        {[selectedClient.addressStreet, selectedClient.addressNumber, selectedClient.neighborhood, selectedClient.city && selectedClient.state ? `${selectedClient.city}/${selectedClient.state}` : ""].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+                  </label>
+                )}
+
+                {/* Enderecos de atendimento salvos */}
+                {serviceAddresses.map(addr => (
+                  <label key={addr.id} className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                    style={{ borderColor: addressSource === "saved" && selectedAddressId === addr.id ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
+                    <input type="radio" name="addressSource" checked={addressSource === "saved" && selectedAddressId === addr.id}
+                      onChange={() => handleAddressSourceChange("saved", addr.id)}
+                      className="mt-0.5 text-blue-600 focus:ring-blue-200" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-slate-700">{addr.label}</span>
+                      <p className="text-xs text-slate-500 truncate">
+                        {[addr.addressStreet, addr.addressNumber, addr.neighborhood, `${addr.city}/${addr.state}`].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+
+                {/* Novo endereco */}
+                <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                  style={{ borderColor: addressSource === "new" ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
+                  <input type="radio" name="addressSource" checked={addressSource === "new"}
+                    onChange={() => handleAddressSourceChange("new")}
+                    className="mt-0.5 text-blue-600 focus:ring-blue-200" />
+                  <span className="text-sm font-medium text-blue-600">+ Novo endereco de atendimento</span>
+                </label>
+              </div>
+            )}
+
+            {/* Campos de endereco — aparecem quando addressSource="new" OU quando nao tem cliente */}
+            {(addressSource === "new" || !selectedClient) && (
+              <div className="space-y-3">
+                {/* Label para salvar (opcional) — so aparece se tem cliente */}
+                {selectedClient && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">
+                      Nome do endereco
+                      <span className="text-xs text-slate-400 font-normal ml-1">(preencha para salvar no cadastro do cliente)</span>
+                    </span>
+                    <input
+                      value={newAddressLabel}
+                      onChange={(e) => setNewAddressLabel(e.target.value)}
+                      onBlur={() => setNewAddressLabel(toTitleCase(newAddressLabel))}
+                      placeholder="Ex: Escritorio Centro, Casa do Cliente"
+                      className={inputClass}
+                      disabled={isTerminal}
+                    />
+                  </label>
+                )}
+
+                {/* Estado + Cidade */}
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">Estado *</span>
+                    <select name="state" value={form.state} onChange={onChange} required className={`${inputClass} bg-white`} disabled={isTerminal}>
+                      <option value="">Selecione o UF</option>
+                      {STATES.map((uf) => (
+                        <option key={uf} value={uf}>{uf} - {STATE_NAMES[uf]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <LookupField
+                    label="Cidade *"
+                    placeholder={form.state ? "Buscar cidade..." : "Selecione o estado"}
+                    modalTitle={`Cidades - ${form.state || "UF"}`}
+                    modalPlaceholder="Digite o nome da cidade..."
+                    value={selectedCity}
+                    displayValue={(c) => c.nome}
+                    onChange={(c) => setSelectedCity(c)}
+                    fetcher={cityFetcher}
+                    keyExtractor={(c) => String(c.id)}
+                    renderItem={(c) => (<div className="font-medium text-slate-900">{c.nome}</div>)}
+                    disabled={!form.state || isTerminal}
                     required
-                    className={`${inputClass} bg-white`}
-                  >
-                    <option value="">Selecione o UF</option>
-                    {STATES.map((uf) => (
-                      <option key={uf} value={uf}>
-                        {uf} - {STATE_NAMES[uf]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <LookupField
-                  label="Cidade *"
-                  placeholder={form.state ? "Buscar cidade..." : "Selecione o estado"}
-                  modalTitle={`Cidades - ${form.state || "UF"}`}
-                  modalPlaceholder="Digite o nome da cidade..."
-                  value={selectedCity}
-                  displayValue={(c) => c.nome}
-                  onChange={(c) => setSelectedCity(c)}
-                  fetcher={cityFetcher}
-                  keyExtractor={(c) => String(c.id)}
-                  renderItem={(c) => (
-                    <div className="font-medium text-slate-900">{c.nome}</div>
-                  )}
-                  disabled={!form.state || isTerminal}
-                  required
-                />
-              </div>
-
-              {/* CEP + Bairro */}
-              <div className="grid grid-cols-2 gap-4">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-slate-700">
-                    CEP
-                    {cepLoading && (
-                      <span className="ml-2 text-xs text-blue-500 font-normal">Buscando...</span>
-                    )}
-                  </span>
-                  <input
-                    name="cep"
-                    value={form.cep}
-                    onChange={onChange}
-                    placeholder="00000-000"
-                    maxLength={9}
-                    className={inputClass}
                   />
-                </label>
+                </div>
+
+                {/* CEP + Bairro */}
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">
+                      CEP
+                      {cepLoading && (<span className="ml-2 text-xs text-blue-500 font-normal">Buscando...</span>)}
+                    </span>
+                    <input name="cep" value={form.cep} onChange={onChange} placeholder="00000-000" maxLength={9} className={inputClass} disabled={isTerminal} />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">Bairro</span>
+                    <input name="neighborhood" value={form.neighborhood} onChange={onChange}
+                      onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))}
+                      placeholder="Bairro" className={inputClass} disabled={isTerminal} />
+                  </label>
+                </div>
+
+                {/* Rua + Numero */}
+                <div className="grid grid-cols-3 gap-4">
+                  <label className="flex flex-col gap-1.5 col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Rua *</span>
+                    <input name="addressStreet" value={form.addressStreet} onChange={onChange}
+                      onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))}
+                      required placeholder="Endereco" className={inputClass} disabled={isTerminal} />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">Numero</span>
+                    <input name="addressNumber" value={form.addressNumber} onChange={onChange} placeholder="No" className={inputClass} disabled={isTerminal} />
+                  </label>
+                </div>
+
+                {/* Complemento */}
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-slate-700">Bairro</span>
-                  <input
-                    name="neighborhood"
-                    value={form.neighborhood}
-                    onChange={onChange}
-                    onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))}
-                    placeholder="Bairro"
-                    className={inputClass}
-                  />
+                  <span className="text-sm font-medium text-slate-700">Complemento</span>
+                  <input name="addressComp" value={form.addressComp} onChange={onChange}
+                    onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))}
+                    placeholder="Apt, Sala, Bloco..." className={inputClass} disabled={isTerminal} />
                 </label>
               </div>
+            )}
 
-              {/* Rua + Número */}
-              <div className="grid grid-cols-3 gap-4">
-                <label className="flex flex-col gap-1.5 col-span-2">
-                  <span className="text-sm font-medium text-slate-700">Rua *</span>
-                  <input
-                    name="addressStreet"
-                    value={form.addressStreet}
-                    onChange={onChange}
-                    onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))}
-                    required
-                    placeholder="Endereco"
-                    className={inputClass}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-slate-700">Número</span>
-                  <input
-                    name="addressNumber"
-                    value={form.addressNumber}
-                    onChange={onChange}
-                    placeholder="Nº"
-                    className={inputClass}
-                  />
-                </label>
+            {/* Endereco preenchido (readonly preview) — quando selecionou main ou saved */}
+            {selectedClient && addressSource !== "new" && (
+              <div className="mt-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                <p className="text-xs text-slate-500">
+                  {[form.addressStreet, form.addressNumber, form.neighborhood, selectedCity?.nome || "", form.state].filter(Boolean).join(", ")}
+                  {form.cep && <span className="ml-2 text-slate-400">CEP: {form.cep}</span>}
+                </p>
               </div>
-
-              {/* Complemento */}
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-slate-700">Complemento</span>
-                <input
-                  name="addressComp"
-                  value={form.addressComp}
-                  onChange={onChange}
-                  onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))}
-                  placeholder="Apt, Sala, Bloco..."
-                  className={inputClass}
-                />
-              </label>
-            </div>
+            )}
           </div>
 
           {/* Valor e Prazo */}
@@ -808,6 +961,45 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                 className={inputClass}
               />
             </label>
+          </div>
+
+          {/* Agendamento */}
+          <div className="border-t border-slate-200 pt-4">
+            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-1">
+              <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Agendamento
+              <span className="text-xs text-slate-400 font-normal">(opcional)</span>
+            </h3>
+            <p className="text-xs text-slate-400 mb-3">
+              Preencha para que a OS apareca na aba Agenda.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-slate-700">Data e hora do servico</span>
+                <input
+                  name="scheduledStartAt"
+                  value={form.scheduledStartAt}
+                  onChange={onChange}
+                  type="datetime-local"
+                  className={inputClass}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-slate-700">Duracao estimada (min)</span>
+                <input
+                  name="estimatedDurationMinutes"
+                  value={form.estimatedDurationMinutes}
+                  onChange={onChange}
+                  type="number"
+                  min="15"
+                  step="15"
+                  placeholder="60"
+                  className={inputClass}
+                />
+              </label>
+            </div>
           </div>
 
           {/* Geocoding indicator */}

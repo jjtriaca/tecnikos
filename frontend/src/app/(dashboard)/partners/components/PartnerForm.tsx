@@ -17,6 +17,7 @@ import {
 import type { Partner } from "./PartnerTable";
 import type { Specialization } from "./SpecializationsTab";
 import ObrasSection from "./ObrasSection";
+import ServiceAddressesSection from "./ServiceAddressesSection";
 import ContractsSection from "./ContractsSection";
 
 type PersonType = "PF" | "PJ";
@@ -381,6 +382,11 @@ export default function PartnerForm({
           <div className="border-t border-slate-200 pt-4">
             <ObrasSection partnerId={editingId} />
           </div>
+        )}
+
+        {/* ENDEREÇOS DE ATENDIMENTO — só aparece ao editar um CLIENTE */}
+        {editingId && form.partnerTypes.includes("CLIENTE") && (
+          <ServiceAddressesSection partnerId={editingId} />
         )}
 
         {/* TECNICO Specializations */}

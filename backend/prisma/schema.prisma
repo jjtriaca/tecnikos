@@ -150,6 +150,7 @@ model Company {
   nfseConfig           NfseConfig?
   nfseEmissions        NfseEmission[]
   obras                Obra[]
+  serviceAddresses     ServiceAddress[]
   cardSettlements      CardSettlement[]
   financialAccounts    FinancialAccount[]
   services             Service[]
@@ -244,6 +245,7 @@ model Partner {
   whatsappMessages     WhatsAppMessage[]
   productEquivalents   ProductEquivalent[]
   obras                Obra[]
+  serviceAddresses     ServiceAddress[]
   nfseEntradasPrestador NfseEntrada[] @relation("NfseEntradaPrestador")
   technicianContracts   TechnicianContract[]
 
@@ -1379,6 +1381,29 @@ model Obra {
   serviceOrders     ServiceOrder[]
   financialEntries  FinancialEntry[]
   nfseEmissions     NfseEmission[]
+
+  @@index([companyId, partnerId])
+  @@index([companyId, active])
+}
+
+model ServiceAddress {
+  id              String   @id @default(uuid())
+  companyId       String
+  partnerId       String
+  label           String                  // "Escritorio Centro", "Casa do cliente"
+  cep             String?
+  addressStreet   String
+  addressNumber   String?
+  addressComp     String?
+  neighborhood    String?
+  city            String
+  state           String                  // UF (2 chars)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company  Company @relation(fields: [companyId], references: [id])
+  partner  Partner @relation(fields: [partnerId], references: [id])
 
   @@index([companyId, partnerId])
   @@index([companyId, active])

@@ -25,6 +25,7 @@ import { NfeModule } from './nfe/nfe.module';
 import { NfseEmissionModule } from './nfse-emission/nfse-emission.module';
 import { NfseEntradaModule } from './nfse-entrada/nfse-entrada.module';
 import { ObraModule } from './obra/obra.module';
+import { ServiceAddressModule } from './service-address/service-address.module';
 import { ServiceModule } from './service/service.module';
 import { FiscalPeriodModule } from './fiscal-period/fiscal-period.module';
 import { SpedModule } from './sped/sped.module';
@@ -70,6 +71,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     NfseEmissionModule,
     NfseEntradaModule,
     ObraModule,
+    ServiceAddressModule,
     ServiceModule,
     FiscalPeriodModule,
     SpedModule,
