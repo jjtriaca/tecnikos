@@ -9,6 +9,7 @@ interface Contract {
   id: string;
   contractName: string;
   contractContent: string;
+  contractType: string;      // CONTRACT (PJ) | WELCOME (CLT)
   status: string;
   token: string;
   sentVia: string | null;
@@ -16,6 +17,7 @@ interface Contract {
   requireSignature: boolean;
   requireAcceptance: boolean;
   signatureData: string | null;
+  replyMessage: string | null; // Resposta do técnico via WhatsApp (CLT)
   sentAt: string;
   viewedAt: string | null;
   acceptedAt: string | null;
@@ -31,6 +33,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string
   PENDING: { label: 'Pendente', color: 'bg-amber-100 text-amber-800', icon: '⏳' },
   VIEWED: { label: 'Visualizado', color: 'bg-blue-100 text-blue-800', icon: '👁️' },
   ACCEPTED: { label: 'Aceito', color: 'bg-green-100 text-green-800', icon: '✅' },
+  REJECTED: { label: 'Recusado', color: 'bg-red-100 text-red-800', icon: '🚫' },
   EXPIRED: { label: 'Expirado', color: 'bg-red-100 text-red-800', icon: '⏰' },
   CANCELLED: { label: 'Cancelado', color: 'bg-slate-100 text-slate-600', icon: '❌' },
 };
@@ -182,6 +185,16 @@ export default function ContractsSection({ partnerId }: Props) {
                     )}
                   </div>
 
+                  {/* WhatsApp reply message (CLT) */}
+                  {c.replyMessage && (
+                    <div className="rounded-lg border border-green-200 bg-green-50/50 p-2.5">
+                      <p className="text-[10px] font-medium text-green-700 uppercase tracking-wide mb-1">
+                        💬 Resposta via WhatsApp
+                      </p>
+                      <p className="text-sm text-slate-700 italic">&ldquo;{c.replyMessage}&rdquo;</p>
+                    </div>
+                  )}
+
                   {/* Flags */}
                   <div className="flex flex-wrap gap-1.5">
                     {c.blockUntilAccepted && (
@@ -219,33 +232,49 @@ export default function ContractsSection({ partnerId }: Props) {
                     </div>
                   )}
 
-                  {/* Contract content preview */}
-                  <details className="group">
-                    <summary className="text-xs text-slate-500 hover:text-slate-700 cursor-pointer font-medium">
-                      📋 Ver conteúdo do contrato
-                    </summary>
-                    <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 max-h-48 overflow-y-auto">
-                      <div
-                        className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap"
-                        dangerouslySetInnerHTML={{ __html: c.contractContent }}
-                      />
-                    </div>
-                  </details>
+                  {/* Contract content preview — only for CONTRACT type (PJ) */}
+                  {c.contractType !== 'WELCOME' && (
+                    <details className="group">
+                      <summary className="text-xs text-slate-500 hover:text-slate-700 cursor-pointer font-medium">
+                        📋 Ver conteúdo do contrato
+                      </summary>
+                      <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 max-h-48 overflow-y-auto">
+                        <div
+                          className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap"
+                          dangerouslySetInnerHTML={{ __html: c.contractContent }}
+                        />
+                      </div>
+                    </details>
+                  )}
+
+                  {/* Welcome message content — for WELCOME type (CLT) */}
+                  {c.contractType === 'WELCOME' && c.contractContent && (
+                    <details className="group">
+                      <summary className="text-xs text-slate-500 hover:text-slate-700 cursor-pointer font-medium">
+                        💬 Ver mensagem enviada
+                      </summary>
+                      <div className="mt-2 rounded-lg border border-green-200 bg-green-50 p-3">
+                        <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{c.contractContent}</p>
+                      </div>
+                    </details>
+                  )}
 
                   {/* Actions row */}
                   <div className="flex items-center gap-3 flex-wrap">
-                    {/* Link to public page */}
-                    <a
-                      href={`/contract/${c.token}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      🔗 Abrir página pública
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
+                    {/* Link to public page — only for CONTRACT type (PJ) */}
+                    {c.contractType !== 'WELCOME' && (
+                      <a
+                        href={`/contract/${c.token}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        🔗 Abrir página pública
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
 
                     {/* Cancel button — only for PENDING / VIEWED */}
                     {(c.status === 'PENDING' || c.status === 'VIEWED') && (

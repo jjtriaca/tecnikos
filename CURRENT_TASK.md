@@ -1,8 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 85 CONCLUIDA — Fix WhatsApp Template Delivery
+## Status: SESSAO 86 CONCLUIDA — Tratamento Respostas CLT + Fix Foto Perfil
 
-## Ultima sessao: 85 (10/03/2026)
+## Ultima sessao: 86 (10/03/2026)
 - Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
 - Sessao 63: Fix NFe Import Flow (v1.01.20)
 - Sessoes 64-68: 4 estudos fiscais completos
@@ -22,34 +22,29 @@
 - Sessao 83: Botao Confirmar (Finalizar OS) + Botao Retorno (v1.01.82)
 - Sessao 84: Verificacao WABA + Regime CLT Onboarding (v1.01.83)
 - Sessao 85: Fix WhatsApp Template + Profile Picture Sync (v1.01.84-85)
+- Sessao 86: Fix Foto Perfil Desfocada + Tratamento Respostas CLT (v1.01.86-87)
 
-## O que foi feito na sessao 85:
+## O que foi feito na sessao 86:
 
-### Fix WhatsApp Template Delivery (v1.01.84)
-- [x] Diagnostico: mensagem de boas-vindas CLT marcada como SENT mas nao entregue
-- [x] Root cause: Meta aceita texto via API (200 OK) mesmo fora da janela 24h, mas nao entrega
-  - sendTextWithTemplateFallback() retornava true no texto, nunca tentava template fallback
-- [x] Fix: adicionado parametro `forceTemplate` em sendTextWithTemplateFallback()
-  - Quando true, pula tentativa de texto e vai direto para template
-- [x] NotificationService: propagado `forceTemplate` via SendNotificationDto
-- [x] ContractService: marcado `forceTemplate: true` para WELCOME_SENT e CONTRACT_SENT
-- [x] Verificado templates Meta: notificacao_tecnikos APPROVED com {{1}} parametro
-- [x] Teste direto via API: template enviado com sucesso (200, message accepted)
-- [x] Deploy: v1.01.84 em producao
+### Fix Foto de Perfil Desfocada (v1.01.86)
+- [x] Problema: logo 1005x592 (retangular) ficava desfocada no WhatsApp (recorte circular)
+- [x] Instalado `sharp` v0.34.5 para processamento de imagem server-side
+- [x] syncProfilePicture() agora: cria quadrado branco, centraliza logo com 10% padding, PNG
+- [x] Re-sync executado: imagem 1005x1005 PNG upload OK via Meta API
+- [x] Deploy v1.01.86
 
-### WhatsApp Profile Picture Sync (v1.01.85)
-- [x] Foto de perfil WhatsApp = logo da empresa (SLS), nao do Teknikos
-- [x] Upload logo SLS via Meta API: success
-- [x] Prisma: metaAppId adicionado ao WhatsAppConfig
-- [x] Migration: 20260310001500_add_meta_app_id
-- [x] WhatsAppService.syncProfilePicture(): auto-sync logo como foto de perfil
-  - Chamado em saveConfig() e uploadLogo()
-- [x] Frontend: campo App ID na pagina de config WhatsApp
-- [x] CompanyService: injecao WhatsAppService para sync apos upload logo
+### Tratamento de Respostas CLT (v1.01.87)
+- [x] Tipos: 5 novos campos (welcomeReplyMessage, welcomeDeclineActions, welcomeDeclineMessage, welcomePositiveKeywords, welcomeNegativeKeywords)
+- [x] Backend: metodo processWelcomeReply() classifica resposta por keywords
+  - Positivo (sim, aceito, ok, etc): ativa tecnico + envia mensagem de retorno configuravel
+  - Negativo (nao, recuso, etc): marca REJECTED + acoes configuraveis (DEACTIVATE / NOTIFY_GESTOR)
+  - Ambiguo (nenhuma keyword): trata como aceite (beneficio da duvida)
+- [x] Frontend: UI no workflow editor com secoes verde (aceite) e vermelha (recusa)
+  - Mensagem de retorno, palavras-chave, acoes na recusa (checkboxes), mensagem ao gestor
 - [x] Build: backend 0 erros, frontend 0 erros
-- [x] Deploy: v1.01.85 em producao
+- [x] Deploy v1.01.87
 
-## Versao atual: v1.01.85 — em producao
+## Versao atual: v1.01.87 — em producao
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA

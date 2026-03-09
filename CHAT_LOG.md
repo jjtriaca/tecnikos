@@ -1431,4 +1431,21 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
   2. Notificar o gestor
   3. Ambas as opcoes simultaneamente
 
+### Detalhe do Usuario
+- Palavras-chave de aceite: se responder "sim", "aceito", ou conter essas palavras → aceito
+- Palavras-chave de recusa: "nao", "não", "recuso", etc → recusa
+- Exemplo aceite: "Ok {nome}, a partir de agora voce faz parte do time da {razao_social}"
+- Exemplo recusa: "Voce decidiu nao fazer parte do time, veremos internamente qual foi o problema"
+
+### Implementacao (v1.01.87)
+- Frontend types: adicionados 5 novos campos (welcomeReplyMessage, welcomeDeclineActions, welcomeDeclineMessage, welcomePositiveKeywords, welcomeNegativeKeywords)
+- Frontend UI: seção "Se aceitar" (verde) + "Se recusar" (vermelho) no workflow editor
+  - Campos: mensagem retorno, palavras-chave, acoes na recusa (checkboxes), mensagem ao gestor
+- Backend: novo metodo processWelcomeReply() no WhatsAppService
+  - Classifica resposta por keywords (positivo/negativo/ambiguo)
+  - Ambiguo → trata como aceite (beneficio da duvida)
+  - Aceite: ativa tecnico + envia mensagem retorno configuravel + notifica gestor
+  - Recusa: marca REJECTED + DEACTIVATE e/ou NOTIFY_GESTOR conforme config
+- Deploy v1.01.87
+
 ---
