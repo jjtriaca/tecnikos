@@ -1653,12 +1653,15 @@ model TechnicianContract {
   contractContent String    // Snapshot do conteúdo HTML/texto
   status          String    @default("PENDING") // PENDING, VIEWED, ACCEPTED, EXPIRED, CANCELLED
   blockUntilAccepted Boolean @default(true)
+  requireSignature  Boolean @default(false)
+  requireAcceptance Boolean @default(true)
   sentAt          DateTime  @default(now())
   sentVia         String?   // WHATSAPP, EMAIL
   viewedAt        DateTime?
   acceptedAt      DateTime?
   acceptedIp      String?
   acceptedUserAgent String?
+  signatureData   String?   // Base64 PNG da assinatura digital
   expiresAt       DateTime
   cancelledAt     DateTime?
   cancelledReason String?

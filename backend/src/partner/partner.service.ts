@@ -95,6 +95,8 @@ export class PartnerService {
         contractName: triggerConfig.contractName || 'Contrato de Prestação de Serviços',
         contractContent: triggerConfig.contractContent || '',
         blockUntilAccepted: triggerConfig.blockUntilAccepted ?? true,
+        requireSignature: triggerConfig.requireSignature ?? false,
+        requireAcceptance: triggerConfig.requireAcceptance ?? true,
         expirationDays: triggerConfig.expirationDays ?? 7,
         channel: triggerConfig.channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP',
       });

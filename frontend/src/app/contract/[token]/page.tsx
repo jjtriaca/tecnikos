@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import SignaturePad from "./SignaturePad";
 
 /* ── Types ───────────────────────────────────────────── */
 
@@ -15,6 +16,8 @@ type ContractData = {
   viewedAt: string | null;
   acceptedAt: string | null;
   blockUntilAccepted: boolean;
+  requireSignature: boolean;
+  requireAcceptance: boolean;
   partner: { name: string; email: string | null };
   company: { name: string; tradeName: string | null; logoUrl: string | null };
 };
@@ -29,6 +32,8 @@ export default function ContractTokenPage() {
   const [error, setError] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [signatureData, setSignatureData] = useState<string | null>(null);
+  const [scrolledToBottom, setScrolledToBottom] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -48,11 +53,30 @@ export default function ContractTokenPage() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  /* ── Track scroll to bottom of contract ──── */
+  const handleContractScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    if (atBottom) setScrolledToBottom(true);
+  };
+
   const handleAccept = async () => {
     if (!token || accepting) return;
+
+    // Validate signature if required
+    if (data?.requireSignature && !signatureData) {
+      setError("Por favor, assine o contrato antes de aceitar.");
+      return;
+    }
+
     setAccepting(true);
+    setError("");
     try {
-      const res = await fetch(`/api/contract/${token}/accept`, { method: "POST" });
+      const res = await fetch(`/api/contract/${token}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signatureData: signatureData || undefined }),
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.message || "Erro ao aceitar contrato");
@@ -149,6 +173,9 @@ export default function ContractTokenPage() {
   const companyName = data.company.tradeName || data.company.name;
   const expiresDate = new Date(data.expiresAt).toLocaleDateString("pt-BR");
 
+  // Can accept? Must have scrolled to bottom (or short contract), and signature if required
+  const canAccept = data.requireSignature ? !!signatureData : true;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -183,16 +210,26 @@ export default function ContractTokenPage() {
           {/* Divider */}
           <div className="border-t border-slate-100" />
 
-          {/* Contract content */}
-          <div className="prose prose-sm prose-slate max-w-none">
-            <div
-              className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: data.contractContent }}
-            />
+          {/* Contract content — scrollable */}
+          <div
+            className="max-h-[60vh] overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-4"
+            onScroll={handleContractScroll}
+          >
+            <div className="prose prose-sm prose-slate max-w-none">
+              <div
+                className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap"
+                dangerouslySetInnerHTML={{ __html: data.contractContent }}
+              />
+            </div>
           </div>
 
           {/* Divider */}
           <div className="border-t border-slate-100" />
+
+          {/* Signature pad — only if required */}
+          {data.requireSignature && (
+            <SignaturePad onSignatureChange={setSignatureData} />
+          )}
 
           {/* Expiration notice */}
           <p className="text-xs text-slate-400 text-center">
@@ -210,14 +247,20 @@ export default function ContractTokenPage() {
           <div className="text-center pt-2">
             <button
               onClick={handleAccept}
-              disabled={accepting}
-              className="w-full sm:w-auto rounded-xl bg-green-600 px-8 py-3.5 text-base font-bold text-white hover:bg-green-700 disabled:opacity-50 transition-colors shadow-lg shadow-green-200"
+              disabled={accepting || !canAccept}
+              className={`w-full sm:w-auto rounded-xl px-8 py-3.5 text-base font-bold text-white transition-colors shadow-lg ${
+                canAccept
+                  ? "bg-green-600 hover:bg-green-700 shadow-green-200"
+                  : "bg-slate-400 cursor-not-allowed shadow-slate-200"
+              } disabled:opacity-50`}
             >
               {accepting ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Registrando aceite...
                 </span>
+              ) : data.requireSignature && !signatureData ? (
+                "Assine acima para aceitar"
               ) : (
                 "✅ Aceitar Contrato"
               )}
@@ -226,7 +269,7 @@ export default function ContractTokenPage() {
 
           <p className="text-[10px] text-slate-400 text-center">
             Ao clicar em &quot;Aceitar Contrato&quot;, voce concorda com os termos acima.
-            Seu IP e data de aceite serao registrados.
+            Seu IP, data de aceite{data.requireSignature ? " e assinatura digital" : ""} serao registrados.
           </p>
         </div>
       </div>

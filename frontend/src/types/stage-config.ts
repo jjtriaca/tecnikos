@@ -265,7 +265,7 @@ export interface TechnicianOnboardingConfig {
 
 const DEFAULT_CONTRACT_CONTENT = `CONTRATO DE PRESTACAO DE SERVICOS TECNICOS TERCEIRIZADOS
 
-CONTRATANTE: {empresa}, inscrita no CNPJ sob n. {cnpj_empresa}, com sede em {endereco_empresa}, neste ato representada por seus administradores legais.
+CONTRATANTE: {razao_social}, nome fantasia {empresa}, inscrita no CNPJ sob n. {cnpj_empresa}, com sede em {endereco_empresa}, neste ato representada por seus administradores legais.
 
 CONTRATADO(A): {nome}, portador(a) do documento n. {documento}, doravante denominado(a) PRESTADOR(A).
 
@@ -348,14 +348,14 @@ As partes acima qualificadas celebram o presente Contrato de Prestacao de Servic
 10.3. Quaisquer alteracoes neste contrato deverao ser formalizadas por aditivo aceito por ambas as partes.
 10.4. As partes elegem o foro da comarca da sede da CONTRATANTE para dirimir quaisquer controversias oriundas deste contrato.
 
-{empresa}, {data}
+{razao_social}, {data}
 
-CONTRATANTE: {empresa}
+CONTRATANTE: {razao_social} ({empresa})
 PRESTADOR(A): {nome} — Documento: {documento}`;
 
 const DEFAULT_SPECIALIZATION_CONTRACT = `TERMO DE ACEITE — NOVA ESPECIALIZACAO
 
-CONTRATANTE: {empresa} (CNPJ: {cnpj_empresa})
+CONTRATANTE: {razao_social} — {empresa} (CNPJ: {cnpj_empresa})
 PRESTADOR(A): {nome} (Documento: {documento})
 ESPECIALIZACAO: {especializacao}
 

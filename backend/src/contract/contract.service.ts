@@ -11,6 +11,8 @@ export interface SendContractOptions {
   contractName: string;
   contractContent: string;
   blockUntilAccepted?: boolean;
+  requireSignature?: boolean;
+  requireAcceptance?: boolean;
   expirationDays?: number;
   channel?: 'WHATSAPP' | 'EMAIL';
 }
@@ -35,6 +37,8 @@ export class ContractService {
       contractName,
       contractContent,
       blockUntilAccepted = true,
+      requireSignature = false,
+      requireAcceptance = true,
       expirationDays = 7,
       channel = 'WHATSAPP',
     } = opts;
@@ -54,6 +58,7 @@ export class ContractService {
     const resolvedContent = contractContent
       .replace(/\{nome\}/gi, partner.name)
       .replace(/\{empresa\}/gi, companyDisplay)
+      .replace(/\{razao_social\}/gi, company.name)
       .replace(/\{data\}/gi, today)
       .replace(/\{documento\}/gi, partner.document || '')
       .replace(/\{email\}/gi, partner.email || '')
@@ -76,6 +81,8 @@ export class ContractService {
         contractName,
         contractContent: resolvedContent,
         blockUntilAccepted,
+        requireSignature,
+        requireAcceptance,
         sentVia: channel,
         expiresAt,
       },
@@ -192,7 +199,7 @@ export class ContractService {
 
   /* ── Public: Accept Contract ────────────────────────── */
 
-  async acceptContract(token: string, ip?: string, userAgent?: string) {
+  async acceptContract(token: string, ip?: string, userAgent?: string, signatureData?: string) {
     const contract = await this.prisma.technicianContract.findUnique({
       where: { token },
       include: { partner: true },
@@ -212,6 +219,11 @@ export class ContractService {
       throw new BadRequestException('Contrato expirado');
     }
 
+    // Validate signature if required
+    if (contract.requireSignature && !signatureData) {
+      throw new BadRequestException('Assinatura digital é obrigatória para este contrato');
+    }
+
     // Accept the contract
     await this.prisma.technicianContract.update({
       where: { id: contract.id },
@@ -220,6 +232,7 @@ export class ContractService {
         acceptedAt: new Date(),
         acceptedIp: ip || null,
         acceptedUserAgent: userAgent || null,
+        signatureData: signatureData || null,
       },
     });
 
