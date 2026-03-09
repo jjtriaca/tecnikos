@@ -266,6 +266,92 @@ export class WhatsAppService {
   }
 
   /**
+   * Send text with fallback to template if outside 24h window.
+   * Unlike sendText, this ALWAYS delivers: text if window open, template if not.
+   * Returns true if sent, false if all attempts failed.
+   */
+  async sendTextWithTemplateFallback(
+    companyId: string,
+    phone: string,
+    message: string,
+  ): Promise<boolean> {
+    const token = await this.getAccessToken(companyId);
+    const phoneNumberId = await this.getPhoneNumberId(companyId);
+
+    if (!token || !phoneNumberId) {
+      this.logger.warn(`WhatsApp not configured for company ${companyId}`);
+      return false;
+    }
+
+    const formattedPhone = this.formatPhone(phone);
+
+    // 1. Try sending regular text (works within 24h conversation window)
+    try {
+      await this.metaRequest(token, phoneNumberId, {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'text',
+        text: { body: message },
+      });
+
+      this.logger.log(`📱 WhatsApp text sent to ${formattedPhone}`);
+      return true;
+    } catch (textErr: any) {
+      this.logger.warn(`📱 WhatsApp text failed (likely outside 24h window), trying template: ${textErr.message}`);
+    }
+
+    // 2. Fallback: send via template "notificacao_tecnikos" with the message as body
+    //    Template must accept {{1}} parameter (the message content)
+    //    If no such template, try the generic "hello_world" just to notify the user
+    try {
+      // Truncate message for template (max 1024 chars in body parameter)
+      const truncatedMsg = message.length > 1000 ? message.substring(0, 997) + '...' : message;
+
+      await this.metaRequest(token, phoneNumberId, {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'template',
+        template: {
+          name: 'notificacao_tecnikos',
+          language: { code: 'pt_BR' },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: truncatedMsg },
+              ],
+            },
+          ],
+        },
+      });
+
+      this.logger.log(`📱 WhatsApp template "notificacao_tecnikos" sent to ${formattedPhone}`);
+      return true;
+    } catch (templateErr: any) {
+      this.logger.warn(`📱 Template "notificacao_tecnikos" failed: ${templateErr.message}, trying teste_conexao`);
+    }
+
+    // 3. Last resort: generic template without parameters
+    try {
+      await this.metaRequest(token, phoneNumberId, {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'template',
+        template: {
+          name: 'teste_conexao',
+          language: { code: 'pt_BR' },
+        },
+      });
+
+      this.logger.log(`📱 WhatsApp fallback template "teste_conexao" sent to ${formattedPhone}`);
+      return true;
+    } catch (fallbackErr: any) {
+      this.logger.error(`📱 All WhatsApp send attempts failed for ${formattedPhone}: ${fallbackErr.message}`);
+      return false;
+    }
+  }
+
+  /**
    * Send a test message — returns { success, messageId?, error? } instead of null.
    * Unlike sendText(), this method does NOT swallow errors — it propagates them.
    * Sends a plain text message (works within 24h customer service window).

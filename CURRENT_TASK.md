@@ -158,7 +158,9 @@
 - [x] Frontend Dashboard: widget "Agenda do Dia" com link para /agenda
 - [x] Build: backend 0 erros, frontend 0 erros
 
-## Versao atual: v1.01.71 — em producao (v1.01.72 pronto para deploy)
+- [x] Deploy: v1.01.72 em producao + migration aplicada
+
+## Versao atual: v1.01.72 — em producao
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

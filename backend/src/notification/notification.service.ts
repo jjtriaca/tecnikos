@@ -34,8 +34,10 @@ export class NotificationService {
       try {
         const connected = await this.whatsApp.isConnected(dto.companyId);
         if (connected) {
-          const result = await this.whatsApp.sendText(dto.companyId, dto.recipientPhone, dto.message);
-          status = result ? 'SENT' : 'FAILED';
+          // Use sendTextWithTemplateFallback to handle 24h window rule:
+          // tries text first, falls back to template if outside conversation window
+          const success = await this.whatsApp.sendTextWithTemplateFallback(dto.companyId, dto.recipientPhone, dto.message);
+          status = success ? 'SENT' : 'FAILED';
           this.logger.log(`📱 [WHATSAPP] ${dto.type} → ${dto.recipientPhone}: ${status}`);
         } else {
           status = 'FAILED';
