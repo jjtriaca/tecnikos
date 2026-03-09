@@ -54,6 +54,11 @@ function ConfigRow({ children, visible }: { children: React.ReactNode; visible: 
 const WELCOME_VARIABLES = ['{nome}', '{empresa}', '{razao_social}', '{telefone}', '{email}', '{data}'];
 const CONTRACT_VARIABLES = ['{nome}', '{empresa}', '{razao_social}', '{cnpj_empresa}', '{endereco_empresa}', '{documento}', '{email}', '{telefone}', '{especializacao}', '{data}'];
 
+const DEFAULT_POSITIVE_KEYWORDS = ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'];
+const DEFAULT_NEGATIVE_KEYWORDS = ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'];
+const DEFAULT_REPLY_MESSAGE = 'Ok {nome}, a partir de agora voce faz parte do time da {razao_social}! Em breve voce recebera suas primeiras ordens de servico.';
+const DEFAULT_DECLINE_MESSAGE = '{nome} recusou a participacao como tecnico. Resposta: "{resposta}"';
+
 const CONFIRM_VIA_OPTIONS = [
   { value: 'WHATSAPP', label: 'Resposta WhatsApp' },
   { value: 'LINK', label: 'Link de confirmacao' },
@@ -116,12 +121,12 @@ function TriggerSection({
   const insertReplyVariable = (variable: string) => {
     const textarea = replyTextareaRef.current;
     if (!textarea) {
-      update({ welcomeReplyMessage: (triggerConfig.welcomeReplyMessage || '') + variable });
+      update({ welcomeReplyMessage: (triggerConfig.welcomeReplyMessage ?? DEFAULT_REPLY_MESSAGE) + variable });
       return;
     }
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const text = triggerConfig.welcomeReplyMessage || '';
+    const text = triggerConfig.welcomeReplyMessage ?? DEFAULT_REPLY_MESSAGE;
     const newText = text.substring(0, start) + variable + text.substring(end);
     update({ welcomeReplyMessage: newText });
     requestAnimationFrame(() => {
@@ -134,12 +139,12 @@ function TriggerSection({
   const insertDeclineVariable = (variable: string) => {
     const textarea = declineTextareaRef.current;
     if (!textarea) {
-      update({ welcomeDeclineMessage: (triggerConfig.welcomeDeclineMessage || '') + variable });
+      update({ welcomeDeclineMessage: (triggerConfig.welcomeDeclineMessage ?? DEFAULT_DECLINE_MESSAGE) + variable });
       return;
     }
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const text = triggerConfig.welcomeDeclineMessage || '';
+    const text = triggerConfig.welcomeDeclineMessage ?? DEFAULT_DECLINE_MESSAGE;
     const newText = text.substring(0, start) + variable + text.substring(end);
     update({ welcomeDeclineMessage: newText });
     requestAnimationFrame(() => {
@@ -389,7 +394,7 @@ function TriggerSection({
                       <span className="text-xs text-slate-500">Mensagem de retorno:</span>
                       <textarea
                         ref={replyTextareaRef}
-                        value={triggerConfig.welcomeReplyMessage || ''}
+                        value={triggerConfig.welcomeReplyMessage ?? DEFAULT_REPLY_MESSAGE}
                         onChange={(e) => update({ welcomeReplyMessage: e.target.value })}
                         placeholder="Ex: Ok {nome}, a partir de agora voce faz parte do time da {razao_social}!"
                         rows={2}
@@ -414,8 +419,9 @@ function TriggerSection({
                       <span className="text-xs text-slate-500">Palavras-chave de aceite:</span>
                       <input
                         type="text"
-                        value={(triggerConfig.welcomePositiveKeywords || []).join(', ')}
-                        onChange={(e) => update({ welcomePositiveKeywords: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                        value={(triggerConfig.welcomePositiveKeywords?.length ? triggerConfig.welcomePositiveKeywords : DEFAULT_POSITIVE_KEYWORDS).join(', ')}
+                        onChange={(e) => update({ welcomePositiveKeywords: e.target.value.split(',').map(s => s.trim()) })}
+                        onBlur={(e) => update({ welcomePositiveKeywords: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
                         placeholder="sim, aceito, confirmo, ok, quero, topo, bora"
                         className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-200 outline-none"
                       />
@@ -430,8 +436,9 @@ function TriggerSection({
                       <span className="text-xs text-slate-500">Palavras-chave de recusa:</span>
                       <input
                         type="text"
-                        value={(triggerConfig.welcomeNegativeKeywords || []).join(', ')}
-                        onChange={(e) => update({ welcomeNegativeKeywords: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                        value={(triggerConfig.welcomeNegativeKeywords?.length ? triggerConfig.welcomeNegativeKeywords : DEFAULT_NEGATIVE_KEYWORDS).join(', ')}
+                        onChange={(e) => update({ welcomeNegativeKeywords: e.target.value.split(',').map(s => s.trim()) })}
+                        onBlur={(e) => update({ welcomeNegativeKeywords: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
                         placeholder="nao, não, recuso, desisto, cancela"
                         className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-red-500 focus:ring-1 focus:ring-red-200 outline-none"
                       />
@@ -442,9 +449,9 @@ function TriggerSection({
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={(triggerConfig.welcomeDeclineActions || []).includes('DEACTIVATE')}
+                          checked={(triggerConfig.welcomeDeclineActions ?? ['DEACTIVATE', 'NOTIFY_GESTOR']).includes('DEACTIVATE')}
                           onChange={(e) => {
-                            const current = triggerConfig.welcomeDeclineActions || [];
+                            const current = triggerConfig.welcomeDeclineActions ?? ['DEACTIVATE', 'NOTIFY_GESTOR'];
                             const next = e.target.checked
                               ? [...current.filter(a => a !== 'DEACTIVATE'), 'DEACTIVATE']
                               : current.filter(a => a !== 'DEACTIVATE');
@@ -457,9 +464,9 @@ function TriggerSection({
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={(triggerConfig.welcomeDeclineActions || []).includes('NOTIFY_GESTOR')}
+                          checked={(triggerConfig.welcomeDeclineActions ?? ['DEACTIVATE', 'NOTIFY_GESTOR']).includes('NOTIFY_GESTOR')}
                           onChange={(e) => {
-                            const current = triggerConfig.welcomeDeclineActions || [];
+                            const current = triggerConfig.welcomeDeclineActions ?? ['DEACTIVATE', 'NOTIFY_GESTOR'];
                             const next = e.target.checked
                               ? [...current.filter(a => a !== 'NOTIFY_GESTOR'), 'NOTIFY_GESTOR']
                               : current.filter(a => a !== 'NOTIFY_GESTOR');
@@ -470,12 +477,12 @@ function TriggerSection({
                         <span className="text-xs text-slate-600">Notificar o gestor</span>
                       </label>
                     </div>
-                    {(triggerConfig.welcomeDeclineActions || []).includes('NOTIFY_GESTOR') && (
+                    {(triggerConfig.welcomeDeclineActions ?? ['DEACTIVATE', 'NOTIFY_GESTOR']).includes('NOTIFY_GESTOR') && (
                       <div className="flex flex-col gap-1 animate-fadeIn">
                         <span className="text-xs text-slate-500">Mensagem de notificacao ao gestor:</span>
                         <textarea
                           ref={declineTextareaRef}
-                          value={triggerConfig.welcomeDeclineMessage || ''}
+                          value={triggerConfig.welcomeDeclineMessage ?? DEFAULT_DECLINE_MESSAGE}
                           onChange={(e) => update({ welcomeDeclineMessage: e.target.value })}
                           placeholder='Ex: {nome} recusou a participacao como tecnico. Resposta: "{resposta}"'
                           rows={2}
