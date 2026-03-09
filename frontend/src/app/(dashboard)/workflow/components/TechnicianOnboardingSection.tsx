@@ -325,7 +325,7 @@ function TriggerSection({
               />
 
               {(triggerConfig.welcomeWaitForReply ?? false) && (
-                <div className="ml-5 space-y-2 animate-fadeIn">
+                <div className="ml-5 space-y-3 animate-fadeIn">
                   <label className="flex items-center gap-2">
                     <span className="text-xs text-slate-500">Confirmar via:</span>
                     <select
@@ -343,6 +343,105 @@ function TriggerSection({
                       ? 'O tecnico confirma respondendo qualquer mensagem no WhatsApp'
                       : 'O tecnico confirma clicando em um link (igual ao contrato PJ)'}
                   </p>
+
+                  {/* ── Resposta Positiva (Aceite) ── */}
+                  <div className="rounded border border-green-200 bg-green-50/50 p-2.5 space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-green-600">✅ Se aceitar</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-slate-500">Mensagem de retorno:</span>
+                      <textarea
+                        value={triggerConfig.welcomeReplyMessage || ''}
+                        onChange={(e) => update({ welcomeReplyMessage: e.target.value })}
+                        placeholder="Ex: Ok {nome}, a partir de agora voce faz parte do time da {razao_social}!"
+                        rows={2}
+                        className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-green-500 focus:ring-1 focus:ring-green-200 outline-none resize-y"
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                        {['{nome}', '{empresa}', '{razao_social}', '{data}'].map((v) => (
+                          <span key={v} className="text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-600">{v}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-slate-500">Palavras-chave de aceite:</span>
+                      <input
+                        type="text"
+                        value={(triggerConfig.welcomePositiveKeywords || []).join(', ')}
+                        onChange={(e) => update({ welcomePositiveKeywords: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                        placeholder="sim, aceito, confirmo, ok, quero, topo, bora"
+                        className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-200 outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 italic">Separar por virgula. Se a resposta conter qualquer uma dessas palavras, sera considerada aceite.</span>
+                    </div>
+                  </div>
+
+                  {/* ── Resposta Negativa (Recusa) ── */}
+                  <div className="rounded border border-red-200 bg-red-50/50 p-2.5 space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-red-600">❌ Se recusar</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-slate-500">Palavras-chave de recusa:</span>
+                      <input
+                        type="text"
+                        value={(triggerConfig.welcomeNegativeKeywords || []).join(', ')}
+                        onChange={(e) => update({ welcomeNegativeKeywords: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                        placeholder="nao, não, recuso, desisto, cancela"
+                        className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-red-500 focus:ring-1 focus:ring-red-200 outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 italic">Separar por virgula. Se a resposta conter qualquer uma dessas palavras (e nenhuma de aceite), sera considerada recusa.</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className="text-xs text-slate-500">Acoes na recusa:</span>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={(triggerConfig.welcomeDeclineActions || []).includes('DEACTIVATE')}
+                          onChange={(e) => {
+                            const current = triggerConfig.welcomeDeclineActions || [];
+                            const next = e.target.checked
+                              ? [...current.filter(a => a !== 'DEACTIVATE'), 'DEACTIVATE']
+                              : current.filter(a => a !== 'DEACTIVATE');
+                            update({ welcomeDeclineActions: next });
+                          }}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-red-600 focus:ring-red-200"
+                        />
+                        <span className="text-xs text-slate-600">Nao ativar como tecnico (manter inativo)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={(triggerConfig.welcomeDeclineActions || []).includes('NOTIFY_GESTOR')}
+                          onChange={(e) => {
+                            const current = triggerConfig.welcomeDeclineActions || [];
+                            const next = e.target.checked
+                              ? [...current.filter(a => a !== 'NOTIFY_GESTOR'), 'NOTIFY_GESTOR']
+                              : current.filter(a => a !== 'NOTIFY_GESTOR');
+                            update({ welcomeDeclineActions: next });
+                          }}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-red-600 focus:ring-red-200"
+                        />
+                        <span className="text-xs text-slate-600">Notificar o gestor</span>
+                      </label>
+                    </div>
+                    {(triggerConfig.welcomeDeclineActions || []).includes('NOTIFY_GESTOR') && (
+                      <div className="flex flex-col gap-1 animate-fadeIn">
+                        <span className="text-xs text-slate-500">Mensagem de notificacao ao gestor:</span>
+                        <textarea
+                          value={triggerConfig.welcomeDeclineMessage || ''}
+                          onChange={(e) => update({ welcomeDeclineMessage: e.target.value })}
+                          placeholder='Ex: {nome} recusou a participacao como tecnico. Resposta: "{resposta}"'
+                          rows={2}
+                          className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-red-500 focus:ring-1 focus:ring-red-200 outline-none resize-y"
+                        />
+                        <div className="flex flex-wrap gap-1">
+                          <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                          {['{nome}', '{empresa}', '{resposta}'].map((v) => (
+                            <span key={v} className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600">{v}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

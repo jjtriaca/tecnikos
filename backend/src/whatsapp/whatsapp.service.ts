@@ -616,46 +616,174 @@ export class WhatsAppService {
         });
 
         if (pendingWelcome) {
-          // Accept: store reply message
-          await this.prisma.technicianContract.update({
-            where: { id: pendingWelcome.id },
-            data: {
-              status: 'ACCEPTED',
-              acceptedAt: new Date(),
-              replyMessage: content,
-            },
-          });
-
-          // Reactivate partner if blocked
-          if (pendingWelcome.blockUntilAccepted) {
-            const partnerData = await this.prisma.partner.findUnique({
-              where: { id: partner.id },
-              select: { status: true, name: true },
-            });
-            if (partnerData?.status === 'PENDENTE_CONTRATO') {
-              await this.prisma.partner.update({
-                where: { id: partner.id },
-                data: { status: 'ATIVO' },
-              });
-              this.logger.log(`✅ CLT tech ${partnerData.name} activated after WhatsApp reply: "${content.substring(0, 50)}"`);
-            }
-          }
-
-          // Log notification
-          await this.prisma.notification.create({
-            data: {
-              companyId,
-              channel: 'SYSTEM',
-              message: `${partner.name} confirmou participação via WhatsApp: "${content.substring(0, 100)}"`,
-              type: 'WELCOME_ACCEPTED',
-              status: 'SENT',
-              sentAt: new Date(),
-            },
-          }).catch(() => {});
+          await this.processWelcomeReply(companyId, partner, pendingWelcome, content);
         }
       } catch (err) {
         this.logger.error(`Failed to process CLT welcome reply: ${err.message}`);
       }
+    }
+  }
+
+  /**
+   * Process a CLT technician's reply to a welcome message.
+   * Classifies the reply as positive/negative based on workflow config keywords,
+   * then executes the configured actions (activate, deactivate, notify gestor, send reply).
+   */
+  private async processWelcomeReply(
+    companyId: string,
+    partner: { id: string; name: string },
+    pendingWelcome: any,
+    content: string,
+  ): Promise<void> {
+    // Load onboarding config from workflow to get reply settings
+    const workflows = await this.prisma.workflowTemplate.findMany({
+      where: { companyId, deletedAt: null },
+      orderBy: { isDefault: 'desc' },
+    });
+
+    let triggerConfig: any = null;
+    for (const wf of workflows) {
+      const steps = wf.steps as any;
+      if (steps?.technicianOnboarding?.enabled) {
+        // Try onNewTechnician first, then onNewSpecialization
+        const ont = steps.technicianOnboarding.onNewTechnician;
+        const ons = steps.technicianOnboarding.onNewSpecialization;
+        if (ont?.enabled && ont?.sendWelcomeMessage) {
+          triggerConfig = ont;
+        } else if (ons?.enabled && ons?.sendWelcomeMessage) {
+          triggerConfig = ons;
+        }
+        break;
+      }
+    }
+
+    // Default keywords if not configured
+    const positiveKeywords: string[] = triggerConfig?.welcomePositiveKeywords?.length
+      ? triggerConfig.welcomePositiveKeywords
+      : ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'];
+    const negativeKeywords: string[] = triggerConfig?.welcomeNegativeKeywords?.length
+      ? triggerConfig.welcomeNegativeKeywords
+      : ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'];
+
+    // Classify the reply
+    const normalizedContent = content.toLowerCase().trim();
+    const isPositive = positiveKeywords.some(kw => normalizedContent.includes(kw.toLowerCase()));
+    const isNegative = negativeKeywords.some(kw => normalizedContent.includes(kw.toLowerCase()));
+
+    // If ambiguous (both or neither), treat as positive (benefit of the doubt)
+    const accepted = isPositive || !isNegative;
+
+    // Load company + partner full data for variable resolution
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const partnerFull = await this.prisma.partner.findUnique({ where: { id: partner.id } });
+
+    const resolveVars = (text: string): string => {
+      if (!text) return '';
+      const companyDisplay = company?.tradeName || company?.name || '';
+      return text
+        .replace(/\{nome\}/gi, partnerFull?.name || partner.name)
+        .replace(/\{empresa\}/gi, companyDisplay)
+        .replace(/\{razao_social\}/gi, company?.name || '')
+        .replace(/\{data\}/gi, new Date().toLocaleDateString('pt-BR'))
+        .replace(/\{documento\}/gi, partnerFull?.document || '')
+        .replace(/\{email\}/gi, partnerFull?.email || '')
+        .replace(/\{telefone\}/gi, partnerFull?.phone || '')
+        .replace(/\{resposta\}/gi, content.substring(0, 200));
+    };
+
+    if (accepted) {
+      // ═══ POSITIVE REPLY — Accept ═══
+      this.logger.log(`✅ CLT tech ${partner.name} ACCEPTED (reply: "${content.substring(0, 50)}")`);
+
+      await this.prisma.technicianContract.update({
+        where: { id: pendingWelcome.id },
+        data: {
+          status: 'ACCEPTED',
+          acceptedAt: new Date(),
+          replyMessage: content,
+        },
+      });
+
+      // Activate partner if blocked
+      if (pendingWelcome.blockUntilAccepted) {
+        if (partnerFull?.status === 'PENDENTE_CONTRATO') {
+          await this.prisma.partner.update({
+            where: { id: partner.id },
+            data: { status: 'ATIVO' },
+          });
+          this.logger.log(`✅ CLT tech ${partner.name} activated`);
+        }
+      }
+
+      // Send confirmation reply message
+      const replyMsg = triggerConfig?.welcomeReplyMessage;
+      if (replyMsg) {
+        const resolved = resolveVars(replyMsg);
+        this.sendTextWithTemplateFallback(companyId, partnerFull?.phone || '', resolved, true).catch(
+          err => this.logger.warn(`Failed to send welcome reply: ${err.message}`),
+        );
+      }
+
+      // Log notification
+      await this.prisma.notification.create({
+        data: {
+          companyId,
+          channel: 'SYSTEM',
+          message: `${partner.name} confirmou participação via WhatsApp: "${content.substring(0, 100)}"`,
+          type: 'WELCOME_ACCEPTED',
+          status: 'SENT',
+          sentAt: new Date(),
+        },
+      }).catch(() => {});
+
+    } else {
+      // ═══ NEGATIVE REPLY — Decline ═══
+      this.logger.log(`❌ CLT tech ${partner.name} DECLINED (reply: "${content.substring(0, 50)}")`);
+
+      await this.prisma.technicianContract.update({
+        where: { id: pendingWelcome.id },
+        data: {
+          status: 'REJECTED',
+          replyMessage: content,
+        },
+      });
+
+      const declineActions: string[] = triggerConfig?.welcomeDeclineActions || ['DEACTIVATE', 'NOTIFY_GESTOR'];
+
+      // Action: Deactivate technician
+      if (declineActions.includes('DEACTIVATE')) {
+        await this.prisma.partner.update({
+          where: { id: partner.id },
+          data: { status: 'INATIVO' },
+        });
+        this.logger.log(`❌ CLT tech ${partner.name} deactivated after decline`);
+      }
+
+      // Action: Notify gestor
+      if (declineActions.includes('NOTIFY_GESTOR')) {
+        const declineMsg = triggerConfig?.welcomeDeclineMessage
+          || `${partner.name} recusou a participação como técnico. Resposta: "${content.substring(0, 100)}"`;
+        const resolvedDeclineMsg = resolveVars(declineMsg);
+
+        await this.prisma.notification.create({
+          data: {
+            companyId,
+            channel: 'SYSTEM',
+            message: resolvedDeclineMsg,
+            type: 'WELCOME_DECLINED',
+            status: 'SENT',
+            sentAt: new Date(),
+          },
+        }).catch(() => {});
+        this.logger.log(`📢 Gestor notified about ${partner.name}'s decline`);
+      }
+
+      // Send decline reply message to technician (optional)
+      // Use a generic message so they know their response was received
+      const declineReplyToTech = `Recebemos sua resposta, ${partner.name}. Obrigado por nos informar.`;
+      this.sendTextWithTemplateFallback(companyId, partnerFull?.phone || '', declineReplyToTech, true).catch(
+        err => this.logger.warn(`Failed to send decline reply: ${err.message}`),
+      );
     }
   }
 

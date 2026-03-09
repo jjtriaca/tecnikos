@@ -271,6 +271,12 @@ export interface TechnicianOnboardingConfig {
     welcomeMessage: string;       // Texto da mensagem
     welcomeWaitForReply: boolean; // Aguardar confirmação do técnico
     welcomeConfirmVia: string;    // WHATSAPP | LINK — como o técnico confirma
+    // Resposta do técnico CLT
+    welcomeReplyMessage: string;          // Mensagem de retorno ao aceitar
+    welcomeDeclineActions: string[];      // Ações na recusa: 'DEACTIVATE' | 'NOTIFY_GESTOR'
+    welcomeDeclineMessage: string;        // Mensagem ao gestor quando técnico recusa
+    welcomePositiveKeywords: string[];    // Palavras que indicam aceite (ex: 'sim', 'aceito')
+    welcomeNegativeKeywords: string[];    // Palavras que indicam recusa (ex: 'nao', 'recuso')
   };
 
   onNewSpecialization: {
@@ -291,6 +297,12 @@ export interface TechnicianOnboardingConfig {
     welcomeMessage: string;
     welcomeWaitForReply: boolean;
     welcomeConfirmVia: string;
+    // Resposta do técnico CLT
+    welcomeReplyMessage: string;
+    welcomeDeclineActions: string[];
+    welcomeDeclineMessage: string;
+    welcomePositiveKeywords: string[];
+    welcomeNegativeKeywords: string[];
   };
 }
 
@@ -422,6 +434,11 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       welcomeMessage: 'Ola {nome}, seja bem-vindo(a) a equipe da {empresa}! Voce foi cadastrado(a) como tecnico(a) em nosso sistema. Em breve voce recebera suas primeiras ordens de servico pela plataforma Teknikos. Por favor, responda esta mensagem confirmando sua participacao.',
       welcomeWaitForReply: true,
       welcomeConfirmVia: 'WHATSAPP',
+      welcomeReplyMessage: 'Ok {nome}, a partir de agora voce faz parte do time da {razao_social}! Em breve voce recebera suas primeiras ordens de servico.',
+      welcomeDeclineActions: ['DEACTIVATE', 'NOTIFY_GESTOR'],
+      welcomeDeclineMessage: '{nome} recusou a participacao como tecnico. Resposta: "{resposta}"',
+      welcomePositiveKeywords: ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'],
+      welcomeNegativeKeywords: ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'],
     },
     onNewSpecialization: {
       enabled: false,
@@ -440,6 +457,11 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       welcomeMessage: 'Ola {nome}, uma nova especializacao foi atribuida a voce na {empresa}. Por favor, confirme respondendo esta mensagem.',
       welcomeWaitForReply: false,
       welcomeConfirmVia: 'WHATSAPP',
+      welcomeReplyMessage: 'Ok {nome}, especializacao confirmada na {razao_social}!',
+      welcomeDeclineActions: ['NOTIFY_GESTOR'],
+      welcomeDeclineMessage: '{nome} recusou a nova especializacao. Resposta: "{resposta}"',
+      welcomePositiveKeywords: ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'],
+      welcomeNegativeKeywords: ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'],
     },
   };
 }

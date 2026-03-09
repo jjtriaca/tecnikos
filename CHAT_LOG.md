@@ -1409,4 +1409,26 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - CompanyService: injecao @Optional() do WhatsAppService para sync apos upload
 - Deploy v1.01.85 em producao
 
+### Fix Foto de Perfil Desfocada (v1.01.86)
+- Imagem original 1005x592 (retangular) ficava desfocada no WhatsApp (recorte circular)
+- Instalado `sharp` v0.34.5 no backend para processamento de imagem
+- syncProfilePicture() agora: cria quadrado branco, centraliza logo com 10% padding, PNG
+- Resultado: 1005x1005 PNG nitida, upload Meta API OK
+- Deploy v1.01.86 em producao
+
+---
+
+## 2026-03-10 — Tratamento de Respostas CLT (Sessao 86)
+
+### Solicitacao do Usuario
+- "Quando o tecnico responde sim, tem que ter a opcao de configurar no fluxo um retorno de mensagem"
+- "E se nao opcao de como tratar se a resposta for nao, ou seja nao ativar como tecnico ja uma opcao e notificar o gestor e outra"
+
+### Decisoes
+- Resposta positiva: enviar mensagem de retorno configuravel
+- Resposta negativa: opcoes configuraveis:
+  1. Nao ativar como tecnico (manter PENDENTE ou mudar para INATIVO)
+  2. Notificar o gestor
+  3. Ambas as opcoes simultaneamente
+
 ---
