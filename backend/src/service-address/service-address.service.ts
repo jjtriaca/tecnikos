@@ -13,7 +13,7 @@ export class ServiceAddressService {
     if (activeOnly) where.active = true;
     return this.prisma.serviceAddress.findMany({
       where,
-      orderBy: { label: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

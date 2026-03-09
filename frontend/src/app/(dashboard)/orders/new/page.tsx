@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import Link from "next/link";
 import LookupField from "@/components/ui/LookupField";
 import type { LookupFetcher, LookupFetcherResult } from "@/components/ui/SearchLookupModal";
+import CollapsibleSection from "@/components/ui/CollapsibleSection";
 import TechAssignmentSection, {
   type TechAssignmentMode,
   type SpecializationSummary,
@@ -171,7 +172,22 @@ export default function NewOrderPage() {
       .then(res => { if (!cancelled) setObras(Array.isArray(res) ? res : []); })
       .catch(() => {});
     api.get<ServiceAddressSummary[]>(`/service-addresses?partnerId=${selectedClient.id}&activeOnly=true`)
-      .then(res => { if (!cancelled) setServiceAddresses(Array.isArray(res) ? res : []); })
+      .then(res => {
+        if (cancelled) return;
+        const addrs = Array.isArray(res) ? res : [];
+        setServiceAddresses(addrs);
+        // Default: ultimo endereco de atendimento (mais recente = primeiro, ordenado por createdAt desc)
+        if (addrs.length > 0) {
+          const last = addrs[0];
+          setAddressSource("saved");
+          setSelectedAddressId(last.id);
+          fillAddress(last);
+        } else if (selectedClient.addressStreet) {
+          // Se nao tem enderecos salvos mas tem endereco principal, usa ele
+          setAddressSource("main");
+          fillAddress(selectedClient);
+        }
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [selectedClient]);
@@ -566,16 +582,23 @@ export default function NewOrderPage() {
           </label>
 
           {/* Atribuir Técnico */}
-          <TechAssignmentSection
-            mode={techMode}
-            onModeChange={setTechMode}
-            selectedSpecializations={selectedSpecs}
-            onSpecializationsChange={setSelectedSpecs}
-            selectedTechnicians={selectedTechs}
-            onTechniciansChange={setSelectedTechs}
-            selectedWorkflow={selectedWorkflow}
-            onWorkflowChange={setSelectedWorkflow}
-          />
+          <CollapsibleSection
+            title="Atribuir Tecnico"
+            icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
+            summary={techMode === "BY_SPECIALIZATION" ? (selectedSpecs.length ? selectedSpecs.map(s => s.name).join(", ") : "Por especializacao") : techMode === "DIRECTED" ? (selectedTechs.length ? selectedTechs.map(t => t.name).join(", ") : "Direcionado") : selectedWorkflow?.name || "Por fluxo"}
+          >
+            <TechAssignmentSection
+              mode={techMode}
+              onModeChange={setTechMode}
+              selectedSpecializations={selectedSpecs}
+              onSpecializationsChange={setSelectedSpecs}
+              selectedTechnicians={selectedTechs}
+              onTechniciansChange={setSelectedTechs}
+              selectedWorkflow={selectedWorkflow}
+              onWorkflowChange={setSelectedWorkflow}
+              hideHeader
+            />
+          </CollapsibleSection>
 
           {/* Agenda CLT — aparece quando o fluxo tem scheduleConfig.enabled */}
           {isAgendaMode && scheduleConfig && (
@@ -590,10 +613,11 @@ export default function NewOrderPage() {
 
           {/* Tempo para aceitar + a caminho — oculto em modo agenda */}
           {!isAgendaMode && (<>
-          <div className="border-t border-slate-200 pt-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              ⏱️ Tempo para aceitar
-            </label>
+          <CollapsibleSection
+            title="Tempo para aceitar"
+            icon={<span className="text-base leading-none">⏱️</span>}
+            summary={acceptTimeoutMode === 'from_flow' ? "Definido no fluxo" : `${acceptTimeoutValue} ${acceptTimeoutMode === 'hours' ? 'h' : 'min'}`}
+          >
             <p className="text-xs text-slate-400 mb-2">
               Quanto tempo o técnico tem para aceitar esta OS.
             </p>
@@ -632,13 +656,14 @@ export default function NewOrderPage() {
                 <span>⚠️</span> Este valor sobrescreve a configuração do fluxo de atendimento para esta OS.
               </p>
             )}
-          </div>
+          </CollapsibleSection>
 
           {/* Tempo para clicar a caminho */}
-          <div className="border-t border-slate-200 pt-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              🚗 Tempo para clicar a caminho
-            </label>
+          <CollapsibleSection
+            title="Tempo para clicar a caminho"
+            icon={<span className="text-base leading-none">🚗</span>}
+            summary={enRouteTimeoutMode === 'from_flow' ? "Definido no fluxo" : `${enRouteTimeoutValue} ${enRouteTimeoutMode === 'hours' ? 'h' : 'min'}`}
+          >
             <p className="text-xs text-slate-400 mb-2">
               Quanto tempo o técnico tem para indicar que está a caminho.
             </p>
@@ -677,19 +702,16 @@ export default function NewOrderPage() {
                 <span>⚠️</span> Este valor sobrescreve a configuração do fluxo de atendimento para esta OS.
               </p>
             )}
-          </div>
+          </CollapsibleSection>
           </>)}
 
           {/* Endereco do Servico */}
-          <div className="border-t border-slate-200 pt-4">
-            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-3">
-              <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Endereco do Servico
-            </h3>
-
+          <CollapsibleSection
+            title="Endereco do Servico"
+            icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+            defaultOpen={true}
+            summary={form.addressStreet ? [form.addressStreet, form.addressNumber, selectedCity?.nome || ""].filter(Boolean).join(", ") : ""}
+          >
             {/* Seletor de enderecos — so aparece quando tem cliente selecionado */}
             {selectedClient && (selectedClient.addressStreet || serviceAddresses.length > 0) && (
               <div className="space-y-1.5 mb-4">
@@ -833,7 +855,7 @@ export default function NewOrderPage() {
                 </p>
               </div>
             )}
-          </div>
+          </CollapsibleSection>
 
           {/* Valor e Prazo */}
           <div className="grid grid-cols-2 gap-4">
@@ -871,14 +893,12 @@ export default function NewOrderPage() {
 
           {/* Agendamento — aparece sempre (exceto agenda CLT que usa AgendaSelector) */}
           {!isAgendaMode && (
-            <div className="border-t border-slate-200 pt-4">
-              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-1">
-                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Agendamento
-                <span className="text-xs text-slate-400 font-normal">(opcional)</span>
-              </h3>
+            <CollapsibleSection
+              title="Agendamento"
+              icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+              subtitle="(opcional)"
+              summary={form.scheduledStartAt ? new Date(form.scheduledStartAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+            >
               <p className="text-xs text-slate-400 mb-3">
                 Preencha para que a OS apareca na aba Agenda.
               </p>
@@ -907,7 +927,7 @@ export default function NewOrderPage() {
                   />
                 </label>
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
           {/* Geocoding indicator */}
