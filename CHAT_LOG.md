@@ -1448,4 +1448,14 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
   - Recusa: marca REJECTED + DEACTIVATE e/ou NOTIFY_GESTOR conforme config
 - Deploy v1.01.87
 
+### Exibicao de Resposta no Parceiro (v1.01.88)
+- ContractsSection: exibe resposta WhatsApp nos detalhes do contrato CLT
+- Status REJECTED adicionado
+- Deploy v1.01.88
+
+### REGRA PERMANENTE: Variaveis em Campos de Texto
+- Todos os campos com variaveis/templates ({nome}, {empresa}, etc) devem ser CLICAVEIS
+- Clicar na variavel insere no cursor do textarea correspondente
+- Padrao: botoes tipo "chip" que inserem variavel — nao apenas exibicao
+
 ---

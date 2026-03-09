@@ -112,6 +112,14 @@ Colunas mapeadas: Nome Parceiro, CNPJ/CPF, Tipo de pessoa, Cliente, Fornecedor, 
 - Sem acentos em nomes de arquivo
 - CSS: Tailwind utility classes, design system slate/blue
 
+## Regras de Variaveis/Templates em Campos de Texto (System-Wide)
+- Todos os campos textarea/input que aceitam variaveis (ex: {nome}, {empresa}, {razao_social}) DEVEM ter botoes clicaveis
+- Clicar no botao da variavel INSERE a variavel na posicao do cursor (ou no final se nao houver cursor)
+- Padrao visual: botoes tipo "chip" pequenos abaixo do campo (text-[10px], bg-slate-100, hover:bg-green-100)
+- Nunca exibir variaveis apenas como texto statico/informativo — sempre clicaveis
+- Usar refs (useRef) nos textareas para inserir na posicao do cursor via selectionStart/selectionEnd
+- Variaveis comuns: {nome}, {empresa}, {razao_social}, {data}, {documento}, {email}, {telefone}, {resposta}
+
 ## Regras de Tabelas (System-Wide)
 - Todas as tabelas DEVEM usar `DraggableHeader` (`@/components/ui/DraggableHeader`) para colunas redimensionaveis e reordenaveis
 - Todas as tabelas DEVEM usar `SortableHeader` (`@/components/ui/SortableHeader`) para colunas que suportam ordenacao

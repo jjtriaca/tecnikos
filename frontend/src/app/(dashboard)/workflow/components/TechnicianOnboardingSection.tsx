@@ -72,6 +72,8 @@ function TriggerSection({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const welcomeTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const declineTextareaRef = useRef<HTMLTextAreaElement>(null);
   const update = (patch: Partial<TechnicianOnboardingConfig['onNewTechnician']>) =>
     onChange({ ...triggerConfig, ...patch });
 
@@ -104,6 +106,42 @@ function TriggerSection({
     const text = triggerConfig.welcomeMessage || '';
     const newText = text.substring(0, start) + variable + text.substring(end);
     update({ welcomeMessage: newText });
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const pos = start + variable.length;
+      textarea.setSelectionRange(pos, pos);
+    });
+  };
+
+  const insertReplyVariable = (variable: string) => {
+    const textarea = replyTextareaRef.current;
+    if (!textarea) {
+      update({ welcomeReplyMessage: (triggerConfig.welcomeReplyMessage || '') + variable });
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = triggerConfig.welcomeReplyMessage || '';
+    const newText = text.substring(0, start) + variable + text.substring(end);
+    update({ welcomeReplyMessage: newText });
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const pos = start + variable.length;
+      textarea.setSelectionRange(pos, pos);
+    });
+  };
+
+  const insertDeclineVariable = (variable: string) => {
+    const textarea = declineTextareaRef.current;
+    if (!textarea) {
+      update({ welcomeDeclineMessage: (triggerConfig.welcomeDeclineMessage || '') + variable });
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = triggerConfig.welcomeDeclineMessage || '';
+    const newText = text.substring(0, start) + variable + text.substring(end);
+    update({ welcomeDeclineMessage: newText });
     requestAnimationFrame(() => {
       textarea.focus();
       const pos = start + variable.length;
@@ -350,6 +388,7 @@ function TriggerSection({
                     <div className="flex flex-col gap-1">
                       <span className="text-xs text-slate-500">Mensagem de retorno:</span>
                       <textarea
+                        ref={replyTextareaRef}
                         value={triggerConfig.welcomeReplyMessage || ''}
                         onChange={(e) => update({ welcomeReplyMessage: e.target.value })}
                         placeholder="Ex: Ok {nome}, a partir de agora voce faz parte do time da {razao_social}!"
@@ -359,7 +398,15 @@ function TriggerSection({
                       <div className="flex flex-wrap gap-1">
                         <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
                         {['{nome}', '{empresa}', '{razao_social}', '{data}'].map((v) => (
-                          <span key={v} className="text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-600">{v}</span>
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => insertReplyVariable(v)}
+                            title={`Inserir ${v} na posicao do cursor`}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-600 hover:bg-green-200 hover:text-green-700 transition-colors cursor-pointer"
+                          >
+                            {v}
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -427,6 +474,7 @@ function TriggerSection({
                       <div className="flex flex-col gap-1 animate-fadeIn">
                         <span className="text-xs text-slate-500">Mensagem de notificacao ao gestor:</span>
                         <textarea
+                          ref={declineTextareaRef}
                           value={triggerConfig.welcomeDeclineMessage || ''}
                           onChange={(e) => update({ welcomeDeclineMessage: e.target.value })}
                           placeholder='Ex: {nome} recusou a participacao como tecnico. Resposta: "{resposta}"'
@@ -436,7 +484,15 @@ function TriggerSection({
                         <div className="flex flex-wrap gap-1">
                           <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
                           {['{nome}', '{empresa}', '{resposta}'].map((v) => (
-                            <span key={v} className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600">{v}</span>
+                            <button
+                              key={v}
+                              type="button"
+                              onClick={() => insertDeclineVariable(v)}
+                              title={`Inserir ${v} na posicao do cursor`}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700 transition-colors cursor-pointer"
+                            >
+                              {v}
+                            </button>
                           ))}
                         </div>
                       </div>
