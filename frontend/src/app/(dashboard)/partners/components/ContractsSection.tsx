@@ -48,6 +48,7 @@ export default function ContractsSection({ partnerId }: Props) {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showSignature, setShowSignature] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -59,6 +60,19 @@ export default function ContractsSection({ partnerId }: Props) {
       setLoading(false);
     }
   }, [partnerId]);
+
+  const handleCancel = async (contractId: string) => {
+    if (!window.confirm('Tem certeza que deseja cancelar este contrato? Se estiver atrelado a uma especialização, a especialização será removida do técnico.')) return;
+    setCancellingId(contractId);
+    try {
+      await api.post(`/contracts/${contractId}/cancel`, {});
+      await load(); // Reload
+    } catch {
+      alert('Erro ao cancelar contrato');
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -218,18 +232,40 @@ export default function ContractsSection({ partnerId }: Props) {
                     </div>
                   </details>
 
-                  {/* Link to public page */}
-                  <a
-                    href={`/contract/${c.token}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    🔗 Abrir página pública do contrato
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
+                  {/* Actions row */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Link to public page */}
+                    <a
+                      href={`/contract/${c.token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      🔗 Abrir página pública
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+
+                    {/* Cancel button — only for PENDING / VIEWED */}
+                    {(c.status === 'PENDING' || c.status === 'VIEWED') && (
+                      <button
+                        type="button"
+                        onClick={() => handleCancel(c.id)}
+                        disabled={cancellingId === c.id}
+                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+                      >
+                        {cancellingId === c.id ? (
+                          <>
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />
+                            Cancelando...
+                          </>
+                        ) : (
+                          '❌ Cancelar contrato'
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

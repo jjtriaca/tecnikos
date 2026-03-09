@@ -110,4 +110,15 @@ export class UpdateServiceOrderDto {
   @IsOptional()
   @IsString()
   obraId?: string;
+
+  // Agendamento CLT (v1.01.72)
+  @IsOptional()
+  @IsDateString({}, { message: 'Data de agendamento inválida' })
+  scheduledStartAt?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(15, { message: 'Duração mínima é 15 minutos' })
+  estimatedDurationMinutes?: number;
 }

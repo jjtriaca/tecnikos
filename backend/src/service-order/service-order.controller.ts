@@ -43,6 +43,34 @@ export class ServiceOrderController {
     return this.service.stats(user.companyId);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO, UserRole.LEITURA)
+  @Get('agenda')
+  agenda(
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.findAgenda(user.companyId, dateFrom, dateTo);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Get('check-conflicts')
+  checkConflicts(
+    @Query('technicianId') technicianId: string,
+    @Query('scheduledStartAt') scheduledStartAt: string,
+    @Query('durationMinutes') durationMinutes: string,
+    @Query('excludeOrderId') excludeOrderId: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.checkConflicts(
+      user.companyId,
+      technicianId,
+      scheduledStartAt,
+      parseInt(durationMinutes) || 60,
+      excludeOrderId,
+    );
+  }
+
   @Get(':id')
   findOne(
     @Param('id') id: string,

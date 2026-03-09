@@ -8,6 +8,7 @@ import {
   IsEmail,
   MinLength,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreatePartnerDto {
@@ -59,6 +60,7 @@ export class CreatePartnerDto {
   phone?: string;
 
   @IsOptional()
+  @ValidateIf((o) => o.email !== '' && o.email != null)
   @IsEmail({}, { message: 'Email inválido' })
   email?: string;
 

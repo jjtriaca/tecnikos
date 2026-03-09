@@ -218,6 +218,10 @@ export default function PartnerForm({
       payload.documentType = form.personType === "PJ" ? "CNPJ" : "CPF";
       if (forceDuplicate) payload.forceDuplicate = true;
       if (!form.password) delete payload.password;
+      // Clean empty strings — backend validators reject "" for email/cep/state
+      if (!payload.email) payload.email = undefined;
+      if (!payload.cep) payload.cep = undefined;
+      if (!payload.state) payload.state = undefined;
       if (!isTecnico) {
         delete payload.password;
         delete payload.specializationIds;

@@ -8,6 +8,8 @@ export interface SendContractOptions {
   companyId: string;
   partnerId: string;
   serviceOrderId?: string;
+  specializationId?: string;
+  trigger?: string;
   contractName: string;
   contractContent: string;
   blockUntilAccepted?: boolean;
@@ -34,6 +36,8 @@ export class ContractService {
       companyId,
       partnerId,
       serviceOrderId,
+      specializationId,
+      trigger,
       contractName,
       contractContent,
       blockUntilAccepted = true,
@@ -77,6 +81,8 @@ export class ContractService {
         companyId,
         partnerId,
         serviceOrderId: serviceOrderId || null,
+        specializationId: specializationId || null,
+        trigger: trigger || null,
         token,
         contractName,
         contractContent: resolvedContent,
@@ -287,12 +293,14 @@ export class ContractService {
   async cancelContract(id: string, companyId: string, reason?: string) {
     const contract = await this.prisma.technicianContract.findFirst({
       where: { id, companyId },
+      include: { partner: true },
     });
 
     if (!contract) throw new NotFoundException('Contrato não encontrado');
     if (contract.status === 'ACCEPTED') throw new BadRequestException('Contrato já aceito, não pode ser cancelado');
 
-    return this.prisma.technicianContract.update({
+    // Cancel the contract
+    const updated = await this.prisma.technicianContract.update({
       where: { id },
       data: {
         status: 'CANCELLED',
@@ -300,6 +308,40 @@ export class ContractService {
         cancelledReason: reason || null,
       },
     });
+
+    // If contract was linked to a specialization, remove the PartnerSpecialization
+    if (contract.specializationId) {
+      await this.prisma.partnerSpecialization.deleteMany({
+        where: {
+          partnerId: contract.partnerId,
+          specializationId: contract.specializationId,
+        },
+      }).catch(() => {});
+      this.logger.log(`🔧 Removed specialization ${contract.specializationId} from partner ${contract.partnerId} due to contract cancellation`);
+    }
+
+    // If blockUntilAccepted, check if partner should be reactivated
+    if (contract.blockUntilAccepted && contract.partner.status === 'PENDENTE_CONTRATO') {
+      const stillPending = await this.prisma.technicianContract.count({
+        where: {
+          partnerId: contract.partnerId,
+          companyId,
+          blockUntilAccepted: true,
+          status: { in: ['PENDING', 'VIEWED'] },
+          id: { not: id },
+        },
+      });
+
+      if (stillPending === 0) {
+        await this.prisma.partner.update({
+          where: { id: contract.partnerId },
+          data: { status: 'ATIVO' },
+        });
+        this.logger.log(`✅ Partner ${contract.partner.name} reactivated after contract cancellation (no more pending contracts)`);
+      }
+    }
+
+    return updated;
   }
 
   /* ── Email HTML Builder ─────────────────────────────── */

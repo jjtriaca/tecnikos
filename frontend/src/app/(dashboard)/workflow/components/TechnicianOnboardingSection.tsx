@@ -1,8 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { TechnicianOnboardingConfig } from '@/types/stage-config';
 import { CHANNEL_OPTIONS } from '@/types/stage-config';
+
+const EXPIRATION_UNITS = [
+  { value: 'days', label: 'Dias' },
+  { value: 'months', label: 'Meses' },
+  { value: 'years', label: 'Anos' },
+  { value: 'indefinite', label: 'Indeterminado' },
+] as const;
 
 /* ── Props ─────────────────────────────────────────────────── */
 
@@ -55,8 +62,30 @@ function TriggerSection({
   triggerConfig: TechnicianOnboardingConfig['onNewTechnician'];
   onChange: (c: TechnicianOnboardingConfig['onNewTechnician']) => void;
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const update = (patch: Partial<TechnicianOnboardingConfig['onNewTechnician']>) =>
     onChange({ ...triggerConfig, ...patch });
+
+  const insertVariable = (variable: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      update({ contractContent: triggerConfig.contractContent + variable });
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = triggerConfig.contractContent;
+    const newText = text.substring(0, start) + variable + text.substring(end);
+    update({ contractContent: newText });
+    // Restore cursor position after React re-render
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const pos = start + variable.length;
+      textarea.setSelectionRange(pos, pos);
+    });
+  };
+
+  const expirationUnit = triggerConfig.expirationUnit || 'days';
 
   return (
     <div className="space-y-3">
@@ -106,9 +135,10 @@ function TriggerSection({
           </label>
 
           {/* Contract content */}
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="text-xs text-slate-500">Conteudo do contrato:</span>
             <textarea
+              ref={textareaRef}
               value={triggerConfig.contractContent}
               onChange={(e) => update({ contractContent: e.target.value })}
               placeholder="Digite o texto do contrato que o tecnico devera aceitar..."
@@ -116,19 +146,20 @@ function TriggerSection({
               className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
             />
             <div className="flex flex-wrap gap-1 mt-1">
+              <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
               {['{nome}', '{empresa}', '{razao_social}', '{cnpj_empresa}', '{endereco_empresa}', '{documento}', '{email}', '{telefone}', '{especializacao}', '{data}'].map((v) => (
                 <button
                   key={v}
                   type="button"
-                  onClick={() => update({ contractContent: triggerConfig.contractContent + v })}
-                  title={`Inserir variavel ${v}`}
+                  onClick={() => insertVariable(v)}
+                  title={`Inserir ${v} na posicao do cursor`}
                   className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-purple-100 hover:text-purple-600 transition-colors"
                 >
                   {v}
                 </button>
               ))}
             </div>
-          </label>
+          </div>
 
           {/* Notification message */}
           <label className="flex flex-col gap-1">
@@ -162,18 +193,38 @@ function TriggerSection({
           </div>
 
           {/* Expiration */}
-          <label className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">Expiracao:</span>
-            <input
-              type="number"
-              value={triggerConfig.expirationDays}
-              min={1}
-              max={90}
-              onChange={(e) => update({ expirationDays: parseInt(e.target.value) || 7 })}
-              className="text-xs rounded border border-slate-300 px-2 py-1 w-16 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-            />
-            <span className="text-xs text-slate-400">dias</span>
-          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Validade:</span>
+            <select
+              value={expirationUnit}
+              onChange={(e) => {
+                const unit = e.target.value as 'days' | 'months' | 'years' | 'indefinite';
+                if (unit === 'indefinite') {
+                  update({ expirationUnit: unit, expirationDays: 0 });
+                } else {
+                  update({ expirationUnit: unit, expirationDays: triggerConfig.expirationDays || 7 });
+                }
+              }}
+              className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+            >
+              {EXPIRATION_UNITS.map((u) => (
+                <option key={u.value} value={u.value}>{u.label}</option>
+              ))}
+            </select>
+            {expirationUnit !== 'indefinite' && (
+              <input
+                type="number"
+                value={triggerConfig.expirationDays}
+                min={1}
+                max={expirationUnit === 'years' ? 10 : expirationUnit === 'months' ? 120 : 365}
+                onChange={(e) => update({ expirationDays: parseInt(e.target.value) || 7 })}
+                className="text-xs rounded border border-slate-300 px-2 py-1 w-16 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+              />
+            )}
+            {expirationUnit === 'indefinite' && (
+              <span className="text-xs text-slate-400 italic">Sem data de expiracao</span>
+            )}
+          </div>
         </ConfigRow>
       </ConfigRow>
     </div>

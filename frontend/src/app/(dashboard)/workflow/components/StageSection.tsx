@@ -658,6 +658,109 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                     </div>
                   </ConfigRow>
                 </div>
+
+                {/* ── 7. REGIME DE AGENDA (CLT) ── */}
+                <div className="rounded-lg border border-teal-200 bg-teal-50/30 p-3">
+                  <Toggle checked={stage.autoActions.scheduleConfig.enabled}
+                    onChange={v => updateAuto('scheduleConfig', { enabled: v })}
+                    label="📅 Regime de Agenda (CLT)"
+                    hint="Ativa despacho por agenda — ao criar OS com este fluxo, o operador escolhe técnico, data e horário no calendário." />
+                  <ConfigRow visible={stage.autoActions.scheduleConfig.enabled}>
+                    <div className="space-y-3">
+                      {/* Duração padrão */}
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 whitespace-nowrap">Duração padrão:</span>
+                          <select
+                            value={stage.autoActions.scheduleConfig.defaultDurationMinutes}
+                            onChange={e => updateAuto('scheduleConfig', { defaultDurationMinutes: parseInt(e.target.value) })}
+                            className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                          >
+                            <option value={30}>30 minutos</option>
+                            <option value={60}>1 hora</option>
+                            <option value={90}>1h30</option>
+                            <option value={120}>2 horas</option>
+                            <option value={180}>3 horas</option>
+                            <option value={240}>4 horas</option>
+                            <option value={480}>Dia inteiro (8h)</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      {/* Horário de trabalho */}
+                      <div className="pt-2 border-t border-teal-200">
+                        <span className="text-xs font-medium text-slate-600 block mb-2">Horário de trabalho:</span>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1">
+                            <span className="text-xs text-slate-500">De:</span>
+                            <input type="time" value={stage.autoActions.scheduleConfig.workingHours.start}
+                              onChange={e => updateAuto('scheduleConfig', { workingHours: { ...stage.autoActions.scheduleConfig.workingHours, start: e.target.value } })}
+                              className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                          </label>
+                          <label className="flex items-center gap-1">
+                            <span className="text-xs text-slate-500">Até:</span>
+                            <input type="time" value={stage.autoActions.scheduleConfig.workingHours.end}
+                              onChange={e => updateAuto('scheduleConfig', { workingHours: { ...stage.autoActions.scheduleConfig.workingHours, end: e.target.value } })}
+                              className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Dias da semana */}
+                      <div className="pt-2 border-t border-teal-200">
+                        <span className="text-xs font-medium text-slate-600 block mb-2">Dias de trabalho:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { day: 1, label: 'Seg' }, { day: 2, label: 'Ter' }, { day: 3, label: 'Qua' },
+                            { day: 4, label: 'Qui' }, { day: 5, label: 'Sex' }, { day: 6, label: 'Sáb' }, { day: 0, label: 'Dom' },
+                          ].map(d => {
+                            const active = stage.autoActions.scheduleConfig.workingDays.includes(d.day);
+                            return (
+                              <button key={d.day} type="button"
+                                onClick={() => {
+                                  const days = active
+                                    ? stage.autoActions.scheduleConfig.workingDays.filter((dd: number) => dd !== d.day)
+                                    : [...stage.autoActions.scheduleConfig.workingDays, d.day].sort();
+                                  updateAuto('scheduleConfig', { workingDays: days });
+                                }}
+                                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                                  active ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                }`}
+                              >
+                                {d.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Notificação do técnico */}
+                      <div className="pt-2 border-t border-teal-200">
+                        <SubToggle checked={stage.autoActions.scheduleConfig.notifyTechnician.enabled}
+                          onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, enabled: v } })}
+                          label="Notificar técnico sobre agendamento" />
+                        {stage.autoActions.scheduleConfig.notifyTechnician.enabled && (
+                          <div className="ml-5 mt-2 space-y-2">
+                            <SelectField label="Canal" value={stage.autoActions.scheduleConfig.notifyTechnician.channel}
+                              onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, channel: v } })}
+                              options={CHANNEL_OPTIONS} />
+                            <NumberField label="Notificar antes" value={stage.autoActions.scheduleConfig.notifyTechnician.minutesBefore}
+                              onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, minutesBefore: v } })}
+                              min={0} suffix="min (0 = ao agendar)" />
+                            <TextAreaField label="Mensagem" value={stage.autoActions.scheduleConfig.notifyTechnician.message}
+                              onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, message: v } })}
+                              placeholder="{nome}, você tem um serviço agendado para {data_agendamento} às {hora_agendamento}..." vars />
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="text-[10px] text-slate-400 italic mt-1">
+                        💡 Quando ativo, ao criar OS com este fluxo o operador escolhe técnico + data/hora na agenda.
+                        A OS já nasce como &quot;Atribuída&quot; (pula Aberta → Ofertada).
+                      </p>
+                    </div>
+                  </ConfigRow>
+                </div>
               </>
             )}
 

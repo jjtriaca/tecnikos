@@ -52,6 +52,7 @@ export class PartnerService {
     companyId: string,
     partnerId: string,
     trigger: 'onNewTechnician' | 'onNewSpecialization',
+    specializationId?: string,
   ): Promise<void> {
     if (!this.contractService) {
       this.logger.warn(`📄 ContractService not available — skipping dispatch`);
@@ -87,21 +88,37 @@ export class PartnerService {
         return;
       }
 
-      this.logger.log(`📄 Sending contract to partner ${partnerId} via ${triggerConfig.channel || 'WHATSAPP'}...`);
+      // Calculate expiration in days based on unit
+      const unit = triggerConfig.expirationUnit || 'days';
+      const rawValue = triggerConfig.expirationDays ?? 7;
+      let expirationDays: number;
+      if (unit === 'indefinite') {
+        expirationDays = 36500; // ~100 years
+      } else if (unit === 'months') {
+        expirationDays = rawValue * 30;
+      } else if (unit === 'years') {
+        expirationDays = rawValue * 365;
+      } else {
+        expirationDays = rawValue;
+      }
+
+      this.logger.log(`📄 Sending contract to partner ${partnerId} via ${triggerConfig.channel || 'WHATSAPP'} (expires in ${expirationDays} days)...`);
 
       await this.contractService.sendContract({
         companyId,
         partnerId,
+        trigger,
+        specializationId: specializationId || undefined,
         contractName: triggerConfig.contractName || 'Contrato de Prestação de Serviços',
         contractContent: triggerConfig.contractContent || '',
         blockUntilAccepted: triggerConfig.blockUntilAccepted ?? true,
         requireSignature: triggerConfig.requireSignature ?? false,
         requireAcceptance: triggerConfig.requireAcceptance ?? true,
-        expirationDays: triggerConfig.expirationDays ?? 7,
+        expirationDays,
         channel: triggerConfig.channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP',
       });
 
-      this.logger.log(`📄 Contract dispatched for partner ${partnerId} (${trigger}) ✅`);
+      this.logger.log(`📄 Contract dispatched for partner ${partnerId} (${trigger}${specializationId ? `, spec: ${specializationId}` : ''}) ✅`);
     } catch (err) {
       this.logger.error(`Failed to dispatch technician contract: ${err.message}`, err.stack);
     }
@@ -347,12 +364,12 @@ export class PartnerService {
         this.dispatchTechnicianContract(companyId, id, 'onNewTechnician').catch(() => {});
       }
 
-      // Dispatch technician contract: new specialization added
+      // Dispatch technician contract: one per new specialization added
       if (isTecnico && specializationIds !== undefined) {
         const existingSpecIds = (existing as any).specializations?.map((s: any) => s.specialization?.id || s.specializationId) ?? [];
         const newSpecIds = specializationIds.filter((sid: string) => !existingSpecIds.includes(sid));
-        if (newSpecIds.length > 0) {
-          this.dispatchTechnicianContract(companyId, id, 'onNewSpecialization').catch(() => {});
+        for (const specId of newSpecIds) {
+          this.dispatchTechnicianContract(companyId, id, 'onNewSpecialization', specId).catch(() => {});
         }
       }
     }

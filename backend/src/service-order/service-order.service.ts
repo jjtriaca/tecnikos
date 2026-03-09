@@ -12,7 +12,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
 import { AuthenticatedUser } from '../auth/auth.types';
 
-const SORTABLE_COLUMNS = ['title', 'status', 'valueCents', 'deadlineAt', 'createdAt', 'acceptedAt', 'startedAt', 'completedAt'];
+const SORTABLE_COLUMNS = ['title', 'status', 'valueCents', 'deadlineAt', 'createdAt', 'acceptedAt', 'startedAt', 'completedAt', 'scheduledStartAt'];
 
 const TERMINAL_STATUSES: ServiceOrderStatus[] = [
   ServiceOrderStatus.CONCLUIDA,
@@ -78,6 +78,14 @@ export class ServiceOrderService {
         acceptTimeoutMinutes: data.acceptTimeoutMinutes ?? undefined,
         enRouteTimeoutMinutes: data.enRouteTimeoutMinutes ?? undefined,
         obraId: data.obraId || undefined,
+        // Agendamento CLT (v1.01.72)
+        scheduledStartAt: data.scheduledStartAt ? new Date(data.scheduledStartAt) : undefined,
+        estimatedDurationMinutes: data.estimatedDurationMinutes ?? undefined,
+        // Pre-atribuicao (BY_AGENDA): tecnico ja definido + status ATRIBUIDA
+        ...(data.techAssignmentMode === 'BY_AGENDA' && data.assignedPartnerId ? {
+          assignedPartnerId: data.assignedPartnerId,
+          status: 'ATRIBUIDA' as any,
+        } : {}),
       },
     });
 
@@ -89,12 +97,12 @@ export class ServiceOrderService {
       actorType: 'USER',
       actorId: actor?.id,
       actorName: actor?.email,
-      after: { title: result.title, status: 'ABERTA' },
+      after: { title: result.title, status: result.status },
     });
 
     this.dispatchAutomation({
       companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'created',
-      data: { status: 'ABERTA', state: data.state, city: data.city, neighborhood: data.neighborhood, valueCents: data.valueCents, clientPartnerId: data.clientPartnerId, title: result.title, description: data.description, addressStreet: data.addressStreet, cep: data.cep, deadlineAt: data.deadlineAt, createdAt: result.createdAt?.toISOString() },
+      data: { status: result.status, state: data.state, city: data.city, neighborhood: data.neighborhood, valueCents: data.valueCents, clientPartnerId: data.clientPartnerId, title: result.title, description: data.description, addressStreet: data.addressStreet, cep: data.cep, deadlineAt: data.deadlineAt, createdAt: result.createdAt?.toISOString(), scheduledStartAt: data.scheduledStartAt },
     });
 
     return result;
@@ -173,6 +181,77 @@ export class ServiceOrderService {
     });
 
     return { total, byStatus, overdue, completedToday };
+  }
+
+  /* ── Agenda CLT ─────────────────────────────────────────── */
+
+  async findAgenda(companyId: string, dateFrom: string, dateTo: string) {
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo + 'T23:59:59.999Z');
+
+    return this.prisma.serviceOrder.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        scheduledStartAt: { gte: from, lte: to },
+        status: { notIn: ['CANCELADA'] },
+      },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        status: true,
+        scheduledStartAt: true,
+        estimatedDurationMinutes: true,
+        valueCents: true,
+        addressText: true,
+        city: true,
+        neighborhood: true,
+        lat: true,
+        lng: true,
+        assignedPartner: { select: { id: true, name: true, phone: true } },
+        clientPartner: { select: { id: true, name: true } },
+      },
+      orderBy: { scheduledStartAt: 'asc' },
+    });
+  }
+
+  async checkConflicts(
+    companyId: string,
+    technicianId: string,
+    scheduledStartAt: string,
+    durationMinutes: number,
+    excludeOrderId?: string,
+  ) {
+    const start = new Date(scheduledStartAt);
+    const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+
+    const where: any = {
+      companyId,
+      deletedAt: null,
+      assignedPartnerId: technicianId,
+      status: { notIn: ['CANCELADA', 'CONCLUIDA', 'APROVADA'] },
+      scheduledStartAt: { not: null },
+    };
+    if (excludeOrderId) {
+      where.id = { not: excludeOrderId };
+    }
+
+    const orders = await this.prisma.serviceOrder.findMany({
+      where,
+      select: {
+        id: true, title: true, code: true,
+        scheduledStartAt: true, estimatedDurationMinutes: true,
+      },
+    });
+
+    const conflicts = orders.filter(o => {
+      const oStart = new Date(o.scheduledStartAt!);
+      const oEnd = new Date(oStart.getTime() + (o.estimatedDurationMinutes || 60) * 60 * 1000);
+      return start < oEnd && end > oStart;
+    });
+
+    return { hasConflict: conflicts.length > 0, conflicts };
   }
 
   async findOne(id: string, companyId: string) {
@@ -277,11 +356,12 @@ export class ServiceOrderService {
     const beforeFields: Record<string, any> = {};
     const afterFields: Record<string, any> = {};
 
+    const DATE_FIELDS = ['deadlineAt', 'scheduledStartAt'];
     const checkField = (key: string, newVal: any, oldVal: any) => {
       if (newVal !== undefined && newVal !== oldVal) {
         beforeFields[key] = oldVal;
         afterFields[key] = newVal;
-        updateData[key] = key === 'deadlineAt' ? new Date(newVal) : newVal;
+        updateData[key] = DATE_FIELDS.includes(key) ? new Date(newVal) : newVal;
       }
     };
 
@@ -343,6 +423,13 @@ export class ServiceOrderService {
         afterFields['obraId'] = newVal;
         updateData['obraId'] = newVal;
       }
+    }
+    // Agendamento CLT (v1.01.72)
+    if (data.scheduledStartAt !== undefined) {
+      checkField('scheduledStartAt', data.scheduledStartAt, (so as any).scheduledStartAt?.toISOString());
+    }
+    if (data.estimatedDurationMinutes !== undefined) {
+      checkField('estimatedDurationMinutes', data.estimatedDurationMinutes, (so as any).estimatedDurationMinutes);
     }
 
     if (Object.keys(updateData).length === 0) return so;

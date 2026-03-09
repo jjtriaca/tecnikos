@@ -31,6 +31,7 @@ export interface AutomationEvent {
     cep?: string;
     deadlineAt?: string;
     createdAt?: string;
+    scheduledStartAt?: string;
     // PARTNER fields
     name?: string;
     personType?: string;

@@ -128,6 +128,23 @@ export interface StageConfig {
         alert:              { enabled: boolean; message: string };
       };
     };
+
+    // Regime de Agenda CLT (v1.01.72)
+    scheduleConfig: {
+      enabled: boolean;                    // Ativa regime de agenda (despacho manual com data/hora)
+      defaultDurationMinutes: number;      // Duração padrão do serviço (ex: 60)
+      workingHours: {
+        start: string;                     // "08:00"
+        end: string;                       // "18:00"
+      };
+      workingDays: number[];               // [1,2,3,4,5] = seg-sex (0=dom, 6=sab)
+      notifyTechnician: {
+        enabled: boolean;
+        channel: string;                   // 'whatsapp' | 'email'
+        message: string;                   // Suporta {nome}, {data_agendamento}, {titulo}, {cliente}
+        minutesBefore: number;             // Notificar X minutos antes (0 = ao agendar)
+      };
+    };
   };
 
   timeControl: {
@@ -246,6 +263,7 @@ export interface TechnicianOnboardingConfig {
     requireAcceptance: boolean;
     blockUntilAccepted: boolean;
     expirationDays: number;
+    expirationUnit?: 'days' | 'months' | 'years' | 'indefinite';
     notifyMessage: string;   // Mensagem de notificação
   };
 
@@ -259,6 +277,7 @@ export interface TechnicianOnboardingConfig {
     requireAcceptance: boolean;
     blockUntilAccepted: boolean;
     expirationDays: number;
+    expirationUnit?: 'days' | 'months' | 'years' | 'indefinite';
     notifyMessage: string;
   };
 }
@@ -384,6 +403,7 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       requireAcceptance: true,
       blockUntilAccepted: true,
       expirationDays: 7,
+      expirationUnit: 'days',
       notifyMessage: 'Ola {nome}, voce recebeu um contrato da {empresa} para aceite como tecnico. Acesse o link para visualizar e aceitar.',
     },
     onNewSpecialization: {
@@ -396,6 +416,7 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       requireAcceptance: true,
       blockUntilAccepted: false,
       expirationDays: 7,
+      expirationUnit: 'days',
       notifyMessage: 'Ola {nome}, uma nova especializacao foi atribuida a voce na {empresa}. Acesse o link para aceitar.',
     },
   };
@@ -718,6 +739,18 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
           notifyGestor:       { enabled: false, channel: 'push',     message: '' },
           autoStartExecution: false,
           alert:              { enabled: false, message: '' },
+        },
+      },
+      scheduleConfig: {
+        enabled: false,
+        defaultDurationMinutes: 60,
+        workingHours: { start: '08:00', end: '18:00' },
+        workingDays: [1, 2, 3, 4, 5],
+        notifyTechnician: {
+          enabled: true,
+          channel: 'whatsapp',
+          message: 'Ola {nome}, voce tem um servico agendado para {data_agendamento} — {titulo} ({cliente}). Endereco: {endereco}',
+          minutesBefore: 30,
         },
       },
     },
@@ -1228,6 +1261,20 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
           notifyCliente: stage.autoActions.arrivalQuestion.notifyCliente,
           notifyGestor: stage.autoActions.arrivalQuestion.notifyGestor,
           onDecline: stage.autoActions.arrivalQuestion.onDecline,
+        },
+        next: null,
+      });
+    }
+
+    // 2e-bis. Schedule config (ABERTA — regime de agenda CLT)
+    if (stage.autoActions.scheduleConfig?.enabled && stage.status === 'ABERTA') {
+      stageBlocks.push({
+        id: genId('sched'), type: 'SCHEDULE_CONFIG', name: 'Regime de Agenda', icon: '📅',
+        config: {
+          defaultDurationMinutes: stage.autoActions.scheduleConfig.defaultDurationMinutes,
+          workingHours: stage.autoActions.scheduleConfig.workingHours,
+          workingDays: stage.autoActions.scheduleConfig.workingDays,
+          notifyTechnician: stage.autoActions.scheduleConfig.notifyTechnician,
         },
         next: null,
       });
@@ -1773,6 +1820,20 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
           notifyGestor: { enabled: false, channel: 'push', message: '' },
           autoStartExecution: false,
           alert: { enabled: false, message: '' },
+        },
+      };
+      break;
+    case 'SCHEDULE_CONFIG':
+      stage.autoActions.scheduleConfig = {
+        enabled: true,
+        defaultDurationMinutes: cfg.defaultDurationMinutes ?? 60,
+        workingHours: cfg.workingHours || { start: '08:00', end: '18:00' },
+        workingDays: cfg.workingDays || [1, 2, 3, 4, 5],
+        notifyTechnician: cfg.notifyTechnician || {
+          enabled: true,
+          channel: 'whatsapp',
+          message: 'Ola {nome}, voce tem um servico agendado para {data_agendamento} — {titulo} ({cliente}). Endereco: {endereco}',
+          minutesBefore: 30,
         },
       };
       break;

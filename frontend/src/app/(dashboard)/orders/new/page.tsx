@@ -12,6 +12,7 @@ import TechAssignmentSection, {
   type TechnicianSummary,
   type WorkflowSummary,
 } from "@/components/os/TechAssignmentSection";
+import AgendaSelector, { type AgendaSelection } from "@/components/os/AgendaSelector";
 import {
   STATES,
   STATE_NAMES,
@@ -58,6 +59,56 @@ export default function NewOrderPage() {
   const [selectedSpecs, setSelectedSpecs] = useState<SpecializationSummary[]>([]);
   const [selectedTechs, setSelectedTechs] = useState<TechnicianSummary[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowSummary | null>(null);
+
+  // Agenda CLT (v1.01.72)
+  const [isAgendaMode, setIsAgendaMode] = useState(false);
+  const [agendaSelection, setAgendaSelection] = useState<AgendaSelection | null>(null);
+  const [scheduleConfig, setScheduleConfig] = useState<{
+    defaultDurationMinutes: number;
+    workingHours: { start: string; end: string };
+    workingDays: number[];
+  } | null>(null);
+
+  // Fetch workflow definition when workflow changes to detect scheduleConfig
+  useEffect(() => {
+    if (techMode !== "BY_WORKFLOW" || !selectedWorkflow) {
+      setIsAgendaMode(false);
+      setScheduleConfig(null);
+      setAgendaSelection(null);
+      return;
+    }
+    let cancelled = false;
+    api.get<{ definition: string }>(`/workflows/${selectedWorkflow.id}`)
+      .then(res => {
+        if (cancelled) return;
+        try {
+          const def = typeof res.definition === "string" ? JSON.parse(res.definition) : res.definition;
+          // V2 format: look for SCHEDULE_CONFIG block
+          if (def?.version === 2 && Array.isArray(def.blocks)) {
+            const schedBlock = def.blocks.find((b: { type: string }) => b.type === "SCHEDULE_CONFIG");
+            if (schedBlock?.data?.enabled) {
+              setIsAgendaMode(true);
+              setScheduleConfig({
+                defaultDurationMinutes: schedBlock.data.defaultDurationMinutes || 60,
+                workingHours: schedBlock.data.workingHours || { start: "08:00", end: "18:00" },
+                workingDays: schedBlock.data.workingDays || [1, 2, 3, 4, 5],
+              });
+              return;
+            }
+          }
+        } catch { /* ignore parse errors */ }
+        setIsAgendaMode(false);
+        setScheduleConfig(null);
+        setAgendaSelection(null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsAgendaMode(false);
+          setScheduleConfig(null);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [techMode, selectedWorkflow]);
 
   // Accept timeout state — restored from localStorage
   const [acceptTimeoutMode, setAcceptTimeoutMode] = useState<'minutes' | 'hours' | 'from_flow'>(() => {
@@ -247,6 +298,17 @@ export default function NewOrderPage() {
       });
       setGeocodingMsg(null);
 
+      // Validar agenda se modo agenda ativo
+      if (isAgendaMode) {
+        if (!agendaSelection) {
+          setError("Selecione um tecnico, data e hora na agenda");
+          setLoading(false);
+          return;
+        }
+      }
+
+      const effectiveMode = isAgendaMode ? "BY_AGENDA" : techMode;
+
       await api.post("/service-orders", {
         title: form.title,
         description: form.description || undefined,
@@ -264,21 +326,29 @@ export default function NewOrderPage() {
         city: cityName || undefined,
         state: form.state || undefined,
         cep: form.cep ? form.cep.replace(/\D/g, "") : undefined,
-        // Atribuição de técnico
-        techAssignmentMode: techMode,
+        // Atribuicao de tecnico
+        techAssignmentMode: effectiveMode,
         requiredSpecializationIds: techMode === "BY_SPECIALIZATION" ? selectedSpecs.map((s) => s.id) : [],
         directedTechnicianIds: techMode === "DIRECTED" ? selectedTechs.map((t) => t.id) : [],
         workflowTemplateId: techMode === "BY_WORKFLOW" ? selectedWorkflow?.id || undefined : undefined,
+        // Agenda CLT
+        ...(isAgendaMode && agendaSelection ? {
+          assignedPartnerId: agendaSelection.technicianId,
+          scheduledStartAt: agendaSelection.scheduledStartAt,
+          estimatedDurationMinutes: agendaSelection.estimatedDurationMinutes,
+        } : {}),
         // Contato no local
         contactPersonName: form.contactPersonName || undefined,
         // Obra vinculada
         obraId: selectedObraId || undefined,
         // Tempo para aceitar (null = usa do fluxo)
-        acceptTimeoutMinutes: acceptTimeoutMode === 'from_flow' ? undefined
+        acceptTimeoutMinutes: isAgendaMode ? undefined
+          : acceptTimeoutMode === 'from_flow' ? undefined
           : acceptTimeoutMode === 'hours' ? acceptTimeoutValue * 60
           : acceptTimeoutValue,
         // Tempo para clicar a caminho (null = usa do fluxo)
-        enRouteTimeoutMinutes: enRouteTimeoutMode === 'from_flow' ? undefined
+        enRouteTimeoutMinutes: isAgendaMode ? undefined
+          : enRouteTimeoutMode === 'from_flow' ? undefined
           : enRouteTimeoutMode === 'hours' ? enRouteTimeoutValue * 60
           : enRouteTimeoutValue,
       });
@@ -423,7 +493,19 @@ export default function NewOrderPage() {
             onWorkflowChange={setSelectedWorkflow}
           />
 
-          {/* Tempo para aceitar */}
+          {/* Agenda CLT — aparece quando o fluxo tem scheduleConfig.enabled */}
+          {isAgendaMode && scheduleConfig && (
+            <AgendaSelector
+              workingHours={scheduleConfig.workingHours}
+              workingDays={scheduleConfig.workingDays}
+              defaultDurationMinutes={scheduleConfig.defaultDurationMinutes}
+              selection={agendaSelection}
+              onSelect={setAgendaSelection}
+            />
+          )}
+
+          {/* Tempo para aceitar + a caminho — oculto em modo agenda */}
+          {!isAgendaMode && (<>
           <div className="border-t border-slate-200 pt-4">
             <label className="block text-sm font-medium text-slate-700 mb-1">
               ⏱️ Tempo para aceitar
@@ -512,6 +594,7 @@ export default function NewOrderPage() {
               </p>
             )}
           </div>
+          </>)}
 
           {/* Separador Endereço */}
           <div className="border-t border-slate-200 pt-4">

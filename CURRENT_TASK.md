@@ -121,7 +121,44 @@
 ## Projetos Futuros
 - **Registro de marca INPI**: Solicitar registro da marca "Tecnikos" no INPI (Instituto Nacional da Propriedade Industrial). Logo SVG disponivel em `brand/`.
 
-## Versao atual: v1.01.68 — em producao
+- [x] Sininho notificacao: contador nao-lidas (readAt null) + mark-read apos 3s na pagina (v1.01.69)
+- [x] Migration: 20260309020000_notification_read_at (campo readAt em Notification)
+- [x] Backend: countUnread + markAllRead + endpoint POST /notifications/mark-read
+- [x] Header: badge com animate-pulse + auto-reset quando abre /notifications (3s delay)
+- [x] Notificacao CONTRACT_ACCEPTED criada ao aceitar contrato (canal SYSTEM)
+- [x] Frontend: canal SYSTEM (purple) + PENDENTE_CONTRATO (orange) nos status labels/colors
+- [x] ContractsSection: componente inline no PartnerForm (ver contratos, aceite, assinatura, conteudo)
+- [x] Filtro PENDENTE_CONTRATO adicionado na pagina de parceiros
+- [x] Deploy: v1.01.69 em producao + migration aplicada
+- [x] Fix: email validation — aceitar salvar parceiro sem email (ValidateIf + clean empty strings)
+- [x] Botao cancelar contrato no ContractsSection (confirm + auto-reload)
+- [x] Backend: cancelContract remove PartnerSpecialization vinculada + reativa parceiro se nenhum pendente
+- [x] Link contrato-especializacao: campos specializationId e trigger no TechnicianContract
+- [x] Migration: 20260309030000_contract_specialization_link
+- [x] dispatchTechnicianContract: passa trigger e specializationId (1 contrato por especializacao nova)
+- [x] Deploy: v1.01.70 em producao + migration aplicada
+- [x] Variaveis de template: clique insere na posicao do cursor (em vez de copiar)
+- [x] Expiracao do contrato: opcoes dias, meses, anos ou indeterminado (backend converte para dias)
+- [x] Contratos de teste do Juliano deletados (4 registros)
+- [x] Deploy: v1.01.71 em producao
+
+### Agenda CLT (v1.01.72)
+- [x] Schema: campos scheduledStartAt + estimatedDurationMinutes na ServiceOrder
+- [x] Migration: 20260309100000_scheduling_fields (indices companyId+scheduledStartAt, assignedPartnerId+scheduledStartAt)
+- [x] Backend DTOs: campos nos Create e Update DTOs
+- [x] Backend Service: findAgenda(), checkConflicts(), create/update com scheduling
+- [x] Backend Controller: endpoints GET /agenda e GET /check-conflicts
+- [x] Backend: BY_AGENDA mode — OS nasce como ATRIBUIDA com tecnico pre-atribuido
+- [x] Frontend stage-config.ts: tipo scheduleConfig + compile/decompile V2
+- [x] Frontend StageSection.tsx: toggle "Regime de Agenda (CLT)" na etapa ABERTA
+- [x] Frontend AgendaSelector.tsx: componente grade semanal com selecao de tecnico+data+hora
+- [x] Frontend orders/new: detecta fluxo com agenda, mostra AgendaSelector, envia BY_AGENDA
+- [x] Frontend /agenda page: visao semanal completa com filtros
+- [x] Frontend Sidebar: entrada "Agenda" (icone calendario)
+- [x] Frontend Dashboard: widget "Agenda do Dia" com link para /agenda
+- [x] Build: backend 0 erros, frontend 0 erros
+
+## Versao atual: v1.01.71 — em producao (v1.01.72 pronto para deploy)
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)
