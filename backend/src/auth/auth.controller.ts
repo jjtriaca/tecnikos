@@ -35,12 +35,15 @@ export class AuthController {
     const ip = req.ip || req.socket?.remoteAddress;
     const ua = req.headers['user-agent'];
 
-    const result = await this.authService.login(dto.email, dto.password, ip, ua, dto.rememberMe);
+    // Validate CAPTCHA if token provided (required when configured)
+    await this.authService.validateCaptcha(dto.captchaToken, ip);
+
+    const result = await this.authService.login(dto.email, dto.password, ip, ua);
 
     res.cookie(
       REFRESH_COOKIE_NAME,
       result.refreshToken,
-      this.authService.refreshCookieOptions(result.rememberMe),
+      this.authService.refreshCookieOptions(),
     );
 
     return {
@@ -83,6 +86,14 @@ export class AuthController {
     await this.authService.logout(token);
     res.clearCookie(REFRESH_COOKIE_NAME, this.authService.clearCookieOptions());
     return { ok: true };
+  }
+
+  /** Public: returns CAPTCHA site key if configured */
+  @Public()
+  @Get('captcha-config')
+  captchaConfig() {
+    const siteKey = process.env.TURNSTILE_SITE_KEY || null;
+    return { enabled: !!siteKey, siteKey };
   }
 
   @Get('me')

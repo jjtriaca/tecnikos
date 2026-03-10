@@ -2,6 +2,8 @@ import {
   Injectable,
   UnauthorizedException,
   ForbiddenException,
+  BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,7 +12,6 @@ import { randomUUID } from 'crypto';
 import { JwtPayload, AuthenticatedUser } from './auth.types';
 import {
   DEFAULT_REFRESH_TTL_SECONDS,
-  REMEMBER_ME_TTL_SECONDS,
   SESSION_TTL_SECONDS,
   REFRESH_COOKIE_NAME,
 } from './auth.constants';
@@ -18,6 +19,8 @@ import {
 @Injectable()
 export class AuthService {
   private readonly refreshTtlSeconds: number;
+  private readonly logger = new Logger(AuthService.name);
+  private readonly turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -25,6 +28,36 @@ export class AuthService {
   ) {
     this.refreshTtlSeconds =
       Number(process.env.JWT_REFRESH_TTL) || DEFAULT_REFRESH_TTL_SECONDS;
+  }
+
+  /** Validate Turnstile CAPTCHA token. Skips if TURNSTILE_SECRET_KEY not configured. */
+  async validateCaptcha(token?: string, ip?: string): Promise<void> {
+    if (!this.turnstileSecret) return; // CAPTCHA not configured — skip
+
+    if (!token) {
+      throw new BadRequestException('Verificação CAPTCHA necessária');
+    }
+
+    try {
+      const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          secret: this.turnstileSecret,
+          response: token,
+          ...(ip ? { remoteip: ip } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        this.logger.warn(`CAPTCHA validation failed: ${JSON.stringify(data['error-codes'])}`);
+        throw new BadRequestException('Verificação CAPTCHA falhou. Tente novamente.');
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      this.logger.error('CAPTCHA validation error', err);
+      // On network error, allow login (fail open) to not block users
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -35,7 +68,6 @@ export class AuthService {
     password: string,
     ip?: string,
     userAgent?: string,
-    rememberMe?: boolean,
   ) {
     const user = await this.prisma.user.findFirst({
       where: { email, deletedAt: null },
@@ -46,7 +78,7 @@ export class AuthService {
     const passwordOk = await bcrypt.compare(password, user.passwordHash);
     if (!passwordOk) throw new UnauthorizedException('Credenciais inválidas');
 
-    const ttl = rememberMe ? REMEMBER_ME_TTL_SECONDS : SESSION_TTL_SECONDS;
+    const ttl = SESSION_TTL_SECONDS;
     const accessToken = this.issueAccessToken(user);
     const { refreshToken, session } = await this.createSession(
       user.id,
@@ -59,7 +91,6 @@ export class AuthService {
       accessToken,
       refreshToken,
       refreshTtlSeconds: ttl,
-      rememberMe: !!rememberMe,
       user: {
         id: user.id,
         name: user.name,
@@ -201,21 +232,15 @@ export class AuthService {
     return { refreshToken, session };
   }
 
-  /** Cookie options for the refresh token */
-  refreshCookieOptions(rememberMe?: boolean) {
-    const opts: Record<string, any> = {
+  /** Cookie options for the refresh token — session cookie (no maxAge, expires on browser close) */
+  refreshCookieOptions() {
+    return {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
       path: '/',
-    };
-    if (rememberMe) {
-      opts.maxAge = REMEMBER_ME_TTL_SECONDS * 1000;
-    } else {
       // Sem maxAge = cookie de sessao (expira ao fechar o browser)
-      opts.maxAge = SESSION_TTL_SECONDS * 1000;
-    }
-    return opts;
+    };
   }
 
   /** Cookie options to clear the refresh token */

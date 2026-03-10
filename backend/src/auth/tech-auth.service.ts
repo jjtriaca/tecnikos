@@ -10,7 +10,6 @@ import { randomUUID } from 'crypto';
 import { JwtPayload } from './auth.types';
 import {
   DEFAULT_REFRESH_TTL_SECONDS,
-  REMEMBER_ME_TTL_SECONDS,
   SESSION_TTL_SECONDS,
 } from './auth.constants';
 
@@ -27,7 +26,7 @@ export class TechAuthService {
   }
 
   /* ─── LOGIN ──────────────────────────────────────────── */
-  async login(email: string, password: string, ip?: string, userAgent?: string, rememberMe?: boolean) {
+  async login(email: string, password: string, ip?: string, userAgent?: string) {
     const tech = await this.prisma.partner.findFirst({
       where: { email, deletedAt: null, partnerTypes: { has: 'TECNICO' } },
     });
@@ -43,7 +42,7 @@ export class TechAuthService {
     const ok = await bcrypt.compare(password, tech.passwordHash);
     if (!ok) throw new UnauthorizedException('Credenciais inválidas');
 
-    const ttl = rememberMe ? REMEMBER_ME_TTL_SECONDS : SESSION_TTL_SECONDS;
+    const ttl = SESSION_TTL_SECONDS;
     const accessToken = this.issueAccessToken(tech);
     const { refreshToken } = await this.createSession(tech.id, ip, userAgent, ttl);
 
@@ -51,7 +50,6 @@ export class TechAuthService {
       accessToken,
       refreshToken,
       refreshTtlSeconds: ttl,
-      rememberMe: !!rememberMe,
       technician: {
         id: tech.id,
         name: tech.name,
@@ -184,19 +182,14 @@ export class TechAuthService {
     return { refreshToken };
   }
 
-  refreshCookieOptions(rememberMe?: boolean) {
-    const opts: Record<string, any> = {
+  /** Cookie de sessao (sem maxAge = expira ao fechar browser) */
+  refreshCookieOptions() {
+    return {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
       path: '/tech-auth',
     };
-    if (rememberMe) {
-      opts.maxAge = REMEMBER_ME_TTL_SECONDS * 1000;
-    } else {
-      opts.maxAge = SESSION_TTL_SECONDS * 1000;
-    }
-    return opts;
   }
 
   clearCookieOptions() {

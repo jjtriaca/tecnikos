@@ -31,7 +31,7 @@ export function hasRole(user: AuthUser | null | undefined, ...roles: UserRole[])
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (email: string, password: string, captchaToken?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -98,11 +98,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (email: string, password: string, rememberMe?: boolean) => {
+    async (email: string, password: string, captchaToken?: string) => {
       const res = await api.post<LoginResponse>("/auth/login", {
         email,
         password,
-        rememberMe,
+        ...(captchaToken ? { captchaToken } : {}),
       });
       setAccessToken(res.accessToken);
 

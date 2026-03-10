@@ -19,7 +19,7 @@ export type TechUser = {
 type TechAuthState = {
   user: TechUser | null;
   loading: boolean;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (email: string, password: string, captchaToken?: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -122,12 +122,12 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
   }, [fetchMe]);
 
   const login = useCallback(
-    async (email: string, password: string, rememberMe?: boolean) => {
+    async (email: string, password: string, captchaToken?: string) => {
       const res = await fetch(`${API_BASE}/tech-auth/login`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, rememberMe }),
+        body: JSON.stringify({ email, password, ...(captchaToken ? { captchaToken } : {}) }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

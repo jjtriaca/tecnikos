@@ -1453,9 +1453,63 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Status REJECTED adicionado
 - Deploy v1.01.88
 
-### REGRA PERMANENTE: Variaveis em Campos de Texto
-- Todos os campos com variaveis/templates ({nome}, {empresa}, etc) devem ser CLICAVEIS
-- Clicar na variavel insere no cursor do textarea correspondente
-- Padrao: botoes tipo "chip" que inserem variavel — nao apenas exibicao
+### Variaveis Clicaveis + Defaults (v1.01.89-90)
+- Spans estaticos de variaveis convertidos para botoes clicaveis (inserem na posicao do cursor)
+- Regra gravada no CLAUDE.md como padrao permanente do sistema
+- Keywords pre-cadastradas como default (aceite: sim/aceito/ok/etc, recusa: nao/recuso/etc)
+- Fix: virgula nao funcionava no input de keywords (onChange fazia split+filter, agora filter so no onBlur)
+- Mensagens de retorno e acoes de recusa pre-preenchidas com defaults
+- Deploy v1.01.89 + v1.01.90
+
+---
+
+## 2026-03-10 — Seguranca de Sessao + Discussao Licenciamento (Sessao 87)
+
+### Preocupacao do Usuario
+- "Quando abro tecnikos.com.br/finance ou /nfe, ja entra sem pedir senha, mesmo que o PC tenha sido desligado no dia anterior"
+
+### Decisoes de Seguranca (DEFINITIVAS)
+- Checkbox "Lembrar meu email" — so salva email no localStorage, NAO mantem sessao
+- Sessao expira ao fechar o navegador (cookie de sessao, sem maxAge)
+- Login DEVE ser feito sempre que abrir o sistema
+- Browser pode salvar email/senha (autofill padrao com autoComplete) — preenche campos mas usuario clica Entrar
+- CAPTCHA Cloudflare Turnstile a cada 7 dias (ativa com TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY)
+- Se sessao expirada → redireciona para login, sem excecao
+
+### Decisoes de Licenciamento Multi-Tenant (DEFINITIVAS)
+
+**Acesso:** Subdominio por empresa (ex: sls.tecnikos.com.br)
+
+**Contratacao:** Pagina de vendas com checkout online (auto-servico)
+
+**Fluxo de onboarding:**
+1. Empresa se cadastra no site
+2. Verificacao automatica: CNPJ via API Receita Federal + foto documento do responsavel via IA/OCR
+3. Aprovacao automatica se tudo ok
+4. Pagamento (Pix, Boleto ou Cartao de Credito)
+5. Ativacao do subdominio + conta do gestor
+
+**Planos:** Fixos com tiers (ex: Basico 5 usuarios, Profissional 15, Enterprise ilimitado)
+- Funcionalidades diferentes por plano
+- Gestor gerencia usuarios dentro do limite do plano
+- Para adicionar usuario alem do limite: excluir um ou fazer upgrade
+
+**Dispositivos:** Vinculacao de dispositivo obrigatoria
+- Cada usuario so acessa de dispositivos autorizados pelo gestor
+- Gestor libera dispositivo por fingerprint/token
+
+**Pagamento recorrente:** Pix + Boleto + Cartao de Credito
+- Regua de cobranca: avisos diarios por 7 dias apos vencimento
+- Apos 7 dias sem pagamento: bloqueio automatico da conta
+
+**Isolamento de dados:** Schema por empresa no PostgreSQL
+- Cada empresa tem schema proprio (ex: sls.partners, acme.partners)
+- Isolamento real — impossivel vazar dados entre empresas
+
+**Painel Admin SaaS (dono):** Dashboard completo
+- Todas as empresas, status pagamento, uso, bloqueio/desbloqueio
+- Metricas de receita (MRR, churn, etc)
+- Metricas de engajamento (OS criadas, logins, funcionalidades usadas)
+- NAO acessar dados financeiros dos clientes (LGPD, etica)
 
 ---

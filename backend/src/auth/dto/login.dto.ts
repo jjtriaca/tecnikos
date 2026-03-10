@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsBoolean } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
 
 export class LoginDto {
   @IsEmail({}, { message: 'Email inválido' })
@@ -9,6 +9,6 @@ export class LoginDto {
   password: string;
 
   @IsOptional()
-  @IsBoolean()
-  rememberMe?: boolean;
+  @IsString()
+  captchaToken?: string;
 }

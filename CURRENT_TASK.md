@@ -1,8 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 86 CONCLUIDA — Tratamento Respostas CLT + Fix Foto Perfil
+## Status: SESSAO 87 — Deploy Seguranca + Licenciamento Planejado
 
-## Ultima sessao: 86 (10/03/2026)
+## Ultima sessao: 87 (10/03/2026)
 - Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
 - Sessao 63: Fix NFe Import Flow (v1.01.20)
 - Sessoes 64-68: 4 estudos fiscais completos
@@ -22,42 +22,47 @@
 - Sessao 83: Botao Confirmar (Finalizar OS) + Botao Retorno (v1.01.82)
 - Sessao 84: Verificacao WABA + Regime CLT Onboarding (v1.01.83)
 - Sessao 85: Fix WhatsApp Template + Profile Picture Sync (v1.01.84-85)
-- Sessao 86: Fix Foto Perfil Desfocada + Tratamento Respostas CLT (v1.01.86-87)
+- Sessao 86: Respostas CLT + Foto Perfil Sharp + Variaveis Clicaveis (v1.01.86-90)
+- Sessao 87: Seguranca de Sessao + Licenciamento Multi-Tenant (v1.01.91)
 
-## O que foi feito na sessao 86:
+## O que foi feito na sessao 87:
 
-### Fix Foto de Perfil Desfocada (v1.01.86)
-- [x] Problema: logo 1005x592 (retangular) ficava desfocada no WhatsApp (recorte circular)
-- [x] Instalado `sharp` v0.34.5 para processamento de imagem server-side
-- [x] syncProfilePicture() agora: cria quadrado branco, centraliza logo com 10% padding, PNG
-- [x] Re-sync executado: imagem 1005x1005 PNG upload OK via Meta API
-- [x] Deploy v1.01.86
+### Seguranca de Sessao (v1.01.91) — PRONTO PARA DEPLOY
+- [x] Cookie de sessao sem maxAge — expira ao fechar browser
+- [x] Removido rememberMe de todo o fluxo auth (backend + frontend)
+- [x] Checkbox "Lembrar meu email" — salva apenas email no localStorage
+- [x] autoComplete nos inputs para browser salvar senha nativamente
+- [x] CAPTCHA Cloudflare Turnstile a cada 7 dias
+  - Frontend: @marsidev/react-turnstile instalado
+  - Backend: validateCaptcha() com Turnstile API
+  - Endpoint publico GET /auth/captcha-config
+  - Ativa com env: TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY
+  - Sem as env vars, CAPTCHA nao aparece (graceful)
+- [x] Build OK (backend tsc + frontend next build)
 
-### Tratamento de Respostas CLT (v1.01.87)
-- [x] Tipos: 5 novos campos (welcomeReplyMessage, welcomeDeclineActions, welcomeDeclineMessage, welcomePositiveKeywords, welcomeNegativeKeywords)
-- [x] Backend: metodo processWelcomeReply() classifica resposta por keywords
-  - Positivo (sim, aceito, ok, etc): ativa tecnico + envia mensagem de retorno configuravel
-  - Negativo (nao, recuso, etc): marca REJECTED + acoes configuraveis (DEACTIVATE / NOTIFY_GESTOR)
-  - Ambiguo (nenhuma keyword): trata como aceite (beneficio da duvida)
-- [x] Frontend: UI no workflow editor com secoes verde (aceite) e vermelha (recusa)
-  - Mensagem de retorno, palavras-chave, acoes na recusa (checkboxes), mensagem ao gestor
-- [x] Build: backend 0 erros, frontend 0 erros
-- [x] Deploy v1.01.87
+### Licenciamento Multi-Tenant (PLANEJADO — nao implementado)
+- Decisoes salvas em memory/licensing-multitenant.md
+- Subdominio por empresa (empresa.tecnikos.com.br)
+- Cadastro → verificacao CNPJ + documento → pagamento → ativacao
+- Planos fixos com limite de usuarios
+- Dispositivos vinculados (gestor autoriza)
+- Pix/Boleto/Cartao com regua de cobranca (7 dias → bloqueio)
+- Schema PostgreSQL por empresa (isolamento real)
+- Painel admin SaaS completo (metricas engajamento, NAO dados financeiros)
 
-## Versao atual: v1.01.87 — em producao
+## Versao atual: v1.01.90 — aguardando deploy v1.01.91
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA
 - Business ID: 2115296342089072
 - Phone Number ID: 996592133539837
-- App ID: 950743807617295
+- App ID: 950743907617295
 - System User ID: 122102184027217286
 
 ## Status WhatsApp:
 - [x] WABA: LIVE, quality GREEN
 - [x] Templates: notificacao_tecnikos APPROVED, teste_conexao APPROVED, hello_world APPROVED
 - [x] Business verification: COMPLETA
-- [ ] Corrigir website no perfil: tecnicos.com.br → tecnikos.com.br (Juliano faz manual)
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)
@@ -70,3 +75,4 @@
 - Registrar SEMPRE em CHAT_LOG.md e PROJETO_LOG.md
 - Build e verificar antes de encerrar qualquer sessao
 - Versao em version.json sempre atualizada
+- Variaveis em campos de texto: SEMPRE clicaveis (botoes chip que inserem no cursor)

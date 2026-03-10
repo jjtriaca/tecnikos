@@ -925,3 +925,14 @@
 - Health /health/db (verifica banco), /health com node version, env, startedAt
 - Frontend Dockerfile com NEXT_PUBLIC_API_URL como build arg
 - Build: backend tsc 0 erros, frontend tsc 0 erros
+
+### Sessão 86 — 10/03/2026
+- **Fix Foto Perfil Desfocada** (v1.01.86) — sharp v0.34.5 processa logo: quadrado + padding 10% + PNG
+- **Tratamento Respostas CLT** (v1.01.87) — processWelcomeReply() classifica aceite/recusa por keywords configuráveis
+  - Aceite: ativa técnico + envia mensagem retorno
+  - Recusa: REJECTED + desativa e/ou notifica gestor
+  - UI: seções verde (aceite) e vermelha (recusa) no workflow editor
+- **Exibição Resposta Parceiro** (v1.01.88) — replyMessage no ContractsSection, status REJECTED, diferenciação CLT/PJ
+- **Variáveis Clicáveis** (v1.01.89) — spans estáticos → botões com inserção na posição do cursor
+- **Defaults + Fix Vírgula** (v1.01.90) — keywords pré-cadastradas, mensagens pré-preenchidas, filter só no onBlur
+- Build: backend tsc 0 erros, frontend tsc 0 erros

@@ -1,37 +1,91 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { ApiError } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import PasswordInput from "@/components/ui/PasswordInput";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
+
+const SAVED_EMAIL_KEY = "tk_saved_email";
+const CAPTCHA_VERIFIED_KEY = "tk_captcha_verified_at";
+const CAPTCHA_INTERVAL_DAYS = 7;
+
+function needsCaptcha(): boolean {
+  const stored = localStorage.getItem(CAPTCHA_VERIFIED_KEY);
+  if (!stored) return true;
+  const diff = Date.now() - Number(stored);
+  return diff > CAPTCHA_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
+}
 
 export default function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberEmail, setRememberEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Carregar preferencia "lembrar-me" do localStorage
+  // CAPTCHA state
+  const [captchaSiteKey, setCaptchaSiteKey] = useState<string | null>(null);
+  const [showCaptcha, setShowCaptcha] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
+
+  // Carregar email salvo + config CAPTCHA
   useEffect(() => {
-    const saved = localStorage.getItem("rememberMe");
-    if (saved === "true") setRememberMe(true);
+    const saved = localStorage.getItem(SAVED_EMAIL_KEY);
+    if (saved) {
+      setEmail(saved);
+      setRememberEmail(true);
+    }
+
+    // Fetch captcha config from backend
+    api.get<{ enabled: boolean; siteKey: string | null }>("/auth/captcha-config")
+      .then((cfg) => {
+        if (cfg.enabled && cfg.siteKey && needsCaptcha()) {
+          setCaptchaSiteKey(cfg.siteKey);
+          setShowCaptcha(true);
+        }
+      })
+      .catch(() => {/* CAPTCHA config unavailable — skip */});
+  }, []);
+
+  const onCaptchaSuccess = useCallback((token: string) => {
+    setCaptchaToken(token);
   }, []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+
+    // Require CAPTCHA if shown
+    if (showCaptcha && !captchaToken) {
+      setError("Complete a verificacao 'Sou humano' para continuar.");
+      return;
+    }
+
     setLoading(true);
 
-    // Salvar preferencia
-    localStorage.setItem("rememberMe", String(rememberMe));
+    // Salvar ou limpar email
+    if (rememberEmail) {
+      localStorage.setItem(SAVED_EMAIL_KEY, email);
+    } else {
+      localStorage.removeItem(SAVED_EMAIL_KEY);
+    }
 
     try {
-      await login(email, password, rememberMe);
+      await login(email, password, captchaToken || undefined);
+      // Mark CAPTCHA as verified
+      localStorage.setItem(CAPTCHA_VERIFIED_KEY, String(Date.now()));
     } catch (err: unknown) {
       if (err instanceof ApiError) {
-        setError(err.payload?.message || err.message);
+        const msg = err.payload?.message || err.message;
+        setError(msg);
+        // Reset captcha on failure
+        if (showCaptcha) {
+          setCaptchaToken(null);
+          turnstileRef.current?.reset();
+        }
       } else if (err instanceof Error && err.message === "Failed to fetch") {
         setError("Servidor indisponivel. Verifique se o backend esta rodando.");
       } else {
@@ -75,7 +129,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <form onSubmit={onSubmit} className="space-y-4">
+            <form onSubmit={onSubmit} className="space-y-4" autoComplete="on">
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">
                   Email
@@ -85,6 +139,8 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   type="email"
+                  name="email"
+                  autoComplete="email"
                   placeholder="seu@email.com"
                   required
                 />
@@ -98,6 +154,8 @@ export default function LoginPage() {
                   className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 text-sm outline-none placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  name="password"
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   required
                 />
@@ -111,16 +169,34 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              {/* Lembrar-me */}
+              {/* Lembrar email (apenas preenche o campo, NAO mantem sessao) */}
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
+                  checked={rememberEmail}
+                  onChange={(e) => setRememberEmail(e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 transition-colors"
                 />
-                <span className="text-xs text-slate-500">Lembrar-me</span>
+                <span className="text-xs text-slate-500">Lembrar meu email</span>
               </label>
+
+              {/* CAPTCHA Turnstile — aparece a cada 7 dias */}
+              {showCaptcha && captchaSiteKey && (
+                <div className="flex justify-center">
+                  <Turnstile
+                    ref={turnstileRef}
+                    siteKey={captchaSiteKey}
+                    onSuccess={onCaptchaSuccess}
+                    onError={() => setCaptchaToken(null)}
+                    onExpire={() => setCaptchaToken(null)}
+                    options={{
+                      theme: "light",
+                      size: "normal",
+                      language: "pt-br",
+                    }}
+                  />
+                </div>
+              )}
 
               {error && (
                 <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-600">
