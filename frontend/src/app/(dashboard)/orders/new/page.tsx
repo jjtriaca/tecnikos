@@ -169,6 +169,9 @@ function NewOrderPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [newAddressLabel, setNewAddressLabel] = useState("");
 
+  // Helper: parse BRL string "150,00" → 150.00
+  function parseBRL(s: string): number { return parseFloat((s || "0").replace(/[^\d,]/g, "").replace(",", ".")); }
+
   // Commission + return states
   const [companyCommission, setCompanyCommission] = useState<{
     commissionBps: number; overrideEnabled: boolean; minBps: number | null; maxBps: number | null;
@@ -326,10 +329,10 @@ function NewOrderPage() {
 
   // Auto-recalculate tech commission when value or commission config changes
   function recalcTechCommission(valueCentsStr: string, bps: number) {
-    const v = parseFloat(valueCentsStr);
+    const v = parseBRL(valueCentsStr);
     if (!isNaN(v) && v > 0) {
       const commission = (v * bps) / 10000;
-      setTechCommissionValue(commission.toFixed(2));
+      setTechCommissionValue(commission.toFixed(2).replace(".", ","));
     } else {
       setTechCommissionValue("");
     }
@@ -479,7 +482,7 @@ function NewOrderPage() {
         return;
       }
 
-      const valueNum = Math.round(parseFloat(form.valueCents) * 100);
+      const valueNum = Math.round(parseBRL(form.valueCents) * 100);
       if (isNaN(valueNum) || valueNum <= 0) {
         setError("Valor inválido");
         setLoading(false);
@@ -494,7 +497,7 @@ function NewOrderPage() {
         finalCommissionBps = 0;
         finalTechCents = 0;
       } else if (companyCommission.overrideEnabled && techCommissionValue) {
-        finalTechCents = Math.round(parseFloat(techCommissionValue) * 100);
+        finalTechCents = Math.round(parseBRL(techCommissionValue) * 100);
         if (isNaN(finalTechCents) || finalTechCents < 0) {
           setError("Valor do técnico inválido");
           setLoading(false);
@@ -1047,12 +1050,11 @@ function NewOrderPage() {
               <input
                 name="valueCents"
                 value={form.valueCents}
-                onChange={onChange}
+                onChange={(e) => onChange({ target: { name: "valueCents", value: e.target.value.replace(/[^\d,]/g, "") } } as any)}
                 required
-                type="number"
-                step="0.01"
-                min="0.01"
-                placeholder="150.00"
+                type="text"
+                inputMode="decimal"
+                placeholder="150,00"
                 className={inputClass}
               />
             </label>
@@ -1131,17 +1133,15 @@ function NewOrderPage() {
                 <div className="flex flex-col gap-1 flex-1">
                   <span className="text-sm font-medium text-slate-700">Valor do técnico (R$)</span>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={techCommissionValue}
                     onChange={(e) => {
                       if (!companyCommission.overrideEnabled) return;
-                      const val = e.target.value;
+                      const val = e.target.value.replace(/[^\d,]/g, "");
                       setTechCommissionValue(val);
-                      // Validar faixa
-                      const v = parseFloat(form.valueCents);
-                      const tc = parseFloat(val);
+                      const v = parseBRL(form.valueCents);
+                      const tc = parseBRL(val);
                       if (!isNaN(v) && v > 0 && !isNaN(tc)) {
                         const bps = Math.round((tc / v) * 10000);
                         if (companyCommission.minBps != null && bps < companyCommission.minBps) {
@@ -1155,7 +1155,7 @@ function NewOrderPage() {
                     }}
                     readOnly={!companyCommission.overrideEnabled}
                     className={`${inputClass} ${companyCommission.overrideEnabled ? "" : "bg-slate-100 text-slate-500 cursor-not-allowed"} ${commissionError ? "border-red-400 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    placeholder="0.00"
+                    placeholder="0,00"
                   />
                   {commissionError && (
                     <span className="text-xs text-red-600">{commissionError}</span>
@@ -1167,8 +1167,8 @@ function NewOrderPage() {
                     type="text"
                     readOnly
                     value={(() => {
-                      const v = parseFloat(form.valueCents);
-                      const tc = parseFloat(techCommissionValue);
+                      const v = parseBRL(form.valueCents);
+                      const tc = parseBRL(techCommissionValue);
                       if (!isNaN(v) && v > 0 && !isNaN(tc)) {
                         return ((tc / v) * 100).toFixed(2) + "%";
                       }

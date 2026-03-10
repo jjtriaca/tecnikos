@@ -341,6 +341,28 @@ export default function LandingPage() {
               })}
             </div>
 
+            {/* Add-ons */}
+            <div className="mt-14 max-w-3xl mx-auto">
+              <div className="text-center mb-6">
+                <h3 className="text-lg font-bold text-slate-900 mb-1">Precisa de mais?</h3>
+                <p className="text-sm text-slate-500">Adicione pacotes extras ao seu plano a qualquer momento</p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "+100 OS/mes", price: "R$ 127" },
+                  { label: "+200 OS/mes", price: "R$ 227" },
+                  { label: "+300 OS/mes", price: "R$ 297" },
+                  { label: "+1 usuario", price: "R$ 47" },
+                ].map((addon) => (
+                  <div key={addon.label} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center hover:border-blue-200 hover:bg-blue-50/50 transition-all">
+                    <span className="block text-sm font-semibold text-slate-700 mb-1">{addon.label}</span>
+                    <span className="block text-lg font-bold text-blue-600">{addon.price}</span>
+                    <span className="block text-[10px] text-slate-400">/mes</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Voucher hint */}
             <div className="text-center mt-8">
               <p className="text-sm text-slate-400">

@@ -1641,19 +1641,31 @@ SIM — Claude pode ser embutida via API como assistente IA para clientes do Tec
 - Q8 (Contrato): DECISAO — Opcao 3: sem fidelidade no mensal, desconto 20% no anual (compromisso 12 meses).
 - Q9 (Diferenciacao): DECISAO — Por volume de OS/mes como metrica principal. Tecnicos ilimitados em todos os planos. Usuarios 3/6/ilimitado. Todos os modulos inclusos.
 
-### ESTRATEGIA DE PRECOS FINAL — APROVADA
+### ESTRATEGIA DE PRECOS FINAL — APROVADA (v2 - atualizada)
 
 | | Essencial | Profissional | Enterprise |
 |--|-----------|-------------|------------|
 | Mensal | R$ 197 | R$ 397 | R$ 697 |
 | Anual (20% off) | R$ 158/mes | R$ 318/mes | R$ 558/mes |
 | 1o mes (~50% off) | R$ 97 | R$ 197 | R$ 347 |
-| OS/mes | 100 | 300 | Ilimitadas |
-| Usuarios (gestores) | 3 | 6 | Ilimitados |
+| OS/mes | 100 | 250 | 600 |
+| Usuarios (gestores) | 2 | 4 | 8 |
 | Tecnicos | Ilimitados | Ilimitados | Ilimitados |
 | Assistente IA | 50 msgs | 200 msgs | 800 msgs |
 | Modulos | Todos | Todos | Todos |
 | Suporte | Email | Email+Chat | Prioritario |
+
+Pacotes add-on (compra avulsa) — APROVADOS:
+- +100 OS/mes → R$ 127
+- +200 OS/mes → R$ 227
+- +300 OS/mes → R$ 297
+- +1 usuario gestor → R$ 47/mes
+
+Sistema de uso:
+- Barra de uso de OS no dashboard (X de Y usadas)
+- Alertas quando chegar em nivel critico (ex: 80%, 90%, 100%)
+- Ao atingir limite: botao para comprar pacote de OS (100, 200 ou 300)
+- Click no alerta leva direto para compra do pacote
 
 Regras:
 - Sem trial/freemium
@@ -1662,3 +1674,4 @@ Regras:
 - WhatsApp: cliente conecta e paga direto ao Meta
 - NFS-e (Focus NFe): cliente contrata e cola token no Tecnikos
 - Tecnicos ilimitados em todos os planos (diferencial vs concorrencia)
+- Limites de OS/usuarios sao firmes — excedeu, compra pacote ou faz upgrade
