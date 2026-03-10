@@ -28,7 +28,7 @@
 - [x] Badge VOUCHER na tabela de promocoes
 - [x] Suspense boundary no signup (useSearchParams)
 - [x] Build OK
-- [ ] Deploy pendente
+- [x] Deploy v1.01.97 OK
 
 ### Arquivos criados (sessao 89-90):
 - backend/src/tenant/tenant-public.controller.ts
@@ -49,12 +49,12 @@
 - frontend/src/components/layout/Sidebar.tsx (hidden flag, secret path)
 
 ## Proximos passos:
-1. Deploy v1.01.97
-2. Integracao Asaas (pagamento recorrente)
+1. ~~Deploy v1.01.97~~ CONCLUIDO
+2. Integracao Asaas (pagamento recorrente) — PESQUISA CONCLUIDA (memory/asaas-api.md)
 3. Controle de dispositivos
 4. Chat IA suporte
 
-## Versao atual: v1.01.96 (deploy pendente para v1.01.97)
+## Versao atual: v1.01.97
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA

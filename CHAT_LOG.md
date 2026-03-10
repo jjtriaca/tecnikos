@@ -1562,3 +1562,28 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - RESPOSTA: Correto, SaaS Admin fica no host principal (tecnikos.com.br), apenas ADMIN master. Tenants regulares nunca veem essa secao.
 
 ---
+
+## 2026-03-10 — Pesquisa API Asaas (Pagamento Recorrente)
+
+### Pedido do Juliano:
+- Pesquisa completa da API Asaas para pagamentos recorrentes (assinaturas)
+- Auth, endpoints, sandbox/prod, webhooks, split, trial, ciclos
+- Salvar como documento de referencia tecnica
+
+### Status: CONCLUIDO
+
+### Resultado:
+Documento de referencia completo salvo em `memory/asaas-api.md` (17 secoes) cobrindo:
+- Auth: API Key via header `access_token`, prefixos `$aact_prod_` / `$aact_hmlg_`
+- URLs: `https://api.asaas.com/v3` (prod), `https://sandbox.asaas.com/api/v3` (sandbox)
+- Customer: `POST /v3/customers` (name + cpfCnpj obrigatorios)
+- Subscription: `POST /v3/subscriptions` (customer + billingType + value + nextDueDate)
+- Ciclos: WEEKLY, BIWEEKLY, MONTHLY, QUARTERLY, SEMIANNUAL, ANNUAL
+- Metodos: BOLETO, CREDIT_CARD, PIX, UNDEFINED
+- Trial: via nextDueDate (sem campo dedicado)
+- Cartao: creditCard + creditCardHolderInfo objects, tokenizacao via `/v3/creditCard/tokenizeCreditCard`
+- Split: array `split` com walletId + fixedValue/percentualValue
+- Webhooks: `POST /v3/webhooks`, 28 eventos de payment + 7 de subscription
+- Lifecycle: ACTIVE, INACTIVE (pausar), EXPIRED; update/cancel/delete
+- Precos: sem mensalidade, R$0.49/cartao, R$1.99/boleto, 30 PIX gratis/mes
+- Fluxo sugerido para integracao com Tecnikos SaaS

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Query as QueryParam, BadRequestException }
 import { Public } from '../auth/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
+import { AsaasService } from './asaas.service';
 
 /**
  * Public endpoints for the SaaS landing page and signup flow.
@@ -12,6 +13,7 @@ export class TenantPublicController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantService: TenantService,
+    private readonly asaasService: AsaasService,
   ) {}
 
   /**
@@ -161,7 +163,69 @@ export class TenantPublicController {
       skipPayment,
       message: skipPayment
         ? 'Empresa ativada com sucesso! Acesse seu painel agora.'
-        : 'Cadastro realizado! Sua empresa será verificada em breve.',
+        : 'Cadastro realizado! Escolha sua forma de pagamento.',
+    };
+  }
+
+  /**
+   * Create a subscription (payment) for a tenant.
+   * Called after signup, when user provides payment info.
+   */
+  @Public()
+  @Post('subscribe')
+  async subscribe(
+    @Body()
+    body: {
+      tenantId: string;
+      billingType: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | 'UNDEFINED';
+      billingCycle: 'monthly' | 'yearly';
+      promoCode?: string;
+      creditCard?: {
+        holderName: string;
+        number: string;
+        expiryMonth: string;
+        expiryYear: string;
+        ccv: string;
+      };
+      creditCardHolderInfo?: {
+        name: string;
+        email: string;
+        cpfCnpj: string;
+        postalCode: string;
+        addressNumber: string;
+        phone?: string;
+      };
+    },
+  ) {
+    if (!body.tenantId || !body.billingType) {
+      throw new BadRequestException('tenantId e billingType são obrigatórios');
+    }
+
+    // Validate tenant exists and is in a valid state for subscription
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: body.tenantId } });
+    if (!tenant) throw new BadRequestException('Empresa não encontrada');
+    if (tenant.status === 'ACTIVE') {
+      return { success: true, message: 'Empresa já está ativa', alreadyActive: true };
+    }
+
+    const result = await this.asaasService.createSubscription({
+      tenantId: body.tenantId,
+      billingType: body.billingType,
+      billingCycle: body.billingCycle || 'monthly',
+      creditCard: body.creditCard,
+      creditCardHolderInfo: body.creditCardHolderInfo,
+      promoCode: body.promoCode,
+    });
+
+    return {
+      success: true,
+      subscriptionId: result.subscription.id,
+      asaasSubscriptionId: result.asaasSubscription.id,
+      message: body.billingType === 'CREDIT_CARD'
+        ? 'Pagamento processado! Sua empresa será ativada em instantes.'
+        : body.billingType === 'PIX'
+          ? 'QR Code PIX gerado! Pague para ativar sua empresa.'
+          : 'Boleto gerado! Sua empresa será ativada após o pagamento.',
     };
   }
 }

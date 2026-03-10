@@ -4,11 +4,14 @@ import { TenantController } from './tenant.controller';
 import { TenantPublicController } from './tenant-public.controller';
 import { TenantConnectionService } from './tenant-connection.service';
 import { TenantMiddleware } from './tenant.middleware';
+import { AsaasProvider } from './asaas.provider';
+import { AsaasService } from './asaas.service';
+import { AsaasWebhookController } from './asaas-webhook.controller';
 
 @Module({
-  providers: [TenantService, TenantConnectionService, TenantMiddleware],
-  controllers: [TenantController, TenantPublicController],
-  exports: [TenantService, TenantConnectionService, TenantMiddleware],
+  providers: [TenantService, TenantConnectionService, TenantMiddleware, AsaasProvider, AsaasService],
+  controllers: [TenantController, TenantPublicController, AsaasWebhookController],
+  exports: [TenantService, TenantConnectionService, TenantMiddleware, AsaasService],
 })
 export class TenantModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
