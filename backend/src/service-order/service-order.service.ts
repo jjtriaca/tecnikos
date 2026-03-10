@@ -190,6 +190,37 @@ export class ServiceOrderService {
     return { total, byStatus, overdue, completedToday };
   }
 
+  async monthlyUsage(companyId: string) {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const [usedThisMonth, company] = await Promise.all([
+      this.prisma.serviceOrder.count({
+        where: { companyId, deletedAt: null, createdAt: { gte: monthStart, lte: monthEnd } },
+      }),
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { maxOsPerMonth: true, maxUsers: true },
+      }),
+    ]);
+
+    const limit = company?.maxOsPerMonth || 0;
+    const isUnlimited = limit === 0;
+    const percentage = isUnlimited ? 0 : Math.round((usedThisMonth / limit) * 100);
+    const daysInMonth = monthEnd.getDate();
+    const daysLeft = daysInMonth - now.getDate();
+
+    return {
+      usedThisMonth,
+      maxOsPerMonth: limit,
+      isUnlimited,
+      percentage: Math.min(percentage, 100),
+      daysLeft,
+      maxUsers: company?.maxUsers || 0,
+    };
+  }
+
   /* ── Agenda CLT ─────────────────────────────────────────── */
 
   async findAgenda(companyId: string, dateFrom: string, dateTo: string) {

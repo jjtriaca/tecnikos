@@ -127,7 +127,9 @@ model Company {
   commissionOverrideEnabled Boolean @default(false) // Operador pode ajustar comissao na OS
   commissionMinBps          Int?                    // Min % comissao (basis points), null = sem limite
   commissionMaxBps          Int?                    // Max % comissao (basis points), null = sem limite
-  fiscalEnabled Boolean  @default(false) // Módulo fiscal (NFS-e) habilitado
+  fiscalEnabled  Boolean  @default(false) // Módulo fiscal (NFS-e) habilitado
+  maxOsPerMonth  Int      @default(0)     // 0 = unlimited
+  maxUsers       Int      @default(0)     // 0 = unlimited
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   deletedAt     DateTime?

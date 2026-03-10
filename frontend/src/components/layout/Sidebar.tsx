@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useFiscalModule } from "@/contexts/FiscalModuleContext";
+import UsageBar from "./UsageBar";
 
 interface NavChild {
   label: string;
@@ -320,9 +321,10 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* User info + version at bottom */}
+      {/* Usage bar + User info + version at bottom */}
       {user && (
         <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 p-3">
+          <UsageBar collapsed={collapsed} />
           {!collapsed ? (
             <div>
               <div className="flex items-center gap-3">

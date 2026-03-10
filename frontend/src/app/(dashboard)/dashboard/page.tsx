@@ -254,6 +254,7 @@ export default function DashboardPage() {
   const [ordersReport, setOrdersReport] = useState<OrdersReport | null>(null);
   const [topTechs, setTopTechs] = useState<TechPerformance[]>([]);
   const [todayAgenda, setTodayAgenda] = useState<{ id: string; code: string; title: string; status: string; scheduledStartAt: string; estimatedDurationMinutes: number | null; assignedPartner: { id: string; name: string } | null; clientPartner: { id: string; name: string } | null; city: string | null }[]>([]);
+  const [usageData, setUsageData] = useState<{ usedThisMonth: number; maxOsPerMonth: number; isUnlimited: boolean; percentage: number; daysLeft: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -270,6 +271,7 @@ export default function DashboardPage() {
           api.get<OrdersReport>("/reports/orders"),
           api.get<TechPerformance[]>("/reports/technicians"),
           api.get<any[]>(`/service-orders/agenda?dateFrom=${todayStr}&dateTo=${todayStr}`),
+          api.get<any>("/service-orders/usage"),
         ]);
 
         if (cancelled) return;
@@ -280,6 +282,7 @@ export default function DashboardPage() {
         if (results[3].status === "fulfilled") setOrdersReport(results[3].value);
         if (results[4].status === "fulfilled") setTopTechs(results[4].value.slice(0, 5));
         if (results[5].status === "fulfilled") setTodayAgenda(Array.isArray(results[5].value) ? results[5].value : []);
+        if (results[6].status === "fulfilled") setUsageData(results[6].value);
       } catch {
         // ignore
       } finally {
@@ -343,6 +346,31 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* ──── Usage Alert Banner ──── */}
+      {usageData && !usageData.isUnlimited && usageData.percentage >= 80 && (
+        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
+          usageData.percentage >= 100
+            ? "border-red-200 bg-red-50 text-red-800"
+            : usageData.percentage >= 90
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-amber-200 bg-amber-50 text-amber-800"
+        }`}>
+          <IconWarning className="h-5 w-5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">
+              {usageData.percentage >= 100
+                ? `Limite de OS atingido! ${usageData.usedThisMonth}/${usageData.maxOsPerMonth} OS neste mes.`
+                : usageData.percentage >= 90
+                  ? `Atencao: ${usageData.percentage}% do limite de OS utilizado (${usageData.usedThisMonth}/${usageData.maxOsPerMonth}).`
+                  : `${usageData.percentage}% do limite mensal de OS utilizado (${usageData.usedThisMonth}/${usageData.maxOsPerMonth}).`}
+            </p>
+            <p className="text-xs mt-0.5 opacity-75">
+              {usageData.daysLeft} dias restantes no mes. {usageData.percentage >= 100 ? "Contrate um pacote adicional para continuar." : "Considere fazer upgrade do plano."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ──── KPI Cards (Top Row) ──── */}
       {loading ? (

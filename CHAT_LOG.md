@@ -1781,3 +1781,48 @@ Continuacao da sessao 91. Implementacao das features de onboarding pendentes:
 - `frontend/src/app/signup/page.tsx` (CNPJ auto-fill, email feedback)
 
 ### Status: CONCLUIDO — Deploy v1.02.10
+
+---
+
+## Sessao 93 — 10/03/2026
+
+### Contexto:
+Continuacao da sessao 92. Integracao do PPID (ppid.com.br) para verificacao de identidade no signup.
+Juliano confirmou integracao mostrando screenshots do dashboard ppid (40 creditos) e documentacao da API.
+
+### Implementacoes:
+
+#### 1. PpidService (NOVO)
+- Arquivo: `backend/src/ppid/ppid.service.ts`
+- Autenticacao JWT com cache de token (evita login a cada request)
+- 4 endpoints: classify, OCR, liveness, face match
+- Pipeline `fullVerification()`: classify → OCR → liveness → face match
+- Thresholds configurados: liveness >= 50, similaridade face match >= 60
+- Graceful degradation: se PPID_EMAIL/PPID_PASSWORD nao configurados, retorna approved=true
+
+#### 2. Endpoint de verificacao
+- POST /public/saas/verify-identity (body: documentBase64, selfieBase64)
+- Chama fullVerification() e retorna resultado completo
+
+#### 3. Signup reescrito com 5 steps
+- Step 1: Escolha do Plano
+- Step 2: Dados da Empresa (CNPJ, nome, email, telefone, responsavel)
+- Step 3: Verificacao de Identidade (NOVO)
+  - Upload de documento (RG/CNH) com preview
+  - Upload de selfie com preview
+  - Botao "Verificar Identidade" chama API
+  - Exibe resultado: aprovado (verde) ou rejeitado (vermelho) com scores
+- Step 4: Pagamento (Asaas checkout)
+- Step 5: Sucesso
+- Fluxo com voucher: pula step 4
+
+#### Arquivos criados:
+- `backend/src/ppid/ppid.service.ts`
+- `backend/src/ppid/ppid.module.ts`
+
+#### Arquivos modificados:
+- `backend/src/tenant/tenant.module.ts` (PpidModule import)
+- `backend/src/tenant/tenant-public.controller.ts` (verify-identity endpoint)
+- `frontend/src/app/signup/page.tsx` (reescrito com step de verificacao)
+
+### Status: CONCLUIDO — Deploy v1.02.11

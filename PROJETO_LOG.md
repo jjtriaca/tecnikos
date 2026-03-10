@@ -936,3 +936,19 @@
 - **Variáveis Clicáveis** (v1.01.89) — spans estáticos → botões com inserção na posição do cursor
 - **Defaults + Fix Vírgula** (v1.01.90) — keywords pré-cadastradas, mensagens pré-preenchidas, filter só no onBlur
 - Build: backend tsc 0 erros, frontend tsc 0 erros
+
+### Sessoes 88-92 — 10/03/2026
+- **Multi-Tenant Foundation** (v1.01.93-94) — schema por tenant, TenantConnectionService, provisionamento
+- **SaaS Admin Panel** (v1.01.95-96) — painel admin em /ctrl-zr8k2x, gestao tenants/vouchers/planos
+- **Landing Page + Signup** (v1.01.97-v1.02.04) — pagina publica, fluxo signup multi-step, integracao Asaas
+- **Currency Input + Add-ons + Sidebar** (v1.02.05-09) — fix inputs monetarios, compra add-ons, reorganizacao sidebar
+- **Tenant Onboarding** (v1.02.10) — sendSystemEmail, TenantOnboardingService (Company+User), CNPJ auto-fill BrasilAPI
+
+### Sessao 93 — 10/03/2026
+- **PPID Identity Verification** (v1.02.11) — integracao ppid.com.br no signup
+  - PpidService: JWT auth, classify, OCR, liveness, face match
+  - Pipeline fullVerification() com thresholds (liveness>=50, similaridade>=60)
+  - Signup reescrito: 5 steps (Plano → Empresa → Verificacao Identidade → Pagamento → Sucesso)
+  - Upload documento + selfie com preview, resultado aprovado/rejeitado
+  - Graceful degradation: se PPID nao configurado, bypassa verificacao
+- Build: backend tsc 0 erros, frontend tsc 0 erros

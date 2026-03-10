@@ -43,6 +43,11 @@ export class ServiceOrderController {
     return this.service.stats(user.companyId);
   }
 
+  @Get('usage')
+  usage(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.monthlyUsage(user.companyId);
+  }
+
   @Roles(UserRole.ADMIN, UserRole.DESPACHO, UserRole.LEITURA)
   @Get('agenda')
   agenda(

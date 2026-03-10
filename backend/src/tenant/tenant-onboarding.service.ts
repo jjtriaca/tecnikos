@@ -49,7 +49,7 @@ export class TenantOnboardingService {
     const tempPassword = this.generatePassword();
     const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-    // Create Company in tenant schema
+    // Create Company in tenant schema (copy plan limits)
     const company = await client.company.create({
       data: {
         name: tenant.name,
@@ -59,6 +59,8 @@ export class TenantOnboardingService {
         ownerName: tenant.responsibleName || undefined,
         ownerEmail: tenant.responsibleEmail || undefined,
         ownerPhone: tenant.responsiblePhone || undefined,
+        maxOsPerMonth: tenant.maxOsPerMonth || 0,
+        maxUsers: tenant.maxUsers || 0,
         status: 'ATIVA',
       },
     });
