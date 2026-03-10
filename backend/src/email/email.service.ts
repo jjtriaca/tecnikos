@@ -294,6 +294,56 @@ export class EmailService {
     return config?.isConnected ?? false;
   }
 
+  // ── System-level email (SaaS onboarding) ────────────────
+
+  /**
+   * Send an email using system-level SMTP (env vars).
+   * Used for SaaS emails like welcome/activation — not per-company config.
+   */
+  async sendSystemEmail(
+    to: string,
+    subject: string,
+    html: string,
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const host = process.env.SYSTEM_SMTP_HOST;
+    const port = parseInt(process.env.SYSTEM_SMTP_PORT || '587', 10);
+    const secure = process.env.SYSTEM_SMTP_SECURE === 'true';
+    const user = process.env.SYSTEM_SMTP_USER;
+    const pass = process.env.SYSTEM_SMTP_PASS;
+    const fromName = process.env.SYSTEM_FROM_NAME || 'Tecnikos';
+    const fromEmail = process.env.SYSTEM_FROM_EMAIL || user;
+
+    if (!host || !user || !pass) {
+      this.logger.warn('System SMTP not configured — skipping email send');
+      return { success: false, error: 'Sistema de email não configurado (SYSTEM_SMTP_*)' };
+    }
+
+    try {
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: { user, pass },
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+      });
+
+      const info = await transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to,
+        subject,
+        html,
+      });
+
+      transporter.close();
+      this.logger.log(`System email sent to ${to} — subject: "${subject}" — id: ${info.messageId}`);
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      this.logger.error(`System email send failed: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  }
+
   // ── Private ──────────────────────────────────────────────
 
   /**

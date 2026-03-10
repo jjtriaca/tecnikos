@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
+import { TenantOnboardingService } from './tenant-onboarding.service';
 import { AsaasProvider } from './asaas.provider';
 
 /**
@@ -14,6 +15,7 @@ export class AsaasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantService: TenantService,
+    private readonly onboarding: TenantOnboardingService,
     private readonly asaas: AsaasProvider,
   ) {}
 
@@ -205,7 +207,8 @@ export class AsaasService {
         const tenant = subscription.tenant;
         if (tenant.status !== 'ACTIVE') {
           await this.tenantService.activate(tenantId);
-          this.logger.log(`Tenant ${tenant.slug} activated via payment`);
+          await this.onboarding.onboard(tenantId);
+          this.logger.log(`Tenant ${tenant.slug} activated + onboarded via payment`);
         }
 
         // Update subscription period

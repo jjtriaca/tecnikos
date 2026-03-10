@@ -1697,3 +1697,67 @@ Regras:
 - Visual: rounded-xl, border, hover:border-blue-200
 
 ### Status: CONCLUIDO — Deploy v1.02.05
+
+---
+
+## Sessao 92 — 10/03/2026
+
+### Contexto:
+Continuacao da sessao 91. Implementacao das features de onboarding pendentes:
+1. Email de boas-vindas com credenciais de acesso
+2. Criacao automatica de Company + User admin no schema do tenant
+3. Auto-preenchimento de CNPJ via BrasilAPI
+
+### Implementacoes:
+
+#### 1. System Email Service (sendSystemEmail)
+- Adicionado metodo `sendSystemEmail()` ao EmailService
+- Usa variaveis de ambiente SYSTEM_SMTP_* (independente de config por empresa)
+- Para emails SaaS: boas-vindas, ativacao, etc.
+- Env vars: SYSTEM_SMTP_HOST, SYSTEM_SMTP_PORT, SYSTEM_SMTP_USER, SYSTEM_SMTP_PASS, SYSTEM_FROM_NAME, SYSTEM_FROM_EMAIL
+- Graceful degradation: se nao configurado, loga warning e retorna erro
+
+#### 2. TenantOnboardingService (NOVO)
+- Arquivo: `backend/src/tenant/tenant-onboarding.service.ts`
+- Metodo principal: `onboard(tenantId)` — idempotente
+- Fluxo:
+  1. Busca tenant no schema publico
+  2. Conecta no schema do tenant via TenantConnectionService
+  3. Verifica se Company ja existe (idempotente)
+  4. Cria Company com dados do tenant (name, cnpj, email, phone, owner*)
+  5. Inicializa CodeCounter para USER (USR-00001)
+  6. Cria User admin com senha temporaria (12 chars, crypto.randomBytes)
+  7. Envia email de boas-vindas async (nao bloqueia ativacao)
+- Email de boas-vindas: template HTML profissional com dados de acesso, botao "Acessar o Sistema"
+
+#### 3. Integracao no fluxo de ativacao
+- `tenant-public.controller.ts`: signup com skipPayment chama `onboarding.onboard()`
+- `asaas.service.ts`: webhook PAYMENT_CONFIRMED/RECEIVED chama `onboarding.onboard()`
+- `tenant.module.ts`: importa EmailModule, registra TenantOnboardingService
+
+#### 4. CNPJ Auto-Fill via BrasilAPI
+- Backend: endpoint `GET /public/saas/cnpj-lookup?cnpj=XXXXX`
+- Consulta `https://brasilapi.com.br/api/cnpj/v1/{cnpj}` (gratis, sem limite rígido)
+- Retorna: razaoSocial, nomeFantasia, email, telefone, cep, logradouro, municipio, uf, situacao
+- Frontend (signup/page.tsx): botao "Consultar" ao lado do campo CNPJ
+- Auto-preenche nome da empresa quando vazio
+- Feedback visual: mostra razao social + nome fantasia em verde
+
+#### 5. Melhorias no signup
+- Campo CNPJ agora obrigatorio (*)
+- Pagina de sucesso informa que email foi enviado
+- Mensagem de ativacao atualizada para mencionar email
+
+### Arquivos criados:
+- `backend/src/tenant/tenant-onboarding.service.ts`
+
+### Arquivos modificados:
+- `backend/src/email/email.service.ts` (sendSystemEmail)
+- `backend/src/tenant/tenant.module.ts` (imports EmailModule, TenantOnboardingService)
+- `backend/src/tenant/tenant-public.controller.ts` (cnpj-lookup, onboarding call)
+- `backend/src/tenant/asaas.service.ts` (onboarding call on payment)
+- `backend/.env` (system SMTP vars comentadas)
+- `.env.production.example` (system SMTP vars)
+- `frontend/src/app/signup/page.tsx` (CNPJ auto-fill, email feedback)
+
+### Status: CONCLUIDO — Deploy v1.02.10

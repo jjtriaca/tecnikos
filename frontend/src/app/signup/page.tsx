@@ -64,6 +64,10 @@ function SignupPage() {
     cpfCnpj: "", postalCode: "", addressNumber: "",
   });
 
+  // CNPJ lookup
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [cnpjData, setCnpjData] = useState<{ found: boolean; razaoSocial?: string; nomeFantasia?: string; email?: string; telefone?: string; reason?: string } | null>(null);
+
   // Submit state
   const [submitting, setSubmitting] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -112,6 +116,30 @@ function SignupPage() {
       setPromoValid(data);
     } catch { setPromoValid({ valid: false, reason: "Erro ao validar" }); }
     finally { setPromoLoading(false); }
+  }
+
+  // CNPJ lookup
+  async function lookupCnpj() {
+    const digits = form.cnpj.replace(/\D/g, "");
+    if (digits.length !== 14) return;
+    setCnpjLoading(true);
+    setCnpjData(null);
+    try {
+      const r = await fetch(`/api/public/saas/cnpj-lookup?cnpj=${digits}`);
+      const data = await r.json();
+      setCnpjData(data);
+      if (data.found) {
+        // Auto-fill company name if empty
+        const companyName = data.nomeFantasia || data.razaoSocial || "";
+        if (!form.name && companyName) {
+          setForm((f) => ({ ...f, name: companyName }));
+        }
+      }
+    } catch {
+      setCnpjData({ found: false, reason: "Erro ao consultar" });
+    } finally {
+      setCnpjLoading(false);
+    }
   }
 
   // Calculate price
@@ -426,9 +454,30 @@ function SignupPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">CNPJ</label>
-                <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                  value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0001-00" />
+                <label className="mb-1 block text-xs font-medium text-slate-600">CNPJ *</label>
+                <div className="flex gap-2">
+                  <input className="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                    value={form.cnpj}
+                    onChange={(e) => { setForm({ ...form, cnpj: e.target.value }); setCnpjData(null); }}
+                    placeholder="00.000.000/0001-00"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={lookupCnpj}
+                    disabled={cnpjLoading || form.cnpj.replace(/\D/g, "").length !== 14}
+                    className="rounded-lg bg-slate-100 px-4 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {cnpjLoading ? "..." : "Consultar"}
+                  </button>
+                </div>
+                {cnpjData && (
+                  <div className={`mt-1.5 text-xs ${cnpjData.found ? "text-green-600" : "text-red-500"}`}>
+                    {cnpjData.found ? (
+                      <span>{cnpjData.razaoSocial}{cnpjData.nomeFantasia ? ` (${cnpjData.nomeFantasia})` : ""}</span>
+                    ) : cnpjData.reason}
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-slate-200 pt-4 mt-4">
@@ -624,7 +673,12 @@ function SignupPage() {
             <h1 className="text-2xl font-bold text-slate-900 mb-2">
               {result.skipPayment ? "Empresa ativada!" : "Cadastro realizado!"}
             </h1>
-            <p className="text-slate-500 mb-6 max-w-md mx-auto">{result.message}</p>
+            <p className="text-slate-500 mb-4 max-w-md mx-auto">{result.message}</p>
+            {result.skipPayment && (
+              <p className="text-xs text-slate-400 mb-6 max-w-md mx-auto">
+                Seus dados de acesso foram enviados para o email cadastrado. Verifique sua caixa de entrada (e spam).
+              </p>
+            )}
 
             {(result.skipPayment || result.slug) && (
               <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 mb-6 max-w-sm mx-auto">

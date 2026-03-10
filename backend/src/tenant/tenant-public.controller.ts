@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Query as QueryParam, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query as QueryParam, BadRequestException, Logger } from '@nestjs/common';
 import { Public } from '../auth/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
 import { AsaasService } from './asaas.service';
+import { TenantOnboardingService } from './tenant-onboarding.service';
 
 function isValidCNPJ(cnpj: string): boolean {
   const digits = cnpj.replace(/\D/g, '');
@@ -26,10 +27,13 @@ function isValidCNPJ(cnpj: string): boolean {
  */
 @Controller('public/saas')
 export class TenantPublicController {
+  private readonly logger = new Logger(TenantPublicController.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantService: TenantService,
     private readonly asaasService: AsaasService,
+    private readonly onboarding: TenantOnboardingService,
   ) {}
 
   /**
@@ -92,6 +96,47 @@ export class TenantPublicController {
       skipPayment: promo.skipPayment,
       applicablePlans: promo.applicablePlans,
     };
+  }
+
+  /**
+   * Lookup CNPJ via BrasilAPI (public, free).
+   * Returns company info for auto-fill.
+   */
+  @Public()
+  @Get('cnpj-lookup')
+  async cnpjLookup(@QueryParam('cnpj') cnpj: string) {
+    if (!cnpj) return { found: false, reason: 'CNPJ é obrigatório' };
+
+    const digits = cnpj.replace(/\D/g, '');
+    if (digits.length !== 14) return { found: false, reason: 'CNPJ inválido' };
+
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+      if (!response.ok) {
+        return { found: false, reason: 'CNPJ não encontrado na Receita Federal' };
+      }
+      const data = await response.json();
+
+      return {
+        found: true,
+        razaoSocial: data.razao_social || '',
+        nomeFantasia: data.nome_fantasia || '',
+        email: data.email || '',
+        telefone: data.ddd_telefone_1
+          ? `(${data.ddd_telefone_1.slice(0, 2)}) ${data.ddd_telefone_1.slice(2)}`
+          : '',
+        cep: data.cep || '',
+        logradouro: data.logradouro || '',
+        numero: data.numero || '',
+        bairro: data.bairro || '',
+        municipio: data.municipio || '',
+        uf: data.uf || '',
+        situacao: data.descricao_situacao_cadastral || '',
+      };
+    } catch (err: any) {
+      this.logger.warn(`CNPJ lookup failed: ${err.message}`);
+      return { found: false, reason: 'Erro ao consultar CNPJ' };
+    }
   }
 
   /**
@@ -195,9 +240,10 @@ export class TenantPublicController {
       responsiblePhone: body.responsiblePhone,
     });
 
-    // If voucher skips payment, activate immediately
+    // If voucher skips payment, activate + onboard immediately
     if (skipPayment) {
       await this.tenantService.activate(tenant.id);
+      await this.onboarding.onboard(tenant.id);
     }
 
     return {
@@ -207,7 +253,7 @@ export class TenantPublicController {
       status: skipPayment ? 'ACTIVE' : tenant.status,
       skipPayment,
       message: skipPayment
-        ? 'Empresa ativada com sucesso! Acesse seu painel agora.'
+        ? 'Empresa ativada com sucesso! Verifique seu email para os dados de acesso.'
         : 'Cadastro realizado! Escolha sua forma de pagamento.',
     };
   }
