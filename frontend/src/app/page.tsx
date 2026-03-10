@@ -260,13 +260,12 @@ export default function LandingPage() {
                 const displayPrice = showYearly ? yearlyCents / 12 : monthlyCents;
                 const savings = yearlyCents ? Math.round(((monthlyCents * 12 - yearlyCents) / (monthlyCents * 12)) * 100) : 0;
 
-                const defaultFeatures = [
-                  `Ate ${plan.maxUsers} usuario${plan.maxUsers !== 1 ? "s" : ""}`,
+                const autoFeatures = [
+                  plan.maxUsers >= 999 ? "Usuarios ilimitados" : `Ate ${plan.maxUsers} usuario${plan.maxUsers !== 1 ? "s" : ""} gestores`,
                   plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mes`,
-                  "Todos os modulos",
-                  "Suporte por chat",
                 ];
-                const featureList = plan.features.length > 0 ? plan.features : defaultFeatures;
+                const extraFeatures = plan.features.length > 0 ? plan.features : ["Todos os modulos", "Suporte por chat"];
+                const featureList = [...autoFeatures, ...extraFeatures];
 
                 return (
                   <div
