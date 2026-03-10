@@ -18,6 +18,7 @@ interface NavItem {
   roles: UserRole[];
   children?: NavChild[];
   requiresFiscal?: boolean;
+  hidden?: boolean; // Only visible when user is already on this path
 }
 
 /* ── SVG Icons (clean, Bling-like) ─────────────────────── */
@@ -139,11 +140,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Fluxo de Atendimento", href: "/workflow", icon: icons.workflow, roles: ["ADMIN", "DESPACHO"] },
   { label: "Notificações", href: "/notifications", icon: icons.notifications, roles: ["ADMIN", "DESPACHO"] },
   { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN", "FISCAL"] },
-  { label: "SaaS Admin", href: "/saas", icon: icons.saas, roles: ["ADMIN"], children: [
-    { label: "Dashboard SaaS", href: "/saas" },
-    { label: "Empresas", href: "/saas/tenants" },
-    { label: "Planos", href: "/saas/plans" },
-    { label: "Promoções", href: "/saas/promotions" },
+  { label: "SaaS Admin", href: "/ctrl-zr8k2x", icon: icons.saas, roles: ["ADMIN"], hidden: true, children: [
+    { label: "Dashboard SaaS", href: "/ctrl-zr8k2x" },
+    { label: "Empresas", href: "/ctrl-zr8k2x/tenants" },
+    { label: "Planos", href: "/ctrl-zr8k2x/plans" },
+    { label: "Promoções", href: "/ctrl-zr8k2x/promotions" },
   ] },
 ];
 
@@ -185,7 +186,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   };
 
   const visibleItems = NAV_ITEMS.filter(
-    (item) => user && item.roles.some(r => user.roles.includes(r)) && (!item.requiresFiscal || fiscalEnabled)
+    (item) => user && item.roles.some(r => user.roles.includes(r)) && (!item.requiresFiscal || fiscalEnabled) && (!item.hidden || pathname.startsWith(item.href))
   );
 
   return (

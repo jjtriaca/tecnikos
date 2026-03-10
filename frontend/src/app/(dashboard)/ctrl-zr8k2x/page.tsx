@@ -123,21 +123,21 @@ export default function SaasDashboardPage() {
       {/* Quick Links */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <button
-          onClick={() => router.push("/saas/tenants")}
+          onClick={() => router.push("/ctrl-zr8k2x/tenants")}
           className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50"
         >
           <div className="text-sm font-semibold text-slate-700">Gerenciar Empresas</div>
           <p className="mt-1 text-xs text-slate-400">Ver, ativar, bloquear empresas</p>
         </button>
         <button
-          onClick={() => router.push("/saas/plans")}
+          onClick={() => router.push("/ctrl-zr8k2x/plans")}
           className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50"
         >
           <div className="text-sm font-semibold text-slate-700">Gerenciar Planos</div>
           <p className="mt-1 text-xs text-slate-400">Criar e editar planos</p>
         </button>
         <button
-          onClick={() => router.push("/saas/promotions")}
+          onClick={() => router.push("/ctrl-zr8k2x/promotions")}
           className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50"
         >
           <div className="text-sm font-semibold text-slate-700">Promoções</div>

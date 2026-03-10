@@ -1,35 +1,31 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 88 — Multi-Tenant Foundation (v1.01.93)
+## Status: SESSAO 89 — SaaS Admin Panel Completo (v1.01.95)
 
-## Ultima sessao: 88 (10/03/2026)
+## Ultima sessao: 89 (10/03/2026)
 - Sessao 87: Seguranca de Sessao + Licenciamento Planejado (v1.01.91-92)
-- Sessao 88: Multi-Tenant Foundation (v1.01.93) — EM ANDAMENTO
+- Sessao 88: Multi-Tenant Foundation (v1.01.93-94)
+- Sessao 89: SaaS Admin Panel Frontend (v1.01.95) — CONCLUIDO
 
-## O que foi feito na sessao 88:
+## O que foi feito na sessao 88-89:
 
-### Decisoes de Negocio Finalizadas (sessao 87-88):
-- Verificacao docs: **ppid** (R$0,49/verificacao, docs BR)
-- Gateway pagamento: **Asaas** (sem mensalidade, NFS-e R$0,49/nota)
-- DNS: **Cloudflare** (migrar do Registro.br, wildcard SSL)
-- Contrato SaaS: 21 clausulas (memory/contrato-saas-estrutura.md)
-- Todas decisoes em: memory/licensing-multitenant.md
-
-### Multi-Tenant Foundation (v1.01.93) — IMPLEMENTADO
+### Multi-Tenant Foundation (v1.01.93-94) — CONCLUIDO
 - [x] Prisma schema: Tenant, Plan, Subscription, Promotion models
 - [x] Enums: TenantStatus, SubscriptionStatus
 - [x] Self-healing migration: ensureMultiTenantTables() em prisma.service.ts
-- [x] TenantModule completo:
-  - TenantService: CRUD + provisionTenant() + createSchema()
-  - TenantMiddleware: extrai subdomain, cache 60s, bloqueia invalidos
-  - TenantController: admin endpoints (tenants, plans, promotions, metrics)
-  - TenantConnectionService: cached PrismaClient per schema
-  - DTOs: CreateTenantDto, CreatePlanDto, CreatePromotionDto
-- [x] CORS wildcard: origin callback para *.tecnikos.com.br
-- [x] AppModule: TenantModule registrado
-- [x] Build OK (backend tsc + frontend next build)
+- [x] TenantModule completo (service, controller, middleware, connection, DTOs)
+- [x] CORS wildcard para *.tecnikos.com.br
+- [x] Deploy v1.01.94
 
-### Arquivos criados:
+### SaaS Admin Panel Frontend (v1.01.95) — CONCLUIDO
+- [x] /saas — Dashboard com KPIs, MRR, distribuicao por plano
+- [x] /saas/tenants — Gerenciamento de empresas (tabela, filtros, acoes, modal criacao)
+- [x] /saas/plans — Gerenciamento de planos (cards, modal criar/editar)
+- [x] /saas/promotions — Gerenciamento de promocoes (tabela, modal, toggle desconto)
+- [x] Sidebar: menu SaaS Admin com children (somente ADMIN)
+- [x] Build OK + Deploy v1.01.95
+
+### Arquivos criados (sessao 88-89):
 - backend/src/tenant/tenant.module.ts
 - backend/src/tenant/tenant.service.ts
 - backend/src/tenant/tenant.controller.ts
@@ -38,26 +34,29 @@
 - backend/src/tenant/dto/create-tenant.dto.ts
 - backend/src/tenant/dto/create-plan.dto.ts
 - backend/src/tenant/dto/create-promotion.dto.ts
+- frontend/src/app/(dashboard)/saas/page.tsx
+- frontend/src/app/(dashboard)/saas/tenants/page.tsx
+- frontend/src/app/(dashboard)/saas/plans/page.tsx
+- frontend/src/app/(dashboard)/saas/promotions/page.tsx
 
 ### Arquivos modificados:
 - backend/prisma/schema.prisma
 - backend/src/prisma/prisma.service.ts
 - backend/src/app.module.ts
 - backend/src/main.ts
+- frontend/src/components/layout/Sidebar.tsx
 
 ## Proximos passos (multi-tenant):
-1. Deploy v1.01.93 (fundacao multi-tenant)
-2. Migrar DNS para Cloudflare (Juliano faz manualmente)
-3. Painel Admin SaaS frontend (gerenciar tenants, planos, metricas)
-4. Landing page tecnikos.com.br + fluxo de cadastro
-5. Integracao Asaas (pagamento recorrente)
-6. Controle de dispositivos
-7. Chat IA suporte
+1. Migrar DNS para Cloudflare (Juliano faz manualmente)
+2. Landing page tecnikos.com.br + fluxo de cadastro
+3. Integracao Asaas (pagamento recorrente)
+4. Controle de dispositivos
+5. Chat IA suporte
 
 ## Progresso detalhado:
 - Ver memory/multitenant-progress.md para checkpoints completos
 
-## Versao atual: v1.01.93
+## Versao atual: v1.01.95
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA
@@ -84,3 +83,4 @@
 - Build e verificar antes de encerrar qualquer sessao
 - Versao em version.json sempre atualizada
 - Variaveis em campos de texto: SEMPRE clicaveis (botoes chip que inserem no cursor)
+- Pode sempre continuar depois do deploy sem perguntar
