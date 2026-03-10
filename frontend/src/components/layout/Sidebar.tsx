@@ -120,26 +120,26 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Produtos", href: "/products" },
     { label: "Serviços", href: "/services" },
   ] },
-  { label: "Finanças", href: "/finance", icon: icons.finance, roles: ["ADMIN", "FINANCEIRO"], children: [
+  { label: "Finanças", href: "/finance", icon: icons.finance, roles: ["ADMIN", "FINANCEIRO", "LEITURA"], children: [
     { label: "Financeiro", href: "/finance" },
     { label: "Resultados", href: "/results" },
+    { label: "Relatórios", href: "/reports" },
   ] },
-  { label: "NFe", href: "/nfe", icon: icons.nfe, roles: ["ADMIN", "FISCAL"], requiresFiscal: true, children: [
+  { label: "Fiscal", href: "/nfe", icon: icons.nfe, roles: ["ADMIN", "FISCAL", "FINANCEIRO"], requiresFiscal: true, children: [
     { label: "NFe Entrada", href: "/nfe" },
     { label: "NFS-e Entrada", href: "/nfe/entrada" },
     { label: "NFS-e Saída", href: "/nfe/saida" },
-  ] },
-  { label: "Escrituração", href: "/fiscal", icon: icons.fiscal, roles: ["ADMIN", "FISCAL", "FINANCEIRO"], requiresFiscal: true, children: [
-    { label: "Dashboard Fiscal", href: "/fiscal" },
+    { label: "Escrituração", href: "/fiscal" },
     { label: "Livro de Entradas", href: "/fiscal/livro-entradas" },
     { label: "Serviços Tomados", href: "/fiscal/servicos-tomados" },
     { label: "Geração SPED", href: "/fiscal/sped" },
   ] },
-  { label: "Relatórios", href: "/reports", icon: icons.reports, roles: ["ADMIN", "FINANCEIRO", "LEITURA"] },
-  { label: "Usuários", href: "/users", icon: icons.users, roles: ["ADMIN"] },
-  { label: "Fluxo de Atendimento", href: "/workflow", icon: icons.workflow, roles: ["ADMIN", "DESPACHO"] },
-  { label: "Notificações", href: "/notifications", icon: icons.notifications, roles: ["ADMIN", "DESPACHO"] },
-  { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN", "FISCAL"] },
+  { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN", "DESPACHO", "FISCAL"], children: [
+    { label: "Geral", href: "/settings" },
+    { label: "Usuários", href: "/users" },
+    { label: "Fluxo de Atendimento", href: "/workflow" },
+    { label: "Notificações", href: "/notifications" },
+  ] },
   { label: "SaaS Admin", href: "/ctrl-zr8k2x", icon: icons.saas, roles: ["ADMIN"], hidden: true, children: [
     { label: "Dashboard SaaS", href: "/ctrl-zr8k2x" },
     { label: "Empresas", href: "/ctrl-zr8k2x/tenants" },
