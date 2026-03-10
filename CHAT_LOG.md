@@ -14,6 +14,26 @@
 
 ---
 
+## 2026-03-10 — Pesquisa PPID API (Verificacao de Documentos)
+
+### Pedido do Juliano:
+- Pesquisar API ppid.com.br para verificacao de documentos de identidade
+- Servicos: Classification (deteccao tipo documento), Face Match (comparacao selfie x foto documento), Liveness (verificacao pessoa real)
+- Levantar endpoints, autenticacao, request/response, pricing
+- Objetivo: integrar no NestJS backend para verificacao de documentos no signup/onboarding
+
+### Resultado da pesquisa:
+- Pesquisa completa salva em `memory/ppid-api-research.md`
+- Base URL: https://api.ppid.com.br
+- Auth: JWT Bearer Token via POST /api/auth/login (email + senha)
+- Endpoints: /api/ocr/consultar, /api/facematch/consultar, /api/liveness/consultar, /api/classification/consultar
+- Cada servico custa 1 credito, 500 gratis/mes
+- Aceita base64 ou upload de arquivo (multipart/form-data)
+- Fluxo completo onboarding: Classification > OCR > Liveness > Face Match = 4 creditos
+- SDKs: JS, Python, Java, PHP, C#
+
+---
+
 ## 2026-03-04 — Modulo Fiscal Separado + Auto-Emissao NFS-e
 
 ### Decisoes do Usuario

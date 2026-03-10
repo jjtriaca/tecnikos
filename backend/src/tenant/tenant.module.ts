@@ -9,9 +9,10 @@ import { AsaasProvider } from './asaas.provider';
 import { AsaasService } from './asaas.service';
 import { AsaasWebhookController } from './asaas-webhook.controller';
 import { EmailModule } from '../email/email.module';
+import { PpidModule } from '../ppid/ppid.module';
 
 @Module({
-  imports: [EmailModule],
+  imports: [EmailModule, PpidModule],
   providers: [
     TenantService,
     TenantConnectionService,

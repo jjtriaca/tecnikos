@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
 import { AsaasService } from './asaas.service';
 import { TenantOnboardingService } from './tenant-onboarding.service';
+import { PpidService } from '../ppid/ppid.service';
 
 function isValidCNPJ(cnpj: string): boolean {
   const digits = cnpj.replace(/\D/g, '');
@@ -34,6 +35,7 @@ export class TenantPublicController {
     private readonly tenantService: TenantService,
     private readonly asaasService: AsaasService,
     private readonly onboarding: TenantOnboardingService,
+    private readonly ppid: PpidService,
   ) {}
 
   /**
@@ -137,6 +139,43 @@ export class TenantPublicController {
       this.logger.warn(`CNPJ lookup failed: ${err.message}`);
       return { found: false, reason: 'Erro ao consultar CNPJ' };
     }
+  }
+
+  /**
+   * Verify identity via ppid (classification + OCR + liveness + face match).
+   * Called from signup flow before submitting.
+   */
+  @Public()
+  @Post('verify-identity')
+  async verifyIdentity(
+    @Body() body: { documentBase64: string; selfieBase64: string },
+  ) {
+    if (!body.documentBase64 || !body.selfieBase64) {
+      throw new BadRequestException('documentBase64 e selfieBase64 são obrigatórios');
+    }
+
+    if (!this.ppid.isConfigured) {
+      // PPID not configured — skip verification (dev mode)
+      this.logger.warn('PPID not configured — skipping identity verification');
+      return {
+        approved: true,
+        skipped: true,
+        message: 'Verificação de identidade não configurada — aprovado automaticamente',
+      };
+    }
+
+    const result = await this.ppid.fullVerification(body.documentBase64, body.selfieBase64);
+
+    return {
+      approved: result.approved,
+      classification: result.classification,
+      ocrFields: result.ocr?.fields,
+      documentType: result.ocr?.documentType,
+      livenessScore: result.liveness?.score,
+      faceMatchScore: result.faceMatch?.similaridade,
+      reasons: result.reasons,
+      error: result.error,
+    };
   }
 
   /**
