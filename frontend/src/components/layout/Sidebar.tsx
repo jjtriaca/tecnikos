@@ -104,6 +104,11 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
     </svg>
   ),
+  saas: (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3H21m-3.75 3H21" />
+    </svg>
+  ),
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -134,6 +139,12 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Fluxo de Atendimento", href: "/workflow", icon: icons.workflow, roles: ["ADMIN", "DESPACHO"] },
   { label: "Notificações", href: "/notifications", icon: icons.notifications, roles: ["ADMIN", "DESPACHO"] },
   { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN", "FISCAL"] },
+  { label: "SaaS Admin", href: "/saas", icon: icons.saas, roles: ["ADMIN"], children: [
+    { label: "Dashboard SaaS", href: "/saas" },
+    { label: "Empresas", href: "/saas/tenants" },
+    { label: "Planos", href: "/saas/plans" },
+    { label: "Promoções", href: "/saas/promotions" },
+  ] },
 ];
 
 interface SidebarProps {
