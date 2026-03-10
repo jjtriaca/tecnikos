@@ -1,4 +1,4 @@
-import { IsString, IsInt, IsOptional, IsBoolean, Min } from 'class-validator';
+import { IsString, IsInt, IsOptional, IsBoolean, IsArray, Min } from 'class-validator';
 
 export class CreatePlanDto {
   @IsString()
@@ -17,6 +17,11 @@ export class CreatePlanDto {
   priceCents: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  priceYearlyCents?: number;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 
@@ -27,4 +32,9 @@ export class CreatePlanDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  features?: string[];
 }

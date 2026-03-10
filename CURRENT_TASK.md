@@ -1,62 +1,60 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 89 — SaaS Admin Panel Completo (v1.01.95)
+## Status: SESSAO 90 — SaaS Landing Page + Signup + Vouchers (v1.01.97)
 
-## Ultima sessao: 89 (10/03/2026)
-- Sessao 87: Seguranca de Sessao + Licenciamento Planejado (v1.01.91-92)
+## Ultima sessao: 90 (10/03/2026)
 - Sessao 88: Multi-Tenant Foundation (v1.01.93-94)
-- Sessao 89: SaaS Admin Panel Frontend (v1.01.95) — CONCLUIDO
+- Sessao 89: SaaS Admin Panel + Secret Path (v1.01.95-96)
+- Sessao 90: Landing Page + Signup + Vouchers (v1.01.97) — EM ANDAMENTO
 
-## O que foi feito na sessao 88-89:
+## O que foi feito na sessao 89-90:
 
-### Multi-Tenant Foundation (v1.01.93-94) — CONCLUIDO
-- [x] Prisma schema: Tenant, Plan, Subscription, Promotion models
-- [x] Enums: TenantStatus, SubscriptionStatus
-- [x] Self-healing migration: ensureMultiTenantTables() em prisma.service.ts
-- [x] TenantModule completo (service, controller, middleware, connection, DTOs)
-- [x] CORS wildcard para *.tecnikos.com.br
-- [x] Deploy v1.01.94
+### Secret Admin Path (v1.01.96) — CONCLUIDO
+- [x] Paginas SaaS admin movidas de /saas/ para /ctrl-zr8k2x/
+- [x] NavItem interface: hidden?: boolean
+- [x] Sidebar: menu so aparece quando pathname comeca com /ctrl-zr8k2x
+- [x] Deploy v1.01.96
 
-### SaaS Admin Panel Frontend (v1.01.95) — CONCLUIDO
-- [x] /saas — Dashboard com KPIs, MRR, distribuicao por plano
-- [x] /saas/tenants — Gerenciamento de empresas (tabela, filtros, acoes, modal criacao)
-- [x] /saas/plans — Gerenciamento de planos (cards, modal criar/editar)
-- [x] /saas/promotions — Gerenciamento de promocoes (tabela, modal, toggle desconto)
-- [x] Sidebar: menu SaaS Admin com children (somente ADMIN)
-- [x] Build OK + Deploy v1.01.95
+### Landing Page Pricing + Signup + Vouchers (v1.01.97) — EM ANDAMENTO
+- [x] Backend: TenantPublicController com endpoints publicos (plans, check-slug, validate-code, signup)
+- [x] Backend: generate-voucher endpoint (VCH-XXXXXXXX, skipPayment: true)
+- [x] Schema: Plan.priceYearlyCents, Plan.features, Promotion.skipPayment
+- [x] Self-healing: ALTER TABLE para novos campos
+- [x] Landing page: secao de precos com toggle mensal/anual, cards de planos, features
+- [x] Signup page: 3 etapas (plano + promo → dados empresa → sucesso)
+- [x] Voucher validation: skipPayment pula etapa de pagamento, ativa tenant
+- [x] Admin plans page: campos priceYearlyCents e features no form
+- [x] Admin promotions page: botao "Gerar Voucher" com modal
+- [x] Badge VOUCHER na tabela de promocoes
+- [x] Suspense boundary no signup (useSearchParams)
+- [x] Build OK
+- [ ] Deploy pendente
 
-### Arquivos criados (sessao 88-89):
-- backend/src/tenant/tenant.module.ts
-- backend/src/tenant/tenant.service.ts
-- backend/src/tenant/tenant.controller.ts
-- backend/src/tenant/tenant.middleware.ts
-- backend/src/tenant/tenant-connection.service.ts
-- backend/src/tenant/dto/create-tenant.dto.ts
-- backend/src/tenant/dto/create-plan.dto.ts
-- backend/src/tenant/dto/create-promotion.dto.ts
-- frontend/src/app/(dashboard)/saas/page.tsx
-- frontend/src/app/(dashboard)/saas/tenants/page.tsx
-- frontend/src/app/(dashboard)/saas/plans/page.tsx
-- frontend/src/app/(dashboard)/saas/promotions/page.tsx
+### Arquivos criados (sessao 89-90):
+- backend/src/tenant/tenant-public.controller.ts
+- frontend/src/app/signup/page.tsx
+- frontend/src/app/(dashboard)/ctrl-zr8k2x/page.tsx (movido de /saas/)
+- frontend/src/app/(dashboard)/ctrl-zr8k2x/tenants/page.tsx
+- frontend/src/app/(dashboard)/ctrl-zr8k2x/plans/page.tsx
+- frontend/src/app/(dashboard)/ctrl-zr8k2x/promotions/page.tsx
 
 ### Arquivos modificados:
-- backend/prisma/schema.prisma
-- backend/src/prisma/prisma.service.ts
-- backend/src/app.module.ts
-- backend/src/main.ts
-- frontend/src/components/layout/Sidebar.tsx
+- backend/prisma/schema.prisma (priceYearlyCents, features, skipPayment)
+- backend/src/prisma/prisma.service.ts (ALTER TABLE)
+- backend/src/tenant/tenant.module.ts (TenantPublicController)
+- backend/src/tenant/tenant.controller.ts (generate-voucher)
+- backend/src/tenant/dto/create-plan.dto.ts (priceYearlyCents, features)
+- backend/src/tenant/dto/create-promotion.dto.ts (skipPayment)
+- frontend/src/app/page.tsx (pricing section, billing toggle)
+- frontend/src/components/layout/Sidebar.tsx (hidden flag, secret path)
 
-## Proximos passos (multi-tenant):
-1. Migrar DNS para Cloudflare (Juliano faz manualmente)
-2. Landing page tecnikos.com.br + fluxo de cadastro
-3. Integracao Asaas (pagamento recorrente)
-4. Controle de dispositivos
-5. Chat IA suporte
+## Proximos passos:
+1. Deploy v1.01.97
+2. Integracao Asaas (pagamento recorrente)
+3. Controle de dispositivos
+4. Chat IA suporte
 
-## Progresso detalhado:
-- Ver memory/multitenant-progress.md para checkpoints completos
-
-## Versao atual: v1.01.95
+## Versao atual: v1.01.96 (deploy pendente para v1.01.97)
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA
@@ -64,11 +62,6 @@
 - Phone Number ID: 996592133539837
 - App ID: 950743907617295
 - System User ID: 122102184027217286
-
-## Status WhatsApp:
-- [x] WABA: LIVE, quality GREEN
-- [x] Templates: notificacao_tecnikos APPROVED, teste_conexao APPROVED, hello_world APPROVED
-- [x] Business verification: COMPLETA
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

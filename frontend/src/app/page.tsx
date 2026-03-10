@@ -1,4 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+interface PublicPlan {
+  id: string;
+  name: string;
+  maxUsers: number;
+  maxOsPerMonth: number;
+  priceCents: number;
+  priceYearlyCents: number | null;
+  description: string | null;
+  features: string[];
+}
 
 const features = [
   {
@@ -40,7 +54,21 @@ const features = [
   },
 ];
 
+function formatBRL(cents: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+}
+
 export default function LandingPage() {
+  const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+
+  useEffect(() => {
+    fetch("/api/public/saas/plans")
+      .then((r) => r.ok ? r.json() : [])
+      .then(setPlans)
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-white">
       {/* ── Header ─────────────────────────────────────────── */}
@@ -55,33 +83,38 @@ export default function LandingPage() {
             <span className="text-xl font-bold text-slate-900">Tecnikos</span>
           </div>
 
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-semibold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 hover:-translate-y-0.5 transition-all duration-200"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-            </svg>
-            Entrar
-          </Link>
+          <div className="flex items-center gap-3">
+            {plans.length > 0 && (
+              <a href="#precos" className="hidden sm:inline-flex text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
+                Planos
+              </a>
+            )}
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-semibold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 hover:-translate-y-0.5 transition-all duration-200"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+              </svg>
+              Entrar
+            </Link>
+          </div>
         </div>
       </header>
 
       {/* ── Hero Section ───────────────────────────────────── */}
       <section className="relative pt-32 pb-20 sm:pt-40 sm:pb-28 overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900">
-        {/* Decorative shapes */}
         <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl" />
         <div className="absolute bottom-10 right-10 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/5 rounded-full blur-3xl" />
 
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">
-          {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-400/20 mb-8">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
             </span>
-            <span className="text-sm text-blue-200 font-medium">Em fase de testes</span>
+            <span className="text-sm text-blue-200 font-medium">Vagas abertas para novas empresas</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-tight mb-6">
@@ -97,20 +130,32 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a
-              href="#funcionalidades"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-slate-900 font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
-            >
-              Conhecer funcionalidades
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-              </svg>
-            </a>
+            {plans.length > 0 ? (
+              <a
+                href="#precos"
+                className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-slate-900 font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
+              >
+                Ver planos e precos
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                </svg>
+              </a>
+            ) : (
+              <a
+                href="#funcionalidades"
+                className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-slate-900 font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
+              >
+                Conhecer funcionalidades
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                </svg>
+              </a>
+            )}
             <Link
               href="/login"
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-blue-600/20 text-white font-semibold border border-blue-400/30 hover:bg-blue-600/30 transition-all duration-200"
             >
-              Acessar plataforma
+              Ja sou cliente
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
               </svg>
@@ -151,34 +196,174 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Coming Soon Banner ─────────────────────────────── */}
-      <section className="py-20 sm:py-28 bg-white">
+      {/* ── Pricing Section ─────────────────────────────────── */}
+      {plans.length > 0 && (
+        <section id="precos" className="py-20 sm:py-28 bg-white">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-12">
+              <span className="inline-block px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold uppercase tracking-wider mb-4">
+                Planos e Precos
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
+                Escolha o plano ideal para sua empresa
+              </h2>
+              <p className="text-slate-500 max-w-xl mx-auto mb-8">
+                Todos os planos incluem acesso completo a plataforma. Sem taxa de adesao, cancele quando quiser.
+              </p>
+
+              {/* Billing Toggle */}
+              {plans.some(p => p.priceYearlyCents) && (
+                <div className="inline-flex items-center gap-3 bg-slate-100 rounded-full p-1">
+                  <button
+                    onClick={() => setBillingCycle("monthly")}
+                    className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                      billingCycle === "monthly"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Mensal
+                  </button>
+                  <button
+                    onClick={() => setBillingCycle("yearly")}
+                    className={`px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
+                      billingCycle === "yearly"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Anual
+                    <span className="rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-[10px] font-bold">
+                      Economia
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className={`grid gap-6 ${plans.length === 1 ? "max-w-md mx-auto" : plans.length === 2 ? "sm:grid-cols-2 max-w-3xl mx-auto" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+              {plans.map((plan, i) => {
+                const isPopular = i === 1 && plans.length >= 2;
+                const monthlyCents = plan.priceCents;
+                const yearlyCents = plan.priceYearlyCents;
+                const showYearly = billingCycle === "yearly" && yearlyCents;
+                const displayPrice = showYearly ? yearlyCents / 12 : monthlyCents;
+                const savings = yearlyCents ? Math.round(((monthlyCents * 12 - yearlyCents) / (monthlyCents * 12)) * 100) : 0;
+
+                const defaultFeatures = [
+                  `Ate ${plan.maxUsers} usuario${plan.maxUsers !== 1 ? "s" : ""}`,
+                  plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mes`,
+                  "Todos os modulos",
+                  "Suporte por chat",
+                ];
+                const featureList = plan.features.length > 0 ? plan.features : defaultFeatures;
+
+                return (
+                  <div
+                    key={plan.id}
+                    className={`relative rounded-2xl p-8 transition-all ${
+                      isPopular
+                        ? "bg-gradient-to-b from-blue-600 to-blue-700 text-white shadow-xl shadow-blue-600/20 scale-[1.02]"
+                        : "bg-white border border-slate-200 hover:border-blue-200 hover:shadow-lg"
+                    }`}
+                  >
+                    {isPopular && (
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                        <span className="rounded-full bg-amber-400 text-amber-900 px-4 py-1 text-xs font-bold shadow-md">
+                          Mais popular
+                        </span>
+                      </div>
+                    )}
+
+                    <h3 className={`text-xl font-bold mb-1 ${isPopular ? "text-white" : "text-slate-900"}`}>
+                      {plan.name}
+                    </h3>
+                    {plan.description && (
+                      <p className={`text-sm mb-6 ${isPopular ? "text-blue-100" : "text-slate-500"}`}>
+                        {plan.description}
+                      </p>
+                    )}
+
+                    <div className="mb-6">
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-4xl font-bold ${isPopular ? "text-white" : "text-slate-900"}`}>
+                          {formatBRL(displayPrice)}
+                        </span>
+                        <span className={`text-sm ${isPopular ? "text-blue-200" : "text-slate-400"}`}>/mes</span>
+                      </div>
+                      {showYearly && savings > 0 && (
+                        <div className={`mt-1 text-xs ${isPopular ? "text-blue-200" : "text-green-600"}`}>
+                          {formatBRL(yearlyCents)}/ano — {savings}% de economia
+                        </div>
+                      )}
+                      {showYearly && !yearlyCents && (
+                        <div className={`mt-1 text-xs ${isPopular ? "text-blue-200" : "text-slate-400"}`}>
+                          Cobrado mensalmente
+                        </div>
+                      )}
+                    </div>
+
+                    <ul className="space-y-3 mb-8">
+                      {featureList.map((feat, fi) => (
+                        <li key={fi} className="flex items-center gap-2.5 text-sm">
+                          <svg className={`w-4 h-4 flex-shrink-0 ${isPopular ? "text-blue-200" : "text-green-500"}`} fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                          </svg>
+                          <span className={isPopular ? "text-blue-50" : "text-slate-600"}>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <Link
+                      href={`/signup?plan=${plan.id}&cycle=${billingCycle}`}
+                      className={`block w-full text-center py-3 rounded-xl font-semibold text-sm transition-all ${
+                        isPopular
+                          ? "bg-white text-blue-700 hover:bg-blue-50 shadow-lg"
+                          : "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-600/20"
+                      }`}
+                    >
+                      Comecar agora
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Voucher hint */}
+            <div className="text-center mt-8">
+              <p className="text-sm text-slate-400">
+                Possui um codigo de acesso?{" "}
+                <Link href="/signup" className="text-blue-600 font-medium hover:underline">
+                  Use seu voucher aqui
+                </Link>
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── CTA Section ──────────────────────────────────────── */}
+      <section className="py-20 sm:py-28 bg-slate-50">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 rounded-3xl p-10 sm:p-14 shadow-2xl relative overflow-hidden">
-            {/* Decorative */}
             <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500/10 rounded-full blur-2xl" />
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl" />
 
             <div className="relative">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-400/20 mb-6">
-                <span className="text-amber-300 text-lg">&#x1F6A7;</span>
-                <span className="text-sm text-amber-200 font-medium">Em desenvolvimento</span>
-              </div>
-
               <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
-                Em breve disponivel para sua empresa
+                Pronto para transformar sua operacao?
               </h2>
               <p className="text-slate-300 mb-8 max-w-lg mx-auto leading-relaxed">
-                Estamos na fase final de testes. O Tecnikos esta sendo preparado para oferecer
-                a melhor experiencia em gestao de servicos tecnicos do mercado.
+                Junte-se a empresas que ja automatizam seus servicos tecnicos com o Tecnikos.
+                Comece em minutos, sem burocracia.
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link
-                  href="/login"
+                  href="/signup"
                   className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold shadow-lg shadow-blue-600/25 hover:shadow-xl hover:shadow-blue-600/35 hover:-translate-y-0.5 transition-all duration-200"
                 >
-                  Acessar area de testes
+                  Criar conta gratis
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                   </svg>

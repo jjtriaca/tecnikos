@@ -11,6 +11,8 @@ interface Plan {
   maxUsers: number;
   maxOsPerMonth: number;
   priceCents: number;
+  priceYearlyCents: number | null;
+  features: string[];
   isActive: boolean;
   sortOrder: number;
   description: string | null;
@@ -27,7 +29,7 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceCents: 0, description: "", sortOrder: 0 });
+  const [form, setForm] = useState({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceCents: 0, priceYearlyCents: 0, features: "", description: "", sortOrder: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const loadPlans = useCallback(async () => {
@@ -45,7 +47,7 @@ export default function PlansPage() {
 
   function openCreate() {
     setEditingId(null);
-    setForm({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceCents: 0, description: "", sortOrder: 0 });
+    setForm({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceCents: 0, priceYearlyCents: 0, features: "", description: "", sortOrder: 0 });
     setError(null);
     setShowForm(true);
   }
@@ -57,6 +59,8 @@ export default function PlansPage() {
       maxUsers: plan.maxUsers,
       maxOsPerMonth: plan.maxOsPerMonth,
       priceCents: plan.priceCents,
+      priceYearlyCents: plan.priceYearlyCents || 0,
+      features: (plan.features || []).join("\n"),
       description: plan.description || "",
       sortOrder: plan.sortOrder,
     });
@@ -68,7 +72,12 @@ export default function PlansPage() {
     e.preventDefault();
     setError(null);
     try {
-      const payload = { ...form, priceCents: Math.round(form.priceCents) };
+      const payload = {
+        ...form,
+        priceCents: Math.round(form.priceCents),
+        priceYearlyCents: form.priceYearlyCents ? Math.round(form.priceYearlyCents) : undefined,
+        features: form.features.split("\n").map(f => f.trim()).filter(Boolean),
+      };
       if (editingId) {
         await api.put(`/admin/tenants/plans/${editingId}`, payload);
       } else {
@@ -132,9 +141,16 @@ export default function PlansPage() {
                 )}
               </div>
 
-              <div className="mt-4 text-3xl font-bold text-slate-900">
-                {formatBRL(plan.priceCents)}
-                <span className="text-sm font-normal text-slate-400">/mês</span>
+              <div className="mt-4">
+                <div className="text-3xl font-bold text-slate-900">
+                  {formatBRL(plan.priceCents)}
+                  <span className="text-sm font-normal text-slate-400">/mês</span>
+                </div>
+                {plan.priceYearlyCents && (
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    ou {formatBRL(plan.priceYearlyCents)}/ano ({formatBRL(plan.priceYearlyCents / 12)}/mês)
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 space-y-2 text-sm text-slate-600">
@@ -146,10 +162,17 @@ export default function PlansPage() {
                   <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                   {plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mês`}
                 </div>
-                <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                  Todos os módulos inclusos
-                </div>
+                {plan.features && plan.features.length > 0 ? plan.features.map((f, fi) => (
+                  <div key={fi} className="flex items-center gap-2">
+                    <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                    {f}
+                  </div>
+                )) : (
+                  <div className="flex items-center gap-2">
+                    <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                    Todos os módulos inclusos
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 flex gap-2 border-t border-slate-100 pt-3">
@@ -190,17 +213,31 @@ export default function PlansPage() {
                   required
                 />
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Preço mensal (R$) *</label>
-                <input
-                  type="number"
-                  className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                  value={form.priceCents / 100}
-                  onChange={(e) => setForm({ ...form, priceCents: Math.round(parseFloat(e.target.value || "0") * 100) })}
-                  step="0.01"
-                  min="0"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Preço mensal (R$) *</label>
+                  <input
+                    type="number"
+                    className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                    value={form.priceCents / 100}
+                    onChange={(e) => setForm({ ...form, priceCents: Math.round(parseFloat(e.target.value || "0") * 100) })}
+                    step="0.01"
+                    min="0"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Preço anual (R$)</label>
+                  <input
+                    type="number"
+                    className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                    value={form.priceYearlyCents / 100}
+                    onChange={(e) => setForm({ ...form, priceYearlyCents: Math.round(parseFloat(e.target.value || "0") * 100) })}
+                    step="0.01"
+                    min="0"
+                    placeholder="Opcional"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -232,6 +269,16 @@ export default function PlansPage() {
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Descrição para landing page"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Features (uma por linha, exibidas na landing page)</label>
+                <textarea
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  rows={3}
+                  value={form.features}
+                  onChange={(e) => setForm({ ...form, features: e.target.value })}
+                  placeholder={"Até 5 usuários\nOS ilimitadas\nSuporte prioritário"}
                 />
               </div>
               <div>

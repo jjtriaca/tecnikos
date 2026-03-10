@@ -18,6 +18,7 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { TenantMiddleware } from './tenant.middleware';
+import { Public } from '../auth/decorators/public.decorator';
 
 /**
  * Admin-only controller for managing multi-tenant SaaS.
@@ -125,6 +126,26 @@ export class TenantController {
       data: {
         ...dto,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
+      },
+    });
+  }
+
+  /** Generate a voucher with random code that skips payment */
+  @Post('/promotions/generate-voucher')
+  async generateVoucher(
+    @Body() body: { name: string; planId?: string; durationMonths?: number },
+  ) {
+    const code = 'VCH-' + Array.from({ length: 8 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+    return this.prisma.promotion.create({
+      data: {
+        name: body.name || `Voucher ${code}`,
+        code,
+        discountPercent: 100,
+        durationMonths: body.durationMonths || 12,
+        applicablePlans: body.planId ? [body.planId] : [],
+        maxUses: 1,
+        skipPayment: true,
+        isActive: true,
       },
     });
   }

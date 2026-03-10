@@ -1806,14 +1806,16 @@ model Tenant {
 
 // Planos disponíveis para contratação
 model Plan {
-  id            String   @id @default(uuid())
-  name          String   @unique  // "Básico", "Profissional", "Enterprise"
-  maxUsers      Int               // Limite de usuários
-  maxOsPerMonth Int               // Limite de OS/mês (0 = ilimitado)
-  priceCents    Int               // Preço mensal em centavos
-  isActive      Boolean  @default(true)
-  sortOrder     Int      @default(0)
-  description   String?           // Descrição para landing page
+  id               String   @id @default(uuid())
+  name             String   @unique  // "Básico", "Profissional", "Enterprise"
+  maxUsers         Int               // Limite de usuários
+  maxOsPerMonth    Int               // Limite de OS/mês (0 = ilimitado)
+  priceCents       Int               // Preço mensal em centavos
+  priceYearlyCents Int?              // Preço anual total em centavos (null = sem opção anual)
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  description      String?           // Descrição para landing page
+  features         String[]          // Lista de funcionalidades para landing page
 
   tenants       Tenant[]
   subscriptions Subscription[]
@@ -1871,6 +1873,7 @@ model Promotion {
   maxUses         Int?                    // Limite de usos (null = ilimitado)
   currentUses     Int       @default(0)
   isActive        Boolean   @default(true)
+  skipPayment     Boolean   @default(false) // Voucher: pula etapa de pagamento
   startsAt        DateTime  @default(now())
   expiresAt       DateTime?
 

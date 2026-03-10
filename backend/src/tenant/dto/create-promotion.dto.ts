@@ -34,6 +34,10 @@ export class CreatePromotionDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  skipPayment?: boolean;
+
+  @IsOptional()
   @IsDateString()
   expiresAt?: string;
 }

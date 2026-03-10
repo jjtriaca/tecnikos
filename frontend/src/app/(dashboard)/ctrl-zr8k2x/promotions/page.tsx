@@ -16,6 +16,7 @@ interface Promotion {
   maxUses: number | null;
   currentUses: number;
   isActive: boolean;
+  skipPayment: boolean;
   startsAt: string;
   expiresAt: string | null;
 }
@@ -41,6 +42,10 @@ export default function PromotionsPage() {
   });
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
   const [error, setError] = useState<string | null>(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [showVoucherForm, setShowVoucherForm] = useState(false);
+  const [voucherForm, setVoucherForm] = useState({ name: "", durationMonths: 12 });
+  const [generatedVoucher, setGeneratedVoucher] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -113,6 +118,24 @@ export default function PromotionsPage() {
     }
   }
 
+  async function handleGenerateVoucher(e: React.FormEvent) {
+    e.preventDefault();
+    setVoucherLoading(true);
+    setError(null);
+    try {
+      const result = await api.post<Promotion>("/admin/tenants/promotions/generate-voucher", {
+        name: voucherForm.name || undefined,
+        durationMonths: voucherForm.durationMonths,
+      });
+      setGeneratedVoucher(result.code);
+      await load();
+    } catch (err: any) {
+      setError(err.message || "Erro ao gerar voucher");
+    } finally {
+      setVoucherLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
@@ -120,9 +143,15 @@ export default function PromotionsPage() {
           <h1 className="text-xl font-bold text-slate-900">Promoções</h1>
           <p className="text-sm text-slate-500">Configure descontos e códigos promocionais</p>
         </div>
-        <button onClick={openCreate} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-          + Nova Promoção
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => { setShowVoucherForm(true); setGeneratedVoucher(null); setVoucherForm({ name: "", durationMonths: 12 }); }}
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+            Gerar Voucher
+          </button>
+          <button onClick={openCreate} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            + Nova Promoção
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -153,7 +182,12 @@ export default function PromotionsPage() {
             <tbody className="divide-y divide-slate-50">
               {promotions.map((promo) => (
                 <tr key={promo.id} className="hover:bg-slate-50/50">
-                  <td className="px-4 py-3 font-medium text-slate-900">{promo.name}</td>
+                  <td className="px-4 py-3 font-medium text-slate-900">
+                    {promo.name}
+                    {promo.skipPayment && (
+                      <span className="ml-2 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">VOUCHER</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     {promo.code ? (
                       <code className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{promo.code}</code>
@@ -188,6 +222,59 @@ export default function PromotionsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Generate Voucher Modal */}
+      {showVoucherForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-slate-900">Gerar Voucher</h2>
+            <p className="text-xs text-slate-500 mt-1">Cria um código de uso único que pula o pagamento</p>
+
+            {generatedVoucher ? (
+              <div className="mt-6 text-center">
+                <p className="text-xs text-slate-500 mb-2">Voucher gerado com sucesso:</p>
+                <div className="rounded-xl bg-green-50 border border-green-200 p-4">
+                  <code className="text-2xl font-bold text-green-700 tracking-wider">{generatedVoucher}</code>
+                </div>
+                <p className="text-xs text-slate-400 mt-3">Envie este código para o cliente. Uso único.</p>
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => { navigator.clipboard.writeText(generatedVoucher); }}
+                    className="flex-1 rounded-lg bg-slate-100 py-2 text-xs font-medium text-slate-700 hover:bg-slate-200">
+                    Copiar código
+                  </button>
+                  <button onClick={() => setShowVoucherForm(false)}
+                    className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-medium text-white hover:bg-blue-700">
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleGenerateVoucher} className="mt-4 space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Nome / Descrição</label>
+                  <input className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                    value={voucherForm.name} onChange={(e) => setVoucherForm({ ...voucherForm, name: e.target.value })}
+                    placeholder="Ex: Voucher SLS Obras" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Duração (meses)</label>
+                  <input type="number" className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                    value={voucherForm.durationMonths} onChange={(e) => setVoucherForm({ ...voucherForm, durationMonths: parseInt(e.target.value) || 12 })}
+                    min="1" />
+                </div>
+                {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setShowVoucherForm(false)} className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100">Cancelar</button>
+                  <button type="submit" disabled={voucherLoading}
+                    className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
+                    {voucherLoading ? "Gerando..." : "Gerar Voucher"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       )}
 

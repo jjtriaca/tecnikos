@@ -731,6 +731,11 @@ export class PrismaService
       `);
       await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Promotion_code_key" ON "Promotion"("code") WHERE "code" IS NOT NULL`);
 
+      // v1.01.97: Add new columns to existing tables
+      await this.$executeRawUnsafe(`ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "priceYearlyCents" INTEGER`);
+      await this.$executeRawUnsafe(`ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "features" TEXT[] DEFAULT '{}'`);
+      await this.$executeRawUnsafe(`ALTER TABLE "Promotion" ADD COLUMN IF NOT EXISTS "skipPayment" BOOLEAN NOT NULL DEFAULT false`);
+
       this.logger.log('Multi-tenant tables verified');
     } catch (err) {
       this.logger.warn('Multi-tenant tables auto-migration failed (non-fatal):', err);
