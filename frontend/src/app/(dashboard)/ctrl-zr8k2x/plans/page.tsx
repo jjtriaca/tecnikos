@@ -22,6 +22,17 @@ function formatBRL(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 }
 
+function centsToDisplay(cents: number): string {
+  if (!cents) return "";
+  return (cents / 100).toFixed(2).replace(".", ",");
+}
+
+function displayToCents(display: string): number {
+  if (!display) return 0;
+  const clean = display.replace(/[^\d,]/g, "").replace(",", ".");
+  return Math.round(parseFloat(clean || "0") * 100);
+}
+
 export default function PlansPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -29,7 +40,7 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceCents: 0, priceYearlyCents: 0, features: "", description: "", sortOrder: 0 });
+  const [form, setForm] = useState({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceDisplay: "", priceYearlyDisplay: "", features: "", description: "", sortOrder: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const loadPlans = useCallback(async () => {
@@ -47,7 +58,7 @@ export default function PlansPage() {
 
   function openCreate() {
     setEditingId(null);
-    setForm({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceCents: 0, priceYearlyCents: 0, features: "", description: "", sortOrder: 0 });
+    setForm({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceDisplay: "", priceYearlyDisplay: "", features: "", description: "", sortOrder: 0 });
     setError(null);
     setShowForm(true);
   }
@@ -58,8 +69,8 @@ export default function PlansPage() {
       name: plan.name,
       maxUsers: plan.maxUsers,
       maxOsPerMonth: plan.maxOsPerMonth,
-      priceCents: plan.priceCents,
-      priceYearlyCents: plan.priceYearlyCents || 0,
+      priceDisplay: centsToDisplay(plan.priceCents),
+      priceYearlyDisplay: centsToDisplay(plan.priceYearlyCents || 0),
       features: (plan.features || []).join("\n"),
       description: plan.description || "",
       sortOrder: plan.sortOrder,
@@ -72,10 +83,13 @@ export default function PlansPage() {
     e.preventDefault();
     setError(null);
     try {
+      const priceCents = displayToCents(form.priceDisplay);
+      const priceYearlyCents = displayToCents(form.priceYearlyDisplay);
+      const { priceDisplay, priceYearlyDisplay, ...rest } = form;
       const payload = {
-        ...form,
-        priceCents: Math.round(form.priceCents),
-        priceYearlyCents: form.priceYearlyCents ? Math.round(form.priceYearlyCents) : undefined,
+        ...rest,
+        priceCents,
+        priceYearlyCents: priceYearlyCents || undefined,
         features: form.features.split("\n").map(f => f.trim()).filter(Boolean),
       };
       if (editingId) {
@@ -217,25 +231,24 @@ export default function PlansPage() {
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">Preço mensal (R$) *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                    value={form.priceCents / 100}
-                    onChange={(e) => setForm({ ...form, priceCents: Math.round(parseFloat(e.target.value || "0") * 100) })}
-                    step="0.01"
-                    min="0"
+                    value={form.priceDisplay}
+                    onChange={(e) => setForm({ ...form, priceDisplay: e.target.value.replace(/[^\d,]/g, "") })}
+                    placeholder="99,00"
                     required
                   />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">Preço anual (R$)</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                    value={form.priceYearlyCents / 100}
-                    onChange={(e) => setForm({ ...form, priceYearlyCents: Math.round(parseFloat(e.target.value || "0") * 100) })}
-                    step="0.01"
-                    min="0"
-                    placeholder="Opcional"
+                    value={form.priceYearlyDisplay}
+                    onChange={(e) => setForm({ ...form, priceYearlyDisplay: e.target.value.replace(/[^\d,]/g, "") })}
+                    placeholder="999,00"
                   />
                 </div>
               </div>
