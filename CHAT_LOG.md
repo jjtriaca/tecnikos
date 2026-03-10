@@ -1587,3 +1587,78 @@ Documento de referencia completo salvo em `memory/asaas-api.md` (17 secoes) cobr
 - Lifecycle: ACTIVE, INACTIVE (pausar), EXPIRED; update/cancel/delete
 - Precos: sem mensalidade, R$0.49/cartao, R$1.99/boleto, 30 PIX gratis/mes
 - Fluxo sugerido para integracao com Tecnikos SaaS
+
+---
+
+## 2026-03-10 — Pesquisa de Pricing para FSM SaaS
+
+### Pedido do Juliano:
+Pesquisa completa sobre estrategias de pricing para plataformas FSM SaaS no mercado brasileiro.
+
+### Resultado da Pesquisa:
+Estudo completo salvo em `memory/fsm-pricing-research.md`.
+Cobertura: concorrentes brasileiros (Auvo, Produttivo, Field Control, Engeman), internacionais (ServiceTitan, Housecall Pro, Jobber, ServiceM8, FieldPulse, FieldCo), estrategias SaaS B2B (per-user, tiers, annual discount, freemium vs trial), especificidades do mercado brasileiro (PIX, boleto, sensibilidade de preco).
+
+---
+
+## 2026-03-10 — Pesquisa Custos: Claude API + Ferramentas Video AI + Marketing
+
+### Pedido do Juliano:
+Pesquisa de precos atuais (marco 2026) para:
+1. Claude API / Anthropic — custo para IA embedded no SaaS (suporte, config, perguntas)
+2. Ferramentas AI Video para marketing — HeyGen, Synthesia, Runway, Pictory, InVideo, D-ID
+3. Alternativas baratas — screen recording + AI voiceover, ElevenLabs
+
+### Resultado:
+Pesquisa completa entregue diretamente no chat com precos em USD e BRL.
+- Claude API: Haiku $1/$5 por MTok, Sonnet $3/$15, Opus $5/$25
+- Custo estimado 500 conversas/mes: $0.25 (Haiku) a $15 (Opus)
+- Claude Code: incluido no Pro ($20/mes) e Max ($100-200/mes)
+- HeyGen: $29-149/mes, Synthesia: $18-64/mes, Runway: $12-76/mes
+- Pictory: $25-119/mes, InVideo: $28-96/mes, D-ID: $5.90-196/mes
+- ElevenLabs: $5-330/mes, opcoes gratuitas: ScreenApp, Loom, VideoMule
+
+## 2026-03-10 — Discussao: Claude como Assistente IA no Sistema
+
+### Pergunta do Juliano:
+> "A claude pode ficar dentro do sistema como assistente de IA para os clientes?"
+
+### Resposta:
+SIM — Claude pode ser embutida via API como assistente IA para clientes do Tecnikos.
+- Arquitetura: Chat Widget (frontend) → Backend proxy → Claude API
+- Custo por tenant: R$0,50-25/mes dependendo do uso (Haiku para simples, Sonnet para complexo)
+- Funcionalidades: ajuda configuracao, responde duvidas, suporte, sugestoes contextuais
+- Modelo de negocio sugerido: limitar msgs/mes por plano (ex: Starter 50, Pro 200, Enterprise ilimitado)
+
+### Continuacao da estrategia de precos:
+- Q1 (Alvo): "Nao sei quem vai ser meu alvo"
+- Q2 (Aquisicao): Marketing digital, Claude fazendo marketing com AI video
+- Q3 (Custos): Pesquisa realizada — custos muito baixos (~R$50/mes fixo + centavos por tenant)
+- Q4 (Volume): Com funcionario CLT R$7k = custo fixo ~R$12.850/mes. Break-even ~45-57 clientes
+- Q5 (WhatsApp): DECISAO — Opcao C (hibrido): cliente conecta seu proprio WhatsApp, paga Meta direto. Custo zero pro Tecnikos
+- Q6 (Focus NFe): DECISAO — Hibrido: cliente contrata Focus NFe direto, cola token no Tecnikos. Custo zero.
+- Q7 (Trial): DECISAO — Sem trial/freemium. Videos de IA mostram o sistema. Primeiro mes com valor promocional mais baixo para reduzir barreira de entrada.
+- Q8 (Contrato): DECISAO — Opcao 3: sem fidelidade no mensal, desconto 20% no anual (compromisso 12 meses).
+- Q9 (Diferenciacao): DECISAO — Por volume de OS/mes como metrica principal. Tecnicos ilimitados em todos os planos. Usuarios 3/6/ilimitado. Todos os modulos inclusos.
+
+### ESTRATEGIA DE PRECOS FINAL — APROVADA
+
+| | Essencial | Profissional | Enterprise |
+|--|-----------|-------------|------------|
+| Mensal | R$ 197 | R$ 397 | R$ 697 |
+| Anual (20% off) | R$ 158/mes | R$ 318/mes | R$ 558/mes |
+| 1o mes (~50% off) | R$ 97 | R$ 197 | R$ 347 |
+| OS/mes | 100 | 300 | Ilimitadas |
+| Usuarios (gestores) | 3 | 6 | Ilimitados |
+| Tecnicos | Ilimitados | Ilimitados | Ilimitados |
+| Assistente IA | 50 msgs | 200 msgs | 800 msgs |
+| Modulos | Todos | Todos | Todos |
+| Suporte | Email | Email+Chat | Prioritario |
+
+Regras:
+- Sem trial/freemium
+- Primeiro mes com valor promocional (~50% off)
+- Sem fidelidade no mensal, 20% off no anual (compromisso 12 meses)
+- WhatsApp: cliente conecta e paga direto ao Meta
+- NFS-e (Focus NFe): cliente contrata e cola token no Tecnikos
+- Tecnicos ilimitados em todos os planos (diferencial vs concorrencia)

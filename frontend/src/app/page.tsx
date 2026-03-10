@@ -207,9 +207,19 @@ export default function LandingPage() {
               <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
                 Escolha o plano ideal para sua empresa
               </h2>
-              <p className="text-slate-500 max-w-xl mx-auto mb-8">
+              <p className="text-slate-500 max-w-xl mx-auto mb-4">
                 Todos os planos incluem acesso completo a plataforma. Sem taxa de adesao, cancele quando quiser.
               </p>
+              <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 text-xs font-semibold">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                  Tecnicos ilimitados em todos os planos
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" /></svg>
+                  1o mes com 50% OFF
+                </span>
+              </div>
 
               {/* Billing Toggle */}
               {plans.some(p => p.priceYearlyCents) && (
@@ -301,6 +311,9 @@ export default function LandingPage() {
                           Cobrado mensalmente
                         </div>
                       )}
+                      <div className={`mt-2 inline-block px-2.5 py-1 rounded-lg text-xs font-semibold ${isPopular ? "bg-white/20 text-white" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+                        1o mes por {formatBRL(Math.round(monthlyCents * 0.5))}
+                      </div>
                     </div>
 
                     <ul className="space-y-3 mb-8">
@@ -363,7 +376,7 @@ export default function LandingPage() {
                   href="/signup"
                   className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold shadow-lg shadow-blue-600/25 hover:shadow-xl hover:shadow-blue-600/35 hover:-translate-y-0.5 transition-all duration-200"
                 >
-                  Criar conta gratis
+                  Comecar agora
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                   </svg>
