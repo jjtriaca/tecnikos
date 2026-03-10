@@ -50,7 +50,7 @@
 
 ## Proximos passos:
 1. ~~Deploy v1.01.97~~ CONCLUIDO
-2. Integracao Asaas (pagamento recorrente) — PESQUISA CONCLUIDA (memory/asaas-api.md)
+2. ~~Integracao Asaas (pagamento recorrente)~~ CONCLUIDO v1.01.98
 3. Controle de dispositivos
 4. Chat IA suporte
 

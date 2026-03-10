@@ -40,6 +40,7 @@ export default function SignupPageWrapper() {
 
 function SignupPage() {
   const searchParams = useSearchParams();
+  const totalSteps = 4;
   const [step, setStep] = useState(1);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
@@ -56,8 +57,16 @@ function SignupPage() {
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [slugChecking, setSlugChecking] = useState(false);
 
+  // Payment form
+  const [billingType, setBillingType] = useState<"PIX" | "BOLETO" | "CREDIT_CARD">("PIX");
+  const [cardForm, setCardForm] = useState({
+    holderName: "", number: "", expiryMonth: "", expiryYear: "", ccv: "",
+    cpfCnpj: "", postalCode: "", addressNumber: "",
+  });
+
   // Submit state
   const [submitting, setSubmitting] = useState(false);
+  const [tenantId, setTenantId] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: boolean; message: string; slug?: string; skipPayment?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -123,8 +132,10 @@ function SignupPage() {
     }
   }
   const hasDiscount = firstMonthCents !== baseDisplayCents && promoValid?.valid;
+  const isVoucher = promoValid?.valid && promoValid.skipPayment;
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Step 2: Submit company info
+  async function handleCompanySubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
@@ -141,14 +152,81 @@ function SignupPage() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.message || "Erro ao cadastrar");
-      setResult(data);
-      setStep(3);
+
+      setTenantId(data.tenantId);
+
+      if (data.skipPayment) {
+        // Voucher: skip payment, go to success
+        setResult(data);
+        setStep(totalSteps);
+      } else {
+        // Go to payment step
+        setCardForm({ ...cardForm, holderName: form.responsibleName, cpfCnpj: form.cnpj });
+        setStep(3);
+      }
     } catch (err: any) {
       setError(err.message || "Erro ao cadastrar");
     } finally {
       setSubmitting(false);
     }
   }
+
+  // Step 3: Submit payment
+  async function handlePaymentSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tenantId) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const payload: any = {
+        tenantId,
+        billingType,
+        billingCycle,
+        promoCode: promoValid?.valid ? promoCode.trim() : undefined,
+      };
+
+      if (billingType === "CREDIT_CARD") {
+        payload.creditCard = {
+          holderName: cardForm.holderName,
+          number: cardForm.number.replace(/\s/g, ""),
+          expiryMonth: cardForm.expiryMonth,
+          expiryYear: cardForm.expiryYear,
+          ccv: cardForm.ccv,
+        };
+        payload.creditCardHolderInfo = {
+          name: cardForm.holderName || form.responsibleName,
+          email: form.responsibleEmail,
+          cpfCnpj: (cardForm.cpfCnpj || form.cnpj || "").replace(/[^\d]/g, ""),
+          postalCode: (cardForm.postalCode || "").replace(/[^\d]/g, ""),
+          addressNumber: cardForm.addressNumber || "0",
+        };
+      }
+
+      const r = await fetch("/api/public/saas/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.message || "Erro ao processar pagamento");
+
+      setResult({
+        success: true,
+        message: data.message,
+        slug: form.slug,
+        skipPayment: false,
+      });
+      setStep(totalSteps);
+    } catch (err: any) {
+      setError(err.message || "Erro ao processar pagamento");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Determine visible steps count (voucher skips step 3)
+  const visibleSteps = isVoucher ? [1, 2, 3] : [1, 2, 3, 4];
+  const displayStep = isVoucher && step === totalSteps ? 3 : step;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
@@ -172,18 +250,18 @@ function SignupPage() {
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
         {/* Steps indicator */}
         <div className="flex items-center justify-center gap-3 mb-10">
-          {[1, 2, 3].map((s) => (
+          {visibleSteps.map((s) => (
             <div key={s} className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                step >= s ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-400"
+                displayStep >= s ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-400"
               }`}>
-                {step > s ? (
+                {displayStep > s ? (
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                   </svg>
                 ) : s}
               </div>
-              {s < 3 && <div className={`w-12 h-0.5 ${step > s ? "bg-blue-600" : "bg-slate-200"}`} />}
+              {s < visibleSteps[visibleSteps.length - 1] && <div className={`w-12 h-0.5 ${displayStep > s ? "bg-blue-600" : "bg-slate-200"}`} />}
             </div>
           ))}
         </div>
@@ -286,7 +364,7 @@ function SignupPage() {
                     <span className="text-green-400">- {formatBRL(baseDisplayCents - firstMonthCents)}</span>
                   </div>
                 )}
-                {promoValid?.skipPayment && (
+                {isVoucher && (
                   <div className="flex items-center justify-between text-sm mt-1">
                     <span className="text-green-400">Voucher — pagamento dispensado</span>
                     <span className="text-green-400 font-bold">GRATIS</span>
@@ -295,7 +373,7 @@ function SignupPage() {
                 <div className="border-t border-white/20 mt-3 pt-3 flex items-center justify-between font-bold">
                   <span>1o mes</span>
                   <span className="text-lg">
-                    {promoValid?.skipPayment ? "R$ 0,00" : formatBRL(firstMonthCents)}
+                    {isVoucher ? "R$ 0,00" : formatBRL(firstMonthCents)}
                   </span>
                 </div>
               </div>
@@ -317,7 +395,7 @@ function SignupPage() {
             <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Dados da empresa</h1>
             <p className="text-sm text-slate-500 text-center mb-8">Preencha os dados para criar sua conta</p>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleCompanySubmit} className="space-y-4">
               {/* Subdomain */}
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Subdominio da sua empresa *</label>
@@ -383,15 +461,160 @@ function SignupPage() {
                 </button>
                 <button type="submit" disabled={submitting || slugAvailable === false}
                   className="flex-[2] py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  {submitting ? "Cadastrando..." : promoValid?.skipPayment ? "Ativar minha empresa" : "Finalizar cadastro"}
+                  {submitting ? "Cadastrando..." : isVoucher ? "Ativar minha empresa" : "Continuar para pagamento"}
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {/* Step 3: Success */}
-        {step === 3 && result && (
+        {/* Step 3: Payment */}
+        {step === 3 && (
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Forma de pagamento</h1>
+            <p className="text-sm text-slate-500 text-center mb-8">Escolha como deseja pagar sua assinatura</p>
+
+            <form onSubmit={handlePaymentSubmit} className="space-y-4">
+              {/* Payment method selector */}
+              <div className="grid grid-cols-3 gap-3">
+                {([
+                  { value: "PIX" as const, label: "PIX", desc: "Aprovacao instantanea" },
+                  { value: "BOLETO" as const, label: "Boleto", desc: "Ate 3 dias uteis" },
+                  { value: "CREDIT_CARD" as const, label: "Cartao", desc: "Aprovacao imediata" },
+                ] as const).map((method) => (
+                  <button
+                    key={method.value}
+                    type="button"
+                    onClick={() => setBillingType(method.value)}
+                    className={`rounded-xl border-2 p-4 text-center transition-all ${
+                      billingType === method.value
+                        ? "border-blue-600 bg-blue-50/50 shadow-md"
+                        : "border-slate-200 bg-white hover:border-blue-300"
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">
+                      {method.value === "PIX" ? (
+                        <svg className="w-7 h-7 mx-auto text-slate-700" viewBox="0 0 24 24" fill="currentColor"><path d="M15.45 16.52l-3.01-3.01c-.11-.11-.29-.11-.4 0l-3.02 3.01c-.67.67-1.56 1.04-2.5 1.04h-.64l3.8 3.8c1.1 1.1 2.9 1.1 4 0l3.82-3.82h-.55c-.95 0-1.83-.37-2.5-1.02zm-8.48-4.56l3.02 3.01c.11.11.29.11.4 0l3.01-3.01c.67-.67 1.56-1.04 2.5-1.04h.55L12.63 7.1c-1.1-1.1-2.9-1.1-4 0l-3.8 3.8h.64c.95.01 1.83.38 2.5 1.06zM20.2 7.1l-1.93-1.93c-.03.01-.06.03-.08.05l-2.02 2.02c-.11.11-.11.29 0 .4l3.54 3.54V9.62c0-.95-.37-1.83-1.04-2.5l-.47-.02zM3.8 16.87l1.93 1.93c.03-.01.06-.03.08-.05l2.02-2.02c.11-.11.11-.29 0-.4L4.29 12.8v1.57c0 .95.37 1.83 1.04 2.5h-1.53z"/></svg>
+                      ) : method.value === "BOLETO" ? (
+                        <svg className="w-7 h-7 mx-auto text-slate-700" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 14.625v5.625M16.5 14.625v5.625M19.5 14.625v5.625" /></svg>
+                      ) : (
+                        <svg className="w-7 h-7 mx-auto text-slate-700" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900">{method.label}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{method.desc}</p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Credit card fields */}
+              {billingType === "CREDIT_CARD" && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Nome no cartao *</label>
+                    <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                      value={cardForm.holderName} onChange={(e) => setCardForm({ ...cardForm, holderName: e.target.value })}
+                      placeholder="NOME COMO NO CARTAO" required />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Numero do cartao *</label>
+                    <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 tracking-wider"
+                      value={cardForm.number} onChange={(e) => setCardForm({ ...cardForm, number: e.target.value.replace(/[^\d\s]/g, "") })}
+                      placeholder="0000 0000 0000 0000" maxLength={19} required />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Mes *</label>
+                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                        value={cardForm.expiryMonth} onChange={(e) => setCardForm({ ...cardForm, expiryMonth: e.target.value })}
+                        placeholder="MM" maxLength={2} required />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Ano *</label>
+                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                        value={cardForm.expiryYear} onChange={(e) => setCardForm({ ...cardForm, expiryYear: e.target.value })}
+                        placeholder="AAAA" maxLength={4} required />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">CVV *</label>
+                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                        value={cardForm.ccv} onChange={(e) => setCardForm({ ...cardForm, ccv: e.target.value })}
+                        placeholder="123" maxLength={4} required />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">CPF/CNPJ do titular *</label>
+                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                        value={cardForm.cpfCnpj} onChange={(e) => setCardForm({ ...cardForm, cpfCnpj: e.target.value })}
+                        placeholder="000.000.000-00" required />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">CEP *</label>
+                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                        value={cardForm.postalCode} onChange={(e) => setCardForm({ ...cardForm, postalCode: e.target.value })}
+                        placeholder="00000-000" required />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PIX/Boleto info */}
+              {billingType === "PIX" && (
+                <div className="rounded-xl bg-green-50 border border-green-200 p-4">
+                  <p className="text-sm text-green-800 font-medium">Pagamento via PIX</p>
+                  <p className="text-xs text-green-600 mt-1">
+                    Ao confirmar, um QR Code PIX sera gerado. Sua empresa sera ativada assim que o pagamento for confirmado (geralmente em segundos).
+                  </p>
+                </div>
+              )}
+              {billingType === "BOLETO" && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
+                  <p className="text-sm text-amber-800 font-medium">Pagamento via Boleto</p>
+                  <p className="text-xs text-amber-600 mt-1">
+                    Ao confirmar, um boleto sera gerado. Sua empresa sera ativada apos a compensacao do pagamento (ate 3 dias uteis).
+                  </p>
+                </div>
+              )}
+
+              {/* Price summary */}
+              {selectedPlan && (
+                <div className="rounded-xl bg-slate-900 text-white p-5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-300">{selectedPlan.name} ({billingCycle === "yearly" ? "anual" : "mensal"})</span>
+                    <span>{formatBRL(baseDisplayCents)}/mes</span>
+                  </div>
+                  {hasDiscount && (
+                    <div className="flex items-center justify-between text-sm mt-1">
+                      <span className="text-green-400">Desconto ({discountLabel})</span>
+                      <span className="text-green-400">- {formatBRL(baseDisplayCents - firstMonthCents)}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-white/20 mt-3 pt-3 flex items-center justify-between font-bold">
+                    <span>Total</span>
+                    <span className="text-lg">{formatBRL(firstMonthCents)}</span>
+                  </div>
+                </div>
+              )}
+
+              {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setStep(2)}
+                  className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Voltar
+                </button>
+                <button type="submit" disabled={submitting}
+                  className="flex-[2] py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                  {submitting ? "Processando..." : billingType === "CREDIT_CARD" ? "Pagar agora" : billingType === "PIX" ? "Gerar PIX" : "Gerar boleto"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Step 4: Success */}
+        {step === totalSteps && result && (
           <div className="text-center py-10">
             <div className="w-16 h-16 rounded-full bg-green-100 mx-auto mb-6 flex items-center justify-center">
               <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -403,7 +626,7 @@ function SignupPage() {
             </h1>
             <p className="text-slate-500 mb-6 max-w-md mx-auto">{result.message}</p>
 
-            {result.skipPayment && result.slug && (
+            {(result.skipPayment || result.slug) && (
               <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 mb-6 max-w-sm mx-auto">
                 <p className="text-xs text-blue-600 font-medium mb-1">Seu endereco:</p>
                 <p className="text-lg font-bold text-blue-900">{result.slug}.tecnikos.com.br</p>
