@@ -1512,4 +1512,29 @@ Cobertura: padrao nacional, ABRASF, fragmentacao municipal, campos obrigatorios,
 - Metricas de engajamento (OS criadas, logins, funcionalidades usadas)
 - NAO acessar dados financeiros dos clientes (LGPD, etica)
 
+### Decisoes Adicionais (DEFINITIVAS)
+
+**Trial:** Sem trial gratuito. Primeiro mes com valor reduzido como promocao.
+
+**SLS Obras (tenant master):**
+- Dados atuais ficam como estao — migrar para schema dedicado sem alterar nada
+- Renovacao automatica, sem cobranca (empresa do dono)
+
+**Modelo de OS:**
+- Planos incluem quantidade de OS/mes
+- Pacotes extras de OS vendidos separadamente (ex: +50 OS por R$X)
+
+**Cancelamento:** Consultar questoes legais antes de definir politica de retencao de dados.
+
+**Suporte via IA (Claude):**
+- Cliente abre chamado → Claude responde como assistente de configuracao
+- Claude so AUXILIA na configuracao do sistema (orientar, explicar, guiar)
+- Claude NAO pode adicionar nem remover nada do sistema
+- Opcao de "Solicitar melhoria" → cai como sugestao para Juliano avaliar e decidir
+
+**Infra contra ransomware:**
+- Banco PostgreSQL em servidor dedicado separado do app
+- Servidor DB aceita conexao apenas do IP do app server
+- Escala inicial: ate 20 empresas
+
 ---

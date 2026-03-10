@@ -1,56 +1,63 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 87 — Deploy Seguranca + Licenciamento Planejado
+## Status: SESSAO 88 — Multi-Tenant Foundation (v1.01.93)
 
-## Ultima sessao: 87 (10/03/2026)
-- Sessoes 61-62: Dashboard Financeiro + Auditoria (v1.01.18-19)
-- Sessao 63: Fix NFe Import Flow (v1.01.20)
-- Sessoes 64-68: 4 estudos fiscais completos
-- Sessao 69-70: Fase 1 — Fundacao Fiscal (regime, contabilista, impostos NFe)
-- Sessao 71: Fase 2 — NFS-e de Entrada + Fase 3 — Escrituracao e Relatorios (v1.01.22)
-- Sessao 72: Fase 4 — Geracao SPED + Deploy v1.01.23
-- Sessao 73: WhatsApp Test Send + Modulo Email SMTP + Fix + Privacy Page (v1.01.24-27)
-- Sessao 74: Zoho Mail DNS + Logo Tecnikos + Deploy v1.01.28
-- Sessao 75: Manifestacao do Destinatario + Fix IMPORTED + Deploy v1.01.29-30
-- Sessao 76: Finalidade Fiscal + Acoes Primeira Coluna + DraggableHeader em tudo (v1.01.31)
-- Sessao 77: Codigos Sequenciais (SKU) + Deteccao Duplicados (v1.01.32)
-- Sessao 78: Reverter Importacao NFe (v1.01.39) + WhatsApp Business API (v1.01.56)
-- Sessao 79: Instrumentos de Pagamento (v1.01.58)
-- Sessao 80: Contratos de Tecnico (onboarding via workflow) (v1.01.68-72)
-- Sessao 81: Enderecos de Atendimento + Fix Agenda + Seletor Endereco OS (v1.01.78-79)
-- Sessao 82: Collapsible Sections + Comissao Tecnico + Retorno Atendimento (v1.01.80-81)
-- Sessao 83: Botao Confirmar (Finalizar OS) + Botao Retorno (v1.01.82)
-- Sessao 84: Verificacao WABA + Regime CLT Onboarding (v1.01.83)
-- Sessao 85: Fix WhatsApp Template + Profile Picture Sync (v1.01.84-85)
-- Sessao 86: Respostas CLT + Foto Perfil Sharp + Variaveis Clicaveis (v1.01.86-90)
-- Sessao 87: Seguranca de Sessao + Licenciamento Multi-Tenant (v1.01.91)
+## Ultima sessao: 88 (10/03/2026)
+- Sessao 87: Seguranca de Sessao + Licenciamento Planejado (v1.01.91-92)
+- Sessao 88: Multi-Tenant Foundation (v1.01.93) — EM ANDAMENTO
 
-## O que foi feito na sessao 87:
+## O que foi feito na sessao 88:
 
-### Seguranca de Sessao (v1.01.91) — PRONTO PARA DEPLOY
-- [x] Cookie de sessao sem maxAge — expira ao fechar browser
-- [x] Removido rememberMe de todo o fluxo auth (backend + frontend)
-- [x] Checkbox "Lembrar meu email" — salva apenas email no localStorage
-- [x] autoComplete nos inputs para browser salvar senha nativamente
-- [x] CAPTCHA Cloudflare Turnstile a cada 7 dias
-  - Frontend: @marsidev/react-turnstile instalado
-  - Backend: validateCaptcha() com Turnstile API
-  - Endpoint publico GET /auth/captcha-config
-  - Ativa com env: TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY
-  - Sem as env vars, CAPTCHA nao aparece (graceful)
+### Decisoes de Negocio Finalizadas (sessao 87-88):
+- Verificacao docs: **ppid** (R$0,49/verificacao, docs BR)
+- Gateway pagamento: **Asaas** (sem mensalidade, NFS-e R$0,49/nota)
+- DNS: **Cloudflare** (migrar do Registro.br, wildcard SSL)
+- Contrato SaaS: 21 clausulas (memory/contrato-saas-estrutura.md)
+- Todas decisoes em: memory/licensing-multitenant.md
+
+### Multi-Tenant Foundation (v1.01.93) — IMPLEMENTADO
+- [x] Prisma schema: Tenant, Plan, Subscription, Promotion models
+- [x] Enums: TenantStatus, SubscriptionStatus
+- [x] Self-healing migration: ensureMultiTenantTables() em prisma.service.ts
+- [x] TenantModule completo:
+  - TenantService: CRUD + provisionTenant() + createSchema()
+  - TenantMiddleware: extrai subdomain, cache 60s, bloqueia invalidos
+  - TenantController: admin endpoints (tenants, plans, promotions, metrics)
+  - TenantConnectionService: cached PrismaClient per schema
+  - DTOs: CreateTenantDto, CreatePlanDto, CreatePromotionDto
+- [x] CORS wildcard: origin callback para *.tecnikos.com.br
+- [x] AppModule: TenantModule registrado
 - [x] Build OK (backend tsc + frontend next build)
 
-### Licenciamento Multi-Tenant (PLANEJADO — nao implementado)
-- Decisoes salvas em memory/licensing-multitenant.md
-- Subdominio por empresa (empresa.tecnikos.com.br)
-- Cadastro → verificacao CNPJ + documento → pagamento → ativacao
-- Planos fixos com limite de usuarios
-- Dispositivos vinculados (gestor autoriza)
-- Pix/Boleto/Cartao com regua de cobranca (7 dias → bloqueio)
-- Schema PostgreSQL por empresa (isolamento real)
-- Painel admin SaaS completo (metricas engajamento, NAO dados financeiros)
+### Arquivos criados:
+- backend/src/tenant/tenant.module.ts
+- backend/src/tenant/tenant.service.ts
+- backend/src/tenant/tenant.controller.ts
+- backend/src/tenant/tenant.middleware.ts
+- backend/src/tenant/tenant-connection.service.ts
+- backend/src/tenant/dto/create-tenant.dto.ts
+- backend/src/tenant/dto/create-plan.dto.ts
+- backend/src/tenant/dto/create-promotion.dto.ts
 
-## Versao atual: v1.01.90 — aguardando deploy v1.01.91
+### Arquivos modificados:
+- backend/prisma/schema.prisma
+- backend/src/prisma/prisma.service.ts
+- backend/src/app.module.ts
+- backend/src/main.ts
+
+## Proximos passos (multi-tenant):
+1. Deploy v1.01.93 (fundacao multi-tenant)
+2. Migrar DNS para Cloudflare (Juliano faz manualmente)
+3. Painel Admin SaaS frontend (gerenciar tenants, planos, metricas)
+4. Landing page tecnikos.com.br + fluxo de cadastro
+5. Integracao Asaas (pagamento recorrente)
+6. Controle de dispositivos
+7. Chat IA suporte
+
+## Progresso detalhado:
+- Ver memory/multitenant-progress.md para checkpoints completos
+
+## Versao atual: v1.01.93
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA
@@ -66,6 +73,7 @@
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)
+- Leia memory/multitenant-progress.md para estado detalhado
 - Leia o ultimo bloco do CHAT_LOG.md para contexto
 - Continue exatamente do ponto onde parou
 - NAO pergunte ao Juliano — ele autorizou execucao irrestrita

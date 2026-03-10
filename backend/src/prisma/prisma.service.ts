@@ -25,6 +25,7 @@ export class PrismaService
     await this.ensureNfeImportItemSnapshots();
     await this.ensureCodeColumns();
     await this.fixOrphanImportedStatus();
+    await this.ensureMultiTenantTables();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -610,6 +611,129 @@ export class PrismaService
       }
     } catch (err) {
       this.logger.warn('Code columns auto-migration failed (non-fatal):', err);
+    }
+  }
+
+  /** Ensure multi-tenant SaaS tables exist (Tenant, Plan, Subscription, Promotion) */
+  private async ensureMultiTenantTables(): Promise<void> {
+    try {
+      // Enum types
+      await this.$executeRawUnsafe(`
+        DO $$ BEGIN
+          CREATE TYPE "TenantStatus" AS ENUM ('PENDING_VERIFICATION', 'PENDING_PAYMENT', 'ACTIVE', 'BLOCKED', 'CANCELLED', 'SUSPENDED');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$
+      `);
+      await this.$executeRawUnsafe(`
+        DO $$ BEGIN
+          CREATE TYPE "SubscriptionStatus" AS ENUM ('ACTIVE', 'PAST_DUE', 'CANCELLED', 'SUSPENDED');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$
+      `);
+
+      // Plan table
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Plan" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "name" TEXT NOT NULL,
+          "maxUsers" INTEGER NOT NULL,
+          "maxOsPerMonth" INTEGER NOT NULL,
+          "priceCents" INTEGER NOT NULL,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "sortOrder" INTEGER NOT NULL DEFAULT 0,
+          "description" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "Plan_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Plan_name_key" ON "Plan"("name")`);
+
+      // Tenant table
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Tenant" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "slug" TEXT NOT NULL,
+          "name" TEXT NOT NULL,
+          "schemaName" TEXT NOT NULL,
+          "cnpj" TEXT,
+          "status" "TenantStatus" NOT NULL DEFAULT 'PENDING_VERIFICATION',
+          "planId" TEXT,
+          "responsibleName" TEXT,
+          "responsibleEmail" TEXT,
+          "responsiblePhone" TEXT,
+          "responsibleCpf" TEXT,
+          "responsibleDocUrl" TEXT,
+          "verificationId" TEXT,
+          "asaasCustomerId" TEXT,
+          "isMaster" BOOLEAN NOT NULL DEFAULT false,
+          "maxUsers" INTEGER NOT NULL DEFAULT 5,
+          "maxOsPerMonth" INTEGER NOT NULL DEFAULT 100,
+          "blockedAt" TIMESTAMP(3),
+          "blockReason" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "deletedAt" TIMESTAMP(3),
+          CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id"),
+          CONSTRAINT "Tenant_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE SET NULL ON UPDATE CASCADE
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Tenant_slug_key" ON "Tenant"("slug")`);
+      await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Tenant_schemaName_key" ON "Tenant"("schemaName")`);
+      await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Tenant_cnpj_key" ON "Tenant"("cnpj") WHERE "cnpj" IS NOT NULL`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Tenant_status_idx" ON "Tenant"("status")`);
+
+      // Subscription table
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Subscription" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "tenantId" TEXT NOT NULL,
+          "planId" TEXT NOT NULL,
+          "status" "SubscriptionStatus" NOT NULL DEFAULT 'ACTIVE',
+          "currentPeriodStart" TIMESTAMP(3) NOT NULL,
+          "currentPeriodEnd" TIMESTAMP(3) NOT NULL,
+          "nextBillingDate" TIMESTAMP(3) NOT NULL,
+          "asaasSubscriptionId" TEXT,
+          "osUsedThisMonth" INTEGER NOT NULL DEFAULT 0,
+          "osResetDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "extraOsPurchased" INTEGER NOT NULL DEFAULT 0,
+          "promotionId" TEXT,
+          "promotionMonthsLeft" INTEGER,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "cancelledAt" TIMESTAMP(3),
+          CONSTRAINT "Subscription_pkey" PRIMARY KEY ("id"),
+          CONSTRAINT "Subscription_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+          CONSTRAINT "Subscription_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Subscription_tenantId_idx" ON "Subscription"("tenantId")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Subscription_status_idx" ON "Subscription"("status")`);
+
+      // Promotion table
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Promotion" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "name" TEXT NOT NULL,
+          "code" TEXT,
+          "discountPercent" DOUBLE PRECISION,
+          "discountCents" INTEGER,
+          "durationMonths" INTEGER NOT NULL DEFAULT 1,
+          "applicablePlans" TEXT[] DEFAULT '{}',
+          "maxUses" INTEGER,
+          "currentUses" INTEGER NOT NULL DEFAULT 0,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "startsAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "expiresAt" TIMESTAMP(3),
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Promotion_code_key" ON "Promotion"("code") WHERE "code" IS NOT NULL`);
+
+      this.logger.log('Multi-tenant tables verified');
+    } catch (err) {
+      this.logger.warn('Multi-tenant tables auto-migration failed (non-fatal):', err);
     }
   }
 

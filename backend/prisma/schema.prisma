@@ -1739,3 +1739,141 @@ model CodeCounter {
 
   @@unique([companyId, entity])
 }
+
+// ========================================================================
+// =================== MULTI-TENANT SaaS (Schema Public) =================
+// ========================================================================
+
+enum TenantStatus {
+  PENDING_VERIFICATION
+  PENDING_PAYMENT
+  ACTIVE
+  BLOCKED
+  CANCELLED
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  SUSPENDED
+}
+
+// Tenant = cada empresa cliente do SaaS
+model Tenant {
+  id          String       @id @default(uuid())
+  slug        String       @unique  // subdomínio (ex: "acme" → acme.tecnikos.com.br)
+  name        String                // Nome fantasia
+  schemaName  String       @unique  // Nome do schema PostgreSQL (ex: "tenant_acme")
+  cnpj        String?      @unique
+  status      TenantStatus @default(PENDING_VERIFICATION)
+
+  // Plano atual
+  planId      String?
+  plan        Plan?        @relation(fields: [planId], references: [id])
+
+  // Dados do responsável (onboarding)
+  responsibleName   String?
+  responsibleEmail  String?
+  responsiblePhone  String?
+  responsibleCpf    String?
+  responsibleDocUrl String?   // URL da foto do documento enviado
+  verificationId    String?   // ID da verificação ppid
+
+  // Asaas (gateway pagamento)
+  asaasCustomerId   String?   // ID do cliente no Asaas
+
+  // Controle
+  isMaster          Boolean   @default(false)  // true = SLS Obras (tenant do dono)
+  maxUsers          Int       @default(5)       // Limite de usuários (do plano)
+  maxOsPerMonth     Int       @default(100)     // Limite de OS/mês (do plano)
+
+  // Bloqueio
+  blockedAt     DateTime?
+  blockReason   String?
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  subscriptions Subscription[]
+
+  @@index([status])
+  @@index([cnpj])
+}
+
+// Planos disponíveis para contratação
+model Plan {
+  id            String   @id @default(uuid())
+  name          String   @unique  // "Básico", "Profissional", "Enterprise"
+  maxUsers      Int               // Limite de usuários
+  maxOsPerMonth Int               // Limite de OS/mês (0 = ilimitado)
+  priceCents    Int               // Preço mensal em centavos
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  description   String?           // Descrição para landing page
+
+  tenants       Tenant[]
+  subscriptions Subscription[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Assinatura ativa de um tenant
+model Subscription {
+  id                    String             @id @default(uuid())
+  tenantId              String
+  tenant                Tenant             @relation(fields: [tenantId], references: [id])
+  planId                String
+  plan                  Plan               @relation(fields: [planId], references: [id])
+  status                SubscriptionStatus @default(ACTIVE)
+
+  // Período de cobrança
+  currentPeriodStart    DateTime
+  currentPeriodEnd      DateTime
+  nextBillingDate       DateTime
+
+  // Asaas
+  asaasSubscriptionId   String?
+
+  // Uso de OS no mês
+  osUsedThisMonth       Int       @default(0)
+  osResetDate           DateTime              // Data para resetar contador
+
+  // Pacotes extras de OS comprados
+  extraOsPurchased      Int       @default(0)
+
+  // Promoção aplicada
+  promotionId           String?
+  promotionMonthsLeft   Int?      // Meses restantes de promoção
+
+  // Timestamps
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  cancelledAt           DateTime?
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// Promoções configuráveis pelo admin (Juliano)
+model Promotion {
+  id              String    @id @default(uuid())
+  name            String                  // "Primeiro mês 50% OFF"
+  code            String?   @unique       // Código promocional (ex: "PROMO50")
+  discountPercent Float?                  // % de desconto (ex: 50.0)
+  discountCents   Int?                    // Desconto fixo em centavos
+  durationMonths  Int       @default(1)   // Duração em meses
+  applicablePlans String[]               // IDs dos planos aplicáveis (vazio = todos)
+  maxUses         Int?                    // Limite de usos (null = ilimitado)
+  currentUses     Int       @default(0)
+  isActive        Boolean   @default(true)
+  startsAt        DateTime  @default(now())
+  expiresAt       DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

@@ -47,8 +47,25 @@ async function bootstrap() {
 
   /* ── CORS ──────────────────────────────────────────────── */
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const baseDomain = process.env.BASE_DOMAIN || 'tecnikos.com.br';
   app.enableCors({
-    origin: frontendUrl,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+      // Allow localhost in development
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+      // Allow main domain and all subdomains (*.tecnikos.com.br)
+      if (origin.includes(baseDomain)) {
+        return callback(null, true);
+      }
+      // Allow configured frontend URL
+      if (origin === frontendUrl) {
+        return callback(null, true);
+      }
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
