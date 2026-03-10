@@ -185,9 +185,22 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     });
   };
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => user && item.roles.some(r => user.roles.includes(r)) && (!item.requiresFiscal || fiscalEnabled) && (!item.hidden || pathname.startsWith(item.href))
-  );
+  const isSaasAdmin = pathname.startsWith("/ctrl-zr8k2x");
+
+  // When on SaaS admin path, show only SaaS items as top-level nav
+  const SAAS_NAV: NavItem[] = [
+    { label: "Dashboard SaaS", href: "/ctrl-zr8k2x", icon: icons.dashboard, roles: ["ADMIN"] },
+    { label: "Empresas", href: "/ctrl-zr8k2x/tenants", icon: icons.partners, roles: ["ADMIN"] },
+    { label: "Planos", href: "/ctrl-zr8k2x/plans", icon: icons.finance, roles: ["ADMIN"] },
+    { label: "Promoções", href: "/ctrl-zr8k2x/promotions", icon: icons.automation, roles: ["ADMIN"] },
+    { label: "Voltar ao sistema", href: "/dashboard", icon: icons.workflow, roles: ["ADMIN"] },
+  ];
+
+  const visibleItems = isSaasAdmin
+    ? SAAS_NAV.filter((item) => user && item.roles.some(r => user.roles.includes(r)))
+    : NAV_ITEMS.filter(
+        (item) => user && item.roles.some(r => user.roles.includes(r)) && (!item.requiresFiscal || fiscalEnabled) && !item.hidden
+      );
 
   return (
     <aside
