@@ -4,6 +4,22 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
 import { AsaasService } from './asaas.service';
 
+function isValidCNPJ(cnpj: string): boolean {
+  const digits = cnpj.replace(/\D/g, '');
+  if (digits.length !== 14) return false;
+  if (/^(\d)\1+$/.test(digits)) return false; // all same digits
+  const calc = (slice: string, weights: number[]) => {
+    const sum = slice.split('').reduce((s, d, i) => s + parseInt(d) * weights[i], 0);
+    const rem = sum % 11;
+    return rem < 2 ? 0 : 11 - rem;
+  };
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  if (calc(digits.slice(0, 12), w1) !== parseInt(digits[12])) return false;
+  if (calc(digits.slice(0, 13), w2) !== parseInt(digits[13])) return false;
+  return true;
+}
+
 /**
  * Public endpoints for the SaaS landing page and signup flow.
  * No authentication required.
@@ -103,6 +119,35 @@ export class TenantPublicController {
       throw new BadRequestException('Campos obrigatórios: slug, name, planId, responsibleName, responsibleEmail');
     }
 
+    // Validate CNPJ
+    if (!body.cnpj) {
+      throw new BadRequestException('CNPJ é obrigatório');
+    }
+    const cnpjDigits = body.cnpj.replace(/\D/g, '');
+    if (!isValidCNPJ(cnpjDigits)) {
+      throw new BadRequestException('CNPJ inválido');
+    }
+
+    // Check duplicate slug
+    const existingSlug = await this.prisma.tenant.findFirst({ where: { slug: body.slug } });
+    if (existingSlug) {
+      throw new BadRequestException('Este subdomínio já está em uso');
+    }
+
+    // Check duplicate CNPJ (cnpj is @unique but nullable, so check explicitly)
+    const existingCnpj = await this.prisma.tenant.findFirst({ where: { cnpj: cnpjDigits, status: { not: 'CANCELLED' } } });
+    if (existingCnpj) {
+      throw new BadRequestException('Já existe uma empresa cadastrada com este CNPJ');
+    }
+
+    // Check duplicate email
+    const existingEmail = await this.prisma.tenant.findFirst({
+      where: { responsibleEmail: body.responsibleEmail.toLowerCase().trim() },
+    });
+    if (existingEmail) {
+      throw new BadRequestException('Este email já está vinculado a uma empresa');
+    }
+
     // Validate plan exists and is active
     const plan = await this.prisma.plan.findFirst({
       where: { id: body.planId, isActive: true },
@@ -139,11 +184,11 @@ export class TenantPublicController {
       });
     }
 
-    // Create tenant
+    // Create tenant (normalize CNPJ to digits only)
     const tenant = await this.tenantService.provisionTenant({
       slug: body.slug,
       name: body.name,
-      cnpj: body.cnpj,
+      cnpj: cnpjDigits,
       planId: body.planId,
       responsibleName: body.responsibleName,
       responsibleEmail: body.responsibleEmail,

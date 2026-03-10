@@ -55,10 +55,11 @@
 3. ~~Pricing strategy + plans + add-ons~~ CONCLUIDO v1.02.04-05
 4. Barra de uso de OS + alertas (80%/90%/100%)
 5. Compra de pacotes add-on via Asaas
-6. Controle de dispositivos
-7. Chat IA suporte
+6. Seguranca de deploy SaaS (backup pre-deploy, migrations safe, rollback, RLS, feature flags)
+7. Controle de dispositivos
+8. Chat IA suporte
 
-## Versao atual: v1.02.05
+## Versao atual: v1.02.08
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA
