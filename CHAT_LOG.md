@@ -1675,3 +1675,25 @@ Regras:
 - NFS-e (Focus NFe): cliente contrata e cola token no Tecnikos
 - Tecnicos ilimitados em todos os planos (diferencial vs concorrencia)
 - Limites de OS/usuarios sao firmes — excedeu, compra pacote ou faz upgrade
+
+---
+
+## Sessao 91 — 10/03/2026
+
+### Continuacao da sessao 90 (contexto compactado):
+- Corrigidos inputs de valor (R$) nas paginas OS new/edit: type="number" → type="text" + inputMode="decimal" + parseBRL()
+- Adicionada secao de add-ons na landing page (precos visíveis para quem for comprar)
+
+### Implementacao v1.02.05:
+
+#### 1. Fix inputs moeda — OS Edit (`orders/[id]/edit/page.tsx`):
+- Input valueCents: type="text", inputMode="decimal", placeholder="150,00", onChange filtra so digitos+virgula
+- Input techCommissionValue: type="text", inputMode="decimal", placeholder="0,00", onChange filtra + parseBRL na validacao
+- Corrigido setTechCommissionValue("0.00") → "0,00" no radio "Obrigacao do tecnico"
+
+#### 2. Add-ons na Landing Page (`page.tsx`):
+- Secao "Precisa de mais?" com 4 cards: +100 OS (R$127), +200 OS (R$227), +300 OS (R$297), +1 usuario (R$47)
+- Posicionada entre os cards de planos e o voucher hint
+- Visual: rounded-xl, border, hover:border-blue-200
+
+### Status: CONCLUIDO — Deploy v1.02.05

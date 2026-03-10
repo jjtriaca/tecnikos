@@ -1,11 +1,12 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 90 — SaaS Landing Page + Signup + Vouchers (v1.01.97)
+## Status: SESSAO 91 — Currency Input Fixes + Add-ons Landing (v1.02.05)
 
-## Ultima sessao: 90 (10/03/2026)
+## Ultima sessao: 91 (10/03/2026)
 - Sessao 88: Multi-Tenant Foundation (v1.01.93-94)
 - Sessao 89: SaaS Admin Panel + Secret Path (v1.01.95-96)
-- Sessao 90: Landing Page + Signup + Vouchers (v1.01.97) — EM ANDAMENTO
+- Sessao 90: Landing Page + Signup + Vouchers + Pricing Strategy (v1.01.97-v1.02.04)
+- Sessao 91: Currency Input Fixes + Add-ons na Landing Page (v1.02.05)
 
 ## O que foi feito na sessao 89-90:
 
@@ -51,10 +52,13 @@
 ## Proximos passos:
 1. ~~Deploy v1.01.97~~ CONCLUIDO
 2. ~~Integracao Asaas (pagamento recorrente)~~ CONCLUIDO v1.01.98
-3. Controle de dispositivos
-4. Chat IA suporte
+3. ~~Pricing strategy + plans + add-ons~~ CONCLUIDO v1.02.04-05
+4. Barra de uso de OS + alertas (80%/90%/100%)
+5. Compra de pacotes add-on via Asaas
+6. Controle de dispositivos
+7. Chat IA suporte
 
-## Versao atual: v1.01.97
+## Versao atual: v1.02.05
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA
