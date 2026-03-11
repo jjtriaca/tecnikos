@@ -257,7 +257,11 @@ export class TenantController {
 
     const plans = await this.prisma.plan.findMany({
       where: { isActive: true },
-      include: { _count: { select: { tenants: true } } },
+      include: {
+        _count: {
+          select: { tenants: { where: { status: TenantStatus.ACTIVE, deletedAt: null } } },
+        },
+      },
     });
 
     return {

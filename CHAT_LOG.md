@@ -14,7 +14,40 @@
 
 ---
 
-## 2026-03-11 — Sessao 94: Add-ons + Deploy Security + Dispositivos + QSA (v1.02.13-14)
+## 2026-03-11 — Sessao 96: SEO + Landing Page + Programa Pioneiro + SLS Obras (v1.02.16-17)
+
+### SEO + Indexacao Google (v1.02.16)
+- robots.ts, sitemap.ts, metadata completa (OpenGraph, Twitter, canonical)
+- JSON-LD (SoftwareApplication + Organization) com CNPJ
+- Layouts com metadata para /signup e /(auth) (noindex)
+- Landing page reestruturada: page.tsx (server, metadata) + LandingContent.tsx (client)
+
+### Landing Page + Programa Pioneiro + SEO (v1.02.17)
+- Beta banner no hero (sistema em desenvolvimento ativo)
+- 8 segmentos (5 pioneiros + 3 extras), 6 funcionalidades
+- Programa Pioneiro: 5 vagas (Piscinas, Telecom, Clima, Solar, Seguranca)
+- Modal de condicoes com aceite, auto-preenchimento voucher no signup
+- Endpoint GET /public/saas/pioneer-slots (vagas dinamicas)
+- 5 Promotions criadas no banco: R$15/mes por 6 meses (plano Essencial)
+- ~30 keywords SEO, JSON-LD duplo, header com nav, footer expandido, hamburger mobile
+
+### Remocao Licenca SLS Obras
+**Pedido do Juliano:** "Vamos tirar a licenca que tinha sido feito da sls obras, mantenha somente o banco de dados com os lancamentos e cadastros ja feitos, depois que a sls for certificada passar por todas as etapas de pagamentos etc, subimos o banco de dados nela."
+
+**Acoes:**
+- Backup salvo em `/opt/tecnikos/backups/sls_obras_public_data_backup.sql` (2925 linhas)
+- Dados no schema `public`: 2801 Partners, 11 FinancialEntries, 5 ServiceOrders, 2 Users, 1 Company
+- Schema `tenant_sls` estava vazio (0 registros) — dropado
+- Tenant SLS OBRAS LTDA: status alterado para SUSPENDED
+- Dados do schema public permanecem intactos para futura restauracao
+
+### Deploys: v1.02.16, v1.02.17
+
+---
+
+## SESSOES ANTERIORES (resumo):
+- Sessao 93: PPID Identity Verification + OS Usage Bar (v1.02.11-12)
+- Sessao 94: Add-on Purchase + Deploy Security + Device Control + QSA (v1.02.13-14)
 
 ### Decisao do Juliano:
 - Validacao de representante legal: cruzar CPF do documento (OCR) com QSA da Receita Federal
