@@ -19,9 +19,9 @@ export default function ChatIAButton() {
   return (
     <button
       onClick={handleClick}
-      className={`fixed right-6 bottom-6 z-[80] flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 ${
+      className={`fixed right-6 bottom-6 z-[90] flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 ${
         isOpen
-          ? "bg-slate-600 text-white"
+          ? "bg-slate-600 text-white max-sm:hidden"
           : "bg-gradient-to-br from-blue-600 to-blue-700 text-white"
       }`}
       title="Assistente IA"

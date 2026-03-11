@@ -71,11 +71,18 @@ export function ChatIAProvider({ children }: { children: ReactNode }) {
   const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
   const [initialized, setInitialized] = useState(false);
 
-  // Check availability
+  // Check availability + auto-open on first access
   useEffect(() => {
     if (!user) return;
     api.get<{ available: boolean }>("/chat-ia/status")
-      .then((res) => setAvailable(res.available))
+      .then((res) => {
+        setAvailable(res.available);
+        // Auto-open on first access (never opened chat before)
+        if (res.available && !localStorage.getItem("chatia_opened")) {
+          localStorage.setItem("chatia_opened", "1");
+          setIsOpen(true);
+        }
+      })
       .catch(() => setAvailable(false));
   }, [user]);
 

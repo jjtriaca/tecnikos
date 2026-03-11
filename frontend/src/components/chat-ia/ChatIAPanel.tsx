@@ -21,7 +21,7 @@ export default function ChatIAPanel() {
       <ChatIAButton />
 
       {isOpen && (
-        <div className="fixed right-6 bottom-24 z-[85] flex h-[min(600px,80vh)] w-[min(400px,calc(100vw-3rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in slide-in-from-bottom-4 duration-200 sm:right-6">
+        <div className="fixed inset-0 z-[85] flex flex-col overflow-hidden bg-white shadow-2xl animate-in slide-in-from-bottom-4 duration-200 sm:inset-auto sm:right-6 sm:bottom-24 sm:h-[min(600px,80vh)] sm:w-[400px] sm:rounded-2xl sm:border sm:border-slate-200">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3">
             <div className="flex items-center gap-2">
