@@ -98,11 +98,6 @@ const TYPE_LABELS: Record<string, string> = {
   LABOR: "Mao de Obra",
 };
 
-const DELIVERY_LABELS: Record<string, string> = {
-  WHATSAPP_LINK: "WhatsApp (Link)",
-  EMAIL_LINK: "Email (Link)",
-  WHATSAPP_MESSAGE: "WhatsApp (Mensagem)",
-};
 
 export default function QuoteDetailPage() {
   const router = useRouter();
@@ -337,24 +332,6 @@ export default function QuoteDetailPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-slate-600 mb-3">Informacoes</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-slate-500">Entrega</dt>
-                <dd className="text-slate-800 font-medium">{DELIVERY_LABELS[quote.deliveryMethod] || quote.deliveryMethod}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-500">Aprovacao</dt>
-                <dd className="text-slate-800 font-medium">{quote.approvalMode === "CLIENT" ? "Cliente" : "Interna"}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-500">Validade</dt>
-                <dd className="text-slate-800 font-medium">{quote.validityDays} dias</dd>
-              </div>
-              {quote.expiresAt && (
-                <div className="flex justify-between">
-                  <dt className="text-slate-500">Expira em</dt>
-                  <dd className="text-slate-800 font-medium">{formatDate(quote.expiresAt)}</dd>
-                </div>
-              )}
               {quote.sentAt && (
                 <div className="flex justify-between">
                   <dt className="text-slate-500">Enviado em</dt>
@@ -550,7 +527,7 @@ export default function QuoteDetailPage() {
       <ConfirmModal
         open={showSendModal}
         title="Enviar Orcamento"
-        message={`Deseja enviar o orcamento "${quote.title}" para ${quote.clientPartner.name} via ${DELIVERY_LABELS[quote.deliveryMethod] || quote.deliveryMethod}?`}
+        message={`Deseja enviar o orcamento "${quote.title}" para ${quote.clientPartner.name}?`}
         confirmLabel="Enviar"
         variant="default"
         loading={actionLoading}

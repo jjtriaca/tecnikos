@@ -53,7 +53,6 @@ const serviceFetcher: LookupFetcher<ServiceSummary> = async (search, page, signa
 
 /* ── Helpers ── */
 const inputClass = "rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 w-full";
-const selectClass = "rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white w-full";
 
 function parseBRL(s: string): number {
   return parseFloat((s || "0").replace(/[^\d,]/g, "").replace(",", "."));
@@ -105,9 +104,6 @@ function NewQuotePage() {
   const [description, setDescription] = useState("");
   const [selectedClient, setSelectedClient] = useState<PartnerSummary | null>(null);
   const [selectedOS, setSelectedOS] = useState<ServiceOrderSummary | null>(null);
-  const [deliveryMethod, setDeliveryMethod] = useState("WHATSAPP_LINK");
-  const [approvalMode, setApprovalMode] = useState("CLIENT");
-  const [validityDays, setValidityDays] = useState("30");
 
   // Items
   const [items, setItems] = useState<QuoteItemRow[]>([emptyItem()]);
@@ -220,9 +216,6 @@ function NewQuotePage() {
         description: description.trim() || undefined,
         clientPartnerId: selectedClient.id,
         serviceOrderId: selectedOS?.id || undefined,
-        deliveryMethod,
-        approvalMode,
-        validityDays: parseInt(validityDays) || 30,
         discountPercent: discountType === "percent" ? (parseFloat(discountValue.replace(",", ".")) || undefined) : undefined,
         discountCents: discountType === "fixed" ? Math.round(parseBRL(discountValue) * 100) || undefined : undefined,
         notes: notes.trim() || undefined,
@@ -261,7 +254,7 @@ function NewQuotePage() {
 
       if (action === "send") {
         try {
-          await api.post(`/quotes/${quote.id}/send`, { deliveryMethod });
+          await api.post(`/quotes/${quote.id}/send`, {});
           toast("Orcamento criado e enviado!", "success");
         } catch {
           toast("Orcamento criado, mas houve erro ao enviar.", "warning");
@@ -371,37 +364,6 @@ function NewQuotePage() {
               />
             </div>
 
-            {/* Delivery Method */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Metodo de Entrega</label>
-              <select value={deliveryMethod} onChange={e => setDeliveryMethod(e.target.value)} className={selectClass}>
-                <option value="WHATSAPP_LINK">WhatsApp (Link)</option>
-                <option value="EMAIL_LINK">Email (Link)</option>
-                <option value="WHATSAPP_MESSAGE">WhatsApp (Mensagem)</option>
-              </select>
-            </div>
-
-            {/* Approval Mode */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Modo de Aprovacao</label>
-              <select value={approvalMode} onChange={e => setApprovalMode(e.target.value)} className={selectClass}>
-                <option value="CLIENT">Cliente (link publico)</option>
-                <option value="INTERNAL">Interna (gestor)</option>
-              </select>
-            </div>
-
-            {/* Validity */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Validade (dias)</label>
-              <input
-                type="number"
-                value={validityDays}
-                onChange={e => setValidityDays(e.target.value)}
-                min={1}
-                max={365}
-                className={inputClass}
-              />
-            </div>
           </div>
         </div>
 

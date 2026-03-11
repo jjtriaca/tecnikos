@@ -68,7 +68,8 @@ export class QuoteService {
       dto.discountCents,
     );
 
-    const validityDays = dto.validityDays ?? 30;
+    // TODO: validityDays, deliveryMethod, approvalMode will come from workflow config in the future
+    const validityDays = 30;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + validityDays);
 
@@ -89,8 +90,8 @@ export class QuoteService {
         discountCents: dto.discountCents ?? null,
         subtotalCents,
         totalCents,
-        deliveryMethod: dto.deliveryMethod ?? 'WHATSAPP_LINK',
-        approvalMode: dto.approvalMode ?? 'CLIENT',
+        deliveryMethod: 'WHATSAPP_LINK',
+        approvalMode: 'CLIENT',
         items: {
           create: dto.items.map((item, idx) => ({
             type: item.type,
@@ -262,12 +263,7 @@ export class QuoteService {
       totalCents = result.totalCents;
     }
 
-    // Recalculate expiresAt if validityDays changed
-    let expiresAt = quote.expiresAt;
-    if (dto.validityDays) {
-      expiresAt = new Date(quote.createdAt);
-      expiresAt.setDate(expiresAt.getDate() + dto.validityDays);
-    }
+    const expiresAt = quote.expiresAt;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       // Delete and recreate items if provided
@@ -299,11 +295,8 @@ export class QuoteService {
           ...(dto.serviceOrderId !== undefined && { serviceOrderId: dto.serviceOrderId || null }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
           ...(dto.termsConditions !== undefined && { termsConditions: dto.termsConditions }),
-          ...(dto.validityDays !== undefined && { validityDays: dto.validityDays }),
           ...(dto.discountPercent !== undefined && { discountPercent: dto.discountPercent }),
           ...(dto.discountCents !== undefined && { discountCents: dto.discountCents }),
-          ...(dto.deliveryMethod !== undefined && { deliveryMethod: dto.deliveryMethod }),
-          ...(dto.approvalMode !== undefined && { approvalMode: dto.approvalMode }),
           subtotalCents,
           totalCents,
           expiresAt,

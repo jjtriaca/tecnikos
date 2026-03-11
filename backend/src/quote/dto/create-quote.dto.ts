@@ -80,12 +80,6 @@ export class CreateQuoteDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  validityDays?: number;
-
-  @IsOptional()
-  @Type(() => Number)
   @IsNumber()
   @Min(0)
   @Max(100)
@@ -96,14 +90,6 @@ export class CreateQuoteDto {
   @IsInt()
   @Min(0)
   discountCents?: number;
-
-  @IsOptional()
-  @IsString()
-  deliveryMethod?: string;
-
-  @IsOptional()
-  @IsString()
-  approvalMode?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
