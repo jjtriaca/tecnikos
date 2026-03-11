@@ -1,78 +1,66 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 98 — Chat IA Deploy + Streaming SSE (v1.02.23)
+## Status: SESSAO 100 — Modulo de Orcamentos COMPLETO (pronto para deploy)
 
-## Ultima sessao: 98 (11/03/2026)
+## Ultima sessao: 100 (12/03/2026)
 - Sessao 96: SEO + Landing Page + Pioneiro + SLS Obras (v1.02.16-17)
-- Sessao 97: SMTP Producao + PPID (pendente) + Chat IA implementacao completa
+- Sessao 97: SMTP + Chat IA backend + frontend
+- Sessao 98: Chat IA Deploy + Streaming + Asaas + Wizards (v1.02.18-24)
+- Sessao 99: Plano Orcamentos + Backend completo + Lista frontend
+- Sessao 100: Frontend Builder + Detalhe + Pagina Publica + Build OK
 
-## O que foi feito na sessao 97:
+## O que foi feito na sessao 100:
 
-### SMTP Producao — CONCLUIDO
-- [x] docker-compose.production.yml atualizado com todas env vars
-- [x] SMTP: contato@tecnikos.com.br via smtp.zoho.com:587
-- [x] Test email enviado e recebido
+### Modulo de Orcamentos (Quotes) — COMPLETO
+- [x] Prisma models + migration (Quote, QuoteItem, QuoteAttachment)
+- [x] Backend CRUD completo (service, controller, DTOs, public controller, PDF)
+- [x] Sidebar + Middleware atualizados
+- [x] Frontend Lista (/quotes)
+- [x] Frontend Builder (/quotes/new + /quotes/[id]/edit)
+- [x] Frontend Detalhe (/quotes/[id])
+- [x] Pagina Publica (/q/[token]) — aprovacao pelo cliente
+- [x] Backend tsc --noEmit OK
+- [x] Frontend next build OK
 
-### PPID Producao — PENDENTE (API fora do ar)
-- [x] Credenciais configuradas
-- [ ] API retorna 404 — aguardando resposta suporte PPID
+### Arquivos criados:
+**Backend:**
+- backend/src/quote/quote.module.ts
+- backend/src/quote/quote.service.ts
+- backend/src/quote/quote.controller.ts
+- backend/src/quote/quote-public.controller.ts
+- backend/src/quote/quote-pdf.service.ts
+- backend/src/quote/dto/create-quote.dto.ts
+- backend/src/quote/dto/update-quote.dto.ts
+- backend/src/quote/dto/send-quote.dto.ts
+- backend/prisma/migrations/20260312000000_quote_module/migration.sql
 
-### Dashboard fix (v1.02.18) + Pioneer badge (v1.02.19) — CONCLUIDO
+**Frontend:**
+- frontend/src/app/(dashboard)/quotes/page.tsx (lista)
+- frontend/src/app/(dashboard)/quotes/new/page.tsx (criar)
+- frontend/src/app/(dashboard)/quotes/[id]/page.tsx (detalhe)
+- frontend/src/app/(dashboard)/quotes/[id]/edit/page.tsx (editar)
+- frontend/src/app/q/[token]/page.tsx (publica)
 
-### Chat IA — Assistente Inteligente + Onboarding — PRONTO PARA DEPLOY
-- [x] Backend completo (modulo, service, controller, guard, tools, onboarding, dto)
-- [x] Prisma models + migration criada e aplicada localmente
-- [x] @anthropic-ai/sdk instalado
-- [x] Frontend completo (Context, Button, Message, Input, Panel)
-- [x] Integrado no AuthLayout
-- [x] Backend compila (tsc --noEmit OK)
-- [x] Frontend compila (next build OK)
-- [ ] ANTHROPIC_API_KEY: precisa ser adicionada no .env.production do servidor
-- [ ] Deploy para producao
-
-### Arquivos criados/modificados:
-**Backend (novo):**
-- backend/src/chat-ia/chat-ia.module.ts
-- backend/src/chat-ia/chat-ia.service.ts
-- backend/src/chat-ia/chat-ia.controller.ts
-- backend/src/chat-ia/chat-ia.guard.ts
-- backend/src/chat-ia/chat-ia.tools.ts
-- backend/src/chat-ia/chat-ia.onboarding.ts
-- backend/src/chat-ia/dto/send-message.dto.ts
-- backend/prisma/migrations/20260311180000_chat_ia_models/migration.sql
-
-**Backend (modificado):**
-- backend/prisma/schema.prisma (+ ChatIAConversation, ChatIAMessage, campos Company)
-- backend/src/app.module.ts (+ ChatIAModule)
-- docker-compose.production.yml (+ ANTHROPIC_API_KEY, CHAT_IA_MODEL, CHAT_IA_MAX_TOKENS)
-
-**Frontend (novo):**
-- frontend/src/contexts/ChatIAContext.tsx
-- frontend/src/components/chat-ia/ChatIAButton.tsx
-- frontend/src/components/chat-ia/ChatIAMessage.tsx
-- frontend/src/components/chat-ia/ChatIAInput.tsx
-- frontend/src/components/chat-ia/ChatIAPanel.tsx
-
-**Frontend (modificado):**
-- frontend/src/components/layout/AuthLayout.tsx (+ ChatIAProvider, ChatIAPanel)
+**Modificados:**
+- backend/prisma/schema.prisma
+- backend/src/common/code-generator.service.ts
+- backend/src/common/audit/audit.service.ts
+- backend/src/app.module.ts
+- frontend/src/components/layout/Sidebar.tsx
+- frontend/src/middleware.ts
 
 ## Proximos passos:
-1. ~~SMTP producao~~ CONCLUIDO
-2. PPID producao — AGUARDANDO suporte
-3. ~~Chat IA backend~~ CONCLUIDO
-4. ~~Chat IA frontend~~ CONCLUIDO
-5. Adicionar ANTHROPIC_API_KEY no servidor
-6. Deploy Chat IA
-7. Testar end-to-end
+1. Deploy para producao
+2. Testar end-to-end: criar orcamento, enviar, aprovar via link publico
+3. Testar gerar OS a partir de orcamento aprovado
+4. Integrar secao Orcamentos na pagina de detalhe da OS (opcional)
 
-## Versao atual: v1.02.23
+## Versao atual: v1.02.24 (deploy pendente com orcamentos)
 
 ## IDs importantes WhatsApp Meta:
-- WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA
-- Business ID: 2115296342089072
+- WABA ID: 1421505052856896
 - Phone Number ID: 996592133539837
 - App ID: 950743907617295
-- System User ID: 122102184027217286
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

@@ -12,7 +12,7 @@ export class AuditService {
    */
   log(params: {
     companyId: string;
-    entityType: 'SERVICE_ORDER' | 'PARTNER' | 'USER';
+    entityType: 'SERVICE_ORDER' | 'PARTNER' | 'USER' | 'QUOTE';
     entityId: string;
     action: string;
     actorType: 'USER' | 'SYSTEM';

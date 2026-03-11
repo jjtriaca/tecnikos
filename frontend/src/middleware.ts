@@ -24,7 +24,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/notifications') ||
     pathname.startsWith('/nfe') ||
     pathname.startsWith('/products') ||
-    pathname.startsWith('/whatsapp')
+    pathname.startsWith('/whatsapp') ||
+    pathname.startsWith('/quotes')
   ) {
     const refreshToken = request.cookies.get('refresh_token');
     if (!refreshToken) {
@@ -59,6 +60,6 @@ export const config = {
      * - login pages
      * - public pages (p/, rate/, demo)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|login|tech/login|p/|rate/|demo|$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|login|tech/login|p/|q/|rate/|demo|$).*)',
   ],
 };

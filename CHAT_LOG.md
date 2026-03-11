@@ -108,10 +108,24 @@
 - API continua retornando 404 em todos endpoints
 - Site ppid.com.br esta online, mas api.ppid.com.br nao
 
-### Asaas (Pagamentos SaaS) — PENDENTE
+### Asaas (Pagamentos SaaS) — CONFIGURADO
 - Codigo 100% implementado (Asaas provider, service, webhooks, admin panel)
-- Juliano vai criar conta no Asaas manualmente
-- Precisa configurar: ASAAS_API_KEY, ASAAS_ENV, ASAAS_WEBHOOK_TOKEN
+- Conta Asaas criada e aprovada (SLS Obras Ltda, Plano Basico Gratuito)
+- Chave API de producao gerada e configurada no servidor
+- ASAAS_ENV=production, ASAAS_API_KEY=$aact_prod_..., ASAAS_WEBHOOK_TOKEN configurado
+- Webhook configurado: https://tecnikos.com.br/api/webhooks/asaas
+  - Eventos: Todos de Cobrancas (PAYMENT_*) + Assinaturas (SUBSCRIPTION_*)
+  - Token de autenticacao: tecnikos_asaas_webhook_token_2026_secure_v1
+  - API v3, tipo envio nao sequencial, fila de sincronizacao ativa
+
+### Wizards de Onboarding (v1.02.24) — CONCLUIDO
+- 9 wizards com instrucoes detalhadas campo por campo
+- Perfil da Empresa, Email SMTP (presets Gmail/Outlook/Zoho), WhatsApp Business
+- Workflow, Usuarios/Permissoes, Tecnicos, Fiscal/NFS-e (Focus NFe completo)
+- Formas de Pagamento, Regras de Automacao
+- Welcome message melhorada: barra de progresso visual, checklist com status
+- Context prefix injeta wizard ativo com instrucoes especificas para o proximo pendente
+- Deploy v1.02.24 OK
 
 ### Chat IA Streaming SSE (v1.02.23) — CONCLUIDO
 - Backend: novo endpoint POST /chat-ia/message-stream com SSE
@@ -121,5 +135,38 @@
 - Eventos: delta (texto), buttons (botoes), thinking (tool exec), done, error
 - Bouncing dots somem quando texto comeca a aparecer
 - Deploy v1.02.23 OK
+
+---
+
+## 2026-03-12 — Sessao 99/100: Modulo de Orcamentos (Quotes) — COMPLETO
+
+### Decisoes do Juliano (Sessao 99):
+1. Relacao com OS: ambos (standalone + vinculado a OS)
+2. Fluxo de aprovacao: ambos (link cliente + aprovacao interna), configuravel no fluxo
+3. Conteudo: servicos + produtos + mao de obra, configuravel, descontos
+4. Quem cria: ADMIN e DESPACHO
+5. Entrega: WhatsApp/link configuravel, PDF na geracao de OS, aprovacao dispara acoes configuraveis
+6. Adicional: upload de orcamentos PDF de lojas parceiras, opcao de enviar ambos orcamentos
+
+### Implementacao Completa (Sessao 99-100):
+
+**Backend (novo modulo: src/quote/):**
+- Prisma: QuoteStatus, QuoteItemType enums, Quote, QuoteItem, QuoteAttachment models
+- Migration: 20260312000000_quote_module
+- CodeGenerator: QUOTE -> ORC-00001
+- quote.service.ts: CRUD + send + approve/reject + cancel + duplicate + createOsFromQuote + cron expiracao
+- quote.controller.ts: 13 endpoints REST com @Roles + upload attachments (Multer)
+- quote-public.controller.ts: @Public() /q/:token (aprovacao publica)
+- quote-pdf.service.ts: PDF A4 profissional com pdfkit
+- quote.module.ts: NotificationModule, AuditModule, MulterModule
+
+**Frontend:**
+- /quotes (lista): stats cards, FilterBar, DraggableHeader, Pagination, acoes
+- /quotes/new: builder com items dinamicos, catalogo, descontos, anexos PDF, totais real-time
+- /quotes/[id]/edit: edicao pre-carregada
+- /quotes/[id]: detalhe com acoes (enviar, aprovar, rejeitar, cancelar, duplicar, PDF, gerar OS)
+- /q/[token]: pagina publica mobile-first para aprovacao pelo cliente
+
+**Builds:** Backend tsc OK, Frontend next build OK
 
 ---
