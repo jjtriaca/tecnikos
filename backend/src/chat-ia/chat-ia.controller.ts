@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Req, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { ChatIAService } from './chat-ia.service';
 import { ChatIAOnboardingService } from './chat-ia.onboarding';
 import { ChatIASendMessageDto } from './dto/send-message.dto';
@@ -27,6 +28,39 @@ export class ChatIAController {
       dto.conversationId,
       req.tenantSchema,
     );
+  }
+
+  @Post('message-stream')
+  async sendMessageStream(
+    @Body() dto: ChatIASendMessageDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const emit = (event: string, data: any) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      await this.service.sendMessageStream(
+        user.companyId,
+        user.id,
+        dto.content,
+        dto.conversationId,
+        req.tenantSchema,
+        emit,
+      );
+    } catch (err: any) {
+      emit('error', { message: err.message || 'Erro interno' });
+    }
+
+    res.end();
   }
 
   @Get('welcome')

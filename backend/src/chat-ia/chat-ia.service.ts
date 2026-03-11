@@ -381,6 +381,220 @@ export class ChatIAService {
     };
   }
 
+  // ── Stream Message ────────────────────────────────────
+
+  async sendMessageStream(
+    companyId: string,
+    userId: string,
+    content: string,
+    conversationId: string | undefined,
+    tenantSchema: string | undefined,
+    emit: (event: string, data: any) => void,
+  ): Promise<void> {
+    if (!this.anthropic) {
+      emit('error', { message: 'Assistente IA não configurado' });
+      return;
+    }
+
+    const db = tenantSchema ? this.tenantConnection.getClient(tenantSchema) : this.prisma;
+
+    // Check usage limit
+    const usage = await this.checkAndIncrementUsage(companyId, tenantSchema);
+    if (!usage.allowed) {
+      emit('delta', { text: `Você atingiu o limite de **${usage.limit} mensagens** este mês. O contador será resetado no início do próximo mês.` });
+      emit('buttons', { buttons: [{ label: 'Ver Planos', href: '/settings/billing', icon: 'upgrade' }] });
+      emit('done', { conversationId: conversationId || '' });
+      return;
+    }
+
+    // Get or create conversation
+    const conversation = await this.getOrCreateConversation(companyId, userId, conversationId, tenantSchema);
+
+    // Save user message
+    await db.chatIAMessage.create({
+      data: { conversationId: conversation.id, role: 'user', content },
+    });
+
+    // Load history
+    const history = await db.chatIAMessage.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+      select: { role: true, content: true },
+    });
+
+    const messages: Anthropic.MessageParam[] = history.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }));
+
+    // Get onboarding context
+    const onboardingStatus = await this.onboarding.getStatus(companyId, tenantSchema);
+    const contextPrefix = this.buildContextPrefix(onboardingStatus, usage);
+
+    // Stream response
+    let result: MessageResult;
+    try {
+      result = await this.streamClaude(messages, contextPrefix, db, emit);
+    } catch (err: any) {
+      this.logger.error('Stream error', err?.message);
+      emit('error', { message: 'Erro ao processar mensagem. Tente novamente.' });
+      return;
+    }
+
+    // Extract action buttons
+    const actionButtons = this.extractActionButtons(result.content, onboardingStatus);
+    if (actionButtons.length > 0) {
+      emit('buttons', { buttons: actionButtons });
+    }
+
+    // Save assistant message
+    await db.chatIAMessage.create({
+      data: {
+        conversationId: conversation.id,
+        role: 'assistant',
+        content: result.content,
+        actionButtons: actionButtons.length > 0 ? actionButtons : undefined,
+        toolCalls: result.toolCalls?.length ? result.toolCalls : undefined,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+      },
+    });
+
+    // Update conversation metadata
+    const updateData: any = {
+      lastMessageAt: new Date(),
+      messageCount: { increment: 2 },
+    };
+    if (!conversation.title && content.length > 3) {
+      updateData.title = content.length > 60 ? content.substring(0, 57) + '...' : content;
+    }
+    await db.chatIAConversation.update({
+      where: { id: conversation.id },
+      data: updateData,
+    });
+
+    emit('done', { conversationId: conversation.id });
+  }
+
+  private async streamClaude(
+    messages: Anthropic.MessageParam[],
+    contextPrefix: string,
+    db: any,
+    emit: (event: string, data: any) => void,
+  ): Promise<MessageResult> {
+    const model = process.env.CHAT_IA_MODEL || 'claude-haiku-4-5-20251001';
+    const maxTokens = parseInt(process.env.CHAT_IA_MAX_TOKENS || '2048', 10);
+    const systemPrompt = SYSTEM_PROMPT + '\n\n' + contextPrefix;
+    const allToolCalls: any[] = [];
+    let currentMessages = [...messages];
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let fullContent = '';
+    let iterations = 0;
+
+    while (iterations < 6) {
+      iterations++;
+
+      const stream = await this.anthropic!.messages.create({
+        model,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: currentMessages,
+        tools: CHAT_IA_TOOLS as any,
+        stream: true,
+      });
+
+      let streamText = '';
+      const toolUseBlocks: any[] = [];
+      let currentToolInput = '';
+      let currentToolName = '';
+      let currentToolId = '';
+      let stopReason = '';
+
+      for await (const event of stream as any) {
+        switch (event.type) {
+          case 'message_start':
+            totalInputTokens += event.message?.usage?.input_tokens || 0;
+            break;
+          case 'content_block_start':
+            if (event.content_block?.type === 'tool_use') {
+              currentToolName = event.content_block.name;
+              currentToolId = event.content_block.id;
+              currentToolInput = '';
+            }
+            break;
+          case 'content_block_delta':
+            if (event.delta?.type === 'text_delta') {
+              streamText += event.delta.text;
+              emit('delta', { text: event.delta.text });
+            } else if (event.delta?.type === 'input_json_delta') {
+              currentToolInput += event.delta.partial_json;
+            }
+            break;
+          case 'content_block_stop':
+            if (currentToolName) {
+              try {
+                toolUseBlocks.push({
+                  type: 'tool_use',
+                  id: currentToolId,
+                  name: currentToolName,
+                  input: JSON.parse(currentToolInput || '{}'),
+                });
+              } catch { /* ignore parse error */ }
+              currentToolName = '';
+            }
+            break;
+          case 'message_delta':
+            stopReason = event.delta?.stop_reason || '';
+            totalOutputTokens += event.usage?.output_tokens || 0;
+            break;
+        }
+      }
+
+      fullContent += streamText;
+
+      // If no tool use, we're done
+      if (stopReason !== 'tool_use' || toolUseBlocks.length === 0) {
+        break;
+      }
+
+      // Execute tools
+      emit('thinking', { message: 'Consultando dados...' });
+      const toolResults: any[] = [];
+      for (const block of toolUseBlocks) {
+        this.logger.log(`Tool call: ${block.name}`);
+        allToolCalls.push({ name: block.name, input: block.input });
+        const result = await executeTool(db, block.name, block.input);
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: block.id,
+          content: result,
+        });
+      }
+
+      // Build continuation messages
+      const assistantContent: any[] = [];
+      if (streamText) {
+        assistantContent.push({ type: 'text', text: streamText });
+      }
+      assistantContent.push(...toolUseBlocks);
+
+      currentMessages = [
+        ...currentMessages,
+        { role: 'assistant' as const, content: assistantContent },
+        { role: 'user' as const, content: toolResults },
+      ];
+    }
+
+    return {
+      content: fullContent,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+    };
+  }
+
   // ── Private ────────────────────────────────────────────
 
   private buildContextPrefix(onboarding: OnboardingStatus, usage: { used: number; limit: number }): string {

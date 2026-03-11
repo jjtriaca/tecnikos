@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
-import { api } from "@/lib/api";
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
+import { api, getAccessToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface ChatMessage {
@@ -138,38 +138,113 @@ export function ChatIAProvider({ children }: { children: ReactNode }) {
     setMessages((prev) => [...prev, userMsg]);
     setSending(true);
 
+    const streamId = `stream-${Date.now()}`;
+    let streamedContent = "";
+    let messageAdded = false;
+
     try {
-      const res = await api.post<{
-        conversationId: string;
-        message: { content: string; actionButtons?: any[] };
-      }>("/chat-ia/message", {
-        conversationId,
-        content,
+      const token = getAccessToken();
+      const res = await fetch("/api/chat-ia/message-stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ conversationId, content }),
+        credentials: "include",
       });
 
-      setConversationId(res.conversationId);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || "Erro ao enviar mensagem");
+      }
 
-      const assistantMsg: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: res.message.content,
-        actionButtons: res.message.actionButtons,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Streaming não suportado");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE events (separated by \n\n)
+        while (true) {
+          const idx = buffer.indexOf("\n\n");
+          if (idx === -1) break;
+
+          const block = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+
+          let eventType = "";
+          let eventData = "";
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event: ")) eventType = line.slice(7);
+            else if (line.startsWith("data: ")) eventData = line.slice(6);
+          }
+
+          if (!eventType || !eventData) continue;
+
+          try {
+            const data = JSON.parse(eventData);
+
+            if (eventType === "delta") {
+              streamedContent += data.text;
+              if (!messageAdded) {
+                messageAdded = true;
+                setMessages((prev) => [...prev, {
+                  id: streamId,
+                  role: "assistant",
+                  content: streamedContent,
+                  createdAt: new Date().toISOString(),
+                }]);
+              } else {
+                setMessages((prev) => prev.map((m) =>
+                  m.id === streamId ? { ...m, content: streamedContent } : m,
+                ));
+              }
+            } else if (eventType === "buttons") {
+              setMessages((prev) => prev.map((m) =>
+                m.id === streamId ? { ...m, actionButtons: data.buttons } : m,
+              ));
+            } else if (eventType === "done") {
+              if (data.conversationId) {
+                setConversationId(data.conversationId);
+              }
+            } else if (eventType === "error") {
+              if (!messageAdded) {
+                setMessages((prev) => [...prev, {
+                  id: streamId,
+                  role: "assistant",
+                  content: data.message || "Erro ao processar mensagem.",
+                  createdAt: new Date().toISOString(),
+                }]);
+              } else {
+                setMessages((prev) => prev.map((m) =>
+                  m.id === streamId
+                    ? { ...m, content: m.content + "\n\n*Erro: " + (data.message || "Erro inesperado") + "*" }
+                    : m,
+                ));
+              }
+            }
+          } catch { /* ignore parse errors */ }
+        }
+      }
 
       // Update usage
       setUsage((prev) => ({ ...prev, used: prev.used + 1 }));
     } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
+      if (!messageAdded) {
+        setMessages((prev) => [...prev, {
           id: `error-${Date.now()}`,
           role: "assistant",
           content: err.message || "Erro ao enviar mensagem. Tente novamente.",
           createdAt: new Date().toISOString(),
-        },
-      ]);
+        }]);
+      }
     } finally {
       setSending(false);
     }

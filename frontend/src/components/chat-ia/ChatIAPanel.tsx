@@ -112,7 +112,7 @@ export default function ChatIAPanel() {
               />
             ))}
 
-            {sending && (
+            {sending && messages[messages.length - 1]?.role !== "assistant" && (
               <div className="flex gap-2">
                 <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700">
                   <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>

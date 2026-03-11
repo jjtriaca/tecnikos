@@ -83,8 +83,34 @@
 - Frontend compila limpo (next build OK)
 
 **Pendente:**
-- ANTHROPIC_API_KEY: precisa ser adicionada no servidor (.env.production)
-- Deploy para producao
-- Testar end-to-end em producao
+- ~~ANTHROPIC_API_KEY~~ CONCLUIDO (v1.02.20)
+- ~~Deploy para producao~~ CONCLUIDO (v1.02.20)
+- ~~Testar end-to-end~~ CONCLUIDO (v1.02.21-22)
+
+---
+
+## 2026-03-11 — Sessao 98: Chat IA Deploy + Melhorias (v1.02.20-22)
+
+### Chat IA Deploy (v1.02.20)
+- ANTHROPIC_API_KEY configurada no servidor
+- Deploy bem-sucedido, chat funcional em producao
+
+### System Prompt Fix (v1.02.21)
+- IA estava inventando funcionalidades que nao existem (orcamentos, etc)
+- System prompt reescrito com lista explicita de modulos existentes vs nao existentes
+
+### Chat IA Melhorias (v1.02.22)
+- Auto-open no primeiro acesso (localStorage)
+- Mobile fullscreen (inset-0 em telas pequenas)
+- FAB escondido no mobile quando painel aberto
+
+### PPID — AINDA PENDENTE
+- API continua retornando 404 em todos endpoints
+- Site ppid.com.br esta online, mas api.ppid.com.br nao
+
+### Asaas (Pagamentos SaaS) — PENDENTE
+- Codigo 100% implementado (Asaas provider, service, webhooks, admin panel)
+- Juliano vai criar conta no Asaas manualmente
+- Precisa configurar: ASAAS_API_KEY, ASAAS_ENV, ASAAS_WEBHOOK_TOKEN
 
 ---
