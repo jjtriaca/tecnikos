@@ -32,6 +32,7 @@ import { SpedModule } from './sped/sped.module';
 import { EmailModule } from './email/email.module';
 import { ContractModule } from './contract/contract.module';
 import { TenantModule } from './tenant/tenant.module';
+import { ChatIAModule } from './chat-ia/chat-ia.module';
 
 import { RequestLoggerMiddleware } from './common/logger/request-logger.middleware';
 import { AuditModule } from './common/audit/audit.module';
@@ -79,6 +80,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     EmailModule,
     ContractModule,
     TenantModule,
+    ChatIAModule,
   ],
   providers: [
     // Order matters: Throttle → JWT Auth → Roles

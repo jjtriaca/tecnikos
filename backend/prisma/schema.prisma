@@ -130,6 +130,12 @@ model Company {
   fiscalEnabled  Boolean  @default(false) // Módulo fiscal (NFS-e) habilitado
   maxOsPerMonth  Int      @default(0)     // 0 = unlimited
   maxUsers       Int      @default(0)     // 0 = unlimited
+
+  // Chat IA
+  chatIAMonthlyMsgs   Int       @default(0)     // Messages used this month
+  chatIAMonthReset    DateTime?                  // Last monthly reset date
+  onboardingDismissed Boolean   @default(false)  // User dismissed onboarding wizard
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   deletedAt     DateTime?
@@ -165,6 +171,7 @@ model Company {
   emailConfig          EmailConfig?
   technicianContracts  TechnicianContract[]
   codeCounters         CodeCounter[]
+  chatIAConversations  ChatIAConversation[]
 }
 
 model User {
@@ -182,6 +189,7 @@ model User {
 
   company  Company   @relation(fields: [companyId], references: [id])
   sessions Session[]
+  chatIAConversations ChatIAConversation[]
 
   @@unique([companyId, code])
 }
@@ -1964,6 +1972,45 @@ model SignupAttempt {
 
   @@index([status])
   @@index([readAt])
+  @@index([createdAt])
+}
+
+// ─── Chat IA ────────────────────────────────────────────────
+model ChatIAConversation {
+  id            String   @id @default(uuid())
+  companyId     String
+  userId        String
+  title         String?
+  isOnboarding  Boolean  @default(false)
+  status        String   @default("ACTIVE") // ACTIVE | ARCHIVED
+  messageCount  Int      @default(0)
+  lastMessageAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  messages ChatIAMessage[]
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ChatIAMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  role           String   // "user" | "assistant"
+  content        String
+  toolCalls      Json?    // Tool calls made by Claude (for audit)
+  actionButtons  Json?    // [{label, href, icon}] — inline action buttons
+  inputTokens    Int?
+  outputTokens   Int?
+  createdAt      DateTime @default(now())
+
+  conversation ChatIAConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
   @@index([createdAt])
 }
 

@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { FiscalModuleProvider } from "@/contexts/FiscalModuleContext";
+import { ChatIAProvider } from "@/contexts/ChatIAContext";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import ChatIAPanel from "@/components/chat-ia/ChatIAPanel";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -37,23 +39,28 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <FiscalModuleProvider>
-      <div className="min-h-screen bg-slate-50">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed((c) => !c)}
-        />
-        <Header sidebarCollapsed={sidebarCollapsed} />
+      <ChatIAProvider>
+        <div className="min-h-screen bg-slate-50">
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed((c) => !c)}
+          />
+          <Header sidebarCollapsed={sidebarCollapsed} />
 
-        {/* Main content */}
-        <main
-          data-main
-          className={`pt-16 transition-all duration-300 ${
-            sidebarCollapsed ? "ml-[68px]" : "ml-64"
-          }`}
-        >
-          <div className="p-6">{children}</div>
-        </main>
-      </div>
+          {/* Main content */}
+          <main
+            data-main
+            className={`pt-16 transition-all duration-300 ${
+              sidebarCollapsed ? "ml-[68px]" : "ml-64"
+            }`}
+          >
+            <div className="p-6">{children}</div>
+          </main>
+
+          {/* Chat IA floating panel */}
+          <ChatIAPanel />
+        </div>
+      </ChatIAProvider>
     </FiscalModuleProvider>
   );
 }

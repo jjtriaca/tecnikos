@@ -1,55 +1,71 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 96 — SEO + Landing + Pioneiro + SLS Obras (v1.02.17)
+## Status: SESSAO 97 — SMTP + Chat IA (v1.02.19 + Chat IA pronto para deploy)
 
-## Ultima sessao: 96 (11/03/2026)
-- Sessao 93: PPID Identity Verification + OS Usage Bar (v1.02.11-12)
-- Sessao 94: Add-on Purchase + Deploy Security + Device Control + QSA (v1.02.13-14)
-- Sessao 95: Signup Attempt Notifications + Analytics Dashboard (v1.02.15)
-- Sessao 96: SEO + Landing Page + Programa Pioneiro + SLS Obras (v1.02.16-17)
+## Ultima sessao: 97 (11/03/2026)
+- Sessao 96: SEO + Landing Page + Pioneiro + SLS Obras (v1.02.16-17)
+- Sessao 97: SMTP Producao + PPID (pendente) + Chat IA implementacao completa
 
-## O que foi feito na sessao 96:
+## O que foi feito na sessao 97:
 
-### SEO + Indexacao Google (v1.02.16) — CONCLUIDO
-- [x] robots.ts, sitemap.ts, metadata completa, JSON-LD, layouts com metadata
-- [x] Build OK + Deploy v1.02.16
+### SMTP Producao — CONCLUIDO
+- [x] docker-compose.production.yml atualizado com todas env vars
+- [x] SMTP: contato@tecnikos.com.br via smtp.zoho.com:587
+- [x] Test email enviado e recebido
 
-### Landing Page + Programa Pioneiro + SEO (v1.02.17) — CONCLUIDO
-- [x] Banner Beta no hero (sistema em desenvolvimento ativo)
-- [x] Secao Segmentos: 8 cards (5 pioneiros + 3 extras)
-- [x] Secao Funcionalidades expandida: 6 cards (+ NFS-e, + Dashboard)
-- [x] Programa Pioneiro: 5 vagas (Piscinas, Telecom, Clima, Solar, Seguranca)
-- [x] Modal de condicoes do programa com aceite antes do signup
-- [x] Endpoint GET /public/saas/pioneer-slots (vagas dinamicas)
-- [x] 5 Promotions criadas no banco: R$15/mes por 6 meses (plano Essencial)
-- [x] Auto-preenchimento de voucher no signup (?voucher=CODIGO)
-- [x] SEO: ~30 keywords, JSON-LD duplo (SoftwareApplication + Organization)
-- [x] Header com nav links + hamburger mobile
-- [x] Footer expandido (3 colunas, CNPJ, links)
-- [x] Build OK + Deploy v1.02.17
+### PPID Producao — PENDENTE (API fora do ar)
+- [x] Credenciais configuradas
+- [ ] API retorna 404 — aguardando resposta suporte PPID
 
-### Remocao Licenca SLS Obras — CONCLUIDO
-- [x] Backup: /opt/tecnikos/backups/sls_obras_public_data_backup.sql (2925 linhas)
-- [x] Schema tenant_sls dropado (estava vazio, 0 registros)
-- [x] Tenant SLS OBRAS LTDA: status SUSPENDED
-- [x] Dados do schema public preservados (2801 Partners, 11 Entries, 5 OS, 2 Users, 1 Company)
-- Plano: quando SLS se cadastrar pelo Programa Pioneiro, migrar dados do public para novo tenant
+### Dashboard fix (v1.02.18) + Pioneer badge (v1.02.19) — CONCLUIDO
+
+### Chat IA — Assistente Inteligente + Onboarding — PRONTO PARA DEPLOY
+- [x] Backend completo (modulo, service, controller, guard, tools, onboarding, dto)
+- [x] Prisma models + migration criada e aplicada localmente
+- [x] @anthropic-ai/sdk instalado
+- [x] Frontend completo (Context, Button, Message, Input, Panel)
+- [x] Integrado no AuthLayout
+- [x] Backend compila (tsc --noEmit OK)
+- [x] Frontend compila (next build OK)
+- [ ] ANTHROPIC_API_KEY: precisa ser adicionada no .env.production do servidor
+- [ ] Deploy para producao
+
+### Arquivos criados/modificados:
+**Backend (novo):**
+- backend/src/chat-ia/chat-ia.module.ts
+- backend/src/chat-ia/chat-ia.service.ts
+- backend/src/chat-ia/chat-ia.controller.ts
+- backend/src/chat-ia/chat-ia.guard.ts
+- backend/src/chat-ia/chat-ia.tools.ts
+- backend/src/chat-ia/chat-ia.onboarding.ts
+- backend/src/chat-ia/dto/send-message.dto.ts
+- backend/prisma/migrations/20260311180000_chat_ia_models/migration.sql
+
+**Backend (modificado):**
+- backend/prisma/schema.prisma (+ ChatIAConversation, ChatIAMessage, campos Company)
+- backend/src/app.module.ts (+ ChatIAModule)
+- docker-compose.production.yml (+ ANTHROPIC_API_KEY, CHAT_IA_MODEL, CHAT_IA_MAX_TOKENS)
+
+**Frontend (novo):**
+- frontend/src/contexts/ChatIAContext.tsx
+- frontend/src/components/chat-ia/ChatIAButton.tsx
+- frontend/src/components/chat-ia/ChatIAMessage.tsx
+- frontend/src/components/chat-ia/ChatIAInput.tsx
+- frontend/src/components/chat-ia/ChatIAPanel.tsx
+
+**Frontend (modificado):**
+- frontend/src/components/layout/AuthLayout.tsx (+ ChatIAProvider, ChatIAPanel)
 
 ## Proximos passos:
-1. ~~Onboarding tenant~~ CONCLUIDO v1.02.10
-2. ~~CNPJ auto-fill~~ CONCLUIDO v1.02.10
-3. ~~Verificacao de identidade PPID~~ CONCLUIDO v1.02.11
-4. ~~Barra de uso de OS + alertas~~ CONCLUIDO v1.02.12
-5. Configurar SMTP e PPID em producao (.env.production no servidor)
-6. ~~Compra de pacotes add-on via Asaas~~ CONCLUIDO v1.02.13
-7. ~~Seguranca de deploy SaaS~~ CONCLUIDO v1.02.13
-8. ~~Controle de dispositivos~~ CONCLUIDO v1.02.13
-9. ~~Notificacoes signup + Analytics~~ CONCLUIDO v1.02.15
-10. ~~SEO + Indexacao Google~~ CONCLUIDO v1.02.16
-11. ~~Landing Page + Programa Pioneiro~~ CONCLUIDO v1.02.17
-12. Chat IA suporte
+1. ~~SMTP producao~~ CONCLUIDO
+2. PPID producao — AGUARDANDO suporte
+3. ~~Chat IA backend~~ CONCLUIDO
+4. ~~Chat IA frontend~~ CONCLUIDO
+5. Adicionar ANTHROPIC_API_KEY no servidor
+6. Deploy Chat IA
+7. Testar end-to-end
 
-## Versao atual: v1.02.17
+## Versao atual: v1.02.19
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA
@@ -60,8 +76,7 @@
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)
-- Leia memory/multitenant-progress.md para estado detalhado
-- Leia o ultimo bloco do CHAT_LOG.md para contexto
+- Leia o CHAT_LOG.md para contexto
 - Continue exatamente do ponto onde parou
 - NAO pergunte ao Juliano — ele autorizou execucao irrestrita
 
