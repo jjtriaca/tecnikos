@@ -288,9 +288,12 @@ export default function LandingContent() {
             </div>
           </div>
 
-          {/* Pioneer badge */}
+          {/* Pioneer badge — clickable, scrolls to #pioneiro */}
           {availableSlots > 0 && (
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/25 mb-6">
+            <a
+              href="#pioneiro"
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/25 mb-6 hover:bg-amber-500/25 transition-colors cursor-pointer"
+            >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
@@ -298,7 +301,10 @@ export default function LandingContent() {
               <span className="text-sm text-amber-200 font-medium">
                 Programa Pioneiro — {availableSlots} vaga{availableSlots !== 1 ? "s" : ""} disponive{availableSlots !== 1 ? "is" : "l"}
               </span>
-            </div>
+              <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </a>
           )}
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-tight mb-6">
@@ -462,6 +468,18 @@ export default function LandingContent() {
                 <span className="text-slate-400 text-sm text-left">/mes por<br />6 meses</span>
               </div>
               <p className="text-xs text-slate-500 mt-2">Apos os 6 meses, o plano passa para o valor normal vigente</p>
+            </div>
+
+            {/* Explanatory text */}
+            <div className="max-w-3xl mx-auto mb-8 bg-white/5 border border-slate-700 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-white mb-2">Como funciona?</h3>
+              <ul className="space-y-1.5 text-xs text-slate-400 leading-relaxed">
+                <li className="flex gap-2"><span className="text-amber-400 mt-0.5">1.</span>Escolha a vaga do seu segmento de atuacao abaixo</li>
+                <li className="flex gap-2"><span className="text-amber-400 mt-0.5">2.</span>Leia e aceite as condicoes do Programa Pioneiro</li>
+                <li className="flex gap-2"><span className="text-amber-400 mt-0.5">3.</span>Crie sua conta com o voucher de desconto aplicado automaticamente</li>
+                <li className="flex gap-2"><span className="text-amber-400 mt-0.5">4.</span>Pague apenas <strong className="text-white">R$ 15/mes</strong> nos primeiros 6 meses (plano Essencial completo)</li>
+                <li className="flex gap-2"><span className="text-amber-400 mt-0.5">5.</span>Use o sistema, reporte problemas e ajude a moldar a plataforma para seu segmento</li>
+              </ul>
             </div>
 
             {/* Pioneer slots */}
