@@ -125,6 +125,19 @@ function SignupPage() {
         if (cycleFromUrl === "yearly") setBillingCycle("yearly");
       })
       .catch(() => {});
+
+    // Auto-fill voucher from URL
+    const voucherFromUrl = searchParams.get("voucher");
+    if (voucherFromUrl && !promoCode) {
+      setPromoCode(voucherFromUrl.toUpperCase());
+      // Auto-validate
+      fetch(`/api/public/saas/validate-code?code=${encodeURIComponent(voucherFromUrl)}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          if (data?.valid) setPromoValid(data);
+        })
+        .catch(() => {});
+    }
   }, [searchParams]);
 
   // Check slug availability with debounce

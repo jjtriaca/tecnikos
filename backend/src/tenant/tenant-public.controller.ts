@@ -89,6 +89,41 @@ export class TenantPublicController {
   }
 
   /**
+   * Return availability of pioneer program slots (4 segments).
+   */
+  @Public()
+  @Get('pioneer-slots')
+  async pioneerSlots() {
+    const codes = ['PIONEIRO-PISCINAS', 'PIONEIRO-TELECOM', 'PIONEIRO-CLIMA', 'PIONEIRO-SOLAR', 'PIONEIRO-SEGURANCA'];
+    const promos = await this.prisma.promotion.findMany({
+      where: { code: { in: codes } },
+      select: { code: true, currentUses: true, maxUses: true, isActive: true },
+    });
+
+    const segmentMap: Record<string, { name: string; description: string }> = {
+      'PIONEIRO-PISCINAS': { name: 'Piscinas e Aquecedores', description: 'Manutencao de piscinas, aquecedores, bombas, tratamento' },
+      'PIONEIRO-TELECOM': { name: 'Telecomunicacoes', description: 'Internet, fibra optica, TV a cabo, telefonia' },
+      'PIONEIRO-CLIMA': { name: 'Climatizacao', description: 'Ar condicionado, refrigeracao, ventilacao' },
+      'PIONEIRO-SOLAR': { name: 'Energia Solar', description: 'Paineis fotovoltaicos, inversores, manutencao' },
+      'PIONEIRO-SEGURANCA': { name: 'Seguranca Eletronica', description: 'CFTV, alarmes, cercas eletricas, controle de acesso' },
+    };
+
+    const slots = codes.map((code) => {
+      const promo = promos.find((p) => p.code === code);
+      const available = promo ? promo.isActive && (!promo.maxUses || promo.currentUses < promo.maxUses) : false;
+      return {
+        segment: code.replace('PIONEIRO-', '').toLowerCase(),
+        code,
+        name: segmentMap[code].name,
+        description: segmentMap[code].description,
+        available,
+      };
+    });
+
+    return { slots, totalAvailable: slots.filter((s) => s.available).length };
+  }
+
+  /**
    * Validate a voucher/promo code and return its details.
    */
   @Public()
