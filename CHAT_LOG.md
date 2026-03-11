@@ -113,4 +113,13 @@
 - Juliano vai criar conta no Asaas manualmente
 - Precisa configurar: ASAAS_API_KEY, ASAAS_ENV, ASAAS_WEBHOOK_TOKEN
 
+### Chat IA Streaming SSE (v1.02.23) — CONCLUIDO
+- Backend: novo endpoint POST /chat-ia/message-stream com SSE
+- Service: streamClaude() com streaming API do Anthropic SDK
+- Suporta tool_use loop com streaming (max 6 iteracoes)
+- Frontend: fetch + ReadableStream para parsear SSE events
+- Eventos: delta (texto), buttons (botoes), thinking (tool exec), done, error
+- Bouncing dots somem quando texto comeca a aparecer
+- Deploy v1.02.23 OK
+
 ---

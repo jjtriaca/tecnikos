@@ -58,6 +58,118 @@ IMPORTANTE:
 - Os dados da empresa (CNPJ, razão social, endereço) vêm da Receita Federal e não podem ser editados manualmente. Para atualizar, o gestor deve usar a função de consulta por CNPJ.
 - Nunca sugira editar manualmente dados que vêm do CNPJ.`;
 
+const WIZARD_INSTRUCTIONS: Record<string, string> = {
+  companyProfile: `Guie o usuário para completar o perfil da empresa em /settings:
+- O nome e CNPJ já vêm da Receita Federal (não editáveis)
+- Preencher: Telefone, CEP (busca automática de endereço), Número, Complemento
+- Dados do responsável: nome, CPF, telefone, email
+- Logo: fazer upload da logomarca (aparece nos contratos e relatórios)
+- Comissão padrão: porcentagem que os técnicos recebem por OS
+- Dica: O CEP busca o endereço automaticamente, só precisa preencher número e complemento
+- Após preencher, clicar "Salvar Alterações"`,
+
+  emailSmtp: `Guie o usuário para configurar email SMTP em /settings/email:
+- Há PRESETS prontos: clique em "Gmail", "Outlook" ou "Yahoo" para preencher automaticamente
+- Para Gmail: use smtp.gmail.com, porta 587. Se usar verificação em duas etapas, precisa criar uma "Senha de App" em myaccount.google.com > Segurança > Senhas de app
+- Para Outlook/Hotmail: use smtp.office365.com, porta 587
+- Para Zoho: use smtp.zoho.com, porta 587
+- Campos: Host SMTP, Porta, Email remetente, Senha, Nome do remetente
+- Após preencher, clicar "Testar Conexão" para verificar se funciona
+- Se o teste passar, clicar "Salvar"
+- Dica: pode enviar um email de teste para si mesmo clicando "Enviar teste"`,
+
+  whatsapp: `Guie o usuário para configurar WhatsApp Business em /settings/whatsapp:
+- Precisa de uma conta no Meta Business (business.facebook.com)
+- Campos necessários:
+  1. Phone Number ID: encontrado em Meta > WhatsApp > Configurações da API
+  2. Access Token: token permanente do sistema no Meta Business
+  3. App ID (opcional): para sincronizar logo do perfil
+- Após preencher, clicar "Testar Conexão"
+- IMPORTANTE: Configurar o Webhook no Meta:
+  - URL do Webhook: será exibida após salvar (copiar e colar no Meta)
+  - Token de Verificação: será exibido após salvar (copiar e colar no Meta)
+  - Campos assinados: selecionar "messages"
+- Se o usuário não tiver conta Meta Business, explique que precisa criar uma em business.facebook.com e registrar um número de telefone dedicado para WhatsApp Business API`,
+
+  workflow: `Guie o usuário para criar um fluxo de atendimento em /workflow:
+- Um workflow define as etapas que uma OS segue do início ao fim
+- Clicar "Novo Template" para criar
+- Dar um nome (ex: "Fluxo Padrão", "Manutenção Preventiva")
+- Há PRESETS prontos (ex: "Padrão") que criam etapas básicas automaticamente
+- Etapas típicas: Abertura > Despacho > Execução > Verificação > Conclusão
+- Cada etapa pode ter ações do técnico (fotos, assinatura, checklist)
+- Marcar como "Padrão" para que novas OS usem este workflow automaticamente
+- Dica: comece com o preset "Padrão" e personalize depois`,
+
+  users: `Guie o usuário para criar usuários em /users:
+- Clicar "Novo Usuário"
+- Campos: Nome, Email, Senha
+- Perfis disponíveis (pode combinar):
+  - ADMIN: acesso total ao sistema
+  - DESPACHO: gerencia OS e atribuição de técnicos
+  - FINANCEIRO: gerencia lançamentos e cobranças
+  - FISCAL: acesso ao módulo NFS-e e configurações fiscais
+  - LEITURA: acesso somente visualização (não combina com outros)
+- Dica: crie pelo menos um usuário de Despacho para o dia a dia`,
+
+  technicians: `Guie o usuário para cadastrar técnicos em /partners (aba Técnicos):
+- Clicar "Novo Parceiro" e marcar como Técnico
+- Campos obrigatórios: Nome, CPF/CNPJ, Telefone, Email
+- Regime: CLT (funcionário) ou PJ (prestador de serviço)
+- Especialização: selecionar áreas de atuação (ar condicionado, elétrica, hidráulica, etc)
+- Comissão: porcentagem que o técnico recebe por OS (herda da empresa se não definir)
+- Dica: se tiver planilha do Sankhya, pode importar técnicos em massa pelo botão "Importar"`,
+
+  fiscal: `Guie o usuário para configurar o módulo fiscal/NFS-e em /settings/fiscal:
+PASSO 1 - Habilitar o módulo fiscal:
+- Ativar o toggle "Módulo Fiscal" no topo da página
+- Selecionar Regime Tributário: Simples Nacional, Lucro Presumido ou Lucro Real
+- Preencher CNAE principal (código de 7 dígitos da atividade)
+
+PASSO 2 - Configurar Focus NFe (provedor de emissão):
+- Obter token da Focus NFe em app.focusnfe.com.br (precisa criar conta)
+- Colar o token no campo "Token Focus NFe"
+- Selecionar ambiente: HOMOLOGAÇÃO (testes) ou PRODUÇÃO (emissão real)
+- Layout: Municipal (ABRASF) para maioria das cidades ou Nacional (SPED)
+
+PASSO 3 - Dados do Prestador:
+- Inscrição Municipal (IM): número fornecido pela prefeitura
+- Código do Município: código IBGE de 7 dígitos
+
+PASSO 4 - Tributação:
+- Natureza da Operação (1 a 6)
+- Alíquota ISS (ex: 2%, 3%, 5%)
+- Optante Simples Nacional (se aplicável)
+
+PASSO 5 - Códigos de Serviço:
+- Item Lista de Serviço (ex: 14.01 para manutenção)
+- Código CNAE do serviço
+- Código Tributário Municipal
+
+PASSO 6 - Comportamento:
+- Auto-emitir NFS-e ao criar lançamento a receber
+- Perguntar ao finalizar OS
+- Enviar NFS-e por email/WhatsApp ao tomador
+
+Dica: comece em HOMOLOGAÇÃO para testar. Quando estiver OK, troque para PRODUÇÃO.
+O contador da empresa pode ajudar com códigos fiscais (CNAE, item lista, alíquota).`,
+
+  paymentMethods: `Guie o usuário para cadastrar formas de pagamento em /finance:
+- Na página financeira, ir em configurações ou cadastrar diretamente
+- Formas comuns: PIX, Cartão de Crédito, Cartão de Débito, Boleto, Dinheiro, Transferência
+- Cada forma pode ter taxa percentual e taxa fixa
+- Dica: PIX geralmente não tem taxa para recebimento`,
+
+  automation: `Guie o usuário para criar regras de automação em /automation:
+- Automações executam ações automaticamente baseadas em eventos
+- Exemplos comuns:
+  - Auto-assign: atribuir técnico automaticamente baseado em especialização e proximidade
+  - Notificar cliente quando técnico está a caminho
+  - Notificar gestor quando OS está atrasada
+  - Enviar avaliação ao cliente após conclusão da OS
+- Clicar "Nova Regra", definir gatilho (evento) e ação`,
+};
+
 export interface MessageResult {
   content: string;
   actionButtons?: { label: string; href: string; icon?: string }[];
@@ -349,25 +461,45 @@ export class ChatIAService {
 
     if (!onboardingStatus.requiredDone) {
       // New company — onboarding mode
+      const done = onboardingStatus.items.filter((i) => i.done);
       const pending = onboardingStatus.items.filter((i) => !i.done && !i.optional);
       const optional = onboardingStatus.items.filter((i) => !i.done && i.optional);
+      const total = onboardingStatus.items.length;
+      const pct = Math.round((done.length / total) * 100);
 
-      let content = `Olá! 👋 Bem-vindo ao **Tecnikos**!\n\nSou seu assistente e vou te ajudar a configurar o sistema para a **${companyName}**.\n\n`;
-      content += `**Configurações necessárias** (${pending.length} pendentes):\n`;
-      pending.forEach((item, i) => {
-        content += `${i + 1}. ${item.done ? '✅' : '⬜'} **${item.label}** — ${item.description}\n`;
-      });
+      let content = `Olá! 👋 Bem-vindo ao **Tecnikos**!\n\n`;
+      content += `Sou seu assistente e vou te guiar na configuração do sistema para a **${companyName}**.\n\n`;
 
-      if (optional.length > 0) {
-        content += `\n**Opcionais** (podem ser configurados depois):\n`;
-        optional.forEach((item) => {
-          content += `- ⬜ ${item.label} — ${item.description}\n`;
+      // Progress bar
+      const filled = Math.round(pct / 10);
+      const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+      content += `**Progresso:** ${bar} ${pct}% (${done.length}/${total})\n\n`;
+
+      // Checklist - done items first
+      if (done.length > 0) {
+        done.forEach((item) => {
+          content += `✅ ~~${item.label}~~\n`;
         });
       }
 
-      content += `\nVamos começar? Clique no botão abaixo para configurar o primeiro item, ou me pergunte qualquer dúvida!`;
+      // Pending required items
+      content += `\n**Pendentes** (${pending.length}):\n`;
+      pending.forEach((item, i) => {
+        const marker = i === 0 ? '👉' : '⬜';
+        content += `${marker} **${item.label}** — ${item.description}\n`;
+      });
+
+      // Optional items
+      if (optional.length > 0) {
+        content += `\n**Opcionais** (configura quando quiser):\n`;
+        optional.forEach((item) => {
+          content += `⬜ ${item.label} — ${item.description}\n`;
+        });
+      }
 
       const firstPending = pending[0];
+      content += `\nVamos começar ${firstPending ? `pela **${firstPending.label}**` : ''}? Clique no botão abaixo ou me pergunte qualquer dúvida!`;
+
       const actionButtons = firstPending
         ? [{ label: `Configurar ${firstPending.label}`, href: firstPending.href, icon: 'settings' }]
         : [];
@@ -602,9 +734,23 @@ export class ChatIAService {
 
     if (!onboarding.requiredDone) {
       const pending = onboarding.items.filter((i) => !i.done && !i.optional);
-      ctx += `[ONBOARDING: ${onboarding.completedCount}/${onboarding.items.length} configurações feitas. `;
-      ctx += `Pendentes obrigatórias: ${pending.map((i) => i.label).join(', ')}]\n`;
-      ctx += `[Guie o usuário para configurar as pendências. Use action_buttons para direcionar às páginas.]\n`;
+      const optional = onboarding.items.filter((i) => !i.done && i.optional);
+      ctx += `[ONBOARDING: ${onboarding.completedCount}/${onboarding.items.length} configurações feitas]\n`;
+      ctx += `[Pendentes obrigatórias: ${pending.map((i) => i.label).join(', ')}]\n`;
+      if (optional.length > 0) {
+        ctx += `[Opcionais: ${optional.map((i) => i.label).join(', ')}]\n`;
+      }
+
+      // Inject wizard-specific instructions for the next pending item
+      const nextPending = pending[0];
+      if (nextPending) {
+        const wizardInstructions = WIZARD_INSTRUCTIONS[nextPending.key];
+        if (wizardInstructions) {
+          ctx += `\n[WIZARD ATIVO: ${nextPending.label}]\n${wizardInstructions}\n`;
+        }
+      }
+
+      ctx += `[Após o usuário configurar, use a tool verificar_configuracao para confirmar que ficou OK e celebre!]\n`;
     }
 
     return ctx;
