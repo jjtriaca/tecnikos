@@ -135,12 +135,12 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    // Issue new pair
+    // Issue new pair (preserve original device name)
     const accessToken = this.issueAccessToken(matchedSession.user);
     const { refreshToken } = await this.createSession(
       matchedSession.userId,
       ip,
-      userAgent,
+      userAgent || matchedSession.userAgent || undefined,
     );
 
     return {
@@ -191,6 +191,67 @@ export class AuthService {
   }
 
   /* ------------------------------------------------------------------ */
+  /*  SESSION MANAGEMENT (device control)                                */
+  /* ------------------------------------------------------------------ */
+
+  /** List active (non-revoked, non-expired) sessions for user */
+  async getActiveSessions(userId: string) {
+    const sessions = await this.prisma.session.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      select: {
+        id: true,
+        deviceName: true,
+        ip: true,
+        userAgent: true,
+        createdAt: true,
+        lastActivityAt: true,
+      },
+      orderBy: { lastActivityAt: { sort: 'desc', nulls: 'last' } },
+    });
+    return sessions;
+  }
+
+  /** Revoke a specific session (only if it belongs to the user) */
+  async revokeSession(sessionId: string, userId: string) {
+    const session = await this.prisma.session.findFirst({
+      where: { id: sessionId, userId, revokedAt: null },
+    });
+    if (!session) return { ok: false, message: 'Sessão não encontrada' };
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { revokedAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  /** Revoke all sessions except the current one */
+  async revokeAllOtherSessions(userId: string, currentRefreshToken: string) {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    });
+    let currentSessionId: string | null = null;
+    for (const s of sessions) {
+      if (await bcrypt.compare(currentRefreshToken, s.refreshTokenHash)) {
+        currentSessionId = s.id;
+        break;
+      }
+    }
+    await this.prisma.session.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        ...(currentSessionId ? { id: { not: currentSessionId } } : {}),
+      },
+      data: { revokedAt: new Date() },
+    });
+    return { ok: true, revoked: sessions.length - (currentSessionId ? 1 : 0) };
+  }
+
+  /* ------------------------------------------------------------------ */
   /*  HELPERS                                                            */
   /* ------------------------------------------------------------------ */
   private issueAccessToken(user: {
@@ -226,10 +287,33 @@ export class AuthService {
         expiresAt,
         ip: ip ?? null,
         userAgent: userAgent ? userAgent.substring(0, 512) : null,
+        deviceName: this.parseDeviceName(userAgent),
+        lastActivityAt: new Date(),
       },
     });
 
     return { refreshToken, session };
+  }
+
+  /** Parse user-agent into a human-readable device name */
+  private parseDeviceName(ua?: string): string {
+    if (!ua) return 'Dispositivo desconhecido';
+
+    let browser = 'Navegador';
+    if (ua.includes('Edg/')) browser = 'Edge';
+    else if (ua.includes('OPR/') || ua.includes('Opera')) browser = 'Opera';
+    else if (ua.includes('Chrome/') && !ua.includes('Edg/')) browser = 'Chrome';
+    else if (ua.includes('Firefox/')) browser = 'Firefox';
+    else if (ua.includes('Safari/') && !ua.includes('Chrome/')) browser = 'Safari';
+
+    let os = '';
+    if (ua.includes('Windows')) os = 'Windows';
+    else if (ua.includes('Macintosh') || ua.includes('Mac OS')) os = 'Mac';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+
+    return os ? `${browser} no ${os}` : browser;
   }
 
   /** Cookie options for the refresh token — session cookie (no maxAge, expires on browser close) */

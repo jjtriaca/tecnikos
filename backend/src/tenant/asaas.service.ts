@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
+import { TenantConnectionService } from './tenant-connection.service';
 import { TenantOnboardingService } from './tenant-onboarding.service';
 import { AsaasProvider } from './asaas.provider';
 
@@ -15,6 +16,7 @@ export class AsaasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantService: TenantService,
+    private readonly tenantConn: TenantConnectionService,
     private readonly onboarding: TenantOnboardingService,
     private readonly asaas: AsaasProvider,
   ) {}
@@ -182,8 +184,12 @@ export class AsaasService {
    */
   async handlePaymentWebhook(event: string, payment: any) {
     const subscriptionId = payment.subscription;
+
+    // Handle standalone payments (add-on purchases)
     if (!subscriptionId) {
-      this.logger.debug(`Payment webhook ${event} without subscription — skipping`);
+      if ((event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') && payment.id) {
+        await this.confirmAddOnPayment(payment.id);
+      }
       return;
     }
 
@@ -320,6 +326,111 @@ export class AsaasService {
     });
 
     return { success: true };
+  }
+
+  /**
+   * Purchase an add-on package (extra OS) for a tenant.
+   */
+  async purchaseAddOn(tenantId: string, addOnId: string, billingType: 'PIX' | 'BOLETO' | 'CREDIT_CARD' = 'PIX') {
+    const [addOn, subscription] = await Promise.all([
+      this.prisma.addOn.findUnique({ where: { id: addOnId } }),
+      this.prisma.subscription.findFirst({
+        where: { tenantId, status: 'ACTIVE' },
+      }),
+    ]);
+
+    if (!addOn || !addOn.isActive) {
+      throw new BadRequestException('Pacote não encontrado ou inativo');
+    }
+    if (!subscription) {
+      throw new BadRequestException('Nenhuma assinatura ativa');
+    }
+
+    const purchase = await this.prisma.addOnPurchase.create({
+      data: {
+        subscriptionId: subscription.id,
+        addOnId: addOn.id,
+        osQuantity: addOn.osQuantity,
+        priceCents: addOn.priceCents,
+        status: 'PENDING',
+      },
+    });
+
+    let asaasPayment: any = null;
+    if (this.asaas.isConfigured && addOn.priceCents > 0) {
+      const customerId = await this.ensureCustomer(tenantId);
+      asaasPayment = await this.asaas.createPayment({
+        customer: customerId,
+        billingType,
+        value: addOn.priceCents / 100,
+        dueDate: this.formatDate(new Date()),
+        description: `Add-on: ${addOn.name} - Tecnikos`,
+        externalReference: purchase.id,
+      });
+
+      await this.prisma.addOnPurchase.update({
+        where: { id: purchase.id },
+        data: { asaasPaymentId: asaasPayment.id },
+      });
+    } else {
+      // No payment gateway or free — mark as paid immediately
+      await this.prisma.addOnPurchase.update({
+        where: { id: purchase.id },
+        data: { status: 'PAID' },
+      });
+      await this.prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { extraOsPurchased: { increment: addOn.osQuantity } },
+      });
+
+      // Credit OS to tenant's Company
+      const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+      if (tenant) await this.creditOsToTenantCompany(tenant, addOn.osQuantity);
+    }
+
+    this.logger.log(`Add-on purchased: ${addOn.name} (+${addOn.osQuantity} OS) for tenant ${tenantId}`);
+    return { purchase, asaasPayment };
+  }
+
+  /**
+   * Confirm add-on payment (called from webhook).
+   */
+  async confirmAddOnPayment(asaasPaymentId: string) {
+    const purchase = await this.prisma.addOnPurchase.findFirst({
+      where: { asaasPaymentId, status: 'PENDING' },
+      include: { subscription: { include: { tenant: true } } },
+    });
+    if (!purchase) return;
+
+    await this.prisma.addOnPurchase.update({
+      where: { id: purchase.id },
+      data: { status: 'PAID' },
+    });
+    await this.prisma.subscription.update({
+      where: { id: purchase.subscriptionId },
+      data: { extraOsPurchased: { increment: purchase.osQuantity } },
+    });
+
+    // Also increment maxOsPerMonth in tenant's Company for UsageBar
+    await this.creditOsToTenantCompany(purchase.subscription.tenant, purchase.osQuantity);
+
+    this.logger.log(`Add-on payment confirmed: ${purchase.id} (+${purchase.osQuantity} OS)`);
+  }
+
+  /** Increment maxOsPerMonth in the tenant's Company record */
+  private async creditOsToTenantCompany(tenant: { schemaName: string }, osQuantity: number) {
+    try {
+      const client = this.tenantConn.getClient(tenant.schemaName);
+      const company = await client.company.findFirst();
+      if (company) {
+        await client.company.update({
+          where: { id: company.id },
+          data: { maxOsPerMonth: { increment: osQuantity } },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to credit OS to tenant company: ${(err as Error).message}`);
+    }
   }
 
   private formatDate(date: Date): string {

@@ -194,11 +194,14 @@ model Session {
   revokedAt        DateTime?
   ip               String?
   userAgent        String?
+  deviceName       String?    // "Chrome no Windows", "Safari no iPhone"
+  lastActivityAt   DateTime?  // Updated on token refresh
   createdAt        DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([userId, revokedAt])
 }
 
 // ========== Partner — Entidade unificada (Cliente, Fornecedor, Técnico) ==========
@@ -1849,6 +1852,7 @@ model Subscription {
 
   // Pacotes extras de OS comprados
   extraOsPurchased      Int       @default(0)
+  addOnPurchases        AddOnPurchase[]
 
   // Promoção aplicada
   promotionId           String?
@@ -1881,4 +1885,38 @@ model Promotion {
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+// Add-on packages (extra OS, extra users, etc.)
+model AddOn {
+  id          String    @id @default(uuid())
+  name        String    // "Pacote 50 OS", "Pacote 200 OS"
+  description String?
+  osQuantity  Int       // Extra OS included (0 if not OS add-on)
+  priceCents  Int       // One-time price in cents
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+
+  purchases   AddOnPurchase[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AddOnPurchase {
+  id              String   @id @default(uuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  addOnId         String
+  addOn           AddOn    @relation(fields: [addOnId], references: [id])
+  osQuantity      Int      // OS granted
+  priceCents      Int      // Price paid
+  asaasPaymentId  String?  // Asaas payment ID
+  status          String   @default("PENDING") // PENDING | PAID | CANCELLED
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([subscriptionId])
+  @@index([status])
 }

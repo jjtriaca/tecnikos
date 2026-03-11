@@ -137,6 +137,8 @@ const NAV_ITEMS: NavItem[] = [
   ] },
   { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN", "DESPACHO", "FISCAL"], children: [
     { label: "Geral", href: "/settings" },
+    { label: "Assinatura", href: "/settings/billing" },
+    { label: "Dispositivos", href: "/settings/devices" },
     { label: "Usuários", href: "/users" },
     { label: "Fluxo de Atendimento", href: "/workflow" },
     { label: "Notificações", href: "/notifications" },
@@ -145,6 +147,7 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Dashboard SaaS", href: "/ctrl-zr8k2x" },
     { label: "Empresas", href: "/ctrl-zr8k2x/tenants" },
     { label: "Planos", href: "/ctrl-zr8k2x/plans" },
+    { label: "Pacotes Add-on", href: "/ctrl-zr8k2x/addons" },
     { label: "Promoções", href: "/ctrl-zr8k2x/promotions" },
   ] },
 ];

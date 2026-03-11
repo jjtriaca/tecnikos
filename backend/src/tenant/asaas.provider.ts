@@ -139,6 +139,18 @@ export class AsaasProvider {
     return this.request('GET', `/payments/${id}`);
   }
 
+  /** Create a one-time payment (not tied to subscription) */
+  async createPayment(data: {
+    customer: string;
+    billingType: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | 'UNDEFINED';
+    value: number;
+    dueDate: string;
+    description?: string;
+    externalReference?: string;
+  }) {
+    return this.request('POST', '/payments', data);
+  }
+
   // ─── WEBHOOKS ─────────────────────────────────────────
 
   async createWebhook(url: string, authToken: string) {

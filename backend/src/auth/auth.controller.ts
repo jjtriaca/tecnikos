@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
   Post,
   Req,
   Res,
@@ -99,5 +101,30 @@ export class AuthController {
   @Get('me')
   async me(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.me(user);
+  }
+
+  /* ── Device / Session management ────────────────────────── */
+
+  @Get('sessions')
+  async listSessions(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.getActiveSessions(user.id);
+  }
+
+  @Delete('sessions/:id')
+  async revokeSession(
+    @Param('id') sessionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.authService.revokeSession(sessionId, user.id);
+  }
+
+  @Post('sessions/revoke-all')
+  @HttpCode(HttpStatus.OK)
+  async revokeAllOtherSessions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    const currentRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME] || '';
+    return this.authService.revokeAllOtherSessions(user.id, currentRefreshToken);
   }
 }

@@ -1826,3 +1826,29 @@ Juliano confirmou integracao mostrando screenshots do dashboard ppid (40 credito
 - `frontend/src/app/signup/page.tsx` (reescrito com step de verificacao)
 
 ### Status: CONCLUIDO — Deploy v1.02.11
+
+---
+
+### OS Usage Bar + Alertas (v1.02.12)
+
+#### Implementacoes:
+
+1. **Company model: maxOsPerMonth + maxUsers**
+   - Migration: `20260310230000_add_company_plan_limits`
+   - Campos com default 0 (= ilimitado)
+   - TenantOnboardingService copia limites do Tenant para Company
+
+2. **GET /service-orders/usage endpoint**
+   - Conta OS criadas no mes atual
+   - Retorna: usedThisMonth, maxOsPerMonth, isUnlimited, percentage, daysLeft, maxUsers
+
+3. **UsageBar component (sidebar)**
+   - Barra de progresso: azul (<80%), amarelo (80-89%), vermelho (90%+)
+   - Mostra "X / Y OS" + porcentagem + dias restantes
+   - Escondido quando plano ilimitado (maxOsPerMonth = 0)
+
+4. **Alert banner no dashboard**
+   - Banner no topo quando uso >= 80%
+   - 3 niveis de cor: amarelo (80%), vermelho claro (90%), vermelho (100%)
+
+### Status: CONCLUIDO — Deploy v1.02.12

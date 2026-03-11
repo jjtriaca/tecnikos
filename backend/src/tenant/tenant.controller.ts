@@ -161,6 +161,36 @@ export class TenantController {
     });
   }
 
+  // ─── ADD-ONS ─────────────────────────────────────────
+
+  @Get('/addons/list')
+  findAllAddOns() {
+    return this.prisma.addOn.findMany({ orderBy: { sortOrder: 'asc' } });
+  }
+
+  @Post('/addons')
+  createAddOn(@Body() dto: { name: string; description?: string; osQuantity: number; priceCents: number; sortOrder?: number }) {
+    return this.prisma.addOn.create({
+      data: {
+        name: dto.name,
+        description: dto.description,
+        osQuantity: dto.osQuantity,
+        priceCents: dto.priceCents,
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+  }
+
+  @Put('/addons/:id')
+  updateAddOn(@Param('id') id: string, @Body() dto: Partial<{ name: string; description: string; osQuantity: number; priceCents: number; isActive: boolean; sortOrder: number }>) {
+    return this.prisma.addOn.update({ where: { id }, data: dto });
+  }
+
+  @Delete('/addons/:id')
+  deactivateAddOn(@Param('id') id: string) {
+    return this.prisma.addOn.update({ where: { id }, data: { isActive: false } });
+  }
+
   // ─── DASHBOARD METRICS ────────────────────────────────
 
   @Get('/metrics/overview')

@@ -63,6 +63,17 @@ export class TenantPublicController {
     return plans;
   }
 
+  /** List available add-on packages */
+  @Public()
+  @Get('addons')
+  async getAddOns() {
+    return this.prisma.addOn.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      select: { id: true, name: true, description: true, osQuantity: true, priceCents: true },
+    });
+  }
+
   /**
    * Check if a slug is available for a new tenant.
    */
@@ -356,6 +367,37 @@ export class TenantPublicController {
         : body.billingType === 'PIX'
           ? 'QR Code PIX gerado! Pague para ativar sua empresa.'
           : 'Boleto gerado! Sua empresa será ativada após o pagamento.',
+    };
+  }
+
+  /** Purchase an add-on package */
+  @Public()
+  @Post('purchase-addon')
+  async purchaseAddOn(
+    @Body() body: { tenantId: string; addOnId: string; billingType?: 'PIX' | 'BOLETO' | 'CREDIT_CARD' },
+  ) {
+    if (!body.tenantId || !body.addOnId) {
+      throw new BadRequestException('tenantId e addOnId são obrigatórios');
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: body.tenantId } });
+    if (!tenant || tenant.status !== 'ACTIVE') {
+      throw new BadRequestException('Empresa não encontrada ou inativa');
+    }
+
+    const result = await this.asaasService.purchaseAddOn(
+      body.tenantId,
+      body.addOnId,
+      body.billingType || 'PIX',
+    );
+
+    return {
+      success: true,
+      purchaseId: result.purchase.id,
+      asaasPaymentId: result.asaasPayment?.id,
+      message: result.asaasPayment
+        ? 'Pagamento criado! OS extras serão creditadas após confirmação.'
+        : 'OS extras creditadas com sucesso!',
     };
   }
 }
