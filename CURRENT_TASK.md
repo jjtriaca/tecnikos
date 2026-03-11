@@ -1,29 +1,42 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 93 — PPID + OS Usage Bar (v1.02.11-12)
+## Status: SESSAO 94 — Add-ons + Deploy Security + Dispositivos (v1.02.13)
 
-## Ultima sessao: 93 (10/03/2026)
-- Sessao 90: Landing Page + Signup + Vouchers + Pricing Strategy (v1.01.97-v1.02.04)
+## Ultima sessao: 94 (11/03/2026)
 - Sessao 91: Currency Input Fixes + Add-ons + Sidebar Reorg (v1.02.05-09)
 - Sessao 92: Tenant Onboarding + CNPJ Auto-Fill (v1.02.10)
 - Sessao 93: PPID Identity Verification + OS Usage Bar (v1.02.11-12)
+- Sessao 94: Add-on Purchase + Deploy Security + Device Control (v1.02.13)
 
-## O que foi feito na sessao 93:
+## O que foi feito na sessao 94:
 
-### PPID Identity Verification (v1.02.11) — CONCLUIDO
-- [x] PpidService com autenticacao JWT + cache de token
-- [x] 4 endpoints: classify, OCR, liveness, face match
-- [x] fullVerification() pipeline (classify → OCR → liveness → face match)
-- [x] POST /public/saas/verify-identity endpoint
-- [x] Signup reescrito com 5 steps: Plano → Empresa → Verificacao → Pagamento → Sucesso
+### Compra de Pacotes Add-on via Asaas (v1.02.13) — CONCLUIDO
+- [x] AddOn + AddOnPurchase models no schema.prisma
+- [x] AsaasProvider.createPayment() para pagamentos avulsos
+- [x] AsaasService.purchaseAddOn() + confirmAddOnPayment()
+- [x] creditOsToTenantCompany() via TenantConnectionService
+- [x] Webhook handling para standalone payments
+- [x] Admin CRUD de add-ons (tenant.controller.ts)
+- [x] GET /public/saas/addons + POST /public/saas/purchase-addon
+- [x] Frontend: settings/billing/page.tsx (uso + pacotes)
+- [x] Frontend: ctrl-zr8k2x/addons/page.tsx (admin)
 
-### OS Usage Bar + Alertas (v1.02.12) — CONCLUIDO
-- [x] Company model: maxOsPerMonth + maxUsers fields (migration)
-- [x] GET /service-orders/usage endpoint (contagem mensal + limites)
-- [x] UsageBar component na sidebar (barra de progresso com cores)
-- [x] Alert banner no dashboard (80%/90%/100%)
-- [x] Onboarding copia limites do Tenant para Company
-- [x] Build OK + Deploy v1.02.12
+### Seguranca de Deploy SaaS (v1.02.13) — CONCLUIDO
+- [x] deploy-remote.sh reescrito (7 → 9 passos)
+- [x] Backup pre-deploy automatico (pg_dump gzip)
+- [x] Migration failure detection + abort
+- [x] Health check com 3 retries
+- [x] Rollback instructions on failure
+- [x] Backup rotation (ultimos 10)
+
+### Controle de Dispositivos (v1.02.13) — CONCLUIDO
+- [x] Session model: deviceName + lastActivityAt + index
+- [x] parseDeviceName() helper (Chrome no Windows, Safari no Mac, etc.)
+- [x] createSession() com deviceName + lastActivityAt
+- [x] getActiveSessions(), revokeSession(), revokeAllOtherSessions()
+- [x] GET /auth/sessions, DELETE /auth/sessions/:id, POST /auth/sessions/revoke-all
+- [x] Frontend: settings/devices/page.tsx (listar, encerrar, encerrar todas)
+- [x] Build OK + Deploy v1.02.13
 
 ## Proximos passos:
 1. ~~Onboarding tenant~~ CONCLUIDO v1.02.10
@@ -31,12 +44,12 @@
 3. ~~Verificacao de identidade PPID~~ CONCLUIDO v1.02.11
 4. ~~Barra de uso de OS + alertas~~ CONCLUIDO v1.02.12
 5. Configurar SMTP e PPID em producao (.env.production no servidor)
-6. Compra de pacotes add-on via Asaas
-7. Seguranca de deploy SaaS (backup pre-deploy, migrations safe, rollback, RLS, feature flags)
-8. Controle de dispositivos
+6. ~~Compra de pacotes add-on via Asaas~~ CONCLUIDO v1.02.13
+7. ~~Seguranca de deploy SaaS~~ CONCLUIDO v1.02.13
+8. ~~Controle de dispositivos~~ CONCLUIDO v1.02.13
 9. Chat IA suporte
 
-## Versao atual: v1.02.12
+## Versao atual: v1.02.13
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA

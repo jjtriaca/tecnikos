@@ -235,7 +235,7 @@ export class TenantService {
     const plan = await this.prisma.plan.findUnique({ where: { id: newPlanId } });
     if (!plan) throw new NotFoundException('Plano não encontrado');
 
-    return this.prisma.tenant.update({
+    const updated = await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
         planId: newPlanId,
@@ -243,6 +243,21 @@ export class TenantService {
         maxOsPerMonth: plan.maxOsPerMonth,
       },
     });
+
+    // Propagar limites para a Company no schema do tenant
+    try {
+      const tenantPrisma = this.tenantConn.getClient(`tenant_${tenant.slug}`);
+      await tenantPrisma.company.updateMany({
+        data: {
+          maxOsPerMonth: plan.maxOsPerMonth,
+          maxUsers: plan.maxUsers,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to propagate plan limits to tenant schema: ${err.message}`);
+    }
+
+    return updated;
   }
 
   // ─── HELPERS ──────────────────────────────────────────

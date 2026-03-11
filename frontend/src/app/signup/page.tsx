@@ -92,6 +92,7 @@ function SignupPage() {
     faceMatchScore?: number;
     reasons?: string[];
     ocrFields?: Record<string, string>;
+    qsaValidation?: { validated: boolean; socioNome?: string; message?: string };
     error?: string;
   } | null>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
@@ -202,7 +203,7 @@ function SignupPage() {
       const r = await fetch("/api/public/saas/verify-identity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentBase64: docB64, selfieBase64: selfieB64 }),
+        body: JSON.stringify({ documentBase64: docB64, selfieBase64: selfieB64, cnpj: form.cnpj }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.message || "Erro na verificacao");
@@ -639,6 +640,11 @@ function SignupPage() {
                       Documento: {verifyResult.documentType}
                       {verifyResult.faceMatchScore ? ` · Similaridade: ${verifyResult.faceMatchScore}%` : ""}
                       {verifyResult.livenessScore ? ` · Prova de vida: ${verifyResult.livenessScore}%` : ""}
+                    </p>
+                  )}
+                  {verifyResult.qsaValidation && (
+                    <p className={`text-xs mt-1 ${verifyResult.qsaValidation.validated ? "text-green-700" : "text-red-700"}`}>
+                      {verifyResult.qsaValidation.validated ? "Socio confirmado" : "QSA"}: {verifyResult.qsaValidation.message}
                     </p>
                   )}
                   {verifyResult.skipped && (

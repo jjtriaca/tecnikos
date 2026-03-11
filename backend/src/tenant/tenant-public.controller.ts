@@ -130,6 +130,16 @@ export class TenantPublicController {
       }
       const data = await response.json();
 
+      // Extract QSA (partners/administrators)
+      const socios = Array.isArray(data.qsa)
+        ? data.qsa.map((s: any) => ({
+            nome: s.nome_socio || '',
+            cpfCnpj: (s.cnpj_cpf_do_socio || '').replace(/\D/g, ''),
+            qualificacao: s.qualificacao_socio || '',
+            dataEntrada: s.data_entrada_sociedade || '',
+          }))
+        : [];
+
       return {
         found: true,
         razaoSocial: data.razao_social || '',
@@ -145,6 +155,7 @@ export class TenantPublicController {
         municipio: data.municipio || '',
         uf: data.uf || '',
         situacao: data.descricao_situacao_cadastral || '',
+        socios,
       };
     } catch (err: any) {
       this.logger.warn(`CNPJ lookup failed: ${err.message}`);
@@ -159,14 +170,13 @@ export class TenantPublicController {
   @Public()
   @Post('verify-identity')
   async verifyIdentity(
-    @Body() body: { documentBase64: string; selfieBase64: string },
+    @Body() body: { documentBase64: string; selfieBase64: string; cnpj?: string },
   ) {
     if (!body.documentBase64 || !body.selfieBase64) {
       throw new BadRequestException('documentBase64 e selfieBase64 são obrigatórios');
     }
 
     if (!this.ppid.isConfigured) {
-      // PPID not configured — skip verification (dev mode)
       this.logger.warn('PPID not configured — skipping identity verification');
       return {
         approved: true,
@@ -177,6 +187,57 @@ export class TenantPublicController {
 
     const result = await this.ppid.fullVerification(body.documentBase64, body.selfieBase64);
 
+    // Cross-validate: check if document CPF belongs to a partner/admin of the company
+    let qsaValidation: { validated: boolean; socioNome?: string; message?: string } = {
+      validated: false,
+      message: 'CNPJ não informado para validação de sócios',
+    };
+
+    const ocrCpf = (result.ocr?.fields?.cpf || '').replace(/\D/g, '');
+
+    if (body.cnpj && ocrCpf && result.approved) {
+      const cnpjDigits = body.cnpj.replace(/\D/g, '');
+      try {
+        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjDigits}`);
+        if (res.ok) {
+          const data = await res.json();
+          const qsa: any[] = Array.isArray(data.qsa) ? data.qsa : [];
+
+          const match = qsa.find((s: any) => {
+            const socioCpf = (s.cnpj_cpf_do_socio || '').replace(/\D/g, '');
+            return socioCpf === ocrCpf;
+          });
+
+          if (match) {
+            qsaValidation = {
+              validated: true,
+              socioNome: match.nome_socio,
+              message: `CPF vinculado ao sócio: ${match.nome_socio} (${match.qualificacao_socio})`,
+            };
+          } else {
+            qsaValidation = {
+              validated: false,
+              message: 'O CPF do documento não corresponde a nenhum sócio ou administrador desta empresa',
+            };
+            // Block approval if CPF doesn't match any partner
+            result.approved = false;
+            result.reasons.push('CPF do documento não consta no quadro societário (QSA) da empresa');
+          }
+        } else {
+          qsaValidation = {
+            validated: false,
+            message: 'Não foi possível consultar o QSA da empresa',
+          };
+        }
+      } catch (err: any) {
+        this.logger.warn(`QSA validation failed: ${err.message}`);
+        qsaValidation = {
+          validated: false,
+          message: 'Erro ao validar quadro societário',
+        };
+      }
+    }
+
     return {
       approved: result.approved,
       classification: result.classification,
@@ -184,6 +245,7 @@ export class TenantPublicController {
       documentType: result.ocr?.documentType,
       livenessScore: result.liveness?.score,
       faceMatchScore: result.faceMatch?.similaridade,
+      qsaValidation,
       reasons: result.reasons,
       error: result.error,
     };
