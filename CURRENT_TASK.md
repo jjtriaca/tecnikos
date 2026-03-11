@@ -1,50 +1,30 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 94 — Add-ons + Deploy Security + Dispositivos + QSA (v1.02.13-14)
+## Status: SESSAO 95 — Notificacoes Signup + Analytics SaaS (v1.02.15)
 
-## Ultima sessao: 94 (11/03/2026)
-- Sessao 91: Currency Input Fixes + Add-ons + Sidebar Reorg (v1.02.05-09)
+## Ultima sessao: 95 (11/03/2026)
 - Sessao 92: Tenant Onboarding + CNPJ Auto-Fill (v1.02.10)
 - Sessao 93: PPID Identity Verification + OS Usage Bar (v1.02.11-12)
 - Sessao 94: Add-on Purchase + Deploy Security + Device Control + QSA (v1.02.13-14)
+- Sessao 95: Signup Attempt Notifications + Analytics Dashboard (v1.02.15)
 
-## O que foi feito na sessao 94:
+## O que foi feito na sessao 95:
 
-### Compra de Pacotes Add-on via Asaas (v1.02.13) — CONCLUIDO
-- [x] AddOn + AddOnPurchase models no schema.prisma
-- [x] AsaasProvider.createPayment() para pagamentos avulsos
-- [x] AsaasService.purchaseAddOn() + confirmAddOnPayment()
-- [x] creditOsToTenantCompany() via TenantConnectionService
-- [x] Webhook handling para standalone payments
-- [x] Admin CRUD de add-ons (tenant.controller.ts)
-- [x] GET /public/saas/addons + POST /public/saas/purchase-addon
-- [x] Frontend: settings/billing/page.tsx (uso + pacotes)
-- [x] Frontend: ctrl-zr8k2x/addons/page.tsx (admin)
-
-### Seguranca de Deploy SaaS (v1.02.13) — CONCLUIDO
-- [x] deploy-remote.sh reescrito (7 → 9 passos)
-- [x] Backup pre-deploy automatico (pg_dump gzip)
-- [x] Migration failure detection + abort
-- [x] Health check com 3 retries
-- [x] Rollback instructions on failure
-- [x] Backup rotation (ultimos 10)
-
-### Controle de Dispositivos (v1.02.13) — CONCLUIDO
-- [x] Session model: deviceName + lastActivityAt + index
-- [x] parseDeviceName() helper (Chrome no Windows, Safari no Mac, etc.)
-- [x] createSession() com deviceName + lastActivityAt
-- [x] getActiveSessions(), revokeSession(), revokeAllOtherSessions()
-- [x] GET /auth/sessions, DELETE /auth/sessions/:id, POST /auth/sessions/revoke-all
-- [x] Frontend: settings/devices/page.tsx (listar, encerrar, encerrar todas)
-- [x] Build OK + Deploy v1.02.13
-
-### Validacao QSA Representante Legal (v1.02.14) — CONCLUIDO
-- [x] cnpj-lookup retorna array `socios` do QSA (BrasilAPI)
-- [x] verify-identity cruza CPF do OCR com CPFs do QSA
-- [x] Bloqueia signup se CPF nao consta no quadro societario
-- [x] Frontend envia CNPJ e exibe resultado da validacao QSA
-- [x] changePlan() propaga limites para Company no schema do tenant
-- [x] Build OK + Deploy v1.02.14
+### Notificacoes de Signup + Analytics (v1.02.15) — CONCLUIDO
+- [x] SignupAttempt model (schema publico) — armazena todos dados da tentativa rejeitada
+- [x] SaasEvent model (schema publico) — tracking leve de eventos
+- [x] Migration 20260311120000_add_signup_attempt_and_saas_event
+- [x] POST /public/saas/signup-attempt (cria tentativa com todos dados)
+- [x] PATCH /public/saas/signup-attempt/:id/criticism (feedback do usuario)
+- [x] POST /public/saas/track (event tracking, rate-limited 100/min)
+- [x] Admin endpoints: list/get/update tentativas, unread-count, analytics/overview
+- [x] track.ts helper (sessionId anonimo, keepalive fetch)
+- [x] Landing page: tracking views + clicks em planos/CTAs
+- [x] Signup page: tracking por step, auto-submit na rejeicao, textarea critica
+- [x] Admin /ctrl-zr8k2x/signup-attempts (lista com filtro, modal detalhes, notas, status)
+- [x] Dashboard SaaS expandido: funil conversao, grafico diario, dispositivos, top rejeicoes
+- [x] Sidebar: link "Tentativas" + badge vermelho nao-lidos (poll 60s)
+- [x] Build OK + Deploy v1.02.15
 
 ## Proximos passos:
 1. ~~Onboarding tenant~~ CONCLUIDO v1.02.10
@@ -55,9 +35,10 @@
 6. ~~Compra de pacotes add-on via Asaas~~ CONCLUIDO v1.02.13
 7. ~~Seguranca de deploy SaaS~~ CONCLUIDO v1.02.13
 8. ~~Controle de dispositivos~~ CONCLUIDO v1.02.13
-9. Chat IA suporte
+9. ~~Notificacoes signup + Analytics~~ CONCLUIDO v1.02.15
+10. Chat IA suporte
 
-## Versao atual: v1.02.14
+## Versao atual: v1.02.15
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA

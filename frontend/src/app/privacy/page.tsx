@@ -1,3 +1,13 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Politica de Privacidade",
+  description: "Politica de privacidade da plataforma Tecnikos. Saiba como tratamos seus dados pessoais.",
+  alternates: {
+    canonical: "https://tecnikos.com.br/privacy",
+  },
+};
+
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4">

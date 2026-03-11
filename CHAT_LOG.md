@@ -47,6 +47,25 @@
 
 ### Deploys: v1.02.13 (3 migrations) + v1.02.14 (QSA + propagacao limites)
 
+#### 5. Notificacoes de Signup + Analytics SaaS (v1.02.15)
+**Pedido do Juliano:**
+- Se tentativa de cadastro falhar, gerar notificacao para admin com todos os dados coletados
+- Textarea para critica/feedback do usuario rejeitado
+- Dashboard SaaS com analytics: visualizacoes, clicks, funil de conversao, dispositivos
+
+**Implementacao:**
+- Modelos `SignupAttempt` + `SaasEvent` no schema.prisma
+- Backend publico: POST signup-attempt, PATCH criticism, POST track (rate-limited)
+- Backend admin: CRUD tentativas, analytics/overview (funil, pageviews, devices, rejeicoes)
+- `track.ts` helper (sessionId anonimo via localStorage + keepalive fetch)
+- Landing page: tracking de views e clicks em planos/CTAs
+- Signup page: tracking por step (1-4 + complete/rejected), auto-submit SignupAttempt na rejeicao, textarea de critica
+- Admin `/ctrl-zr8k2x/signup-attempts`: lista com filtro, detalhe em modal, notas admin, mudanca status
+- Dashboard SaaS expandido: analytics KPIs, funil visual, grafico visitas/dia, dispositivos, top rejeicoes
+- Sidebar: "Tentativas" com badge vermelho de nao-lidos (poll 60s)
+
+### Deploy: v1.02.15
+
 ---
 
 ## 2026-03-10 — Pesquisa PPID API (Verificacao de Documentos)
