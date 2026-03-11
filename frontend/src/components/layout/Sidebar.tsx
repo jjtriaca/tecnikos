@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useFiscalModule } from "@/contexts/FiscalModuleContext";
+import { api } from "@/lib/api";
 import UsageBar from "./UsageBar";
 
 interface NavChild {
@@ -191,12 +192,29 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   const isSaasAdmin = pathname.startsWith("/ctrl-zr8k2x");
 
+  // Unread signup attempts badge
+  const [unreadAttempts, setUnreadAttempts] = useState(0);
+  const fetchUnread = useCallback(() => {
+    if (!user || !user.roles.includes("ADMIN")) return;
+    api.get<{ count: number }>("/admin/tenants/signup-attempts/unread-count")
+      .then((d) => setUnreadAttempts(d.count))
+      .catch(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000);
+    return () => clearInterval(interval);
+  }, [fetchUnread]);
+
   // When on SaaS admin path, show only SaaS items as top-level nav
   const SAAS_NAV: NavItem[] = [
     { label: "Dashboard SaaS", href: "/ctrl-zr8k2x", icon: icons.dashboard, roles: ["ADMIN"] },
     { label: "Empresas", href: "/ctrl-zr8k2x/tenants", icon: icons.partners, roles: ["ADMIN"] },
     { label: "Planos", href: "/ctrl-zr8k2x/plans", icon: icons.finance, roles: ["ADMIN"] },
-    { label: "Promoções", href: "/ctrl-zr8k2x/promotions", icon: icons.automation, roles: ["ADMIN"] },
+    { label: "Pacotes Add-on", href: "/ctrl-zr8k2x/addons", icon: icons.automation, roles: ["ADMIN"] },
+    { label: "Promocoes", href: "/ctrl-zr8k2x/promotions", icon: icons.automation, roles: ["ADMIN"] },
+    { label: "Tentativas", href: "/ctrl-zr8k2x/signup-attempts", icon: icons.users, roles: ["ADMIN"] },
     { label: "Voltar ao sistema", href: "/dashboard", icon: icons.workflow, roles: ["ADMIN"] },
   ];
 
@@ -318,7 +336,12 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               title={collapsed ? item.label : undefined}
             >
               <span className="flex-shrink-0 opacity-90">{item.icon}</span>
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+              {!collapsed && item.href === "/ctrl-zr8k2x/signup-attempts" && unreadAttempts > 0 && (
+                <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                  {unreadAttempts}
+                </span>
+              )}
             </Link>
           );
         })}

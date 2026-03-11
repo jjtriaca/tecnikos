@@ -14,7 +14,12 @@
 
 ---
 
-## 2026-03-11 — Sessao 94: Add-ons + Deploy Security + Dispositivos (v1.02.13)
+## 2026-03-11 — Sessao 94: Add-ons + Deploy Security + Dispositivos + QSA (v1.02.13-14)
+
+### Decisao do Juliano:
+- Validacao de representante legal: cruzar CPF do documento (OCR) com QSA da Receita Federal
+- BrasilAPI ja retorna campo `qsa` com `cnpj_cpf_do_socio` de cada socio
+- Se CPF nao bate com nenhum socio → bloqueia signup
 
 ### Implementacoes:
 
@@ -33,7 +38,14 @@
 - GET /auth/sessions, DELETE /auth/sessions/:id, POST /auth/sessions/revoke-all
 - Frontend: /settings/devices (listar, encerrar sessoes, encerrar todas)
 
-### Deploy: v1.02.13 OK (3 migrations aplicadas)
+#### 4. Validacao QSA (Representante Legal)
+- cnpj-lookup agora retorna array `socios` (nome, cpfCnpj, qualificacao, dataEntrada)
+- verify-identity aceita `cnpj` e cruza CPF do OCR com QSA da BrasilAPI
+- Se CPF nao consta no QSA → bloqueia aprovacao + adiciona motivo
+- Frontend envia CNPJ na verificacao e exibe resultado QSA
+- changePlan() agora propaga limites para Company no schema do tenant
+
+### Deploys: v1.02.13 (3 migrations) + v1.02.14 (QSA + propagacao limites)
 
 ---
 

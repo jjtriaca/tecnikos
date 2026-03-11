@@ -1,12 +1,12 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 94 — Add-ons + Deploy Security + Dispositivos (v1.02.13)
+## Status: SESSAO 94 — Add-ons + Deploy Security + Dispositivos + QSA (v1.02.13-14)
 
 ## Ultima sessao: 94 (11/03/2026)
 - Sessao 91: Currency Input Fixes + Add-ons + Sidebar Reorg (v1.02.05-09)
 - Sessao 92: Tenant Onboarding + CNPJ Auto-Fill (v1.02.10)
 - Sessao 93: PPID Identity Verification + OS Usage Bar (v1.02.11-12)
-- Sessao 94: Add-on Purchase + Deploy Security + Device Control (v1.02.13)
+- Sessao 94: Add-on Purchase + Deploy Security + Device Control + QSA (v1.02.13-14)
 
 ## O que foi feito na sessao 94:
 
@@ -38,6 +38,14 @@
 - [x] Frontend: settings/devices/page.tsx (listar, encerrar, encerrar todas)
 - [x] Build OK + Deploy v1.02.13
 
+### Validacao QSA Representante Legal (v1.02.14) — CONCLUIDO
+- [x] cnpj-lookup retorna array `socios` do QSA (BrasilAPI)
+- [x] verify-identity cruza CPF do OCR com CPFs do QSA
+- [x] Bloqueia signup se CPF nao consta no quadro societario
+- [x] Frontend envia CNPJ e exibe resultado da validacao QSA
+- [x] changePlan() propaga limites para Company no schema do tenant
+- [x] Build OK + Deploy v1.02.14
+
 ## Proximos passos:
 1. ~~Onboarding tenant~~ CONCLUIDO v1.02.10
 2. ~~CNPJ auto-fill~~ CONCLUIDO v1.02.10
@@ -49,7 +57,7 @@
 8. ~~Controle de dispositivos~~ CONCLUIDO v1.02.13
 9. Chat IA suporte
 
-## Versao atual: v1.02.13
+## Versao atual: v1.02.14
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896 (SLS Sol e Lazer Solucoes) — REATIVADA

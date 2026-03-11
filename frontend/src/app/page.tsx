@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { track } from "@/lib/track";
 
 interface PublicPlan {
   id: string;
@@ -63,6 +64,7 @@ export default function LandingPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
 
   useEffect(() => {
+    track("landing_view");
     fetch("/api/public/saas/plans")
       .then((r) => r.ok ? r.json() : [])
       .then(setPlans)
@@ -328,6 +330,7 @@ export default function LandingPage() {
 
                     <Link
                       href={`/signup?plan=${plan.id}&cycle=${billingCycle}`}
+                      onClick={() => track("landing_click_plan", { planId: plan.id, planName: plan.name })}
                       className={`block w-full text-center py-3 rounded-xl font-semibold text-sm transition-all ${
                         isPopular
                           ? "bg-white text-blue-700 hover:bg-blue-50 shadow-lg"
@@ -395,6 +398,7 @@ export default function LandingPage() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link
                   href="/signup"
+                  onClick={() => track("landing_click_signup")}
                   className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold shadow-lg shadow-blue-600/25 hover:shadow-xl hover:shadow-blue-600/35 hover:-translate-y-0.5 transition-all duration-200"
                 >
                   Comecar agora

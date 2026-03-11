@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, Query as QueryParam, BadRequestException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Req, Query as QueryParam, BadRequestException, Logger } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
@@ -461,5 +463,88 @@ export class TenantPublicController {
         ? 'Pagamento criado! OS extras serão creditadas após confirmação.'
         : 'OS extras creditadas com sucesso!',
     };
+  }
+
+  /* ── Signup Attempt Tracking ──────────────────────── */
+
+  @Public()
+  @Post('signup-attempt')
+  async submitSignupAttempt(
+    @Body() body: {
+      slug?: string;
+      companyName?: string;
+      cnpj?: string;
+      responsibleName?: string;
+      responsibleEmail?: string;
+      responsiblePhone?: string;
+      planId?: string;
+      planName?: string;
+      billingCycle?: string;
+      cnpjData?: any;
+      verificationResult?: any;
+      rejectionReasons?: string[];
+      criticism?: string;
+    },
+    @Req() req: Request,
+  ) {
+    const attempt = await this.prisma.signupAttempt.create({
+      data: {
+        slug: body.slug,
+        companyName: body.companyName,
+        cnpj: body.cnpj ? body.cnpj.replace(/\D/g, '') : undefined,
+        responsibleName: body.responsibleName,
+        responsibleEmail: body.responsibleEmail,
+        responsiblePhone: body.responsiblePhone,
+        planId: body.planId,
+        planName: body.planName,
+        billingCycle: body.billingCycle,
+        cnpjData: body.cnpjData || undefined,
+        verificationResult: body.verificationResult || undefined,
+        rejectionReasons: body.rejectionReasons || [],
+        criticism: body.criticism,
+        ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip,
+        userAgent: req.headers['user-agent'],
+      },
+    });
+    return { success: true, id: attempt.id };
+  }
+
+  @Public()
+  @Patch('signup-attempt/:id/criticism')
+  async addCriticism(
+    @Param('id') id: string,
+    @Body('criticism') criticism: string,
+  ) {
+    if (!criticism?.trim()) throw new BadRequestException('Mensagem é obrigatória');
+    const attempt = await this.prisma.signupAttempt.findUnique({ where: { id } });
+    if (!attempt) throw new BadRequestException('Tentativa não encontrada');
+    await this.prisma.signupAttempt.update({
+      where: { id },
+      data: { criticism: criticism.trim() },
+    });
+    return { success: true };
+  }
+
+  /* ── Analytics Event Tracking ─────────────────────── */
+
+  @Public()
+  @Post('track')
+  @Throttle({ default: { limit: 100, ttl: 60_000 } })
+  async trackEvent(
+    @Body() body: { event: string; page?: string; metadata?: any; sessionId?: string },
+    @Req() req: Request,
+  ) {
+    if (!body.event) return { ok: true };
+    await this.prisma.saasEvent.create({
+      data: {
+        event: body.event,
+        page: body.page,
+        metadata: body.metadata || undefined,
+        sessionId: body.sessionId,
+        ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip,
+        userAgent: req.headers['user-agent'],
+      },
+    });
+    return { ok: true };
   }
 }

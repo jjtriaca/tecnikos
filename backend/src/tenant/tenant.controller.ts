@@ -9,6 +9,7 @@ import {
   Param,
   Query,
   UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
 import { TenantService } from './tenant.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -191,16 +192,68 @@ export class TenantController {
     return this.prisma.addOn.update({ where: { id }, data: { isActive: false } });
   }
 
+  // ─── SIGNUP ATTEMPTS ─────────────────────────────────
+
+  @Get('/signup-attempts/unread-count')
+  async getUnreadSignupAttemptCount() {
+    const count = await this.prisma.signupAttempt.count({ where: { readAt: null } });
+    return { count };
+  }
+
+  @Get('/signup-attempts/list')
+  async listSignupAttempts(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const take = Math.min(parseInt(limit || '20', 10), 100);
+    const skip = (Math.max(parseInt(page || '1', 10), 1) - 1) * take;
+    const where: any = {};
+    if (status && status !== 'ALL') where.status = status;
+
+    const [items, total] = await Promise.all([
+      this.prisma.signupAttempt.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
+      this.prisma.signupAttempt.count({ where }),
+    ]);
+    return { items, total, page: Math.max(parseInt(page || '1', 10), 1), limit: take };
+  }
+
+  @Get('/signup-attempts/:id')
+  async getSignupAttempt(@Param('id') id: string) {
+    const attempt = await this.prisma.signupAttempt.findUnique({ where: { id } });
+    if (!attempt) throw new NotFoundException('Tentativa não encontrada');
+    if (!attempt.readAt) {
+      await this.prisma.signupAttempt.update({ where: { id }, data: { readAt: new Date() } });
+    }
+    return attempt;
+  }
+
+  @Patch('/signup-attempts/:id')
+  async updateSignupAttempt(
+    @Param('id') id: string,
+    @Body() body: { status?: string; adminNotes?: string },
+  ) {
+    return this.prisma.signupAttempt.update({
+      where: { id },
+      data: {
+        ...(body.status && { status: body.status }),
+        ...(body.adminNotes !== undefined && { adminNotes: body.adminNotes }),
+      },
+    });
+  }
+
   // ─── DASHBOARD METRICS ────────────────────────────────
 
   @Get('/metrics/overview')
   async getMetrics() {
-    const [totalTenants, activeTenants, blockedTenants, cancelledTenants] = await Promise.all([
-      this.prisma.tenant.count({ where: { deletedAt: null } }),
-      this.prisma.tenant.count({ where: { status: TenantStatus.ACTIVE } }),
-      this.prisma.tenant.count({ where: { status: TenantStatus.BLOCKED } }),
-      this.prisma.tenant.count({ where: { status: TenantStatus.CANCELLED } }),
-    ]);
+    const [totalTenants, activeTenants, blockedTenants, cancelledTenants, pendingAttempts] =
+      await Promise.all([
+        this.prisma.tenant.count({ where: { deletedAt: null } }),
+        this.prisma.tenant.count({ where: { status: TenantStatus.ACTIVE } }),
+        this.prisma.tenant.count({ where: { status: TenantStatus.BLOCKED } }),
+        this.prisma.tenant.count({ where: { status: TenantStatus.CANCELLED } }),
+        this.prisma.signupAttempt.count({ where: { readAt: null } }),
+      ]);
 
     const plans = await this.prisma.plan.findMany({
       where: { isActive: true },
@@ -212,14 +265,97 @@ export class TenantController {
       activeTenants,
       blockedTenants,
       cancelledTenants,
+      pendingAttempts,
       planDistribution: plans.map((p) => ({
         id: p.id,
         name: p.name,
         priceCents: p.priceCents,
         tenantCount: p._count.tenants,
       })),
-      // MRR = sum of active tenants' plan prices
       mrrCents: plans.reduce((sum, p) => sum + p.priceCents * p._count.tenants, 0),
+    };
+  }
+
+  // ─── ANALYTICS ──────────────────────────────────────────
+
+  @Get('/analytics/overview')
+  async getAnalytics(@Query('days') days?: string) {
+    const d = Math.min(parseInt(days || '30', 10), 90);
+    const since = new Date();
+    since.setDate(since.getDate() - d);
+
+    // Aggregate event counts
+    const events = await this.prisma.saasEvent.groupBy({
+      by: ['event'],
+      where: { createdAt: { gte: since } },
+      _count: { id: true },
+    });
+
+    const eventMap: Record<string, number> = {};
+    events.forEach((e) => (eventMap[e.event] = e._count.id));
+
+    // Daily pageviews (landing)
+    const dailyViews: { date: string; count: number }[] = await this.prisma.$queryRaw`
+      SELECT DATE("createdAt") as date, COUNT(*)::int as count
+      FROM "SaasEvent"
+      WHERE event = 'landing_view' AND "createdAt" >= ${since}
+      GROUP BY DATE("createdAt")
+      ORDER BY date
+    `;
+
+    // Top rejection reasons
+    const recentAttempts = await this.prisma.signupAttempt.findMany({
+      where: { createdAt: { gte: since } },
+      select: { rejectionReasons: true },
+    });
+    const reasonCounts: Record<string, number> = {};
+    recentAttempts.forEach((a) =>
+      a.rejectionReasons.forEach((r) => (reasonCounts[r] = (reasonCounts[r] || 0) + 1)),
+    );
+    const topReasons = Object.entries(reasonCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([reason, count]) => ({ reason, count }));
+
+    // Device breakdown from user agents
+    const allEvents = await this.prisma.saasEvent.findMany({
+      where: { createdAt: { gte: since }, event: 'landing_view' },
+      select: { userAgent: true },
+    });
+    const devices: Record<string, number> = { Desktop: 0, Mobile: 0, Tablet: 0 };
+    allEvents.forEach((e) => {
+      const ua = e.userAgent || '';
+      if (ua.includes('Mobile') || ua.includes('Android') || ua.includes('iPhone'))
+        devices.Mobile++;
+      else if (ua.includes('iPad') || ua.includes('Tablet')) devices.Tablet++;
+      else devices.Desktop++;
+    });
+
+    // Unique sessions
+    const uniqueSessions = await this.prisma.saasEvent.groupBy({
+      by: ['sessionId'],
+      where: { createdAt: { gte: since }, sessionId: { not: null } },
+    });
+
+    return {
+      period: d,
+      landingViews: eventMap['landing_view'] || 0,
+      signupStarts: eventMap['signup_step_1'] || 0,
+      signupStep2: eventMap['signup_step_2'] || 0,
+      signupStep3: eventMap['signup_step_3'] || 0,
+      signupStep4: eventMap['signup_step_4'] || 0,
+      signupComplete: eventMap['signup_complete'] || 0,
+      signupRejected: eventMap['signup_rejected'] || 0,
+      clickSignup: eventMap['landing_click_signup'] || 0,
+      clickPlan: eventMap['landing_click_plan'] || 0,
+      uniqueVisitors: uniqueSessions.length,
+      conversionRate:
+        eventMap['landing_view'] > 0
+          ? Math.round(((eventMap['signup_complete'] || 0) / eventMap['landing_view']) * 10000) / 100
+          : 0,
+      dailyViews,
+      topReasons,
+      devices,
     };
   }
 }

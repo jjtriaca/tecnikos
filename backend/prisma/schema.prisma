@@ -1920,3 +1920,66 @@ model AddOnPurchase {
   @@index([subscriptionId])
   @@index([status])
 }
+
+// Signup attempt tracking (failed verifications + user feedback)
+model SignupAttempt {
+  id                String    @id @default(uuid())
+  status            String    @default("PENDING") // PENDING | REVIEWED | DISMISSED
+
+  // Company form data (steps 1-2)
+  slug              String?
+  companyName       String?
+  cnpj              String?
+  responsibleName   String?
+  responsibleEmail  String?
+  responsiblePhone  String?
+
+  // Plan info
+  planId            String?
+  planName          String?
+  billingCycle      String?
+
+  // CNPJ lookup result (full object)
+  cnpjData          Json?
+
+  // Verification result (full object from PPID + QSA)
+  verificationResult Json?
+
+  // Rejection reasons array
+  rejectionReasons  String[]
+
+  // User feedback (criticism submitted on rejection screen)
+  criticism         String?
+
+  // Metadata
+  ipAddress         String?
+  userAgent         String?
+
+  // Admin tracking
+  readAt            DateTime?
+  adminNotes        String?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status])
+  @@index([readAt])
+  @@index([createdAt])
+}
+
+// SaaS analytics events (lightweight tracking)
+model SaasEvent {
+  id          String    @id @default(uuid())
+  event       String    // "landing_view", "signup_step_1", "signup_complete", etc.
+  page        String?   // "/", "/signup", etc.
+  metadata    Json?     // { planId, stepTime, ... }
+  sessionId   String?   // Anonymous session ID (localStorage)
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt   DateTime  @default(now())
+
+  @@index([event])
+  @@index([createdAt])
+  @@index([sessionId])
+}

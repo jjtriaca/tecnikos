@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { track } from "@/lib/track";
 
 interface Plan {
   id: string;
@@ -104,7 +105,14 @@ function SignupPage() {
   const [result, setResult] = useState<{ success: boolean; message: string; slug?: string; skipPayment?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Signup attempt (rejection tracking)
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [criticism, setCriticism] = useState("");
+  const [criticismSent, setCriticismSent] = useState(false);
+  const [criticismSending, setCriticismSending] = useState(false);
+
   useEffect(() => {
+    track("signup_step_1");
     fetch("/api/public/saas/plans")
       .then((r) => r.ok ? r.json() : [])
       .then((data: Plan[]) => {
@@ -209,11 +217,54 @@ function SignupPage() {
       if (!r.ok) throw new Error(data.message || "Erro na verificacao");
 
       setVerifyResult(data);
+
+      // Auto-submit signup attempt on rejection
+      if (!data.approved && !data.skipped) {
+        track("signup_rejected", { reasons: data.reasons });
+        try {
+          const sp = selectedPlan;
+          const attemptRes = await fetch("/api/public/saas/signup-attempt", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              slug: form.slug,
+              companyName: form.name,
+              cnpj: form.cnpj,
+              responsibleName: form.responsibleName,
+              responsibleEmail: form.responsibleEmail,
+              responsiblePhone: form.responsiblePhone,
+              planId: selectedPlanId,
+              planName: sp?.name,
+              billingCycle,
+              cnpjData: cnpjData || undefined,
+              verificationResult: data,
+              rejectionReasons: data.reasons || [],
+            }),
+          });
+          const attemptData = await attemptRes.json();
+          if (attemptData.id) setAttemptId(attemptData.id);
+        } catch {}
+      }
     } catch (err: any) {
       setError(err.message || "Erro na verificacao de identidade");
     } finally {
       setVerifying(false);
     }
+  }
+
+  // Send criticism
+  async function handleSendCriticism() {
+    if (!attemptId || !criticism.trim()) return;
+    setCriticismSending(true);
+    try {
+      await fetch(`/api/public/saas/signup-attempt/${attemptId}/criticism`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ criticism: criticism.trim() }),
+      });
+      setCriticismSent(true);
+    } catch {}
+    finally { setCriticismSending(false); }
   }
 
   // After verification approved → call signup
@@ -237,9 +288,11 @@ function SignupPage() {
       setTenantId(data.tenantId);
 
       if (data.skipPayment) {
+        track("signup_complete", { skipPayment: true });
         setResult(data);
         setStep(totalSteps);
       } else {
+        track("signup_step_4");
         setCardForm((c) => ({ ...c, holderName: form.responsibleName, cpfCnpj: form.cnpj }));
         setStep(4);
       }
@@ -289,6 +342,7 @@ function SignupPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.message || "Erro ao processar pagamento");
 
+      track("signup_complete", { billingType });
       setResult({
         success: true,
         message: data.message,
@@ -462,7 +516,7 @@ function SignupPage() {
               </div>
             )}
 
-            <button onClick={() => { if (selectedPlanId) setStep(2); }} disabled={!selectedPlanId}
+            <button onClick={() => { if (selectedPlanId) { track("signup_step_2", { planId: selectedPlanId, billingCycle }); setStep(2); } }} disabled={!selectedPlanId}
               className="w-full mt-6 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
               Continuar
             </button>
@@ -475,7 +529,7 @@ function SignupPage() {
             <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Dados da empresa</h1>
             <p className="text-sm text-slate-500 text-center mb-8">Preencha os dados para criar sua conta</p>
 
-            <form onSubmit={(e) => { e.preventDefault(); setStep(3); }} className="space-y-4">
+            <form onSubmit={(e) => { e.preventDefault(); track("signup_step_3"); setStep(3); }} className="space-y-4">
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Subdominio da sua empresa *</label>
                 <div className="flex items-center">
@@ -658,6 +712,39 @@ function SignupPage() {
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {/* Criticism textarea on rejection */}
+                  {!verifyResult.approved && !verifyResult.skipped && attemptId && (
+                    <div className="mt-4 border-t border-red-200 pt-3">
+                      {criticismSent ? (
+                        <div className="flex items-center gap-2 text-green-700">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                          </svg>
+                          <span className="text-xs font-medium">Mensagem recebida! Obrigado pelo feedback.</span>
+                        </div>
+                      ) : (
+                        <>
+                          <label className="text-xs font-medium text-red-800 block mb-1.5">
+                            Deseja deixar uma mensagem? (opcional)
+                          </label>
+                          <textarea
+                            className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-400 resize-none"
+                            rows={3}
+                            value={criticism}
+                            onChange={(e) => setCriticism(e.target.value)}
+                            placeholder="Conte-nos o que aconteceu ou se acredita que houve um erro..."
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button type="button" onClick={handleSendCriticism}
+                              disabled={!criticism.trim() || criticismSending}
+                              className="px-4 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors">
+                              {criticismSending ? "Enviando..." : "Enviar mensagem"}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
