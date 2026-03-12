@@ -342,6 +342,10 @@ export class TenantPublicController {
       } catch (e) {
         // Schema might not exist, that's fine
       }
+      // Delete related records first (FK constraints)
+      await this.prisma.verificationSession.deleteMany({ where: { tenantId: pending.id } });
+      await this.prisma.subscription.deleteMany({ where: { tenantId: pending.id } });
+      await this.prisma.saasInvoice.deleteMany({ where: { tenantId: pending.id } });
       await this.prisma.tenant.delete({ where: { id: pending.id } });
     }
 

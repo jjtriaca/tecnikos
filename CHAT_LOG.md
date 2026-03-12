@@ -623,6 +623,6 @@ Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
 - Se camera falhar, mostra "Selecionar foto" (fallback necessario)
 - Asaas API Key: chave testada diretamente no container → API retorna "invalid_access_token"
 - Chave completa e correta no container (152 chars, 2x$ signs), mas Asaas rejeita
-- **Juliano precisa verificar/regenerar a chave no painel Asaas**
+- Juliano gerou nova chave no painel Asaas → atualizada no servidor → **FUNCIONANDO**
 
 **Builds:** Backend tsc OK, Frontend next build OK

@@ -20,7 +20,7 @@
 - [x] Removido botao "Galeria" da tela de selfie (camera) — so "Tirar foto"
 - [x] Fallback "Selecionar foto" apenas quando camera falha
 - [x] Investigacao Asaas API Key: chave correta no container mas rejeitada pela API
-- [ ] PENDENTE: Juliano precisa verificar/regenerar chave no painel Asaas
+- [x] Nova chave Asaas gerada e atualizada no servidor — API funcionando
 
 ## Decisao: SLS Obras operando pelo schema public
 - SLS Obras continua no schema public (tecnikos.com.br, admin@tecnikos.com.br)
@@ -29,14 +29,14 @@
 - Quando pronto: refazer signup pelo host para teste completo do fluxo tenant
 
 ## Proximos passos:
-1. Juliano: verificar/regenerar chave API no painel Asaas (https://www.asaas.com)
+1. ~~Asaas API Key~~ RESOLVIDO — nova chave funcionando
 2. SLS Obras: testar signup pelo host quando pronto para certificar
 3. Testar end-to-end: signup → upload docs → admin review → approve/reject
 4. Testar emissao NF via admin (com Asaas sandbox)
 5. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 6. Audit log review (pendente desde sessao 101)
 
-## Versao atual: v1.02.43
+## Versao atual: v1.02.45
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896
