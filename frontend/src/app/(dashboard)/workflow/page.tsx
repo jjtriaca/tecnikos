@@ -442,6 +442,7 @@ export default function WorkflowPage() {
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
         >
           <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-bold">1.</span>
             <span className="text-sm">⚡</span>
             <span className="text-sm font-semibold text-slate-700">Quando:</span>
             <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
@@ -483,6 +484,13 @@ export default function WorkflowPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Connection arrow: trigger → stages */}
+      <div className="flex justify-center -my-1">
+        <div className="w-0.5 h-6 bg-slate-300 relative">
+          <div className="absolute -bottom-1 -left-[3px] w-2 h-2 border-b-2 border-r-2 border-slate-300 transform rotate-45" />
+        </div>
       </div>
 
       {/* Stages */}

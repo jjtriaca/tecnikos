@@ -265,7 +265,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
           <span className="text-lg">{stage.icon}</span>
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-800">
-              {index + 1}. {stage.label}
+              {index + 2}. {stage.label}
             </h3>
             <p className="text-xs text-slate-400">{stage.status.replace('_', ' ')}</p>
           </div>

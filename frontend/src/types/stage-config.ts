@@ -670,6 +670,8 @@ export const AUTO_ACTION_LABELS: Record<string, { label: string; icon: string; h
   webhook:        { label: 'Webhook externo',                  icon: '🔗', hint: 'Envia os dados da OS para outro sistema via URL (integração com ERP, BI, etc.)' },
   assignTech:     { label: 'Atribuir técnico automaticamente', icon: '🎯', hint: 'Auto-atribui técnico por avaliação ou disponibilidade' },
   duplicateOS:    { label: 'Duplicar OS',                      icon: '📑', hint: 'Cria cópia da ordem de serviço' },
+  scheduleConfig: { label: 'Regime de agenda',                 icon: '📅', hint: 'Despacho manual com data/hora agendada' },
+  gestorApproval: { label: 'Aprovação do gestor',              icon: '👔', hint: 'Gestor analisa e aprova/reprova a conclusão' },
 };
 
 export const TIME_CONTROL_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
