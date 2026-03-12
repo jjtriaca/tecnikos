@@ -1,6 +1,6 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 106 — Deploy v1.02.31 OK
+## Status: SESSAO 106 — Deploy v1.02.32 OK
 
 ## Ultima sessao: 106 (12/03/2026)
 - Sessao 96: SEO + Landing Page + Pioneiro + SLS Obras (v1.02.16-17)
@@ -14,10 +14,10 @@
 - Sessao 106: Deploy v1.02.31
 
 ## O que foi feito na sessao 106:
-- [x] Verificacao builds (backend tsc + frontend next build OK)
 - [x] Deploy v1.02.31 — NFS-e Asaas + Dashboard Analytics Tooltips
 - [x] Migration 20260312160000_saas_invoice aplicada em producao
-- [x] Git commit + tag v1.02.31
+- [x] Gatilho (Trigger) no Fluxo de Atendimento — TriggerDefinition + UI + backend
+- [x] Deploy v1.02.32 — Gatilho no Fluxo de Atendimento
 
 ## Proximos passos:
 1. SLS Obras: fazer cadastro novamente pelo rito certo
@@ -26,7 +26,7 @@
 4. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 5. Audit log review (pendente desde sessao 101)
 
-## Versao atual: v1.02.31
+## Versao atual: v1.02.32
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896

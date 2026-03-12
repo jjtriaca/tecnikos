@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
@@ -61,6 +61,20 @@ export default function WorkflowPage() {
 
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Trigger section: collapsed by default, auto-collapse when scrolled out of view
+  const [triggerExpanded, setTriggerExpanded] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!triggerExpanded || !triggerRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (!entry.isIntersecting) setTriggerExpanded(false); },
+      { threshold: 0.1 },
+    );
+    observer.observe(triggerRef.current);
+    return () => observer.disconnect();
+  }, [triggerExpanded]);
 
   /* ── Load workflows ────────────────────────────────────── */
   const loadWorkflows = useCallback(async () => {
@@ -124,11 +138,8 @@ export default function WorkflowPage() {
     }
 
     const enabledStages = config.stages.filter(s => s.enabled);
-    const hasOnboarding = config.technicianOnboarding?.enabled &&
-      (config.technicianOnboarding.onNewTechnician?.enabled ||
-       config.technicianOnboarding.onNewSpecialization?.enabled);
-    if (enabledStages.length === 0 && !hasOnboarding) {
-      toast("Ative pelo menos uma etapa ou o onboarding de técnico", "error");
+    if (enabledStages.length === 0) {
+      toast("Ative pelo menos uma etapa", "error");
       return;
     }
 
@@ -237,10 +248,7 @@ export default function WorkflowPage() {
       Object.values(s.autoActions).filter(a => a.enabled).length +
       Object.values(s.timeControl).filter(a => a.enabled).length;
   }, 0);
-  const onboardingTriggers = [
-    config.technicianOnboarding?.onNewTechnician?.enabled,
-    config.technicianOnboarding?.onNewSpecialization?.enabled,
-  ].filter(Boolean).length;
+  // onboarding triggers removed — trigger system replaces it
 
   /* ── Render: LIST ──────────────────────────────────────── */
 
@@ -426,45 +434,55 @@ export default function WorkflowPage() {
         )}
       </div>
 
-      {/* Trigger Selector */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-          ⚡ Quando:
-        </h3>
-        <p className="text-xs text-slate-400 mb-3">
-          Escolha o evento que inicia este fluxo
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {TRIGGER_OPTIONS.map(opt => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => { setConfig({ ...config, trigger: opt }); setActivePreset(""); }}
-              className={`text-left rounded-lg border p-3 transition-all ${
-                config.trigger.id === opt.id
-                  ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200 shadow-sm"
-                  : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30"
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <span className="text-lg leading-none mt-0.5">{opt.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <span className={`text-sm font-medium block ${
-                    config.trigger.id === opt.id ? "text-blue-700" : "text-slate-700"
-                  }`}>
-                    {opt.label}
-                  </span>
-                  <span className="text-[11px] text-slate-400 block mt-0.5 leading-tight">
-                    {opt.description}
-                  </span>
-                </div>
-                {config.trigger.id === opt.id && (
-                  <span className="text-blue-600 text-sm shrink-0">✓</span>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
+      {/* Trigger Selector — collapsible */}
+      <div ref={triggerRef} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setTriggerExpanded(!triggerExpanded)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm">⚡</span>
+            <span className="text-sm font-semibold text-slate-700">Quando:</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+              {config.trigger.icon} {config.trigger.label}
+            </span>
+          </div>
+          <svg className={`w-4 h-4 text-slate-400 transition-transform ${triggerExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {triggerExpanded && (
+          <div className="px-4 pb-3 border-t border-slate-100 pt-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+              {TRIGGER_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => { setConfig({ ...config, trigger: opt }); setActivePreset(""); }}
+                  className={`text-left rounded-md border px-2 py-1.5 transition-all ${
+                    config.trigger.id === opt.id
+                      ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200"
+                      : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs leading-none">{opt.icon}</span>
+                    <span className={`text-[11px] font-medium truncate ${
+                      config.trigger.id === opt.id ? "text-blue-700" : "text-slate-600"
+                    }`}>
+                      {opt.label}
+                    </span>
+                    {config.trigger.id === opt.id && (
+                      <span className="text-blue-600 text-[10px] shrink-0 ml-auto">✓</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stages */}
@@ -496,18 +514,6 @@ export default function WorkflowPage() {
         </div>
       </div>
 
-      {/* Technician Onboarding Section */}
-      <div>
-        <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-          👷 Onboarding de Tecnico
-          <span className="text-xs font-normal text-slate-400">&mdash; configure contratos e aceites</span>
-        </h2>
-        <TechnicianOnboardingSection
-          config={config.technicianOnboarding}
-          onChange={(onboarding: TechnicianOnboardingConfig) => setConfig({ ...config, technicianOnboarding: onboarding })}
-        />
-      </div>
-
       {/* Summary + Save */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between">
@@ -515,9 +521,6 @@ export default function WorkflowPage() {
             <h3 className="text-sm font-semibold text-slate-700">Resumo</h3>
             <p className="text-xs text-slate-500 mt-1">
               ⚡ {config.trigger.label} · {totalEnabled} {totalEnabled === 1 ? "etapa ativa" : "etapas ativas"} · {totalActions} {totalActions === 1 ? "ação configurada" : "ações configuradas"}
-              {onboardingTriggers > 0 && (
-                <> · {onboardingTriggers} {onboardingTriggers === 1 ? "gatilho de onboarding" : "gatilhos de onboarding"}</>
-              )}
             </p>
             {totalEnabled > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
