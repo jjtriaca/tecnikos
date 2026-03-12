@@ -453,7 +453,7 @@ export class ChatIAService {
 
   // ── Welcome Message ────────────────────────────────────
 
-  async getWelcomeMessage(companyId: string, tenantSchema?: string): Promise<MessageResult> {
+  async getWelcomeMessage(companyId: string, tenantSchema?: string, tenantStatus?: string): Promise<MessageResult> {
     const onboardingStatus = await this.onboarding.getStatus(companyId, tenantSchema);
     const db = tenantSchema ? this.tenantConnection.getClient(tenantSchema) : this.prisma;
     const company = await db.company.findFirst({ select: { tradeName: true, name: true } });
@@ -469,6 +469,11 @@ export class ChatIAService {
 
       let content = `Olá! 👋 Bem-vindo ao **Tecnikos**!\n\n`;
       content += `Sou seu assistente e vou te guiar na configuração do sistema para a **${companyName}**.\n\n`;
+
+      // Show verification status notice if tenant is pending
+      if (tenantStatus === 'PENDING_VERIFICATION') {
+        content += `⏳ **Seus documentos estão em análise.** Enquanto aguarda a validação, algumas funcionalidades como Ordens de Serviço, Financeiro e Orçamentos estarão temporariamente bloqueadas. Mas não se preocupe — você já pode ir configurando o sistema!\n\n`;
+      }
 
       // Progress bar
       const filled = Math.round(pct / 10);

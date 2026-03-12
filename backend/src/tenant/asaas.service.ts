@@ -213,7 +213,8 @@ export class AsaasService {
         const tenant = subscription.tenant;
         if (tenant.status !== 'ACTIVE') {
           await this.tenantService.activate(tenantId);
-          await this.onboarding.onboard(tenantId);
+          // Pass stored passwordHash from signup (if available)
+          await this.onboarding.onboard(tenantId, tenant.passwordHash || undefined);
           this.logger.log(`Tenant ${tenant.slug} activated + onboarded via payment`);
         }
 

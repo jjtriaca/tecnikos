@@ -1,61 +1,77 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 100 — Modulo de Orcamentos COMPLETO (pronto para deploy)
+## Status: SESSAO 103 — Verificacao Manual de Documentos COMPLETO (pronto para deploy)
 
-## Ultima sessao: 100 (12/03/2026)
+## Ultima sessao: 103 (12/03/2026)
 - Sessao 96: SEO + Landing Page + Pioneiro + SLS Obras (v1.02.16-17)
 - Sessao 97: SMTP + Chat IA backend + frontend
 - Sessao 98: Chat IA Deploy + Streaming + Asaas + Wizards (v1.02.18-24)
-- Sessao 99: Plano Orcamentos + Backend completo + Lista frontend
-- Sessao 100: Frontend Builder + Detalhe + Pagina Publica + Build OK
+- Sessao 99-100: Modulo de Orcamentos COMPLETO
+- Sessao 101: Senha Forte no Signup + Convites + Reset Password
+- Sessao 102-103: Verificacao Manual de Documentos COMPLETO
 
-## O que foi feito na sessao 100:
+## O que foi feito na sessao 102-103:
 
-### Modulo de Orcamentos (Quotes) — COMPLETO
-- [x] Prisma models + migration (Quote, QuoteItem, QuoteAttachment)
-- [x] Backend CRUD completo (service, controller, DTOs, public controller, PDF)
-- [x] Sidebar + Middleware atualizados
-- [x] Frontend Lista (/quotes)
-- [x] Frontend Builder (/quotes/new + /quotes/[id]/edit)
-- [x] Frontend Detalhe (/quotes/[id])
-- [x] Pagina Publica (/q/[token]) — aprovacao pelo cliente
+### Verificacao Manual de Documentos — COMPLETO
+- [x] Schema Prisma: VerificationSession model + migration
+- [x] Backend: verification module (service, controller, upload, resubmit)
+- [x] Backend: admin review endpoints (pending-verifications, approve, reject)
+- [x] Backend: tenant middleware permite PENDING_VERIFICATION
+- [x] Backend: signup roda onboarding imediatamente
+- [x] Backend: /auth/me retorna tenantStatus
+- [x] Backend: tenant-verification-status endpoint
+- [x] Backend: ChatIA welcome avisa sobre verificacao pendente
+- [x] Backend: PPID modulo removido
+- [x] Frontend: AuthContext com tenantStatus + verificationInfo
+- [x] Frontend: VerificationBanner (pendente/aprovado/recusado)
+- [x] Frontend: Sidebar com links desabilitados quando pendente
+- [x] Frontend: /verify/[token] com upload + rejeicao + resubmit
+- [x] Frontend: Admin tenants page com review modal
+- [x] Frontend: signup page limpa de codigo PPID
 - [x] Backend tsc --noEmit OK
 - [x] Frontend next build OK
 
 ### Arquivos criados:
 **Backend:**
-- backend/src/quote/quote.module.ts
-- backend/src/quote/quote.service.ts
-- backend/src/quote/quote.controller.ts
-- backend/src/quote/quote-public.controller.ts
-- backend/src/quote/quote-pdf.service.ts
-- backend/src/quote/dto/create-quote.dto.ts
-- backend/src/quote/dto/update-quote.dto.ts
-- backend/src/quote/dto/send-quote.dto.ts
-- backend/prisma/migrations/20260312000000_quote_module/migration.sql
+- backend/src/verification/verification.module.ts
+- backend/src/verification/verification.service.ts
+- backend/src/verification/verification.controller.ts
 
 **Frontend:**
-- frontend/src/app/(dashboard)/quotes/page.tsx (lista)
-- frontend/src/app/(dashboard)/quotes/new/page.tsx (criar)
-- frontend/src/app/(dashboard)/quotes/[id]/page.tsx (detalhe)
-- frontend/src/app/(dashboard)/quotes/[id]/edit/page.tsx (editar)
-- frontend/src/app/q/[token]/page.tsx (publica)
+- frontend/src/app/verify/[token]/page.tsx
+- frontend/src/components/layout/VerificationBanner.tsx
 
-**Modificados:**
+### Arquivos modificados:
+**Backend:**
 - backend/prisma/schema.prisma
-- backend/src/common/code-generator.service.ts
-- backend/src/common/audit/audit.service.ts
+- backend/src/tenant/tenant.middleware.ts
+- backend/src/tenant/tenant-public.controller.ts
+- backend/src/tenant/tenant.controller.ts
+- backend/src/tenant/tenant.module.ts
+- backend/src/auth/auth.controller.ts
+- backend/src/chat-ia/chat-ia.service.ts
+- backend/src/chat-ia/chat-ia.controller.ts
 - backend/src/app.module.ts
+
+**Frontend:**
+- frontend/src/contexts/AuthContext.tsx
+- frontend/src/components/layout/AuthLayout.tsx
 - frontend/src/components/layout/Sidebar.tsx
+- frontend/src/app/signup/page.tsx
+- frontend/src/app/(dashboard)/ctrl-zr8k2x/tenants/page.tsx
 - frontend/src/middleware.ts
+
+### Arquivos removidos:
+- backend/src/ppid/ppid.module.ts
+- backend/src/ppid/ppid.service.ts
 
 ## Proximos passos:
 1. Deploy para producao
-2. Testar end-to-end: criar orcamento, enviar, aprovar via link publico
-3. Testar gerar OS a partir de orcamento aprovado
-4. Integrar secao Orcamentos na pagina de detalhe da OS (opcional)
+2. Testar end-to-end: signup → upload docs → admin review → approve/reject
+3. Testar resubmit: reject → reenviar docs → nova sessao
+4. Audit log review (pendente de sessao anterior)
 
-## Versao atual: v1.02.24 (deploy pendente com orcamentos)
+## Versao atual: v1.02.24 (deploy pendente com verificacao manual)
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896

@@ -7,8 +7,10 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import * as crypto from 'crypto';
 import { JwtPayload, AuthenticatedUser } from './auth.types';
 import {
   DEFAULT_REFRESH_TTL_SECONDS,
@@ -25,6 +27,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly emailService: EmailService,
   ) {
     this.refreshTtlSeconds =
       Number(process.env.JWT_REFRESH_TTL) || DEFAULT_REFRESH_TTL_SECONDS;
@@ -74,6 +77,11 @@ export class AuthService {
     });
 
     if (!user) throw new UnauthorizedException('Credenciais inválidas');
+
+    // User created via invite but hasn't set password yet
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Voce ainda nao definiu sua senha. Verifique seu email para o link de convite.');
+    }
 
     const passwordOk = await bcrypt.compare(password, user.passwordHash);
     if (!passwordOk) throw new UnauthorizedException('Credenciais inválidas');
@@ -249,6 +257,222 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     return { ok: true, revoked: sessions.length - (currentSessionId ? 1 : 0) };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  FORGOT / RESET PASSWORD                                            */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Request password reset — sends email with reset link.
+   * Always returns success (don't reveal if email exists).
+   */
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.prisma.user.findFirst({
+      where: { email: email.toLowerCase().trim(), deletedAt: null },
+      include: { company: { select: { name: true } } },
+    });
+
+    if (!user) {
+      // Don't reveal if email exists - just return silently
+      this.logger.log(`Password reset requested for unknown email: ${email}`);
+      return;
+    }
+
+    // Generate secure token (64 hex chars)
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: token,
+        passwordResetExpiresAt: expiresAt,
+      },
+    });
+
+    // Send email
+    const baseUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+    const resetLink = `${baseUrl}/reset-password/${token}`;
+
+    const html = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Tecnikos</h1>
+        </div>
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
+          <h2 style="color: #1e293b; margin: 0 0 8px; font-size: 20px;">Redefinir senha</h2>
+          <p style="color: #475569; line-height: 1.6; margin: 0 0 20px;">
+            Ola, <strong>${user.name}</strong>! Recebemos uma solicitacao para redefinir sua senha.
+          </p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${resetLink}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
+              Redefinir minha senha
+            </a>
+          </div>
+          <p style="color: #94a3b8; font-size: 12px; margin: 20px 0 0;">
+            Este link expira em 1 hora. Se voce nao solicitou esta alteracao, ignore este email.
+          </p>
+        </div>
+        <div style="background: #f1f5f9; padding: 16px; border-radius: 0 0 12px 12px; text-align: center; border: 1px solid #e2e8f0; border-top: none;">
+          <p style="color: #94a3b8; font-size: 11px; margin: 0;">Tecnikos — tecnikos.com.br</p>
+        </div>
+      </div>
+    `;
+
+    this.emailService.sendSystemEmail(
+      user.email,
+      'Redefinir senha — Tecnikos',
+      html,
+    ).catch((err) => {
+      this.logger.error(`Failed to send password reset email: ${err.message}`);
+    });
+
+    this.logger.log(`Password reset token generated for ${user.email}`);
+  }
+
+  /**
+   * Validate a password reset token (used by frontend to show form).
+   */
+  async validateResetToken(token: string): Promise<{ valid: boolean; email?: string }> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        passwordResetToken: token,
+        passwordResetExpiresAt: { gt: new Date() },
+        deletedAt: null,
+      },
+    });
+    return { valid: !!user, email: user?.email };
+  }
+
+  /**
+   * Reset password using a valid token.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    // Validate strong password
+    const pwError = this.validateStrongPassword(newPassword);
+    if (pwError) throw new BadRequestException(pwError);
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        passwordResetToken: token,
+        passwordResetExpiresAt: { gt: new Date() },
+        deletedAt: null,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Link de redefinicao invalido ou expirado');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+        passwordSetAt: new Date(),
+      },
+    });
+
+    // Revoke all existing sessions (force re-login with new password)
+    await this.prisma.session.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    this.logger.log(`Password reset completed for ${user.email}`);
+  }
+
+  /**
+   * Send invite email to a new user with set-password link.
+   */
+  async sendInviteEmail(userId: string, companyName: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return;
+
+    // Generate token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: token,
+        passwordResetExpiresAt: expiresAt,
+        invitedAt: new Date(),
+      },
+    });
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+    const setPasswordLink = `${baseUrl}/reset-password/${token}`;
+
+    const html = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Tecnikos</h1>
+        </div>
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
+          <h2 style="color: #1e293b; margin: 0 0 8px; font-size: 20px;">Voce foi convidado!</h2>
+          <p style="color: #475569; line-height: 1.6; margin: 0 0 20px;">
+            Ola, <strong>${user.name}</strong>! Voce foi adicionado a equipe da empresa <strong>${companyName}</strong> no Tecnikos.
+          </p>
+          <p style="color: #475569; line-height: 1.6; margin: 0 0 20px;">
+            Clique no botao abaixo para definir sua senha e acessar o sistema.
+          </p>
+          <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px; margin: 0 0 20px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="color: #64748b; padding: 4px 0; font-size: 13px; width: 80px;">Email:</td>
+                <td style="color: #0f172a; padding: 4px 0; font-size: 13px; font-weight: 600;">${user.email}</td>
+              </tr>
+            </table>
+          </div>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${setPasswordLink}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
+              Definir minha senha
+            </a>
+          </div>
+          <p style="color: #94a3b8; font-size: 12px; margin: 20px 0 0;">
+            Este link expira em 7 dias.
+          </p>
+        </div>
+        <div style="background: #f1f5f9; padding: 16px; border-radius: 0 0 12px 12px; text-align: center; border: 1px solid #e2e8f0; border-top: none;">
+          <p style="color: #94a3b8; font-size: 11px; margin: 0;">Tecnikos — tecnikos.com.br</p>
+        </div>
+      </div>
+    `;
+
+    this.emailService.sendSystemEmail(
+      user.email,
+      `Convite — ${companyName} no Tecnikos`,
+      html,
+    ).catch((err) => {
+      this.logger.error(`Failed to send invite email: ${err.message}`);
+    });
+  }
+
+  /**
+   * Resend invite email for a user who hasn't set their password yet.
+   */
+  async resendInvite(userId: string, companyName: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.passwordSetAt) {
+      throw new BadRequestException('Usuario ja definiu uma senha');
+    }
+    await this.sendInviteEmail(userId, companyName);
+  }
+
+  /** Validate strong password */
+  private validateStrongPassword(password: string): string | null {
+    if (!password || password.length < 8) return 'A senha deve ter no minimo 8 caracteres';
+    if (!/[A-Z]/.test(password)) return 'A senha deve conter pelo menos uma letra maiuscula';
+    if (!/[a-z]/.test(password)) return 'A senha deve conter pelo menos uma letra minuscula';
+    if (!/\d/.test(password)) return 'A senha deve conter pelo menos um numero';
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) return 'A senha deve conter pelo menos um caractere especial';
+    return null;
   }
 
   /* ------------------------------------------------------------------ */

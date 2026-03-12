@@ -34,6 +34,7 @@ import { ContractModule } from './contract/contract.module';
 import { TenantModule } from './tenant/tenant.module';
 import { ChatIAModule } from './chat-ia/chat-ia.module';
 import { QuoteModule } from './quote/quote.module';
+import { VerificationModule } from './verification/verification.module';
 
 import { RequestLoggerMiddleware } from './common/logger/request-logger.middleware';
 import { AuditModule } from './common/audit/audit.module';
@@ -83,6 +84,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     TenantModule,
     ChatIAModule,
     QuoteModule,
+    VerificationModule,
   ],
   providers: [
     // Order matters: Throttle → JWT Auth → Roles

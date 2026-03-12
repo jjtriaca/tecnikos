@@ -159,12 +159,27 @@ const NAV_ITEMS: NavItem[] = [
   ] },
 ];
 
+// Routes allowed when tenant is PENDING_VERIFICATION (settings, dashboard, etc.)
+const ALLOWED_WHEN_PENDING = new Set([
+  "/dashboard",
+  "/settings",
+  "/settings/billing",
+  "/settings/devices",
+  "/settings/email",
+  "/settings/fiscal",
+  "/settings/whatsapp",
+  "/users",
+  "/workflow",
+  "/notifications",
+]);
+
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  tenantPending?: boolean;
 }
 
-export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
   const { fiscalEnabled } = useFiscalModule();
@@ -277,39 +292,67 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             (item.href !== "/dashboard" && pathname.startsWith(item.href))
           );
 
+          // Check if this item is disabled due to pending verification
+          const isParentAllowed = hasChildren
+            ? item.children!.some((c) => ALLOWED_WHEN_PENDING.has(c.href))
+            : ALLOWED_WHEN_PENDING.has(item.href);
+          const isDisabled = tenantPending && !isParentAllowed;
+
           if (hasChildren) {
             return (
               <div key={item.href}>
                 <button
-                  onClick={() => collapsed ? undefined : toggleMenu(item.href)}
+                  onClick={() => {
+                    if (isDisabled) return;
+                    if (!collapsed) toggleMenu(item.href);
+                  }}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 ${
-                    isParentActive
-                      ? "bg-blue-600/20 text-blue-400"
-                      : "text-slate-400 hover:bg-white/5 hover:text-white"
+                    isDisabled
+                      ? "text-slate-600 cursor-not-allowed opacity-50"
+                      : isParentActive
+                        ? "bg-blue-600/20 text-blue-400"
+                        : "text-slate-400 hover:bg-white/5 hover:text-white"
                   }`}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? item.label : isDisabled ? "Disponível após validação dos documentos" : undefined}
                 >
                   <span className="flex-shrink-0 opacity-90">{item.icon}</span>
                   {!collapsed && (
                     <>
                       <span className="truncate flex-1 text-left">{item.label}</span>
-                      <svg
-                        className={`h-3.5 w-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+                      {isDisabled ? (
+                        <svg className="h-3.5 w-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                        </svg>
+                      ) : (
+                        <svg
+                          className={`h-3.5 w-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      )}
                     </>
                   )}
                 </button>
-                {!collapsed && isExpanded && (
+                {!collapsed && isExpanded && !isDisabled && (
                   <div className="ml-5 mt-0.5 flex flex-col gap-0.5 border-l border-white/10 pl-3">
                     {item.children!.map((child) => {
                       const isChildActive = child.href === item.href
                         ? pathname === child.href
                         : (pathname === child.href || pathname.startsWith(child.href + "/"));
+                      const isChildDisabled = tenantPending && !ALLOWED_WHEN_PENDING.has(child.href);
+                      if (isChildDisabled) {
+                        return (
+                          <span
+                            key={child.href}
+                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-medium text-slate-600 opacity-50 cursor-not-allowed"
+                          >
+                            <span className="truncate">{child.label}</span>
+                          </span>
+                        );
+                      }
                       return (
                         <Link
                           key={child.href}
@@ -327,6 +370,26 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   </div>
                 )}
               </div>
+            );
+          }
+
+          if (isDisabled) {
+            return (
+              <span
+                key={item.href}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-600 cursor-not-allowed opacity-50"
+                title={collapsed ? item.label : "Disponível após validação dos documentos"}
+              >
+                <span className="flex-shrink-0 opacity-90">{item.icon}</span>
+                {!collapsed && (
+                  <>
+                    <span className="truncate flex-1">{item.label}</span>
+                    <svg className="h-3.5 w-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                    </svg>
+                  </>
+                )}
+              </span>
             );
           }
 

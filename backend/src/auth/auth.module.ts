@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { TechAuthController } from './tech-auth.controller';
 import { TechAuthService } from './tech-auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { EmailModule } from '../email/email.module';
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -20,6 +21,7 @@ function getJwtSecret(): string {
 
 @Module({
   imports: [
+    EmailModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: getJwtSecret(),

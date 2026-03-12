@@ -6,7 +6,24 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
 import { AsaasService } from './asaas.service';
 import { TenantOnboardingService } from './tenant-onboarding.service';
-import { PpidService } from '../ppid/ppid.service';
+import * as bcrypt from 'bcrypt';
+
+/**
+ * Validate strong password:
+ * - Min 8 chars
+ * - At least 1 uppercase
+ * - At least 1 lowercase
+ * - At least 1 digit
+ * - At least 1 special char
+ */
+function validateStrongPassword(password: string): string | null {
+  if (!password || password.length < 8) return 'A senha deve ter no mínimo 8 caracteres';
+  if (!/[A-Z]/.test(password)) return 'A senha deve conter pelo menos uma letra maiúscula';
+  if (!/[a-z]/.test(password)) return 'A senha deve conter pelo menos uma letra minúscula';
+  if (!/\d/.test(password)) return 'A senha deve conter pelo menos um número';
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) return 'A senha deve conter pelo menos um caractere especial';
+  return null;
+}
 
 function isValidCNPJ(cnpj: string): boolean {
   const digits = cnpj.replace(/\D/g, '');
@@ -37,7 +54,6 @@ export class TenantPublicController {
     private readonly tenantService: TenantService,
     private readonly asaasService: AsaasService,
     private readonly onboarding: TenantOnboardingService,
-    private readonly ppid: PpidService,
   ) {}
 
   /**
@@ -201,94 +217,6 @@ export class TenantPublicController {
   }
 
   /**
-   * Verify identity via ppid (classification + OCR + liveness + face match).
-   * Called from signup flow before submitting.
-   */
-  @Public()
-  @Post('verify-identity')
-  async verifyIdentity(
-    @Body() body: { documentBase64: string; selfieBase64: string; cnpj?: string },
-  ) {
-    if (!body.documentBase64 || !body.selfieBase64) {
-      throw new BadRequestException('documentBase64 e selfieBase64 são obrigatórios');
-    }
-
-    if (!this.ppid.isConfigured) {
-      this.logger.warn('PPID not configured — skipping identity verification');
-      return {
-        approved: true,
-        skipped: true,
-        message: 'Verificação de identidade não configurada — aprovado automaticamente',
-      };
-    }
-
-    const result = await this.ppid.fullVerification(body.documentBase64, body.selfieBase64);
-
-    // Cross-validate: check if document CPF belongs to a partner/admin of the company
-    let qsaValidation: { validated: boolean; socioNome?: string; message?: string } = {
-      validated: false,
-      message: 'CNPJ não informado para validação de sócios',
-    };
-
-    const ocrCpf = (result.ocr?.fields?.cpf || '').replace(/\D/g, '');
-
-    if (body.cnpj && ocrCpf && result.approved) {
-      const cnpjDigits = body.cnpj.replace(/\D/g, '');
-      try {
-        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjDigits}`);
-        if (res.ok) {
-          const data = await res.json();
-          const qsa: any[] = Array.isArray(data.qsa) ? data.qsa : [];
-
-          const match = qsa.find((s: any) => {
-            const socioCpf = (s.cnpj_cpf_do_socio || '').replace(/\D/g, '');
-            return socioCpf === ocrCpf;
-          });
-
-          if (match) {
-            qsaValidation = {
-              validated: true,
-              socioNome: match.nome_socio,
-              message: `CPF vinculado ao sócio: ${match.nome_socio} (${match.qualificacao_socio})`,
-            };
-          } else {
-            qsaValidation = {
-              validated: false,
-              message: 'O CPF do documento não corresponde a nenhum sócio ou administrador desta empresa',
-            };
-            // Block approval if CPF doesn't match any partner
-            result.approved = false;
-            result.reasons.push('CPF do documento não consta no quadro societário (QSA) da empresa');
-          }
-        } else {
-          qsaValidation = {
-            validated: false,
-            message: 'Não foi possível consultar o QSA da empresa',
-          };
-        }
-      } catch (err: any) {
-        this.logger.warn(`QSA validation failed: ${err.message}`);
-        qsaValidation = {
-          validated: false,
-          message: 'Erro ao validar quadro societário',
-        };
-      }
-    }
-
-    return {
-      approved: result.approved,
-      classification: result.classification,
-      ocrFields: result.ocr?.fields,
-      documentType: result.ocr?.documentType,
-      livenessScore: result.liveness?.score,
-      faceMatchScore: result.faceMatch?.similaridade,
-      qsaValidation,
-      reasons: result.reasons,
-      error: result.error,
-    };
-  }
-
-  /**
    * Public signup — creates a new tenant with PENDING_VERIFICATION status.
    * If a voucher with skipPayment is provided, tenant goes directly to ACTIVE.
    */
@@ -305,12 +233,22 @@ export class TenantPublicController {
       responsibleName: string;
       responsibleEmail: string;
       responsiblePhone?: string;
+      password: string;
       promoCode?: string;
     },
   ) {
     // Validate required fields
     if (!body.slug || !body.name || !body.planId || !body.responsibleName || !body.responsibleEmail) {
       throw new BadRequestException('Campos obrigatórios: slug, name, planId, responsibleName, responsibleEmail');
+    }
+
+    // Validate password
+    if (!body.password) {
+      throw new BadRequestException('Senha é obrigatória');
+    }
+    const passwordError = validateStrongPassword(body.password);
+    if (passwordError) {
+      throw new BadRequestException(passwordError);
     }
 
     // Validate CNPJ
@@ -378,6 +316,9 @@ export class TenantPublicController {
       });
     }
 
+    // Hash the password for storage
+    const passwordHash = await bcrypt.hash(body.password, 10);
+
     // Create tenant (normalize CNPJ to digits only)
     const tenant = await this.tenantService.provisionTenant({
       slug: body.slug,
@@ -387,12 +328,16 @@ export class TenantPublicController {
       responsibleName: body.responsibleName,
       responsibleEmail: body.responsibleEmail,
       responsiblePhone: body.responsiblePhone,
+      passwordHash,
     });
 
-    // If voucher skips payment, activate + onboard immediately
+    // Always run onboarding so user can login immediately
+    // (creates Company + User in tenant schema, sends welcome email)
+    await this.onboarding.onboard(tenant.id, passwordHash);
+
+    // If voucher skips payment, activate immediately
     if (skipPayment) {
       await this.tenantService.activate(tenant.id);
-      await this.onboarding.onboard(tenant.id);
     }
 
     return {

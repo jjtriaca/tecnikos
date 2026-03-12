@@ -60,6 +60,6 @@ export const config = {
      * - login pages
      * - public pages (p/, rate/, demo)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|login|tech/login|p/|q/|rate/|demo|$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|login|tech/login|p/|q/|rate/|demo|reset-password|verify/|$).*)',
   ],
 };

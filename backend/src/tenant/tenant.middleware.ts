@@ -77,16 +77,8 @@ export class TenantMiddleware implements NestMiddleware {
         return;
       }
 
-      if (
-        tenant.status === TenantStatus.PENDING_VERIFICATION ||
-        tenant.status === TenantStatus.PENDING_PAYMENT
-      ) {
-        res.status(403).json({
-          statusCode: 403,
-          message: 'Conta em processo de ativação. Aguarde a verificação.',
-        });
-        return;
-      }
+      // PENDING_VERIFICATION and PENDING_PAYMENT: let through but mark status
+      // The frontend will show appropriate banners and block certain actions
 
       // Attach tenant info to request
       req.tenantId = tenant.id;

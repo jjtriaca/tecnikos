@@ -23,11 +23,21 @@ export class UserService {
         name: true,
         email: true,
         roles: true,
+        invitedAt: true,
+        passwordSetAt: true,
         createdAt: true,
         updatedAt: true,
       },
       orderBy: { name: 'asc' },
     });
+  }
+
+  async getCompanyName(companyId: string): Promise<string> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true },
+    });
+    return company?.name || 'Empresa';
   }
 
   async findOne(id: string, companyId: string) {
@@ -61,7 +71,7 @@ export class UserService {
       companyId: string;
       name: string;
       email: string;
-      password: string;
+      password?: string; // Optional — if not provided, user is invited via email
       roles: UserRole[];
     },
     actor?: AuthenticatedUser,
@@ -74,7 +84,7 @@ export class UserService {
     });
     if (existing) throw new ConflictException('Email já cadastrado');
 
-    const passwordHash = await bcrypt.hash(data.password, 10);
+    const passwordHash = data.password ? await bcrypt.hash(data.password, 10) : null;
     const code = await this.codeGenerator.generateCode(data.companyId, 'USER');
 
     const created = await this.prisma.user.create({
@@ -82,9 +92,10 @@ export class UserService {
         companyId: data.companyId,
         code,
         name: data.name,
-        email: data.email,
+        email: data.email.toLowerCase().trim(),
         passwordHash,
         roles: data.roles,
+        invitedAt: !data.password ? new Date() : null,
       },
       select: {
         id: true,
@@ -93,6 +104,8 @@ export class UserService {
         email: true,
         roles: true,
         createdAt: true,
+        invitedAt: true,
+        passwordSetAt: true,
       },
     });
 

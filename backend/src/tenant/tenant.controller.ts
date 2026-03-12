@@ -19,6 +19,8 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { TenantMiddleware } from './tenant.middleware';
+import { TenantOnboardingService } from './tenant-onboarding.service';
+import { EmailService } from '../email/email.service';
 import { Public } from '../auth/decorators/public.decorator';
 
 /**
@@ -33,6 +35,8 @@ export class TenantController {
     private readonly tenantService: TenantService,
     private readonly prisma: PrismaService,
     private readonly tenantMiddleware: TenantMiddleware,
+    private readonly onboarding: TenantOnboardingService,
+    private readonly emailService: EmailService,
   ) {}
 
   // ─── TENANTS ──────────────────────────────────────────
@@ -240,6 +244,176 @@ export class TenantController {
         ...(body.adminNotes !== undefined && { adminNotes: body.adminNotes }),
       },
     });
+  }
+
+  // ─── VERIFICATION REVIEW ─────────────────────────────
+
+  /** List tenants with pending document verification */
+  @Get('/pending-verifications')
+  async getPendingVerifications() {
+    const sessions = await this.prisma.verificationSession.findMany({
+      where: { reviewStatus: 'PENDING' },
+      include: {
+        tenant: {
+          select: {
+            id: true, slug: true, name: true, cnpj: true, status: true,
+            responsibleName: true, responsibleEmail: true, responsiblePhone: true,
+            createdAt: true, planId: true,
+            plan: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sessions.map((s) => ({
+      sessionId: s.id,
+      tenantId: s.tenant.id,
+      tenantName: s.tenant.name,
+      tenantSlug: s.tenant.slug,
+      cnpj: s.tenant.cnpj,
+      responsibleName: s.tenant.responsibleName,
+      responsibleEmail: s.tenant.responsibleEmail,
+      responsiblePhone: s.tenant.responsiblePhone,
+      planName: s.tenant.plan?.name,
+      uploadedCount: s.uploadedCount,
+      uploadComplete: s.uploadComplete,
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+    }));
+  }
+
+  /** Get verification documents for a tenant */
+  @Get(':id/verification')
+  async getVerification(@Param('id') id: string) {
+    const session = await this.prisma.verificationSession.findFirst({
+      where: { tenantId: id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        tenant: {
+          select: {
+            id: true, slug: true, name: true, cnpj: true,
+            responsibleName: true, responsibleEmail: true, responsiblePhone: true,
+            plan: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    if (!session) throw new NotFoundException('Verificação não encontrada para este tenant');
+
+    return {
+      sessionId: session.id,
+      tenant: session.tenant,
+      cnpjCardUrl: session.cnpjCardUrl,
+      docFrontUrl: session.docFrontUrl,
+      docBackUrl: session.docBackUrl,
+      selfieFarUrl: session.selfieFarUrl,
+      selfieMediumUrl: session.selfieMediumUrl,
+      selfieCloseUrl: session.selfieCloseUrl,
+      uploadedCount: session.uploadedCount,
+      uploadComplete: session.uploadComplete,
+      reviewStatus: session.reviewStatus,
+      reviewedAt: session.reviewedAt,
+      reviewedBy: session.reviewedBy,
+      rejectionReason: session.rejectionReason,
+      createdAt: session.createdAt,
+      expiresAt: session.expiresAt,
+    };
+  }
+
+  /** Approve verification — activates tenant */
+  @Post(':id/approve-verification')
+  async approveVerification(
+    @Param('id') id: string,
+    @Body('reviewedBy') reviewedBy?: string,
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant não encontrado');
+
+    const session = await this.prisma.verificationSession.findFirst({
+      where: { tenantId: id, reviewStatus: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!session) throw new NotFoundException('Nenhuma verificação pendente');
+
+    // Update session
+    await this.prisma.verificationSession.update({
+      where: { id: session.id },
+      data: {
+        reviewStatus: 'APPROVED',
+        reviewedAt: new Date(),
+        reviewedBy: reviewedBy || 'Admin',
+      },
+    });
+
+    // Activate tenant (onboarding already ran at signup)
+    await this.tenantService.activate(id);
+    this.tenantMiddleware.clearCache();
+
+    return { success: true, message: 'Tenant aprovado e ativado com sucesso!' };
+  }
+
+  /** Reject verification */
+  @Post(':id/reject-verification')
+  async rejectVerification(
+    @Param('id') id: string,
+    @Body() body: { reason?: string; reviewedBy?: string },
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant não encontrado');
+
+    const session = await this.prisma.verificationSession.findFirst({
+      where: { tenantId: id, reviewStatus: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!session) throw new NotFoundException('Nenhuma verificação pendente');
+
+    // Update session
+    await this.prisma.verificationSession.update({
+      where: { id: session.id },
+      data: {
+        reviewStatus: 'REJECTED',
+        reviewedAt: new Date(),
+        reviewedBy: body.reviewedBy || 'Admin',
+        rejectionReason: body.reason || 'Documentos não aprovados',
+      },
+    });
+
+    // Send rejection email
+    if (tenant.responsibleEmail) {
+      const html = `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #dc2626, #b91c1c); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Tecnikos</h1>
+          </div>
+          <div style="background: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
+            <h2 style="color: #1e293b; margin: 0 0 8px; font-size: 20px;">Verificação não aprovada</h2>
+            <p style="color: #475569; line-height: 1.6;">
+              Olá, <strong>${tenant.responsibleName || 'Responsável'}</strong>.
+              Sua verificação de documentos para a empresa <strong>${tenant.name}</strong> não foi aprovada.
+            </p>
+            ${body.reason ? `<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 16px 0;">
+              <p style="color: #991b1b; margin: 0; font-size: 14px;"><strong>Motivo:</strong> ${body.reason}</p>
+            </div>` : ''}
+            <p style="color: #475569; line-height: 1.6;">
+              Você pode tentar novamente realizando um novo cadastro com documentos válidos.
+              Em caso de dúvidas, entre em contato com nosso suporte.
+            </p>
+          </div>
+          <div style="background: #f1f5f9; padding: 16px; border-radius: 0 0 12px 12px; text-align: center; border: 1px solid #e2e8f0; border-top: none;">
+            <p style="color: #94a3b8; font-size: 11px; margin: 0;">Tecnikos © ${new Date().getFullYear()}</p>
+          </div>
+        </div>
+      `;
+      this.emailService.sendSystemEmail(
+        tenant.responsibleEmail,
+        `Verificação não aprovada — ${tenant.name}`,
+        html,
+      ).catch(() => {});
+    }
+
+    return { success: true, message: 'Verificação rejeitada.' };
   }
 
   // ─── DASHBOARD METRICS ────────────────────────────────

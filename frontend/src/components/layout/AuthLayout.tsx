@@ -8,6 +8,7 @@ import { ChatIAProvider } from "@/contexts/ChatIAContext";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import ChatIAPanel from "@/components/chat-ia/ChatIAPanel";
+import VerificationBanner from "./VerificationBanner";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -37,13 +38,19 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     return null;
   }
 
+  const isTenantPending = user.tenantStatus === "PENDING_VERIFICATION" || user.tenantStatus === "PENDING_PAYMENT";
+
   return (
     <FiscalModuleProvider>
       <ChatIAProvider>
         <div className="min-h-screen bg-slate-50">
+          {/* Verification status banner — fixed at top */}
+          <VerificationBanner />
+
           <Sidebar
             collapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed((c) => !c)}
+            tenantPending={isTenantPending}
           />
           <Header sidebarCollapsed={sidebarCollapsed} />
 

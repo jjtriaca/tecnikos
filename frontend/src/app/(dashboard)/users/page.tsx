@@ -19,6 +19,8 @@ type User = {
   name: string;
   email: string;
   roles: string[];
+  invitedAt: string | null;
+  passwordSetAt: string | null;
   createdAt: string;
 };
 
@@ -47,6 +49,8 @@ function buildUserColumns(
   setExpandedAuditId: React.Dispatch<React.SetStateAction<string | null>>,
   startEdit: (user: User) => void,
   handleDeleteClick: (id: string, name: string) => void,
+  handleResendInvite: (id: string) => void,
+  resendingId: string | null,
 ): ColumnDefinition<User>[] {
   return [
     {
@@ -71,6 +75,16 @@ function buildUserColumns(
           >
             Editar
           </button>
+          {u.invitedAt && !u.passwordSetAt && (
+            <button
+              onClick={() => handleResendInvite(u.id)}
+              disabled={resendingId === u.id}
+              className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+              title="Reenviar convite"
+            >
+              {resendingId === u.id ? "Enviando..." : "Reenviar"}
+            </button>
+          )}
           <button
             onClick={() => handleDeleteClick(u.id, u.name)}
             className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
@@ -82,10 +96,10 @@ function buildUserColumns(
     },
     {
       id: "code",
-      label: "Código",
+      label: "Codigo",
       sortable: true,
       sortKey: "code",
-      render: (u) => <span className="font-mono text-xs text-slate-500">{u.code || "—"}</span>,
+      render: (u) => <span className="font-mono text-xs text-slate-500">{u.code || "\u2014"}</span>,
     },
     {
       id: "nome",
@@ -104,6 +118,38 @@ function buildUserColumns(
       render: (u) => (
         <span className="text-slate-600">{u.email}</span>
       ),
+    },
+    {
+      id: "status",
+      label: "Status",
+      sortable: false,
+      render: (u) => {
+        if (u.passwordSetAt) {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              Ativo
+            </span>
+          );
+        }
+        if (u.invitedAt) {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Convite enviado
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+            Ativo
+          </span>
+        );
+      },
     },
     {
       id: "papeis",
@@ -142,6 +188,7 @@ export default function UsersPage() {
     name: string;
   } | null>(null);
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -220,12 +267,12 @@ export default function UsersPage() {
         if (form.password) body.password = form.password;
         await api.put(`/users/${editingId}`, body);
       } else {
-        if (!form.password) {
-          setFormError("Senha obrigatória para novo usuário");
-          setSaving(false);
-          return;
-        }
-        await api.post("/users", form);
+        // Create user — no password needed (invite flow sends email)
+        await api.post("/users", {
+          name: form.name,
+          email: form.email,
+          roles: form.roles,
+        });
       }
       resetForm();
       await loadUsers();
@@ -263,11 +310,27 @@ export default function UsersPage() {
     setDeactivateTarget(null);
   }
 
+  async function handleResendInvite(userId: string) {
+    setResendingId(userId);
+    try {
+      await api.post(`/users/${userId}/resend-invite`, {});
+      toast("Convite reenviado com sucesso!", "success");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast(err.payload?.message || "Erro ao reenviar convite.", "error");
+      } else {
+        toast("Erro ao reenviar convite.", "error");
+      }
+    } finally {
+      setResendingId(null);
+    }
+  }
+
   /* ── Table columns & layout ──────────────────────────── */
 
   const columnDefs = useMemo(
-    () => buildUserColumns(expandedAuditId, setExpandedAuditId, startEdit, handleDeleteClick),
-    [expandedAuditId],
+    () => buildUserColumns(expandedAuditId, setExpandedAuditId, startEdit, handleDeleteClick, handleResendInvite, resendingId),
+    [expandedAuditId, resendingId],
   );
 
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } =
@@ -318,7 +381,7 @@ export default function UsersPage() {
             {editingId ? "Editar Usuario" : "Novo Usuario"}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className={`grid grid-cols-1 ${editingId ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
               <input
                 placeholder="Nome"
                 value={form.name}
@@ -337,15 +400,22 @@ export default function UsersPage() {
                 required
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
               />
-              <PasswordInput
-                placeholder={editingId ? "Nova senha (opcional)" : "Senha"}
-                value={form.password}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, password: e.target.value }))
-                }
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-              />
+              {editingId && (
+                <PasswordInput
+                  placeholder="Nova senha (opcional)"
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, password: e.target.value }))
+                  }
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                />
+              )}
             </div>
+            {!editingId && (
+              <p className="text-xs text-slate-500">
+                Um email de convite sera enviado para o usuario definir sua propria senha.
+              </p>
+            )}
 
             {/* Roles multi-select checkboxes */}
             <div>

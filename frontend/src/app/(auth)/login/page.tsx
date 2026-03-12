@@ -10,6 +10,8 @@ const SAVED_EMAIL_KEY = "tk_saved_email";
 const CAPTCHA_VERIFIED_KEY = "tk_captcha_verified_at";
 const CAPTCHA_INTERVAL_DAYS = 7;
 
+type ForgotState = "idle" | "form" | "sending" | "sent";
+
 function needsCaptcha(): boolean {
   const stored = localStorage.getItem(CAPTCHA_VERIFIED_KEY);
   if (!stored) return true;
@@ -30,6 +32,11 @@ export default function LoginPage() {
   const [showCaptcha, setShowCaptcha] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileInstance>(null);
+
+  // Forgot password state
+  const [forgotState, setForgotState] = useState<ForgotState>("idle");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotError, setForgotError] = useState<string | null>(null);
 
   // Carregar email salvo + config CAPTCHA
   useEffect(() => {
@@ -53,6 +60,24 @@ export default function LoginPage() {
   const onCaptchaSuccess = useCallback((token: string) => {
     setCaptchaToken(token);
   }, []);
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setForgotError(null);
+    setForgotState("sending");
+    try {
+      await api.post("/auth/forgot-password", { email: forgotEmail });
+      setForgotState("sent");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setForgotError(err.payload?.message || err.message);
+      } else {
+        setForgotError("Erro ao enviar. Tente novamente.");
+      }
+      setForgotState("form");
+    }
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -162,7 +187,11 @@ export default function LoginPage() {
                 <button
                   type="button"
                   className="mt-2 text-xs text-slate-400 hover:text-blue-600 transition-colors"
-                  onClick={() => setError("Recuperacao de senha sera implementada em breve.")}
+                  onClick={() => {
+                    setForgotEmail(email);
+                    setForgotState("form");
+                    setForgotError(null);
+                  }}
                   disabled={loading}
                 >
                   Esqueceu a senha?
@@ -229,6 +258,70 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {forgotState !== "idle" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            {forgotState === "sent" ? (
+              <div className="text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                  <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Email enviado!</h3>
+                <p className="text-sm text-slate-500 mb-5">
+                  Se o email estiver cadastrado, voce recebera um link para redefinir sua senha.
+                </p>
+                <button
+                  onClick={() => setForgotState("idle")}
+                  className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+                >
+                  Voltar ao login
+                </button>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">Esqueceu a senha?</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  Informe seu email para receber o link de redefinicao.
+                </p>
+                <form onSubmit={handleForgotPassword} className="space-y-3">
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 text-sm outline-none placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
+                    placeholder="seu@email.com"
+                    required
+                    autoFocus
+                  />
+                  {forgotError && (
+                    <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-600">
+                      {forgotError}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={forgotState === "sending"}
+                    className="h-11 w-full rounded-xl bg-blue-600 font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+                  >
+                    {forgotState === "sending" ? "Enviando..." : "Enviar link de redefinicao"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForgotState("idle")}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

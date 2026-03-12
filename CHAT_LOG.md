@@ -104,9 +104,13 @@
 - Mobile fullscreen (inset-0 em telas pequenas)
 - FAB escondido no mobile quando painel aberto
 
-### PPID — AINDA PENDENTE
-- API continua retornando 404 em todos endpoints
-- Site ppid.com.br esta online, mas api.ppid.com.br nao
+### PPID — BLOQUEADO (aguardando PPID)
+- API retornando 404 porque PPID migrou para nova versao da API
+- Suporte confirmou via WhatsApp (11 95675-7384): "nova versao, documentacao nao disponibilizada ainda"
+- Cadastro feito como PF (nao encontrou opcao PJ)
+- Testes funcionaram por um dia, depois parou
+- PPID parou de responder — sem previsao de retorno
+- **Bloqueado ate eles fornecerem nova documentacao**
 
 ### Asaas (Pagamentos SaaS) — CONFIGURADO
 - Codigo 100% implementado (Asaas provider, service, webhooks, admin panel)
@@ -166,6 +170,126 @@
 - /quotes/[id]/edit: edicao pre-carregada
 - /quotes/[id]: detalhe com acoes (enviar, aprovar, rejeitar, cancelar, duplicar, PDF, gerar OS)
 - /q/[token]: pagina publica mobile-first para aprovacao pelo cliente
+
+**Builds:** Backend tsc OK, Frontend next build OK
+
+---
+
+## 2026-03-12 — Sessao 101: Senha Forte no Signup + Planos Pendentes
+
+### Decisoes do Juliano:
+- PPID bloqueado: suporte confirmou nova versao da API sem documentacao, parou de responder
+- Senha do gestor: deve ser definida NO CADASTRO (antes do pagamento)
+- Validacao de senha forte obrigatoria
+
+### Senha Forte no Signup — CONCLUIDO
+**Backend:**
+- `tenant-public.controller.ts`: campo `password` no body do signup, validacao forte (8+ chars, maiuscula, minuscula, numero, especial)
+- `tenant-public.controller.ts`: bcrypt hash antes de provisionar, salva hash no Tenant
+- `tenant.service.ts`: `passwordHash` no provisionTenant data
+- `tenant-onboarding.service.ts`: aceita `providedPasswordHash` opcional, usa no lugar de senha temporaria
+- `asaas.service.ts`: webhook de pagamento passa `tenant.passwordHash` para onboarding
+- Prisma: campo `passwordHash` no model Tenant + migration `20260312100000_tenant_password_hash`
+- Welcome email: se usuario definiu senha, mostra "a senha que voce definiu" em vez de exibir senha
+
+**Frontend:**
+- `signup/page.tsx` Step 2: campos Senha + Confirmar Senha com toggle de visibilidade
+- Validacao visual em tempo real: barra de progresso (5 segmentos), checklist de regras
+- Botao "Continuar" desabilitado ate senha forte + confirmacao igual
+- Senha enviada no payload do signup
+
+**Builds:** Backend tsc OK, Frontend next build OK
+
+### Decisoes do Juliano — Senhas de Usuarios:
+1. **Criacao de usuario pelo gestor**: convite por email com link para definir senha (sem digitar senha no formulario)
+2. **Esqueci minha senha**: email com link de redefinicao (token expira em 1h), funciona para gestores e usuarios
+3. Senha forte obrigatoria em TODOS os fluxos (signup, convite, reset)
+
+### Convite por Email + Esqueci Minha Senha — CONCLUIDO
+
+**Prisma:**
+- User model: `passwordHash` nullable, adicionados `passwordResetToken`, `passwordResetExpiresAt`, `invitedAt`, `passwordSetAt`
+- Migration `20260312110000_user_password_reset`
+
+**Backend:**
+- `auth.service.ts`: metodos `forgotPassword()`, `validateResetToken()`, `resetPassword()`, `sendInviteEmail()`, `resendInvite()`
+- `auth.controller.ts`: endpoints `POST /auth/forgot-password`, `GET /auth/reset-password/:token`, `POST /auth/reset-password`
+- `auth.module.ts`: importa EmailModule
+- `user.controller.ts`: create sem senha (invite flow), endpoint `POST /users/:id/resend-invite`
+- `user.module.ts`: importa AuthModule (forwardRef)
+- `user.service.ts`: password opcional no create, invitedAt populado, `getCompanyName()`, findAll retorna invitedAt/passwordSetAt
+- Login bloqueia usuarios que nao definiram senha ainda (mensagem clara)
+- Reset de senha revoga todas as sessoes (force re-login)
+
+**Frontend:**
+- `/reset-password/[token]/page.tsx`: pagina standalone com validacao de senha forte, barra de forca, checklist
+- Login: modal "Esqueci minha senha" com envio de email funcional (substitui placeholder)
+- `/users/page.tsx`: removido campo senha na criacao, mensagem "convite por email", coluna Status (Ativo/Convite enviado), botao "Reenviar convite"
+- `middleware.ts`: `reset-password` nas rotas publicas
+
+**Builds:** Backend tsc OK, Frontend next build OK
+
+### Melhoria Pendente — Audit Log Completo
+- **Decisao do Juliano**: todo tipo de lancamento ou edicao deve gravar log de auditoria
+- Ja implementado em: Users, Partners, ServiceOrders, Finance
+- Falta revisar/adicionar em: Quotes, Workflow, Automation, Settings (email, fiscal, whatsapp), NFS-e, Products/Services, Company profile
+- Objetivo: rastreabilidade completa de quem fez o que e quando em todo o sistema
+
+### Verificacao de Identidade — Migrar PPID → Verificacao Manual
+- **Decisao do Juliano**: PPID fora do ar, Didit descartado, adotar verificacao manual
+- Fluxo: coleta docs no signup → admin analisa manualmente → aprova/rejeita
+
+---
+
+## 2026-03-12 — Sessao 102/103: Verificacao Manual de Documentos (COMPLETO)
+
+### Decisoes do Juliano:
+1. Verificacao manual: sistema coleta documentos, Juliano analisa antes de ativar
+2. Documentos: Cartao CNPJ (PDF), RG/CNH frente+verso, 3 selfies (perto/medio/longe)
+3. QR code no signup para usar celular para fotos
+4. Sistema bloqueado (OS/Financeiro/Orcamentos desabilitados) ate aprovacao
+5. Gestor pode LOGAR enquanto docs estao pendentes (para configurar sistema)
+6. Banner no topo mostra status (pendente/aprovado/recusado)
+7. Sidebar links visiveis mas desabilitados quando pendente
+8. Settings/Configuracoes acessiveis durante pendencia
+9. Quando recusado: banner mostra motivo, botao leva para reenvio de docs
+10. Apos reenvio: volta para analise novamente
+
+### Implementacao Completa:
+
+**Schema Prisma:**
+- Model VerificationSession (token, 6 URLs docs, uploadedCount, uploadComplete, reviewStatus, rejectionReason, expiresAt)
+- Campo passwordHash no Tenant
+- Migration aplicada
+
+**Backend (novo modulo: src/verification/):**
+- verification.module.ts, verification.service.ts, verification.controller.ts
+- Endpoints publicos: create-verification, GET /:token, GET /:token/status, POST /:token/upload, POST /:token/resubmit
+- Endpoint autenticado: GET tenant-verification-status (para frontend banners)
+- Upload local em uploads/verification/{sessionId}/
+- Resubmit: cria nova sessao a partir de sessao rejeitada
+
+**Backend (admin review em tenant.controller.ts):**
+- GET /admin/tenants/pending-verifications
+- GET /admin/tenants/:id/verification
+- POST /admin/tenants/:id/approve-verification
+- POST /admin/tenants/:id/reject-verification
+
+**Backend (modificacoes):**
+- tenant.middleware.ts: permite PENDING_VERIFICATION/PENDING_PAYMENT passar (marca req.tenantStatus)
+- tenant-public.controller.ts: signup roda onboarding imediatamente (nao so no approve)
+- auth.controller.ts: /auth/me retorna tenantStatus
+- chat-ia.service.ts: welcome message avisa sobre verificacao pendente
+- PPID modulo removido (ppid.module.ts, ppid.service.ts deletados)
+
+**Frontend:**
+- AuthContext: tenantStatus + verificationInfo + refreshVerification
+- VerificationBanner.tsx: banner amber (pendente), red (recusado + motivo + botao reenviar), green (aprovado)
+- AuthLayout.tsx: integra banner + passa tenantPending ao Sidebar
+- Sidebar.tsx: ALLOWED_WHEN_PENDING set, links desabilitados com cadeado
+- /verify/[token]/page.tsx: upload mobile-first + tela de rejeicao com motivo + resubmit
+- Admin tenants page: badge pendentes, modal review com grid docs 2x3, aprovar/rejeitar
+- signup/page.tsx: removido codigo PPID morto
 
 **Builds:** Backend tsc OK, Frontend next build OK
 

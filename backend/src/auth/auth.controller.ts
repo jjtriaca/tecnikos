@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -98,9 +99,42 @@ export class AuthController {
     return { enabled: !!siteKey, siteKey };
   }
 
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 900_000 } }) // 5 requests per 15 min
+  async forgotPassword(@Body('email') email: string) {
+    if (!email) throw new BadRequestException('Email é obrigatório');
+    await this.authService.forgotPassword(email);
+    return { ok: true, message: 'Se o email estiver cadastrado, um link de redefinição será enviado.' };
+  }
+
+  @Public()
+  @Get('reset-password/:token')
+  async validateResetToken(@Param('token') token: string) {
+    return this.authService.validateResetToken(token);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  async resetPassword(@Body() body: { token: string; password: string }) {
+    if (!body.token || !body.password) {
+      throw new BadRequestException('Token e senha são obrigatórios');
+    }
+    await this.authService.resetPassword(body.token, body.password);
+    return { ok: true, message: 'Senha redefinida com sucesso!' };
+  }
+
   @Get('me')
-  async me(@CurrentUser() user: AuthenticatedUser) {
-    return this.authService.me(user);
+  async me(@CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
+    const data = await this.authService.me(user);
+    // Attach tenant status so frontend can show verification banners
+    return {
+      ...data,
+      tenantStatus: (req as any).tenantStatus || null,
+    };
   }
 
   /* ── Device / Session management ────────────────────────── */

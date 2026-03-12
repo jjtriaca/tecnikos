@@ -66,6 +66,7 @@ export class TenantService {
     responsibleName?: string;
     responsibleEmail?: string;
     responsiblePhone?: string;
+    passwordHash?: string;
     isMaster?: boolean;
   }) {
     // Validate slug
@@ -110,6 +111,7 @@ export class TenantService {
         responsibleName: data.responsibleName,
         responsibleEmail: data.responsibleEmail,
         responsiblePhone: data.responsiblePhone,
+        passwordHash: data.passwordHash,
         isMaster: data.isMaster || false,
         maxUsers,
         maxOsPerMonth,

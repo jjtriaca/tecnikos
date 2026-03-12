@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { QRCodeSVG } from "qrcode.react";
 import { track } from "@/lib/track";
 
 interface Plan {
@@ -31,15 +32,30 @@ function formatBRL(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 }
 
-/** Convert File to base64 data URI */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+/** Document verification types */
+interface VerificationStatus {
+  uploadedCount: number;
+  uploadComplete: boolean;
+  reviewStatus: string;
+  expired: boolean;
+  documents: {
+    cnpjCard: boolean;
+    docFront: boolean;
+    docBack: boolean;
+    selfieFar: boolean;
+    selfieMedium: boolean;
+    selfieClose: boolean;
+  };
 }
+
+const DOC_STEPS = [
+  { key: "cnpjCard", label: "Cartão CNPJ", accept: "image/*,application/pdf", capture: "environment" as const },
+  { key: "docFront", label: "Documento (Frente)", accept: "image/*", capture: "environment" as const },
+  { key: "docBack", label: "Documento (Verso)", accept: "image/*", capture: "environment" as const },
+  { key: "selfieClose", label: "Selfie (Perto)", accept: "image/*", capture: "user" as const },
+  { key: "selfieMedium", label: "Selfie (Médio)", accept: "image/*", capture: "user" as const },
+  { key: "selfieFar", label: "Selfie (Longe)", accept: "image/*", capture: "user" as const },
+];
 
 export default function SignupPageWrapper() {
   return (
@@ -68,6 +84,11 @@ function SignupPage() {
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [slugChecking, setSlugChecking] = useState(false);
 
+  // Password
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
   // Payment form
   const [billingType, setBillingType] = useState<"PIX" | "BOLETO" | "CREDIT_CARD">("PIX");
   const [cardForm, setCardForm] = useState({
@@ -79,25 +100,13 @@ function SignupPage() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjData, setCnpjData] = useState<{ found: boolean; razaoSocial?: string; nomeFantasia?: string; email?: string; telefone?: string; reason?: string } | null>(null);
 
-  // Identity verification (step 3)
-  const [docFile, setDocFile] = useState<File | null>(null);
-  const [selfieFile, setSelfieFile] = useState<File | null>(null);
-  const [docPreview, setDocPreview] = useState<string | null>(null);
-  const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
-  const [verifyResult, setVerifyResult] = useState<{
-    approved: boolean;
-    skipped?: boolean;
-    documentType?: string;
-    livenessScore?: number;
-    faceMatchScore?: number;
-    reasons?: string[];
-    ocrFields?: Record<string, string>;
-    qsaValidation?: { validated: boolean; socioNome?: string; message?: string };
-    error?: string;
-  } | null>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
-  const selfieInputRef = useRef<HTMLInputElement>(null);
+  // Verification session (step 3)
+  const [verifyToken, setVerifyToken] = useState<string | null>(null);
+  const [verifyUrl, setVerifyUrl] = useState<string | null>(null);
+  const [verifyStatus, setVerifyStatus] = useState<VerificationStatus | null>(null);
+  const [showDesktopUpload, setShowDesktopUpload] = useState(false);
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
+  const desktopFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
@@ -105,11 +114,6 @@ function SignupPage() {
   const [result, setResult] = useState<{ success: boolean; message: string; slug?: string; skipPayment?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Signup attempt (rejection tracking)
-  const [attemptId, setAttemptId] = useState<string | null>(null);
-  const [criticism, setCriticism] = useState("");
-  const [criticismSent, setCriticismSent] = useState(false);
-  const [criticismSending, setCriticismSending] = useState(false);
 
   useEffect(() => {
     track("signup_step_1");
@@ -192,104 +196,18 @@ function SignupPage() {
     }
   }
 
-  // File handlers for identity verification
-  function handleDocFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setDocFile(file);
-    setDocPreview(URL.createObjectURL(file));
-    setVerifyResult(null);
-  }
-
-  function handleSelfieFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSelfieFile(file);
-    setSelfiePreview(URL.createObjectURL(file));
-    setVerifyResult(null);
-  }
-
-  // Identity verification
-  async function handleVerify() {
-    if (!docFile || !selfieFile) return;
-    setVerifying(true);
-    setError(null);
-    setVerifyResult(null);
-    try {
-      const [docB64, selfieB64] = await Promise.all([
-        fileToBase64(docFile),
-        fileToBase64(selfieFile),
-      ]);
-
-      const r = await fetch("/api/public/saas/verify-identity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentBase64: docB64, selfieBase64: selfieB64, cnpj: form.cnpj }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.message || "Erro na verificacao");
-
-      setVerifyResult(data);
-
-      // Auto-submit signup attempt on rejection
-      if (!data.approved && !data.skipped) {
-        track("signup_rejected", { reasons: data.reasons });
-        try {
-          const sp = selectedPlan;
-          const attemptRes = await fetch("/api/public/saas/signup-attempt", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              slug: form.slug,
-              companyName: form.name,
-              cnpj: form.cnpj,
-              responsibleName: form.responsibleName,
-              responsibleEmail: form.responsibleEmail,
-              responsiblePhone: form.responsiblePhone,
-              planId: selectedPlanId,
-              planName: sp?.name,
-              billingCycle,
-              cnpjData: cnpjData || undefined,
-              verificationResult: data,
-              rejectionReasons: data.reasons || [],
-            }),
-          });
-          const attemptData = await attemptRes.json();
-          if (attemptData.id) setAttemptId(attemptData.id);
-        } catch {}
-      }
-    } catch (err: any) {
-      setError(err.message || "Erro na verificacao de identidade");
-    } finally {
-      setVerifying(false);
-    }
-  }
-
-  // Send criticism
-  async function handleSendCriticism() {
-    if (!attemptId || !criticism.trim()) return;
-    setCriticismSending(true);
-    try {
-      await fetch(`/api/public/saas/signup-attempt/${attemptId}/criticism`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ criticism: criticism.trim() }),
-      });
-      setCriticismSent(true);
-    } catch {}
-    finally { setCriticismSending(false); }
-  }
-
-  // After verification approved → call signup
-  async function handleAfterVerification() {
+  // Step 2 → Step 3 transition: create tenant + verification session
+  async function handleStep2Continue() {
     setError(null);
     setSubmitting(true);
     try {
+      // 1. Create tenant (signup)
       const r = await fetch("/api/public/saas/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          password,
           planId: selectedPlanId,
           billingCycle,
           promoCode: promoValid?.valid ? promoCode.trim() : undefined,
@@ -300,19 +218,94 @@ function SignupPage() {
 
       setTenantId(data.tenantId);
 
-      if (data.skipPayment) {
-        track("signup_complete", { skipPayment: true });
-        setResult(data);
-        setStep(totalSteps);
-      } else {
-        track("signup_step_4");
-        setCardForm((c) => ({ ...c, holderName: form.responsibleName, cpfCnpj: form.cnpj }));
-        setStep(4);
-      }
+      // If voucher skips payment, still need verification
+      // 2. Create verification session
+      const vr = await fetch("/api/public/saas/create-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId: data.tenantId }),
+      });
+      const vData = await vr.json();
+      if (!vr.ok) throw new Error(vData.message || "Erro ao criar sessão de verificação");
+
+      setVerifyToken(vData.token);
+      setVerifyUrl(vData.verifyUrl);
+
+      track("signup_step_3");
+      setStep(3);
     } catch (err: any) {
       setError(err.message || "Erro ao cadastrar");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // Polling for verification status (Step 3)
+  useEffect(() => {
+    if (step !== 3 || !verifyToken) return;
+    let active = true;
+
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/public/saas/verification/${verifyToken}/status`);
+        if (r.ok && active) {
+          const data: VerificationStatus = await r.json();
+          setVerifyStatus(data);
+        }
+      } catch {}
+    };
+
+    poll(); // initial
+    const interval = setInterval(poll, 3000);
+    return () => { active = false; clearInterval(interval); };
+  }, [step, verifyToken]);
+
+  // Desktop upload handler
+  async function handleDesktopUpload(docType: string, file: File) {
+    if (!verifyToken) return;
+    setUploadingType(docType);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", docType);
+
+      const r = await fetch(`/api/public/saas/verification/${verifyToken}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.message || "Erro ao enviar");
+
+      // Update status immediately
+      setVerifyStatus((prev) => prev ? {
+        ...prev,
+        uploadedCount: data.uploadedCount,
+        uploadComplete: data.uploadComplete,
+        documents: { ...prev.documents, [docType]: true },
+      } : prev);
+    } catch (err: any) {
+      setError(err.message || "Erro ao enviar arquivo");
+    } finally {
+      setUploadingType(null);
+    }
+  }
+
+  // After verification docs uploaded → proceed to payment or finish
+  function handleAfterDocuments() {
+    if (isVoucher) {
+      track("signup_complete", { skipPayment: true });
+      setResult({
+        success: true,
+        message: "Seus documentos foram enviados! Aguarde a análise para ativação da sua conta.",
+        slug: form.slug,
+        skipPayment: true,
+      });
+      setStep(totalSteps);
+    } else {
+      track("signup_step_4");
+      setCardForm((c) => ({ ...c, holderName: form.responsibleName, cpfCnpj: form.cnpj }));
+      setStep(4);
     }
   }
 
@@ -542,7 +535,7 @@ function SignupPage() {
             <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Dados da empresa</h1>
             <p className="text-sm text-slate-500 text-center mb-8">Preencha os dados para criar sua conta</p>
 
-            <form onSubmit={(e) => { e.preventDefault(); track("signup_step_3"); setStep(3); }} className="space-y-4">
+            <form onSubmit={(e) => { e.preventDefault(); handleStep2Continue(); }} className="space-y-4">
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Subdominio da sua empresa *</label>
                 <div className="flex items-center">
@@ -604,188 +597,270 @@ function SignupPage() {
                 </div>
               </div>
 
+              {/* Password section */}
+              <div className="border-t border-slate-200 pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Senha de acesso</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Senha *</label>
+                    <div className="relative">
+                      <input type={showPassword ? "text" : "password"}
+                        className="h-10 w-full rounded-lg border border-slate-200 px-3 pr-10 text-sm outline-none focus:border-blue-500"
+                        value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
+                        autoComplete="new-password" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                        {showPassword ? (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Confirmar senha *</label>
+                    <input type={showPassword ? "text" : "password"}
+                      className={`h-10 w-full rounded-lg border px-3 text-sm outline-none focus:border-blue-500 ${
+                        confirmPassword && confirmPassword !== password ? "border-red-400 bg-red-50" : "border-slate-200"
+                      }`}
+                      value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required
+                      autoComplete="new-password" />
+                    {confirmPassword && confirmPassword !== password && (
+                      <p className="text-[10px] text-red-500 mt-1">As senhas nao coincidem</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Password strength indicators */}
+                {password && (
+                  <div className="mt-3 space-y-1.5">
+                    <div className="flex gap-1">
+                      {[
+                        password.length >= 8,
+                        /[A-Z]/.test(password),
+                        /[a-z]/.test(password),
+                        /\d/.test(password),
+                        /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password),
+                      ].map((ok, i) => (
+                        <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${ok ? "bg-green-500" : "bg-slate-200"}`} />
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-0.5">
+                      {[
+                        { label: "8+ caracteres", ok: password.length >= 8 },
+                        { label: "Letra maiuscula", ok: /[A-Z]/.test(password) },
+                        { label: "Letra minuscula", ok: /[a-z]/.test(password) },
+                        { label: "Numero", ok: /\d/.test(password) },
+                        { label: "Caractere especial", ok: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password) },
+                      ].map((rule) => (
+                        <div key={rule.label} className="flex items-center gap-1">
+                          {rule.ok ? (
+                            <svg className="w-3 h-3 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3 h-3 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                              <circle cx="12" cy="12" r="9" />
+                            </svg>
+                          )}
+                          <span className={`text-[10px] ${rule.ok ? "text-green-600" : "text-slate-400"}`}>{rule.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setStep(1)}
                   className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">Voltar</button>
-                <button type="submit" disabled={slugAvailable === false}
+                <button type="submit" disabled={
+                  submitting ||
+                  slugAvailable === false ||
+                  !password ||
+                  password.length < 8 ||
+                  !/[A-Z]/.test(password) ||
+                  !/[a-z]/.test(password) ||
+                  !/\d/.test(password) ||
+                  !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password) ||
+                  password !== confirmPassword
+                }
                   className="flex-[2] py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  Continuar
+                  {submitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Cadastrando...
+                    </span>
+                  ) : "Continuar"}
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {/* Step 3: Identity Verification */}
+        {/* Step 3: Document Verification */}
         {step === 3 && (
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Verificacao de identidade</h1>
-            <p className="text-sm text-slate-500 text-center mb-8">
-              Envie uma foto do seu documento (RG ou CNH) e uma selfie para validacao
+            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Envio de documentos</h1>
+            <p className="text-sm text-slate-500 text-center mb-6">
+              Use seu celular para enviar os documentos ou envie direto pelo computador
             </p>
 
-            <div className="space-y-5">
-              {/* Document upload */}
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+            {/* QR Code section */}
+            {verifyUrl && !showDesktopUpload && (
+              <div className="rounded-xl border border-slate-200 bg-white p-6 text-center mb-5">
+                <div className="flex items-center justify-center gap-2 mb-4">
                   <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
                   </svg>
-                  Foto do documento (RG ou CNH)
-                </h3>
-                <input ref={docInputRef} type="file" accept="image/*" capture="environment" onChange={handleDocFile} className="hidden" />
-                {docPreview ? (
-                  <div className="relative">
-                    <img src={docPreview} alt="Documento" className="w-full max-h-48 object-contain rounded-lg border border-slate-200" />
-                    <button type="button" onClick={() => { setDocFile(null); setDocPreview(null); setVerifyResult(null); }}
-                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center text-xs hover:bg-red-600">X</button>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => docInputRef.current?.click()}
-                    className="w-full rounded-lg border-2 border-dashed border-slate-300 p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all">
-                    <svg className="w-8 h-8 mx-auto text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
-                    </svg>
-                    <p className="text-sm text-slate-500">Toque para tirar foto ou selecionar arquivo</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Frente do RG ou CNH aberta</p>
-                  </button>
-                )}
+                  <h3 className="text-sm font-semibold text-slate-700">Escaneie com o celular</h3>
+                </div>
+                <div className="inline-block p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
+                  <QRCodeSVG value={verifyUrl} size={180} level="M" />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-3">
+                  Aponte a camera do celular para o QR Code para abrir a pagina de envio
+                </p>
               </div>
+            )}
 
-              {/* Selfie upload */}
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                  </svg>
-                  Selfie do responsavel
-                </h3>
-                <input ref={selfieInputRef} type="file" accept="image/*" capture="user" onChange={handleSelfieFile} className="hidden" />
-                {selfiePreview ? (
-                  <div className="relative">
-                    <img src={selfiePreview} alt="Selfie" className="w-full max-h-48 object-contain rounded-lg border border-slate-200" />
-                    <button type="button" onClick={() => { setSelfieFile(null); setSelfiePreview(null); setVerifyResult(null); }}
-                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center text-xs hover:bg-red-600">X</button>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => selfieInputRef.current?.click()}
-                    className="w-full rounded-lg border-2 border-dashed border-slate-300 p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all">
-                    <svg className="w-8 h-8 mx-auto text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                    </svg>
-                    <p className="text-sm text-slate-500">Toque para tirar selfie ou selecionar foto</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Rosto visivel, boa iluminacao, sem oculos escuros</p>
-                  </button>
-                )}
+            {/* Desktop upload toggle */}
+            {!showDesktopUpload && (
+              <button
+                onClick={() => setShowDesktopUpload(true)}
+                className="w-full text-center text-xs text-blue-600 hover:text-blue-700 font-medium mb-5"
+              >
+                Prefiro enviar pelo computador →
+              </button>
+            )}
+
+            {/* Desktop upload area */}
+            {showDesktopUpload && (
+              <div className="space-y-3 mb-5">
+                {DOC_STEPS.map((docStep) => {
+                  const isUploaded = verifyStatus?.documents?.[docStep.key as keyof typeof verifyStatus.documents];
+                  const isUploading = uploadingType === docStep.key;
+                  return (
+                    <div key={docStep.key} className={`rounded-xl border p-4 ${isUploaded ? "border-green-200 bg-green-50" : "border-slate-200 bg-white"}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {isUploaded ? (
+                            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+                              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                              </svg>
+                            </div>
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-400 font-medium">
+                              {DOC_STEPS.indexOf(docStep) + 1}
+                            </div>
+                          )}
+                          <span className={`text-sm ${isUploaded ? "text-green-700" : "text-slate-700"}`}>{docStep.label}</span>
+                        </div>
+                        {!isUploaded && (
+                          <>
+                            <input
+                              ref={(el) => { desktopFileRefs.current[docStep.key] = el; }}
+                              type="file"
+                              accept={docStep.accept}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleDesktopUpload(docStep.key, file);
+                              }}
+                              className="hidden"
+                            />
+                            <button
+                              onClick={() => desktopFileRefs.current[docStep.key]?.click()}
+                              disabled={isUploading}
+                              className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium hover:bg-blue-100 disabled:opacity-50"
+                            >
+                              {isUploading ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                                  Enviando
+                                </span>
+                              ) : "Enviar"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                <button
+                  onClick={() => setShowDesktopUpload(false)}
+                  className="w-full text-center text-xs text-slate-400 hover:text-slate-500 font-medium"
+                >
+                  ← Usar QR Code no celular
+                </button>
               </div>
+            )}
 
-              {/* Verification result */}
-              {verifyResult && (
-                <div className={`rounded-xl border p-4 ${verifyResult.approved ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {verifyResult.approved ? (
-                      <>
-                        <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            {/* Document checklist */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5 mb-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-slate-700">Status dos documentos</h3>
+                <span className="text-xs font-medium text-blue-600">
+                  {verifyStatus?.uploadedCount || 0}/{DOC_STEPS.length}
+                </span>
+              </div>
+              {/* Progress bar */}
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-4">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500"
+                  style={{ width: `${((verifyStatus?.uploadedCount || 0) / DOC_STEPS.length) * 100}%` }}
+                />
+              </div>
+              <div className="space-y-2">
+                {DOC_STEPS.map((docStep) => {
+                  const isUploaded = verifyStatus?.documents?.[docStep.key as keyof typeof verifyStatus.documents];
+                  return (
+                    <div key={docStep.key} className="flex items-center gap-2">
+                      {isUploaded ? (
+                        <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                         </svg>
-                        <span className="text-sm font-semibold text-green-800">Identidade verificada com sucesso!</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                        </svg>
-                        <span className="text-sm font-semibold text-red-800">Verificacao nao aprovada</span>
-                      </>
-                    )}
-                  </div>
-                  {verifyResult.approved && verifyResult.documentType && (
-                    <p className="text-xs text-green-700">
-                      Documento: {verifyResult.documentType}
-                      {verifyResult.faceMatchScore ? ` · Similaridade: ${verifyResult.faceMatchScore}%` : ""}
-                      {verifyResult.livenessScore ? ` · Prova de vida: ${verifyResult.livenessScore}%` : ""}
-                    </p>
-                  )}
-                  {verifyResult.qsaValidation && (
-                    <p className={`text-xs mt-1 ${verifyResult.qsaValidation.validated ? "text-green-700" : "text-red-700"}`}>
-                      {verifyResult.qsaValidation.validated ? "Socio confirmado" : "QSA"}: {verifyResult.qsaValidation.message}
-                    </p>
-                  )}
-                  {verifyResult.skipped && (
-                    <p className="text-xs text-green-700">Verificacao dispensada nesta etapa.</p>
-                  )}
-                  {verifyResult.reasons && verifyResult.reasons.length > 0 && (
-                    <ul className="mt-2 space-y-1">
-                      {verifyResult.reasons.map((r, i) => (
-                        <li key={i} className="text-xs text-red-700 flex items-start gap-1">
-                          <span className="mt-0.5">•</span> {r}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {/* Criticism textarea on rejection */}
-                  {!verifyResult.approved && !verifyResult.skipped && attemptId && (
-                    <div className="mt-4 border-t border-red-200 pt-3">
-                      {criticismSent ? (
-                        <div className="flex items-center gap-2 text-green-700">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                          </svg>
-                          <span className="text-xs font-medium">Mensagem recebida! Obrigado pelo feedback.</span>
-                        </div>
                       ) : (
-                        <>
-                          <label className="text-xs font-medium text-red-800 block mb-1.5">
-                            Deseja deixar uma mensagem? (opcional)
-                          </label>
-                          <textarea
-                            className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-400 resize-none"
-                            rows={3}
-                            value={criticism}
-                            onChange={(e) => setCriticism(e.target.value)}
-                            placeholder="Conte-nos o que aconteceu ou se acredita que houve um erro..."
-                          />
-                          <div className="flex gap-2 mt-2">
-                            <button type="button" onClick={handleSendCriticism}
-                              disabled={!criticism.trim() || criticismSending}
-                              className="px-4 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors">
-                              {criticismSending ? "Enviando..." : "Enviar mensagem"}
-                            </button>
-                          </div>
-                        </>
+                        <div className="w-4 h-4 rounded-full border-2 border-slate-200 shrink-0" />
                       )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => { setStep(2); setError(null); }}
-                  className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">Voltar</button>
-
-                {!verifyResult?.approved ? (
-                  <button type="button" onClick={handleVerify} disabled={!docFile || !selfieFile || verifying}
-                    className="flex-[2] py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                    {verifying ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        Verificando...
+                      <span className={`text-xs ${isUploaded ? "text-green-700 line-through" : "text-slate-500"}`}>
+                        {docStep.label}
                       </span>
-                    ) : "Verificar identidade"}
-                  </button>
-                ) : (
-                  <button type="button" onClick={handleAfterVerification} disabled={submitting}
-                    className="flex-[2] py-3 rounded-xl bg-green-600 text-white font-semibold text-sm hover:bg-green-700 disabled:opacity-50 transition-colors">
-                    {submitting ? "Cadastrando..." : isVoucher ? "Ativar minha empresa" : "Continuar para pagamento"}
-                  </button>
-                )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
+
+            {/* All docs uploaded message */}
+            {verifyStatus?.uploadComplete && (
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 mb-5 text-center">
+                <svg className="w-8 h-8 mx-auto text-green-500 mb-2" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+                <p className="text-sm font-semibold text-green-800">Todos os documentos enviados!</p>
+                <p className="text-xs text-green-600 mt-1">Voce ja pode continuar.</p>
+              </div>
+            )}
+
+            {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 mb-4">{error}</div>}
+
+            <button
+              type="button"
+              onClick={handleAfterDocuments}
+              disabled={!verifyStatus?.uploadComplete}
+              className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isVoucher ? "Concluir cadastro" : "Continuar para pagamento"}
+            </button>
           </div>
         )}
 
@@ -901,32 +976,36 @@ function SignupPage() {
           </div>
         )}
 
-        {/* Step 5: Success */}
+        {/* Step 5: Success — Awaiting Review */}
         {step === totalSteps && result && (
           <div className="text-center py-10">
-            <div className="w-16 h-16 rounded-full bg-green-100 mx-auto mb-6 flex items-center justify-center">
-              <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            <div className="w-16 h-16 rounded-full bg-blue-100 mx-auto mb-6 flex items-center justify-center">
+              <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-2">
-              {result.skipPayment ? "Empresa ativada!" : "Cadastro realizado!"}
-            </h1>
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">Cadastro realizado!</h1>
             <p className="text-slate-500 mb-4 max-w-md mx-auto">{result.message}</p>
-            {result.skipPayment && (
-              <p className="text-xs text-slate-400 mb-6 max-w-md mx-auto">
-                Seus dados de acesso foram enviados para o email cadastrado. Verifique sua caixa de entrada (e spam).
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 mb-6 max-w-sm mx-auto">
+              <div className="flex items-center gap-2 justify-center mb-1">
+                <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                <p className="text-sm text-amber-800 font-medium">Aguardando analise</p>
+              </div>
+              <p className="text-xs text-amber-600">
+                Seus documentos serao analisados e voce recebera um email quando sua conta for ativada.
               </p>
-            )}
-            {(result.skipPayment || result.slug) && (
+            </div>
+            {(result.slug || form.slug) && (
               <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 mb-6 max-w-sm mx-auto">
                 <p className="text-xs text-blue-600 font-medium mb-1">Seu endereco:</p>
                 <p className="text-lg font-bold text-blue-900">{result.slug || form.slug}.tecnikos.com.br</p>
               </div>
             )}
-            <Link href={result.skipPayment ? "/login" : "/"}
+            <Link href="/"
               className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">
-              {result.skipPayment ? "Acessar minha conta" : "Voltar para inicio"}
+              Voltar para inicio
             </Link>
           </div>
         )}

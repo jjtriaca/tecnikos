@@ -25,7 +25,7 @@ export class TenantOnboardingService {
    * Full onboarding: create Company + User + send welcome email.
    * Idempotent — skips if Company already exists in tenant schema.
    */
-  async onboard(tenantId: string): Promise<{ password?: string; skipped?: boolean }> {
+  async onboard(tenantId: string, providedPasswordHash?: string): Promise<{ password?: string; skipped?: boolean }> {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
       include: { plan: true },
@@ -45,9 +45,9 @@ export class TenantOnboardingService {
       return { skipped: true };
     }
 
-    // Generate temporary password
-    const tempPassword = this.generatePassword();
-    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    // Use provided password hash (from signup) or generate temporary password
+    const tempPassword = providedPasswordHash ? null : this.generatePassword();
+    const passwordHash = providedPasswordHash || await bcrypt.hash(tempPassword!, 10);
 
     // Create Company in tenant schema (copy plan limits)
     const company = await client.company.create({
@@ -99,14 +99,14 @@ export class TenantOnboardingService {
       tenant.responsibleName || 'Administrador',
       tenant.name,
       tenant.slug,
-      tempPassword,
+      tempPassword, // null if user set their own password
       loginUrl,
       tenant.plan?.name || 'Padrão',
     ).catch((err) => {
       this.logger.error(`Failed to send welcome email: ${err.message}`);
     });
 
-    return { password: tempPassword };
+    return { password: tempPassword || undefined };
   }
 
   /**
@@ -130,13 +130,48 @@ export class TenantOnboardingService {
     name: string,
     companyName: string,
     slug: string,
-    password: string,
+    password: string | null,
     baseUrl: string,
     planName: string,
   ) {
     if (!toEmail) return;
 
     const loginLink = `${baseUrl}/login`;
+
+    const credentialsBlock = password
+      ? `
+            <h3 style="color: #0c4a6e; margin: 0 0 12px; font-size: 15px;">Seus dados de acesso:</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="color: #64748b; padding: 4px 0; font-size: 13px; width: 80px;">Email:</td>
+                <td style="color: #0f172a; padding: 4px 0; font-size: 13px; font-weight: 600;">${toEmail}</td>
+              </tr>
+              <tr>
+                <td style="color: #64748b; padding: 4px 0; font-size: 13px;">Senha:</td>
+                <td style="color: #0f172a; padding: 4px 0; font-size: 13px; font-family: monospace; font-weight: 600; letter-spacing: 1px;">${password}</td>
+              </tr>
+            </table>`
+      : `
+            <h3 style="color: #0c4a6e; margin: 0 0 12px; font-size: 15px;">Seus dados de acesso:</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="color: #64748b; padding: 4px 0; font-size: 13px; width: 80px;">Email:</td>
+                <td style="color: #0f172a; padding: 4px 0; font-size: 13px; font-weight: 600;">${toEmail}</td>
+              </tr>
+              <tr>
+                <td style="color: #64748b; padding: 4px 0; font-size: 13px;">Senha:</td>
+                <td style="color: #0f172a; padding: 4px 0; font-size: 13px; font-weight: 600;">A senha que voce definiu no cadastro</td>
+              </tr>
+            </table>`;
+
+    const tipBlock = password
+      ? `
+          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; margin: 20px 0 0;">
+            <p style="color: #92400e; margin: 0; font-size: 12px;">
+              <strong>Importante:</strong> Altere sua senha no primeiro acesso em Configuracoes &gt; Minha Conta.
+            </p>
+          </div>`
+      : '';
 
     const html = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -152,17 +187,7 @@ export class TenantOnboardingService {
           </p>
 
           <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 0 0 20px;">
-            <h3 style="color: #0c4a6e; margin: 0 0 12px; font-size: 15px;">Seus dados de acesso:</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="color: #64748b; padding: 4px 0; font-size: 13px; width: 80px;">Email:</td>
-                <td style="color: #0f172a; padding: 4px 0; font-size: 13px; font-weight: 600;">${toEmail}</td>
-              </tr>
-              <tr>
-                <td style="color: #64748b; padding: 4px 0; font-size: 13px;">Senha:</td>
-                <td style="color: #0f172a; padding: 4px 0; font-size: 13px; font-family: monospace; font-weight: 600; letter-spacing: 1px;">${password}</td>
-              </tr>
-            </table>
+            ${credentialsBlock}
           </div>
 
           <div style="text-align: center; margin: 24px 0;">
@@ -170,12 +195,7 @@ export class TenantOnboardingService {
               Acessar o Sistema
             </a>
           </div>
-
-          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; margin: 20px 0 0;">
-            <p style="color: #92400e; margin: 0; font-size: 12px;">
-              <strong>Importante:</strong> Altere sua senha no primeiro acesso em Configuracoes &gt; Minha Conta.
-            </p>
-          </div>
+          ${tipBlock}
         </div>
 
         <div style="background: #f1f5f9; padding: 16px; border-radius: 0 0 12px 12px; text-align: center; border: 1px solid #e2e8f0; border-top: none;">

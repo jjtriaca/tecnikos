@@ -13,6 +13,8 @@ import { api, setAccessToken, silentRefresh } from "@/lib/api";
 
 export type UserRole = "ADMIN" | "DESPACHO" | "FINANCEIRO" | "FISCAL" | "LEITURA";
 
+export type TenantStatus = "PENDING_VERIFICATION" | "PENDING_PAYMENT" | "ACTIVE" | "BLOCKED" | "CANCELLED" | "SUSPENDED";
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -20,6 +22,7 @@ export interface AuthUser {
   roles: UserRole[];
   companyId: string;
   companyName?: string;
+  tenantStatus?: TenantStatus | null;
 }
 
 /** Check if user has ANY of the given roles */
@@ -28,11 +31,19 @@ export function hasRole(user: AuthUser | null | undefined, ...roles: UserRole[])
   return user.roles.some(r => roles.includes(r));
 }
 
+export interface VerificationInfo {
+  status: string | null;  // PENDING | APPROVED | REJECTED
+  rejectionReason: string | null;
+  token: string | null;   // for re-upload redirect
+}
+
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
+  verificationInfo: VerificationInfo | null;
   login: (email: string, password: string, captchaToken?: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshVerification: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -44,6 +55,7 @@ type MeResponse = {
   roles: UserRole[];
   companyId: string;
   company?: { id: string; name: string };
+  tenantStatus?: TenantStatus | null;
 };
 
 type LoginResponse = {
@@ -65,13 +77,29 @@ function mapUser(d: MeResponse): AuthUser {
     roles: d.roles,
     companyId: d.companyId,
     companyName: d.company?.name,
+    tenantStatus: d.tenantStatus || null,
   };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [verificationInfo, setVerificationInfo] = useState<VerificationInfo | null>(null);
   const router = useRouter();
+
+  // Fetch verification info when tenant is PENDING_VERIFICATION
+  const fetchVerification = useCallback(async () => {
+    try {
+      const data = await api.get<any>("/public/saas/tenant-verification-status");
+      if (data?.status) {
+        setVerificationInfo({
+          status: data.status,
+          rejectionReason: data.rejectionReason || null,
+          token: data.token || null,
+        });
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   // On mount: try silent refresh → fetch user
   useEffect(() => {
@@ -83,7 +111,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!token || cancelled) return;
 
         const me = await api.get<MeResponse>("/auth/me");
-        if (!cancelled) setUser(mapUser(me));
+        if (!cancelled) {
+          const u = mapUser(me);
+          setUser(u);
+          // Fetch verification info if tenant is not ACTIVE
+          if (u.tenantStatus && u.tenantStatus !== "ACTIVE") {
+            fetchVerification();
+          }
+        }
       } catch {
         // not logged in
       } finally {
@@ -95,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fetchVerification]);
 
   const login = useCallback(
     async (email: string, password: string, captchaToken?: string) => {
@@ -106,10 +141,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       setAccessToken(res.accessToken);
 
-      // Fetch full user with company name
+      // Fetch full user with company name + tenant status
       try {
         const me = await api.get<MeResponse>("/auth/me");
-        setUser(mapUser(me));
+        const u = mapUser(me);
+        setUser(u);
+        if (u.tenantStatus && u.tenantStatus !== "ACTIVE") {
+          fetchVerification();
+        }
       } catch {
         // fallback to login response data
         setUser({
@@ -123,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       router.push("/dashboard");
     },
-    [router]
+    [router, fetchVerification]
   );
 
   const logout = useCallback(async () => {
@@ -137,9 +176,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }, [router]);
 
+  const refreshVerification = useCallback(async () => {
+    await fetchVerification();
+  }, [fetchVerification]);
+
   const value = useMemo(
-    () => ({ user, loading, login, logout }),
-    [user, loading, login, logout]
+    () => ({ user, loading, verificationInfo, login, logout, refreshVerification }),
+    [user, loading, verificationInfo, login, logout, refreshVerification]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

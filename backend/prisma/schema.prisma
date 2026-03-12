@@ -196,9 +196,16 @@ model User {
   code         String?  // Auto-generated: USR-00001
   name         String
   email        String   @unique
-  passwordHash String
+  passwordHash String?  // Nullable: null when user is invited and hasn't set password yet
   roles        UserRole[]
   mfaEnabled   Boolean  @default(false)
+
+  // Password reset / invite flow
+  passwordResetToken     String?   @unique
+  passwordResetExpiresAt DateTime?
+  invitedAt              DateTime? // Set when user is created via invite (no password)
+  passwordSetAt          DateTime? // Set when user defines their own password
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   deletedAt    DateTime?
@@ -1813,6 +1820,7 @@ model Tenant {
   responsibleCpf    String?
   responsibleDocUrl String?   // URL da foto do documento enviado
   verificationId    String?   // ID da verificação ppid
+  passwordHash      String?   // Hash da senha definida no signup (usado no onboarding)
 
   // Asaas (gateway pagamento)
   asaasCustomerId   String?   // ID do cliente no Asaas
@@ -1831,10 +1839,46 @@ model Tenant {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  subscriptions Subscription[]
+  subscriptions        Subscription[]
+  verificationSessions VerificationSession[]
 
   @@index([status])
   @@index([cnpj])
+}
+
+// Sessão de verificação de documentos (signup manual)
+model VerificationSession {
+  id        String   @id @default(uuid())
+  tenantId  String
+  token     String   @unique  // Token para URL pública (/verify/{token})
+
+  // Documentos (URLs relativas em /uploads/verification/{id}/)
+  cnpjCardUrl      String?   // Cartão CNPJ (PDF)
+  docFrontUrl      String?   // Documento frente (RG/CNH)
+  docBackUrl       String?   // Documento verso (RG/CNH)
+  selfieFarUrl     String?   // Selfie longe
+  selfieMediumUrl  String?   // Selfie médio
+  selfieCloseUrl   String?   // Selfie perto
+
+  // Status de upload (frontend polling)
+  uploadedCount    Int       @default(0)  // 0-6 documentos enviados
+  uploadComplete   Boolean   @default(false)
+
+  // Revisão do admin
+  reviewStatus     String    @default("PENDING")  // PENDING | APPROVED | REJECTED
+  reviewedAt       DateTime?
+  reviewedBy       String?   // Nome de quem revisou
+  rejectionReason  String?
+
+  // Controle
+  expiresAt        DateTime  // 72h após criação
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([token])
 }
 
 // Planos disponíveis para contratação
