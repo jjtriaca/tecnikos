@@ -232,6 +232,18 @@ export class AsaasService {
             nextBillingDate: nextEnd,
           },
         });
+
+        // Auto-emit invoice if configured
+        try {
+          const config = await this.prisma.saasInvoiceConfig.findFirst();
+          if (config?.autoEmitOnPayment) {
+            await this.issueInvoice({ tenantId });
+            this.logger.log(`Auto-emitted invoice for tenant ${tenantId} on payment confirmation`);
+          }
+        } catch (err) {
+          this.logger.warn(`Auto-emit invoice failed for tenant ${tenantId}: ${(err as Error).message}`);
+        }
+
         break;
       }
 
@@ -432,6 +444,286 @@ export class AsaasService {
     } catch (err) {
       this.logger.warn(`Failed to credit OS to tenant company: ${(err as Error).message}`);
     }
+  }
+
+  // ─── INVOICES (NFS-e) ─────────────────────────────────
+
+  /**
+   * Get or create the singleton invoice config.
+   */
+  async getInvoiceConfig() {
+    let config = await this.prisma.saasInvoiceConfig.findFirst();
+    if (!config) {
+      config = await this.prisma.saasInvoiceConfig.create({ data: {} });
+    }
+    return config;
+  }
+
+  /**
+   * Update invoice config.
+   */
+  async updateInvoiceConfig(data: {
+    autoEmitOnPayment?: boolean;
+    municipalServiceId?: string;
+    municipalServiceCode?: string;
+    municipalServiceName?: string;
+    defaultIss?: number;
+    defaultCofins?: number;
+    defaultCsll?: number;
+    defaultInss?: number;
+    defaultIr?: number;
+    defaultPis?: number;
+    defaultRetainIss?: boolean;
+    serviceDescriptionTemplate?: string;
+  }) {
+    const config = await this.getInvoiceConfig();
+    return this.prisma.saasInvoiceConfig.update({
+      where: { id: config.id },
+      data,
+    });
+  }
+
+  /**
+   * Issue an invoice (NFS-e) for a tenant via Asaas.
+   */
+  async issueInvoice(params: {
+    tenantId: string;
+    value?: number;             // Override value (BRL). If not set, uses plan price.
+    serviceDescription?: string;
+    observations?: string;
+    effectiveDate?: string;     // YYYY-MM-DD. Defaults to today.
+    taxes?: {
+      iss?: number;
+      cofins?: number;
+      csll?: number;
+      inss?: number;
+      ir?: number;
+      pis?: number;
+      retainIss?: boolean;
+    };
+  }) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: params.tenantId },
+      include: { plan: true },
+    });
+    if (!tenant) throw new BadRequestException('Tenant não encontrado');
+
+    const config = await this.getInvoiceConfig();
+
+    // Determine value
+    const value = params.value ?? (tenant.plan ? tenant.plan.priceCents / 100 : 0);
+    if (value <= 0) throw new BadRequestException('Valor da nota fiscal deve ser maior que zero');
+
+    // Build service description from template
+    const serviceDescription = params.serviceDescription || config.serviceDescriptionTemplate
+      .replace('{empresa}', tenant.name)
+      .replace('{plano}', tenant.plan?.name || 'N/A')
+      .replace('{periodo}', this.formatDate(new Date()));
+
+    const effectiveDate = params.effectiveDate || this.formatDate(new Date());
+
+    // Tax values (use params override, then config defaults)
+    const taxes = {
+      iss: params.taxes?.iss ?? config.defaultIss,
+      cofins: params.taxes?.cofins ?? config.defaultCofins,
+      csll: params.taxes?.csll ?? config.defaultCsll,
+      inss: params.taxes?.inss ?? config.defaultInss,
+      ir: params.taxes?.ir ?? config.defaultIr,
+      pis: params.taxes?.pis ?? config.defaultPis,
+      retainIss: params.taxes?.retainIss ?? config.defaultRetainIss,
+    };
+
+    // Create local record first
+    const invoice = await this.prisma.saasInvoice.create({
+      data: {
+        tenantId: tenant.id,
+        value,
+        serviceDescription,
+        observations: params.observations || null,
+        effectiveDate: new Date(effectiveDate),
+        iss: taxes.iss,
+        cofins: taxes.cofins,
+        csll: taxes.csll,
+        inss: taxes.inss,
+        ir: taxes.ir,
+        pis: taxes.pis,
+        retainIss: taxes.retainIss,
+        status: 'PENDING',
+      },
+    });
+
+    // If Asaas is configured, emit via API
+    if (this.asaas.isConfigured) {
+      try {
+        const customerId = await this.ensureCustomer(tenant.id);
+
+        const asaasData: any = {
+          customer: customerId,
+          serviceDescription,
+          observations: params.observations || undefined,
+          value,
+          effectiveDate,
+          taxes: {
+            retainIss: taxes.retainIss,
+            iss: taxes.iss,
+            cofins: taxes.cofins,
+            csll: taxes.csll,
+            inss: taxes.inss,
+            ir: taxes.ir,
+            pis: taxes.pis,
+          },
+        };
+
+        // Municipal service (from config)
+        if (config.municipalServiceId) {
+          asaasData.municipalServiceId = config.municipalServiceId;
+        } else if (config.municipalServiceCode) {
+          asaasData.municipalServiceCode = config.municipalServiceCode;
+        }
+        if (config.municipalServiceName) {
+          asaasData.municipalServiceName = config.municipalServiceName;
+        }
+
+        const asaasInvoice = await this.asaas.createInvoice(asaasData);
+
+        await this.prisma.saasInvoice.update({
+          where: { id: invoice.id },
+          data: {
+            asaasInvoiceId: asaasInvoice.id,
+            asaasCustomerId: customerId,
+            status: asaasInvoice.status || 'SCHEDULED',
+          },
+        });
+
+        this.logger.log(`Invoice created in Asaas: ${asaasInvoice.id} for tenant ${tenant.slug}`);
+
+        return { invoice: { ...invoice, asaasInvoiceId: asaasInvoice.id, status: asaasInvoice.status || 'SCHEDULED' }, asaasInvoice };
+      } catch (err) {
+        const errMsg = (err as Error).message;
+        await this.prisma.saasInvoice.update({
+          where: { id: invoice.id },
+          data: { status: 'ERROR', errorMessage: errMsg },
+        });
+        this.logger.error(`Invoice creation failed for tenant ${tenant.slug}: ${errMsg}`);
+        throw new BadRequestException(`Erro ao emitir NF no Asaas: ${errMsg}`);
+      }
+    } else {
+      // Asaas not configured — keep as PENDING for manual processing
+      this.logger.warn('Asaas not configured — invoice saved locally only');
+      return { invoice, asaasInvoice: null };
+    }
+  }
+
+  /**
+   * List invoices for a specific tenant (or all tenants).
+   */
+  async listInvoices(filters?: {
+    tenantId?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const take = Math.min(filters?.limit || 20, 100);
+    const skip = ((filters?.page || 1) - 1) * take;
+    const where: any = {};
+    if (filters?.tenantId) where.tenantId = filters.tenantId;
+    if (filters?.status && filters.status !== 'ALL') where.status = filters.status;
+
+    const [items, total] = await Promise.all([
+      this.prisma.saasInvoice.findMany({
+        where,
+        include: { tenant: { select: { id: true, name: true, slug: true, cnpj: true, plan: { select: { name: true } } } } },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.saasInvoice.count({ where }),
+    ]);
+
+    return { items, total, page: filters?.page || 1, limit: take };
+  }
+
+  /**
+   * Cancel an invoice.
+   */
+  async cancelInvoice(invoiceId: string) {
+    const invoice = await this.prisma.saasInvoice.findUnique({ where: { id: invoiceId } });
+    if (!invoice) throw new BadRequestException('Nota fiscal não encontrada');
+
+    if (invoice.asaasInvoiceId && this.asaas.isConfigured) {
+      try {
+        await this.asaas.cancelInvoice(invoice.asaasInvoiceId);
+      } catch (err) {
+        this.logger.warn(`Failed to cancel invoice in Asaas: ${(err as Error).message}`);
+      }
+    }
+
+    return this.prisma.saasInvoice.update({
+      where: { id: invoiceId },
+      data: { status: 'CANCELED' },
+    });
+  }
+
+  /**
+   * Handle invoice webhook events from Asaas.
+   */
+  async handleInvoiceWebhook(event: string, invoiceData: any) {
+    if (!invoiceData?.id) return;
+
+    const invoice = await this.prisma.saasInvoice.findFirst({
+      where: { asaasInvoiceId: invoiceData.id },
+    });
+
+    if (!invoice) {
+      this.logger.debug(`Invoice webhook for unknown invoice: ${invoiceData.id}`);
+      return;
+    }
+
+    const updateData: any = {};
+
+    switch (event) {
+      case 'INVOICE_AUTHORIZED':
+        updateData.status = 'AUTHORIZED';
+        updateData.pdfUrl = invoiceData.pdfUrl || null;
+        updateData.xmlUrl = invoiceData.xmlUrl || null;
+        updateData.rpsNumber = invoiceData.rpsNumber || null;
+        updateData.invoiceNumber = invoiceData.number || null;
+        this.logger.log(`Invoice ${invoiceData.id} AUTHORIZED (NF ${invoiceData.number})`);
+        break;
+
+      case 'INVOICE_CANCELED':
+        updateData.status = 'CANCELED';
+        this.logger.log(`Invoice ${invoiceData.id} CANCELED`);
+        break;
+
+      case 'INVOICE_ERROR':
+        updateData.status = 'ERROR';
+        updateData.errorMessage = invoiceData.statusDescription || 'Erro na emissão';
+        this.logger.error(`Invoice ${invoiceData.id} ERROR: ${invoiceData.statusDescription}`);
+        break;
+
+      case 'INVOICE_SYNCHRONIZED':
+        updateData.status = 'SYNCHRONIZED';
+        break;
+
+      case 'INVOICE_PROCESSING_CANCELLATION':
+        updateData.status = 'PROCESSING_CANCELLATION';
+        break;
+
+      case 'INVOICE_CANCELLATION_DENIED':
+        updateData.status = 'CANCELLATION_DENIED';
+        updateData.errorMessage = 'Cancelamento negado pela prefeitura';
+        break;
+
+      default:
+        this.logger.debug(`Unhandled invoice event: ${event}`);
+        return;
+    }
+
+    await this.prisma.saasInvoice.update({
+      where: { id: invoice.id },
+      data: updateData,
+    });
   }
 
   private formatDate(date: Date): string {

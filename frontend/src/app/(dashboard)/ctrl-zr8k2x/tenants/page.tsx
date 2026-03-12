@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useAuth, hasRole } from "@/contexts/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type TenantStatus = "PENDING_VERIFICATION" | "PENDING_PAYMENT" | "ACTIVE" | "BLOCKED" | "CANCELLED" | "SUSPENDED";
 
@@ -318,6 +318,16 @@ export default function TenantsPage() {
                   <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(t.createdAt)}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {/* Issue invoice button - only for ACTIVE tenants */}
+                      {t.status === "ACTIVE" && (
+                        <button
+                          onClick={() => router.push(`/ctrl-zr8k2x/invoices?tenantId=${t.id}`)}
+                          className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                          title="Emitir Nota Fiscal"
+                        >
+                          Emitir NF
+                        </button>
+                      )}
                       {/* Verification review button */}
                       {t.status === "PENDING_VERIFICATION" && (
                         <button

@@ -20,6 +20,8 @@ import { CreatePlanDto } from './dto/create-plan.dto';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { TenantMiddleware } from './tenant.middleware';
 import { TenantOnboardingService } from './tenant-onboarding.service';
+import { AsaasService } from './asaas.service';
+import { AsaasProvider } from './asaas.provider';
 import { EmailService } from '../email/email.service';
 import { Public } from '../auth/decorators/public.decorator';
 
@@ -36,6 +38,8 @@ export class TenantController {
     private readonly prisma: PrismaService,
     private readonly tenantMiddleware: TenantMiddleware,
     private readonly onboarding: TenantOnboardingService,
+    private readonly asaasService: AsaasService,
+    private readonly asaasProvider: AsaasProvider,
     private readonly emailService: EmailService,
   ) {}
 
@@ -462,17 +466,90 @@ export class TenantController {
     const since = new Date();
     since.setDate(since.getDate() - d);
 
-    // Aggregate event counts
+    // Known internal indicators (server IP, common bot patterns, Hetzner, known IPs)
+    const INTERNAL_IPS = [
+      '178.156.240.163',  // Hetzner server
+      '127.0.0.1',
+      '::1',
+    ];
+    const INTERNAL_UA_PATTERNS = [
+      'HeadlessChrome',
+      'Puppeteer',
+      'ClaudeBot',
+      'node-fetch',
+      'python-requests',
+      'curl/',
+      'Googlebot',
+      'bingbot',
+      'Bytespider',
+      'AhrefsBot',
+      'SemrushBot',
+      'MJ12bot',
+      'DotBot',
+      'PetalBot',
+      'YandexBot',
+      'facebookexternalhit',
+      'Twitterbot',
+      'LinkedInBot',
+    ];
+
+    function isInternal(ip?: string | null, ua?: string | null): boolean {
+      if (ip && INTERNAL_IPS.some((iip) => ip.includes(iip))) return true;
+      if (ua && INTERNAL_UA_PATTERNS.some((p) => ua.includes(p))) return true;
+      return false;
+    }
+
+    // Load ALL landing_view events with IP + UA for internal/external analysis
+    const allLandingEvents = await this.prisma.saasEvent.findMany({
+      where: { createdAt: { gte: since }, event: 'landing_view' },
+      select: { ipAddress: true, userAgent: true, sessionId: true, createdAt: true },
+    });
+
+    // Classify sessions as internal/external
+    const sessionClassification = new Map<string, 'internal' | 'external'>();
+    allLandingEvents.forEach((e) => {
+      const sid = e.sessionId || 'unknown';
+      if (!sessionClassification.has(sid)) {
+        sessionClassification.set(sid, isInternal(e.ipAddress, e.userAgent) ? 'internal' : 'external');
+      }
+    });
+
+    // Count internal vs external pageviews
+    let internalPageviews = 0;
+    let externalPageviews = 0;
+    allLandingEvents.forEach((e) => {
+      if (isInternal(e.ipAddress, e.userAgent)) internalPageviews++;
+      else externalPageviews++;
+    });
+
+    // Unique sessions
+    const allSessions = await this.prisma.saasEvent.groupBy({
+      by: ['sessionId'],
+      where: { createdAt: { gte: since }, sessionId: { not: null } },
+    });
+    // For unique visitors, we need IP + UA per session
+    const sessionDetails = await this.prisma.saasEvent.findMany({
+      where: { createdAt: { gte: since }, sessionId: { not: null } },
+      select: { sessionId: true, ipAddress: true, userAgent: true },
+      distinct: ['sessionId'],
+    });
+    let internalSessions = 0;
+    let externalSessions = 0;
+    sessionDetails.forEach((s) => {
+      if (isInternal(s.ipAddress, s.userAgent)) internalSessions++;
+      else externalSessions++;
+    });
+
+    // Aggregate event counts (ALL events, not just landing)
     const events = await this.prisma.saasEvent.groupBy({
       by: ['event'],
       where: { createdAt: { gte: since } },
       _count: { id: true },
     });
-
     const eventMap: Record<string, number> = {};
     events.forEach((e) => (eventMap[e.event] = e._count.id));
 
-    // Daily pageviews (landing)
+    // Daily pageviews (landing) — split by internal/external
     const dailyViews: { date: string; count: number }[] = await this.prisma.$queryRaw`
       SELECT DATE("createdAt") as date, COUNT(*)::int as count
       FROM "SaasEvent"
@@ -495,13 +572,10 @@ export class TenantController {
       .slice(0, 5)
       .map(([reason, count]) => ({ reason, count }));
 
-    // Device breakdown from user agents
-    const allEvents = await this.prisma.saasEvent.findMany({
-      where: { createdAt: { gte: since }, event: 'landing_view' },
-      select: { userAgent: true },
-    });
+    // Device breakdown from user agents (external only)
     const devices: Record<string, number> = { Desktop: 0, Mobile: 0, Tablet: 0 };
-    allEvents.forEach((e) => {
+    allLandingEvents.forEach((e) => {
+      if (isInternal(e.ipAddress, e.userAgent)) return; // skip internal
       const ua = e.userAgent || '';
       if (ua.includes('Mobile') || ua.includes('Android') || ua.includes('iPhone'))
         devices.Mobile++;
@@ -509,11 +583,33 @@ export class TenantController {
       else devices.Desktop++;
     });
 
-    // Unique sessions
-    const uniqueSessions = await this.prisma.saasEvent.groupBy({
-      by: ['sessionId'],
-      where: { createdAt: { gte: since }, sessionId: { not: null } },
+    // Unique IPs for geographic insight
+    const uniqueIps = new Set<string>();
+    const ipBreakdown: { ip: string; count: number; isInternal: boolean; lastUa: string }[] = [];
+    const ipCounts: Record<string, { count: number; ua: string }> = {};
+    allLandingEvents.forEach((e) => {
+      const ip = e.ipAddress || 'unknown';
+      uniqueIps.add(ip);
+      if (!ipCounts[ip]) ipCounts[ip] = { count: 0, ua: e.userAgent || '' };
+      ipCounts[ip].count++;
+      ipCounts[ip].ua = e.userAgent || ipCounts[ip].ua;
     });
+    Object.entries(ipCounts)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 15)
+      .forEach(([ip, { count, ua }]) => {
+        ipBreakdown.push({
+          ip,
+          count,
+          isInternal: isInternal(ip, ua),
+          lastUa: ua.length > 80 ? ua.substring(0, 80) + '...' : ua,
+        });
+      });
+
+    // External-only conversion rate
+    const externalConversion = externalPageviews > 0
+      ? Math.round(((eventMap['signup_complete'] || 0) / externalPageviews) * 10000) / 100
+      : 0;
 
     return {
       period: d,
@@ -526,7 +622,7 @@ export class TenantController {
       signupRejected: eventMap['signup_rejected'] || 0,
       clickSignup: eventMap['landing_click_signup'] || 0,
       clickPlan: eventMap['landing_click_plan'] || 0,
-      uniqueVisitors: uniqueSessions.length,
+      uniqueVisitors: allSessions.length,
       conversionRate:
         eventMap['landing_view'] > 0
           ? Math.round(((eventMap['signup_complete'] || 0) / eventMap['landing_view']) * 10000) / 100
@@ -534,6 +630,117 @@ export class TenantController {
       dailyViews,
       topReasons,
       devices,
+      // New: internal vs external breakdown
+      internalPageviews,
+      externalPageviews,
+      internalSessions,
+      externalSessions,
+      externalConversion,
+      uniqueIps: uniqueIps.size,
+      ipBreakdown,
     };
+  }
+
+  // ─── INVOICES (NFS-e) ──────────────────────────────────
+
+  /** Issue an invoice for a tenant */
+  @Post(':id/issue-invoice')
+  async issueInvoice(
+    @Param('id') id: string,
+    @Body() body: {
+      value?: number;
+      serviceDescription?: string;
+      observations?: string;
+      effectiveDate?: string;
+      taxes?: {
+        iss?: number;
+        cofins?: number;
+        csll?: number;
+        inss?: number;
+        ir?: number;
+        pis?: number;
+        retainIss?: boolean;
+      };
+    },
+  ) {
+    return this.asaasService.issueInvoice({
+      tenantId: id,
+      ...body,
+    });
+  }
+
+  /** List all invoices */
+  @Get('/invoices/list')
+  async listInvoices(
+    @Query('tenantId') tenantId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.asaasService.listInvoices({
+      tenantId,
+      status,
+      page: parseInt(page || '1', 10),
+      limit: parseInt(limit || '20', 10),
+    });
+  }
+
+  /** Cancel an invoice */
+  @Delete('/invoices/:invoiceId')
+  async cancelInvoice(@Param('invoiceId') invoiceId: string) {
+    return this.asaasService.cancelInvoice(invoiceId);
+  }
+
+  /** Get invoice config */
+  @Get('/invoices/config')
+  async getInvoiceConfig() {
+    return this.asaasService.getInvoiceConfig();
+  }
+
+  /** Update invoice config */
+  @Put('/invoices/config')
+  async updateInvoiceConfig(
+    @Body() body: {
+      autoEmitOnPayment?: boolean;
+      municipalServiceId?: string;
+      municipalServiceCode?: string;
+      municipalServiceName?: string;
+      defaultIss?: number;
+      defaultCofins?: number;
+      defaultCsll?: number;
+      defaultInss?: number;
+      defaultIr?: number;
+      defaultPis?: number;
+      defaultRetainIss?: boolean;
+      serviceDescriptionTemplate?: string;
+    },
+  ) {
+    return this.asaasService.updateInvoiceConfig(body);
+  }
+
+  /** Get Asaas fiscal info (municipal options, current config) */
+  @Get('/invoices/fiscal-info')
+  async getFiscalInfo() {
+    if (!this.asaasProvider.isConfigured) {
+      return { configured: false, message: 'Asaas não configurado' };
+    }
+    try {
+      const [municipalOptions, fiscalInfo] = await Promise.all([
+        this.asaasProvider.getMunicipalOptions().catch(() => null),
+        this.asaasProvider.getFiscalInfo().catch(() => null),
+      ]);
+      return { configured: true, municipalOptions, fiscalInfo };
+    } catch {
+      return { configured: true, municipalOptions: null, fiscalInfo: null };
+    }
+  }
+
+  /** List available municipal services from Asaas */
+  @Get('/invoices/municipal-services')
+  async getMunicipalServices(@Query('description') description?: string) {
+    if (!this.asaasProvider.isConfigured) {
+      return { data: [] };
+    }
+    return this.asaasProvider.getMunicipalServices(description);
   }
 }

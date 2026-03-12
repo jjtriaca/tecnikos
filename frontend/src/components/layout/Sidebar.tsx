@@ -232,6 +232,7 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
   const SAAS_NAV: NavItem[] = [
     { label: "Dashboard SaaS", href: "/ctrl-zr8k2x", icon: icons.dashboard, roles: ["ADMIN"] },
     { label: "Empresas", href: "/ctrl-zr8k2x/tenants", icon: icons.partners, roles: ["ADMIN"] },
+    { label: "Notas Fiscais", href: "/ctrl-zr8k2x/invoices", icon: icons.finance, roles: ["ADMIN"] },
     { label: "Planos", href: "/ctrl-zr8k2x/plans", icon: icons.finance, roles: ["ADMIN"] },
     { label: "Pacotes Add-on", href: "/ctrl-zr8k2x/addons", icon: icons.automation, roles: ["ADMIN"] },
     { label: "Promocoes", href: "/ctrl-zr8k2x/promotions", icon: icons.automation, roles: ["ADMIN"] },

@@ -51,6 +51,8 @@ export class AsaasWebhookController {
         await this.asaasService.handlePaymentWebhook(event, body.payment);
       } else if (event.startsWith('SUBSCRIPTION_')) {
         await this.asaasService.handleSubscriptionWebhook(event, body.subscription);
+      } else if (event.startsWith('INVOICE_')) {
+        await this.asaasService.handleInvoiceWebhook(event, body.invoice);
       } else {
         this.logger.debug(`Unhandled webhook event: ${event}`);
       }

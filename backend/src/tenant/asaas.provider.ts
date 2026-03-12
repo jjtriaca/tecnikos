@@ -151,6 +151,123 @@ export class AsaasProvider {
     return this.request('POST', '/payments', data);
   }
 
+  // ─── INVOICES (NFS-e) ─────────────────────────────────
+
+  /** Schedule/create an invoice (NFS-e) */
+  async createInvoice(data: {
+    payment?: string;        // Asaas payment ID (if linked to a payment)
+    installment?: string;    // Asaas installment ID
+    customer?: string;       // Asaas customer ID (if standalone invoice)
+    serviceDescription: string;
+    observations?: string;
+    value: number;           // BRL (not cents)
+    deductions?: number;
+    effectiveDate: string;   // YYYY-MM-DD
+    municipalServiceId?: string;
+    municipalServiceCode?: string;
+    municipalServiceName?: string;
+    taxes?: {
+      retainIss?: boolean;
+      iss?: number;
+      cofins?: number;
+      csll?: number;
+      inss?: number;
+      ir?: number;
+      pis?: number;
+    };
+  }) {
+    return this.request('POST', '/invoices', data);
+  }
+
+  /** Get a single invoice by ID */
+  async getInvoice(id: string) {
+    return this.request('GET', `/invoices/${id}`);
+  }
+
+  /** List invoices with optional filters */
+  async listInvoices(filters?: {
+    status?: string;
+    customer?: string;
+    payment?: string;
+    effectiveDateGe?: string;
+    effectiveDateLe?: string;
+    offset?: number;
+    limit?: number;
+  }) {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.customer) params.append('customer', filters.customer);
+    if (filters?.payment) params.append('payment', filters.payment);
+    if (filters?.effectiveDateGe) params.append('effectiveDate[ge]', filters.effectiveDateGe);
+    if (filters?.effectiveDateLe) params.append('effectiveDate[le]', filters.effectiveDateLe);
+    params.append('offset', String(filters?.offset || 0));
+    params.append('limit', String(filters?.limit || 50));
+    return this.request('GET', `/invoices?${params.toString()}`);
+  }
+
+  /** Force-authorize a scheduled invoice */
+  async authorizeInvoice(id: string) {
+    return this.request('POST', `/invoices/${id}/authorize`);
+  }
+
+  /** Update a scheduled/errored invoice */
+  async updateInvoice(id: string, data: Record<string, any>) {
+    return this.request('PUT', `/invoices/${id}`, data);
+  }
+
+  /** Cancel an invoice */
+  async cancelInvoice(id: string) {
+    return this.request('DELETE', `/invoices/${id}`);
+  }
+
+  /** List available municipal services */
+  async getMunicipalServices(description?: string) {
+    const params = description ? `?description=${encodeURIComponent(description)}` : '';
+    return this.request('GET', `/invoices/municipalServices${params}`);
+  }
+
+  /** Configure automatic invoice settings for a subscription */
+  async setSubscriptionInvoiceSettings(
+    subscriptionId: string,
+    data: {
+      effectiveDatePeriod: 'ON_PAYMENT_CONFIRMATION' | 'ON_PAYMENT_DUE_DATE' | 'BEFORE_PAYMENT_DUE_DATE' | 'ON_DUE_DATE_MONTH' | 'ON_NEXT_MONTH';
+      daysBeforeDueDate?: number;
+      municipalServiceId?: string;
+      municipalServiceCode?: string;
+      receivedOnly?: boolean;
+    },
+  ) {
+    return this.request('POST', `/subscriptions/${subscriptionId}/invoiceSettings`, data);
+  }
+
+  // ─── FISCAL INFO ────────────────────────────────────────
+
+  /** Get municipal options for fiscal configuration */
+  async getMunicipalOptions() {
+    return this.request('GET', '/fiscalInfo/municipalOptions');
+  }
+
+  /** Get current fiscal info */
+  async getFiscalInfo() {
+    return this.request('GET', '/fiscalInfo');
+  }
+
+  /** Create/update fiscal info */
+  async saveFiscalInfo(data: {
+    email?: string;
+    municipalInscription?: string;
+    simplesNacional?: boolean;
+    cnae?: string;
+    rpsSerie?: string;
+    rpsNumber?: number;
+    specialTaxRegime?: string;
+    serviceListItem?: string;
+    username?: string;
+    password?: string;
+  }) {
+    return this.request('POST', '/fiscalInfo', data);
+  }
+
   // ─── WEBHOOKS ─────────────────────────────────────────
 
   async createWebhook(url: string, authToken: string) {
@@ -174,6 +291,12 @@ export class AsaasProvider {
         'SUBSCRIPTION_UPDATED',
         'SUBSCRIPTION_INACTIVATED',
         'SUBSCRIPTION_DELETED',
+        'INVOICE_CREATED',
+        'INVOICE_AUTHORIZED',
+        'INVOICE_CANCELED',
+        'INVOICE_ERROR',
+        'INVOICE_PROCESSING_CANCELLATION',
+        'INVOICE_CANCELLATION_DENIED',
       ],
     });
   }

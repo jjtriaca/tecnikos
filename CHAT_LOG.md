@@ -337,4 +337,116 @@ Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
 **Builds:** Backend tsc OK, Frontend next build OK
 **Deploy:** v1.02.29 OK
 
+### Erro Prisma "type does not exist" — CORRIGIDO (v1.02.30)
+- Causa: tenant_connection.service.ts definia search_path sem `public`
+- Fix: `?schema=${schemaName},public` inclui public no search_path
+- Vaga PIONEIRO-PISCINAS resetada (currentUses 1→0), tenant SLS apagado
+
+### Signup Melhorias (v1.02.30)
+- Campo "Nome empresa" REMOVIDO — auto-preenchido pelo CNPJ lookup
+- Dados CNPJ em painel read-only (razao social, endereco, situacao com badge)
+- Botao "Consultar CNPJ" azul com spinner, Continuar exige CNPJ consultado
+- Step 5: reenvio de email com countdown 60s + edicao de email
+- Backend: POST /resend-welcome (atualiza email no Tenant + User + Company)
+
+### Rastreamento de Origem UTM (v1.02.30)
+- Schema: +referrer, +utmSource/Medium/Campaign/Term/Content, +landingPage
+- Frontend: captura document.referrer + URL params, envia no primeiro saveAttempt
+- Admin: secao "Origem do Acesso" no modal
+
+### Asaas fix: /subscribe permite ACTIVE sem subscription (voucher users)
+
+**Builds:** Backend tsc OK, Frontend next build OK
+**Deploy:** v1.02.30 OK
+
+---
+
+## 2026-03-12 — Sessao 105: Emissao NFS-e via Asaas (v1.02.31)
+
+### Pedido do Juliano:
+- Botao "Emitir Nota Fiscal" ao lado de cada empresa ativa no admin
+- Modal com dados pre-preenchidos (nome, CNPJ, valor do plano)
+- Opcao de emissao automatica ao confirmar pagamento
+- Integrado com Asaas
+- SLS Obras nao emite NF para si mesma (teste da integracao)
+- Ultimo passo do signup NAO emite NF automaticamente
+
+### Implementacao Completa:
+
+**Schema Prisma:**
+- Model SaasInvoice: tenantId, asaasInvoiceId, status, value, serviceDescription, taxes, PDF/XML urls, error tracking
+- Model SaasInvoiceConfig: singleton config (autoEmitOnPayment, municipalService, default taxes, template)
+- Migration: 20260312160000_saas_invoice
+- Relacao Tenant → SaasInvoice[]
+
+**Backend (asaas.provider.ts):**
+- createInvoice, getInvoice, listInvoices, authorizeInvoice, updateInvoice, cancelInvoice
+- getMunicipalServices, setSubscriptionInvoiceSettings
+- getMunicipalOptions, getFiscalInfo, saveFiscalInfo
+- Webhook events adicionados: INVOICE_CREATED, INVOICE_AUTHORIZED, INVOICE_CANCELED, INVOICE_ERROR, etc
+
+**Backend (asaas.service.ts):**
+- getInvoiceConfig / updateInvoiceConfig: gestao do singleton config
+- issueInvoice: emissao completa (local record + Asaas API), template de descricao, taxes defaults
+- listInvoices: listagem paginada com filtros
+- cancelInvoice: cancela local + Asaas
+- handleInvoiceWebhook: processa AUTHORIZED/CANCELED/ERROR/SYNCHRONIZED etc, atualiza PDF/XML
+- Auto-emit: no PAYMENT_CONFIRMED/RECEIVED, se config.autoEmitOnPayment, emite automaticamente
+
+**Backend (asaas-webhook.controller.ts):**
+- Adicionado dispatch para events INVOICE_* → asaasService.handleInvoiceWebhook
+
+**Backend (tenant.controller.ts):**
+- POST /:id/issue-invoice — emitir NF para tenant
+- GET /invoices/list — listar NFs com filtros
+- DELETE /invoices/:invoiceId — cancelar NF
+- GET /invoices/config — obter config fiscal
+- PUT /invoices/config — atualizar config fiscal
+- GET /invoices/fiscal-info — info fiscal do Asaas
+- GET /invoices/municipal-services — servicos municipais disponiveis
+
+**Frontend (ctrl-zr8k2x/invoices/page.tsx):**
+- Tab "Notas Emitidas": tabela com empresa, valor, status (badges coloridos), NF#, data, acoes
+- Tab "Configuracao Fiscal": auto-emit toggle, servico municipal, impostos padrao (6 campos), ISS retido, template descricao com variaveis clicaveis
+- Modal "Emitir NF": selecao empresa, dados pre-preenchidos, valor do plano, descricao override, observacoes, data
+- Modal "Detalhes": info completa, impostos, PDF/XML download, erro se houver
+- Aceita ?tenantId=xxx na URL para abrir modal pre-selecionado
+
+**Frontend (ctrl-zr8k2x/tenants/page.tsx):**
+- Botao "Emitir NF" (verde) na coluna Acoes para tenants ACTIVE
+- Redireciona para /ctrl-zr8k2x/invoices?tenantId=xxx
+
+**Frontend (Sidebar.tsx):**
+- "Notas Fiscais" adicionado ao SAAS_NAV (entre Empresas e Planos)
+
+**Builds:** Backend tsc OK, Frontend next build OK
+
+### Dashboard Analytics — Tooltips + Interno vs Externo
+
+**Pedido do Juliano:**
+- Dados de acesso mais claros com explicacoes
+- Distinguir acessos internos (Claude VM, Juliano, bots) dos visitantes reais
+- Tooltips (?) com hover que explica cada metrica
+
+**Backend (tenant.controller.ts - getAnalytics):**
+- Detecta IPs internos: servidor Hetzner (178.156.240.163), localhost
+- Detecta UAs internos: HeadlessChrome, Puppeteer, ClaudeBot, bots (Google, Bing, Ahrefs, Semrush, etc)
+- Classifica cada evento como interno ou externo
+- Novos campos: internalPageviews, externalPageviews, internalSessions, externalSessions
+- externalConversion: taxa de conversao baseada apenas em visitantes reais
+- ipBreakdown: top 15 IPs com contagem, classificacao, User-Agent
+- Devices agora exclui bots (conta apenas externos)
+
+**Frontend (ctrl-zr8k2x/page.tsx):**
+- Componente Tooltip: botao ? com popup ao hover, posicionado acima
+- Tooltips em TODAS as metricas: KPIs, MRR, funil, visitantes, conversoes, dispositivos, rejeicoes, planos
+- Alerta amarelo quando ha acessos internos detectados (mostra contagem real vs interno)
+- KPI "Visitantes" agora mostra "Visitantes Reais" (externos apenas)
+- Taxa de conversao usa externalConversion (base visitantes reais)
+- Funil usa externalPageviews como base
+- Secao "Detalhes por IP" (colapsavel): tabela com IP, acessos, tipo (interno/visitante), User-Agent
+- Quick links: adicionado "Notas Fiscais"
+
+**Builds:** Backend tsc OK, Frontend next build OK
+
 ---

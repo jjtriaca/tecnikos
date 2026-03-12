@@ -1841,6 +1841,7 @@ model Tenant {
 
   subscriptions        Subscription[]
   verificationSessions VerificationSession[]
+  invoices             SaasInvoice[]
 
   @@index([status])
   @@index([cnpj])
@@ -1991,6 +1992,78 @@ model AddOnPurchase {
 
   @@index([subscriptionId])
   @@index([status])
+}
+
+// Nota fiscal (NFS-e) emitida via Asaas para licenças SaaS
+model SaasInvoice {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id])
+
+  // Asaas reference
+  asaasInvoiceId     String?   @unique   // ID da NF no Asaas (inv_xxx)
+  asaasPaymentId     String?             // ID do pagamento vinculado
+  asaasCustomerId    String?             // ID do cliente no Asaas
+
+  // Invoice data
+  status             String    @default("PENDING") // PENDING | SCHEDULED | SYNCHRONIZED | AUTHORIZED | ERROR | CANCELED
+  value              Float                          // Valor em BRL
+  serviceDescription String
+  observations       String?
+  effectiveDate      DateTime                       // Data de emissão
+
+  // Result from Asaas (populated after emission)
+  pdfUrl             String?
+  xmlUrl             String?
+  rpsNumber          Int?
+  invoiceNumber      String?
+
+  // Taxes (percentages)
+  iss                Float     @default(0)
+  cofins             Float     @default(0)
+  csll               Float     @default(0)
+  inss               Float     @default(0)
+  ir                 Float     @default(0)
+  pis                Float     @default(0)
+  retainIss          Boolean   @default(false)
+
+  // Error tracking
+  errorMessage       String?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([asaasInvoiceId])
+}
+
+// Configuração global de emissão de NFS-e (singleton)
+model SaasInvoiceConfig {
+  id                         String   @id @default(uuid())
+
+  // Auto-emit settings
+  autoEmitOnPayment          Boolean  @default(false)  // Emitir automaticamente ao confirmar pagamento
+
+  // Municipal service details
+  municipalServiceId         String?    // ID interno Asaas do serviço municipal
+  municipalServiceCode       String?    // Código do serviço (ex: "1.01")
+  municipalServiceName       String?    // Nome do serviço
+
+  // Default taxes (percentages)
+  defaultIss                 Float    @default(0)
+  defaultCofins              Float    @default(0)
+  defaultCsll                Float    @default(0)
+  defaultInss                Float    @default(0)
+  defaultIr                  Float    @default(0)
+  defaultPis                 Float    @default(0)
+  defaultRetainIss           Boolean  @default(false)
+
+  // Service description template (variables: {empresa}, {plano}, {periodo})
+  serviceDescriptionTemplate String   @default("Licenciamento de software SaaS - Plano {plano} - {empresa}")
+
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 }
 
 // Signup attempt tracking (failed verifications + user feedback)

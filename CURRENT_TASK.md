@@ -1,62 +1,44 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 104 — Rastreamento Tentativas de Cadastro COMPLETO (deployed)
+## Status: SESSAO 105 — Emissao NFS-e via Asaas COMPLETO (build OK, pre-deploy)
 
-## Ultima sessao: 104 (12/03/2026)
+## Ultima sessao: 105 (12/03/2026)
 - Sessao 96: SEO + Landing Page + Pioneiro + SLS Obras (v1.02.16-17)
 - Sessao 97: SMTP + Chat IA backend + frontend
 - Sessao 98: Chat IA Deploy + Streaming + Asaas + Wizards (v1.02.18-24)
 - Sessao 99-100: Modulo de Orcamentos COMPLETO
 - Sessao 101: Senha Forte no Signup + Convites + Reset Password
 - Sessao 102-103: Verificacao Manual de Documentos COMPLETO
-- Sessao 104: Fixes + Rastreamento Tentativas de Cadastro (v1.02.25-29)
+- Sessao 104: Fixes Signup + Rastreamento + UTM + Asaas (v1.02.25-30)
+- Sessao 105: Emissao NFS-e via Asaas COMPLETO
 
-## O que foi feito na sessao 104:
-
-### Verify page — Rejeicao + Resubmit (v1.02.27)
-- [x] verification.service.ts: rejectionReason + resubmitFromRejected
-- [x] verification.controller.ts: POST /verification/:token/resubmit
-- [x] /verify/[token]/page.tsx: tela REJECTED + resubmit + APPROVED
-
-### SLS Obras Cadastro Fix (v1.02.28)
-- [x] Removido tenant SLS Obras SUSPENDED do banco
-- [x] Fix CNPJ lookup 403: User-Agent + Accept headers no fetch BrasilAPI
-- [x] Mascara CNPJ e telefone no signup
-
-### Rastreamento Completo de Tentativas de Cadastro (v1.02.29)
-- [x] Schema: lastStep, lastError, completedAt no SignupAttempt + migration
-- [x] Backend: upsert no signup-attempt + email ao admin no criticism
-- [x] Frontend: saveAttempt a cada step + botao Relatar Problema
-- [x] Admin: barra progresso visual + lastStep/lastError no modal
-- [x] Backend tsc --noEmit OK
-- [x] Frontend next build OK
-- [x] Deploy v1.02.29 OK
-
-### Arquivos modificados:
-**Backend:**
-- backend/prisma/schema.prisma (lastStep, lastError, completedAt)
-- backend/prisma/migrations/20260312140000_signup_attempt_step_tracking/migration.sql
-- backend/src/tenant/tenant-public.controller.ts (upsert + email + CNPJ fix)
-- backend/src/verification/verification.service.ts (rejection + resubmit)
-- backend/src/verification/verification.controller.ts (resubmit endpoint)
-
-**Frontend:**
-- frontend/src/app/signup/page.tsx (tracking + mascaras + relatar problema)
-- frontend/src/app/verify/[token]/page.tsx (rejected + resubmit)
-- frontend/src/app/(dashboard)/ctrl-zr8k2x/signup-attempts/page.tsx (progresso visual)
+## O que foi feito na sessao 105:
+- [x] Pesquisa API Asaas NFS-e (endpoints, webhook events, fiscal config)
+- [x] Schema: SaasInvoice + SaasInvoiceConfig + migration
+- [x] AsaasProvider: 11 novos metodos (invoices, fiscal info, municipal services)
+- [x] AsaasService: issueInvoice, listInvoices, cancelInvoice, handleInvoiceWebhook, auto-emit
+- [x] Webhook controller: dispatch INVOICE_* events
+- [x] TenantController: 7 novos endpoints admin (issue, list, cancel, config, fiscal info)
+- [x] Frontend: pagina /ctrl-zr8k2x/invoices (lista + config + modal emissao + modal detalhes)
+- [x] Frontend: botao "Emitir NF" nos tenants ACTIVE
+- [x] Frontend: sidebar com link "Notas Fiscais"
+- [x] Backend tsc OK + Frontend next build OK
+- [ ] Deploy pendente
 
 ## Proximos passos:
-1. Testar end-to-end: signup → tracking aparece no admin → relatar problema → email
-2. Testar resubmit: reject docs → reenviar → nova sessao
-3. Audit log review (pendente desde sessao 101)
-4. Testes de carga / otimizacao (se necessario)
+1. Deploy v1.02.31
+2. SLS Obras: fazer cadastro novamente pelo rito certo
+3. Testar end-to-end: signup → upload docs → admin review → approve/reject
+4. Testar emissao NF via admin (com Asaas sandbox)
+5. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
+6. Audit log review (pendente desde sessao 101)
 
-## Versao atual: v1.02.29
+## Versao atual: v1.02.30 (pre-deploy 1.02.31)
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896
 - Phone Number ID: 996592133539837
-- App ID: 950743907617295
+- App ID: 950743607617295
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)
