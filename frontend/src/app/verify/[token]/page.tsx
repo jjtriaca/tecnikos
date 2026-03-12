@@ -500,12 +500,20 @@ export default function VerifyPage() {
               </div>
             )}
 
-            {/* Capture / Fallback buttons */}
-            <div className="flex gap-3 mt-4">
-              {cameraActive && (
+            {/* Capture button (camera active) OR file select (camera failed) */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={step.accept}
+              capture={step.capture}
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <div className="mt-4">
+              {cameraActive ? (
                 <button
                   onClick={capturePhoto}
-                  className="flex-1 py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
+                  className="w-full py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
@@ -513,25 +521,14 @@ export default function VerifyPage() {
                   </svg>
                   Tirar foto
                 </button>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={step.accept}
-                capture={step.capture}
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className={`py-3 rounded-xl text-sm font-medium ${
-                  cameraActive
-                    ? "flex-none px-4 border border-slate-200 text-slate-600 hover:bg-slate-50"
-                    : "flex-1 bg-blue-600 text-white hover:bg-blue-700"
-                }`}
-              >
-                {cameraActive ? "Galeria" : "Selecionar foto"}
-              </button>
+              ) : cameraError ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700"
+                >
+                  Selecionar foto
+                </button>
+              ) : null}
             </div>
           </div>
         )}

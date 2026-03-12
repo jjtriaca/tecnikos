@@ -613,9 +613,16 @@ Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
 - Camera frontal auto-open via getUserMedia({ facingMode: "user" })
 - Video live feed espelhado (scaleX(-1)) com guia retangular (cantos azuis)
 - Botao "Tirar foto" captura frame → canvas → blob
-- Botao "Galeria" como fallback
+- Sem botao Galeria — so camera. Se camera falhar, mostra "Selecionar foto"
 - Cleanup camera ao sair do step
 
 **Frontend (admin tenants):** Removido selfieFar do grid de docs (5 em vez de 6)
+
+### Fix Galeria removida da selfie + Asaas API Key (v1.02.44)
+- Removido botao "Galeria" da tela de selfie — quando camera ativa, so aparece "Tirar foto"
+- Se camera falhar, mostra "Selecionar foto" (fallback necessario)
+- Asaas API Key: chave testada diretamente no container → API retorna "invalid_access_token"
+- Chave completa e correta no container (152 chars, 2x$ signs), mas Asaas rejeita
+- **Juliano precisa verificar/regenerar a chave no painel Asaas**
 
 **Builds:** Backend tsc OK, Frontend next build OK

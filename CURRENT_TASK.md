@@ -1,8 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 109 — Upload Cartao CNPJ no Signup (build OK)
+## Status: SESSAO 110 — Fix Galeria Selfie + Asaas API Key
 
-## Ultima sessao: 109 (12/03/2026)
+## Ultima sessao: 110 (12/03/2026)
 - Sessao 97: SMTP + Chat IA backend + frontend
 - Sessao 98: Chat IA Deploy + Streaming + Asaas + Wizards (v1.02.18-24)
 - Sessao 99-100: Modulo de Orcamentos COMPLETO
@@ -14,19 +14,13 @@
 - Sessao 107: Melhorias Gatilho — Collapsible + Renumeracao + Setas
 - Sessao 108: Promo/Slug so trava apos pagamento + Email lowercase + Fix enums tenant schema
 - Sessao 109: Upload Cartao CNPJ no step 3 do signup
+- Sessao 110: Fix Galeria Selfie + Asaas API Key
 
-## O que foi feito na sessao 109:
-- [x] Upload Cartao CNPJ OBRIGATORIO no step 3 do signup (drag & drop + click)
-- [x] Se subir Cartao CNPJ, auto-advance para pagamento/conclusao
-- [x] Removida opcao "Nao tenho" — Cartao CNPJ e obrigatorio
-- [x] Link para consultar na receita.fazenda.gov.br
-- [x] Selfies reduzidas de 3 para 2 (removido selfieFar)
-- [x] Camera frontal auto-open nas etapas de selfie (getUserMedia facingMode: user)
-- [x] Guia retangular com cantos azuis para enquadrar rosto
-- [x] Botao "Tirar foto" captura frame da camera + fallback "Galeria"
-- [x] Admin: grid docs atualizado (5 docs em vez de 6)
-- [x] Backend: DOC_TYPES atualizado (5 em vez de 6)
-- [x] Builds OK (backend tsc + frontend next build)
+## O que foi feito na sessao 110:
+- [x] Removido botao "Galeria" da tela de selfie (camera) — so "Tirar foto"
+- [x] Fallback "Selecionar foto" apenas quando camera falha
+- [x] Investigacao Asaas API Key: chave correta no container mas rejeitada pela API
+- [ ] PENDENTE: Juliano precisa verificar/regenerar chave no painel Asaas
 
 ## Decisao: SLS Obras operando pelo schema public
 - SLS Obras continua no schema public (tecnikos.com.br, admin@tecnikos.com.br)
@@ -35,14 +29,14 @@
 - Quando pronto: refazer signup pelo host para teste completo do fluxo tenant
 
 ## Proximos passos:
-1. Deploy da feature de upload Cartao CNPJ
+1. Juliano: verificar/regenerar chave API no painel Asaas (https://www.asaas.com)
 2. SLS Obras: testar signup pelo host quando pronto para certificar
 3. Testar end-to-end: signup → upload docs → admin review → approve/reject
 4. Testar emissao NF via admin (com Asaas sandbox)
 5. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 6. Audit log review (pendente desde sessao 101)
 
-## Versao atual: v1.02.42
+## Versao atual: v1.02.43
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896
