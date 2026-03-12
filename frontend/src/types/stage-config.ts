@@ -469,10 +469,31 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
 export interface WorkflowFormConfig {
   name: string;
   isDefault: boolean;
-  triggerEvent: string;
+  trigger: TriggerDefinition;
   stages: StageConfig[];
   technicianOnboarding: TechnicianOnboardingConfig;
 }
+
+/* ── Gatilho (Trigger) ─────────────────────────────────────── */
+
+export interface TriggerDefinition {
+  id: string;
+  entity: string;    // SERVICE_ORDER | QUOTE | PARTNER
+  event: string;
+  label: string;
+  icon: string;
+  description: string;
+}
+
+export const TRIGGER_OPTIONS: TriggerDefinition[] = [
+  { id: 'os_created',               entity: 'SERVICE_ORDER', event: 'created',          icon: '📋', label: 'Uma OS é criada',                      description: 'Quando uma nova ordem de serviço é aberta' },
+  { id: 'os_return_created',        entity: 'SERVICE_ORDER', event: 'return_created',   icon: '🔄', label: 'Um retorno é criado',                   description: 'Quando uma OS de retorno/revisita é criada' },
+  { id: 'quote_request_created',    entity: 'QUOTE',         event: 'request_created',  icon: '📩', label: 'Uma solicitação de orçamento é criada', description: 'Quando o cliente solicita um orçamento' },
+  { id: 'quote_created',            entity: 'QUOTE',         event: 'created',          icon: '📝', label: 'Um orçamento é criado',                 description: 'Quando um orçamento é gerado/salvo' },
+  { id: 'partner_client_created',   entity: 'PARTNER',       event: 'client_created',   icon: '👤', label: 'Um cliente é criado',                   description: 'Quando um parceiro tipo cliente é cadastrado' },
+  { id: 'partner_tech_created',     entity: 'PARTNER',       event: 'tech_created',     icon: '👷', label: 'Um técnico é criado',                   description: 'Quando um parceiro tipo técnico é cadastrado' },
+  { id: 'partner_supplier_created', entity: 'PARTNER',       event: 'supplier_created', icon: '🏭', label: 'Um fornecedor é criado',                description: 'Quando um parceiro tipo fornecedor é cadastrado' },
+];
 
 /* ── Constantes ────────────────────────────────────────────── */
 
@@ -830,7 +851,7 @@ export function createDefaultConfig(): WorkflowFormConfig {
   return {
     name: '',
     isDefault: false,
-    triggerEvent: 'os_created',
+    trigger: TRIGGER_OPTIONS[0],
     stages: OS_STATUSES.map(s => createEmptyStage(s.status, s.label, s.icon)),
     technicianOnboarding: createDefaultOnboarding(),
   };
@@ -862,7 +883,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     apply: (cfg) => {
       const c = createDefaultConfig();
       c.name = cfg.name;
-      c.triggerEvent = 'os_assigned';
+      c.trigger = TRIGGER_OPTIONS[0];
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
@@ -952,7 +973,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     apply: (cfg) => {
       const c = createDefaultConfig();
       c.name = cfg.name;
-      c.triggerEvent = 'os_assigned';
+      c.trigger = TRIGGER_OPTIONS[0];
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
@@ -1035,7 +1056,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     apply: (cfg) => {
       const c = createDefaultConfig();
       c.name = cfg.name;
-      c.triggerEvent = 'os_assigned';
+      c.trigger = TRIGGER_OPTIONS[0];
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
@@ -1076,7 +1097,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     apply: (cfg) => {
       const c = createDefaultConfig();
       c.name = cfg.name;
-      c.triggerEvent = 'os_created';
+      c.trigger = TRIGGER_OPTIONS[0];
       // ABERTA
       const aberta = c.stages.find(s => s.status === 'ABERTA')!;
       aberta.enabled = true;
@@ -1116,7 +1137,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     apply: (cfg) => {
       const c = createDefaultConfig();
       c.name = cfg.name;
-      c.triggerEvent = 'os_assigned';
+      c.trigger = TRIGGER_OPTIONS[0];
       // EM_EXECUCAO
       const exec = c.stages.find(s => s.status === 'EM_EXECUCAO')!;
       exec.enabled = true;
@@ -1535,6 +1556,15 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
 
   const result: any = { version: 2, blocks: [...blocks.slice(0, 1), ...flatBlocks, ...blocks.slice(1)] };
 
+  // Persist trigger definition
+  if (config.trigger) {
+    result.trigger = {
+      entity: config.trigger.entity,
+      event: config.trigger.event,
+      triggerId: config.trigger.id,
+    };
+  }
+
   // Persist technician onboarding config alongside blocks
   if (config.technicianOnboarding?.enabled) {
     result.technicianOnboarding = config.technicianOnboarding;
@@ -1549,6 +1579,16 @@ const TECH_TYPES = new Set(['STEP', 'PHOTO', 'NOTE', 'GPS', 'CHECKLIST', 'FORM',
 
 export function decompileFromV2(steps: any): WorkflowFormConfig | null {
   const config = createDefaultConfig();
+
+  // Restore trigger if present
+  if (steps?.trigger?.triggerId) {
+    const found = TRIGGER_OPTIONS.find(t => t.id === steps.trigger.triggerId);
+    if (found) config.trigger = found;
+  } else if (steps?.trigger?.entity && steps?.trigger?.event) {
+    // Fallback: match by entity+event
+    const found = TRIGGER_OPTIONS.find(t => t.entity === steps.trigger.entity && t.event === steps.trigger.event);
+    if (found) config.trigger = found;
+  }
 
   // Restore technician onboarding config if present
   if (steps?.technicianOnboarding) {

@@ -16,6 +16,7 @@ import {
   decompileFromV2,
   WORKFLOW_PRESETS,
   OS_STATUSES,
+  TRIGGER_OPTIONS,
 } from "@/types/stage-config";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -425,6 +426,47 @@ export default function WorkflowPage() {
         )}
       </div>
 
+      {/* Trigger Selector */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
+          ⚡ Quando:
+        </h3>
+        <p className="text-xs text-slate-400 mb-3">
+          Escolha o evento que inicia este fluxo
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {TRIGGER_OPTIONS.map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => { setConfig({ ...config, trigger: opt }); setActivePreset(""); }}
+              className={`text-left rounded-lg border p-3 transition-all ${
+                config.trigger.id === opt.id
+                  ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200 shadow-sm"
+                  : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30"
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                <span className="text-lg leading-none mt-0.5">{opt.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <span className={`text-sm font-medium block ${
+                    config.trigger.id === opt.id ? "text-blue-700" : "text-slate-700"
+                  }`}>
+                    {opt.label}
+                  </span>
+                  <span className="text-[11px] text-slate-400 block mt-0.5 leading-tight">
+                    {opt.description}
+                  </span>
+                </div>
+                {config.trigger.id === opt.id && (
+                  <span className="text-blue-600 text-sm shrink-0">✓</span>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Stages */}
       <div>
         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -472,7 +514,7 @@ export default function WorkflowPage() {
           <div>
             <h3 className="text-sm font-semibold text-slate-700">Resumo</h3>
             <p className="text-xs text-slate-500 mt-1">
-              {totalEnabled} {totalEnabled === 1 ? "etapa ativa" : "etapas ativas"} · {totalActions} {totalActions === 1 ? "ação configurada" : "ações configuradas"}
+              ⚡ {config.trigger.label} · {totalEnabled} {totalEnabled === 1 ? "etapa ativa" : "etapas ativas"} · {totalActions} {totalActions === 1 ? "ação configurada" : "ações configuradas"}
               {onboardingTriggers > 0 && (
                 <> · {onboardingTriggers} {onboardingTriggers === 1 ? "gatilho de onboarding" : "gatilhos de onboarding"}</>
               )}

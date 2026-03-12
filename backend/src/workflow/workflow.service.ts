@@ -113,7 +113,7 @@ export class WorkflowService {
     }
   }
 
-  private validateStepsV2(def: { version: 2; blocks: any[] }) {
+  private validateStepsV2(def: { version: 2; blocks: any[]; trigger?: any }) {
     const blocks = def.blocks;
     if (!Array.isArray(blocks) || blocks.length < 2) {
       throw new BadRequestException('O fluxo V2 deve ter pelo menos os blocos Início e Fim');
@@ -129,6 +129,17 @@ export class WorkflowService {
     for (const block of blocks) {
       if (!block.id || !block.type || !block.name) {
         throw new BadRequestException('Cada bloco deve ter id, type e name');
+      }
+    }
+
+    // Validate trigger if present
+    if (def.trigger) {
+      const validEntities = ['SERVICE_ORDER', 'QUOTE', 'PARTNER'];
+      if (def.trigger.entity && !validEntities.includes(def.trigger.entity)) {
+        throw new BadRequestException(`Entidade do gatilho inválida: ${def.trigger.entity}`);
+      }
+      if (def.trigger.event && typeof def.trigger.event !== 'string') {
+        throw new BadRequestException('O gatilho deve ter um evento válido');
       }
     }
   }

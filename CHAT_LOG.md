@@ -450,3 +450,51 @@ Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
 **Builds:** Backend tsc OK, Frontend next build OK
 
 ---
+
+## 2026-03-12 — Sessao 106: Deploy v1.02.31
+
+### Deploy v1.02.31 — CONCLUIDO
+- Builds verificados: backend tsc + frontend next build OK
+- Deploy script executado com sucesso
+- Migration 20260312160000_saas_invoice aplicada em producao (SaasInvoice + SaasInvoiceConfig)
+- Backup pre-deploy salvo: pre-deploy-1.02.31-20260312_130158.sql.gz
+- Health check: v1.02.31 online em https://tecnikos.com.br/api/health
+- Git commit + push + tag OK
+
+### Pendencias guardadas:
+1. SLS Obras: refazer cadastro pelo fluxo correto
+2. Teste end-to-end completo: signup → docs → review → approve/reject
+3. Teste emissao NF via admin (Asaas)
+4. Config fiscal Asaas (inscricao municipal, CNAE, etc)
+5. Audit log review (pendente desde sessao 101)
+
+### Fluxo de Atendimento — Gatilho (Trigger) — CONCLUIDO
+
+**Pedido do Juliano:**
+- Primeira etapa do fluxo deve ser "Quando:" com seletor de gatilho
+- Gatilhos: OS criada, Retorno criado, Solicitacao de orcamento, Orcamento criado, Cliente criado, Tecnico criado, Fornecedor criado
+- Manter etapas de OS abaixo como estao por enquanto (polir com o tempo)
+- "Retorno" = OS de retorno/revisita
+
+**Implementacao:**
+
+**Types (stage-config.ts):**
+- Interface TriggerDefinition (id, entity, event, label, icon, description)
+- Constante TRIGGER_OPTIONS com 7 opcoes
+- WorkflowFormConfig: `triggerEvent: string` → `trigger: TriggerDefinition`
+- createDefaultConfig: trigger = TRIGGER_OPTIONS[0] (os_created)
+- Presets atualizados para usar TRIGGER_OPTIONS[0]
+- compileToV2: persiste trigger no JSON {entity, event, triggerId}
+- decompileFromV2: restaura trigger (por triggerId ou entity+event fallback)
+
+**UI (workflow/page.tsx):**
+- Secao "Quando:" entre Presets e Etapas com grid 3 colunas de cards
+- Card selecionado: borda azul, bg azul, checkmark
+- Resumo mostra "⚡ trigger.label" antes da contagem de etapas
+
+**Backend (workflow.service.ts):**
+- validateStepsV2: aceita trigger opcional, valida entity contra whitelist
+
+**Builds:** Backend tsc OK, Frontend next build OK
+
+---
