@@ -40,9 +40,8 @@ interface VerificationData {
   cnpjCardUrl: string | null;
   docFrontUrl: string | null;
   docBackUrl: string | null;
-  selfieFarUrl: string | null;
-  selfieMediumUrl: string | null;
   selfieCloseUrl: string | null;
+  selfieMediumUrl: string | null;
   uploadedCount: number;
   uploadComplete: boolean;
   reviewStatus: string;
@@ -63,12 +62,11 @@ const STATUS_MAP: Record<TenantStatus, { label: string; color: string }> = {
 };
 
 const DOC_LABELS: Record<string, string> = {
-  cnpjCardUrl: "Cartão CNPJ",
+  cnpjCardUrl: "Cartao CNPJ",
   docFrontUrl: "Documento (Frente)",
   docBackUrl: "Documento (Verso)",
-  selfieCloseUrl: "Selfie (Perto)",
-  selfieMediumUrl: "Selfie (Médio)",
-  selfieFarUrl: "Selfie (Longe)",
+  selfieCloseUrl: "Selfie 1",
+  selfieMediumUrl: "Selfie 2",
 };
 
 function formatBRL(cents: number) {
@@ -544,7 +542,7 @@ export default function TenantsPage() {
                 <div className="p-6">
                   <h3 className="text-sm font-semibold text-slate-700 mb-4">Documentos</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {(["cnpjCardUrl", "docFrontUrl", "docBackUrl", "selfieCloseUrl", "selfieMediumUrl", "selfieFarUrl"] as const).map((key) => {
+                    {(["cnpjCardUrl", "docFrontUrl", "docBackUrl", "selfieCloseUrl", "selfieMediumUrl"] as const).map((key) => {
                       const url = verifyData[key];
                       const docUrl = getDocUrl(url);
                       const isDocPdf = isPdf(url);

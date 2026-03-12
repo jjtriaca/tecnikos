@@ -10,7 +10,7 @@ const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const ALLOWED_PDF_MIME = ['application/pdf'];
 const SESSION_EXPIRY_HOURS = 72;
 
-const DOC_TYPES = ['cnpjCard', 'docFront', 'docBack', 'selfieFar', 'selfieMedium', 'selfieClose'] as const;
+const DOC_TYPES = ['cnpjCard', 'docFront', 'docBack', 'selfieClose', 'selfieMedium'] as const;
 type DocType = typeof DOC_TYPES[number];
 
 /** Map DocType to the corresponding VerificationSession URL field */
@@ -18,9 +18,8 @@ const DOC_URL_FIELD: Record<DocType, string> = {
   cnpjCard: 'cnpjCardUrl',
   docFront: 'docFrontUrl',
   docBack: 'docBackUrl',
-  selfieFar: 'selfieFarUrl',
-  selfieMedium: 'selfieMediumUrl',
   selfieClose: 'selfieCloseUrl',
+  selfieMedium: 'selfieMediumUrl',
 };
 
 @Injectable()
@@ -110,9 +109,8 @@ export class VerificationService {
       cnpjCardUrl: session.cnpjCardUrl,
       docFrontUrl: session.docFrontUrl,
       docBackUrl: session.docBackUrl,
-      selfieFarUrl: session.selfieFarUrl,
-      selfieMediumUrl: session.selfieMediumUrl,
       selfieCloseUrl: session.selfieCloseUrl,
+      selfieMediumUrl: session.selfieMediumUrl,
       uploadedCount: session.uploadedCount,
       uploadComplete: session.uploadComplete,
       reviewStatus: session.reviewStatus,
@@ -136,9 +134,8 @@ export class VerificationService {
         cnpjCardUrl: true,
         docFrontUrl: true,
         docBackUrl: true,
-        selfieFarUrl: true,
-        selfieMediumUrl: true,
         selfieCloseUrl: true,
+        selfieMediumUrl: true,
       },
     });
 
@@ -153,9 +150,8 @@ export class VerificationService {
         cnpjCard: !!session.cnpjCardUrl,
         docFront: !!session.docFrontUrl,
         docBack: !!session.docBackUrl,
-        selfieFar: !!session.selfieFarUrl,
-        selfieMedium: !!session.selfieMediumUrl,
         selfieClose: !!session.selfieCloseUrl,
+        selfieMedium: !!session.selfieMediumUrl,
       },
     };
   }

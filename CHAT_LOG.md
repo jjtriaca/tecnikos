@@ -572,4 +572,50 @@ Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
 **Builds:** Backend tsc OK, Frontend next build OK
 **Deploys:** v1.02.36, v1.02.37, v1.02.38, v1.02.39 OK
 
+### Fix enum types no tenant schema (v1.02.40-42)
+- Bug: `type "tenant_sls.UserRole[]" does not exist` — Prisma com `?schema=tenant_xxx` so enxerga types do schema
+- Fix v1.02.40: copiar todos os enum types de public para tenant schema durante createSchema()
+- Fix v1.02.41: detectar array enums (`_UserRole` → `UserRole`) via udt_schema + data_type ARRAY
+- Fix v1.02.42: DROP DEFAULT antes de ALTER TYPE (defaults referenciam public enum, bloqueiam ALTER)
+- Abordagem final 3 passos: DROP DEFAULT → ALTER TYPE → SET DEFAULT com regex remap do schema
+- 7 colunas afetadas: User.roles, BankStatementLine.status, FinancialEntry.status, FinancialInstallment.status, PendingWorkflowWait.status, Quote.status, ServiceOrder.status
+- Tenant SLS limpo (PENDING_VERIFICATION dropado)
+- Deploys: v1.02.40, v1.02.41, v1.02.42 OK
+
 ---
+
+## 2026-03-12 — Sessao 109: Upload Cartao CNPJ no Signup
+
+### Pedido do Juliano:
+- "o cartao do cnpj tem que ter a opcao de carregar em pdf antes do qr code e se subir ja pula a etapa"
+- Upload do Cartao CNPJ como atalho no step 3 do signup
+- Se subir, pula a verificacao completa de documentos
+
+### Implementacao:
+**Frontend (signup/page.tsx):**
+- Step 3: APENAS upload Cartao CNPJ (obrigatorio, drag & drop + click)
+- CNPJ card upload → auto-advance para pagamento/conclusao (1.2s delay visual)
+- Removida opcao "Nao tenho" — Cartao CNPJ e obrigatorio
+- Link para consultar em receita.fazenda.gov.br
+
+### Selfie: 2 selfies + Camera frontal auto-open com guia retangular
+
+**Pedido do Juliano:**
+- Reduzir de 3 para 2 selfies (remover selfieFar "longe")
+- Camera frontal abre automaticamente na etapa de selfie
+- Retangulo guia para enquadrar o rosto
+
+**Backend (verification.service.ts):**
+- DOC_TYPES: removido selfieFar (agora 5: cnpjCard, docFront, docBack, selfieClose, selfieMedium)
+- uploadComplete agora conta 5/5
+
+**Frontend (verify/[token]/page.tsx) — REESCRITO:**
+- Camera frontal auto-open via getUserMedia({ facingMode: "user" })
+- Video live feed espelhado (scaleX(-1)) com guia retangular (cantos azuis)
+- Botao "Tirar foto" captura frame → canvas → blob
+- Botao "Galeria" como fallback
+- Cleanup camera ao sair do step
+
+**Frontend (admin tenants):** Removido selfieFar do grid de docs (5 em vez de 6)
+
+**Builds:** Backend tsc OK, Frontend next build OK

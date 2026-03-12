@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 interface SessionData {
@@ -15,27 +15,24 @@ interface SessionData {
   cnpjCardUrl: string | null;
   docFrontUrl: string | null;
   docBackUrl: string | null;
-  selfieFarUrl: string | null;
-  selfieMediumUrl: string | null;
   selfieCloseUrl: string | null;
+  selfieMediumUrl: string | null;
 }
 
 const STEPS = [
   { key: "cnpjCard", label: "Cartao CNPJ", description: "PDF ou foto do Cartao CNPJ", accept: "image/*,application/pdf", capture: "environment" as const, icon: "doc" },
   { key: "docFront", label: "Documento (Frente)", description: "Frente do RG ou CNH aberta", accept: "image/*", capture: "environment" as const, icon: "id" },
   { key: "docBack", label: "Documento (Verso)", description: "Verso do RG ou CNH", accept: "image/*", capture: "environment" as const, icon: "id" },
-  { key: "selfieClose", label: "Selfie (Perto)", description: "Rosto proximo da camera", accept: "image/*", capture: "user" as const, icon: "face" },
-  { key: "selfieMedium", label: "Selfie (Medio)", description: "Rosto a meia distancia", accept: "image/*", capture: "user" as const, icon: "face" },
-  { key: "selfieFar", label: "Selfie (Longe)", description: "Rosto distante, meio corpo visivel", accept: "image/*", capture: "user" as const, icon: "face" },
+  { key: "selfieClose", label: "Selfie 1", description: "Posicione o rosto dentro do retangulo", accept: "image/*", capture: "user" as const, icon: "face" },
+  { key: "selfieMedium", label: "Selfie 2", description: "Afaste um pouco e enquadre novamente", accept: "image/*", capture: "user" as const, icon: "face" },
 ];
 
 const URL_MAP: Record<string, keyof SessionData> = {
   cnpjCard: "cnpjCardUrl",
   docFront: "docFrontUrl",
   docBack: "docBackUrl",
-  selfieFar: "selfieFarUrl",
-  selfieMedium: "selfieMediumUrl",
   selfieClose: "selfieCloseUrl",
+  selfieMedium: "selfieMediumUrl",
 };
 
 export default function VerifyPage() {
@@ -53,6 +50,13 @@ export default function VerifyPage() {
   const [resubmitting, setResubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Camera state for selfie
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   // Load session
   useEffect(() => {
     if (!token) return;
@@ -63,7 +67,6 @@ export default function VerifyPage() {
       })
       .then((data: SessionData) => {
         setSession(data);
-        // Find the first step that hasn't been uploaded
         const firstEmpty = STEPS.findIndex(
           (s) => !data[URL_MAP[s.key] as keyof SessionData]
         );
@@ -73,11 +76,90 @@ export default function VerifyPage() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  // Stop camera stream on cleanup or step change
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+    setCameraError(null);
+  }, []);
+
+  // Auto-start camera when entering selfie step
+  const step = currentStep < STEPS.length ? STEPS[currentStep] : null;
+  const isSelfie = step?.icon === "face";
+
+  useEffect(() => {
+    if (!isSelfie || preview) {
+      stopCamera();
+      return;
+    }
+
+    // Start front camera
+    let cancelled = false;
+    async function startCamera() {
+      try {
+        setCameraError(null);
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        setCameraActive(true);
+      } catch (err: any) {
+        if (!cancelled) {
+          setCameraError("Nao foi possivel acessar a camera. Permita o acesso ou envie uma foto.");
+          setCameraActive(false);
+        }
+      }
+    }
+
+    startCamera();
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+  }, [isSelfie, preview, currentStep, stopCamera]);
+
+  // Capture photo from camera
+  function capturePhoto() {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    // Mirror horizontally for selfie
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], `selfie_${Date.now()}.jpg`, { type: "image/jpeg" });
+      setSelectedFile(file);
+      setPreview(URL.createObjectURL(file));
+      stopCamera();
+    }, "image/jpeg", 0.92);
+  }
+
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setSelectedFile(file);
     setPreview(URL.createObjectURL(file));
+    stopCamera();
   }
 
   function clearSelection() {
@@ -87,8 +169,7 @@ export default function VerifyPage() {
   }
 
   async function handleUpload() {
-    if (!selectedFile || !session) return;
-    const step = STEPS[currentStep];
+    if (!selectedFile || !session || !step) return;
     setUploading(true);
     setError(null);
 
@@ -104,7 +185,6 @@ export default function VerifyPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.message || "Erro ao enviar");
 
-      // Update session state
       setSession((prev) => {
         if (!prev) return prev;
         return {
@@ -115,12 +195,11 @@ export default function VerifyPage() {
         };
       });
 
-      // Move to next step
       clearSelection();
       if (currentStep < STEPS.length - 1) {
         setCurrentStep(currentStep + 1);
       } else {
-        setCurrentStep(STEPS.length); // Complete
+        setCurrentStep(STEPS.length);
       }
     } catch (err: any) {
       setError(err.message || "Erro ao enviar arquivo");
@@ -138,10 +217,7 @@ export default function VerifyPage() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.message || "Erro ao criar nova sessao");
-
-      // Navigate to the new session
       router.replace(`/verify/${data.token}`);
-      // Force a full reload to load new session
       window.location.href = `/verify/${data.token}`;
     } catch (err: any) {
       setError(err.message || "Erro ao reenviar documentos");
@@ -194,11 +270,10 @@ export default function VerifyPage() {
 
   if (!session) return null;
 
-  // ── REJECTED SESSION — show rejection reason + resubmit button ──
+  // ── REJECTED SESSION ──
   if (session.reviewStatus === "REJECTED") {
     return (
       <div className="min-h-screen bg-slate-50">
-        {/* Header */}
         <header className="bg-white border-b border-slate-200 px-4 py-3">
           <div className="max-w-md mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -214,19 +289,16 @@ export default function VerifyPage() {
         </header>
 
         <div className="max-w-md mx-auto px-4 py-8">
-          {/* Rejection icon */}
           <div className="w-20 h-20 mx-auto rounded-full bg-red-100 flex items-center justify-center mb-6">
             <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
             </svg>
           </div>
-
           <h1 className="text-xl font-bold text-slate-900 text-center mb-2">Documentos recusados</h1>
           <p className="text-sm text-slate-500 text-center mb-6">
-            Sua verificacao foi recusada pela equipe de analise. Veja abaixo o motivo e reenvie seus documentos.
+            Sua verificacao foi recusada. Veja o motivo e reenvie seus documentos.
           </p>
 
-          {/* Rejection reason card */}
           {session.rejectionReason && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
               <div className="flex items-start gap-3">
@@ -241,7 +313,6 @@ export default function VerifyPage() {
             </div>
           )}
 
-          {/* What was submitted */}
           <div className="bg-white border border-slate-200 rounded-xl p-4 mb-6">
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">Documentos enviados anteriormente</p>
             <div className="space-y-2">
@@ -268,46 +339,24 @@ export default function VerifyPage() {
             </div>
           </div>
 
-          {/* Tips */}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
             <p className="text-sm font-semibold text-blue-800 mb-2">Dicas para aprovacao:</p>
             <ul className="space-y-1.5 text-xs text-blue-700">
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">&#x2022;</span>
-                <span>Fotos devem estar nitidas e sem reflexo</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">&#x2022;</span>
-                <span>Documento inteiro deve estar visivel na foto</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">&#x2022;</span>
-                <span>Selfies devem mostrar claramente o rosto</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">&#x2022;</span>
-                <span>O documento deve pertencer ao responsavel pela empresa</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">&#x2022;</span>
-                <span>Cartao CNPJ deve ser o documento atualizado da Receita Federal</span>
-              </li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">&#x2022;</span><span>Fotos devem estar nitidas e sem reflexo</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">&#x2022;</span><span>Documento inteiro deve estar visivel na foto</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">&#x2022;</span><span>Selfies devem mostrar claramente o rosto</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">&#x2022;</span><span>Cartao CNPJ deve ser o documento atualizado da Receita Federal</span></li>
             </ul>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="rounded-xl bg-red-50 border border-red-200 p-3 mb-4">
               <p className="text-xs text-red-700">{error}</p>
             </div>
           )}
 
-          {/* Resubmit button */}
-          <button
-            onClick={handleResubmit}
-            disabled={resubmitting}
-            className="w-full py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
+          <button onClick={handleResubmit} disabled={resubmitting}
+            className="w-full py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors">
             {resubmitting ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -322,10 +371,7 @@ export default function VerifyPage() {
               </span>
             )}
           </button>
-
-          <p className="text-[10px] text-slate-400 text-center mt-3">
-            Uma nova sessao sera criada para voce reenviar todos os documentos.
-          </p>
+          <p className="text-[10px] text-slate-400 text-center mt-3">Uma nova sessao sera criada para voce reenviar todos os documentos.</p>
         </div>
       </div>
     );
@@ -342,7 +388,7 @@ export default function VerifyPage() {
             </svg>
           </div>
           <h1 className="text-lg font-bold text-slate-900 mb-2">Verificacao aprovada!</h1>
-          <p className="text-sm text-slate-500">Sua empresa ja foi validada. Voce pode fechar esta pagina e usar o sistema normalmente.</p>
+          <p className="text-sm text-slate-500">Sua empresa ja foi validada. Voce pode fechar esta pagina.</p>
         </div>
       </div>
     );
@@ -359,23 +405,20 @@ export default function VerifyPage() {
             </svg>
           </div>
           <h1 className="text-lg font-bold text-slate-900 mb-2">Documentos enviados!</h1>
-          <p className="text-sm text-slate-500 mb-4">
-            Todos os documentos foram enviados com sucesso.
-            Voce pode fechar esta pagina.
-          </p>
-          <p className="text-xs text-slate-400">
-            A equipe do Tecnikos ira analisar seus documentos e ativar sua conta em breve.
-          </p>
+          <p className="text-sm text-slate-500 mb-4">Todos os documentos foram enviados com sucesso. Voce pode fechar esta pagina.</p>
+          <p className="text-xs text-slate-400">A equipe do Tecnikos ira analisar seus documentos e ativar sua conta em breve.</p>
         </div>
       </div>
     );
   }
 
-  const step = STEPS[currentStep];
-  const isSelfie = step.icon === "face";
+  if (!step) return null;
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Hidden canvas for photo capture */}
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3">
         <div className="max-w-md mx-auto flex items-center justify-between">
@@ -408,38 +451,118 @@ export default function VerifyPage() {
         <h1 className="text-xl font-bold text-slate-900 text-center mb-1">{step.label}</h1>
         <p className="text-sm text-slate-500 text-center mb-6">{step.description}</p>
 
-        {/* Selfie guide overlay */}
+        {/* ── SELFIE: Live camera with face guide ── */}
         {isSelfie && !preview && (
-          <div className="relative bg-slate-900 rounded-2xl aspect-[3/4] flex items-center justify-center mb-4 overflow-hidden">
-            <svg viewBox="0 0 200 260" className="w-48 h-auto opacity-30">
-              <ellipse cx="100" cy="110" rx="70" ry="90" fill="none" stroke="white" strokeWidth="2" strokeDasharray="8,4" />
-              <line x1="100" y1="20" x2="100" y2="40" stroke="white" strokeWidth="1" opacity="0.5" />
-              <line x1="100" y1="200" x2="100" y2="220" stroke="white" strokeWidth="1" opacity="0.5" />
-              <line x1="30" y1="110" x2="50" y2="110" stroke="white" strokeWidth="1" opacity="0.5" />
-              <line x1="150" y1="110" x2="170" y2="110" stroke="white" strokeWidth="1" opacity="0.5" />
-            </svg>
-            <div className="absolute bottom-4 left-0 right-0 text-center">
-              <p className="text-white text-sm font-medium">
-                {step.key === "selfieClose" && "Aproxime o rosto da camera"}
-                {step.key === "selfieMedium" && "Mantenha meia distancia"}
-                {step.key === "selfieFar" && "Afaste-se, mostre meio corpo"}
-              </p>
+          <div className="mb-4">
+            {cameraActive ? (
+              <div className="relative rounded-2xl overflow-hidden bg-black">
+                {/* Live camera feed (mirrored) */}
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full aspect-[3/4] object-cover"
+                  style={{ transform: "scaleX(-1)" }}
+                />
+                {/* Face guide rectangle overlay */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-[65%] h-[55%] border-2 border-white/70 rounded-3xl relative">
+                    {/* Corner accents */}
+                    <div className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-3 border-l-3 border-blue-400 rounded-tl-xl" />
+                    <div className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-3 border-r-3 border-blue-400 rounded-tr-xl" />
+                    <div className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-3 border-l-3 border-blue-400 rounded-bl-xl" />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-3 border-r-3 border-blue-400 rounded-br-xl" />
+                  </div>
+                </div>
+                {/* Instruction text */}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-4 pb-4 pt-8">
+                  <p className="text-white text-sm font-medium text-center">
+                    Posicione o rosto dentro do retangulo
+                  </p>
+                </div>
+              </div>
+            ) : cameraError ? (
+              /* Camera permission denied — show static guide */
+              <div className="relative bg-slate-900 rounded-2xl aspect-[3/4] flex items-center justify-center overflow-hidden">
+                <div className="w-[65%] h-[55%] border-2 border-white/30 rounded-3xl" />
+                <div className="absolute bottom-4 left-0 right-0 text-center">
+                  <p className="text-amber-300 text-xs px-4">{cameraError}</p>
+                </div>
+              </div>
+            ) : (
+              /* Loading camera */
+              <div className="relative bg-slate-900 rounded-2xl aspect-[3/4] flex items-center justify-center overflow-hidden">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <p className="text-white/70 text-sm">Abrindo camera...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Capture / Fallback buttons */}
+            <div className="flex gap-3 mt-4">
+              {cameraActive && (
+                <button
+                  onClick={capturePhoto}
+                  className="flex-1 py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                  </svg>
+                  Tirar foto
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={step.accept}
+                capture={step.capture}
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className={`py-3 rounded-xl text-sm font-medium ${
+                  cameraActive
+                    ? "flex-none px-4 border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    : "flex-1 bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                {cameraActive ? "Galeria" : "Selecionar foto"}
+              </button>
             </div>
           </div>
         )}
 
-        {/* File input (hidden) */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={step.accept}
-          capture={step.capture}
-          onChange={handleFileSelect}
-          className="hidden"
-        />
+        {/* ── NON-SELFIE: Standard file upload ── */}
+        {!isSelfie && !preview && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={step.accept}
+              capture={step.capture}
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full rounded-2xl border-2 border-dashed border-slate-300 bg-white p-10 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all mb-4"
+            >
+              <svg className="w-10 h-10 mx-auto text-blue-400 mb-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+              </svg>
+              <p className="text-sm font-medium text-slate-700">Tirar foto ou selecionar arquivo</p>
+              <p className="text-[10px] text-slate-400 mt-1">{step.description}</p>
+            </button>
+          </>
+        )}
 
         {/* Preview */}
-        {preview ? (
+        {preview && (
           <div className="mb-4">
             {selectedFile?.type === "application/pdf" ? (
               <div className="bg-slate-100 rounded-2xl p-8 text-center">
@@ -454,17 +577,12 @@ export default function VerifyPage() {
             )}
 
             <div className="flex gap-3 mt-4">
-              <button
-                onClick={clearSelection}
-                className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
-                Tirar outra
+              <button onClick={clearSelection}
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                {isSelfie ? "Tirar outra" : "Escolher outra"}
               </button>
-              <button
-                onClick={handleUpload}
-                disabled={uploading}
-                className="flex-1 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
-              >
+              <button onClick={handleUpload} disabled={uploading}
+                className="flex-1 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50">
                 {uploading ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -474,26 +592,6 @@ export default function VerifyPage() {
               </button>
             </div>
           </div>
-        ) : (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full rounded-2xl border-2 border-dashed border-slate-300 bg-white p-10 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all mb-4"
-          >
-            {isSelfie ? (
-              <svg className="w-10 h-10 mx-auto text-blue-400 mb-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-              </svg>
-            ) : (
-              <svg className="w-10 h-10 mx-auto text-blue-400 mb-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
-              </svg>
-            )}
-            <p className="text-sm font-medium text-slate-700">
-              {isSelfie ? "Tirar selfie" : "Tirar foto ou selecionar arquivo"}
-            </p>
-            <p className="text-[10px] text-slate-400 mt-1">{step.description}</p>
-          </button>
         )}
 
         {/* Error message */}
@@ -529,7 +627,7 @@ export default function VerifyPage() {
                 </span>
                 {uploaded && !isCurrent && (
                   <button
-                    onClick={() => { setCurrentStep(i); clearSelection(); }}
+                    onClick={() => { setCurrentStep(i); clearSelection(); stopCamera(); }}
                     className="ml-auto text-[10px] text-slate-400 hover:text-blue-500"
                   >
                     Reenviar

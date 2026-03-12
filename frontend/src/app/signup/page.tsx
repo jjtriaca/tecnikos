@@ -59,19 +59,17 @@ interface VerificationStatus {
     cnpjCard: boolean;
     docFront: boolean;
     docBack: boolean;
-    selfieFar: boolean;
-    selfieMedium: boolean;
     selfieClose: boolean;
+    selfieMedium: boolean;
   };
 }
 
 const DOC_STEPS = [
-  { key: "cnpjCard", label: "Cartão CNPJ", accept: "image/*,application/pdf", capture: "environment" as const },
+  { key: "cnpjCard", label: "Cartao CNPJ", accept: "image/*,application/pdf", capture: "environment" as const },
   { key: "docFront", label: "Documento (Frente)", accept: "image/*", capture: "environment" as const },
   { key: "docBack", label: "Documento (Verso)", accept: "image/*", capture: "environment" as const },
-  { key: "selfieClose", label: "Selfie (Perto)", accept: "image/*", capture: "user" as const },
-  { key: "selfieMedium", label: "Selfie (Médio)", accept: "image/*", capture: "user" as const },
-  { key: "selfieFar", label: "Selfie (Longe)", accept: "image/*", capture: "user" as const },
+  { key: "selfieClose", label: "Selfie 1", accept: "image/*", capture: "user" as const },
+  { key: "selfieMedium", label: "Selfie 2", accept: "image/*", capture: "user" as const },
 ];
 
 export default function SignupPageWrapper() {
@@ -129,6 +127,9 @@ function SignupPage() {
   const [showDesktopUpload, setShowDesktopUpload] = useState(false);
   const [uploadingType, setUploadingType] = useState<string | null>(null);
   const desktopFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [cnpjPdfUploaded, setCnpjPdfUploaded] = useState(false);
+  const [uploadingCnpjPdf, setUploadingCnpjPdf] = useState(false);
+  const cnpjPdfInputRef = useRef<HTMLInputElement | null>(null);
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
@@ -425,6 +426,46 @@ function SignupPage() {
       saveAttempt({ lastStep: 3, lastError: msg });
     } finally {
       setUploadingType(null);
+    }
+  }
+
+  // CNPJ Card PDF shortcut: upload just the CNPJ card and skip full verification
+  async function handleCnpjPdfUpload(file: File) {
+    if (!verifyToken) return;
+    // Validate file type
+    const validTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      setError("Tipo de arquivo não permitido. Use PDF, JPEG, PNG ou WebP.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Arquivo muito grande. Máximo: 10MB.");
+      return;
+    }
+    setUploadingCnpjPdf(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "cnpjCard");
+      const r = await fetch(`/api/public/saas/verification/${verifyToken}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.message || "Erro ao enviar");
+      setCnpjPdfUploaded(true);
+      track("signup_cnpj_card_uploaded");
+      // Auto-advance after short delay for visual feedback
+      setTimeout(() => {
+        handleAfterDocuments();
+      }, 1200);
+    } catch (err: any) {
+      const msg = err.message || "Erro ao enviar Cartão CNPJ";
+      setError(msg);
+      saveAttempt({ lastStep: 3, lastError: msg });
+    } finally {
+      setUploadingCnpjPdf(false);
     }
   }
 
@@ -891,158 +932,83 @@ function SignupPage() {
         {/* Step 3: Document Verification */}
         {step === 3 && (
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Envio de documentos</h1>
+            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Cartao CNPJ</h1>
             <p className="text-sm text-slate-500 text-center mb-6">
-              Use seu celular para enviar os documentos ou envie direto pelo computador
+              Envie o Cartao CNPJ da empresa para validar seu cadastro
             </p>
 
-            {/* QR Code section */}
-            {verifyUrl && !showDesktopUpload && (
-              <div className="rounded-xl border border-slate-200 bg-white p-6 text-center mb-5">
-                <div className="flex items-center justify-center gap-2 mb-4">
-                  <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
-                  </svg>
-                  <h3 className="text-sm font-semibold text-slate-700">Escaneie com o celular</h3>
+            {/* ── CNPJ Card Upload (mandatory) ── */}
+            {!cnpjPdfUploaded && (
+              <div className="mb-5">
+                <div
+                  className="rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 p-8 text-center cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all"
+                  onClick={() => cnpjPdfInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleCnpjPdfUpload(file);
+                  }}
+                >
+                  <input
+                    ref={cnpjPdfInputRef}
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleCnpjPdfUpload(file);
+                    }}
+                    className="hidden"
+                  />
+                  {uploadingCnpjPdf ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-10 w-10 animate-spin rounded-full border-3 border-blue-500 border-t-transparent" />
+                      <p className="text-sm font-medium text-blue-700">Enviando...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-100 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-800 mb-1">Cartao CNPJ</p>
+                      <p className="text-xs text-slate-500 mb-3">
+                        Clique ou arraste o arquivo PDF ou imagem do Cartao CNPJ
+                      </p>
+                      <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                        </svg>
+                        Selecionar arquivo
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-3">PDF, JPEG, PNG ou WebP — maximo 10MB</p>
+                    </>
+                  )}
                 </div>
-                <div className="inline-block p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
-                  <QRCodeSVG value={verifyUrl} size={180} level="M" />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-3">
-                  Aponte a camera do celular para o QR Code para abrir a pagina de envio
+                <p className="text-[10px] text-slate-400 text-center mt-3">
+                  Voce pode obter o Cartao CNPJ em <a href="https://solucoes.receita.fazenda.gov.br/servicos/cnpjreva/cnpjreva_solicitacao.asp" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">receita.fazenda.gov.br</a>
                 </p>
               </div>
             )}
 
-            {/* Desktop upload toggle */}
-            {!showDesktopUpload && (
-              <button
-                onClick={() => setShowDesktopUpload(true)}
-                className="w-full text-center text-xs text-blue-600 hover:text-blue-700 font-medium mb-5"
-              >
-                Prefiro enviar pelo computador →
-              </button>
-            )}
-
-            {/* Desktop upload area */}
-            {showDesktopUpload && (
-              <div className="space-y-3 mb-5">
-                {DOC_STEPS.map((docStep) => {
-                  const isUploaded = verifyStatus?.documents?.[docStep.key as keyof typeof verifyStatus.documents];
-                  const isUploading = uploadingType === docStep.key;
-                  return (
-                    <div key={docStep.key} className={`rounded-xl border p-4 ${isUploaded ? "border-green-200 bg-green-50" : "border-slate-200 bg-white"}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {isUploaded ? (
-                            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
-                              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                              </svg>
-                            </div>
-                          ) : (
-                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-400 font-medium">
-                              {DOC_STEPS.indexOf(docStep) + 1}
-                            </div>
-                          )}
-                          <span className={`text-sm ${isUploaded ? "text-green-700" : "text-slate-700"}`}>{docStep.label}</span>
-                        </div>
-                        {!isUploaded && (
-                          <>
-                            <input
-                              ref={(el) => { desktopFileRefs.current[docStep.key] = el; }}
-                              type="file"
-                              accept={docStep.accept}
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleDesktopUpload(docStep.key, file);
-                              }}
-                              className="hidden"
-                            />
-                            <button
-                              onClick={() => desktopFileRefs.current[docStep.key]?.click()}
-                              disabled={isUploading}
-                              className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium hover:bg-blue-100 disabled:opacity-50"
-                            >
-                              {isUploading ? (
-                                <span className="flex items-center gap-1">
-                                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                                  Enviando
-                                </span>
-                              ) : "Enviar"}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                <button
-                  onClick={() => setShowDesktopUpload(false)}
-                  className="w-full text-center text-xs text-slate-400 hover:text-slate-500 font-medium"
-                >
-                  ← Usar QR Code no celular
-                </button>
-              </div>
-            )}
-
-            {/* Document checklist */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5 mb-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-700">Status dos documentos</h3>
-                <span className="text-xs font-medium text-blue-600">
-                  {verifyStatus?.uploadedCount || 0}/{DOC_STEPS.length}
-                </span>
-              </div>
-              {/* Progress bar */}
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-4">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500"
-                  style={{ width: `${((verifyStatus?.uploadedCount || 0) / DOC_STEPS.length) * 100}%` }}
-                />
-              </div>
-              <div className="space-y-2">
-                {DOC_STEPS.map((docStep) => {
-                  const isUploaded = verifyStatus?.documents?.[docStep.key as keyof typeof verifyStatus.documents];
-                  return (
-                    <div key={docStep.key} className="flex items-center gap-2">
-                      {isUploaded ? (
-                        <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                        </svg>
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border-2 border-slate-200 shrink-0" />
-                      )}
-                      <span className={`text-xs ${isUploaded ? "text-green-700 line-through" : "text-slate-500"}`}>
-                        {docStep.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* All docs uploaded message */}
-            {verifyStatus?.uploadComplete && (
-              <div className="rounded-xl border border-green-200 bg-green-50 p-4 mb-5 text-center">
-                <svg className="w-8 h-8 mx-auto text-green-500 mb-2" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                <p className="text-sm font-semibold text-green-800">Todos os documentos enviados!</p>
-                <p className="text-xs text-green-600 mt-1">Voce ja pode continuar.</p>
+            {/* ── Success animation after CNPJ card upload ── */}
+            {cnpjPdfUploaded && (
+              <div className="rounded-xl border border-green-200 bg-green-50 p-6 mb-5 text-center">
+                <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-green-500 flex items-center justify-center">
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                </div>
+                <p className="text-sm font-semibold text-green-800">Cartao CNPJ enviado com sucesso!</p>
+                <p className="text-xs text-green-600 mt-1">Redirecionando...</p>
+                <div className="mt-3 flex justify-center">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
+                </div>
               </div>
             )}
 
             {renderError()}
-
-            <button
-              type="button"
-              onClick={handleAfterDocuments}
-              disabled={!verifyStatus?.uploadComplete}
-              className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isVoucher ? "Concluir cadastro" : "Continuar para pagamento"}
-            </button>
           </div>
         )}
 
