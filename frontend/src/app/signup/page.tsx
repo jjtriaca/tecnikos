@@ -396,6 +396,18 @@ function SignupPage() {
     return () => { active = false; clearInterval(interval); };
   }, [step, verifyToken]);
 
+  // Auto-advance to payment when all 5 documents are uploaded
+  useEffect(() => {
+    if (step === 3 && verifyStatus?.uploadComplete) {
+      track("signup_docs_complete");
+      saveAttempt({ lastStep: 3 });
+      // Short delay for visual feedback
+      const timer = setTimeout(() => handleAfterDocuments(), 1500);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, verifyStatus?.uploadComplete]);
+
   // Desktop upload handler
   async function handleDesktopUpload(docType: string, file: File) {
     if (!verifyToken) return;
@@ -429,10 +441,9 @@ function SignupPage() {
     }
   }
 
-  // CNPJ Card PDF shortcut: upload just the CNPJ card and skip full verification
+  // Upload CNPJ card (first doc) — then show QR for remaining docs
   async function handleCnpjPdfUpload(file: File) {
     if (!verifyToken) return;
-    // Validate file type
     const validTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
     if (!validTypes.includes(file.type)) {
       setError("Tipo de arquivo não permitido. Use PDF, JPEG, PNG ou WebP.");
@@ -455,11 +466,20 @@ function SignupPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.message || "Erro ao enviar");
       setCnpjPdfUploaded(true);
+      // Update verify status to reflect CNPJ uploaded
+      setVerifyStatus((prev) => prev ? {
+        ...prev,
+        uploadedCount: data.uploadedCount,
+        uploadComplete: data.uploadComplete,
+        documents: { ...prev.documents, cnpjCard: true },
+      } : {
+        uploadedCount: data.uploadedCount,
+        uploadComplete: data.uploadComplete,
+        reviewStatus: "PENDING",
+        expired: false,
+        documents: { cnpjCard: true, docFront: false, docBack: false, selfieClose: false, selfieMedium: false },
+      });
       track("signup_cnpj_card_uploaded");
-      // Auto-advance after short delay for visual feedback
-      setTimeout(() => {
-        handleAfterDocuments();
-      }, 1200);
     } catch (err: any) {
       const msg = err.message || "Erro ao enviar Cartão CNPJ";
       setError(msg);
@@ -932,9 +952,13 @@ function SignupPage() {
         {/* Step 3: Document Verification */}
         {step === 3 && (
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Cartao CNPJ</h1>
+            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">
+              {cnpjPdfUploaded ? "Verificacao de documentos" : "Cartao CNPJ"}
+            </h1>
             <p className="text-sm text-slate-500 text-center mb-6">
-              Envie o Cartao CNPJ da empresa para validar seu cadastro
+              {cnpjPdfUploaded
+                ? "Complete a verificacao enviando os documentos restantes"
+                : "Envie o Cartao CNPJ da empresa para validar seu cadastro"}
             </p>
 
             {/* ── CNPJ Card Upload (mandatory) ── */}
@@ -992,16 +1016,84 @@ function SignupPage() {
               </div>
             )}
 
-            {/* ── Success animation after CNPJ card upload ── */}
-            {cnpjPdfUploaded && (
-              <div className="rounded-xl border border-green-200 bg-green-50 p-6 mb-5 text-center">
+            {/* ── After CNPJ card: QR code + remaining docs checklist ── */}
+            {cnpjPdfUploaded && !verifyStatus?.uploadComplete && (
+              <div className="space-y-5">
+                {/* CNPJ Card success badge */}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-200">
+                  <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium text-green-800">Cartao CNPJ enviado</span>
+                </div>
+
+                {/* QR Code for remaining documents */}
+                <div className="text-center">
+                  <h2 className="text-lg font-bold text-slate-900 mb-1">Documentos de identidade</h2>
+                  <p className="text-sm text-slate-500 mb-4">
+                    Escaneie o QR code abaixo <strong>no celular</strong> para enviar os documentos restantes
+                  </p>
+                  {verifyUrl && (
+                    <div className="inline-block p-4 bg-white rounded-2xl shadow-lg border border-slate-200 mb-4">
+                      <QRCodeSVG value={verifyUrl} size={180} level="M" />
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-400 mb-5">
+                    Ou abra este link no celular: <span className="text-blue-500 break-all">{verifyUrl}</span>
+                  </p>
+                </div>
+
+                {/* Document checklist */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Progresso dos documentos</p>
+                  <div className="space-y-2.5">
+                    {DOC_STEPS.map((doc) => {
+                      const done = verifyStatus?.documents?.[doc.key as keyof VerificationStatus["documents"]] ?? false;
+                      return (
+                        <div key={doc.key} className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${done ? "bg-green-500" : "bg-slate-200"}`}>
+                            {done ? (
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                              </svg>
+                            ) : (
+                              <span className="w-2 h-2 rounded-full bg-slate-400" />
+                            )}
+                          </div>
+                          <span className={`text-sm ${done ? "text-green-700 font-medium" : "text-slate-500"}`}>{doc.label}</span>
+                          {done && <span className="text-[10px] text-green-500 ml-auto">Enviado</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500">{verifyStatus?.uploadedCount ?? 1} de {DOC_STEPS.length} documentos</span>
+                      <div className="w-24 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                        <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${((verifyStatus?.uploadedCount ?? 1) / DOC_STEPS.length) * 100}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-400 text-center">
+                  Aguardando envio dos documentos pelo celular... A tela avancara automaticamente.
+                </p>
+              </div>
+            )}
+
+            {/* ── All docs complete — advancing ── */}
+            {cnpjPdfUploaded && verifyStatus?.uploadComplete && (
+              <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center">
                 <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-green-500 flex items-center justify-center">
                   <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                   </svg>
                 </div>
-                <p className="text-sm font-semibold text-green-800">Cartao CNPJ enviado com sucesso!</p>
-                <p className="text-xs text-green-600 mt-1">Redirecionando...</p>
+                <p className="text-sm font-semibold text-green-800">Todos os documentos enviados!</p>
+                <p className="text-xs text-green-600 mt-1">Avancando para pagamento...</p>
                 <div className="mt-3 flex justify-center">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
                 </div>
