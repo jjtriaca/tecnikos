@@ -766,8 +766,8 @@ function SignupPage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-600">Email *</label>
-                    <input type="email" className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                      value={form.responsibleEmail} onChange={(e) => setForm({ ...form, responsibleEmail: e.target.value })} required />
+                    <input type="email" className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm lowercase outline-none focus:border-blue-500"
+                      value={form.responsibleEmail} onChange={(e) => setForm({ ...form, responsibleEmail: e.target.value.toLowerCase() })} required />
                   </div>
                 </div>
                 <div className="mt-3">
@@ -1197,9 +1197,9 @@ function SignupPage() {
                 </div>
                 <div className="flex gap-2 mb-2">
                   <input type="email"
-                    className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                    className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm lowercase outline-none focus:border-blue-500"
                     value={resendEmail || form.responsibleEmail}
-                    onChange={(e) => setResendEmail(e.target.value)}
+                    onChange={(e) => setResendEmail(e.target.value.toLowerCase())}
                   />
                 </div>
                 {resendSuccess && (

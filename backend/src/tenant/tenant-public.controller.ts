@@ -113,7 +113,10 @@ export class TenantPublicController {
   }
 
   /**
-   * Return availability of pioneer program slots (4 segments).
+   * Return availability of pioneer program slots (5 segments).
+   * Availability is based on ACTIVE/BLOCKED/SUSPENDED tenants using that promo code,
+   * NOT the currentUses counter (which can get out of sync with abandoned signups).
+   * "Quem pagar primeiro tem o direito" — only paid tenants consume slots.
    */
   @Public()
   @Get('pioneer-slots')
@@ -123,6 +126,18 @@ export class TenantPublicController {
       where: { code: { in: codes } },
       select: { code: true, currentUses: true, maxUses: true, isActive: true },
     });
+
+    // Count PAID tenants per promo code (only ACTIVE/BLOCKED/SUSPENDED count as "used")
+    const LOCKED_STATUSES: TenantStatus[] = ['ACTIVE', 'BLOCKED', 'SUSPENDED'];
+    const activeTenants = await this.prisma.tenant.groupBy({
+      by: ['promoCode'],
+      where: {
+        promoCode: { in: codes },
+        status: { in: LOCKED_STATUSES },
+      },
+      _count: true,
+    });
+    const activeCountMap = new Map(activeTenants.map((t) => [t.promoCode, t._count]));
 
     const segmentMap: Record<string, { name: string; description: string }> = {
       'PIONEIRO-PISCINAS': { name: 'Piscinas e Aquecedores', description: 'Manutencao de piscinas, aquecedores, bombas, tratamento' },
@@ -134,7 +149,8 @@ export class TenantPublicController {
 
     const slots = codes.map((code) => {
       const promo = promos.find((p) => p.code === code);
-      const available = promo ? promo.isActive && (!promo.maxUses || promo.currentUses < promo.maxUses) : false;
+      const activeCount = activeCountMap.get(code) || 0;
+      const available = promo ? promo.isActive && (!promo.maxUses || activeCount < promo.maxUses) : false;
       return {
         segment: code.replace('PIONEIRO-', '').toLowerCase(),
         code,
@@ -149,6 +165,7 @@ export class TenantPublicController {
 
   /**
    * Validate a voucher/promo code and return its details.
+   * Availability is based on ACTIVE tenants using that code, not currentUses counter.
    */
   @Public()
   @Get('validate-code')
@@ -159,7 +176,17 @@ export class TenantPublicController {
     if (!promo) return { valid: false, reason: 'Código inválido' };
     if (!promo.isActive) return { valid: false, reason: 'Código expirado ou inativo' };
     if (promo.expiresAt && promo.expiresAt < new Date()) return { valid: false, reason: 'Código expirado' };
-    if (promo.maxUses && promo.currentUses >= promo.maxUses) return { valid: false, reason: 'Código já utilizado' };
+
+    // Check actual usage: count ACTIVE/BLOCKED/SUSPENDED tenants with this promo code
+    if (promo.maxUses) {
+      const LOCKED_STATUSES: TenantStatus[] = ['ACTIVE', 'BLOCKED', 'SUSPENDED'];
+      const activeCount = await this.prisma.tenant.count({
+        where: { promoCode: code, status: { in: LOCKED_STATUSES } },
+      });
+      if (activeCount >= promo.maxUses) {
+        return { valid: false, reason: 'Código já utilizado' };
+      }
+    }
 
     return {
       valid: true,
@@ -347,11 +374,9 @@ export class TenantPublicController {
       skipPayment = promo.skipPayment;
       promoId = promo.id;
 
-      // Increment usage
-      await this.prisma.promotion.update({
-        where: { id: promo.id },
-        data: { currentUses: { increment: 1 } },
-      });
+      // NOTE: Do NOT increment currentUses here!
+      // Promo slot is only consumed when payment is confirmed (activation).
+      // "Quem pagar primeiro tem o direito" — whoever pays first gets the slot.
     }
 
     // Hash the password for storage
@@ -367,6 +392,7 @@ export class TenantPublicController {
       responsibleEmail: body.responsibleEmail,
       responsiblePhone: body.responsiblePhone,
       passwordHash,
+      promoCode: body.promoCode,
     });
 
     // Always run onboarding so user can login immediately

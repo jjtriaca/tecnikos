@@ -1822,6 +1822,9 @@ model Tenant {
   verificationId    String?   // ID da verificação ppid
   passwordHash      String?   // Hash da senha definida no signup (usado no onboarding)
 
+  // Promoção usada no signup (só trava vaga após pagamento)
+  promoCode         String?   // Código promocional usado (ex: "PIONEIRO-PISCINAS")
+
   // Asaas (gateway pagamento)
   asaasCustomerId   String?   // ID do cliente no Asaas
 

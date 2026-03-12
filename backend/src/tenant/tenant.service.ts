@@ -67,6 +67,7 @@ export class TenantService {
     responsibleEmail?: string;
     responsiblePhone?: string;
     passwordHash?: string;
+    promoCode?: string;
     isMaster?: boolean;
   }) {
     // Validate slug
@@ -77,9 +78,14 @@ export class TenantService {
       );
     }
 
-    // Check uniqueness
+    // Only ACTIVE/BLOCKED/SUSPENDED tenants lock slug/CNPJ
+    // PENDING tenants can be replaced (abandoned signups)
+    const LOCKED: TenantStatus[] = ['ACTIVE', 'BLOCKED', 'SUSPENDED'];
     const existing = await this.prisma.tenant.findFirst({
-      where: { OR: [{ slug: data.slug }, ...(data.cnpj ? [{ cnpj: data.cnpj }] : [])] },
+      where: {
+        OR: [{ slug: data.slug }, ...(data.cnpj ? [{ cnpj: data.cnpj }] : [])],
+        status: { in: LOCKED },
+      },
     });
     if (existing) {
       throw new ConflictException(
@@ -112,6 +118,7 @@ export class TenantService {
         responsibleEmail: data.responsibleEmail,
         responsiblePhone: data.responsiblePhone,
         passwordHash: data.passwordHash,
+        promoCode: data.promoCode,
         isMaster: data.isMaster || false,
         maxUsers,
         maxOsPerMonth,
@@ -144,7 +151,7 @@ export class TenantService {
     const tables: { tablename: string }[] = await this.prisma.$queryRawUnsafe(`
       SELECT tablename FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename NOT IN ('_prisma_migrations', 'Tenant', 'Plan', 'Subscription', 'Promotion')
+        AND tablename NOT IN ('_prisma_migrations', 'Tenant', 'Plan', 'Subscription', 'Promotion', 'SignupAttempt', 'SaasEvent', 'SaasInvoice', 'AddOn', 'AddOnPurchase', 'VerificationSession')
         AND tablename NOT LIKE '\\_%'
     `);
 
@@ -180,7 +187,8 @@ export class TenantService {
 
   async activate(id: string) {
     const tenant = await this.getTenantOrThrow(id);
-    return this.prisma.tenant.update({
+
+    const updated = await this.prisma.tenant.update({
       where: { id },
       data: {
         status: TenantStatus.ACTIVE,
@@ -188,6 +196,18 @@ export class TenantService {
         blockReason: null,
       },
     });
+
+    // Increment promo currentUses only on activation (payment confirmed)
+    // "Quem pagar primeiro tem o direito"
+    if (tenant.promoCode) {
+      await this.prisma.promotion.updateMany({
+        where: { code: tenant.promoCode },
+        data: { currentUses: { increment: 1 } },
+      });
+      this.logger.log(`Promo "${tenant.promoCode}" usage incremented for tenant "${tenant.slug}"`);
+    }
+
+    return updated;
   }
 
   async block(id: string, reason: string) {
