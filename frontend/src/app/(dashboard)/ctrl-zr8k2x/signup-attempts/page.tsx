@@ -20,6 +20,9 @@ interface SignupAttempt {
   cnpjData: Record<string, unknown> | null;
   verificationResult: Record<string, unknown> | null;
   rejectionReasons: string[];
+  lastStep: number;
+  lastError: string | null;
+  completedAt: string | null;
   criticism: string | null;
   ipAddress: string | null;
   userAgent: string | null;
@@ -28,6 +31,9 @@ interface SignupAttempt {
   createdAt: string;
   updatedAt: string;
 }
+
+const STEP_NAMES: Record<number, string> = { 1: "Plano", 2: "Dados", 3: "Documentos", 4: "Pagamento", 5: "Concluido" };
+const STEP_COLORS: Record<number, string> = { 1: "bg-slate-100 text-slate-600", 2: "bg-blue-100 text-blue-700", 3: "bg-purple-100 text-purple-700", 4: "bg-amber-100 text-amber-700", 5: "bg-green-100 text-green-700" };
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -149,12 +155,18 @@ export default function SignupAttemptsPage() {
                     }`}>
                       {attempt.status}
                     </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${STEP_COLORS[attempt.lastStep] || "bg-slate-100 text-slate-500"}`}>
+                      {attempt.completedAt ? "Concluido" : `Step ${attempt.lastStep} — ${STEP_NAMES[attempt.lastStep] || "?"}`}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3 mt-1">
                     {attempt.cnpj && <span className="text-xs text-slate-500">{attempt.cnpj}</span>}
                     {attempt.responsibleName && <span className="text-xs text-slate-400">{attempt.responsibleName}</span>}
                     {attempt.planName && <span className="text-xs text-slate-400">{attempt.planName}</span>}
                   </div>
+                  {attempt.lastError && !attempt.completedAt && (
+                    <p className="text-[10px] text-red-500 mt-1 truncate max-w-md">Erro: {attempt.lastError}</p>
+                  )}
                   {attempt.rejectionReasons.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {attempt.rejectionReasons.slice(0, 3).map((r, i) => (
@@ -224,6 +236,46 @@ export default function SignupAttemptsPage() {
                     className="px-3 py-1 rounded-lg bg-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-300 disabled:opacity-50">
                     Descartar
                   </button>
+                )}
+              </div>
+
+              {/* Progress / Step tracking */}
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block mb-2">Progresso do Cadastro</span>
+                <div className="flex items-center gap-1 mb-2">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <div key={s} className="flex items-center gap-1">
+                      <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        selected.completedAt && s <= 5 ? "bg-green-500 text-white" :
+                        s < selected.lastStep ? "bg-blue-500 text-white" :
+                        s === selected.lastStep ? (selected.lastError && !selected.completedAt ? "bg-red-500 text-white" : "bg-blue-500 text-white") :
+                        "bg-slate-200 text-slate-400"
+                      }`}>
+                        {selected.completedAt && s <= 5 ? "✓" : s}
+                      </div>
+                      {s < 5 && <div className={`h-0.5 w-6 ${
+                        selected.completedAt ? "bg-green-400" :
+                        s < selected.lastStep ? "bg-blue-400" : "bg-slate-200"
+                      }`} />}
+                    </div>
+                  ))}
+                  <span className="ml-3 text-xs text-slate-600 font-medium">
+                    {selected.completedAt ? "Cadastro concluído" : `Parou em: ${STEP_NAMES[selected.lastStep] || "?"} (Step ${selected.lastStep})`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 text-[10px] text-slate-400">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <span key={s} className="text-center" style={{ minWidth: 32 }}>{STEP_NAMES[s]}</span>
+                  ))}
+                </div>
+                {selected.lastError && !selected.completedAt && (
+                  <div className="mt-2 rounded-md bg-red-50 border border-red-200 px-3 py-2">
+                    <span className="text-[10px] uppercase tracking-wider text-red-500 font-semibold">Erro no Step {selected.lastStep}</span>
+                    <p className="text-xs text-red-700 mt-0.5">{selected.lastError}</p>
+                  </div>
+                )}
+                {selected.completedAt && (
+                  <p className="text-xs text-green-600 mt-1">Concluído em {new Date(selected.completedAt).toLocaleString("pt-BR")}</p>
                 )}
               </div>
 

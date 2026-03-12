@@ -131,6 +131,80 @@ function SignupPage() {
   const [result, setResult] = useState<{ success: boolean; message: string; slug?: string; skipPayment?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Signup attempt tracking
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [showReportForm, setShowReportForm] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
+  const [reportSending, setReportSending] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
+
+  // Render error block with "Report Problem" option
+  function renderError() {
+    if (!error) return null;
+    return (
+      <div className="space-y-2">
+        <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>
+        {attemptId && !reportSent && (
+          <div>
+            {!showReportForm ? (
+              <button onClick={() => setShowReportForm(true)} className="text-[11px] text-slate-400 hover:text-blue-500 underline">
+                Teve um problema? Nos avise
+              </button>
+            ) : (
+              <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                <p className="text-xs font-medium text-slate-600">Descreva o problema encontrado:</p>
+                <textarea
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-blue-500 resize-none"
+                  rows={3} value={reportMessage} onChange={(e) => setReportMessage(e.target.value)}
+                  placeholder="Descreva o que aconteceu..." />
+                <div className="flex gap-2">
+                  <button onClick={() => setShowReportForm(false)} className="text-xs text-slate-400 hover:text-slate-600">Cancelar</button>
+                  <button onClick={sendReport} disabled={reportSending || !reportMessage.trim()}
+                    className="px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                    {reportSending ? "Enviando..." : "Enviar"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {reportSent && (
+          <p className="text-[11px] text-green-600">Mensagem enviada! Nossa equipe vai analisar.</p>
+        )}
+      </div>
+    );
+  }
+
+  // Save/update signup attempt (fire-and-forget)
+  const saveAttempt = useCallback(async (data: Record<string, unknown>) => {
+    try {
+      const body = { ...data, id: attemptId };
+      const r = await fetch("/api/public/saas/signup-attempt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        keepalive: true,
+      });
+      const result = await r.json();
+      if (result.id && !attemptId) setAttemptId(result.id);
+    } catch {}
+  }, [attemptId]);
+
+  // Report problem
+  async function sendReport() {
+    if (!reportMessage.trim() || !attemptId) return;
+    setReportSending(true);
+    try {
+      await fetch(`/api/public/saas/signup-attempt/${attemptId}/criticism`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ criticism: reportMessage.trim() }),
+      });
+      setReportSent(true);
+      setShowReportForm(false);
+    } catch {}
+    finally { setReportSending(false); }
+  }
 
   useEffect(() => {
     track("signup_step_1");
@@ -217,6 +291,15 @@ function SignupPage() {
   async function handleStep2Continue() {
     setError(null);
     setSubmitting(true);
+
+    // Save form context to attempt before trying
+    saveAttempt({
+      slug: form.slug, companyName: form.name, cnpj: form.cnpj,
+      responsibleName: form.responsibleName, responsibleEmail: form.responsibleEmail,
+      responsiblePhone: form.responsiblePhone, lastStep: 2,
+      cnpjData: cnpjData?.found ? cnpjData : undefined,
+    });
+
     try {
       // 1. Create tenant (signup)
       const r = await fetch("/api/public/saas/signup", {
@@ -243,15 +326,18 @@ function SignupPage() {
         body: JSON.stringify({ tenantId: data.tenantId }),
       });
       const vData = await vr.json();
-      if (!vr.ok) throw new Error(vData.message || "Erro ao criar sessão de verificação");
+      if (!vr.ok) throw new Error(vData.message || "Erro ao criar sessao de verificacao");
 
       setVerifyToken(vData.token);
       setVerifyUrl(vData.verifyUrl);
 
       track("signup_step_3");
+      saveAttempt({ lastStep: 3, lastError: null });
       setStep(3);
     } catch (err: any) {
-      setError(err.message || "Erro ao cadastrar");
+      const msg = err.message || "Erro ao cadastrar";
+      setError(msg);
+      saveAttempt({ lastStep: 2, lastError: msg, rejectionReasons: [msg] });
     } finally {
       setSubmitting(false);
     }
@@ -302,7 +388,9 @@ function SignupPage() {
         documents: { ...prev.documents, [docType]: true },
       } : prev);
     } catch (err: any) {
-      setError(err.message || "Erro ao enviar arquivo");
+      const msg = err.message || "Erro ao enviar arquivo";
+      setError(msg);
+      saveAttempt({ lastStep: 3, lastError: msg });
     } finally {
       setUploadingType(null);
     }
@@ -312,15 +400,17 @@ function SignupPage() {
   function handleAfterDocuments() {
     if (isVoucher) {
       track("signup_complete", { skipPayment: true });
+      saveAttempt({ lastStep: 5, completedAt: new Date().toISOString() });
       setResult({
         success: true,
-        message: "Seus documentos foram enviados! Aguarde a análise para ativação da sua conta.",
+        message: "Seus documentos foram enviados! Aguarde a analise para ativacao da sua conta.",
         slug: form.slug,
         skipPayment: true,
       });
       setStep(totalSteps);
     } else {
       track("signup_step_4");
+      saveAttempt({ lastStep: 4 });
       setCardForm((c) => ({ ...c, holderName: form.responsibleName, cpfCnpj: form.cnpj }));
       setStep(4);
     }
@@ -366,6 +456,7 @@ function SignupPage() {
       if (!r.ok) throw new Error(data.message || "Erro ao processar pagamento");
 
       track("signup_complete", { billingType });
+      saveAttempt({ lastStep: 5, completedAt: new Date().toISOString() });
       setResult({
         success: true,
         message: data.message,
@@ -374,7 +465,9 @@ function SignupPage() {
       });
       setStep(totalSteps);
     } catch (err: any) {
-      setError(err.message || "Erro ao processar pagamento");
+      const msg = err.message || "Erro ao processar pagamento";
+      setError(msg);
+      saveAttempt({ lastStep: 4, lastError: msg });
     } finally {
       setSubmitting(false);
     }
@@ -539,7 +632,7 @@ function SignupPage() {
               </div>
             )}
 
-            <button onClick={() => { if (selectedPlanId) { track("signup_step_2", { planId: selectedPlanId, billingCycle }); setStep(2); } }} disabled={!selectedPlanId}
+            <button onClick={() => { if (selectedPlanId) { const plan = plans.find(p => p.id === selectedPlanId); track("signup_step_2", { planId: selectedPlanId, billingCycle }); saveAttempt({ planId: selectedPlanId, planName: plan?.name, billingCycle, lastStep: 1 }); setStep(2); } }} disabled={!selectedPlanId}
               className="w-full mt-6 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
               Continuar
             </button>
@@ -694,7 +787,7 @@ function SignupPage() {
                 )}
               </div>
 
-              {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
+              {renderError()}
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setStep(1)}
@@ -868,7 +961,7 @@ function SignupPage() {
               </div>
             )}
 
-            {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 mb-4">{error}</div>}
+            {renderError()}
 
             <button
               type="button"
@@ -979,7 +1072,7 @@ function SignupPage() {
                 </div>
               )}
 
-              {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
+              {renderError()}
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setStep(3)}

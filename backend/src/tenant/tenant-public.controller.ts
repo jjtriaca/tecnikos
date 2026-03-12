@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
 import { AsaasService } from './asaas.service';
 import { TenantOnboardingService } from './tenant-onboarding.service';
+import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcrypt';
 
 /**
@@ -54,6 +55,7 @@ export class TenantPublicController {
     private readonly tenantService: TenantService,
     private readonly asaasService: AsaasService,
     private readonly onboarding: TenantOnboardingService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -453,6 +455,7 @@ export class TenantPublicController {
   @Post('signup-attempt')
   async submitSignupAttempt(
     @Body() body: {
+      id?: string; // If provided, updates existing attempt (upsert)
       slug?: string;
       companyName?: string;
       cnpj?: string;
@@ -466,28 +469,50 @@ export class TenantPublicController {
       verificationResult?: any;
       rejectionReasons?: string[];
       criticism?: string;
+      lastStep?: number;
+      lastError?: string;
+      completedAt?: string;
     },
     @Req() req: Request,
   ) {
-    const attempt = await this.prisma.signupAttempt.create({
-      data: {
-        slug: body.slug,
-        companyName: body.companyName,
-        cnpj: body.cnpj ? body.cnpj.replace(/\D/g, '') : undefined,
-        responsibleName: body.responsibleName,
-        responsibleEmail: body.responsibleEmail,
-        responsiblePhone: body.responsiblePhone,
-        planId: body.planId,
-        planName: body.planName,
-        billingCycle: body.billingCycle,
-        cnpjData: body.cnpjData || undefined,
-        verificationResult: body.verificationResult || undefined,
-        rejectionReasons: body.rejectionReasons || [],
-        criticism: body.criticism,
-        ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip,
-        userAgent: req.headers['user-agent'],
-      },
-    });
+    const data: any = {
+      ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    // Only set fields that are provided (partial update support)
+    if (body.slug !== undefined) data.slug = body.slug;
+    if (body.companyName !== undefined) data.companyName = body.companyName;
+    if (body.cnpj !== undefined) data.cnpj = body.cnpj.replace(/\D/g, '');
+    if (body.responsibleName !== undefined) data.responsibleName = body.responsibleName;
+    if (body.responsibleEmail !== undefined) data.responsibleEmail = body.responsibleEmail;
+    if (body.responsiblePhone !== undefined) data.responsiblePhone = body.responsiblePhone;
+    if (body.planId !== undefined) data.planId = body.planId;
+    if (body.planName !== undefined) data.planName = body.planName;
+    if (body.billingCycle !== undefined) data.billingCycle = body.billingCycle;
+    if (body.cnpjData !== undefined) data.cnpjData = body.cnpjData;
+    if (body.verificationResult !== undefined) data.verificationResult = body.verificationResult;
+    if (body.rejectionReasons !== undefined) data.rejectionReasons = body.rejectionReasons;
+    if (body.criticism !== undefined) data.criticism = body.criticism;
+    if (body.lastStep !== undefined) data.lastStep = body.lastStep;
+    if (body.lastError !== undefined) data.lastError = body.lastError;
+    if (body.completedAt !== undefined) data.completedAt = new Date(body.completedAt);
+
+    let attempt: any;
+    if (body.id) {
+      // Update existing attempt
+      attempt = await this.prisma.signupAttempt.update({
+        where: { id: body.id },
+        data,
+      }).catch(() => null);
+      // If not found, create new
+      if (!attempt) {
+        attempt = await this.prisma.signupAttempt.create({ data });
+      }
+    } else {
+      attempt = await this.prisma.signupAttempt.create({ data });
+    }
+
     return { success: true, id: attempt.id };
   }
 
@@ -504,6 +529,31 @@ export class TenantPublicController {
       where: { id },
       data: { criticism: criticism.trim() },
     });
+
+    // Notify admin by email
+    const stepNames: Record<number, string> = { 1: 'Plano', 2: 'Dados da Empresa', 3: 'Documentos', 4: 'Pagamento', 5: 'Concluido' };
+    const adminEmail = process.env.ADMIN_ALERT_EMAIL || 'contato@tecnikos.com.br';
+    this.emailService.sendSystemEmail(
+      adminEmail,
+      `[Tecnikos] Problema reportado no cadastro — ${attempt.companyName || attempt.slug || 'Sem nome'}`,
+      `<div style="font-family:Arial,sans-serif;max-width:600px">
+        <h2 style="color:#1e293b">Problema Reportado no Cadastro</h2>
+        <p>Um potencial cliente reportou um problema durante o cadastro:</p>
+        <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:16px;margin:16px 0">
+          <strong>Mensagem:</strong><br/>"${criticism.trim()}"
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="padding:4px 8px;color:#64748b">Empresa</td><td style="padding:4px 8px;font-weight:bold">${attempt.companyName || '-'}</td></tr>
+          <tr><td style="padding:4px 8px;color:#64748b">CNPJ</td><td style="padding:4px 8px">${attempt.cnpj || '-'}</td></tr>
+          <tr><td style="padding:4px 8px;color:#64748b">Responsavel</td><td style="padding:4px 8px">${attempt.responsibleName || '-'} (${attempt.responsibleEmail || '-'})</td></tr>
+          <tr><td style="padding:4px 8px;color:#64748b">Telefone</td><td style="padding:4px 8px">${attempt.responsiblePhone || '-'}</td></tr>
+          <tr><td style="padding:4px 8px;color:#64748b">Step</td><td style="padding:4px 8px">${attempt.lastStep || 1} — ${stepNames[attempt.lastStep || 1] || 'Desconhecido'}</td></tr>
+          ${attempt.lastError ? `<tr><td style="padding:4px 8px;color:#64748b">Erro</td><td style="padding:4px 8px;color:#dc2626">${attempt.lastError}</td></tr>` : ''}
+        </table>
+        <p style="color:#94a3b8;font-size:12px;margin-top:20px">Acesse o painel admin para mais detalhes.</p>
+      </div>`,
+    ).catch((err: any) => this.logger.warn(`Failed to send signup problem email: ${err.message}`));
+
     return { success: true };
   }
 

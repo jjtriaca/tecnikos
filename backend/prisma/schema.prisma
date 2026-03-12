@@ -2020,6 +2020,11 @@ model SignupAttempt {
   // Rejection reasons array
   rejectionReasons  String[]
 
+  // Step tracking
+  lastStep          Int       @default(1)  // 1=Plano, 2=Dados, 3=Documentos, 4=Pagamento, 5=Concluido
+  lastError         String?                // Error message that caused the stall
+  completedAt       DateTime?              // Non-null = signup completed successfully
+
   // User feedback (criticism submitted on rejection screen)
   criticism         String?
 
