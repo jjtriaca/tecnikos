@@ -177,7 +177,9 @@ export class TenantPublicController {
     if (digits.length !== 14) return { found: false, reason: 'CNPJ inválido' };
 
     try {
-      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`, {
+        headers: { 'User-Agent': 'Tecnikos/1.0', 'Accept': 'application/json' },
+      });
       if (!response.ok) {
         return { found: false, reason: 'CNPJ não encontrado na Receita Federal' };
       }

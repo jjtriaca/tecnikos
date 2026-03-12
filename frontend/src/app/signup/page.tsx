@@ -32,6 +32,23 @@ function formatBRL(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 }
 
+function maskCnpj(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+}
+
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 /** Document verification types */
 interface VerificationStatus {
   uploadedCount: number;
@@ -561,8 +578,8 @@ function SignupPage() {
                 <label className="mb-1 block text-xs font-medium text-slate-600">CNPJ *</label>
                 <div className="flex gap-2">
                   <input className="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                    value={form.cnpj} onChange={(e) => { setForm({ ...form, cnpj: e.target.value }); setCnpjData(null); }}
-                    placeholder="00.000.000/0001-00" required />
+                    value={form.cnpj} onChange={(e) => { setForm({ ...form, cnpj: maskCnpj(e.target.value) }); setCnpjData(null); }}
+                    placeholder="00.000.000/0001-00" maxLength={18} required />
                   <button type="button" onClick={lookupCnpj}
                     disabled={cnpjLoading || form.cnpj.replace(/\D/g, "").length !== 14}
                     className="rounded-lg bg-slate-100 px-4 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50 whitespace-nowrap">
@@ -593,7 +610,7 @@ function SignupPage() {
                 <div className="mt-3">
                   <label className="mb-1 block text-xs font-medium text-slate-600">Telefone</label>
                   <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                    value={form.responsiblePhone} onChange={(e) => setForm({ ...form, responsiblePhone: e.target.value })} placeholder="(11) 99999-9999" />
+                    value={form.responsiblePhone} onChange={(e) => setForm({ ...form, responsiblePhone: maskPhone(e.target.value) })} placeholder="(11) 99999-9999" maxLength={15} />
                 </div>
               </div>
 
