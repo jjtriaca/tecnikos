@@ -7,6 +7,7 @@ import { TenantService } from './tenant.service';
 import { AsaasService } from './asaas.service';
 import { TenantOnboardingService } from './tenant-onboarding.service';
 import { EmailService } from '../email/email.service';
+import { TenantStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 /**
@@ -96,13 +97,18 @@ export class TenantPublicController {
 
   /**
    * Check if a slug is available for a new tenant.
+   * Slugs are only reserved after payment — PENDING tenants don't lock the slug.
    */
   @Public()
   @Get('check-slug')
   async checkSlug(@QueryParam('slug') slug: string) {
     if (!slug) return { available: false, reason: 'Slug é obrigatório' };
 
-    const existing = await this.tenantService.findBySlug(slug);
+    // Only consider slug taken if tenant is in a paid/active state
+    const LOCKED_STATUSES: TenantStatus[] = ['ACTIVE', 'BLOCKED', 'SUSPENDED'];
+    const existing = await this.prisma.tenant.findFirst({
+      where: { slug, status: { in: LOCKED_STATUSES } },
+    });
     return { available: !existing };
   }
 
@@ -264,24 +270,52 @@ export class TenantPublicController {
       throw new BadRequestException('CNPJ inválido');
     }
 
-    // Check duplicate slug
-    const existingSlug = await this.prisma.tenant.findFirst({ where: { slug: body.slug } });
+    // Only ACTIVE/BLOCKED/SUSPENDED tenants lock the slug (PENDING ones can be replaced)
+    const LOCKED_STATUSES: TenantStatus[] = ['ACTIVE', 'BLOCKED', 'SUSPENDED'];
+
+    // Check duplicate slug (only locked tenants)
+    const existingSlug = await this.prisma.tenant.findFirst({
+      where: { slug: body.slug, status: { in: LOCKED_STATUSES } },
+    });
     if (existingSlug) {
       throw new BadRequestException('Este subdomínio já está em uso');
     }
 
-    // Check duplicate CNPJ (cnpj is @unique but nullable, so check explicitly)
-    const existingCnpj = await this.prisma.tenant.findFirst({ where: { cnpj: cnpjDigits, status: { not: 'CANCELLED' } } });
+    // Check duplicate CNPJ (only locked tenants)
+    const existingCnpj = await this.prisma.tenant.findFirst({
+      where: { cnpj: cnpjDigits, status: { in: LOCKED_STATUSES } },
+    });
     if (existingCnpj) {
       throw new BadRequestException('Já existe uma empresa cadastrada com este CNPJ');
     }
 
-    // Check duplicate email
+    // Check duplicate email (only locked tenants)
     const existingEmail = await this.prisma.tenant.findFirst({
-      where: { responsibleEmail: body.responsibleEmail.toLowerCase().trim() },
+      where: { responsibleEmail: body.responsibleEmail.toLowerCase().trim(), status: { in: LOCKED_STATUSES } },
     });
     if (existingEmail) {
       throw new BadRequestException('Este email já está vinculado a uma empresa');
+    }
+
+    // Clean up any previous PENDING tenants with same slug/CNPJ (abandoned signups)
+    const pendingTenants = await this.prisma.tenant.findMany({
+      where: {
+        OR: [
+          { slug: body.slug },
+          { cnpj: cnpjDigits },
+          { responsibleEmail: body.responsibleEmail.toLowerCase().trim() },
+        ],
+        status: { notIn: LOCKED_STATUSES },
+      },
+    });
+    for (const pending of pendingTenants) {
+      // Drop the schema if it exists
+      try {
+        await this.prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${pending.schemaName}" CASCADE`);
+      } catch (e) {
+        // Schema might not exist, that's fine
+      }
+      await this.prisma.tenant.delete({ where: { id: pending.id } });
     }
 
     // Validate plan exists and is active

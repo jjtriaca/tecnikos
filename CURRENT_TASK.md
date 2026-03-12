@@ -23,15 +23,23 @@
 - [x] Seta de conexao entre trigger e primeira etapa OS
 - [x] Labels corretos para badges scheduleConfig e gestorApproval
 - [x] Deploy v1.02.35
+- [x] Tela de revisao de tecnicos (techReviewScreen) — tipo + UI + compile/decompile + label
+- [x] Deploy v1.02.36
+
+## Decisao: SLS Obras operando pelo schema public
+- SLS Obras continua no schema public (tecnikos.com.br, admin@tecnikos.com.br)
+- NAO migrar para tenant/host ate concluir todos os testes e certificacao
+- Registro antigo de Tenant SLS foi limpo (schema tenant_sls dropado + registro deletado)
+- Quando pronto: refazer signup pelo host para teste completo do fluxo tenant
 
 ## Proximos passos:
-1. SLS Obras: fazer cadastro novamente pelo rito certo
+1. SLS Obras: testar signup pelo host quando pronto para certificar
 2. Testar end-to-end: signup → upload docs → admin review → approve/reject
 3. Testar emissao NF via admin (com Asaas sandbox)
 4. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 5. Audit log review (pendente desde sessao 101)
 
-## Versao atual: v1.02.35
+## Versao atual: v1.02.36
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896
