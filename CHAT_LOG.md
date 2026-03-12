@@ -527,3 +527,49 @@ Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
 **Deploys:** v1.02.33, v1.02.35 OK
 
 ---
+
+## 2026-03-12 — Sessao 108: Promo/Slug so trava apos pagamento (v1.02.36-39)
+
+### Tela de revisao de tecnicos (v1.02.36)
+- techReviewScreen no stage-config.ts: { enabled, allowEdit }
+- UI no StageSection entre selecao de tecnico e disparo de mensagens
+- Compile/decompile TECH_REVIEW_SCREEN block
+- Deploy v1.02.36
+
+### Slug so trava apos pagamento (v1.02.37)
+- LOCKED_STATUSES = ['ACTIVE', 'BLOCKED', 'SUSPENDED']
+- check-slug, signup duplicate checks: so consideram tenants LOCKED
+- Cleanup de tenants PENDING abandonados (drop schema + delete record)
+- Deploy v1.02.37
+
+### Fix Prisma tenant connection (v1.02.38)
+- Bug: ?schema=tenant_sls,public → Prisma trata como schema literal (nao search_path)
+- Fix: removido ",public" da URL em tenant-connection.service.ts
+- PostgreSQL enums do schema public sao acessiveis sem search_path
+- Deploy v1.02.38
+
+### REGRA CRITICA: Promo so consome vaga apos pagamento (v1.02.39)
+**Pedido do Juliano:** "quem pagar primeiro tem o direito!!!"
+
+**Problema:** Signup incrementava currentUses da promocao ANTES do pagamento. Signup abandonado consumia a vaga permanentemente.
+
+**Solucao:**
+1. Novo campo `Tenant.promoCode` (migration) — armazena o codigo usado
+2. Signup NAO incrementa currentUses (removido)
+3. `activate()` incrementa currentUses (so apos pagamento confirmado)
+4. `pioneer-slots`: conta tenants ATIVOS com aquele promoCode vs maxUses
+5. `validate-code`: conta tenants ATIVOS com aquele promoCode vs maxUses
+6. `provisionTenant`: duplicate check respeita LOCKED_STATUSES
+7. Reset currentUses PIONEIRO-PISCINAS (era 1, agora 0 — nenhum tenant ativo)
+8. createSchema: excluir tabelas SaaS do copy (SignupAttempt, SaasEvent, etc)
+
+**Decisao do Juliano:** SLS Obras continua no schema public ate certificacao completa.
+
+### Email lowercase no signup
+- Input email forcado lowercase (.toLowerCase() no onChange)
+- CSS class "lowercase" para visual
+
+**Builds:** Backend tsc OK, Frontend next build OK
+**Deploys:** v1.02.36, v1.02.37, v1.02.38, v1.02.39 OK
+
+---

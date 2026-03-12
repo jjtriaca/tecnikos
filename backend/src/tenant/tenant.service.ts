@@ -135,6 +135,7 @@ export class TenantService {
 
   /**
    * Create a PostgreSQL schema and copy all table structures from public.
+   * Also copies enum types so Prisma can find them when connecting to the tenant schema.
    */
   async createSchema(schemaName: string): Promise<void> {
     // Sanitize schema name to prevent SQL injection
@@ -147,7 +148,32 @@ export class TenantService {
     // Create schema
     await this.prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
-    // Get all tables in public schema (tenant-specific ones, not multi-tenant management tables)
+    // 1. Copy all enum types from public schema to tenant schema
+    // Prisma with ?schema=tenant_xxx sets search_path to just that schema,
+    // so enums like UserRole must exist there too.
+    const enums: { typname: string; labels: string[] }[] = await this.prisma.$queryRawUnsafe(`
+      SELECT t.typname, array_agg(e.enumlabel ORDER BY e.enumsortorder) as labels
+      FROM pg_type t
+      JOIN pg_enum e ON t.oid = e.enumtypid
+      JOIN pg_namespace n ON t.typnamespace = n.oid
+      WHERE n.nspname = 'public'
+      GROUP BY t.typname
+    `);
+
+    for (const { typname, labels } of enums) {
+      try {
+        const labelsSql = labels.map((l) => `'${l}'`).join(', ');
+        await this.prisma.$executeRawUnsafe(
+          `CREATE TYPE "${schemaName}"."${typname}" AS ENUM (${labelsSql})`,
+        );
+      } catch (err) {
+        // Type might already exist (idempotent)
+        this.logger.debug?.(`Enum "${typname}" in "${schemaName}": ${(err as Error).message}`);
+      }
+    }
+    this.logger.log(`Copied ${enums.length} enum types to "${schemaName}"`);
+
+    // 2. Get all tables in public schema (tenant-specific ones, not multi-tenant management tables)
     const tables: { tablename: string }[] = await this.prisma.$queryRawUnsafe(`
       SELECT tablename FROM pg_tables
       WHERE schemaname = 'public'
@@ -155,18 +181,52 @@ export class TenantService {
         AND tablename NOT LIKE '\\_%'
     `);
 
-    // Copy table structures (including indexes, defaults, constraints)
+    // 3. Copy table structures — but remap column types from public enums to tenant enums
     for (const { tablename } of tables) {
       try {
+        // First create the table using LIKE (copies structure with public enum references)
         await this.prisma.$executeRawUnsafe(
           `CREATE TABLE IF NOT EXISTS "${schemaName}"."${tablename}" (LIKE public."${tablename}" INCLUDING ALL)`,
         );
+
+        // Then alter columns to use the tenant schema's enum types
+        // Get columns that use enum types in this table
+        const enumCols: { column_name: string; udt_name: string }[] = await this.prisma.$queryRawUnsafe(`
+          SELECT c.column_name, c.udt_name
+          FROM information_schema.columns c
+          JOIN pg_type t ON t.typname = c.udt_name
+          JOIN pg_namespace n ON t.typnamespace = n.oid
+          WHERE c.table_schema = '${schemaName}'
+            AND c.table_name = '${tablename}'
+            AND n.nspname = 'public'
+            AND t.typtype = 'e'
+        `);
+
+        for (const { column_name, udt_name } of enumCols) {
+          try {
+            // Check if it's an array type by looking at the actual column
+            const colInfo: { data_type: string }[] = await this.prisma.$queryRawUnsafe(`
+              SELECT data_type FROM information_schema.columns
+              WHERE table_schema = '${schemaName}' AND table_name = '${tablename}' AND column_name = '${column_name}'
+            `);
+            const isArray = colInfo[0]?.data_type === 'ARRAY';
+            const targetType = isArray
+              ? `"${schemaName}"."${udt_name}"[]`
+              : `"${schemaName}"."${udt_name}"`;
+
+            await this.prisma.$executeRawUnsafe(
+              `ALTER TABLE "${schemaName}"."${tablename}" ALTER COLUMN "${column_name}" TYPE ${targetType} USING "${column_name}"::text${isArray ? '[]' : ''}::"${schemaName}"."${udt_name}"${isArray ? '[]' : ''}`,
+            );
+          } catch (colErr) {
+            this.logger.warn(`Failed to remap enum column "${tablename}.${column_name}": ${(colErr as Error).message}`);
+          }
+        }
       } catch (err) {
         this.logger.warn(`Failed to copy table "${tablename}" to "${schemaName}": ${(err as Error).message}`);
       }
     }
 
-    this.logger.log(`Schema "${schemaName}" created with ${tables.length} tables`);
+    this.logger.log(`Schema "${schemaName}" created with ${enums.length} enums + ${tables.length} tables`);
   }
 
   /**
