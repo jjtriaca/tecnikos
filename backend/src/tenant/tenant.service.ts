@@ -190,11 +190,9 @@ export class TenantService {
         );
 
         // Find ALL columns that still reference public schema types (enums + enum arrays)
-        // For scalar enums: data_type='USER-DEFINED', udt_name='UserRole'
-        // For array enums: data_type='ARRAY', udt_name='_UserRole' (underscore prefix)
-        const publicCols: { column_name: string; data_type: string; udt_name: string }[] =
+        const publicCols: { column_name: string; data_type: string; udt_name: string; column_default: string | null }[] =
           await this.prisma.$queryRawUnsafe(`
-            SELECT column_name, data_type, udt_name
+            SELECT column_name, data_type, udt_name, column_default
             FROM information_schema.columns
             WHERE table_schema = '${schemaName}'
               AND table_name = '${tablename}'
@@ -202,7 +200,7 @@ export class TenantService {
               AND (data_type = 'USER-DEFINED' OR data_type = 'ARRAY')
           `);
 
-        for (const { column_name, data_type, udt_name } of publicCols) {
+        for (const { column_name, data_type, udt_name, column_default } of publicCols) {
           try {
             const isArray = data_type === 'ARRAY';
             // Array enum udt_name has underscore prefix: _UserRole → UserRole
@@ -211,14 +209,35 @@ export class TenantService {
               ? `"${schemaName}"."${enumName}"[]`
               : `"${schemaName}"."${enumName}"`;
 
+            // 1. Save and drop default (it references public enum, blocks ALTER)
+            if (column_default) {
+              await this.prisma.$executeRawUnsafe(
+                `ALTER TABLE "${schemaName}"."${tablename}" ALTER COLUMN "${column_name}" DROP DEFAULT`,
+              );
+            }
+
+            // 2. Change column type to tenant schema enum
             await this.prisma.$executeRawUnsafe(
               `ALTER TABLE "${schemaName}"."${tablename}"
                ALTER COLUMN "${column_name}"
                TYPE ${targetType}
                USING "${column_name}"::text${isArray ? '[]' : ''}::"${schemaName}"."${enumName}"${isArray ? '[]' : ''}`,
             );
+
+            // 3. Restore default with tenant schema enum reference
+            //    e.g. '{}'::"UserRole"[] → '{}'::"tenant_sls"."UserRole"[]
+            //    e.g. 'PENDING'::"FinancialEntryStatus" → 'PENDING'::"tenant_sls"."FinancialEntryStatus"
+            if (column_default) {
+              const newDefault = column_default.replace(
+                /::"([A-Za-z]+)"(\[\])?/g,
+                `::"${schemaName}"."$1"$2`,
+              );
+              await this.prisma.$executeRawUnsafe(
+                `ALTER TABLE "${schemaName}"."${tablename}" ALTER COLUMN "${column_name}" SET DEFAULT ${newDefault}`,
+              );
+            }
           } catch (colErr) {
-            // Not a remappable enum — skip silently
+            this.logger.warn(`Remap "${tablename}.${column_name}": ${(colErr as Error).message}`);
           }
         }
       } catch (err) {

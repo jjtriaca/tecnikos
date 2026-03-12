@@ -44,7 +44,7 @@
 4. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 5. Audit log review (pendente desde sessao 101)
 
-## Versao atual: v1.02.40
+## Versao atual: v1.02.41
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896
