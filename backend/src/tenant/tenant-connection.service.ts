@@ -24,11 +24,11 @@ export class TenantConnectionService implements OnModuleDestroy {
     if (client) return client;
 
     const baseUrl = process.env.DATABASE_URL || '';
-    // Replace ?schema=public with ?schema=tenant_xxx,public
-    // Including public ensures PostgreSQL enum types (UserRole, etc.) are found
+    // Replace ?schema=public with ?schema=tenant_xxx
+    // Prisma only supports a single schema in ?schema= parameter
     const tenantUrl = baseUrl.includes('?schema=')
-      ? baseUrl.replace(/\?schema=[^&]+/, `?schema=${schemaName},public`)
-      : `${baseUrl}?schema=${schemaName},public`;
+      ? baseUrl.replace(/\?schema=[^&]+/, `?schema=${schemaName}`)
+      : `${baseUrl}?schema=${schemaName}`;
 
     client = new PrismaClient({
       datasources: { db: { url: tenantUrl } },

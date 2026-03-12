@@ -25,6 +25,9 @@
 - [x] Deploy v1.02.35
 - [x] Tela de revisao de tecnicos (techReviewScreen) — tipo + UI + compile/decompile + label
 - [x] Deploy v1.02.36
+- [x] Slug so trava apos pagamento (ACTIVE/BLOCKED/SUSPENDED)
+- [x] Signup limpa tenants PENDING abandonados (mesmo slug/CNPJ/email)
+- [x] Deploy v1.02.37
 
 ## Decisao: SLS Obras operando pelo schema public
 - SLS Obras continua no schema public (tecnikos.com.br, admin@tecnikos.com.br)
@@ -39,7 +42,7 @@
 4. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 5. Audit log review (pendente desde sessao 101)
 
-## Versao atual: v1.02.36
+## Versao atual: v1.02.37
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896
