@@ -115,7 +115,12 @@ function SignupPage() {
 
   // CNPJ lookup
   const [cnpjLoading, setCnpjLoading] = useState(false);
-  const [cnpjData, setCnpjData] = useState<{ found: boolean; razaoSocial?: string; nomeFantasia?: string; email?: string; telefone?: string; reason?: string } | null>(null);
+  const [cnpjData, setCnpjData] = useState<{
+    found: boolean; razaoSocial?: string; nomeFantasia?: string;
+    email?: string; telefone?: string; reason?: string;
+    cep?: string; logradouro?: string; numero?: string; bairro?: string;
+    municipio?: string; uf?: string; situacao?: string;
+  } | null>(null);
 
   // Verification session (step 3)
   const [verifyToken, setVerifyToken] = useState<string | null>(null);
@@ -137,6 +142,27 @@ function SignupPage() {
   const [reportMessage, setReportMessage] = useState("");
   const [reportSending, setReportSending] = useState(false);
   const [reportSent, setReportSent] = useState(false);
+
+  // Email resend
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [resendEmail, setResendEmail] = useState("");
+  const [resendSending, setResendSending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
+
+  // Traffic source (captured once on mount)
+  const [trafficSource] = useState(() => {
+    if (typeof window === "undefined") return {};
+    const params = new URLSearchParams(window.location.search);
+    return {
+      referrer: document.referrer || undefined,
+      utmSource: params.get("utm_source") || undefined,
+      utmMedium: params.get("utm_medium") || undefined,
+      utmCampaign: params.get("utm_campaign") || undefined,
+      utmTerm: params.get("utm_term") || undefined,
+      utmContent: params.get("utm_content") || undefined,
+      landingPage: window.location.href,
+    };
+  });
 
   // Render error block with "Report Problem" option
   function renderError() {
@@ -205,6 +231,13 @@ function SignupPage() {
     } catch {}
     finally { setReportSending(false); }
   }
+
+  // Countdown timer for email resend
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setTimeout(() => setResendCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
 
   useEffect(() => {
     track("signup_step_1");
@@ -275,10 +308,9 @@ function SignupPage() {
       const data = await r.json();
       setCnpjData(data);
       if (data.found) {
+        // Auto-fill company name from CNPJ data
         const companyName = data.nomeFantasia || data.razaoSocial || "";
-        if (!form.name && companyName) {
-          setForm((f) => ({ ...f, name: companyName }));
-        }
+        setForm((f) => ({ ...f, name: companyName }));
       }
     } catch {
       setCnpjData({ found: false, reason: "Erro ao consultar" });
@@ -632,7 +664,7 @@ function SignupPage() {
               </div>
             )}
 
-            <button onClick={() => { if (selectedPlanId) { const plan = plans.find(p => p.id === selectedPlanId); track("signup_step_2", { planId: selectedPlanId, billingCycle }); saveAttempt({ planId: selectedPlanId, planName: plan?.name, billingCycle, lastStep: 1 }); setStep(2); } }} disabled={!selectedPlanId}
+            <button onClick={() => { if (selectedPlanId) { const plan = plans.find(p => p.id === selectedPlanId); track("signup_step_2", { planId: selectedPlanId, billingCycle }); saveAttempt({ planId: selectedPlanId, planName: plan?.name, billingCycle, lastStep: 1, ...trafficSource }); setStep(2); } }} disabled={!selectedPlanId}
               className="w-full mt-6 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
               Continuar
             </button>
@@ -662,29 +694,67 @@ function SignupPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Nome da empresa *</label>
-                <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                  value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Empresa LTDA" required />
-              </div>
-
-              <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">CNPJ *</label>
                 <div className="flex gap-2">
                   <input className="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                    value={form.cnpj} onChange={(e) => { setForm({ ...form, cnpj: maskCnpj(e.target.value) }); setCnpjData(null); }}
+                    value={form.cnpj} onChange={(e) => { setForm({ ...form, cnpj: maskCnpj(e.target.value), name: "" }); setCnpjData(null); }}
                     placeholder="00.000.000/0001-00" maxLength={18} required />
                   <button type="button" onClick={lookupCnpj}
                     disabled={cnpjLoading || form.cnpj.replace(/\D/g, "").length !== 14}
-                    className="rounded-lg bg-slate-100 px-4 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50 whitespace-nowrap">
-                    {cnpjLoading ? "..." : "Consultar"}
+                    className="rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">
+                    {cnpjLoading ? (
+                      <span className="flex items-center gap-1">
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Consultando
+                      </span>
+                    ) : "Consultar CNPJ"}
                   </button>
                 </div>
-                {cnpjData && (
-                  <div className={`mt-1.5 text-xs ${cnpjData.found ? "text-green-600" : "text-red-500"}`}>
-                    {cnpjData.found ? <span>{cnpjData.razaoSocial}{cnpjData.nomeFantasia ? ` (${cnpjData.nomeFantasia})` : ""}</span> : cnpjData.reason}
-                  </div>
+                {cnpjData && !cnpjData.found && (
+                  <div className="mt-1.5 text-xs text-red-500">{cnpjData.reason}</div>
                 )}
               </div>
+
+              {/* Company data from CNPJ (read-only) */}
+              {cnpjData?.found && (
+                <div className="rounded-xl border border-green-200 bg-green-50/50 p-4 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                    <span className="text-xs font-semibold text-green-700">Dados da Receita Federal</span>
+                    {cnpjData.situacao && (
+                      <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        cnpjData.situacao === "ATIVA" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                      }`}>{cnpjData.situacao}</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase">Razao Social</span>
+                      <p className="text-sm text-slate-800 font-medium">{cnpjData.razaoSocial || "-"}</p>
+                    </div>
+                    {cnpjData.nomeFantasia && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase">Nome Fantasia</span>
+                        <p className="text-sm text-slate-800 font-medium">{cnpjData.nomeFantasia}</p>
+                      </div>
+                    )}
+                    {cnpjData.logradouro && (
+                      <div className="sm:col-span-2">
+                        <span className="text-[10px] text-slate-400 uppercase">Endereco</span>
+                        <p className="text-sm text-slate-700">
+                          {cnpjData.logradouro}{cnpjData.numero ? `, ${cnpjData.numero}` : ""}
+                          {cnpjData.bairro ? ` — ${cnpjData.bairro}` : ""}
+                          {cnpjData.municipio ? ` · ${cnpjData.municipio}` : ""}
+                          {cnpjData.uf ? `/${cnpjData.uf}` : ""}
+                          {cnpjData.cep ? ` · CEP ${cnpjData.cep}` : ""}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="border-t border-slate-200 pt-4 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Responsavel</h3>
@@ -795,6 +865,8 @@ function SignupPage() {
                 <button type="submit" disabled={
                   submitting ||
                   slugAvailable === false ||
+                  !cnpjData?.found ||
+                  !form.name ||
                   !password ||
                   password.length < 8 ||
                   !/[A-Z]/.test(password) ||
@@ -1113,6 +1185,60 @@ function SignupPage() {
                 <p className="text-lg font-bold text-blue-900">{result.slug || form.slug}.tecnikos.com.br</p>
               </div>
             )}
+
+            {/* Email resend section */}
+            {tenantId && (
+              <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6 max-w-sm mx-auto text-left">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                  </svg>
+                  <span className="text-xs font-semibold text-slate-700">Email de acesso enviado para:</span>
+                </div>
+                <div className="flex gap-2 mb-2">
+                  <input type="email"
+                    className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                    value={resendEmail || form.responsibleEmail}
+                    onChange={(e) => setResendEmail(e.target.value)}
+                  />
+                </div>
+                {resendSuccess && (
+                  <p className="text-xs text-green-600 mb-2">Email reenviado com sucesso!</p>
+                )}
+                <p className="text-[10px] text-slate-400 mb-2">
+                  Nao recebeu? Confira o email acima e clique em reenviar.
+                </p>
+                <button
+                  disabled={resendSending || resendCountdown > 0}
+                  onClick={async () => {
+                    setResendSending(true);
+                    setResendSuccess(false);
+                    try {
+                      const r = await fetch("/api/public/saas/resend-welcome", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ tenantId, email: resendEmail || form.responsibleEmail }),
+                      });
+                      const data = await r.json();
+                      if (!r.ok) throw new Error(data.message);
+                      setResendSuccess(true);
+                      // Update form email if changed
+                      if (data.email) setForm((f) => ({ ...f, responsibleEmail: data.email }));
+                      // Start 60s countdown
+                      setResendCountdown(60);
+                    } catch (err: any) {
+                      setError(err.message || "Erro ao reenviar");
+                    } finally {
+                      setResendSending(false);
+                    }
+                  }}
+                  className="w-full py-2 rounded-lg bg-slate-100 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                >
+                  {resendSending ? "Enviando..." : resendCountdown > 0 ? `Reenviar em ${resendCountdown}s` : "Reenviar email"}
+                </button>
+              </div>
+            )}
+
             <Link href="/"
               className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">
               Voltar para inicio

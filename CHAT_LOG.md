@@ -294,3 +294,47 @@
 **Builds:** Backend tsc OK, Frontend next build OK
 
 ---
+
+## 2026-03-12 — Sessao 104: Fixes + Rastreamento de Tentativas de Cadastro (v1.02.25-29)
+
+### Verify page — Rejeicao + Resubmit (v1.02.27)
+- verification.service.ts: retorna rejectionReason no getSessionByToken
+- verification.service.ts: metodo resubmitFromRejected (cria nova sessao a partir de rejeitada)
+- verification.controller.ts: endpoint POST /verification/:token/resubmit
+- /verify/[token]/page.tsx: tela de REJECTED com motivo + resubmit, tela de APPROVED
+
+### SLS Obras Cadastro Fix (v1.02.28)
+- Removido tenant SLS Obras SUSPENDED do banco (schema ja dropado)
+- Fix CNPJ lookup 403: adicionado User-Agent + Accept headers no fetch da BrasilAPI
+- Mascara CNPJ (XX.XXX.XXX/XXXX-XX) e telefone ((XX) XXXXX-XXXX) no signup
+
+### Rastreamento Completo de Tentativas de Cadastro (v1.02.29)
+
+**Problema:** SignupAttempt model/endpoints/admin page existiam mas o signup NUNCA chamava.
+Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
+
+**Schema Prisma:**
+- SignupAttempt: +lastStep (Int, 1-5), +lastError (String?), +completedAt (DateTime?)
+- Migration: 20260312140000_signup_attempt_step_tracking
+
+**Backend:**
+- POST /signup-attempt: agora faz upsert (aceita id opcional → UPDATE se fornecido, CREATE se nao)
+- Aceita novos campos: lastStep, lastError, completedAt
+- PATCH /signup-attempt/:id/criticism: envia email ao admin (contato@tecnikos.com.br) com resumo HTML
+
+**Frontend signup:**
+- Estado attemptId, showReportForm, reportMessage, reportSending, reportSent
+- saveAttempt() fire-and-forget com keepalive:true em cada transicao de step
+- sendReport() para PATCH criticism com email ao admin
+- renderError() com link "Teve um problema? Nos avise" + textarea inline
+- Tracking em: plano selecionado, dados preenchidos, signup OK/erro, docs OK/erro, pagamento OK/erro, voucher
+
+**Frontend admin (/ctrl-zr8k2x/signup-attempts):**
+- Interface: lastStep, lastError, completedAt
+- Lista: badge "Step X — Nome" com cores por step, texto de erro truncado
+- Modal: barra de progresso visual (5 circulos + conectores), nome do step, erro em destaque, data conclusao
+
+**Builds:** Backend tsc OK, Frontend next build OK
+**Deploy:** v1.02.29 OK
+
+---

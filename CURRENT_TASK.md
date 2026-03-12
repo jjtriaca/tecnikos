@@ -1,77 +1,57 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 103 — Verificacao Manual de Documentos COMPLETO (pronto para deploy)
+## Status: SESSAO 104 — Rastreamento Tentativas de Cadastro COMPLETO (deployed)
 
-## Ultima sessao: 103 (12/03/2026)
+## Ultima sessao: 104 (12/03/2026)
 - Sessao 96: SEO + Landing Page + Pioneiro + SLS Obras (v1.02.16-17)
 - Sessao 97: SMTP + Chat IA backend + frontend
 - Sessao 98: Chat IA Deploy + Streaming + Asaas + Wizards (v1.02.18-24)
 - Sessao 99-100: Modulo de Orcamentos COMPLETO
 - Sessao 101: Senha Forte no Signup + Convites + Reset Password
 - Sessao 102-103: Verificacao Manual de Documentos COMPLETO
+- Sessao 104: Fixes + Rastreamento Tentativas de Cadastro (v1.02.25-29)
 
-## O que foi feito na sessao 102-103:
+## O que foi feito na sessao 104:
 
-### Verificacao Manual de Documentos — COMPLETO
-- [x] Schema Prisma: VerificationSession model + migration
-- [x] Backend: verification module (service, controller, upload, resubmit)
-- [x] Backend: admin review endpoints (pending-verifications, approve, reject)
-- [x] Backend: tenant middleware permite PENDING_VERIFICATION
-- [x] Backend: signup roda onboarding imediatamente
-- [x] Backend: /auth/me retorna tenantStatus
-- [x] Backend: tenant-verification-status endpoint
-- [x] Backend: ChatIA welcome avisa sobre verificacao pendente
-- [x] Backend: PPID modulo removido
-- [x] Frontend: AuthContext com tenantStatus + verificationInfo
-- [x] Frontend: VerificationBanner (pendente/aprovado/recusado)
-- [x] Frontend: Sidebar com links desabilitados quando pendente
-- [x] Frontend: /verify/[token] com upload + rejeicao + resubmit
-- [x] Frontend: Admin tenants page com review modal
-- [x] Frontend: signup page limpa de codigo PPID
+### Verify page — Rejeicao + Resubmit (v1.02.27)
+- [x] verification.service.ts: rejectionReason + resubmitFromRejected
+- [x] verification.controller.ts: POST /verification/:token/resubmit
+- [x] /verify/[token]/page.tsx: tela REJECTED + resubmit + APPROVED
+
+### SLS Obras Cadastro Fix (v1.02.28)
+- [x] Removido tenant SLS Obras SUSPENDED do banco
+- [x] Fix CNPJ lookup 403: User-Agent + Accept headers no fetch BrasilAPI
+- [x] Mascara CNPJ e telefone no signup
+
+### Rastreamento Completo de Tentativas de Cadastro (v1.02.29)
+- [x] Schema: lastStep, lastError, completedAt no SignupAttempt + migration
+- [x] Backend: upsert no signup-attempt + email ao admin no criticism
+- [x] Frontend: saveAttempt a cada step + botao Relatar Problema
+- [x] Admin: barra progresso visual + lastStep/lastError no modal
 - [x] Backend tsc --noEmit OK
 - [x] Frontend next build OK
-
-### Arquivos criados:
-**Backend:**
-- backend/src/verification/verification.module.ts
-- backend/src/verification/verification.service.ts
-- backend/src/verification/verification.controller.ts
-
-**Frontend:**
-- frontend/src/app/verify/[token]/page.tsx
-- frontend/src/components/layout/VerificationBanner.tsx
+- [x] Deploy v1.02.29 OK
 
 ### Arquivos modificados:
 **Backend:**
-- backend/prisma/schema.prisma
-- backend/src/tenant/tenant.middleware.ts
-- backend/src/tenant/tenant-public.controller.ts
-- backend/src/tenant/tenant.controller.ts
-- backend/src/tenant/tenant.module.ts
-- backend/src/auth/auth.controller.ts
-- backend/src/chat-ia/chat-ia.service.ts
-- backend/src/chat-ia/chat-ia.controller.ts
-- backend/src/app.module.ts
+- backend/prisma/schema.prisma (lastStep, lastError, completedAt)
+- backend/prisma/migrations/20260312140000_signup_attempt_step_tracking/migration.sql
+- backend/src/tenant/tenant-public.controller.ts (upsert + email + CNPJ fix)
+- backend/src/verification/verification.service.ts (rejection + resubmit)
+- backend/src/verification/verification.controller.ts (resubmit endpoint)
 
 **Frontend:**
-- frontend/src/contexts/AuthContext.tsx
-- frontend/src/components/layout/AuthLayout.tsx
-- frontend/src/components/layout/Sidebar.tsx
-- frontend/src/app/signup/page.tsx
-- frontend/src/app/(dashboard)/ctrl-zr8k2x/tenants/page.tsx
-- frontend/src/middleware.ts
-
-### Arquivos removidos:
-- backend/src/ppid/ppid.module.ts
-- backend/src/ppid/ppid.service.ts
+- frontend/src/app/signup/page.tsx (tracking + mascaras + relatar problema)
+- frontend/src/app/verify/[token]/page.tsx (rejected + resubmit)
+- frontend/src/app/(dashboard)/ctrl-zr8k2x/signup-attempts/page.tsx (progresso visual)
 
 ## Proximos passos:
-1. Deploy para producao
-2. Testar end-to-end: signup → upload docs → admin review → approve/reject
-3. Testar resubmit: reject → reenviar docs → nova sessao
-4. Audit log review (pendente de sessao anterior)
+1. Testar end-to-end: signup → tracking aparece no admin → relatar problema → email
+2. Testar resubmit: reject docs → reenviar → nova sessao
+3. Audit log review (pendente desde sessao 101)
+4. Testes de carga / otimizacao (se necessario)
 
-## Versao atual: v1.02.24 (deploy pendente com verificacao manual)
+## Versao atual: v1.02.29
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896

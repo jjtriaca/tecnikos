@@ -2032,6 +2032,15 @@ model SignupAttempt {
   ipAddress         String?
   userAgent         String?
 
+  // Traffic source tracking
+  referrer          String?   // document.referrer
+  utmSource         String?   // utm_source
+  utmMedium         String?   // utm_medium
+  utmCampaign       String?   // utm_campaign
+  utmTerm           String?   // utm_term
+  utmContent        String?   // utm_content
+  landingPage       String?   // URL da primeira pagina acessada
+
   // Admin tracking
   readAt            DateTime?
   adminNotes        String?

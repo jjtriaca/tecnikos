@@ -26,6 +26,13 @@ interface SignupAttempt {
   criticism: string | null;
   ipAddress: string | null;
   userAgent: string | null;
+  referrer: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmTerm: string | null;
+  utmContent: string | null;
+  landingPage: string | null;
   readAt: string | null;
   adminNotes: string | null;
   createdAt: string;
@@ -353,6 +360,44 @@ export default function SignupAttemptsPage() {
                     {JSON.stringify(selected.verificationResult, null, 2)}
                   </pre>
                 </details>
+              )}
+
+              {/* Traffic Source */}
+              {(selected.referrer || selected.utmSource || selected.landingPage) && (
+                <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3">
+                  <span className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold block mb-2">Origem do Acesso</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {selected.referrer && (
+                      <div className="col-span-2">
+                        <span className="text-slate-400">Referrer:</span>{" "}
+                        <span className="text-slate-700">{selected.referrer}</span>
+                      </div>
+                    )}
+                    {selected.utmSource && (
+                      <div><span className="text-slate-400">Fonte:</span> <span className="text-slate-700 font-medium">{selected.utmSource}</span></div>
+                    )}
+                    {selected.utmMedium && (
+                      <div><span className="text-slate-400">Midia:</span> <span className="text-slate-700">{selected.utmMedium}</span></div>
+                    )}
+                    {selected.utmCampaign && (
+                      <div><span className="text-slate-400">Campanha:</span> <span className="text-slate-700">{selected.utmCampaign}</span></div>
+                    )}
+                    {selected.utmTerm && (
+                      <div><span className="text-slate-400">Termo:</span> <span className="text-slate-700">{selected.utmTerm}</span></div>
+                    )}
+                    {selected.landingPage && (
+                      <div className="col-span-2">
+                        <span className="text-slate-400">Landing:</span>{" "}
+                        <span className="text-slate-700 break-all">{selected.landingPage}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {!selected.referrer && !selected.utmSource && !selected.landingPage && (
+                <div className="text-xs text-slate-400 italic">
+                  Origem: Acesso direto (sem referrer ou UTM)
+                </div>
               )}
 
               {/* IP / User Agent */}

@@ -391,10 +391,14 @@ export class TenantPublicController {
     }
 
     // Validate tenant exists and is in a valid state for subscription
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: body.tenantId } });
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: body.tenantId },
+      include: { subscriptions: { where: { status: 'ACTIVE' } } },
+    });
     if (!tenant) throw new BadRequestException('Empresa não encontrada');
-    if (tenant.status === 'ACTIVE') {
-      return { success: true, message: 'Empresa já está ativa', alreadyActive: true };
+    // Allow ACTIVE tenants WITHOUT an active subscription (e.g., voucher users needing billing)
+    if (tenant.status === 'ACTIVE' && tenant.subscriptions.length > 0) {
+      return { success: true, message: 'Empresa já está ativa com assinatura', alreadyActive: true };
     }
 
     const result = await this.asaasService.createSubscription({
@@ -449,6 +453,104 @@ export class TenantPublicController {
     };
   }
 
+  /**
+   * Resend welcome email — allows user to correct email and resend.
+   */
+  @Public()
+  @Post('resend-welcome')
+  @Throttle({ default: { limit: 3, ttl: 300_000 } })
+  async resendWelcome(
+    @Body() body: { tenantId: string; email?: string },
+  ) {
+    if (!body.tenantId) throw new BadRequestException('tenantId é obrigatório');
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: body.tenantId },
+      include: { plan: true },
+    });
+    if (!tenant) throw new BadRequestException('Empresa não encontrada');
+
+    // If email changed, update tenant
+    const newEmail = body.email?.toLowerCase().trim();
+    if (newEmail && newEmail !== tenant.responsibleEmail) {
+      // Check duplicate email
+      const existing = await this.prisma.tenant.findFirst({
+        where: { responsibleEmail: newEmail, id: { not: tenant.id } },
+      });
+      if (existing) throw new BadRequestException('Este email já está vinculado a outra empresa');
+
+      await this.prisma.tenant.update({
+        where: { id: tenant.id },
+        data: { responsibleEmail: newEmail },
+      });
+
+      // Also update the User email in tenant schema
+      try {
+        const client = this.onboarding['tenantConn'].getClient(tenant.schemaName);
+        await client.user.updateMany({
+          where: { email: (tenant.responsibleEmail || '').toLowerCase() },
+          data: { email: newEmail },
+        });
+        await client.company.updateMany({
+          where: {},
+          data: { email: newEmail, ownerEmail: newEmail },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Failed to update email in tenant schema: ${err.message}`);
+      }
+    }
+
+    const email = newEmail || tenant.responsibleEmail;
+    if (!email) throw new BadRequestException('Email não encontrado');
+
+    // Send welcome email
+    const loginUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+    const html = this.buildWelcomeEmailHtml(
+      tenant.responsibleName || 'Administrador',
+      tenant.name,
+      email,
+      loginUrl,
+      tenant.plan?.name || 'Padrão',
+    );
+
+    await this.emailService.sendSystemEmail(
+      email,
+      `Bem-vindo ao Tecnikos — ${tenant.name}`,
+      html,
+    );
+
+    return { success: true, email };
+  }
+
+  private buildWelcomeEmailHtml(name: string, companyName: string, email: string, baseUrl: string, planName: string): string {
+    return `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Tecnikos</h1>
+          <p style="color: #93c5fd; margin: 8px 0 0; font-size: 14px;">Gestao de Servicos Tecnicos</p>
+        </div>
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
+          <h2 style="color: #1e293b; margin: 0 0 8px; font-size: 20px;">Bem-vindo ao Tecnikos!</h2>
+          <p style="color: #475569; line-height: 1.6; margin: 0 0 20px;">
+            Ola, <strong>${name}</strong>! Sua empresa <strong>${companyName}</strong> foi criada com sucesso no plano <strong>${planName}</strong>.
+          </p>
+          <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px;">
+            <h3 style="color: #0c4a6e; margin: 0 0 12px; font-size: 15px;">Seus dados de acesso:</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="color: #64748b; padding: 4px 0; font-size: 13px; width: 80px;">Email:</td><td style="color: #0f172a; padding: 4px 0; font-size: 13px; font-weight: 600;">${email}</td></tr>
+              <tr><td style="color: #64748b; padding: 4px 0; font-size: 13px;">Senha:</td><td style="color: #0f172a; padding: 4px 0; font-size: 13px; font-weight: 600;">A senha que voce definiu no cadastro</td></tr>
+            </table>
+          </div>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${baseUrl}/login" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">Acessar o Sistema</a>
+          </div>
+        </div>
+        <div style="background: #f1f5f9; padding: 16px; border-radius: 0 0 12px 12px; text-align: center; border: 1px solid #e2e8f0; border-top: none;">
+          <p style="color: #94a3b8; font-size: 11px; margin: 0;">Tecnikos &copy; ${new Date().getFullYear()} — tecnikos.com.br</p>
+        </div>
+      </div>`;
+  }
+
   /* ── Signup Attempt Tracking ──────────────────────── */
 
   @Public()
@@ -472,6 +574,14 @@ export class TenantPublicController {
       lastStep?: number;
       lastError?: string;
       completedAt?: string;
+      // Traffic source
+      referrer?: string;
+      utmSource?: string;
+      utmMedium?: string;
+      utmCampaign?: string;
+      utmTerm?: string;
+      utmContent?: string;
+      landingPage?: string;
     },
     @Req() req: Request,
   ) {
@@ -497,6 +607,14 @@ export class TenantPublicController {
     if (body.lastStep !== undefined) data.lastStep = body.lastStep;
     if (body.lastError !== undefined) data.lastError = body.lastError;
     if (body.completedAt !== undefined) data.completedAt = new Date(body.completedAt);
+    // Traffic source (only set on creation, don't overwrite)
+    if (body.referrer !== undefined) data.referrer = body.referrer;
+    if (body.utmSource !== undefined) data.utmSource = body.utmSource;
+    if (body.utmMedium !== undefined) data.utmMedium = body.utmMedium;
+    if (body.utmCampaign !== undefined) data.utmCampaign = body.utmCampaign;
+    if (body.utmTerm !== undefined) data.utmTerm = body.utmTerm;
+    if (body.utmContent !== undefined) data.utmContent = body.utmContent;
+    if (body.landingPage !== undefined) data.landingPage = body.landingPage;
 
     let attempt: any;
     if (body.id) {
