@@ -26,6 +26,10 @@
 - [x] Reset currentUses PIONEIRO-PISCINAS (era 1, agora 0)
 - [x] createSchema: excluir tabelas SaaS (SignupAttempt, SaasEvent, etc)
 - [x] Deploy v1.02.39
+- [x] Fix: copiar enum types (UserRole, etc) para tenant schema durante createSchema
+- [x] Fix: ALTER COLUMN para remap enums de public.X para tenant.X
+- [x] Limpeza tenant_sls abandonado (PENDING_VERIFICATION)
+- [x] Deploy v1.02.40
 
 ## Decisao: SLS Obras operando pelo schema public
 - SLS Obras continua no schema public (tecnikos.com.br, admin@tecnikos.com.br)
@@ -40,7 +44,7 @@
 4. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 5. Audit log review (pendente desde sessao 101)
 
-## Versao atual: v1.02.39
+## Versao atual: v1.02.40
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896

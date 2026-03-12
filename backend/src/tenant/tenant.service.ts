@@ -181,7 +181,7 @@ export class TenantService {
         AND tablename NOT LIKE '\\_%'
     `);
 
-    // 3. Copy table structures — but remap column types from public enums to tenant enums
+    // 3. Copy table structures — then remap enum column types from public to tenant schema
     for (const { tablename } of tables) {
       try {
         // First create the table using LIKE (copies structure with public enum references)
@@ -189,36 +189,36 @@ export class TenantService {
           `CREATE TABLE IF NOT EXISTS "${schemaName}"."${tablename}" (LIKE public."${tablename}" INCLUDING ALL)`,
         );
 
-        // Then alter columns to use the tenant schema's enum types
-        // Get columns that use enum types in this table
-        const enumCols: { column_name: string; udt_name: string }[] = await this.prisma.$queryRawUnsafe(`
-          SELECT c.column_name, c.udt_name
-          FROM information_schema.columns c
-          JOIN pg_type t ON t.typname = c.udt_name
-          JOIN pg_namespace n ON t.typnamespace = n.oid
-          WHERE c.table_schema = '${schemaName}'
-            AND c.table_name = '${tablename}'
-            AND n.nspname = 'public'
-            AND t.typtype = 'e'
-        `);
+        // Find ALL columns that still reference public schema types (enums + enum arrays)
+        // For scalar enums: data_type='USER-DEFINED', udt_name='UserRole'
+        // For array enums: data_type='ARRAY', udt_name='_UserRole' (underscore prefix)
+        const publicCols: { column_name: string; data_type: string; udt_name: string }[] =
+          await this.prisma.$queryRawUnsafe(`
+            SELECT column_name, data_type, udt_name
+            FROM information_schema.columns
+            WHERE table_schema = '${schemaName}'
+              AND table_name = '${tablename}'
+              AND udt_schema = 'public'
+              AND (data_type = 'USER-DEFINED' OR data_type = 'ARRAY')
+          `);
 
-        for (const { column_name, udt_name } of enumCols) {
+        for (const { column_name, data_type, udt_name } of publicCols) {
           try {
-            // Check if it's an array type by looking at the actual column
-            const colInfo: { data_type: string }[] = await this.prisma.$queryRawUnsafe(`
-              SELECT data_type FROM information_schema.columns
-              WHERE table_schema = '${schemaName}' AND table_name = '${tablename}' AND column_name = '${column_name}'
-            `);
-            const isArray = colInfo[0]?.data_type === 'ARRAY';
+            const isArray = data_type === 'ARRAY';
+            // Array enum udt_name has underscore prefix: _UserRole → UserRole
+            const enumName = isArray ? udt_name.substring(1) : udt_name;
             const targetType = isArray
-              ? `"${schemaName}"."${udt_name}"[]`
-              : `"${schemaName}"."${udt_name}"`;
+              ? `"${schemaName}"."${enumName}"[]`
+              : `"${schemaName}"."${enumName}"`;
 
             await this.prisma.$executeRawUnsafe(
-              `ALTER TABLE "${schemaName}"."${tablename}" ALTER COLUMN "${column_name}" TYPE ${targetType} USING "${column_name}"::text${isArray ? '[]' : ''}::"${schemaName}"."${udt_name}"${isArray ? '[]' : ''}`,
+              `ALTER TABLE "${schemaName}"."${tablename}"
+               ALTER COLUMN "${column_name}"
+               TYPE ${targetType}
+               USING "${column_name}"::text${isArray ? '[]' : ''}::"${schemaName}"."${enumName}"${isArray ? '[]' : ''}`,
             );
           } catch (colErr) {
-            this.logger.warn(`Failed to remap enum column "${tablename}.${column_name}": ${(colErr as Error).message}`);
+            // Not a remappable enum — skip silently
           }
         }
       } catch (err) {
