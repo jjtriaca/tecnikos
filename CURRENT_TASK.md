@@ -1,9 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 106 — Deploy v1.02.32 OK
+## Status: SESSAO 107 — Deploy v1.02.35 OK
 
-## Ultima sessao: 106 (12/03/2026)
-- Sessao 96: SEO + Landing Page + Pioneiro + SLS Obras (v1.02.16-17)
+## Ultima sessao: 107 (12/03/2026)
 - Sessao 97: SMTP + Chat IA backend + frontend
 - Sessao 98: Chat IA Deploy + Streaming + Asaas + Wizards (v1.02.18-24)
 - Sessao 99-100: Modulo de Orcamentos COMPLETO
@@ -11,13 +10,19 @@
 - Sessao 102-103: Verificacao Manual de Documentos COMPLETO
 - Sessao 104: Fixes Signup + Rastreamento + UTM + Asaas (v1.02.25-30)
 - Sessao 105: Emissao NFS-e + Analytics Tooltips (build OK)
-- Sessao 106: Deploy v1.02.31
+- Sessao 106: Deploy v1.02.31-32 — NFS-e + Gatilho no Fluxo
+- Sessao 107: Melhorias Gatilho — Collapsible + Renumeracao + Setas
 
-## O que foi feito na sessao 106:
-- [x] Deploy v1.02.31 — NFS-e Asaas + Dashboard Analytics Tooltips
-- [x] Migration 20260312160000_saas_invoice aplicada em producao
-- [x] Gatilho (Trigger) no Fluxo de Atendimento — TriggerDefinition + UI + backend
-- [x] Deploy v1.02.32 — Gatilho no Fluxo de Atendimento
+## O que foi feito na sessao 107:
+- [x] Trigger collapsible com auto-collapse via IntersectionObserver
+- [x] Cards de trigger 75% menores (grid-cols-4, text-[11px])
+- [x] Removido TechnicianOnboardingSection (substituido pelo trigger)
+- [x] Deploy v1.02.33 — Trigger collapsible + cards compactos
+- [x] Trigger numerado como Etapa 1 ("1. ⚡ Quando:")
+- [x] Etapas OS renumeradas a partir de 2 (StageSection: index + 2)
+- [x] Seta de conexao entre trigger e primeira etapa OS
+- [x] Labels corretos para badges scheduleConfig e gestorApproval
+- [x] Deploy v1.02.35
 
 ## Proximos passos:
 1. SLS Obras: fazer cadastro novamente pelo rito certo
@@ -26,7 +31,7 @@
 4. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 5. Audit log review (pendente desde sessao 101)
 
-## Versao atual: v1.02.32
+## Versao atual: v1.02.35
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896

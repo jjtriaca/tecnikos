@@ -379,6 +379,24 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   </ConfigRow>
                 </div>
 
+                {/* ── 1b. TELA DE REVISÃO DOS TÉCNICOS ── */}
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-3">
+                  <Toggle checked={stage.autoActions.techReviewScreen.enabled}
+                    onChange={v => updateAuto('techReviewScreen', { enabled: v })}
+                    label="👁️ Tela de revisão dos técnicos"
+                    hint="Exibe uma tela para o despacho revisar os técnicos selecionados antes de disparar as mensagens" />
+                  <ConfigRow visible={stage.autoActions.techReviewScreen.enabled}>
+                    <div className="space-y-2">
+                      <SubToggle checked={stage.autoActions.techReviewScreen.allowEdit}
+                        onChange={v => updateAuto('techReviewScreen', { allowEdit: v })}
+                        label="Permitir editar a lista de técnicos" />
+                      <p className="text-[10px] text-slate-400 ml-5 -mt-1">
+                        Quando ativado, o despacho pode incluir ou excluir técnicos da lista antes de confirmar o envio.
+                      </p>
+                    </div>
+                  </ConfigRow>
+                </div>
+
                 {/* ── 2. DISPARO DE MENSAGENS ── */}
                 <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
                   <Toggle checked={stage.autoActions.messageDispatch.enabled}

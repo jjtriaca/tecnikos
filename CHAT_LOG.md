@@ -451,7 +451,7 @@ Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
 
 ---
 
-## 2026-03-12 — Sessao 106: Deploy v1.02.31
+## 2026-03-12 — Sessao 106-107: Gatilho no Fluxo de Atendimento (v1.02.31-35)
 
 ### Deploy v1.02.31 — CONCLUIDO
 - Builds verificados: backend tsc + frontend next build OK
@@ -496,5 +496,34 @@ Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
 - validateStepsV2: aceita trigger opcional, valida entity contra whitelist
 
 **Builds:** Backend tsc OK, Frontend next build OK
+
+### Deploy v1.02.32 — Gatilho no Fluxo
+- Deploy OK, health check v1.02.32
+
+### Sessao 107 — Melhorias do Gatilho (v1.02.33-35)
+
+**Feedback do Juliano:**
+1. Remover secao "Onboarding de Tecnico" antiga (substituida pelo trigger)
+2. Trigger deve ser collapsible (recolhido por default, seta para expandir)
+3. Auto-recolher quando sair do viewport (scroll para baixo)
+4. Cards de opcoes do gatilho devem ser 75% menores
+5. Numerar "Quando:" como Etapa 1, etapas OS a partir de 2
+6. Seta de conexao entre trigger e etapas
+7. Corrigir badge "scheduleConfig" sem label na etapa minimizada
+
+**Implementacao v1.02.33:**
+- Trigger collapsible com `triggerExpanded` state (default false)
+- IntersectionObserver para auto-collapse quando sai do viewport
+- Cards compactos: grid-cols-4, text-[11px], px-2 py-1.5
+- Removido TechnicianOnboardingSection do render + validacao
+
+**Implementacao v1.02.35:**
+- Trigger numerado como "1. ⚡ Quando:" (Etapa 1)
+- StageSection: `index + 2` (etapas OS comecam em 2)
+- Seta de conexao entre trigger e primeira etapa OS (mesmo estilo das setas entre etapas)
+- AUTO_ACTION_LABELS: adicionados scheduleConfig ("Regime de agenda") e gestorApproval ("Aprovacao do gestor")
+
+**Builds:** Backend tsc OK, Frontend next build OK
+**Deploys:** v1.02.33, v1.02.35 OK
 
 ---

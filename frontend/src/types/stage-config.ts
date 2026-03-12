@@ -84,6 +84,10 @@ export interface StageConfig {
       filterBySpecialization: boolean;
       discardBusyTechnicians: boolean;  // descartar técnicos que estão em atendimento no prazo de aceitar
     };
+    techReviewScreen: {
+      enabled: boolean;              // Exibir tela de revisão dos técnicos selecionados antes do disparo
+      allowEdit: boolean;            // Permitir que o despacho inclua/exclua técnicos na tela de revisão
+    };
     messageDispatch: {
       enabled: boolean;
       toTechnicians: {
@@ -670,7 +674,8 @@ export const AUTO_ACTION_LABELS: Record<string, { label: string; icon: string; h
   webhook:        { label: 'Webhook externo',                  icon: '🔗', hint: 'Envia os dados da OS para outro sistema via URL (integração com ERP, BI, etc.)' },
   assignTech:     { label: 'Atribuir técnico automaticamente', icon: '🎯', hint: 'Auto-atribui técnico por avaliação ou disponibilidade' },
   duplicateOS:    { label: 'Duplicar OS',                      icon: '📑', hint: 'Cria cópia da ordem de serviço' },
-  scheduleConfig: { label: 'Regime de agenda',                 icon: '📅', hint: 'Despacho manual com data/hora agendada' },
+  scheduleConfig:    { label: 'Regime de agenda',                 icon: '📅', hint: 'Despacho manual com data/hora agendada' },
+  techReviewScreen:  { label: 'Revisão de técnicos',              icon: '👁️', hint: 'Tela de revisão dos técnicos antes do disparo' },
   gestorApproval: { label: 'Aprovação do gestor',              icon: '👔', hint: 'Gestor analisa e aprova/reprova a conclusão' },
 };
 
@@ -739,6 +744,10 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
         enRouteTimeout: { mode: 'fixed', value: 30, unit: 'minutes' },
         onTimeout: 'notify_gestor', filterBySpecialization: true,
         discardBusyTechnicians: true,
+      },
+      techReviewScreen: {
+        enabled: false,
+        allowEdit: false,
       },
       messageDispatch: {
         enabled: false,
@@ -1243,6 +1252,17 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
       stageBlocks.push({
         id: genId('assign'), type: 'ASSIGN_TECH', name: 'Atribuir técnico', icon: '🎯',
         config: { strategy: stage.autoActions.assignTech.strategy },
+        next: null,
+      });
+    }
+
+    // 2a-bis. Tech review screen (ABERTA — tela de revisão dos técnicos selecionados)
+    if (stage.autoActions.techReviewScreen?.enabled && stage.status === 'ABERTA') {
+      stageBlocks.push({
+        id: genId('review'), type: 'TECH_REVIEW_SCREEN', name: 'Revisão de técnicos', icon: '👁️',
+        config: {
+          allowEdit: stage.autoActions.techReviewScreen.allowEdit,
+        },
         next: null,
       });
     }
@@ -1921,6 +1941,12 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
           message: 'Ola {nome}, voce tem um servico agendado para {data_agendamento} — {titulo} ({cliente}). Endereco: {endereco}',
           minutesBefore: 30,
         },
+      };
+      break;
+    case 'TECH_REVIEW_SCREEN':
+      stage.autoActions.techReviewScreen = {
+        enabled: true,
+        allowEdit: cfg.allowEdit ?? false,
       };
       break;
     case 'DUPLICATE_OS':
