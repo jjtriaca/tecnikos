@@ -1146,25 +1146,6 @@ function SignupPage() {
                   </div>
                 )}
 
-                {/* Methods info */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs font-medium text-slate-600 mb-3">Metodos aceitos:</p>
-                  <div className="flex items-center justify-center gap-6 text-slate-500">
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M15.45 16.52l-3.01-3.01c-.11-.11-.29-.11-.4 0l-3.02 3.01c-.67.67-1.56 1.04-2.5 1.04h-.64l3.8 3.8c1.1 1.1 2.9 1.1 4 0l3.82-3.82h-.55c-.95 0-1.83-.37-2.5-1.02zm-8.48-4.56l3.02 3.01c.11.11.29.11.4 0l3.01-3.01c.67-.67 1.56-1.04 2.5-1.04h.55L12.63 7.1c-1.1-1.1-2.9-1.1-4 0l-3.8 3.8h.64c.95.01 1.83.38 2.5 1.06z"/></svg>
-                      PIX
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5Z" /></svg>
-                      Boleto
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
-                      Cartao
-                    </div>
-                  </div>
-                </div>
-
                 {/* Price summary */}
                 {selectedPlan && (
                   <div className="rounded-xl bg-slate-900 text-white p-4">
@@ -1181,28 +1162,6 @@ function SignupPage() {
             <p className="text-sm text-slate-500 text-center mb-8">Finalize sua assinatura com pagamento seguro via Asaas</p>
 
             <form onSubmit={handlePaymentSubmit} className="space-y-4">
-              {/* Payment methods icons */}
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <p className="text-xs font-medium text-slate-600 mb-4 text-center">Voce podera escolher o metodo de pagamento na proxima tela:</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-3 rounded-xl bg-slate-50">
-                    <svg className="w-8 h-8 mx-auto text-slate-700 mb-1" viewBox="0 0 24 24" fill="currentColor"><path d="M15.45 16.52l-3.01-3.01c-.11-.11-.29-.11-.4 0l-3.02 3.01c-.67.67-1.56 1.04-2.5 1.04h-.64l3.8 3.8c1.1 1.1 2.9 1.1 4 0l3.82-3.82h-.55c-.95 0-1.83-.37-2.5-1.02zm-8.48-4.56l3.02 3.01c.11.11.29.11.4 0l3.01-3.01c.67-.67 1.56-1.04 2.5-1.04h.55L12.63 7.1c-1.1-1.1-2.9-1.1-4 0l-3.8 3.8h.64c.95.01 1.83.38 2.5 1.06z"/></svg>
-                    <p className="text-sm font-semibold text-slate-900">PIX</p>
-                    <p className="text-[10px] text-slate-400">Instantaneo</p>
-                  </div>
-                  <div className="text-center p-3 rounded-xl bg-slate-50">
-                    <svg className="w-8 h-8 mx-auto text-slate-700 mb-1" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 14.625v5.625M16.5 14.625v5.625M19.5 14.625v5.625" /></svg>
-                    <p className="text-sm font-semibold text-slate-900">Boleto</p>
-                    <p className="text-[10px] text-slate-400">Ate 3 dias</p>
-                  </div>
-                  <div className="text-center p-3 rounded-xl bg-slate-50">
-                    <svg className="w-8 h-8 mx-auto text-slate-700 mb-1" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
-                    <p className="text-sm font-semibold text-slate-900">Cartao</p>
-                    <p className="text-[10px] text-slate-400">Imediato</p>
-                  </div>
-                </div>
-              </div>
-
               {/* Price summary */}
               {selectedPlan && (
                 <div className="rounded-xl bg-slate-900 text-white p-5">

@@ -194,8 +194,9 @@ export class AsaasService {
   }
 
   /**
-   * Create an Asaas Checkout session for signup (hosted payment page).
-   * Replaces the old createSubscription flow.
+   * Create an Asaas subscription and return the invoice URL for the first payment.
+   * The Asaas invoice page shows all payment methods (PIX, Boleto, Card).
+   * This replaces the Checkout API which only supports CREDIT_CARD for RECURRENT.
    */
   async createSignupCheckout(params: {
     tenantId: string;
@@ -253,7 +254,18 @@ export class AsaasService {
     const cycle = isYearly ? 'ANNUAL' : 'MONTHLY';
     const nextDueDate = this.formatDate(new Date());
 
-    // Create local subscription (asaasSubscriptionId linked later via SUBSCRIPTION_CREATED webhook)
+    // Create Asaas subscription (billingType UNDEFINED → customer chooses on invoice page)
+    const asaasSub = await this.asaas.createSubscription({
+      customer: customerId,
+      billingType: 'UNDEFINED',
+      value,
+      nextDueDate,
+      cycle,
+      description: `${plan.name} - Tecnikos`,
+      externalReference: params.tenantId,
+    });
+
+    // Create local subscription
     const now = new Date();
     const periodEnd = new Date(now);
     if (isYearly) {
@@ -270,31 +282,11 @@ export class AsaasService {
         currentPeriodStart: now,
         currentPeriodEnd: periodEnd,
         nextBillingDate: periodEnd,
+        asaasSubscriptionId: asaasSub.id,
         osResetDate: now,
         promotionId: promoId,
         promotionMonthsLeft: promoDuration || null,
         originalValueCents: promoDuration > 0 ? fullValueCents : null,
-      },
-    });
-
-    // Create Asaas Checkout
-    const frontendUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
-    const checkout = await this.asaas.createCheckout({
-      customer: customerId,
-      billingTypes: ['PIX', 'BOLETO', 'CREDIT_CARD'],
-      chargeTypes: ['RECURRENT'],
-      items: [{
-        name: `${plan.name} - Tecnikos`,
-        description: `Assinatura ${isYearly ? 'anual' : 'mensal'} do plano ${plan.name}`,
-        quantity: 1,
-        value,
-      }],
-      subscription: {
-        cycle,
-        nextDueDate,
-      },
-      callback: {
-        successUrl: `${frontendUrl}/signup?checkout=success&tenantId=${params.tenantId}`,
       },
     });
 
@@ -304,8 +296,24 @@ export class AsaasService {
       data: { status: 'PENDING_PAYMENT' },
     });
 
-    this.logger.log(`Signup checkout created for tenant ${tenant.slug}: ${checkout.url}`);
-    return { checkoutUrl: checkout.url };
+    // Get the first payment's invoiceUrl (Asaas hosted page with all payment methods)
+    let checkoutUrl: string | null = null;
+    try {
+      const paymentInfo = await this.getFirstPaymentInfo(asaasSub.id, 'UNDEFINED');
+      checkoutUrl = paymentInfo?.invoiceUrl || null;
+    } catch (err) {
+      this.logger.warn(`Failed to get first payment invoiceUrl: ${(err as Error).message}`);
+    }
+
+    // Fallback: build Asaas payment URL from subscription
+    if (!checkoutUrl) {
+      const isSandbox = (this.asaas as any).baseUrl?.includes('sandbox');
+      const host = isSandbox ? 'https://sandbox.asaas.com' : 'https://www.asaas.com';
+      checkoutUrl = `${host}/i/${asaasSub.id}`;
+    }
+
+    this.logger.log(`Signup subscription created for tenant ${tenant.slug}: ${checkoutUrl}`);
+    return { checkoutUrl };
   }
 
   /**
@@ -455,31 +463,49 @@ export class AsaasService {
       this.logger.warn(`Failed to update Company limits: ${(err as Error).message}`);
     }
 
-    // Create Asaas Checkout for new plan
+    // Create Asaas subscription for new plan (billingType UNDEFINED → customer chooses on invoice page)
     const customerId = await this.ensureCustomer(tenantId);
-    const frontendUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
 
-    const checkout = await this.asaas.createCheckout({
+    const asaasSub = await this.asaas.createSubscription({
       customer: customerId,
-      billingTypes: ['PIX', 'BOLETO', 'CREDIT_CARD'],
-      chargeTypes: ['RECURRENT'],
-      items: [{
-        name: `${newPlan.name} - Tecnikos`,
-        description: `Upgrade para plano ${newPlan.name}`,
-        quantity: 1,
-        value,
-      }],
-      subscription: {
-        cycle: 'MONTHLY',
-        nextDueDate,
-      },
-      callback: {
-        successUrl: `${frontendUrl}/settings/billing?upgrade=success`,
-      },
+      billingType: 'UNDEFINED',
+      value,
+      nextDueDate,
+      cycle: 'MONTHLY',
+      description: `${newPlan.name} - Tecnikos`,
+      externalReference: tenantId,
     });
 
-    this.logger.log(`Upgrade checkout created: ${currentSub.plan?.name} → ${newPlan.name} for tenant ${tenantId}`);
-    return { checkoutUrl: checkout.url };
+    // Link asaasSubscriptionId to the new local subscription
+    const newSub = await this.prisma.subscription.findFirst({
+      where: { tenantId, asaasSubscriptionId: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (newSub) {
+      await this.prisma.subscription.update({
+        where: { id: newSub.id },
+        data: { asaasSubscriptionId: asaasSub.id },
+      });
+    }
+
+    // Get the first payment's invoiceUrl (Asaas hosted page with all payment methods)
+    let checkoutUrl: string | null = null;
+    try {
+      const paymentInfo = await this.getFirstPaymentInfo(asaasSub.id, 'UNDEFINED');
+      checkoutUrl = paymentInfo?.invoiceUrl || null;
+    } catch (err) {
+      this.logger.warn(`Failed to get upgrade invoiceUrl: ${(err as Error).message}`);
+    }
+
+    // Fallback URL
+    if (!checkoutUrl) {
+      const isSandbox = (this.asaas as any).baseUrl?.includes('sandbox');
+      const host = isSandbox ? 'https://sandbox.asaas.com' : 'https://www.asaas.com';
+      checkoutUrl = `${host}/i/${asaasSub.id}`;
+    }
+
+    this.logger.log(`Upgrade subscription created: ${currentSub.plan?.name} → ${newPlan.name} for tenant ${tenantId}: ${checkoutUrl}`);
+    return { checkoutUrl };
   }
 
   /**
