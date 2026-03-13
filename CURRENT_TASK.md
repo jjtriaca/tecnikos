@@ -1,45 +1,31 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 113 — Asaas Checkout + Add-on + Upgrade
+## Status: SESSAO 114 — Fix billingTypes + Cleanup UI
 
-## Ultima sessao: 113 (13/03/2026)
+## Ultima sessao: 114 (13/03/2026)
 - Sessao 108: Promo/Slug so trava apos pagamento + Email lowercase + Fix enums tenant schema
 - Sessao 109: Upload Cartao CNPJ no step 3 do signup
 - Sessao 110: Fix Galeria Selfie + Asaas API Key + Fix FK + Fix Signup Flow + Fix Camera
 - Sessao 111: Cobranca Recorrente + Bloqueio por Inadimplencia
 - Sessao 112: Fix fluxo pagamento (PIX QR code, boleto, step 5 success messages)
 - Sessao 113: Asaas Checkout + Add-on + Upgrade + Disable Notifications
+- Sessao 114: Fix billingTypes API error + Remove PIX/Boleto/Cartao cards from Step 4
 
-## O que foi feito na sessao 113:
-- [x] Backend: AsaasProvider — `customer` field in createCheckout, User-Agent header
-- [x] Backend: AsaasProvider — notificationDisabled: true on createCustomer
-- [x] Backend: AsaasProvider — createCheckout() + listPayments() methods
-- [x] Backend: AsaasService — createSignupCheckout() (Asaas Checkout for signup)
-- [x] Backend: AsaasService — createAddOnCheckout() (Asaas Checkout for add-on purchase)
-- [x] Backend: AsaasService — createUpgradeCheckout() (Asaas Checkout for plan upgrade)
-- [x] Backend: AsaasService — getBillingStatus() now includes overduePaymentUrl
-- [x] Backend: AsaasService — handleSubscriptionWebhook() handles SUBSCRIPTION_CREATED to link asaasSubscriptionId
-- [x] Backend: AsaasService — confirmAddOnByCustomer() fallback for checkout add-on payments
-- [x] Backend: Controller — POST /subscribe simplified (no billingType/creditCard, returns checkoutUrl)
-- [x] Backend: Controller — POST /purchase-addon updated for checkout flow
-- [x] Backend: Controller — POST /auth/upgrade-plan new endpoint
-- [x] Frontend: Signup Step 4 — replaced PIX/boleto/card forms with Asaas Checkout popup
-- [x] Frontend: Signup Step 4 — "Reabrir pagina de pagamento" button when pending
-- [x] Frontend: BillingBanner — overduePaymentUrl: "Pagar agora"/"Regularizar" opens Asaas invoice
-- [x] Frontend: Settings Billing — "Seu Plano" section with current plan info
-- [x] Frontend: Settings Billing — Upgrade section with available plans
-- [x] Frontend: Settings Billing — Add-on purchase via Asaas Checkout
+## O que foi feito na sessao 114:
+- [x] Fix createSignupCheckout() — Subscription API (billingType UNDEFINED) + invoiceUrl em vez de Checkout API
+- [x] Fix createUpgradeCheckout() — mesma mudanca (era Checkout API com RECURRENT, dava erro billingTypes)
+- [x] Removidos cards PIX/Boleto/Cartao do Step 4 (tanto no formulario quanto no estado pendente)
 - [x] Build OK (backend tsc + frontend next build)
+- [x] Deploy v1.02.54
 
 ## Proximos passos:
-1. Deploy
-2. Testar end-to-end: signup → checkout Asaas → webhook → ativacao
-3. Testar add-on via /settings/billing → checkout → OS creditadas
-4. Testar upgrade via /settings/billing → checkout → nova subscription
-5. Verificar que Asaas NAO envia email/SMS ao cliente
-6. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
+1. Testar end-to-end: signup → invoiceUrl Asaas → pagar → webhook → ativacao
+2. Testar add-on via /settings/billing → checkout → OS creditadas
+3. Testar upgrade via /settings/billing → checkout → nova subscription
+4. Verificar que Asaas NAO envia email/SMS ao cliente
+5. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 
-## Versao atual: v1.02.52 (pre-deploy)
+## Versao atual: v1.02.54
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896

@@ -326,13 +326,17 @@ export default function TenantsPage() {
                           Emitir NF
                         </button>
                       )}
-                      {/* Verification review button */}
-                      {t.status === "PENDING_VERIFICATION" && (
+                      {/* Verification review button — always visible (admin can review docs at any time) */}
+                      {t.status !== "CANCELLED" && !t.isMaster && (
                         <button
                           onClick={() => setVerifyModal({ tenantId: t.id })}
-                          className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 border border-amber-200"
+                          className={`rounded-md px-2 py-1 text-xs font-medium disabled:opacity-50 border ${
+                            t.status === "PENDING_VERIFICATION"
+                              ? "bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200"
+                              : "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+                          }`}
                         >
-                          Verificar Docs
+                          {t.status === "PENDING_VERIFICATION" ? "Verificar Docs" : "Ver Docs"}
                         </button>
                       )}
                       {t.status !== "ACTIVE" && t.status !== "CANCELLED" && (

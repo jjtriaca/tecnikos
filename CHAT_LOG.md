@@ -776,3 +776,19 @@ Builds: Backend tsc OK, Frontend next build OK
 - Success messages de redirect (addon=success, upgrade=success)
 
 Builds: Backend tsc OK, Frontend next build OK
+Deploy v1.02.53
+
+## 2026-03-13 — Sessao 114: Fix billingTypes API + Remover cards metodo de pagamento
+
+### Problema:
+- Asaas Checkout API (`POST /checkouts`) com `chargeTypes: ["RECURRENT"]` so aceita `billingTypes: ["CREDIT_CARD"]`
+- Enviar `["PIX", "BOLETO", "CREDIT_CARD"]` retornava erro "O campo billingTypes e invalido"
+- Cards PIX/Boleto/Cartao no Step 4 do signup confundiam o usuario (pareciam selecionaveis)
+
+### Solucao:
+- **createSignupCheckout()**: substituido Checkout API por Subscription API (`billingType: "UNDEFINED"`) + retorna `invoiceUrl` do primeiro pagamento. A pagina de invoice do Asaas mostra PIX/Boleto/Cartao nativamente.
+- **createUpgradeCheckout()**: mesma mudanca — Subscription API + invoiceUrl em vez de Checkout API
+- **createAddOnCheckout()**: manteve Checkout API com `chargeTypes: ["DETACHED"]` (funciona com multiplos billingTypes)
+- **Frontend Step 4**: removidos cards informativos PIX/Boleto/Cartao (tanto no form quanto no estado pendente)
+
+### Deploy: v1.02.54
