@@ -1933,6 +1933,10 @@ model Subscription {
   // Promoção aplicada
   promotionId           String?
   promotionMonthsLeft   Int?      // Meses restantes de promoção
+  originalValueCents    Int?      // Valor cheio do plano (para restaurar após promo)
+
+  // Inadimplência
+  overdueAt             DateTime? // Data em que ficou inadimplente (PAST_DUE)
 
   // Timestamps
   createdAt             DateTime  @default(now())
@@ -1941,6 +1945,7 @@ model Subscription {
 
   @@index([tenantId])
   @@index([status])
+  @@index([overdueAt])
 }
 
 // Promoções configuráveis pelo admin (Juliano)

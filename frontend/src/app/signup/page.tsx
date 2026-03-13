@@ -137,6 +137,20 @@ function SignupPage() {
   const [result, setResult] = useState<{ success: boolean; message: string; slug?: string; skipPayment?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Payment pending state (PIX QR code, boleto, polling)
+  const [paymentPending, setPaymentPending] = useState(false);
+  const [paymentInfo, setPaymentInfo] = useState<{
+    paymentId?: string;
+    pixQrCode?: string;
+    pixCopyPaste?: string;
+    pixExpirationDate?: string;
+    bankSlipUrl?: string;
+    invoiceUrl?: string;
+    boletoIdentificationField?: string;
+  } | null>(null);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [boletoCopied, setBoletoCopied] = useState(false);
+
   // Signup attempt tracking
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
@@ -548,15 +562,21 @@ function SignupPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.message || "Erro ao processar pagamento");
 
-      track("signup_complete", { billingType });
-      saveAttempt({ lastStep: 5, completedAt: new Date().toISOString() });
-      setResult({
-        success: true,
-        message: data.message,
-        slug: form.slug,
-        skipPayment: false,
-      });
-      setStep(totalSteps);
+      track("signup_payment_submitted", { billingType });
+      saveAttempt({ lastStep: 4, paymentSubmitted: true });
+
+      // Credit card: Asaas processes immediately → go to step 5
+      if (billingType === "CREDIT_CARD") {
+        track("signup_complete", { billingType });
+        saveAttempt({ lastStep: 5, completedAt: new Date().toISOString() });
+        setResult({ success: true, message: "Pagamento confirmado!", slug: form.slug, skipPayment: false });
+        setStep(totalSteps);
+        return;
+      }
+
+      // PIX / Boleto: Show payment details and wait for confirmation
+      setPaymentInfo(data.paymentInfo || null);
+      setPaymentPending(true);
     } catch (err: any) {
       const msg = err.message || "Erro ao processar pagamento";
       setError(msg);
@@ -565,6 +585,28 @@ function SignupPage() {
       setSubmitting(false);
     }
   }
+
+  // Poll for payment confirmation (PIX/Boleto)
+  useEffect(() => {
+    if (!paymentPending || !tenantId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/public/saas/payment-status/${tenantId}`);
+        const data = await r.json();
+        if (!cancelled && data.isActive) {
+          setPaymentPending(false);
+          track("signup_complete", { billingType });
+          saveAttempt({ lastStep: 5, completedAt: new Date().toISOString() });
+          setResult({ success: true, message: "Pagamento confirmado!", slug: form.slug, skipPayment: false });
+          setStep(totalSteps);
+        }
+      } catch { /* ignore */ }
+    };
+    const interval = setInterval(poll, 5000); // Poll every 5 seconds
+    return () => { cancelled = true; clearInterval(interval); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentPending, tenantId]);
 
   // Calculate price
   const selectedPlan = plans.find((p) => p.id === selectedPlanId);
@@ -1107,6 +1149,139 @@ function SignupPage() {
         {/* Step 4: Payment */}
         {step === 4 && (
           <div>
+            {paymentPending && paymentInfo ? (
+              <div className="space-y-5">
+                {/* PIX pending */}
+                {billingType === "PIX" && (
+                  <>
+                    <h1 className="text-2xl font-bold text-slate-900 text-center mb-1">Pague com PIX</h1>
+                    <p className="text-sm text-slate-500 text-center mb-4">Escaneie o QR Code ou copie o codigo para pagar</p>
+
+                    {paymentInfo.pixQrCode && (
+                      <div className="flex justify-center mb-2">
+                        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                          <img
+                            src={`data:image/png;base64,${paymentInfo.pixQrCode}`}
+                            alt="QR Code PIX"
+                            className="w-52 h-52 mx-auto"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentInfo.pixCopyPaste && (
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <label className="block text-xs font-medium text-slate-500 mb-2">PIX Copia e Cola</label>
+                        <div className="flex gap-2">
+                          <input
+                            readOnly
+                            value={paymentInfo.pixCopyPaste}
+                            className="h-10 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 outline-none font-mono truncate"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(paymentInfo!.pixCopyPaste!);
+                              setPixCopied(true);
+                              setTimeout(() => setPixCopied(false), 3000);
+                            }}
+                            className={`px-4 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                              pixCopied
+                                ? "bg-green-100 text-green-700 border border-green-300"
+                                : "bg-blue-600 text-white hover:bg-blue-700"
+                            }`}
+                          >
+                            {pixCopied ? "Copiado!" : "Copiar"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentInfo.pixExpirationDate && (
+                      <p className="text-xs text-slate-400 text-center">
+                        Valido ate: {new Date(paymentInfo.pixExpirationDate).toLocaleString("pt-BR")}
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {/* Boleto pending */}
+                {billingType === "BOLETO" && (
+                  <>
+                    <h1 className="text-2xl font-bold text-slate-900 text-center mb-1">Pague o boleto</h1>
+                    <p className="text-sm text-slate-500 text-center mb-4">Copie a linha digitavel ou acesse o boleto para pagar</p>
+
+                    {paymentInfo.boletoIdentificationField && (
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <label className="block text-xs font-medium text-slate-500 mb-2">Linha digitavel</label>
+                        <div className="flex gap-2">
+                          <input
+                            readOnly
+                            value={paymentInfo.boletoIdentificationField}
+                            className="h-10 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 outline-none font-mono truncate"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(paymentInfo!.boletoIdentificationField!);
+                              setBoletoCopied(true);
+                              setTimeout(() => setBoletoCopied(false), 3000);
+                            }}
+                            className={`px-4 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                              boletoCopied
+                                ? "bg-green-100 text-green-700 border border-green-300"
+                                : "bg-blue-600 text-white hover:bg-blue-700"
+                            }`}
+                          >
+                            {boletoCopied ? "Copiado!" : "Copiar"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {(paymentInfo.bankSlipUrl || paymentInfo.invoiceUrl) && (
+                      <div className="text-center">
+                        <a
+                          href={paymentInfo.bankSlipUrl || paymentInfo.invoiceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-100 text-amber-800 text-sm font-medium hover:bg-amber-200 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                          </svg>
+                          Ver boleto completo
+                        </a>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Waiting animation */}
+                <div className="rounded-xl bg-blue-50 border border-blue-200 p-5">
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                    <p className="text-sm font-medium text-blue-800">
+                      {billingType === "PIX" ? "Aguardando confirmacao do pagamento..." : "Aguardando compensacao do boleto..."}
+                    </p>
+                  </div>
+                  <p className="text-xs text-blue-600 text-center mt-2">
+                    Esta pagina sera atualizada automaticamente quando o pagamento for confirmado.
+                  </p>
+                </div>
+
+                {/* Price summary */}
+                {selectedPlan && (
+                  <div className="rounded-xl bg-slate-900 text-white p-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-300">{selectedPlan.name}</span>
+                      <span className="font-bold text-lg">{formatBRL(firstMonthCents)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+            <>
             <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Forma de pagamento</h1>
             <p className="text-sm text-slate-500 text-center mb-8">Escolha como deseja pagar sua assinatura</p>
 
@@ -1213,28 +1388,46 @@ function SignupPage() {
                 </button>
               </div>
             </form>
+            </>
+            )}
           </div>
         )}
 
         {/* Step 5: Success — Awaiting Review */}
         {step === totalSteps && result && (
           <div className="text-center py-10">
-            <div className="w-16 h-16 rounded-full bg-blue-100 mx-auto mb-6 flex items-center justify-center">
-              <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-2">Cadastro realizado!</h1>
-            <p className="text-slate-500 mb-4 max-w-md mx-auto">{result.message}</p>
+            {/* Icon — green check for payment flow, blue clock for voucher */}
+            {result.skipPayment ? (
+              <div className="w-16 h-16 rounded-full bg-blue-100 mx-auto mb-6 flex items-center justify-center">
+                <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+              </div>
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-green-100 mx-auto mb-6 flex items-center justify-center">
+                <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+              </div>
+            )}
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">
+              {result.skipPayment ? "Cadastro realizado!" : "Pagamento confirmado!"}
+            </h1>
+            <p className="text-slate-500 mb-4 max-w-md mx-auto">
+              {result.skipPayment
+                ? "Seus documentos foram enviados para analise."
+                : "Seu pagamento foi confirmado com sucesso. Seus documentos estao em analise."
+              }
+            </p>
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 mb-6 max-w-sm mx-auto">
               <div className="flex items-center gap-2 justify-center mb-1">
                 <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                <p className="text-sm text-amber-800 font-medium">Aguardando analise</p>
+                <p className="text-sm text-amber-800 font-medium">Aguardando analise de documentos</p>
               </div>
               <p className="text-xs text-amber-600">
-                Seus documentos serao analisados e voce recebera um email quando sua conta for ativada.
+                Voce recebera um email quando sua conta for totalmente ativada.
               </p>
             </div>
             {(result.slug || form.slug) && (

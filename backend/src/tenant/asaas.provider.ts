@@ -139,6 +139,24 @@ export class AsaasProvider {
     return this.request('GET', `/payments/${id}`);
   }
 
+  /** Get PIX QR code for a payment */
+  async getPixQrCode(paymentId: string): Promise<{
+    encodedImage: string;
+    payload: string;
+    expirationDate: string;
+  }> {
+    return this.request('GET', `/payments/${paymentId}/pixQrCode`);
+  }
+
+  /** Get bank slip identification field (linha digitavel) */
+  async getIdentificationField(paymentId: string): Promise<{
+    identificationField: string;
+    nossoNumero: string;
+    barCode: string;
+  }> {
+    return this.request('GET', `/payments/${paymentId}/identificationField`);
+  }
+
   /** Create a one-time payment (not tied to subscription) */
   async createPayment(data: {
     customer: string;

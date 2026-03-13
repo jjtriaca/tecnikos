@@ -15,6 +15,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { AsaasService } from '../tenant/asaas.service';
 import { LoginDto } from './dto/login.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -24,7 +25,10 @@ import { REFRESH_COOKIE_NAME } from './auth.constants';
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly asaasService: AsaasService,
+  ) {}
 
   @Public()
   @Post('login')
@@ -135,6 +139,13 @@ export class AuthController {
       ...data,
       tenantStatus: (req as any).tenantStatus || null,
     };
+  }
+
+  @Get('billing-status')
+  async billingStatus(@Req() req: Request) {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) return { hasSubscription: false };
+    return this.asaasService.getBillingStatus(tenantId);
   }
 
   /* ── Device / Session management ────────────────────────── */

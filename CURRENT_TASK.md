@@ -1,8 +1,8 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 110 — Fix Galeria Selfie + Asaas API Key
+## Status: SESSAO 111 — Cobranca Recorrente + Bloqueio por Inadimplencia
 
-## Ultima sessao: 110 (12/03/2026)
+## Ultima sessao: 111 (13/03/2026)
 - Sessao 97: SMTP + Chat IA backend + frontend
 - Sessao 98: Chat IA Deploy + Streaming + Asaas + Wizards (v1.02.18-24)
 - Sessao 99-100: Modulo de Orcamentos COMPLETO
@@ -14,29 +14,40 @@
 - Sessao 107: Melhorias Gatilho — Collapsible + Renumeracao + Setas
 - Sessao 108: Promo/Slug so trava apos pagamento + Email lowercase + Fix enums tenant schema
 - Sessao 109: Upload Cartao CNPJ no step 3 do signup
-- Sessao 110: Fix Galeria Selfie + Asaas API Key
+- Sessao 110: Fix Galeria Selfie + Asaas API Key + Fix FK + Fix Signup Flow + Fix Camera
+- Sessao 111: Cobranca Recorrente + Bloqueio por Inadimplencia
 
-## O que foi feito na sessao 110:
-- [x] Removido botao "Galeria" da tela de selfie (camera) — so "Tirar foto"
-- [x] Fallback "Selecionar foto" apenas quando camera falha
-- [x] Investigacao Asaas API Key: chave correta no container mas rejeitada pela API
-- [x] Nova chave Asaas gerada e atualizada no servidor — API funcionando
+## O que foi feito na sessao 111:
+- [x] Schema: overdueAt + originalValueCents na Subscription + migration
+- [x] Pioneer promo fix: subscription criada no valor promo (R$15), nao usa discount do Asaas
+- [x] Decremento automatico de promotionMonthsLeft a cada PAYMENT_CONFIRMED
+- [x] Ao acabar promo: asaas.updateSubscription() atualiza para preco cheio
+- [x] PAYMENT_OVERDUE: seta overdueAt (nao sobrescreve se ja setado)
+- [x] PAYMENT_CONFIRMED: limpa overdueAt, reativa tenant se bloqueado
+- [x] Cron @Cron('0 7 * * *'): bloqueia tenants PAST_DUE ha 7+ dias
+- [x] GET /auth/billing-status: retorna status completo de cobranca
+- [x] BillingBanner.tsx: banner global no AuthLayout com 4 estados (blocked, overdue, due_today, ok)
+- [x] Build OK (backend tsc + frontend next build)
 
-## Decisao: SLS Obras operando pelo schema public
-- SLS Obras continua no schema public (tecnikos.com.br, admin@tecnikos.com.br)
-- NAO migrar para tenant/host ate concluir todos os testes e certificacao
-- Registro antigo de Tenant SLS foi limpo (schema tenant_sls dropado + registro deletado)
-- Quando pronto: refazer signup pelo host para teste completo do fluxo tenant
+## O que foi feito na sessao 112 (continuacao):
+- [x] Fix completo do fluxo de pagamento no signup
+- [x] Backend: PIX QR code + boleto identification field via Asaas API
+- [x] Backend: getFirstPaymentInfo() com retry, getPaymentStatus() para polling
+- [x] Backend: Welcome email movido para PAYMENT_CONFIRMED, URL usa subdominio tenant
+- [x] Backend: subscribe retorna paymentInfo, novo endpoint payment-status/:tenantId
+- [x] Frontend Step 4: QR code PIX inline (base64 image), copia e cola, linha digitavel boleto
+- [x] Frontend Step 4: polling a cada 5s para confirmacao de pagamento
+- [x] Frontend Step 5: icone verde + "Pagamento confirmado!" (pago) ou azul + "Cadastro realizado!" (voucher)
+- [x] Build OK (backend tsc + frontend next build)
 
 ## Proximos passos:
-1. ~~Asaas API Key~~ RESOLVIDO — nova chave funcionando
-2. SLS Obras: testar signup pelo host quando pronto para certificar
-3. Testar end-to-end: signup → upload docs → admin review → approve/reject
-4. Testar emissao NF via admin (com Asaas sandbox)
-5. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
-6. Audit log review (pendente desde sessao 101)
+1. Deploy v1.02.51 (fix fluxo de pagamento)
+2. Testar end-to-end: signup → pagamento PIX → verificar QR code + polling
+3. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
+4. Audit log review (pendente desde sessao 101)
+5. Testar emissao NF via admin (com Asaas sandbox)
 
-## Versao atual: v1.02.45
+## Versao atual: v1.02.51
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896

@@ -474,16 +474,36 @@ export class TenantPublicController {
       promoCode: body.promoCode,
     });
 
+    // Get first payment details (PIX QR code, boleto URL, etc.)
+    let paymentInfo: any = null;
+    try {
+      paymentInfo = await this.asaasService.getFirstPaymentInfo(
+        result.asaasSubscription.id,
+        body.billingType,
+      );
+    } catch (err) {
+      // Non-fatal — payment info is optional, user can still pay via Asaas
+    }
+
     return {
       success: true,
       subscriptionId: result.subscription.id,
       asaasSubscriptionId: result.asaasSubscription.id,
+      billingType: body.billingType,
+      paymentInfo,
       message: body.billingType === 'CREDIT_CARD'
         ? 'Pagamento processado! Sua empresa será ativada em instantes.'
         : body.billingType === 'PIX'
           ? 'QR Code PIX gerado! Pague para ativar sua empresa.'
           : 'Boleto gerado! Sua empresa será ativada após o pagamento.',
     };
+  }
+
+  /** Check payment status for a tenant (polling by frontend) */
+  @Public()
+  @Get('payment-status/:tenantId')
+  async paymentStatus(@Param('tenantId') tenantId: string) {
+    return this.asaasService.getPaymentStatus(tenantId);
   }
 
   /** Purchase an add-on package */

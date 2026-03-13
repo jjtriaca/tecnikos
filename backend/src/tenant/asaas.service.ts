@@ -1,9 +1,13 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantService } from './tenant.service';
 import { TenantConnectionService } from './tenant-connection.service';
 import { TenantOnboardingService } from './tenant-onboarding.service';
 import { AsaasProvider } from './asaas.provider';
+
+/** Grace period in days before blocking a tenant for non-payment */
+const OVERDUE_GRACE_DAYS = 7;
 
 /**
  * Business logic layer for Asaas billing integration.
@@ -94,34 +98,43 @@ export class AsaasService {
     // Calculate value
     const plan = tenant.plan;
     const isYearly = params.billingCycle === 'yearly';
-    let valueCents: number;
+    let fullValueCents: number;
     if (isYearly && plan.priceYearlyCents) {
-      valueCents = plan.priceYearlyCents;
+      fullValueCents = plan.priceYearlyCents;
     } else {
-      valueCents = plan.priceCents;
+      fullValueCents = plan.priceCents;
     }
 
-    // Apply promotion discount to first payment
-    let discount: { value: number; type: 'FIXED' | 'PERCENTAGE'; dueDateLimitDays: number } | undefined;
+    // Apply promotion — for multi-month promos, we set the subscription VALUE
+    // to the discounted price (not using Asaas discount system).
+    // After promo ends, we update the subscription to the full price.
     let promoId: string | undefined;
     let promoDuration = 0;
+    let subscriptionValueCents = fullValueCents;
 
     if (params.promoCode) {
       const promo = await this.prisma.promotion.findUnique({
         where: { code: params.promoCode },
       });
       if (promo && promo.isActive && !promo.skipPayment) {
-        if (promo.discountPercent) {
-          discount = { value: promo.discountPercent, type: 'PERCENTAGE', dueDateLimitDays: 0 };
-        } else if (promo.discountCents) {
-          discount = { value: promo.discountCents / 100, type: 'FIXED', dueDateLimitDays: 0 };
-        }
         promoId = promo.id;
         promoDuration = promo.durationMonths;
+
+        // Calculate discounted value
+        if (promo.discountPercent) {
+          subscriptionValueCents = Math.round(fullValueCents * (1 - promo.discountPercent / 100));
+        } else if (promo.discountCents) {
+          subscriptionValueCents = Math.max(0, fullValueCents - promo.discountCents);
+        }
+
+        this.logger.log(
+          `Promo "${promo.code}" applied: R$${(subscriptionValueCents / 100).toFixed(2)} ` +
+          `for ${promoDuration} months (full: R$${(fullValueCents / 100).toFixed(2)})`,
+        );
       }
     }
 
-    const value = valueCents / 100; // Asaas uses BRL (not cents)
+    const value = subscriptionValueCents / 100; // Asaas uses BRL (not cents)
     const cycle = isYearly ? 'ANNUAL' : 'MONTHLY';
     const nextDueDate = this.formatDate(new Date()); // Today
 
@@ -135,7 +148,7 @@ export class AsaasService {
       externalReference: params.tenantId,
     };
 
-    if (discount) subscriptionData.discount = discount;
+    // No Asaas discount — we set the value directly for promo pricing
     if (params.creditCard) subscriptionData.creditCard = params.creditCard;
     if (params.creditCardHolderInfo) subscriptionData.creditCardHolderInfo = params.creditCardHolderInfo;
     if (params.creditCardToken) subscriptionData.creditCardToken = params.creditCardToken;
@@ -163,6 +176,7 @@ export class AsaasService {
         osResetDate: now,
         promotionId: promoId,
         promotionMonthsLeft: promoDuration || null,
+        originalValueCents: promoDuration > 0 ? fullValueCents : null,
       },
     });
 
@@ -177,6 +191,94 @@ export class AsaasService {
     );
 
     return { subscription, asaasSubscription: asaasSub };
+  }
+
+  /**
+   * Get the first payment info for a subscription (PIX QR code, boleto URL, etc).
+   * Called right after creating a subscription to show payment details to the user.
+   */
+  async getFirstPaymentInfo(
+    asaasSubscriptionId: string,
+    billingType: string,
+  ): Promise<{
+    paymentId: string;
+    status: string;
+    value: number;
+    dueDate: string;
+    invoiceUrl?: string;
+    bankSlipUrl?: string;
+    pixQrCode?: string;
+    pixCopyPaste?: string;
+    pixExpirationDate?: string;
+    boletoIdentificationField?: string;
+  } | null> {
+    // Asaas creates the first payment asynchronously — may need a small retry
+    let payments: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      payments = await this.asaas.getSubscriptionPayments(asaasSubscriptionId);
+      if (payments?.data?.length > 0) break;
+      await new Promise((r) => setTimeout(r, 1500)); // Wait 1.5s between retries
+    }
+
+    if (!payments?.data?.[0]) {
+      this.logger.warn(`No payments found for subscription ${asaasSubscriptionId}`);
+      return null;
+    }
+
+    const payment = payments.data[0];
+    const result: any = {
+      paymentId: payment.id,
+      status: payment.status,
+      value: payment.value,
+      dueDate: payment.dueDate,
+      invoiceUrl: payment.invoiceUrl || null,
+      bankSlipUrl: payment.bankSlipUrl || null,
+    };
+
+    // Get PIX QR code data
+    if (billingType === 'PIX' && payment.id) {
+      try {
+        const pix = await this.asaas.getPixQrCode(payment.id);
+        result.pixQrCode = pix.encodedImage; // Base64 image
+        result.pixCopyPaste = pix.payload; // Copy-paste code
+        result.pixExpirationDate = pix.expirationDate;
+      } catch (err) {
+        this.logger.warn(`Failed to get PIX QR code: ${(err as Error).message}`);
+      }
+    }
+
+    // Get boleto identification field (linha digitavel)
+    if (billingType === 'BOLETO' && payment.id) {
+      try {
+        const boleto = await this.asaas.getIdentificationField(payment.id);
+        result.boletoIdentificationField = boleto.identificationField;
+      } catch (err) {
+        this.logger.warn(`Failed to get boleto identification field: ${(err as Error).message}`);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Get current payment status for a tenant (used by frontend polling).
+   */
+  async getPaymentStatus(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+    if (!tenant) return { status: 'NOT_FOUND' };
+
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      tenantStatus: tenant.status,
+      subscriptionStatus: subscription?.status || null,
+      isActive: tenant.status === 'ACTIVE',
+    };
   }
 
   /**
@@ -209,28 +311,65 @@ export class AsaasService {
     switch (event) {
       case 'PAYMENT_CONFIRMED':
       case 'PAYMENT_RECEIVED': {
-        // Activate tenant if not already active
+        // Activate tenant if not already active (or reactivate if BLOCKED)
         const tenant = subscription.tenant;
         if (tenant.status !== 'ACTIVE') {
           await this.tenantService.activate(tenantId);
           // Pass stored passwordHash from signup (if available)
           await this.onboarding.onboard(tenantId, tenant.passwordHash || undefined);
           this.logger.log(`Tenant ${tenant.slug} activated + onboarded via payment`);
+
+          // Send welcome email now that payment is confirmed
+          this.onboarding.sendWelcomeEmailForTenant(tenantId).catch((err) => {
+            this.logger.error(`Failed to send welcome email: ${(err as Error).message}`);
+          });
         }
 
-        // Update subscription period
+        // Update subscription period + clear overdue
         const nextDue = new Date(payment.dueDate || payment.paymentDate);
         const nextEnd = new Date(nextDue);
         nextEnd.setMonth(nextEnd.getMonth() + 1);
 
+        const updateData: any = {
+          status: 'ACTIVE',
+          currentPeriodStart: new Date(payment.paymentDate || payment.dueDate),
+          currentPeriodEnd: nextEnd,
+          nextBillingDate: nextEnd,
+          overdueAt: null, // Clear overdue on payment
+        };
+
+        // Handle promotion month tracking
+        if (subscription.promotionMonthsLeft && subscription.promotionMonthsLeft > 0) {
+          const newMonthsLeft = subscription.promotionMonthsLeft - 1;
+          updateData.promotionMonthsLeft = newMonthsLeft;
+
+          if (newMonthsLeft === 0 && subscription.originalValueCents && subscription.asaasSubscriptionId) {
+            // Promo ended — update Asaas subscription to full plan price
+            const fullValue = subscription.originalValueCents / 100;
+            try {
+              await this.asaas.updateSubscription(subscription.asaasSubscriptionId, {
+                value: fullValue,
+                updatePendingPayments: false,
+              });
+              this.logger.log(
+                `Promo ended for subscription ${subscription.id}: ` +
+                `updated to full price R$${fullValue.toFixed(2)}`,
+              );
+            } catch (err) {
+              this.logger.error(
+                `Failed to update Asaas subscription to full price: ${(err as Error).message}`,
+              );
+            }
+          } else if (newMonthsLeft > 0) {
+            this.logger.log(
+              `Promo: ${newMonthsLeft} months left for subscription ${subscription.id}`,
+            );
+          }
+        }
+
         await this.prisma.subscription.update({
           where: { id: subscription.id },
-          data: {
-            status: 'ACTIVE',
-            currentPeriodStart: new Date(payment.paymentDate || payment.dueDate),
-            currentPeriodEnd: nextEnd,
-            nextBillingDate: nextEnd,
-          },
+          data: updateData,
         });
 
         // Auto-emit invoice if configured
@@ -248,10 +387,13 @@ export class AsaasService {
       }
 
       case 'PAYMENT_OVERDUE': {
-        // Mark subscription as past due
+        // Mark subscription as past due + set overdue timestamp
         await this.prisma.subscription.update({
           where: { id: subscription.id },
-          data: { status: 'PAST_DUE' },
+          data: {
+            status: 'PAST_DUE',
+            overdueAt: subscription.overdueAt || new Date(), // Don't overwrite if already set
+          },
         });
         this.logger.warn(`Subscription ${subscription.id} is PAST_DUE`);
         break;
@@ -261,7 +403,10 @@ export class AsaasService {
         // Mark subscription as past due
         await this.prisma.subscription.update({
           where: { id: subscription.id },
-          data: { status: 'PAST_DUE' },
+          data: {
+            status: 'PAST_DUE',
+            overdueAt: subscription.overdueAt || new Date(),
+          },
         });
         this.logger.warn(`Card refused for subscription ${subscription.id}`);
         break;
@@ -724,6 +869,99 @@ export class AsaasService {
       where: { id: invoice.id },
       data: updateData,
     });
+  }
+
+  // ─── BILLING STATUS ─────────────────────────────────────
+
+  /**
+   * Get billing status for a tenant (used by frontend banner).
+   */
+  async getBillingStatus(tenantId: string) {
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { tenantId, status: { in: ['ACTIVE', 'PAST_DUE'] } },
+      include: { plan: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!subscription) {
+      return { hasSubscription: false };
+    }
+
+    const now = new Date();
+    const nextBilling = subscription.nextBillingDate;
+    const daysUntilDue = Math.ceil(
+      (nextBilling.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    let daysOverdue = 0;
+    let hoursUntilBlock = 0;
+    if (subscription.overdueAt) {
+      const overdueMs = now.getTime() - subscription.overdueAt.getTime();
+      daysOverdue = Math.floor(overdueMs / (1000 * 60 * 60 * 24));
+      const blockAtMs = subscription.overdueAt.getTime() + OVERDUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+      hoursUntilBlock = Math.max(0, Math.ceil((blockAtMs - now.getTime()) / (1000 * 60 * 60)));
+    }
+
+    return {
+      hasSubscription: true,
+      status: subscription.status,
+      nextBillingDate: subscription.nextBillingDate,
+      daysUntilDue,
+      overdueAt: subscription.overdueAt,
+      daysOverdue,
+      hoursUntilBlock: subscription.status === 'PAST_DUE' ? hoursUntilBlock : null,
+      isPromo: (subscription.promotionMonthsLeft || 0) > 0,
+      promoMonthsLeft: subscription.promotionMonthsLeft || 0,
+      planName: subscription.plan?.name || '',
+      valueBrl: subscription.originalValueCents && subscription.promotionMonthsLeft
+        ? (subscription.originalValueCents - (subscription.originalValueCents - (subscription.plan?.priceCents || 0))) / 100
+        : (subscription.plan?.priceCents || 0) / 100,
+    };
+  }
+
+  // ─── CRON: BLOCK OVERDUE TENANTS ──────────────────────────
+
+  /**
+   * Daily check at 7 AM: block tenants that are PAST_DUE for > 7 days.
+   */
+  @Cron('0 7 * * *')
+  async checkOverdueSubscriptions() {
+    this.logger.log('Running daily overdue check...');
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - OVERDUE_GRACE_DAYS);
+
+    const overdueSubscriptions = await this.prisma.subscription.findMany({
+      where: {
+        status: 'PAST_DUE',
+        overdueAt: { not: null, lte: cutoff },
+      },
+      include: { tenant: true },
+    });
+
+    for (const sub of overdueSubscriptions) {
+      if (sub.tenant.status === 'BLOCKED') continue; // Already blocked
+
+      try {
+        await this.tenantService.block(
+          sub.tenantId,
+          `Pagamento não efetuado há mais de ${OVERDUE_GRACE_DAYS} dias`,
+        );
+        this.logger.warn(
+          `Tenant ${sub.tenant.slug} BLOCKED — overdue since ${sub.overdueAt?.toISOString()}`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `Failed to block tenant ${sub.tenant.slug}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    if (overdueSubscriptions.length > 0) {
+      this.logger.log(
+        `Overdue check complete: ${overdueSubscriptions.length} tenant(s) processed`,
+      );
+    }
   }
 
   private formatDate(date: Date): string {

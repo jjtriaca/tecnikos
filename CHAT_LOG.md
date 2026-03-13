@@ -625,4 +625,98 @@ Erros no signup (como CNPJ 403) faziam clientes desistir silenciosamente.
 - Chave completa e correta no container (152 chars, 2x$ signs), mas Asaas rejeita
 - Juliano gerou nova chave no painel Asaas → atualizada no servidor → **FUNCIONANDO**
 
-**Builds:** Backend tsc OK, Frontend next build OK
+Builds: Backend tsc OK, Frontend next build OK
+
+---
+
+## 2026-03-13 — Sessao 111: Cobranca Recorrente + Bloqueio por Inadimplencia (v1.02.50)
+
+### Pedido do Juliano:
+- Pagamentos recorrentes mensais conforme plano
+- Pioneer: 6 meses a R$15, depois preco cheio
+- Se no 7o dia nao pagou → BLOCK tenant
+- Tela do gestor: banner avisando vencimento/atraso/bloqueio iminente
+- PIX/boleto: pagamento manual. Cartao: automatico pelo Asaas
+
+### Implementacao:
+
+**Schema Prisma:**
+- `Subscription.overdueAt DateTime?` — marca quando ficou inadimplente
+- `Subscription.originalValueCents Int?` — valor cheio para restaurar apos promo
+- Migration `20260313040000_subscription_overdue_promo`
+
+**Backend (asaas.service.ts) — Promo Pioneer Fix:**
+- Removido sistema de `discount` do Asaas (so funcionava 1 pagamento)
+- Agora cria subscription NO valor promocional (ex: R$15 em vez de R$49)
+- `originalValueCents` salva valor cheio do plano
+- `promotionMonthsLeft` decrementa a cada PAYMENT_CONFIRMED
+- Quando promo acaba: `asaas.updateSubscription()` atualiza valor para preco cheio
+- Log: "Promo ended for subscription X: updated to full price R$49.00"
+
+**Backend (asaas.service.ts) — Bloqueio por Inadimplencia:**
+- PAYMENT_OVERDUE: seta `overdueAt = now()` (se nao ja setado)
+- PAYMENT_CONFIRMED: limpa `overdueAt`, reativa tenant se bloqueado
+- `@Cron('0 7 * * *')` checkOverdueSubscriptions(): busca PAST_DUE com overdueAt > 7 dias → block
+
+**Backend (auth.controller.ts) — Billing Status Endpoint:**
+- `GET /auth/billing-status`: retorna status, daysUntilDue, daysOverdue, hoursUntilBlock, isPromo
+- AuthModule agora importa TenantModule (forwardRef) para acessar AsaasService
+
+**Frontend — BillingBanner.tsx:**
+- Componente global em AuthLayout.tsx (apos VerificationBanner)
+- Fetch `/auth/billing-status` ao montar, refresh a cada 30min
+- 4 estados visuais:
+  1. BLOCKED (red-700): "Conta bloqueada por inadimplencia" + link "Ver assinatura"
+  2. PAST_DUE (red-600): "Pagamento atrasado ha X dias. Sera bloqueado em Yd Zh." + "Regularizar"
+  3. DUE_TODAY (amber-500): "Sua fatura vence hoje" + botao dismiss
+  4. Nenhum banner se tudo ok
+- Botao X para dismiss (exceto BLOCKED que nao some)
+
+Builds: Backend tsc OK, Frontend next build OK
+
+---
+
+## 2026-03-13 — Sessao 111 (cont): Fix Fluxo de Pagamento Completo
+
+### Pedido do Juliano:
+- Tela de pagamento PIX mostrou "pagamento concluido" sem QR code → deveria esperar confirmacao
+- Esperava ver QR code do PIX na nossa tela de pagamento (nao so no Asaas)
+- Email de boas-vindas: link "Acessar o Sistema" nao abre no host sls.tecnikos.com.br
+- "Estude melhor esse fluxo, use padroes de finalizacao de pagamentos, projete tudo e conclua"
+
+### Problemas encontrados:
+1. PIX QR code nunca exibido — subscribe retorna so message, nenhum dado de pagamento
+2. Boleto URL nunca exibido — mesma situacao
+3. Welcome email enviado ANTES do pagamento (durante signup)
+4. Email diz "ativada com sucesso" quando tenant ainda esta PENDING
+5. Link do email vai para tecnikos.com.br/login, nao para slug.tecnikos.com.br/login
+6. Step 5 mostra "Cadastro realizado!" imediatamente em vez de aguardar pagamento
+
+### Solucao implementada:
+
+**Backend (asaas.provider.ts):**
+- `getPixQrCode(paymentId)`: retorna encodedImage (base64) + payload (copia e cola) + expirationDate
+- `getIdentificationField(paymentId)`: retorna linha digitavel do boleto + barCode
+
+**Backend (asaas.service.ts):**
+- `getFirstPaymentInfo()`: busca 1o pagamento da subscription (retry 3x com 1.5s), obtem QR code PIX ou linha digitavel boleto
+- `getPaymentStatus(tenantId)`: retorna status do tenant + subscription para polling frontend
+- Welcome email movido: agora chamado em PAYMENT_CONFIRMED (nao mais no signup)
+
+**Backend (tenant-public.controller.ts):**
+- `/subscribe` retorna `paymentInfo` com QR code/boleto
+- Novo endpoint `GET /payment-status/:tenantId` para polling
+
+**Backend (tenant-onboarding.service.ts):**
+- `sendWelcomeEmailForTenant()`: metodo publico separado
+- Email usa subdominio: `https://${slug}.${baseDomain}/login`
+- Email diz "Pagamento confirmado, documentos em analise" (nao mais "ativada")
+
+**Frontend (signup/page.tsx):**
+- Step 4 com PIX: mostra QR code (base64 image), codigo copia e cola, data expiracao, spinner "Aguardando confirmacao"
+- Step 4 com Boleto: mostra linha digitavel com botao copiar, link para ver boleto completo, spinner "Aguardando compensacao"
+- Polling `/payment-status/:tenantId` a cada 5s → quando confirmado, avanca para step 5
+- Step 5: icone verde checkmark + "Pagamento confirmado!" (flow pago) ou clock azul + "Cadastro realizado!" (voucher)
+- Mensagem de docs em analise em ambos os casos
+
+Builds: Backend tsc OK, Frontend next build OK

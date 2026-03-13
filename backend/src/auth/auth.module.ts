@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -7,6 +7,7 @@ import { TechAuthController } from './tech-auth.controller';
 import { TechAuthService } from './tech-auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { EmailModule } from '../email/email.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -22,6 +23,7 @@ function getJwtSecret(): string {
 @Module({
   imports: [
     EmailModule,
+    forwardRef(() => TenantModule),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: getJwtSecret(),

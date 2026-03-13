@@ -9,6 +9,7 @@ import Sidebar from "./Sidebar";
 import Header from "./Header";
 import ChatIAPanel from "@/components/chat-ia/ChatIAPanel";
 import VerificationBanner from "./VerificationBanner";
+import BillingBanner from "./BillingBanner";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -46,6 +47,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="min-h-screen bg-slate-50">
           {/* Verification status banner — fixed at top */}
           <VerificationBanner />
+          {/* Billing warning banner — overdue, due today, blocked */}
+          <BillingBanner />
 
           <Sidebar
             collapsed={sidebarCollapsed}
