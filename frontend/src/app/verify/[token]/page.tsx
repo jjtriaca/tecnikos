@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 interface SessionData {
@@ -50,13 +50,6 @@ export default function VerifyPage() {
   const [resubmitting, setResubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Camera state for selfie
-  const [cameraActive, setCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
   // Load session
   useEffect(() => {
     if (!token) return;
@@ -76,119 +69,14 @@ export default function VerifyPage() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  // Stop camera stream on cleanup or step change
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    setCameraActive(false);
-    setCameraError(null);
-  }, []);
-
-  // Auto-start camera when entering selfie step
   const step = currentStep < STEPS.length ? STEPS[currentStep] : null;
   const isSelfie = step?.icon === "face";
-
-  useEffect(() => {
-    if (!isSelfie || preview) {
-      stopCamera();
-      return;
-    }
-
-    // Check if getUserMedia is available
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError("use_native");
-      setCameraActive(false);
-      return;
-    }
-
-    // Start front camera with timeout
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    async function startCamera() {
-      try {
-        setCameraError(null);
-
-        // Timeout: if camera doesn't start in 6 seconds, fallback to native
-        timeoutId = setTimeout(() => {
-          if (!cancelled) {
-            setCameraError("use_native");
-            setCameraActive(false);
-            stopCamera();
-          }
-        }, 6000);
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } },
-          audio: false,
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-          // Verify video is actually producing frames
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          if (!cancelled && videoRef.current && videoRef.current.videoWidth === 0) {
-            throw new Error("Camera not producing frames");
-          }
-        }
-        if (!cancelled) {
-          clearTimeout(timeoutId);
-          setCameraActive(true);
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          clearTimeout(timeoutId);
-          setCameraError("use_native");
-          setCameraActive(false);
-        }
-      }
-    }
-
-    startCamera();
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-      stopCamera();
-    };
-  }, [isSelfie, preview, currentStep, stopCamera]);
-
-  // Capture photo from camera
-  function capturePhoto() {
-    if (!videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    // Mirror horizontally for selfie
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], `selfie_${Date.now()}.jpg`, { type: "image/jpeg" });
-      setSelectedFile(file);
-      setPreview(URL.createObjectURL(file));
-      stopCamera();
-    }, "image/jpeg", 0.92);
-  }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setSelectedFile(file);
     setPreview(URL.createObjectURL(file));
-    stopCamera();
   }
 
   function clearSelection() {
@@ -445,9 +333,6 @@ export default function VerifyPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Hidden canvas for photo capture */}
-      <canvas ref={canvasRef} className="hidden" />
-
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3">
         <div className="max-w-md mx-auto flex items-center justify-between">
@@ -480,103 +365,8 @@ export default function VerifyPage() {
         <h1 className="text-xl font-bold text-slate-900 text-center mb-1">{step.label}</h1>
         <p className="text-sm text-slate-500 text-center mb-6">{step.description}</p>
 
-        {/* ── SELFIE: Live camera with face guide ── */}
-        {isSelfie && !preview && (
-          <div className="mb-4">
-            {cameraActive ? (
-              <div className="relative rounded-2xl overflow-hidden bg-black">
-                {/* Live camera feed (mirrored) */}
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full aspect-[3/4] object-cover"
-                  style={{ transform: "scaleX(-1)" }}
-                />
-                {/* Face guide rectangle overlay */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-[65%] h-[55%] border-2 border-white/70 rounded-3xl relative">
-                    {/* Corner accents */}
-                    <div className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-3 border-l-3 border-blue-400 rounded-tl-xl" />
-                    <div className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-3 border-r-3 border-blue-400 rounded-tr-xl" />
-                    <div className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-3 border-l-3 border-blue-400 rounded-bl-xl" />
-                    <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-3 border-r-3 border-blue-400 rounded-br-xl" />
-                  </div>
-                </div>
-                {/* Instruction text */}
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-4 pb-4 pt-8">
-                  <p className="text-white text-sm font-medium text-center">
-                    Posicione o rosto dentro do retangulo
-                  </p>
-                </div>
-              </div>
-            ) : cameraError ? (
-              /* Camera failed — show native camera button */
-              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
-                  </svg>
-                </div>
-                <p className="text-sm font-semibold text-slate-800 mb-1">Tire uma selfie</p>
-                <p className="text-xs text-slate-500 mb-4">Posicione o rosto centralizado e com boa iluminacao</p>
-                <label className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 cursor-pointer transition-colors">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
-                  </svg>
-                  Abrir camera
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="user"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-            ) : (
-              /* Loading camera */
-              <div className="relative bg-slate-900 rounded-2xl aspect-[3/4] flex items-center justify-center overflow-hidden">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  <p className="text-white/70 text-sm">Abrindo camera...</p>
-                </div>
-              </div>
-            )}
-
-            {/* Hidden file input for native camera fallback */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={step.accept}
-              capture={step.capture}
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-
-            {/* Capture button (only when live camera is active) */}
-            {cameraActive && (
-              <div className="mt-4">
-                <button
-                  onClick={capturePhoto}
-                  className="w-full py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
-                  </svg>
-                  Tirar foto
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── NON-SELFIE: Standard file upload ── */}
-        {!isSelfie && !preview && (
+        {/* ── FILE UPLOAD: Same approach for all steps, capture attribute differs ── */}
+        {!preview && (
           <>
             <input
               ref={fileInputRef}
@@ -590,12 +380,34 @@ export default function VerifyPage() {
               onClick={() => fileInputRef.current?.click()}
               className="w-full rounded-2xl border-2 border-dashed border-slate-300 bg-white p-10 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all mb-4"
             >
-              <svg className="w-10 h-10 mx-auto text-blue-400 mb-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
-              </svg>
-              <p className="text-sm font-medium text-slate-700">Tirar foto ou selecionar arquivo</p>
-              <p className="text-[10px] text-slate-400 mt-1">{step.description}</p>
+              {isSelfie ? (
+                <>
+                  <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-blue-100 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800 mb-1">Tirar selfie</p>
+                  <p className="text-xs text-slate-500 mb-3">A camera frontal sera aberta automaticamente</p>
+                  <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                    </svg>
+                    Abrir camera
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-3">{step.description}</p>
+                </>
+              ) : (
+                <>
+                  <svg className="w-10 h-10 mx-auto text-blue-400 mb-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                  </svg>
+                  <p className="text-sm font-medium text-slate-700">Tirar foto ou selecionar arquivo</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{step.description}</p>
+                </>
+              )}
             </button>
           </>
         )}
@@ -666,7 +478,7 @@ export default function VerifyPage() {
                 </span>
                 {uploaded && !isCurrent && (
                   <button
-                    onClick={() => { setCurrentStep(i); clearSelection(); stopCamera(); }}
+                    onClick={() => { setCurrentStep(i); clearSelection(); }}
                     className="ml-auto text-[10px] text-slate-400 hover:text-blue-500"
                   >
                     Reenviar
