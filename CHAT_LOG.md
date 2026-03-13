@@ -1020,3 +1020,67 @@ Deploy v1.02.53
 - Sem erros nos logs ✅
 
 ### Deploy: v1.02.59 — Admin Host + Data Migration
+
+---
+
+## 2026-03-13 — Sessao 119: No Login on Bare Domain (v1.02.61-63)
+
+### Pedido do Juliano:
+- "O botao Entrar na landing page nao deve mais existir"
+- "tecnikos.com.br/login nao deve mais existir tambem!"
+- "Admin.tecnikos.com.br esta direcionando pra pagina!" (landing page ao inves de login)
+
+### Implementacao:
+
+**Frontend — middleware.ts (reescrito para domain-aware routing):**
+- `isBareHost` detection: `tecnikos.com.br`, `www.tecnikos.com.br`, `localhost`
+- Dominio raiz: `/login` e `/tech/login` redirecionam para `/` (landing page)
+- Subdominios: `/` redireciona para `/dashboard` (se logado) ou `/login` (se nao)
+- Login pages em subdominios: pass through normalmente
+- Rotas protegidas sem auth no dominio raiz → redireciona para `/` (nao `/login`)
+- Matcher regex atualizado: removido exclusao de `/`, adicionado `signup` na exclusao
+
+**Frontend — LandingContent.tsx:**
+- Desktop nav: "Entrar" → `/login` substituido por "Cadastre-se" → `/signup` (icone UserPlus)
+- Mobile menu: "Entrar" substituido por "Cadastre-se" → `/signup`
+- Hero CTA: "Ja sou cliente" → `/login` substituido por "Ver planos" → `#precos`
+- Zero referencias a `/login` restantes na landing page
+
+### Bug fix — Subdomain root redirect (v1.02.63):
+- Problema: `admin.tecnikos.com.br/` mostrava landing page ao inves de login
+- Causa: matcher regex excluia `/` do middleware (raiz nao era processada)
+- Fix: removido exclusao de `/` no matcher + logica de subdomain root redirect
+
+### Verificacao:
+- `admin.tecnikos.com.br/` → 307 → `/login` ✅
+- `sls.teknikos.com.br/` → 307 → `/login` ✅
+- `tecnikos.com.br/` → 200 (landing page) ✅
+- `tecnikos.com.br/login` → 307 → `/` (landing page) ✅
+- `sls.teknikos.com.br/login` → 200 (login page) ✅
+- `admin.teknikos.com.br/login` → 200 (login page com CAPTCHA) ✅
+
+### Deploys: v1.02.61, v1.02.62, v1.02.63 — "No Login on Bare Domain"
+
+---
+
+## 2026-03-13 — Sessao 119 (cont): Fix CAPTCHA + Analytics Dedup (v1.02.64-65)
+
+### Fix CAPTCHA Turnstile (v1.02.64):
+- **Bug**: Frontend tinha logica de "cache 7 dias" (needsCaptcha + localStorage)
+- Widget nao aparecia apos primeira verificacao, mas backend SEMPRE exige token
+- Resultado: "Verificacao CAPTCHA necessaria" ao tentar logar
+- **Fix**: Removida logica needsCaptcha() e localStorage em ambos os logins (gestor + tecnico)
+- Widget Turnstile agora SEMPRE aparece quando CAPTCHA esta habilitado
+
+### Fix Analytics Dedup (v1.02.65):
+- **Bug**: signupStarts contava TODOS os eventos signup_step_1 (32 = mesma pessoa visitando multiplas vezes)
+- **Bug**: signupComplete contava TODOS os eventos signup_complete (3 = disparos multiplos)
+- **Decisao Juliano**: conversao so conta apos conferencia de documentos (processo 100% finalizado)
+- **Fix backend (tenant.controller.ts)**:
+  - signupStarts → `SignupAttempt.count()` (tentativas unicas de cadastro, nao page visits)
+  - signupComplete/Conversoes → `Tenant.count({ status: ACTIVE })` (empresas 100% ativadas)
+  - Funnel steps → unique sessionId por evento (groupBy sessionId, nao count bruto)
+  - conversionRate e externalConversion baseados em externalSessions (nao pageviews)
+- **Resultado real**: 7 signups iniciados, 1 conversao (antes: 32 signups, 3 conversoes)
+
+### Deploys: v1.02.64, v1.02.65

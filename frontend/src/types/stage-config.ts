@@ -308,6 +308,11 @@ export interface TechnicianOnboardingConfig {
     welcomePositiveKeywords: string[];
     welcomeNegativeKeywords: string[];
   };
+
+  // Resolução de conflito: técnico criado já com especialização
+  conflictResolution: {
+    behavior: 'send_both' | 'tech_only' | 'spec_only';
+  };
 }
 
 const DEFAULT_CONTRACT_CONTENT = `CONTRATO DE PRESTACAO DE SERVICOS TECNICOS TERCEIRIZADOS
@@ -467,6 +472,7 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       welcomePositiveKeywords: ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'],
       welcomeNegativeKeywords: ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'],
     },
+    conflictResolution: { behavior: 'send_both' },
   };
 }
 
@@ -496,6 +502,7 @@ export const TRIGGER_OPTIONS: TriggerDefinition[] = [
   { id: 'quote_created',            entity: 'QUOTE',         event: 'created',          icon: '📝', label: 'Um orçamento é criado',                 description: 'Quando um orçamento é gerado/salvo' },
   { id: 'partner_client_created',   entity: 'PARTNER',       event: 'client_created',   icon: '👤', label: 'Um cliente é criado',                   description: 'Quando um parceiro tipo cliente é cadastrado' },
   { id: 'partner_tech_created',     entity: 'PARTNER',       event: 'tech_created',     icon: '👷', label: 'Um técnico é criado',                   description: 'Quando um parceiro tipo técnico é cadastrado' },
+  { id: 'partner_spec_added',      entity: 'PARTNER',       event: 'spec_added',       icon: '🔧', label: 'Um técnico recebe nova especialização', description: 'Quando uma nova especialização é atribuída ao técnico' },
   { id: 'partner_supplier_created', entity: 'PARTNER',       event: 'supplier_created', icon: '🏭', label: 'Um fornecedor é criado',                description: 'Quando um parceiro tipo fornecedor é cadastrado' },
 ];
 

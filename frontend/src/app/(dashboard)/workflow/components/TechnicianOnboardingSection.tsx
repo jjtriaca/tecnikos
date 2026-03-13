@@ -16,6 +16,7 @@ const EXPIRATION_UNITS = [
 interface Props {
   config: TechnicianOnboardingConfig;
   onChange: (config: TechnicianOnboardingConfig) => void;
+  triggerId?: string;  // 'partner_tech_created' | 'partner_spec_added' — filtra sub-sections
 }
 
 /* ── Helpers ───────────────────────────────────────────────── */
@@ -515,14 +516,92 @@ function TriggerSection({
   );
 }
 
+/* ── Conflict Resolution Banner ──────────────────────────── */
+
+const CONFLICT_OPTIONS = [
+  { value: 'send_both',  label: 'Enviar ambas as mensagens',                                   hint: 'O tecnico recebe a mensagem de boas-vindas E a de nova especializacao' },
+  { value: 'tech_only',  label: 'Apenas mensagem de novo tecnico (ignorar especializacao)',     hint: 'Suprime o fluxo de nova especializacao quando o tecnico e criado com uma' },
+  { value: 'spec_only',  label: 'Apenas mensagem de especializacao (ignorar boas-vindas)',      hint: 'Suprime este fluxo e dispara apenas o de nova especializacao' },
+] as const;
+
+function ConflictResolutionBanner({
+  behavior,
+  onChange,
+}: {
+  behavior: 'send_both' | 'tech_only' | 'spec_only';
+  onChange: (v: 'send_both' | 'tech_only' | 'spec_only') => void;
+}) {
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4 space-y-3">
+      <div className="flex items-start gap-2">
+        <span className="text-base mt-0.5">⚠️</span>
+        <div>
+          <h4 className="text-sm font-semibold text-amber-800">Conflito: Tecnico criado com especializacao</h4>
+          <p className="text-xs text-amber-700 mt-0.5">
+            Quando o tecnico e cadastrado ja com uma especializacao e existe um fluxo &ldquo;Nova Especializacao&rdquo; ativo, ambos poderiam disparar enviando mensagens duplicadas.
+          </p>
+        </div>
+      </div>
+      <div className="space-y-2 ml-7">
+        {CONFLICT_OPTIONS.map(opt => (
+          <label key={opt.value} className="flex items-start gap-2 cursor-pointer group">
+            <input
+              type="radio"
+              name="conflict_resolution"
+              checked={behavior === opt.value}
+              onChange={() => onChange(opt.value)}
+              className="mt-0.5 h-4 w-4 text-amber-600 border-amber-300 focus:ring-amber-200"
+            />
+            <div>
+              <span className="text-xs font-medium text-amber-900 group-hover:text-amber-700">{opt.label}</span>
+              <p className="text-[10px] text-amber-600">{opt.hint}</p>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SpecInfoBanner() {
+  return (
+    <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3">
+      <div className="flex items-start gap-2">
+        <span className="text-sm mt-0.5">ℹ️</span>
+        <p className="text-xs text-blue-700">
+          Se o tecnico foi recem-criado e existe um fluxo &ldquo;Novo Tecnico&rdquo; ativo, a configuracao de conflito daquele fluxo sera aplicada automaticamente para evitar mensagens duplicadas.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Component ───────────────────────────────────────── */
 
-export default function TechnicianOnboardingSection({ config, onChange }: Props) {
+export default function TechnicianOnboardingSection({ config, onChange, triggerId }: Props) {
   const [expanded, setExpanded] = useState(false);
 
+  const isTechTrigger = triggerId === 'partner_tech_created';
+  const isSpecTrigger = triggerId === 'partner_spec_added';
+
+  // Determine header title/subtitle based on trigger
+  const headerIcon = isTechTrigger ? '👷' : isSpecTrigger ? '🔧' : '👷';
+  const headerTitle = isTechTrigger ? 'Onboarding de Tecnico' : isSpecTrigger ? 'Nova Especializacao' : 'Novo Tecnico';
+  const headerSubtitle = isTechTrigger
+    ? 'Boas-vindas e contrato para novos tecnicos'
+    : isSpecTrigger
+    ? 'Contrato e notificacao por especializacao'
+    : 'Onboarding e contrato';
+  const disabledHint = isTechTrigger
+    ? 'Desativado — ative para configurar boas-vindas e contrato ao cadastrar tecnicos'
+    : isSpecTrigger
+    ? 'Desativado — ative para configurar contrato e notificacao por especializacao'
+    : 'Desativado — ative para configurar envio de contratos ao cadastrar tecnicos';
+
+  // Count active sub-triggers for badge
   const enabledCount =
-    (config.onNewTechnician.enabled ? 1 : 0) +
-    (config.onNewSpecialization.enabled ? 1 : 0);
+    (!isSpecTrigger && config.onNewTechnician.enabled ? 1 : 0) +
+    (!isTechTrigger && config.onNewSpecialization.enabled ? 1 : 0);
 
   return (
     <div className={`rounded-xl border-2 transition-all ${config.enabled ? 'border-purple-200 bg-white shadow-sm' : 'border-slate-200 bg-slate-50'}`}>
@@ -536,10 +615,10 @@ export default function TechnicianOnboardingSection({ config, onChange }: Props)
           <span className={`text-xs text-slate-400 transition-transform ${config.enabled && expanded ? 'rotate-90' : ''}`}>
             {config.enabled ? '\u25B6' : ''}
           </span>
-          <span className="text-lg">👷</span>
+          <span className="text-lg">{headerIcon}</span>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-slate-800">Novo Tecnico</h3>
-            <p className="text-xs text-slate-400">Onboarding e contrato</p>
+            <h3 className="text-sm font-bold text-slate-800">{headerTitle}</h3>
+            <p className="text-xs text-slate-400">{headerSubtitle}</p>
           </div>
           {config.enabled && enabledCount > 0 && (
             <span className="ml-2 shrink-0 inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
@@ -574,7 +653,7 @@ export default function TechnicianOnboardingSection({ config, onChange }: Props)
       {/* Disabled hint */}
       {!config.enabled && (
         <div className="px-4 pb-4">
-          <p className="text-xs text-slate-400 italic">Desativado &mdash; ative para configurar envio de contratos ao cadastrar tecnicos</p>
+          <p className="text-xs text-slate-400 italic">{disabledHint}</p>
         </div>
       )}
 
@@ -582,12 +661,12 @@ export default function TechnicianOnboardingSection({ config, onChange }: Props)
       {config.enabled && !expanded && (
         <div className="px-4 pb-3 cursor-pointer" onClick={() => setExpanded(true)}>
           <div className="flex flex-wrap gap-1.5">
-            {config.onNewTechnician.enabled && (
+            {!isSpecTrigger && config.onNewTechnician.enabled && (
               <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700">
                 👷 Novo tecnico
               </span>
             )}
-            {config.onNewSpecialization.enabled && (
+            {!isTechTrigger && config.onNewSpecialization.enabled && (
               <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700">
                 🔧 Nova especializacao
               </span>
@@ -599,24 +678,43 @@ export default function TechnicianOnboardingSection({ config, onChange }: Props)
       {/* Expanded content */}
       {config.enabled && expanded && (
         <div className="px-4 pb-5 space-y-5 border-t border-purple-100 pt-4">
-          {/* Trigger 1: New Technician */}
-          <TriggerSection
-            title="Quando tecnico e cadastrado"
-            hint="Dispara quando um parceiro recebe o tipo TECNICO"
-            triggerConfig={config.onNewTechnician}
-            onChange={(c) => onChange({ ...config, onNewTechnician: c })}
-          />
+          {/* Show onNewTechnician section when trigger is tech_created or no trigger (legacy) */}
+          {!isSpecTrigger && (
+            <TriggerSection
+              title="Quando tecnico e cadastrado"
+              hint="Dispara quando um parceiro recebe o tipo TECNICO"
+              triggerConfig={config.onNewTechnician}
+              onChange={(c) => onChange({ ...config, onNewTechnician: c })}
+            />
+          )}
 
-          {/* Divider */}
-          <div className="border-t border-slate-100" />
+          {/* Conflict resolution banner — only for partner_tech_created trigger */}
+          {isTechTrigger && (
+            <ConflictResolutionBanner
+              behavior={config.conflictResolution?.behavior ?? 'send_both'}
+              onChange={(v) => onChange({ ...config, conflictResolution: { behavior: v } })}
+            />
+          )}
 
-          {/* Trigger 2: New Specialization */}
-          <TriggerSection
-            title="Quando nova especializacao e atribuida"
-            hint="Dispara quando uma especializacao e adicionada ao tecnico"
-            triggerConfig={config.onNewSpecialization}
-            onChange={(c) => onChange({ ...config, onNewSpecialization: c })}
-          />
+          {/* Divider — only when showing both sections (legacy/no trigger) */}
+          {!isTechTrigger && !isSpecTrigger && (
+            <div className="border-t border-slate-100" />
+          )}
+
+          {/* Show onNewSpecialization section when trigger is spec_added or no trigger (legacy) */}
+          {!isTechTrigger && (
+            <TriggerSection
+              title="Quando nova especializacao e atribuida"
+              hint="Dispara quando uma especializacao e adicionada ao tecnico"
+              triggerConfig={config.onNewSpecialization}
+              onChange={(c) => onChange({ ...config, onNewSpecialization: c })}
+            />
+          )}
+
+          {/* Info banner — only for partner_spec_added trigger */}
+          {isSpecTrigger && (
+            <SpecInfoBanner />
+          )}
         </div>
       )}
     </div>

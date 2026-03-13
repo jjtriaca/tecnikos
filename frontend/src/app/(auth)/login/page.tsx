@@ -7,17 +7,8 @@ import PasswordInput from "@/components/ui/PasswordInput";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
 const SAVED_EMAIL_KEY = "tk_saved_email";
-const CAPTCHA_VERIFIED_KEY = "tk_captcha_verified_at";
-const CAPTCHA_INTERVAL_DAYS = 7;
 
 type ForgotState = "idle" | "form" | "sending" | "sent";
-
-function needsCaptcha(): boolean {
-  const stored = localStorage.getItem(CAPTCHA_VERIFIED_KEY);
-  if (!stored) return true;
-  const diff = Date.now() - Number(stored);
-  return diff > CAPTCHA_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
-}
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -46,10 +37,10 @@ export default function LoginPage() {
       setRememberEmail(true);
     }
 
-    // Fetch captcha config from backend
+    // Fetch captcha config from backend — always show widget when enabled
     api.get<{ enabled: boolean; siteKey: string | null }>("/auth/captcha-config")
       .then((cfg) => {
-        if (cfg.enabled && cfg.siteKey && needsCaptcha()) {
+        if (cfg.enabled && cfg.siteKey) {
           setCaptchaSiteKey(cfg.siteKey);
           setShowCaptcha(true);
         }
@@ -100,8 +91,6 @@ export default function LoginPage() {
 
     try {
       await login(email, password, captchaToken || undefined);
-      // Mark CAPTCHA as verified
-      localStorage.setItem(CAPTCHA_VERIFIED_KEY, String(Date.now()));
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         const msg = err.payload?.message || err.message;

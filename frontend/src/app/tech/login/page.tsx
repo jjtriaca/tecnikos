@@ -6,17 +6,8 @@ import PasswordInput from "@/components/ui/PasswordInput";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
 const SAVED_EMAIL_KEY = "tk_tech_saved_email";
-const CAPTCHA_VERIFIED_KEY = "tk_tech_captcha_verified_at";
-const CAPTCHA_INTERVAL_DAYS = 7;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-function needsCaptcha(): boolean {
-  const stored = localStorage.getItem(CAPTCHA_VERIFIED_KEY);
-  if (!stored) return true;
-  const diff = Date.now() - Number(stored);
-  return diff > CAPTCHA_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
-}
 
 export default function TechLoginPage() {
   const { login } = useTechAuth();
@@ -43,7 +34,7 @@ export default function TechLoginPage() {
     fetch(`${API_BASE}/auth/captcha-config`)
       .then((r) => r.json())
       .then((cfg: { enabled: boolean; siteKey: string | null }) => {
-        if (cfg.enabled && cfg.siteKey && needsCaptcha()) {
+        if (cfg.enabled && cfg.siteKey) {
           setCaptchaSiteKey(cfg.siteKey);
           setShowCaptcha(true);
         }
@@ -74,7 +65,6 @@ export default function TechLoginPage() {
 
     try {
       await login(email, password, captchaToken || undefined);
-      localStorage.setItem(CAPTCHA_VERIFIED_KEY, String(Date.now()));
     } catch (err: any) {
       setError(err.message || "Credenciais invalidas");
       if (showCaptcha) {

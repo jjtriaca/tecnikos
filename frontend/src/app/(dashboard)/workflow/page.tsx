@@ -137,8 +137,9 @@ export default function WorkflowPage() {
       return;
     }
 
+    const isOnboardingTrigger = ['partner_tech_created', 'partner_spec_added'].includes(config.trigger.id);
     const enabledStages = config.stages.filter(s => s.enabled);
-    if (enabledStages.length === 0) {
+    if (!isOnboardingTrigger && enabledStages.length === 0) {
       toast("Ative pelo menos uma etapa", "error");
       return;
     }
@@ -406,7 +407,7 @@ export default function WorkflowPage() {
       </div>
 
       {/* Presets */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {!['partner_tech_created', 'partner_spec_added'].includes(config.trigger.id) && <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
           🎨 Modelos Prontos
           <span className="text-xs font-normal text-slate-400">— clique para preencher automaticamente</span>
@@ -432,7 +433,7 @@ export default function WorkflowPage() {
             ✓ Modelo &ldquo;{WORKFLOW_PRESETS.find(p => p.id === activePreset)?.name}&rdquo; aplicado — personalize abaixo
           </p>
         )}
-      </div>
+      </div>}
 
       {/* Trigger Selector — collapsible */}
       <div ref={triggerRef} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -455,30 +456,28 @@ export default function WorkflowPage() {
         </button>
 
         {triggerExpanded && (
-          <div className="px-4 pb-3 border-t border-slate-100 pt-2">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+          <div className="px-4 pb-2 border-t border-slate-100 pt-1.5">
+            <div className="flex flex-wrap gap-1">
               {TRIGGER_OPTIONS.map(opt => (
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => { setConfig({ ...config, trigger: opt }); setActivePreset(""); }}
-                  className={`text-left rounded-md border px-2 py-1.5 transition-all ${
+                  onClick={() => { setConfig({ ...config, trigger: opt }); setActivePreset(""); setTriggerExpanded(false); }}
+                  className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 transition-all ${
                     config.trigger.id === opt.id
                       ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200"
                       : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30"
                   }`}
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs leading-none">{opt.icon}</span>
-                    <span className={`text-[11px] font-medium truncate ${
-                      config.trigger.id === opt.id ? "text-blue-700" : "text-slate-600"
-                    }`}>
-                      {opt.label}
-                    </span>
-                    {config.trigger.id === opt.id && (
-                      <span className="text-blue-600 text-[10px] shrink-0 ml-auto">✓</span>
-                    )}
-                  </div>
+                  <span className="text-[10px] leading-none">{opt.icon}</span>
+                  <span className={`text-[10px] font-medium whitespace-nowrap ${
+                    config.trigger.id === opt.id ? "text-blue-700" : "text-slate-500"
+                  }`}>
+                    {opt.label}
+                  </span>
+                  {config.trigger.id === opt.id && (
+                    <span className="text-blue-600 text-[9px] shrink-0">✓</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -493,33 +492,50 @@ export default function WorkflowPage() {
         </div>
       </div>
 
-      {/* Stages */}
+      {/* Stages — content changes depending on trigger */}
       <div>
         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
           📊 Etapas do Fluxo
-          <span className="text-xs font-normal text-slate-400">— ative e configure cada etapa</span>
+          <span className="text-xs font-normal text-slate-400">
+            {config.trigger.id === 'partner_tech_created'
+              ? '— configure o onboarding do técnico'
+              : config.trigger.id === 'partner_spec_added'
+              ? '— configure o envio por especialização'
+              : '— ative e configure cada etapa'}
+          </span>
         </h2>
 
-        <div className="space-y-3">
-          {config.stages.map((stage, index) => (
-            <div key={stage.id}>
-              <StageSection
-                stage={stage}
-                index={index}
-                onChange={(updated) => handleStageChange(index, updated)}
-                allStages={config.stages}
-              />
-              {/* Connection arrow */}
-              {index < config.stages.length - 1 && (
-                <div className="flex justify-center py-1">
-                  <div className="w-0.5 h-6 bg-slate-300 relative">
-                    <div className="absolute -bottom-1 -left-[3px] w-2 h-2 border-b-2 border-r-2 border-slate-300 transform rotate-45" />
+      {['partner_tech_created', 'partner_spec_added'].includes(config.trigger.id) ? (
+        <TechnicianOnboardingSection
+          config={config.technicianOnboarding}
+          onChange={(onboarding) => setConfig({ ...config, technicianOnboarding: onboarding })}
+          triggerId={config.trigger.id}
+        />
+      ) : (
+        <div>
+
+          <div className="space-y-3">
+            {config.stages.map((stage, index) => (
+              <div key={stage.id}>
+                <StageSection
+                  stage={stage}
+                  index={index}
+                  onChange={(updated) => handleStageChange(index, updated)}
+                  allStages={config.stages}
+                />
+                {/* Connection arrow */}
+                {index < config.stages.length - 1 && (
+                  <div className="flex justify-center py-1">
+                    <div className="w-0.5 h-6 bg-slate-300 relative">
+                      <div className="absolute -bottom-1 -left-[3px] w-2 h-2 border-b-2 border-r-2 border-slate-300 transform rotate-45" />
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            ))}
+          </div>
         </div>
+      )}
       </div>
 
       {/* Summary + Save */}
@@ -528,9 +544,13 @@ export default function WorkflowPage() {
           <div>
             <h3 className="text-sm font-semibold text-slate-700">Resumo</h3>
             <p className="text-xs text-slate-500 mt-1">
-              ⚡ {config.trigger.label} · {totalEnabled} {totalEnabled === 1 ? "etapa ativa" : "etapas ativas"} · {totalActions} {totalActions === 1 ? "ação configurada" : "ações configuradas"}
+              {['partner_tech_created', 'partner_spec_added'].includes(config.trigger.id) ? (
+                <>⚡ {config.trigger.label} · {config.trigger.id === 'partner_tech_created' ? 'Onboarding de técnico' : 'Nova especialização'} {config.technicianOnboarding.enabled ? '✅ ativo' : '⏸ desativado'}</>
+              ) : (
+                <>⚡ {config.trigger.label} · {totalEnabled} {totalEnabled === 1 ? "etapa ativa" : "etapas ativas"} · {totalActions} {totalActions === 1 ? "ação configurada" : "ações configuradas"}</>
+              )}
             </p>
-            {totalEnabled > 0 && (
+            {!['partner_tech_created', 'partner_spec_added'].includes(config.trigger.id) && totalEnabled > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {config.stages.filter(s => s.enabled).map(s => (
                   <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">

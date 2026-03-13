@@ -539,14 +539,33 @@ export class TenantController {
       else externalSessions++;
     });
 
-    // Aggregate event counts (ALL events, not just landing)
-    const events = await this.prisma.saasEvent.groupBy({
-      by: ['event'],
-      where: { createdAt: { gte: since } },
-      _count: { id: true },
+    // Aggregate event counts — UNIQUE per sessionId (not raw event count)
+    // This prevents the same person refreshing/revisiting from inflating numbers
+    const uniqueEventCounts = await this.prisma.saasEvent.groupBy({
+      by: ['event', 'sessionId'],
+      where: { createdAt: { gte: since }, sessionId: { not: null } },
+    });
+    // Count unique sessions per event type
+    const eventSessionMap: Record<string, Set<string>> = {};
+    uniqueEventCounts.forEach((e) => {
+      if (!eventSessionMap[e.event]) eventSessionMap[e.event] = new Set();
+      eventSessionMap[e.event].add(e.sessionId!);
     });
     const eventMap: Record<string, number> = {};
-    events.forEach((e) => (eventMap[e.event] = e._count.id));
+    Object.entries(eventSessionMap).forEach(([event, sessions]) => {
+      eventMap[event] = sessions.size;
+    });
+
+    // Real business metrics: use actual DB records, not events
+    // Signups Iniciados = unique SignupAttempt records (not repeated page visits)
+    const realSignupAttempts = await this.prisma.signupAttempt.count({
+      where: { createdAt: { gte: since } },
+    });
+
+    // Conversões = Tenants that reached ACTIVE status (full process: signup + docs + verification)
+    const realConversions = await this.prisma.tenant.count({
+      where: { status: 'ACTIVE', createdAt: { gte: since } },
+    });
 
     // Daily pageviews (landing) — split by internal/external
     const dailyViews: { date: string; count: number }[] = await this.prisma.$queryRaw`
@@ -605,31 +624,31 @@ export class TenantController {
         });
       });
 
-    // External-only conversion rate
-    const externalConversion = externalPageviews > 0
-      ? Math.round(((eventMap['signup_complete'] || 0) / externalPageviews) * 10000) / 100
+    // External-only conversion rate (based on real conversions, not events)
+    const externalConversion = externalSessions > 0
+      ? Math.round((realConversions / externalSessions) * 10000) / 100
       : 0;
 
     return {
       period: d,
       landingViews: eventMap['landing_view'] || 0,
-      signupStarts: eventMap['signup_step_1'] || 0,
+      signupStarts: realSignupAttempts,  // Real unique signup attempts, not repeated page visits
       signupStep2: eventMap['signup_step_2'] || 0,
       signupStep3: eventMap['signup_step_3'] || 0,
       signupStep4: eventMap['signup_step_4'] || 0,
-      signupComplete: eventMap['signup_complete'] || 0,
+      signupComplete: realConversions,   // Real conversions: Tenants ACTIVE (full process complete)
       signupRejected: eventMap['signup_rejected'] || 0,
       clickSignup: eventMap['landing_click_signup'] || 0,
       clickPlan: eventMap['landing_click_plan'] || 0,
       uniqueVisitors: allSessions.length,
       conversionRate:
-        eventMap['landing_view'] > 0
-          ? Math.round(((eventMap['signup_complete'] || 0) / eventMap['landing_view']) * 10000) / 100
+        externalSessions > 0
+          ? Math.round((realConversions / externalSessions) * 10000) / 100
           : 0,
       dailyViews,
       topReasons,
       devices,
-      // New: internal vs external breakdown
+      // Internal vs external breakdown
       internalPageviews,
       externalPageviews,
       internalSessions,

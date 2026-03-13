@@ -133,11 +133,11 @@ export default function SaasDashboardPage() {
   const funnelSteps = analytics ? [
     { label: "Visitantes", value: analytics.externalPageviews || analytics.landingViews, color: "bg-slate-500", tooltip: "Pageviews reais na landing page (excluindo bots e acessos internos)" },
     { label: "Clique Signup", value: analytics.clickSignup + analytics.clickPlan, color: "bg-blue-400", tooltip: "Visitantes que clicaram em 'Comecar Agora' ou num plano especifico na landing" },
-    { label: "Plano", value: analytics.signupStarts, color: "bg-blue-500", tooltip: "Visitantes que entraram na pagina de signup e escolheram um plano (Step 1)" },
+    { label: "Plano", value: analytics.signupStarts, color: "bg-blue-500", tooltip: "Tentativas unicas de cadastro iniciadas (SignupAttempt)" },
     { label: "Empresa", value: analytics.signupStep2, color: "bg-blue-600", tooltip: "Preencheram dados da empresa: CNPJ, nome, contato (Step 2)" },
     { label: "Verificacao", value: analytics.signupStep3, color: "bg-indigo-500", tooltip: "Enviaram documentos para verificacao de identidade (Step 3)" },
     { label: "Pagamento", value: analytics.signupStep4, color: "bg-indigo-600", tooltip: "Chegaram na etapa de pagamento ou usaram voucher (Step 4)" },
-    { label: "Concluido", value: analytics.signupComplete, color: "bg-green-500", tooltip: "Finalizaram o cadastro com sucesso — empresa ativada!" },
+    { label: "Concluido", value: analytics.signupComplete, color: "bg-green-500", tooltip: "Empresas que completaram TODO o processo e foram ativadas (Tenant ACTIVE)" },
   ] : [];
   const funnelMax = funnelSteps.length > 0 ? Math.max(...funnelSteps.map((s) => s.value), 1) : 1;
 
@@ -249,14 +249,14 @@ export default function SaasDashboardPage() {
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex items-center gap-1">
                 <span className="text-xs text-slate-500">Signups Iniciados</span>
-                <Tooltip text="Pessoas que abriram a pagina de signup e selecionaram um plano. Indica interesse real no produto." />
+                <Tooltip text="Tentativas unicas de cadastro (SignupAttempt). Cada tentativa e uma pessoa diferente que iniciou o processo de cadastro." />
               </div>
               <p className="text-2xl font-bold text-slate-900">{analytics.signupStarts}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex items-center gap-1">
                 <span className="text-xs text-slate-500">Conversoes</span>
-                <Tooltip text="Cadastros finalizados com sucesso. A empresa foi ativada e o responsavel recebeu email de boas-vindas." />
+                <Tooltip text="Empresas que completaram TODO o processo: cadastro, documentos, verificacao e ativacao. Somente tenants com status ACTIVE." />
               </div>
               <p className="text-2xl font-bold text-green-600">{analytics.signupComplete}</p>
             </div>
