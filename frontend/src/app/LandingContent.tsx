@@ -229,13 +229,13 @@ export default function LandingContent() {
               <a href="#precos" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">Planos</a>
             )}
             <Link
-              href="/login"
+              href="/signup"
               className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-semibold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 hover:-translate-y-0.5 transition-all duration-200"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
               </svg>
-              Entrar
+              Cadastre-se
             </Link>
           </nav>
 
@@ -262,7 +262,7 @@ export default function LandingContent() {
             {plans.length > 0 && (
               <a href="#precos" onClick={() => setMobileMenu(false)} className="block py-2 text-sm font-medium text-slate-600">Planos</a>
             )}
-            <Link href="/login" onClick={() => setMobileMenu(false)} className="block py-2 text-sm font-semibold text-blue-600">Entrar</Link>
+            <Link href="/signup" onClick={() => setMobileMenu(false)} className="block py-2 text-sm font-semibold text-blue-600">Cadastre-se</Link>
           </div>
         )}
       </header>
@@ -342,15 +342,15 @@ export default function LandingContent() {
                 </svg>
               </a>
             )}
-            <Link
-              href="/login"
+            <a
+              href="#precos"
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-blue-600/20 text-white font-semibold border border-blue-400/30 hover:bg-blue-600/30 transition-all duration-200"
             >
-              Ja sou cliente
+              Ver planos
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
               </svg>
-            </Link>
+            </a>
           </div>
         </div>
       </section>
