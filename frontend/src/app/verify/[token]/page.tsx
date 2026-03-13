@@ -96,11 +96,30 @@ export default function VerifyPage() {
       return;
     }
 
-    // Start front camera
+    // Check if getUserMedia is available
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("use_native");
+      setCameraActive(false);
+      return;
+    }
+
+    // Start front camera with timeout
     let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
     async function startCamera() {
       try {
         setCameraError(null);
+
+        // Timeout: if camera doesn't start in 6 seconds, fallback to native
+        timeoutId = setTimeout(() => {
+          if (!cancelled) {
+            setCameraError("use_native");
+            setCameraActive(false);
+            stopCamera();
+          }
+        }, 6000);
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } },
           audio: false,
@@ -113,11 +132,20 @@ export default function VerifyPage() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
+          // Verify video is actually producing frames
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          if (!cancelled && videoRef.current && videoRef.current.videoWidth === 0) {
+            throw new Error("Camera not producing frames");
+          }
         }
-        setCameraActive(true);
+        if (!cancelled) {
+          clearTimeout(timeoutId);
+          setCameraActive(true);
+        }
       } catch (err: any) {
         if (!cancelled) {
-          setCameraError("Nao foi possivel acessar a camera. Permita o acesso ou envie uma foto.");
+          clearTimeout(timeoutId);
+          setCameraError("use_native");
           setCameraActive(false);
         }
       }
@@ -126,6 +154,7 @@ export default function VerifyPage() {
     startCamera();
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
       stopCamera();
     };
   }, [isSelfie, preview, currentStep, stopCamera]);
@@ -483,12 +512,30 @@ export default function VerifyPage() {
                 </div>
               </div>
             ) : cameraError ? (
-              /* Camera permission denied — show static guide */
-              <div className="relative bg-slate-900 rounded-2xl aspect-[3/4] flex items-center justify-center overflow-hidden">
-                <div className="w-[65%] h-[55%] border-2 border-white/30 rounded-3xl" />
-                <div className="absolute bottom-4 left-0 right-0 text-center">
-                  <p className="text-amber-300 text-xs px-4">{cameraError}</p>
+              /* Camera failed — show native camera button */
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-6 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                  </svg>
                 </div>
+                <p className="text-sm font-semibold text-slate-800 mb-1">Tire uma selfie</p>
+                <p className="text-xs text-slate-500 mb-4">Posicione o rosto centralizado e com boa iluminacao</p>
+                <label className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 cursor-pointer transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                  </svg>
+                  Abrir camera
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </label>
               </div>
             ) : (
               /* Loading camera */
@@ -500,7 +547,7 @@ export default function VerifyPage() {
               </div>
             )}
 
-            {/* Capture button (camera active) OR file select (camera failed) */}
+            {/* Hidden file input for native camera fallback */}
             <input
               ref={fileInputRef}
               type="file"
@@ -509,8 +556,10 @@ export default function VerifyPage() {
               onChange={handleFileSelect}
               className="hidden"
             />
-            <div className="mt-4">
-              {cameraActive ? (
+
+            {/* Capture button (only when live camera is active) */}
+            {cameraActive && (
+              <div className="mt-4">
                 <button
                   onClick={capturePhoto}
                   className="w-full py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
@@ -521,15 +570,8 @@ export default function VerifyPage() {
                   </svg>
                   Tirar foto
                 </button>
-              ) : cameraError ? (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700"
-                >
-                  Selecionar foto
-                </button>
-              ) : null}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
