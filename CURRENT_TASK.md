@@ -1,39 +1,52 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 116 — Limpeza SLS + Teste Compra do Zero
+## Status: SESSAO 118 — Admin Host + Data Migration (CONCLUIDO)
 
-## Ultima sessao: 116 (13/03/2026)
-- Sessao 109: Upload Cartao CNPJ no step 3 do signup
-- Sessao 110: Fix Galeria Selfie + Asaas API Key + Fix FK + Fix Signup Flow + Fix Camera
-- Sessao 111: Cobranca Recorrente + Bloqueio por Inadimplencia
-- Sessao 112: Fix fluxo pagamento (PIX QR code, boleto, step 5 success messages)
-- Sessao 113: Asaas Checkout + Add-on + Upgrade + Disable Notifications
-- Sessao 114: Fix billingTypes API error + Remove PIX/Boleto/Cartao cards from Step 4
-- Sessao 115: Restricoes por verificacao + Nginx wildcard + Welcome email + DNS/SSL
-- Sessao 116: Limpeza SLS para teste fresh da compra completa
+## Ultima sessao: 118 (13/03/2026)
+- Sessao 116: Limpeza SLS + Teste compra + Fix Step 5/Chat IA/CAPTCHA + Deploy v1.02.57
+- Sessao 117: Isolamento de dados multi-tenant via AsyncLocalStorage + Proxy (v1.02.58)
+- Sessao 118: Admin Host isolado + Migracao de dados completa (v1.02.59)
 
-## O que foi feito na sessao 116:
-- [x] Cancelar subscription no Asaas (sub_f330i47frr8tubpx) — DELETE 200
-- [x] Deletar customer no Asaas (cus_000165863289) — DELETE 200
-- [x] Limpar banco: VerificationSession, Subscription, Tenant, schema tenant_sls
-- [x] Resetar promo PIONEIRO-PISCINAS (currentUses → 0)
-- [x] Verificacao: tudo limpo, pronto para teste fresh
+## O que foi feito na sessao 118:
+- [x] Adicionado `companyId` ao model Tenant (migration manual)
+- [x] Criado TenantResolverService para webhooks/crons resolverem tenant
+- [x] Criado `runInTenantContext()` helper
+- [x] Corrigido WhatsApp webhook (usa Tenant.companyId)
+- [x] Corrigido Focus NFS-e webhook (itera tenants)
+- [x] Corrigido Sefaz cron (forEachTenant)
+- [x] Frontend: isAdminHost() detection + sidebar admin + redirect
+- [x] Backend: /auth/me retorna tenantSlug
+- [x] Deploy v1.02.59
+- [x] Prisma migration aplicada em producao
+- [x] Migracao de dados v3 executada (2801 partners, 5 OS, 11 fin entries, 263 sefaz docs, todos configs)
+- [x] Admin Company "Teknikos Admin" criada em public
+- [x] Admin users atualizados para admin company
+- [x] Tenant.companyId setado para SLS
+- [x] Turnstile CAPTCHA atualizado: 3 hostnames
+- [x] Verificacao completa: health, login, dados, logs — tudo OK
 
-## Proximos passos:
-1. Testar signup completo: tecnikos.com.br/signup com SLS Obras
-2. Testar pagamento via Asaas Checkout
-3. Testar login no host sls.tecnikos.com.br
-4. Verificar restricoes (OS, orcamentos, financeiro bloqueados)
-5. Admin aprovar docs → verificar full access
-6. Testar add-on e upgrade via /settings/billing
-7. Configurar info fiscal no Asaas
+## Arquitetura Multi-Tenant Atual:
+- **admin.tecnikos.com.br**: sem tenant context → public schema → SaaS admin dashboard
+- **sls.tecnikos.com.br**: tenant_sls context → dados isolados da SLS Obras
+- **Webhooks**: TenantResolverService resolve tenant por companyId ou iteracao
+- **Crons**: forEachTenant() itera todos os schemas ativos
+- **Proxy PrismaService**: AsyncLocalStorage + JavaScript Proxy (zero mudancas nos services)
 
-## Versao atual: v1.02.56
+## Estado do Banco:
+- **public.User**: 2 admins (jjtriaca, maritriaca) → Admin Company (00000000...0001)
+- **tenant_sls.User**: 2 admins → SLS Company (00000000...0002)
+- **public**: 0 dados operacionais (so SaaS: Tenant, Plan, Subscription, etc.)
+- **tenant_sls**: TODOS os dados operacionais (2801 partners, 5 OS, etc.)
+- **Backup**: `/opt/tecnikos/backups/pre_migration_20260313_155037.sql.gz`
 
-## IDs importantes WhatsApp Meta:
-- WABA ID: 1421505052856896
-- Phone Number ID: 996592133539837
-- App ID: 950743607617295
+## Proximos passos possiveis:
+1. Implementar Asaas Checkout (plano em `.claude/plans/tidy-honking-diffie.md`)
+2. Teste end-to-end: login SLS + dashboard com dados + criar OS + financeiro
+3. Teste admin: login admin.tecnikos.com.br + dashboard SaaS
+4. Verificar Sefaz auto-fetch funcionando no tenant context
+5. Verificar WhatsApp webhook routing
+
+## Versao atual: v1.02.59 (em producao)
 
 ## Se reconectar no MEIO de uma tarefa:
 - Verifique o TODO list no Claude (se existir)

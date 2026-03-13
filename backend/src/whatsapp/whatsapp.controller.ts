@@ -17,10 +17,14 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { UpdateWhatsAppConfigDto } from './dto/whatsapp-config.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { TenantResolverService } from '../tenant/tenant-resolver.service';
 
 @Controller('whatsapp')
 export class WhatsAppController {
-  constructor(private readonly whatsAppService: WhatsAppService) {}
+  constructor(
+    private readonly whatsAppService: WhatsAppService,
+    private readonly tenantResolver: TenantResolverService,
+  ) {}
 
   // ── Config Management (ADMIN only) ────────────────────────
 
@@ -107,6 +111,8 @@ export class WhatsAppController {
    * GET /whatsapp/webhook/meta/:companyId — Webhook verification (Meta challenge)
    * Meta sends hub.mode, hub.verify_token, hub.challenge as query params.
    * Must return the challenge string as plain text.
+   *
+   * Wrapped in tenant context so Prisma routes to the correct schema.
    */
   @Public()
   @Get('webhook/meta/:companyId')
@@ -116,11 +122,8 @@ export class WhatsAppController {
     @Query('hub.verify_token') token: string,
     @Query('hub.challenge') challenge: string,
   ): Promise<string> {
-    const result = await this.whatsAppService.verifyWebhook(
-      companyId,
-      mode,
-      token,
-      challenge,
+    const result = await this.tenantResolver.runForCompany(companyId, () =>
+      this.whatsAppService.verifyWebhook(companyId, mode, token, challenge),
     );
 
     if (result) {
@@ -132,12 +135,15 @@ export class WhatsAppController {
 
   /**
    * POST /whatsapp/webhook/meta/:companyId — Receive events from Meta Cloud API
+   * Wrapped in tenant context so Prisma routes to the correct schema.
    */
   @Public()
   @Post('webhook/meta/:companyId')
   @HttpCode(HttpStatus.OK)
   async metaWebhook(@Param('companyId') companyId: string, @Body() body: any) {
-    await this.whatsAppService.processMetaWebhook(companyId, body);
+    await this.tenantResolver.runForCompany(companyId, () =>
+      this.whatsAppService.processMetaWebhook(companyId, body),
+    );
     return { ok: true };
   }
 

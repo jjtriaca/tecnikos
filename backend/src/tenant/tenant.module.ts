@@ -5,6 +5,7 @@ import { TenantPublicController } from './tenant-public.controller';
 import { TenantConnectionService } from './tenant-connection.service';
 import { TenantMiddleware } from './tenant.middleware';
 import { TenantOnboardingService } from './tenant-onboarding.service';
+import { TenantResolverService } from './tenant-resolver.service';
 import { AsaasProvider } from './asaas.provider';
 import { AsaasService } from './asaas.service';
 import { AsaasWebhookController } from './asaas-webhook.controller';
@@ -17,11 +18,12 @@ import { EmailModule } from '../email/email.module';
     TenantConnectionService,
     TenantMiddleware,
     TenantOnboardingService,
+    TenantResolverService,
     AsaasProvider,
     AsaasService,
   ],
   controllers: [TenantController, TenantPublicController, AsaasWebhookController],
-  exports: [TenantService, TenantConnectionService, TenantMiddleware, TenantOnboardingService, AsaasService],
+  exports: [TenantService, TenantConnectionService, TenantMiddleware, TenantOnboardingService, TenantResolverService, AsaasService],
 })
 export class TenantModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

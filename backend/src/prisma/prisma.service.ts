@@ -1,5 +1,54 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { getTenantSchema } from '../tenant/tenant-context';
+
+/**
+ * Models that live ONLY in the public schema (SaaS infrastructure).
+ * These are NEVER redirected to tenant schemas.
+ */
+const PUBLIC_ONLY_MODELS = new Set([
+  'tenant',
+  'verificationSession',
+  'plan',
+  'subscription',
+  'promotion',
+  'addOn',
+  'addOnPurchase',
+  'saasInvoice',
+  'saasInvoiceConfig',
+  'signupAttempt',
+  'saasEvent',
+]);
+
+/**
+ * All Prisma model delegate names that should be redirected to the tenant
+ * schema when a tenant context is active. Any model NOT in PUBLIC_ONLY_MODELS.
+ */
+const TENANT_MODEL_DELEGATES = new Set([
+  'company', 'user', 'session', 'partner', 'serviceOrder',
+  'serviceOrderOffer', 'serviceOrderEvent', 'otpCode',
+  'workflowTemplate', 'workflowStepLog', 'serviceOrderLedger',
+  'attachment', 'notification', 'specialization', 'partnerSpecialization',
+  'evaluation', 'automationRule', 'automationExecution', 'automationTemplate',
+  'financialEntry', 'financialInstallment', 'collectionRule', 'collectionExecution',
+  'product', 'productEquivalent', 'nfeImport', 'nfeImportItem',
+  'sefazConfig', 'sefazDocument', 'pendingWorkflowWait', 'auditLog',
+  'executionPause', 'technicianLocationLog', 'whatsAppConfig', 'whatsAppMessage',
+  'paymentMethod', 'paymentInstrument', 'cashAccount', 'accountTransfer',
+  'bankStatementImport', 'bankStatementLine', 'nfseConfig', 'nfseEmission',
+  'obra', 'serviceAddress', 'cardSettlement', 'cardFeeRate', 'financialAccount',
+  'nfseEntrada', 'service', 'fiscalPeriod', 'emailConfig', 'technicianContract',
+  'codeCounter', 'chatIAConversation', 'chatIAMessage', 'quote', 'quoteItem',
+  'quoteAttachment',
+]);
+
+/**
+ * PrismaClient methods that should be redirected to the tenant client
+ * when in tenant context (raw queries and transactions operate on tenant data).
+ */
+const REDIRECTED_METHODS = new Set([
+  '$queryRaw', '$queryRawUnsafe', '$executeRaw', '$executeRawUnsafe', '$transaction',
+]);
 
 @Injectable()
 export class PrismaService
@@ -7,6 +56,71 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly logger = new Logger(PrismaService.name);
+  private readonly _tenantClients = new Map<string, PrismaClient>();
+
+  constructor() {
+    super();
+
+    // Return a Proxy that transparently routes model delegate access
+    // and raw queries to the correct tenant PrismaClient based on
+    // the AsyncLocalStorage tenant context set by TenantMiddleware.
+    //
+    // During module init (no tenant context), all queries go to public schema.
+    // During HTTP requests with a tenant subdomain, queries are routed
+    // to the tenant-specific PrismaClient (e.g., ?schema=tenant_sls).
+    //
+    // Public-only models (Tenant, Plan, Subscription, etc.) are NEVER redirected.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
+    return new Proxy(this, {
+      get(target: PrismaService, prop: string | symbol, receiver: any): any {
+        if (typeof prop === 'string') {
+          const schema = getTenantSchema();
+          if (schema) {
+            // Redirect tenant model delegates to tenant client
+            if (TENANT_MODEL_DELEGATES.has(prop)) {
+              const client = self._getTenantClient(schema);
+              return (client as any)[prop];
+            }
+            // Redirect raw query / transaction methods to tenant client
+            if (REDIRECTED_METHODS.has(prop)) {
+              const client = self._getTenantClient(schema);
+              const method = (client as any)[prop];
+              return typeof method === 'function' ? method.bind(client) : method;
+            }
+          }
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+  }
+
+  /**
+   * Get or create a PrismaClient for a tenant schema.
+   * Cached for the lifetime of the application.
+   */
+  _getTenantClient(schemaName: string): PrismaClient {
+    let client = this._tenantClients.get(schemaName);
+    if (client) return client;
+
+    const baseUrl = process.env.DATABASE_URL || '';
+    const tenantUrl = baseUrl.includes('?schema=')
+      ? baseUrl.replace(/\?schema=[^&]+/, `?schema=${schemaName}`)
+      : `${baseUrl}?schema=${schemaName}`;
+
+    client = new PrismaClient({
+      datasources: { db: { url: tenantUrl } },
+      log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+    });
+
+    client.$connect().catch((err) => {
+      this.logger.error(`Failed to connect tenant "${schemaName}": ${err.message}`);
+    });
+
+    this._tenantClients.set(schemaName, client);
+    this.logger.log(`Created tenant PrismaClient for "${schemaName}" (total: ${this._tenantClients.size})`);
+    return client;
+  }
 
   async onModuleInit(): Promise<void> {
     await this.$connect();
@@ -30,6 +144,16 @@ export class PrismaService
 
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
+    // Disconnect all cached tenant PrismaClients
+    for (const [name, client] of this._tenantClients) {
+      try {
+        await client.$disconnect();
+      } catch (err) {
+        this.logger.warn(`Error disconnecting tenant "${name}": ${(err as Error).message}`);
+      }
+    }
+    this._tenantClients.clear();
+    this.logger.log('All tenant connections closed');
   }
 
   /** Ensure Brazilian company columns exist (self-healing migration) */

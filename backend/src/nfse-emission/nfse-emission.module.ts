@@ -4,9 +4,10 @@ import { NfseEmissionService } from './nfse-emission.service';
 import { FocusNfeProvider } from './focus-nfe.provider';
 import { EncryptionService } from '../common/encryption.service';
 import { WhatsAppModule } from '../whatsapp/whatsapp.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
-  imports: [WhatsAppModule],
+  imports: [WhatsAppModule, TenantModule],
   controllers: [NfseEmissionController, NfseWebhookController],
   providers: [NfseEmissionService, FocusNfeProvider, EncryptionService],
   exports: [NfseEmissionService],

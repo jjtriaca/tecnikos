@@ -12,6 +12,7 @@ import { NfeService } from './nfe.service';
 import { FocusNfeProvider } from '../nfse-emission/focus-nfe.provider';
 import { PaginatedResult } from '../common/dto/pagination.dto';
 import { SefazDocumentFilterDto } from './dto/sefaz-config.dto';
+import { TenantResolverService } from '../tenant/tenant-resolver.service';
 
 /* ══════════════════════════════════════════════════════════════════════
    UF → IBGE code mapping
@@ -68,6 +69,7 @@ export class SefazDfeService implements OnModuleInit {
     private readonly encryption: EncryptionService,
     private readonly nfeService: NfeService,
     private readonly focusNfe: FocusNfeProvider,
+    private readonly tenantResolver: TenantResolverService,
   ) {
     this.xmlParser = new XMLParser({
       ignoreAttributes: false,
@@ -83,9 +85,17 @@ export class SefazDfeService implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      await this.fixHistoricalData();
+      // Run historical data fix across all tenant schemas
+      await this.tenantResolver.forEachTenant(async (_tenantId, tenantSlug) => {
+        try {
+          await this.fixHistoricalData();
+          this.logger.log(`Historical data fix completed for tenant "${tenantSlug}"`);
+        } catch (err) {
+          this.logger.error(`Failed to fix historical data for tenant "${tenantSlug}": ${(err as Error).message}`);
+        }
+      });
     } catch (err) {
-      this.logger.error(`Failed to fix historical data: ${err.message}`);
+      this.logger.error(`Failed to fix historical data: ${(err as Error).message}`);
     }
   }
 
@@ -1085,59 +1095,60 @@ export class SefazDfeService implements OnModuleInit {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     Cron — Auto-fetch every 10 minutes
+     Cron — Auto-fetch every 10 minutes (multi-tenant aware)
      ═══════════════════════════════════════════════════════════════════ */
 
   @Cron('0 */10 * * * *')
   async cronFetchAll() {
-    this.logger.log('Starting scheduled SEFAZ DFe fetch...');
+    this.logger.log('Starting scheduled SEFAZ DFe fetch (multi-tenant)...');
 
     try {
-      const configs = await this.prisma.sefazConfig.findMany({
-        where: { autoFetchEnabled: true },
-      });
-
-      if (configs.length === 0) {
-        this.logger.log('No companies with SEFAZ auto-fetch enabled');
-        return;
-      }
-
       let totalDocs = 0;
-      for (const config of configs) {
-        try {
-          // Skip if in rate limit (wait at least 1 hour)
-          if (
-            config.lastFetchStatus === 'RATE_LIMIT' &&
-            config.lastFetchAt &&
-            Date.now() - config.lastFetchAt.getTime() < 60 * 60 * 1000
-          ) {
-            const minutesLeft = Math.ceil(
-              (60 * 60 * 1000 - (Date.now() - config.lastFetchAt.getTime())) / 60000,
+
+      // Iterate over all active tenants and run fetch within each tenant context
+      await this.tenantResolver.forEachTenant(async (tenantId, tenantSlug) => {
+        const configs = await this.prisma.sefazConfig.findMany({
+          where: { autoFetchEnabled: true },
+        });
+
+        if (configs.length === 0) return;
+
+        for (const config of configs) {
+          try {
+            // Skip if in rate limit (wait at least 1 hour)
+            if (
+              config.lastFetchStatus === 'RATE_LIMIT' &&
+              config.lastFetchAt &&
+              Date.now() - config.lastFetchAt.getTime() < 60 * 60 * 1000
+            ) {
+              const minutesLeft = Math.ceil(
+                (60 * 60 * 1000 - (Date.now() - config.lastFetchAt.getTime())) / 60000,
+              );
+              this.logger.log(
+                `[${tenantSlug}] Skipping company ${config.companyId}: rate limited, retry in ${minutesLeft}min`,
+              );
+              continue;
+            }
+            const result = await this.fetchDistDFe(config.companyId);
+            totalDocs += result.newDocuments;
+            if (result.newDocuments > 0) {
+              this.logger.log(
+                `[${tenantSlug}] Company ${config.companyId}: ${result.newDocuments} new docs (NSU: ${result.lastNsu})`,
+              );
+            }
+            // Auto-manifest ciência for new resNFe docs (if enabled)
+            await this.autoManifestNewDocs(config.companyId);
+          } catch (err) {
+            this.logger.error(
+              `[${tenantSlug}] SEFAZ fetch error for company ${config.companyId}: ${(err as Error).message}`,
             );
-            this.logger.log(
-              `Skipping company ${config.companyId}: rate limited, retry in ${minutesLeft}min`,
-            );
-            continue;
           }
-          const result = await this.fetchDistDFe(config.companyId);
-          totalDocs += result.newDocuments;
-          if (result.newDocuments > 0) {
-            this.logger.log(
-              `Company ${config.companyId}: ${result.newDocuments} new docs (NSU: ${result.lastNsu})`,
-            );
-          }
-          // Auto-manifest ciência for new resNFe docs (if enabled)
-          await this.autoManifestNewDocs(config.companyId);
-        } catch (err) {
-          this.logger.error(
-            `SEFAZ fetch error for company ${config.companyId}: ${err.message}`,
-          );
         }
-      }
+      });
 
       this.logger.log(`SEFAZ DFe fetch completed. Total new docs: ${totalDocs}`);
     } catch (err) {
-      this.logger.error(`SEFAZ cron error: ${err.message}`);
+      this.logger.error(`SEFAZ cron error: ${(err as Error).message}`);
     }
   }
 }

@@ -887,3 +887,136 @@ Deploy v1.02.53
 - Banco: Tenant SLS deletado
 - Promocao PIONEIRO-PISCINAS: currentUses resetado para 0
 - Verificacao: 0 registros restantes, schema nao existe, promo limpa
+
+### Correcoes pos-teste (v1.02.57)
+
+**Step 5 Signup:**
+- Removido bloco "Seu endereco: sls.tecnikos.com.br" — acesso so via email de boas-vindas
+
+**Chat IA Welcome Message (bug):**
+- Auto-open nao chamava loadWelcome() → chat abria vazio
+- Fix: ChatIAContext.tsx auto-open agora chama loadWelcome()
+- Backend: welcome message checa verificationStatus (VerificationSession) em vez de tenantStatus
+- Funciona para tenant ACTIVE com docs pendentes
+
+**CAPTCHA Turnstile (nao configurado):**
+- Env vars TURNSTILE nao existiam na producao → captcha nunca aparecia
+- Criado widget Turnstile no Cloudflare: "Tecnikos Login" com hostname tecnikos.com.br
+- Keys adicionadas ao .env.production e container recriado
+- Captcha agora funciona: cada subdomain tem localStorage proprio = captcha a cada 7 dias
+
+### Deploy: v1.02.57
+
+---
+
+## 2026-03-13 — Sessao 117: Isolamento de Dados Multi-Tenant (CRITICO) (v1.02.58)
+
+### Problema reportado pelo Juliano:
+- "Quando acessei vi que ja trouxe dados pre registrados da sls obras"
+- Dashboard em sls.tecnikos.com.br mostrava 2 OS, R$720 receita — dados antigos do public schema
+- Causa raiz: TODOS os 46+ services usam `this.prisma` que aponta para public schema
+- Apenas chat-ia.service.ts usava TenantConnectionService corretamente
+
+### Diagnostico:
+- tenant_sls schema: 0 ServiceOrder, 0 Partner, 0 FinancialEntry (correto — recem criado)
+- public schema: 5 ServiceOrder, 2801 Partner, 11 FinancialEntry (dados antigos SLS pre-multitenant)
+- Services injetam PrismaService que conecta ao public schema e ignoram req.tenantSchema
+
+### Solucao: AsyncLocalStorage + JavaScript Proxy (ZERO mudancas nos services)
+
+**Criado backend/src/tenant/tenant-context.ts:**
+- AsyncLocalStorage para armazenar tenantId + tenantSchema por request
+- Helper functions: getTenantSchema(), getTenantId()
+
+**Modificado backend/src/tenant/tenant.middleware.ts:**
+- Importa tenantContext
+- Wraps `next()` em `tenantContext.run({ tenantId, tenantSchema }, () => next())`
+- Contexto propagado automaticamente para todo o pipeline downstream
+
+**Modificado backend/src/prisma/prisma.service.ts:**
+- Define PUBLIC_ONLY_MODELS (Tenant, Plan, Subscription, VerificationSession, etc.) — NUNCA redirecionados
+- Define TENANT_MODEL_DELEGATES (ServiceOrder, Partner, Company, User, etc.) — redirecionados
+- Define REDIRECTED_METHODS ($queryRaw, $executeRaw, $transaction) — redirecionados
+- Constructor retorna `new Proxy(this, { get handler })`:
+  - Se getTenantSchema() retorna schema E prop eh tenant model → redireciona para tenant PrismaClient
+  - Se getTenantSchema() retorna schema E prop eh $queryRaw etc → redireciona
+  - Models publicos (Tenant, Plan) → sempre acessam public schema
+  - Sem contexto tenant → public schema (startup, webhooks, rotas publicas)
+- Metodo `_getTenantClient(schema)`: cria e cacheia PrismaClient por tenant
+- `onModuleDestroy()`: desconecta todos os tenant PrismaClients
+
+### Testes realizados:
+1. **Script Node.js isolado**: PrismaClients separados para public e tenant_sls confirmam dados isolados ✅
+2. **Script simulando Proxy + AsyncLocalStorage**: Proxy redireciona corretamente quando em contexto tenant ✅
+3. **HTTP com JWT real via sls.tecnikos.com.br**: `GET /service-orders → {"data":[],"total":0}`, `GET /partners → {"data":[],"total":0}` ✅
+4. Models publicos (Tenant, Plan) continuam acessiveis em contexto tenant ✅
+5. Fora do contexto → volta a usar public schema ✅
+
+### Deploy: v1.02.58 — Isolamento multi-tenant FUNCIONANDO
+
+---
+
+## 2026-03-13 — Sessao 118: Admin Host + Data Migration (v1.02.59)
+
+### Pedido do Juliano:
+- "Vamos fazer o seguinte, um host para o admin tambem"
+- "a sls antiga deixa de existir, vai ficar tudo na sls.tecnikos.com.br"
+- "o admin fica totalmente isolado nao tem acesso a sls obras de dentro de sua pagina"
+- "migre todos os dados da sls antiga pra o host novo, inclusive as conexoes com o whatsapp, smtp, focus"
+- "tudo fica funcionando ja no host"
+- Ser critico com seguranca!
+
+### Implementacao:
+
+**Schema Prisma — Tenant.companyId:**
+- `companyId String? @unique` no model Tenant (para webhooks resolverem o tenant)
+- Migration manual: `20260313200000_tenant_company_id`
+
+**Backend — tenant-context.ts:**
+- `runInTenantContext(store, fn)` helper para webhooks/crons executarem em contexto tenant
+
+**Backend — TenantResolverService (NOVO):**
+- `tenant-resolver.service.ts`: usa PrismaClient raw (nao Proxy) para resolver tenant
+- `runForCompany(companyId, fn)`: encontra tenant por companyId → executa fn em contexto
+- `getActiveTenants()`: lista todos os tenants ativos
+- `forEachTenant(fn)`: itera todos os tenants com contexto
+
+**Backend — Webhooks corrigidos:**
+- WhatsApp: `runForCompany(companyId)` via Tenant.companyId
+- Focus NFS-e: itera todos tenants para encontrar emission por ref
+- Asaas: OK (so toca PUBLIC_ONLY_MODELS)
+
+**Backend — Cron Sefaz corrigido:**
+- `cronFetchAll()` agora usa `forEachTenant()` para buscar configs de cada tenant
+- `onModuleInit()` roda `fixHistoricalData()` em todos os tenant schemas
+
+**Backend — Auth /me:**
+- Retorna `tenantSlug` (null no admin host, "sls" no SLS host)
+
+**Frontend — Admin Host Detection:**
+- `isAdminHost(user)` helper em AuthContext.tsx
+- Sidebar: mostra nav SaaS admin quando isAdminHost
+- AuthLayout: redirect /dashboard → /ctrl-zr8k2x no admin host
+
+### Migracao de Dados:
+- Backup: `/opt/teknikos/backups/pre_migration_20260313_155037.sql.gz`
+- Script v3: `scripts/migrate-sls-to-tenant-v3.sql`
+- Tecnica: CREATE CAST WITH INOUT AS IMPLICIT para 12 enum types entre schemas
+- Migrado: 2801 Partners, 5 OS, 11 FinancialEntry, 263 SefazDocs, todos os configs
+- Admin Company criada: "Teknikos Admin" (00000000...0001) em public
+- Admin users atualizados: companyId → Admin Company
+- Tenant.companyId setado para webhook resolution
+- Dados operacionais deletados do public
+- Sessoes limpas (re-login necessario)
+
+### Turnstile CAPTCHA:
+- Widget "Tecnikos Login" atualizado: 3 hostnames (tecnikos.com.br, sls.tecnikos.com.br, admin.tecnikos.com.br)
+
+### Verificacao pos-deploy:
+- Health 200 em tecnikos.com.br, sls.tecnikos.com.br, admin.tecnikos.com.br ✅
+- Backend: tenant PrismaClient criado para tenant_sls, Sefaz cron multi-tenant OK ✅
+- Login page funcional nos dois hosts (CAPTCHA invisivel) ✅
+- Dados isolados: public tem 0 dados operacionais, tenant_sls tem todos ✅
+- Sem erros nos logs ✅
+
+### Deploy: v1.02.59 — Admin Host + Data Migration

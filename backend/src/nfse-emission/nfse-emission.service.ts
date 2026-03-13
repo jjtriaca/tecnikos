@@ -419,6 +419,14 @@ export class NfseEmissionService {
 
   // ========== WEBHOOK CALLBACK ==========
 
+  /** Check if an emission with this focusNfeRef exists in the current schema */
+  async findEmissionByRef(ref: string): Promise<{ id: string } | null> {
+    return this.prisma.nfseEmission.findUnique({
+      where: { focusNfeRef: ref },
+      select: { id: true },
+    });
+  }
+
   async handleWebhook(ref: string, payload: any) {
     const emission = await this.prisma.nfseEmission.findUnique({
       where: { focusNfeRef: ref },

@@ -2,6 +2,7 @@ import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantStatus } from '@prisma/client';
+import { tenantContext } from './tenant-context';
 
 // Extend Express Request to carry tenant info
 declare global {
@@ -86,7 +87,12 @@ export class TenantMiddleware implements NestMiddleware {
       req.tenantSchema = tenant.schemaName;
       req.tenantStatus = tenant.status;
 
-      next();
+      // Wrap the rest of the request in tenant context so that
+      // PrismaService automatically routes queries to the tenant schema
+      tenantContext.run(
+        { tenantId: tenant.id, tenantSchema: tenant.schemaName },
+        () => next(),
+      );
     } catch (err) {
       this.logger.error(`TenantMiddleware error for "${slug}": ${(err as Error).message}`);
       // On error, allow request to proceed without tenant context

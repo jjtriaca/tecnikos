@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { useAuth, UserRole } from "@/contexts/AuthContext";
+import { useAuth, UserRole, isAdminHost } from "@/contexts/AuthContext";
 import { useFiscalModule } from "@/contexts/FiscalModuleContext";
 import { api } from "@/lib/api";
 import UsageBar from "./UsageBar";
@@ -211,7 +211,8 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
     });
   };
 
-  const isSaasAdmin = pathname.startsWith("/ctrl-zr8k2x");
+  const isAdmin = isAdminHost(user);
+  const isSaasAdmin = isAdmin || pathname.startsWith("/ctrl-zr8k2x");
 
   // Unread signup attempts badge
   const [unreadAttempts, setUnreadAttempts] = useState(0);

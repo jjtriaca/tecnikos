@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth, isVerificationPending } from "@/contexts/AuthContext";
+import { useRouter, usePathname } from "next/navigation";
+import { useAuth, isVerificationPending, isAdminHost } from "@/contexts/AuthContext";
 import { FiscalModuleProvider } from "@/contexts/FiscalModuleContext";
 import { ChatIAProvider } from "@/contexts/ChatIAContext";
 import Sidebar from "./Sidebar";
@@ -14,6 +14,7 @@ import BillingBanner from "./BillingBanner";
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
@@ -21,6 +22,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       router.push("/login");
     }
   }, [loading, user, router]);
+
+  // Admin host: redirect from /dashboard to /ctrl-zr8k2x
+  useEffect(() => {
+    if (!loading && user && isAdminHost(user) && pathname === "/dashboard") {
+      router.replace("/ctrl-zr8k2x");
+    }
+  }, [loading, user, pathname, router]);
 
   // Loading state
   if (loading) {

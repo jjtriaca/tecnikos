@@ -11,6 +11,8 @@ import { FiscalGuard } from '../auth/guards/fiscal.guard';
 import { NfseEmissionService } from './nfse-emission.service';
 import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto } from './dto/nfse-emission.dto';
 import type { Response } from 'express';
+import { TenantResolverService } from '../tenant/tenant-resolver.service';
+import { runInTenantContext } from '../tenant/tenant-context';
 
 @ApiTags('NFS-e Emission')
 @Controller('nfse-emission')
@@ -166,15 +168,53 @@ export class NfseEmissionController {
 export class NfseWebhookController {
   private readonly logger = new Logger(NfseWebhookController.name);
 
-  constructor(private readonly nfseService: NfseEmissionService) {}
+  constructor(
+    private readonly nfseService: NfseEmissionService,
+    private readonly tenantResolver: TenantResolverService,
+  ) {}
 
+  /**
+   * POST /webhooks/focusnfe — Receive NFS-e status updates from Focus NFe.
+   *
+   * The ref format is `tk-{companyIdPrefix}-{uuid}`. Since the webhook arrives
+   * without a subdomain (no tenant context), we iterate all active tenants
+   * to find the one owning this ref.
+   */
   @Post()
   @HttpCode(200)
   async handleWebhook(@Body() body: any) {
     this.logger.log(`Webhook received: ref=${body.ref} status=${body.status}`);
-    if (body.ref) {
-      await this.nfseService.handleWebhook(body.ref, body);
+    if (!body.ref) return { ok: true };
+
+    // Try each active tenant to find the NfseEmission with this ref
+    const tenants = await this.tenantResolver.getActiveTenants();
+    let handled = false;
+
+    for (const tenant of tenants) {
+      try {
+        await runInTenantContext(
+          { tenantId: tenant.id, tenantSchema: tenant.schemaName },
+          async () => {
+            // Check if this tenant has the emission
+            const emission = await this.nfseService.findEmissionByRef(body.ref);
+            if (emission) {
+              await this.nfseService.handleWebhook(body.ref, body);
+              handled = true;
+            }
+          },
+        );
+        if (handled) break;
+      } catch (err) {
+        this.logger.error(
+          `Error checking tenant "${tenant.slug}" for ref=${body.ref}: ${(err as Error).message}`,
+        );
+      }
     }
+
+    if (!handled) {
+      this.logger.warn(`No tenant found for webhook ref=${body.ref}`);
+    }
+
     return { ok: true };
   }
 }

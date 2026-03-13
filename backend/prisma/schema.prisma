@@ -1828,6 +1828,9 @@ model Tenant {
   // Asaas (gateway pagamento)
   asaasCustomerId   String?   // ID do cliente no Asaas
 
+  // Link direto ao Company do tenant (para webhooks resolverem o tenant)
+  companyId         String?   @unique  // ID do Company dentro do tenant schema
+
   // Controle
   isMaster          Boolean   @default(false)  // true = SLS Obras (tenant do dono)
   maxUsers          Int       @default(5)       // Limite de usuários (do plano)

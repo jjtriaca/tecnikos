@@ -24,8 +24,15 @@ export interface AuthUser {
   roles: UserRole[];
   companyId: string;
   companyName?: string;
+  tenantSlug?: string | null;       // null = admin host, "sls" = tenant host
   tenantStatus?: TenantStatus | null;
   verificationStatus?: VerificationStatus | null;
+}
+
+/** Check if user is on the admin host (no tenant context) */
+export function isAdminHost(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  return !user.tenantSlug;
 }
 
 /** Check if user has ANY of the given roles */
@@ -66,6 +73,7 @@ type MeResponse = {
   roles: UserRole[];
   companyId: string;
   company?: { id: string; name: string };
+  tenantSlug?: string | null;
   tenantStatus?: TenantStatus | null;
   verificationStatus?: VerificationStatus | null;
 };
@@ -89,6 +97,7 @@ function mapUser(d: MeResponse): AuthUser {
     roles: d.roles,
     companyId: d.companyId,
     companyName: d.company?.name,
+    tenantSlug: d.tenantSlug || null,
     tenantStatus: d.tenantStatus || null,
     verificationStatus: d.verificationStatus || null,
   };

@@ -151,6 +151,7 @@ export class AuthController {
 
     return {
       ...data,
+      tenantSlug: (req as any).tenantSlug || null,
       tenantStatus: (req as any).tenantStatus || null,
       verificationStatus, // PENDING | APPROVED | REJECTED | null
     };

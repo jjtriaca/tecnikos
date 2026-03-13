@@ -7,8 +7,10 @@ import { SefazDfeController } from './sefaz-dfe.controller';
 import { DanfeService } from './danfe.service';
 import { EncryptionService } from '../common/encryption.service';
 import { FocusNfeProvider } from '../nfse-emission/focus-nfe.provider';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
+  imports: [TenantModule],
   controllers: [NfeController, SefazDfeController],
   providers: [NfeService, NfeParserService, SefazDfeService, DanfeService, EncryptionService, FocusNfeProvider],
   exports: [NfeService, SefazDfeService, DanfeService],
