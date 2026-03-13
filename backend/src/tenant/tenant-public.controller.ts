@@ -421,8 +421,8 @@ export class TenantPublicController {
   }
 
   /**
-   * Create a subscription (payment) for a tenant.
-   * Called after signup, when user provides payment info.
+   * Create a subscription checkout for a tenant.
+   * Opens Asaas hosted checkout page with all payment methods.
    */
   @Public()
   @Post('subscribe')
@@ -430,28 +430,12 @@ export class TenantPublicController {
     @Body()
     body: {
       tenantId: string;
-      billingType: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | 'UNDEFINED';
       billingCycle: 'monthly' | 'yearly';
       promoCode?: string;
-      creditCard?: {
-        holderName: string;
-        number: string;
-        expiryMonth: string;
-        expiryYear: string;
-        ccv: string;
-      };
-      creditCardHolderInfo?: {
-        name: string;
-        email: string;
-        cpfCnpj: string;
-        postalCode: string;
-        addressNumber: string;
-        phone?: string;
-      };
     },
   ) {
-    if (!body.tenantId || !body.billingType) {
-      throw new BadRequestException('tenantId e billingType são obrigatórios');
+    if (!body.tenantId) {
+      throw new BadRequestException('tenantId é obrigatório');
     }
 
     // Validate tenant exists and is in a valid state for subscription
@@ -465,37 +449,16 @@ export class TenantPublicController {
       return { success: true, message: 'Empresa já está ativa com assinatura', alreadyActive: true };
     }
 
-    const result = await this.asaasService.createSubscription({
+    const result = await this.asaasService.createSignupCheckout({
       tenantId: body.tenantId,
-      billingType: body.billingType,
       billingCycle: body.billingCycle || 'monthly',
-      creditCard: body.creditCard,
-      creditCardHolderInfo: body.creditCardHolderInfo,
       promoCode: body.promoCode,
     });
 
-    // Get first payment details (PIX QR code, boleto URL, etc.)
-    let paymentInfo: any = null;
-    try {
-      paymentInfo = await this.asaasService.getFirstPaymentInfo(
-        result.asaasSubscription.id,
-        body.billingType,
-      );
-    } catch (err) {
-      // Non-fatal — payment info is optional, user can still pay via Asaas
-    }
-
     return {
       success: true,
-      subscriptionId: result.subscription.id,
-      asaasSubscriptionId: result.asaasSubscription.id,
-      billingType: body.billingType,
-      paymentInfo,
-      message: body.billingType === 'CREDIT_CARD'
-        ? 'Pagamento processado! Sua empresa será ativada em instantes.'
-        : body.billingType === 'PIX'
-          ? 'QR Code PIX gerado! Pague para ativar sua empresa.'
-          : 'Boleto gerado! Sua empresa será ativada após o pagamento.',
+      checkoutUrl: result.checkoutUrl,
+      message: 'Checkout criado! Finalize o pagamento na página do Asaas.',
     };
   }
 
@@ -506,11 +469,11 @@ export class TenantPublicController {
     return this.asaasService.getPaymentStatus(tenantId);
   }
 
-  /** Purchase an add-on package */
+  /** Purchase an add-on package via Asaas Checkout */
   @Public()
   @Post('purchase-addon')
   async purchaseAddOn(
-    @Body() body: { tenantId: string; addOnId: string; billingType?: 'PIX' | 'BOLETO' | 'CREDIT_CARD' },
+    @Body() body: { tenantId: string; addOnId: string },
   ) {
     if (!body.tenantId || !body.addOnId) {
       throw new BadRequestException('tenantId e addOnId são obrigatórios');
@@ -521,19 +484,19 @@ export class TenantPublicController {
       throw new BadRequestException('Empresa não encontrada ou inativa');
     }
 
-    const result = await this.asaasService.purchaseAddOn(
-      body.tenantId,
-      body.addOnId,
-      body.billingType || 'PIX',
-    );
+    const result = await this.asaasService.createAddOnCheckout(body.tenantId, body.addOnId);
+
+    if (!result.checkoutUrl) {
+      return {
+        success: true,
+        message: 'OS extras creditadas com sucesso!',
+      };
+    }
 
     return {
       success: true,
-      purchaseId: result.purchase.id,
-      asaasPaymentId: result.asaasPayment?.id,
-      message: result.asaasPayment
-        ? 'Pagamento criado! OS extras serão creditadas após confirmação.'
-        : 'OS extras creditadas com sucesso!',
+      checkoutUrl: result.checkoutUrl,
+      message: 'Checkout criado! Finalize o pagamento para receber as OS extras.',
     };
   }
 

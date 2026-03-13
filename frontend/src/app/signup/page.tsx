@@ -104,12 +104,8 @@ function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  // Payment form
-  const [billingType, setBillingType] = useState<"PIX" | "BOLETO" | "CREDIT_CARD">("PIX");
-  const [cardForm, setCardForm] = useState({
-    holderName: "", number: "", expiryMonth: "", expiryYear: "", ccv: "",
-    cpfCnpj: "", postalCode: "", addressNumber: "",
-  });
+  // Checkout URL (Asaas hosted checkout)
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   // CNPJ lookup
   const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -137,19 +133,8 @@ function SignupPage() {
   const [result, setResult] = useState<{ success: boolean; message: string; slug?: string; skipPayment?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Payment pending state (PIX QR code, boleto, polling)
+  // Payment pending state (waiting for checkout confirmation)
   const [paymentPending, setPaymentPending] = useState(false);
-  const [paymentInfo, setPaymentInfo] = useState<{
-    paymentId?: string;
-    pixQrCode?: string;
-    pixCopyPaste?: string;
-    pixExpirationDate?: string;
-    bankSlipUrl?: string;
-    invoiceUrl?: string;
-    boletoIdentificationField?: string;
-  } | null>(null);
-  const [pixCopied, setPixCopied] = useState(false);
-  const [boletoCopied, setBoletoCopied] = useState(false);
 
   // Signup attempt tracking
   const [attemptId, setAttemptId] = useState<string | null>(null);
@@ -518,7 +503,6 @@ function SignupPage() {
     } else {
       track("signup_step_4");
       saveAttempt({ lastStep: 4 });
-      setCardForm((c) => ({ ...c, holderName: form.responsibleName, cpfCnpj: form.cnpj }));
       setStep(4);
     }
   }
@@ -530,29 +514,11 @@ function SignupPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const payload: any = {
+      const payload = {
         tenantId,
-        billingType,
         billingCycle,
         promoCode: promoValid?.valid ? promoCode.trim() : undefined,
       };
-
-      if (billingType === "CREDIT_CARD") {
-        payload.creditCard = {
-          holderName: cardForm.holderName,
-          number: cardForm.number.replace(/\s/g, ""),
-          expiryMonth: cardForm.expiryMonth,
-          expiryYear: cardForm.expiryYear,
-          ccv: cardForm.ccv,
-        };
-        payload.creditCardHolderInfo = {
-          name: cardForm.holderName || form.responsibleName,
-          email: form.responsibleEmail,
-          cpfCnpj: (cardForm.cpfCnpj || form.cnpj || "").replace(/[^\d]/g, ""),
-          postalCode: (cardForm.postalCode || "").replace(/[^\d]/g, ""),
-          addressNumber: cardForm.addressNumber || "0",
-        };
-      }
 
       const r = await fetch("/api/public/saas/subscribe", {
         method: "POST",
@@ -562,20 +528,15 @@ function SignupPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.message || "Erro ao processar pagamento");
 
-      track("signup_payment_submitted", { billingType });
+      track("signup_payment_submitted", { method: "checkout" });
       saveAttempt({ lastStep: 4, paymentSubmitted: true });
 
-      // Credit card: Asaas processes immediately → go to step 5
-      if (billingType === "CREDIT_CARD") {
-        track("signup_complete", { billingType });
-        saveAttempt({ lastStep: 5, completedAt: new Date().toISOString() });
-        setResult({ success: true, message: "Pagamento confirmado!", slug: form.slug, skipPayment: false });
-        setStep(totalSteps);
-        return;
+      // Open Asaas Checkout in new tab
+      if (data.checkoutUrl) {
+        setCheckoutUrl(data.checkoutUrl);
+        window.open(data.checkoutUrl, "_blank");
       }
 
-      // PIX / Boleto: Show payment details and wait for confirmation
-      setPaymentInfo(data.paymentInfo || null);
       setPaymentPending(true);
     } catch (err: any) {
       const msg = err.message || "Erro ao processar pagamento";
@@ -586,7 +547,7 @@ function SignupPage() {
     }
   }
 
-  // Poll for payment confirmation (PIX/Boleto)
+  // Poll for payment confirmation (checkout)
   useEffect(() => {
     if (!paymentPending || !tenantId) return;
     let cancelled = false;
@@ -596,7 +557,7 @@ function SignupPage() {
         const data = await r.json();
         if (!cancelled && data.isActive) {
           setPaymentPending(false);
-          track("signup_complete", { billingType });
+          track("signup_complete", { method: "checkout" });
           saveAttempt({ lastStep: 5, completedAt: new Date().toISOString() });
           setResult({ success: true, message: "Pagamento confirmado!", slug: form.slug, skipPayment: false });
           setStep(totalSteps);
@@ -1146,128 +1107,62 @@ function SignupPage() {
           </div>
         )}
 
-        {/* Step 4: Payment */}
+        {/* Step 4: Payment (Asaas Checkout) */}
         {step === 4 && (
           <div>
-            {paymentPending && paymentInfo ? (
+            {paymentPending ? (
               <div className="space-y-5">
-                {/* PIX pending */}
-                {billingType === "PIX" && (
-                  <>
-                    <h1 className="text-2xl font-bold text-slate-900 text-center mb-1">Pague com PIX</h1>
-                    <p className="text-sm text-slate-500 text-center mb-4">Escaneie o QR Code ou copie o codigo para pagar</p>
-
-                    {paymentInfo.pixQrCode && (
-                      <div className="flex justify-center mb-2">
-                        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                          <img
-                            src={`data:image/png;base64,${paymentInfo.pixQrCode}`}
-                            alt="QR Code PIX"
-                            className="w-52 h-52 mx-auto"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {paymentInfo.pixCopyPaste && (
-                      <div className="rounded-xl border border-slate-200 bg-white p-4">
-                        <label className="block text-xs font-medium text-slate-500 mb-2">PIX Copia e Cola</label>
-                        <div className="flex gap-2">
-                          <input
-                            readOnly
-                            value={paymentInfo.pixCopyPaste}
-                            className="h-10 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 outline-none font-mono truncate"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(paymentInfo!.pixCopyPaste!);
-                              setPixCopied(true);
-                              setTimeout(() => setPixCopied(false), 3000);
-                            }}
-                            className={`px-4 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                              pixCopied
-                                ? "bg-green-100 text-green-700 border border-green-300"
-                                : "bg-blue-600 text-white hover:bg-blue-700"
-                            }`}
-                          >
-                            {pixCopied ? "Copiado!" : "Copiar"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {paymentInfo.pixExpirationDate && (
-                      <p className="text-xs text-slate-400 text-center">
-                        Valido ate: {new Date(paymentInfo.pixExpirationDate).toLocaleString("pt-BR")}
-                      </p>
-                    )}
-                  </>
-                )}
-
-                {/* Boleto pending */}
-                {billingType === "BOLETO" && (
-                  <>
-                    <h1 className="text-2xl font-bold text-slate-900 text-center mb-1">Pague o boleto</h1>
-                    <p className="text-sm text-slate-500 text-center mb-4">Copie a linha digitavel ou acesse o boleto para pagar</p>
-
-                    {paymentInfo.boletoIdentificationField && (
-                      <div className="rounded-xl border border-slate-200 bg-white p-4">
-                        <label className="block text-xs font-medium text-slate-500 mb-2">Linha digitavel</label>
-                        <div className="flex gap-2">
-                          <input
-                            readOnly
-                            value={paymentInfo.boletoIdentificationField}
-                            className="h-10 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 outline-none font-mono truncate"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(paymentInfo!.boletoIdentificationField!);
-                              setBoletoCopied(true);
-                              setTimeout(() => setBoletoCopied(false), 3000);
-                            }}
-                            className={`px-4 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                              boletoCopied
-                                ? "bg-green-100 text-green-700 border border-green-300"
-                                : "bg-blue-600 text-white hover:bg-blue-700"
-                            }`}
-                          >
-                            {boletoCopied ? "Copiado!" : "Copiar"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {(paymentInfo.bankSlipUrl || paymentInfo.invoiceUrl) && (
-                      <div className="text-center">
-                        <a
-                          href={paymentInfo.bankSlipUrl || paymentInfo.invoiceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-100 text-amber-800 text-sm font-medium hover:bg-amber-200 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                          </svg>
-                          Ver boleto completo
-                        </a>
-                      </div>
-                    )}
-                  </>
-                )}
+                <h1 className="text-2xl font-bold text-slate-900 text-center mb-1">Aguardando pagamento</h1>
+                <p className="text-sm text-slate-500 text-center mb-4">
+                  Finalize o pagamento na pagina do Asaas que foi aberta
+                </p>
 
                 {/* Waiting animation */}
-                <div className="rounded-xl bg-blue-50 border border-blue-200 p-5">
-                  <div className="flex items-center justify-center gap-3">
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                <div className="rounded-xl bg-blue-50 border border-blue-200 p-6">
+                  <div className="flex items-center justify-center gap-3 mb-3">
+                    <div className="h-6 w-6 animate-spin rounded-full border-3 border-blue-600 border-t-transparent" />
                     <p className="text-sm font-medium text-blue-800">
-                      {billingType === "PIX" ? "Aguardando confirmacao do pagamento..." : "Aguardando compensacao do boleto..."}
+                      Aguardando confirmacao do pagamento...
                     </p>
                   </div>
-                  <p className="text-xs text-blue-600 text-center mt-2">
+                  <p className="text-xs text-blue-600 text-center">
                     Esta pagina sera atualizada automaticamente quando o pagamento for confirmado.
                   </p>
+                </div>
+
+                {/* Reopen checkout link */}
+                {checkoutUrl && (
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => window.open(checkoutUrl, "_blank")}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-100 text-blue-800 text-sm font-medium hover:bg-blue-200 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                      </svg>
+                      Reabrir pagina de pagamento
+                    </button>
+                  </div>
+                )}
+
+                {/* Methods info */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-medium text-slate-600 mb-3">Metodos aceitos:</p>
+                  <div className="flex items-center justify-center gap-6 text-slate-500">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M15.45 16.52l-3.01-3.01c-.11-.11-.29-.11-.4 0l-3.02 3.01c-.67.67-1.56 1.04-2.5 1.04h-.64l3.8 3.8c1.1 1.1 2.9 1.1 4 0l3.82-3.82h-.55c-.95 0-1.83-.37-2.5-1.02zm-8.48-4.56l3.02 3.01c.11.11.29.11.4 0l3.01-3.01c.67-.67 1.56-1.04 2.5-1.04h.55L12.63 7.1c-1.1-1.1-2.9-1.1-4 0l-3.8 3.8h.64c.95.01 1.83.38 2.5 1.06z"/></svg>
+                      PIX
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5Z" /></svg>
+                      Boleto
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+                      Cartao
+                    </div>
+                  </div>
                 </div>
 
                 {/* Price summary */}
@@ -1282,82 +1177,33 @@ function SignupPage() {
               </div>
             ) : (
             <>
-            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Forma de pagamento</h1>
-            <p className="text-sm text-slate-500 text-center mb-8">Escolha como deseja pagar sua assinatura</p>
+            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Pagamento</h1>
+            <p className="text-sm text-slate-500 text-center mb-8">Finalize sua assinatura com pagamento seguro via Asaas</p>
 
             <form onSubmit={handlePaymentSubmit} className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                {([
-                  { value: "PIX" as const, label: "PIX", desc: "Aprovacao instantanea" },
-                  { value: "BOLETO" as const, label: "Boleto", desc: "Ate 3 dias uteis" },
-                  { value: "CREDIT_CARD" as const, label: "Cartao", desc: "Aprovacao imediata" },
-                ] as const).map((method) => (
-                  <button key={method.value} type="button" onClick={() => setBillingType(method.value)}
-                    className={`rounded-xl border-2 p-4 text-center transition-all ${
-                      billingType === method.value ? "border-blue-600 bg-blue-50/50 shadow-md" : "border-slate-200 bg-white hover:border-blue-300"
-                    }`}>
-                    <div className="text-2xl mb-1">
-                      {method.value === "PIX" ? (
-                        <svg className="w-7 h-7 mx-auto text-slate-700" viewBox="0 0 24 24" fill="currentColor"><path d="M15.45 16.52l-3.01-3.01c-.11-.11-.29-.11-.4 0l-3.02 3.01c-.67.67-1.56 1.04-2.5 1.04h-.64l3.8 3.8c1.1 1.1 2.9 1.1 4 0l3.82-3.82h-.55c-.95 0-1.83-.37-2.5-1.02zm-8.48-4.56l3.02 3.01c.11.11.29.11.4 0l3.01-3.01c.67-.67 1.56-1.04 2.5-1.04h.55L12.63 7.1c-1.1-1.1-2.9-1.1-4 0l-3.8 3.8h.64c.95.01 1.83.38 2.5 1.06zM20.2 7.1l-1.93-1.93c-.03.01-.06.03-.08.05l-2.02 2.02c-.11.11-.11.29 0 .4l3.54 3.54V9.62c0-.95-.37-1.83-1.04-2.5l-.47-.02zM3.8 16.87l1.93 1.93c.03-.01.06-.03.08-.05l2.02-2.02c.11-.11.11-.29 0-.4L4.29 12.8v1.57c0 .95.37 1.83 1.04 2.5h-1.53z"/></svg>
-                      ) : method.value === "BOLETO" ? (
-                        <svg className="w-7 h-7 mx-auto text-slate-700" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 14.625v5.625M16.5 14.625v5.625M19.5 14.625v5.625" /></svg>
-                      ) : (
-                        <svg className="w-7 h-7 mx-auto text-slate-700" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
-                      )}
-                    </div>
-                    <p className="text-sm font-semibold text-slate-900">{method.label}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{method.desc}</p>
-                  </button>
-                ))}
+              {/* Payment methods icons */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <p className="text-xs font-medium text-slate-600 mb-4 text-center">Voce podera escolher o metodo de pagamento na proxima tela:</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-3 rounded-xl bg-slate-50">
+                    <svg className="w-8 h-8 mx-auto text-slate-700 mb-1" viewBox="0 0 24 24" fill="currentColor"><path d="M15.45 16.52l-3.01-3.01c-.11-.11-.29-.11-.4 0l-3.02 3.01c-.67.67-1.56 1.04-2.5 1.04h-.64l3.8 3.8c1.1 1.1 2.9 1.1 4 0l3.82-3.82h-.55c-.95 0-1.83-.37-2.5-1.02zm-8.48-4.56l3.02 3.01c.11.11.29.11.4 0l3.01-3.01c.67-.67 1.56-1.04 2.5-1.04h.55L12.63 7.1c-1.1-1.1-2.9-1.1-4 0l-3.8 3.8h.64c.95.01 1.83.38 2.5 1.06z"/></svg>
+                    <p className="text-sm font-semibold text-slate-900">PIX</p>
+                    <p className="text-[10px] text-slate-400">Instantaneo</p>
+                  </div>
+                  <div className="text-center p-3 rounded-xl bg-slate-50">
+                    <svg className="w-8 h-8 mx-auto text-slate-700 mb-1" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 14.625v5.625M16.5 14.625v5.625M19.5 14.625v5.625" /></svg>
+                    <p className="text-sm font-semibold text-slate-900">Boleto</p>
+                    <p className="text-[10px] text-slate-400">Ate 3 dias</p>
+                  </div>
+                  <div className="text-center p-3 rounded-xl bg-slate-50">
+                    <svg className="w-8 h-8 mx-auto text-slate-700 mb-1" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+                    <p className="text-sm font-semibold text-slate-900">Cartao</p>
+                    <p className="text-[10px] text-slate-400">Imediato</p>
+                  </div>
+                </div>
               </div>
 
-              {billingType === "CREDIT_CARD" && (
-                <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Nome no cartao *</label>
-                    <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                      value={cardForm.holderName} onChange={(e) => setCardForm({ ...cardForm, holderName: e.target.value })} placeholder="NOME COMO NO CARTAO" required />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Numero do cartao *</label>
-                    <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 tracking-wider"
-                      value={cardForm.number} onChange={(e) => setCardForm({ ...cardForm, number: e.target.value.replace(/[^\d\s]/g, "") })} placeholder="0000 0000 0000 0000" maxLength={19} required />
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div><label className="mb-1 block text-xs font-medium text-slate-600">Mes *</label>
-                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                        value={cardForm.expiryMonth} onChange={(e) => setCardForm({ ...cardForm, expiryMonth: e.target.value })} placeholder="MM" maxLength={2} required /></div>
-                    <div><label className="mb-1 block text-xs font-medium text-slate-600">Ano *</label>
-                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                        value={cardForm.expiryYear} onChange={(e) => setCardForm({ ...cardForm, expiryYear: e.target.value })} placeholder="AAAA" maxLength={4} required /></div>
-                    <div><label className="mb-1 block text-xs font-medium text-slate-600">CVV *</label>
-                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                        value={cardForm.ccv} onChange={(e) => setCardForm({ ...cardForm, ccv: e.target.value })} placeholder="123" maxLength={4} required /></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="mb-1 block text-xs font-medium text-slate-600">CPF/CNPJ do titular *</label>
-                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                        value={cardForm.cpfCnpj} onChange={(e) => setCardForm({ ...cardForm, cpfCnpj: e.target.value })} placeholder="000.000.000-00" required /></div>
-                    <div><label className="mb-1 block text-xs font-medium text-slate-600">CEP *</label>
-                      <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                        value={cardForm.postalCode} onChange={(e) => setCardForm({ ...cardForm, postalCode: e.target.value })} placeholder="00000-000" required /></div>
-                  </div>
-                </div>
-              )}
-
-              {billingType === "PIX" && (
-                <div className="rounded-xl bg-green-50 border border-green-200 p-4">
-                  <p className="text-sm text-green-800 font-medium">Pagamento via PIX</p>
-                  <p className="text-xs text-green-600 mt-1">Ao confirmar, um QR Code PIX sera gerado. Sua empresa sera ativada assim que o pagamento for confirmado.</p>
-                </div>
-              )}
-              {billingType === "BOLETO" && (
-                <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
-                  <p className="text-sm text-amber-800 font-medium">Pagamento via Boleto</p>
-                  <p className="text-xs text-amber-600 mt-1">Ao confirmar, um boleto sera gerado. Sua empresa sera ativada apos a compensacao (ate 3 dias uteis).</p>
-                </div>
-              )}
-
+              {/* Price summary */}
               {selectedPlan && (
                 <div className="rounded-xl bg-slate-900 text-white p-5">
                   <div className="flex items-center justify-between text-sm">
@@ -1377,6 +1223,12 @@ function SignupPage() {
                 </div>
               )}
 
+              <div className="rounded-xl bg-blue-50 border border-blue-200 p-4">
+                <p className="text-xs text-blue-700">
+                  Ao clicar em &quot;Pagar&quot;, uma pagina segura do Asaas sera aberta para voce escolher seu metodo de pagamento e finalizar a compra.
+                </p>
+              </div>
+
               {renderError()}
 
               <div className="flex gap-3 pt-2">
@@ -1384,7 +1236,7 @@ function SignupPage() {
                   className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">Voltar</button>
                 <button type="submit" disabled={submitting}
                   className="flex-[2] py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  {submitting ? "Processando..." : billingType === "CREDIT_CARD" ? "Pagar agora" : billingType === "PIX" ? "Gerar PIX" : "Gerar boleto"}
+                  {submitting ? "Processando..." : "Pagar"}
                 </button>
               </div>
             </form>

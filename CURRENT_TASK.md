@@ -1,53 +1,45 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 111 — Cobranca Recorrente + Bloqueio por Inadimplencia
+## Status: SESSAO 113 — Asaas Checkout + Add-on + Upgrade
 
-## Ultima sessao: 111 (13/03/2026)
-- Sessao 97: SMTP + Chat IA backend + frontend
-- Sessao 98: Chat IA Deploy + Streaming + Asaas + Wizards (v1.02.18-24)
-- Sessao 99-100: Modulo de Orcamentos COMPLETO
-- Sessao 101: Senha Forte no Signup + Convites + Reset Password
-- Sessao 102-103: Verificacao Manual de Documentos COMPLETO
-- Sessao 104: Fixes Signup + Rastreamento + UTM + Asaas (v1.02.25-30)
-- Sessao 105: Emissao NFS-e + Analytics Tooltips (build OK)
-- Sessao 106: Deploy v1.02.31-32 — NFS-e + Gatilho no Fluxo
-- Sessao 107: Melhorias Gatilho — Collapsible + Renumeracao + Setas
+## Ultima sessao: 113 (13/03/2026)
 - Sessao 108: Promo/Slug so trava apos pagamento + Email lowercase + Fix enums tenant schema
 - Sessao 109: Upload Cartao CNPJ no step 3 do signup
 - Sessao 110: Fix Galeria Selfie + Asaas API Key + Fix FK + Fix Signup Flow + Fix Camera
 - Sessao 111: Cobranca Recorrente + Bloqueio por Inadimplencia
+- Sessao 112: Fix fluxo pagamento (PIX QR code, boleto, step 5 success messages)
+- Sessao 113: Asaas Checkout + Add-on + Upgrade + Disable Notifications
 
-## O que foi feito na sessao 111:
-- [x] Schema: overdueAt + originalValueCents na Subscription + migration
-- [x] Pioneer promo fix: subscription criada no valor promo (R$15), nao usa discount do Asaas
-- [x] Decremento automatico de promotionMonthsLeft a cada PAYMENT_CONFIRMED
-- [x] Ao acabar promo: asaas.updateSubscription() atualiza para preco cheio
-- [x] PAYMENT_OVERDUE: seta overdueAt (nao sobrescreve se ja setado)
-- [x] PAYMENT_CONFIRMED: limpa overdueAt, reativa tenant se bloqueado
-- [x] Cron @Cron('0 7 * * *'): bloqueia tenants PAST_DUE ha 7+ dias
-- [x] GET /auth/billing-status: retorna status completo de cobranca
-- [x] BillingBanner.tsx: banner global no AuthLayout com 4 estados (blocked, overdue, due_today, ok)
-- [x] Build OK (backend tsc + frontend next build)
-
-## O que foi feito na sessao 112 (continuacao):
-- [x] Fix completo do fluxo de pagamento no signup
-- [x] Backend: PIX QR code + boleto identification field via Asaas API
-- [x] Backend: getFirstPaymentInfo() com retry, getPaymentStatus() para polling
-- [x] Backend: Welcome email movido para PAYMENT_CONFIRMED, URL usa subdominio tenant
-- [x] Backend: subscribe retorna paymentInfo, novo endpoint payment-status/:tenantId
-- [x] Frontend Step 4: QR code PIX inline (base64 image), copia e cola, linha digitavel boleto
-- [x] Frontend Step 4: polling a cada 5s para confirmacao de pagamento
-- [x] Frontend Step 5: icone verde + "Pagamento confirmado!" (pago) ou azul + "Cadastro realizado!" (voucher)
+## O que foi feito na sessao 113:
+- [x] Backend: AsaasProvider — `customer` field in createCheckout, User-Agent header
+- [x] Backend: AsaasProvider — notificationDisabled: true on createCustomer
+- [x] Backend: AsaasProvider — createCheckout() + listPayments() methods
+- [x] Backend: AsaasService — createSignupCheckout() (Asaas Checkout for signup)
+- [x] Backend: AsaasService — createAddOnCheckout() (Asaas Checkout for add-on purchase)
+- [x] Backend: AsaasService — createUpgradeCheckout() (Asaas Checkout for plan upgrade)
+- [x] Backend: AsaasService — getBillingStatus() now includes overduePaymentUrl
+- [x] Backend: AsaasService — handleSubscriptionWebhook() handles SUBSCRIPTION_CREATED to link asaasSubscriptionId
+- [x] Backend: AsaasService — confirmAddOnByCustomer() fallback for checkout add-on payments
+- [x] Backend: Controller — POST /subscribe simplified (no billingType/creditCard, returns checkoutUrl)
+- [x] Backend: Controller — POST /purchase-addon updated for checkout flow
+- [x] Backend: Controller — POST /auth/upgrade-plan new endpoint
+- [x] Frontend: Signup Step 4 — replaced PIX/boleto/card forms with Asaas Checkout popup
+- [x] Frontend: Signup Step 4 — "Reabrir pagina de pagamento" button when pending
+- [x] Frontend: BillingBanner — overduePaymentUrl: "Pagar agora"/"Regularizar" opens Asaas invoice
+- [x] Frontend: Settings Billing — "Seu Plano" section with current plan info
+- [x] Frontend: Settings Billing — Upgrade section with available plans
+- [x] Frontend: Settings Billing — Add-on purchase via Asaas Checkout
 - [x] Build OK (backend tsc + frontend next build)
 
 ## Proximos passos:
-1. Deploy v1.02.51 (fix fluxo de pagamento)
-2. Testar end-to-end: signup → pagamento PIX → verificar QR code + polling
-3. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
-4. Audit log review (pendente desde sessao 101)
-5. Testar emissao NF via admin (com Asaas sandbox)
+1. Deploy
+2. Testar end-to-end: signup → checkout Asaas → webhook → ativacao
+3. Testar add-on via /settings/billing → checkout → OS creditadas
+4. Testar upgrade via /settings/billing → checkout → nova subscription
+5. Verificar que Asaas NAO envia email/SMS ao cliente
+6. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
 
-## Versao atual: v1.02.51
+## Versao atual: v1.02.52 (pre-deploy)
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896

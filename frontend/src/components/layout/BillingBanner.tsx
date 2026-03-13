@@ -16,6 +16,7 @@ interface BillingStatus {
   promoMonthsLeft?: number;
   planName?: string;
   valueBrl?: number;
+  overduePaymentUrl?: string;
 }
 
 /**
@@ -63,12 +64,21 @@ export default function BillingBanner() {
             <strong>Conta bloqueada por inadimplencia.</strong>{" "}
             Regularize seu pagamento para restaurar o acesso.
           </span>
-          <a
-            href="/settings/billing"
-            className="ml-1 rounded-md bg-white/20 px-3 py-0.5 text-xs font-bold hover:bg-white/30 transition-colors"
-          >
-            Ver assinatura
-          </a>
+          {billing.overduePaymentUrl ? (
+            <button
+              onClick={() => window.open(billing.overduePaymentUrl, "_blank")}
+              className="ml-1 rounded-md bg-white/20 px-3 py-0.5 text-xs font-bold hover:bg-white/30 transition-colors"
+            >
+              Pagar agora
+            </button>
+          ) : (
+            <a
+              href="/settings/billing"
+              className="ml-1 rounded-md bg-white/20 px-3 py-0.5 text-xs font-bold hover:bg-white/30 transition-colors"
+            >
+              Ver assinatura
+            </a>
+          )}
         </div>
       </div>
     );
@@ -101,12 +111,21 @@ export default function BillingBanner() {
             <strong>Pagamento atrasado ha {billing.daysOverdue} dia{billing.daysOverdue > 1 ? "s" : ""}.</strong>
             {blockText} Evite o bloqueio regularizando seu pagamento.
           </span>
-          <a
-            href="/settings/billing"
-            className="ml-1 rounded-md bg-white/20 px-3 py-0.5 text-xs font-bold hover:bg-white/30 transition-colors"
-          >
-            Regularizar
-          </a>
+          {billing.overduePaymentUrl ? (
+            <button
+              onClick={() => window.open(billing.overduePaymentUrl, "_blank")}
+              className="ml-1 rounded-md bg-white/20 px-3 py-0.5 text-xs font-bold hover:bg-white/30 transition-colors"
+            >
+              Regularizar
+            </button>
+          ) : (
+            <a
+              href="/settings/billing"
+              className="ml-1 rounded-md bg-white/20 px-3 py-0.5 text-xs font-bold hover:bg-white/30 transition-colors"
+            >
+              Regularizar
+            </a>
+          )}
           <button
             onClick={() => setDismissed(true)}
             className="ml-2 opacity-60 hover:opacity-100 transition-opacity"

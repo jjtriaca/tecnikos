@@ -148,6 +148,24 @@ export class AuthController {
     return this.asaasService.getBillingStatus(tenantId);
   }
 
+  @Post('upgrade-plan')
+  @HttpCode(HttpStatus.OK)
+  async upgradePlan(
+    @Req() req: Request,
+    @Body() body: { newPlanId: string },
+  ) {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) throw new BadRequestException('Não autenticado ou sem tenant');
+    if (!body.newPlanId) throw new BadRequestException('newPlanId é obrigatório');
+
+    const result = await this.asaasService.createUpgradeCheckout(tenantId, body.newPlanId);
+    return {
+      success: true,
+      checkoutUrl: result.checkoutUrl,
+      message: 'Checkout de upgrade criado!',
+    };
+  }
+
   /* ── Device / Session management ────────────────────────── */
 
   @Get('sessions')

@@ -37,6 +37,7 @@ export class AsaasProvider {
       method,
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'Tecnikos/1.0',
         access_token: this.apiKey,
       },
     };
@@ -67,7 +68,7 @@ export class AsaasProvider {
   }) {
     return this.request('POST', '/customers', {
       ...data,
-      notificationDisabled: false,
+      notificationDisabled: true,
     });
   }
 
@@ -167,6 +168,62 @@ export class AsaasProvider {
     externalReference?: string;
   }) {
     return this.request('POST', '/payments', data);
+  }
+
+  // ─── CHECKOUT ────────────────────────────────────────
+
+  /** Create an Asaas Checkout session (hosted payment page) */
+  async createCheckout(data: {
+    customer?: string; // Existing Asaas customer ID
+    billingTypes: string[];
+    chargeTypes: string[];
+    minutesToExpire?: number;
+    callback?: {
+      successUrl?: string;
+      cancelUrl?: string;
+      expiredUrl?: string;
+    };
+    items: {
+      name: string;
+      description?: string;
+      quantity: number;
+      value: number; // BRL (not cents)
+    }[];
+    customerData?: {
+      name: string;
+      cpfCnpj: string;
+      email?: string;
+      phone?: string;
+    };
+    subscription?: {
+      cycle: string; // MONTHLY, ANNUAL
+      nextDueDate: string; // YYYY-MM-DD
+    };
+  }): Promise<{ id: string; url: string }> {
+    const result = await this.request<{ id: string }>('POST', '/checkouts', data);
+    const isSandbox = this.baseUrl.includes('sandbox');
+    const checkoutHost = isSandbox ? 'https://sandbox.asaas.com' : 'https://www.asaas.com';
+    return {
+      id: result.id,
+      url: `${checkoutHost}/checkoutSession/show?id=${result.id}`,
+    };
+  }
+
+  /** List payments with optional filters */
+  async listPayments(filters?: {
+    subscription?: string;
+    status?: string;
+    customer?: string;
+    offset?: number;
+    limit?: number;
+  }): Promise<{ data: any[]; totalCount: number }> {
+    const params = new URLSearchParams();
+    if (filters?.subscription) params.append('subscription', filters.subscription);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.customer) params.append('customer', filters.customer);
+    params.append('offset', String(filters?.offset || 0));
+    params.append('limit', String(filters?.limit || 10));
+    return this.request('GET', `/payments?${params.toString()}`);
   }
 
   // ─── INVOICES (NFS-e) ─────────────────────────────────

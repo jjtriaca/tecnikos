@@ -194,6 +194,295 @@ export class AsaasService {
   }
 
   /**
+   * Create an Asaas Checkout session for signup (hosted payment page).
+   * Replaces the old createSubscription flow.
+   */
+  async createSignupCheckout(params: {
+    tenantId: string;
+    billingCycle: 'monthly' | 'yearly';
+    promoCode?: string;
+  }) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: params.tenantId },
+      include: { plan: true },
+    });
+    if (!tenant || !tenant.plan) {
+      throw new BadRequestException('Tenant ou plano não encontrado');
+    }
+
+    if (!this.asaas.isConfigured) {
+      throw new BadRequestException('Asaas não configurado. Defina ASAAS_API_KEY nas variáveis de ambiente.');
+    }
+
+    const customerId = await this.ensureCustomer(params.tenantId);
+    const plan = tenant.plan;
+    const isYearly = params.billingCycle === 'yearly';
+
+    let fullValueCents: number;
+    if (isYearly && plan.priceYearlyCents) {
+      fullValueCents = plan.priceYearlyCents;
+    } else {
+      fullValueCents = plan.priceCents;
+    }
+
+    // Apply promotion
+    let promoId: string | undefined;
+    let promoDuration = 0;
+    let subscriptionValueCents = fullValueCents;
+
+    if (params.promoCode) {
+      const promo = await this.prisma.promotion.findUnique({
+        where: { code: params.promoCode },
+      });
+      if (promo && promo.isActive && !promo.skipPayment) {
+        promoId = promo.id;
+        promoDuration = promo.durationMonths;
+        if (promo.discountPercent) {
+          subscriptionValueCents = Math.round(fullValueCents * (1 - promo.discountPercent / 100));
+        } else if (promo.discountCents) {
+          subscriptionValueCents = Math.max(0, fullValueCents - promo.discountCents);
+        }
+        this.logger.log(
+          `Promo "${promo.code}" applied: R$${(subscriptionValueCents / 100).toFixed(2)} ` +
+          `for ${promoDuration} months (full: R$${(fullValueCents / 100).toFixed(2)})`,
+        );
+      }
+    }
+
+    const value = subscriptionValueCents / 100;
+    const cycle = isYearly ? 'ANNUAL' : 'MONTHLY';
+    const nextDueDate = this.formatDate(new Date());
+
+    // Create local subscription (asaasSubscriptionId linked later via SUBSCRIPTION_CREATED webhook)
+    const now = new Date();
+    const periodEnd = new Date(now);
+    if (isYearly) {
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    } else {
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    }
+
+    await this.prisma.subscription.create({
+      data: {
+        tenantId: params.tenantId,
+        planId: plan.id,
+        status: 'ACTIVE',
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        nextBillingDate: periodEnd,
+        osResetDate: now,
+        promotionId: promoId,
+        promotionMonthsLeft: promoDuration || null,
+        originalValueCents: promoDuration > 0 ? fullValueCents : null,
+      },
+    });
+
+    // Create Asaas Checkout
+    const frontendUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+    const checkout = await this.asaas.createCheckout({
+      customer: customerId,
+      billingTypes: ['PIX', 'BOLETO', 'CREDIT_CARD'],
+      chargeTypes: ['RECURRENT'],
+      items: [{
+        name: `${plan.name} - Tecnikos`,
+        description: `Assinatura ${isYearly ? 'anual' : 'mensal'} do plano ${plan.name}`,
+        quantity: 1,
+        value,
+      }],
+      subscription: {
+        cycle,
+        nextDueDate,
+      },
+      callback: {
+        successUrl: `${frontendUrl}/signup?checkout=success&tenantId=${params.tenantId}`,
+      },
+    });
+
+    // Set tenant to PENDING_PAYMENT
+    await this.prisma.tenant.update({
+      where: { id: params.tenantId },
+      data: { status: 'PENDING_PAYMENT' },
+    });
+
+    this.logger.log(`Signup checkout created for tenant ${tenant.slug}: ${checkout.url}`);
+    return { checkoutUrl: checkout.url };
+  }
+
+  /**
+   * Create an Asaas Checkout session for purchasing an add-on (extra OS).
+   */
+  async createAddOnCheckout(tenantId: string, addOnId: string) {
+    const [addOn, subscription, tenant] = await Promise.all([
+      this.prisma.addOn.findUnique({ where: { id: addOnId } }),
+      this.prisma.subscription.findFirst({
+        where: { tenantId, status: 'ACTIVE' },
+      }),
+      this.prisma.tenant.findUnique({ where: { id: tenantId } }),
+    ]);
+
+    if (!addOn || !addOn.isActive) {
+      throw new BadRequestException('Pacote não encontrado ou inativo');
+    }
+    if (!subscription) {
+      throw new BadRequestException('Nenhuma assinatura ativa');
+    }
+    if (!tenant) {
+      throw new BadRequestException('Tenant não encontrado');
+    }
+
+    // Create local purchase record (PENDING)
+    const purchase = await this.prisma.addOnPurchase.create({
+      data: {
+        subscriptionId: subscription.id,
+        addOnId: addOn.id,
+        osQuantity: addOn.osQuantity,
+        priceCents: addOn.priceCents,
+        status: 'PENDING',
+      },
+    });
+
+    if (!this.asaas.isConfigured || addOn.priceCents <= 0) {
+      // Free or no gateway — credit immediately
+      await this.prisma.addOnPurchase.update({
+        where: { id: purchase.id },
+        data: { status: 'PAID' },
+      });
+      await this.prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { extraOsPurchased: { increment: addOn.osQuantity } },
+      });
+      await this.creditOsToTenantCompany(tenant, addOn.osQuantity);
+      return { checkoutUrl: null, purchase };
+    }
+
+    const customerId = await this.ensureCustomer(tenantId);
+    const frontendUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+
+    const checkout = await this.asaas.createCheckout({
+      customer: customerId,
+      billingTypes: ['PIX', 'BOLETO', 'CREDIT_CARD'],
+      chargeTypes: ['DETACHED'],
+      items: [{
+        name: `Add-on: ${addOn.name}`,
+        description: `+${addOn.osQuantity} ordens de serviço`,
+        quantity: 1,
+        value: addOn.priceCents / 100,
+      }],
+      callback: {
+        successUrl: `${frontendUrl}/settings/billing?addon=success`,
+      },
+    });
+
+    this.logger.log(`Add-on checkout created: ${addOn.name} for tenant ${tenantId}`);
+    return { checkoutUrl: checkout.url, purchase };
+  }
+
+  /**
+   * Create an Asaas Checkout session for upgrading to a new plan.
+   */
+  async createUpgradeCheckout(tenantId: string, newPlanId: string) {
+    const [tenant, newPlan, currentSub] = await Promise.all([
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, include: { plan: true } }),
+      this.prisma.plan.findFirst({ where: { id: newPlanId, isActive: true } }),
+      this.prisma.subscription.findFirst({
+        where: { tenantId, status: { in: ['ACTIVE', 'PAST_DUE'] } },
+        include: { plan: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    if (!tenant) throw new BadRequestException('Tenant não encontrado');
+    if (!newPlan) throw new BadRequestException('Plano não encontrado ou inativo');
+    if (!currentSub) throw new BadRequestException('Nenhuma assinatura ativa');
+    if (newPlan.id === currentSub.planId) {
+      throw new BadRequestException('Você já está neste plano');
+    }
+
+    // Cancel current Asaas subscription
+    if (currentSub.asaasSubscriptionId && this.asaas.isConfigured) {
+      try {
+        await this.asaas.cancelSubscription(currentSub.asaasSubscriptionId);
+      } catch (err) {
+        this.logger.warn(`Failed to cancel old Asaas subscription: ${(err as Error).message}`);
+      }
+    }
+
+    // Mark old subscription as cancelled
+    await this.prisma.subscription.update({
+      where: { id: currentSub.id },
+      data: { status: 'CANCELLED', cancelledAt: new Date() },
+    });
+
+    // Create new local subscription (asaasSubscriptionId linked via webhook)
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const nextDueDate = this.formatDate(now);
+    const value = newPlan.priceCents / 100;
+
+    await this.prisma.subscription.create({
+      data: {
+        tenantId,
+        planId: newPlan.id,
+        status: 'ACTIVE',
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        nextBillingDate: periodEnd,
+        osResetDate: now,
+      },
+    });
+
+    // Update tenant plan
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { planId: newPlan.id },
+    });
+
+    // Update Company limits in tenant schema
+    try {
+      const client = this.tenantConn.getClient(tenant.schemaName);
+      const company = await client.company.findFirst();
+      if (company) {
+        await client.company.update({
+          where: { id: company.id },
+          data: {
+            maxUsers: newPlan.maxUsers,
+            maxOsPerMonth: newPlan.maxOsPerMonth,
+          },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to update Company limits: ${(err as Error).message}`);
+    }
+
+    // Create Asaas Checkout for new plan
+    const customerId = await this.ensureCustomer(tenantId);
+    const frontendUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+
+    const checkout = await this.asaas.createCheckout({
+      customer: customerId,
+      billingTypes: ['PIX', 'BOLETO', 'CREDIT_CARD'],
+      chargeTypes: ['RECURRENT'],
+      items: [{
+        name: `${newPlan.name} - Tecnikos`,
+        description: `Upgrade para plano ${newPlan.name}`,
+        quantity: 1,
+        value,
+      }],
+      subscription: {
+        cycle: 'MONTHLY',
+        nextDueDate,
+      },
+      callback: {
+        successUrl: `${frontendUrl}/settings/billing?upgrade=success`,
+      },
+    });
+
+    this.logger.log(`Upgrade checkout created: ${currentSub.plan?.name} → ${newPlan.name} for tenant ${tenantId}`);
+    return { checkoutUrl: checkout.url };
+  }
+
+  /**
    * Get the first payment info for a subscription (PIX QR code, boleto URL, etc).
    * Called right after creating a subscription to show payment details to the user.
    */
@@ -290,7 +579,12 @@ export class AsaasService {
     // Handle standalone payments (add-on purchases)
     if (!subscriptionId) {
       if ((event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') && payment.id) {
-        await this.confirmAddOnPayment(payment.id);
+        // Try by asaasPaymentId first (direct payment flow)
+        const confirmed = await this.confirmAddOnPayment(payment.id);
+        if (!confirmed && payment.customer) {
+          // Checkout flow: find by customer → tenant → latest PENDING AddOnPurchase
+          await this.confirmAddOnByCustomer(payment.customer);
+        }
       }
       return;
     }
@@ -427,6 +721,28 @@ export class AsaasService {
    * Handle Asaas webhook subscription events.
    */
   async handleSubscriptionWebhook(event: string, sub: any) {
+    // Handle SUBSCRIPTION_CREATED: link asaasSubscriptionId to local subscription
+    if (event === 'SUBSCRIPTION_CREATED' && sub.id && sub.customer) {
+      const tenant = await this.prisma.tenant.findFirst({
+        where: { asaasCustomerId: sub.customer },
+      });
+      if (tenant) {
+        // Find latest local subscription without asaasSubscriptionId
+        const unlinked = await this.prisma.subscription.findFirst({
+          where: { tenantId: tenant.id, asaasSubscriptionId: null },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (unlinked) {
+          await this.prisma.subscription.update({
+            where: { id: unlinked.id },
+            data: { asaasSubscriptionId: sub.id },
+          });
+          this.logger.log(`Linked Asaas subscription ${sub.id} to local ${unlinked.id}`);
+        }
+      }
+      return;
+    }
+
     const subscription = await this.prisma.subscription.findFirst({
       where: { asaasSubscriptionId: sub.id },
       include: { tenant: true },
@@ -552,13 +868,14 @@ export class AsaasService {
 
   /**
    * Confirm add-on payment (called from webhook).
+   * Returns true if a purchase was found and confirmed.
    */
-  async confirmAddOnPayment(asaasPaymentId: string) {
+  async confirmAddOnPayment(asaasPaymentId: string): Promise<boolean> {
     const purchase = await this.prisma.addOnPurchase.findFirst({
       where: { asaasPaymentId, status: 'PENDING' },
       include: { subscription: { include: { tenant: true } } },
     });
-    if (!purchase) return;
+    if (!purchase) return false;
 
     await this.prisma.addOnPurchase.update({
       where: { id: purchase.id },
@@ -573,6 +890,43 @@ export class AsaasService {
     await this.creditOsToTenantCompany(purchase.subscription.tenant, purchase.osQuantity);
 
     this.logger.log(`Add-on payment confirmed: ${purchase.id} (+${purchase.osQuantity} OS)`);
+    return true;
+  }
+
+  /**
+   * Confirm add-on payment by customer ID (checkout flow — no asaasPaymentId stored).
+   */
+  private async confirmAddOnByCustomer(asaasCustomerId: string): Promise<boolean> {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { asaasCustomerId },
+    });
+    if (!tenant) return false;
+
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { tenantId: tenant.id, status: 'ACTIVE' },
+    });
+    if (!subscription) return false;
+
+    // Find oldest PENDING AddOnPurchase (FIFO)
+    const purchase = await this.prisma.addOnPurchase.findFirst({
+      where: { subscriptionId: subscription.id, status: 'PENDING' },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!purchase) return false;
+
+    await this.prisma.addOnPurchase.update({
+      where: { id: purchase.id },
+      data: { status: 'PAID' },
+    });
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { extraOsPurchased: { increment: purchase.osQuantity } },
+    });
+
+    await this.creditOsToTenantCompany(tenant, purchase.osQuantity);
+
+    this.logger.log(`Add-on checkout payment confirmed by customer: ${purchase.id} (+${purchase.osQuantity} OS) for tenant ${tenant.slug}`);
+    return true;
   }
 
   /** Increment maxOsPerMonth in the tenant's Company record */
@@ -902,6 +1256,33 @@ export class AsaasService {
       hoursUntilBlock = Math.max(0, Math.ceil((blockAtMs - now.getTime()) / (1000 * 60 * 60)));
     }
 
+    // Get overdue payment URL when past due
+    let overduePaymentUrl: string | null = null;
+    if (subscription.status === 'PAST_DUE' && subscription.asaasSubscriptionId && this.asaas.isConfigured) {
+      try {
+        const payments = await this.asaas.listPayments({
+          subscription: subscription.asaasSubscriptionId,
+          status: 'OVERDUE',
+          limit: 1,
+        });
+        if (payments.data?.[0]?.invoiceUrl) {
+          overduePaymentUrl = payments.data[0].invoiceUrl;
+        } else if (payments.data?.[0]?.id) {
+          // Fallback: try PENDING status
+          const pending = await this.asaas.listPayments({
+            subscription: subscription.asaasSubscriptionId,
+            status: 'PENDING',
+            limit: 1,
+          });
+          if (pending.data?.[0]?.invoiceUrl) {
+            overduePaymentUrl = pending.data[0].invoiceUrl;
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to get overdue payment URL: ${(err as Error).message}`);
+      }
+    }
+
     return {
       hasSubscription: true,
       status: subscription.status,
@@ -916,6 +1297,7 @@ export class AsaasService {
       valueBrl: subscription.originalValueCents && subscription.promotionMonthsLeft
         ? (subscription.originalValueCents - (subscription.originalValueCents - (subscription.plan?.priceCents || 0))) / 100
         : (subscription.plan?.priceCents || 0) / 100,
+      overduePaymentUrl,
     };
   }
 

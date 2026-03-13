@@ -720,3 +720,59 @@ Builds: Backend tsc OK, Frontend next build OK
 - Mensagem de docs em analise em ambos os casos
 
 Builds: Backend tsc OK, Frontend next build OK
+
+---
+
+## 2026-03-13 — Sessao 113: Asaas Checkout + Add-on + Upgrade + Desativar Notificacoes
+
+### Pedidos do Juliano:
+1. "essa pagina nao poderia ser um Pop up do asaas ja com os metodos deles, sistema deles de finalizar?" — usar Asaas Checkout hosted para TODOS os cenarios de pagamento
+2. "Sim pode fazer, inclusive o caminho do add on e upgrade" — add-on e upgrade tambem via checkout
+3. "Veja a possibilidade de o sistema Asaas nao mande menssagem para o cliente nem email" — desativar notificacoes do Asaas
+
+### Decisoes:
+- Asaas Checkout (POST /v3/checkouts) substitui TODOS os formularios de pagamento custom
+- Um popup Asaas para tudo: signup, add-on, upgrade, regularizacao de inadimplencia
+- billingTypes: ["PIX", "BOLETO", "CREDIT_CARD"] — Asaas mostra todas as opcoes
+- notificationDisabled: true no customer — Asaas nao envia email/SMS ao cliente
+- Banner de inadimplencia abre invoice URL do Asaas direto
+
+### Implementacao:
+
+**Backend (asaas.provider.ts):**
+- `customer` field opcional no createCheckout (evita criar customer duplicado)
+- `notificationDisabled: true` no createCustomer (desativa notificacoes Asaas)
+- Metodo createCheckout() completo com URL do checkout
+- Metodo listPayments() com filtros
+
+**Backend (asaas.service.ts):**
+- `createSignupCheckout(tenantId, billingCycle, promoCode?)` — cria subscription local + checkout RECURRENT
+- `createAddOnCheckout(tenantId, addOnId)` — cria AddOnPurchase + checkout DETACHED
+- `createUpgradeCheckout(tenantId, newPlanId)` — cancela subscription antiga + cria nova + checkout RECURRENT
+- `handleSubscriptionWebhook()` trata SUBSCRIPTION_CREATED para linkar asaasSubscriptionId
+- `confirmAddOnByCustomer()` fallback para pagamentos de add-on via checkout
+- `getBillingStatus()` inclui overduePaymentUrl (busca invoiceUrl do pagamento atrasado)
+
+**Backend (Controllers):**
+- `POST /subscribe` simplificado: body `{tenantId, billingCycle, promoCode?}` → retorna `{checkoutUrl}`
+- `POST /purchase-addon` atualizado para checkout
+- `POST /auth/upgrade-plan` novo endpoint autenticado
+
+**Frontend (signup/page.tsx):**
+- Removidos: estados billingType, cardForm, paymentInfo, pixCopied, boletoCopied
+- Step 4 antes: form PIX/boleto/cartao → agora: resumo do plano + botao "Pagar" → abre checkout Asaas em nova aba
+- Pendente: mostra spinner + "Reabrir pagina de pagamento"
+- Polling mantido: detecta pagamento confirmado → step 5
+
+**Frontend (BillingBanner.tsx):**
+- Interface atualizada com overduePaymentUrl
+- BLOCKED: botao "Pagar agora" abre invoiceUrl do Asaas (fallback /settings/billing)
+- PAST_DUE: botao "Regularizar" abre invoiceUrl do Asaas
+
+**Frontend (settings/billing/page.tsx):**
+- Secao "Seu Plano" mostra nome + preco + info promo
+- Secao "Fazer Upgrade" lista planos superiores com botao "Fazer Upgrade" → checkout
+- Secao "Pacotes Extras de OS" usa checkout em vez de pagamento direto
+- Success messages de redirect (addon=success, upgrade=success)
+
+Builds: Backend tsc OK, Frontend next build OK
