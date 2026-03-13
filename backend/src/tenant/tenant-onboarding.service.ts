@@ -204,15 +204,47 @@ export class TenantOnboardingService {
         </div>
 
         <div style="background: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
-          <h2 style="color: #1e293b; margin: 0 0 8px; font-size: 20px;">Pagamento confirmado!</h2>
+          <h2 style="color: #1e293b; margin: 0 0 8px; font-size: 20px;">Bem-vindo ao Tecnikos!</h2>
           <p style="color: #475569; line-height: 1.6; margin: 0 0 20px;">
             Ola, <strong>${name}</strong>! O pagamento da assinatura <strong>${planName}</strong>
-            da empresa <strong>${companyName}</strong> foi confirmado. Seus documentos estao em analise
-            e voce sera notificado quando sua conta for totalmente ativada.
+            da empresa <strong>${companyName}</strong> foi confirmado com sucesso.
+          </p>
+
+          <p style="color: #475569; line-height: 1.6; margin: 0 0 20px;">
+            Seu sistema ja esta ativo! Enquanto nossos analistas verificam seus documentos,
+            algumas funcionalidades ficam temporariamente restritas (ordens de servico, orcamentos e financeiro).
+            Voce sera notificado assim que a analise for concluida.
           </p>
 
           <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 0 0 20px;">
             ${credentialsBlock}
+          </div>
+
+          <!-- Suggested initial configurations -->
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px 20px; margin: 0 0 20px;">
+            <h3 style="color: #166534; margin: 0 0 10px; font-size: 14px;">Enquanto isso, voce pode configurar:</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="color: #166534; padding: 3px 0; font-size: 13px;">1.</td>
+                <td style="color: #15803d; padding: 3px 0; font-size: 13px;">Certificado Digital (Configuracoes)</td>
+              </tr>
+              <tr>
+                <td style="color: #166534; padding: 3px 0; font-size: 13px;">2.</td>
+                <td style="color: #15803d; padding: 3px 0; font-size: 13px;">Email SMTP (Configuracoes &gt; Email)</td>
+              </tr>
+              <tr>
+                <td style="color: #166534; padding: 3px 0; font-size: 13px;">3.</td>
+                <td style="color: #15803d; padding: 3px 0; font-size: 13px;">WhatsApp (Configuracoes &gt; WhatsApp)</td>
+              </tr>
+              <tr>
+                <td style="color: #166534; padding: 3px 0; font-size: 13px;">4.</td>
+                <td style="color: #15803d; padding: 3px 0; font-size: 13px;">Usuarios da equipe</td>
+              </tr>
+              <tr>
+                <td style="color: #166534; padding: 3px 0; font-size: 13px;">5.</td>
+                <td style="color: #15803d; padding: 3px 0; font-size: 13px;">Workflow e automacoes</td>
+              </tr>
+            </table>
           </div>
 
           <div style="text-align: center; margin: 24px 0;">
@@ -233,7 +265,7 @@ export class TenantOnboardingService {
 
     await this.emailService.sendSystemEmail(
       toEmail,
-      `Pagamento confirmado — ${companyName}`,
+      `Bem-vindo ao Tecnikos — ${companyName}`,
       html,
     );
   }

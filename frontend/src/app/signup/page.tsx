@@ -1241,13 +1241,6 @@ function SignupPage() {
                 Voce recebera um email quando sua conta for totalmente ativada.
               </p>
             </div>
-            {(result.slug || form.slug) && (
-              <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 mb-6 max-w-sm mx-auto">
-                <p className="text-xs text-blue-600 font-medium mb-1">Seu endereco:</p>
-                <p className="text-lg font-bold text-blue-900">{result.slug || form.slug}.tecnikos.com.br</p>
-              </div>
-            )}
-
             {/* Email resend section */}
             {tenantId && (
               <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6 max-w-sm mx-auto text-left">

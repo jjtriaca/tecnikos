@@ -1,35 +1,41 @@
 "use client";
 
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, isVerificationPending } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 
 /**
- * Top banner that shows verification status for PENDING_VERIFICATION tenants.
- * - PENDING: "Documentos em análise"
- * - APPROVED: "Empresa validada" (brief — disappears when tenant becomes ACTIVE)
- * - REJECTED: "Documentos recusados" — click to re-upload
+ * Top banner that shows verification status.
+ * Now based on verificationStatus (from VerificationSession.reviewStatus),
+ * NOT on tenantStatus. This means it shows even for ACTIVE tenants
+ * whose documents are still being reviewed.
+ *
+ * - PENDING: "Documentos em analise" — user can configure system meanwhile
+ * - APPROVED: "Documentos aprovados!" — brief, disappears on reload
+ * - REJECTED: "Documentos recusados" — link to re-upload
  */
 export default function VerificationBanner() {
   const { user, verificationInfo } = useAuth();
   const router = useRouter();
 
-  // Don't show if tenant is ACTIVE or no info
-  if (!user || user.tenantStatus === "ACTIVE" || !user.tenantStatus) return null;
+  if (!user) return null;
 
-  // PENDING_VERIFICATION: check verificationInfo for details
-  const isPending = !verificationInfo || verificationInfo.status === "PENDING";
-  const isRejected = verificationInfo?.status === "REJECTED";
-  const isApproved = verificationInfo?.status === "APPROVED";
+  // Use verificationStatus from /auth/me (comes from VerificationSession.reviewStatus)
+  const vStatus = user.verificationStatus;
 
-  if (isApproved) {
-    // Brief green banner (tenant is now ACTIVE but may need a refresh)
+  // Don't show if no verification session or already approved
+  if (!vStatus) return null;
+
+  if (vStatus === "APPROVED") {
+    // Brief green banner — user needs to reload to get unrestricted access
+    // Only show if verificationInfo was previously loaded (indicating we were tracking it)
+    if (!verificationInfo) return null;
     return (
       <div className="bg-green-500 text-white text-center py-2 px-4 text-sm font-medium">
         <div className="flex items-center justify-center gap-2">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
-          Empresa validada! Recarregue a pagina para acessar todas as funcionalidades.
+          Documentos aprovados! Todas as funcionalidades estao liberadas.
           <button
             onClick={() => window.location.reload()}
             className="ml-2 underline font-bold hover:no-underline"
@@ -41,7 +47,7 @@ export default function VerificationBanner() {
     );
   }
 
-  if (isRejected) {
+  if (vStatus === "REJECTED") {
     return (
       <div className="bg-red-500 text-white text-center py-2.5 px-4 text-sm font-medium">
         <div className="flex items-center justify-center gap-2 flex-wrap">
@@ -50,11 +56,11 @@ export default function VerificationBanner() {
           </svg>
           <span>
             Documentos recusados
-            {verificationInfo.rejectionReason && (
+            {verificationInfo?.rejectionReason && (
               <span className="opacity-80"> — {verificationInfo.rejectionReason}</span>
             )}
           </span>
-          {verificationInfo.token && (
+          {verificationInfo?.token && (
             <button
               onClick={() => router.push(`/verify/${verificationInfo.token}`)}
               className="ml-1 rounded-md bg-white/20 px-3 py-0.5 text-xs font-bold hover:bg-white/30 transition-colors"
@@ -67,14 +73,14 @@ export default function VerificationBanner() {
     );
   }
 
-  // Default: PENDING
+  // Default: PENDING — show amber banner with helpful guidance
   return (
     <div className="bg-amber-500 text-white text-center py-2 px-4 text-sm font-medium">
       <div className="flex items-center justify-center gap-2">
         <svg className="w-4 h-4 animate-pulse" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         </svg>
-        Documentos em analise — algumas funcionalidades estao temporariamente limitadas.
+        Documentos em analise — voce pode configurar o sistema enquanto aguarda a aprovacao.
       </div>
     </div>
   );

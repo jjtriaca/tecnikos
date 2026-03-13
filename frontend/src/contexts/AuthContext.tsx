@@ -15,6 +15,8 @@ export type UserRole = "ADMIN" | "DESPACHO" | "FINANCEIRO" | "FISCAL" | "LEITURA
 
 export type TenantStatus = "PENDING_VERIFICATION" | "PENDING_PAYMENT" | "ACTIVE" | "BLOCKED" | "CANCELLED" | "SUSPENDED";
 
+export type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -23,12 +25,21 @@ export interface AuthUser {
   companyId: string;
   companyName?: string;
   tenantStatus?: TenantStatus | null;
+  verificationStatus?: VerificationStatus | null;
 }
 
 /** Check if user has ANY of the given roles */
 export function hasRole(user: AuthUser | null | undefined, ...roles: UserRole[]): boolean {
   if (!user) return false;
   return user.roles.some(r => roles.includes(r));
+}
+
+/** Check if verification is still pending (docs not yet approved) */
+export function isVerificationPending(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  // No verification status means no session exists (e.g. master tenant)
+  if (!user.verificationStatus) return false;
+  return user.verificationStatus !== "APPROVED";
 }
 
 export interface VerificationInfo {
@@ -56,6 +67,7 @@ type MeResponse = {
   companyId: string;
   company?: { id: string; name: string };
   tenantStatus?: TenantStatus | null;
+  verificationStatus?: VerificationStatus | null;
 };
 
 type LoginResponse = {
@@ -78,6 +90,7 @@ function mapUser(d: MeResponse): AuthUser {
     companyId: d.companyId,
     companyName: d.company?.name,
     tenantStatus: d.tenantStatus || null,
+    verificationStatus: d.verificationStatus || null,
   };
 }
 
@@ -87,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [verificationInfo, setVerificationInfo] = useState<VerificationInfo | null>(null);
   const router = useRouter();
 
-  // Fetch verification info when tenant is PENDING_VERIFICATION
+  // Fetch detailed verification info (rejection reason, token for re-upload)
   const fetchVerification = useCallback(async () => {
     try {
       const data = await api.get<any>("/public/saas/tenant-verification-status");
@@ -114,8 +127,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           const u = mapUser(me);
           setUser(u);
-          // Fetch verification info if tenant is not ACTIVE
-          if (u.tenantStatus && u.tenantStatus !== "ACTIVE") {
+          // Fetch detailed verification info if not yet approved
+          if (u.verificationStatus && u.verificationStatus !== "APPROVED") {
             fetchVerification();
           }
         }
@@ -141,12 +154,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       setAccessToken(res.accessToken);
 
-      // Fetch full user with company name + tenant status
+      // Fetch full user with company name + tenant status + verification status
       try {
         const me = await api.get<MeResponse>("/auth/me");
         const u = mapUser(me);
         setUser(u);
-        if (u.tenantStatus && u.tenantStatus !== "ACTIVE") {
+        if (u.verificationStatus && u.verificationStatus !== "APPROVED") {
           fetchVerification();
         }
       } catch {
@@ -178,6 +191,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshVerification = useCallback(async () => {
     await fetchVerification();
+    // Also refresh user data to get updated verificationStatus
+    try {
+      const me = await api.get<MeResponse>("/auth/me");
+      setUser(mapUser(me));
+    } catch { /* ignore */ }
   }, [fetchVerification]);
 
   const value = useMemo(

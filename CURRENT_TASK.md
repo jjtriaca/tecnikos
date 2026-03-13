@@ -1,31 +1,34 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 114 — Fix billingTypes + Cleanup UI
+## Status: SESSAO 116 — Limpeza SLS + Teste Compra do Zero
 
-## Ultima sessao: 114 (13/03/2026)
-- Sessao 108: Promo/Slug so trava apos pagamento + Email lowercase + Fix enums tenant schema
+## Ultima sessao: 116 (13/03/2026)
 - Sessao 109: Upload Cartao CNPJ no step 3 do signup
 - Sessao 110: Fix Galeria Selfie + Asaas API Key + Fix FK + Fix Signup Flow + Fix Camera
 - Sessao 111: Cobranca Recorrente + Bloqueio por Inadimplencia
 - Sessao 112: Fix fluxo pagamento (PIX QR code, boleto, step 5 success messages)
 - Sessao 113: Asaas Checkout + Add-on + Upgrade + Disable Notifications
 - Sessao 114: Fix billingTypes API error + Remove PIX/Boleto/Cartao cards from Step 4
+- Sessao 115: Restricoes por verificacao + Nginx wildcard + Welcome email + DNS/SSL
+- Sessao 116: Limpeza SLS para teste fresh da compra completa
 
-## O que foi feito na sessao 114:
-- [x] Fix createSignupCheckout() — Subscription API (billingType UNDEFINED) + invoiceUrl em vez de Checkout API
-- [x] Fix createUpgradeCheckout() — mesma mudanca (era Checkout API com RECURRENT, dava erro billingTypes)
-- [x] Removidos cards PIX/Boleto/Cartao do Step 4 (tanto no formulario quanto no estado pendente)
-- [x] Build OK (backend tsc + frontend next build)
-- [x] Deploy v1.02.54
+## O que foi feito na sessao 116:
+- [x] Cancelar subscription no Asaas (sub_f330i47frr8tubpx) — DELETE 200
+- [x] Deletar customer no Asaas (cus_000165863289) — DELETE 200
+- [x] Limpar banco: VerificationSession, Subscription, Tenant, schema tenant_sls
+- [x] Resetar promo PIONEIRO-PISCINAS (currentUses → 0)
+- [x] Verificacao: tudo limpo, pronto para teste fresh
 
 ## Proximos passos:
-1. Testar end-to-end: signup → invoiceUrl Asaas → pagar → webhook → ativacao
-2. Testar add-on via /settings/billing → checkout → OS creditadas
-3. Testar upgrade via /settings/billing → checkout → nova subscription
-4. Verificar que Asaas NAO envia email/SMS ao cliente
-5. Configurar info fiscal no Asaas (inscricao municipal, CNAE, etc)
+1. Testar signup completo: tecnikos.com.br/signup com SLS Obras
+2. Testar pagamento via Asaas Checkout
+3. Testar login no host sls.tecnikos.com.br
+4. Verificar restricoes (OS, orcamentos, financeiro bloqueados)
+5. Admin aprovar docs → verificar full access
+6. Testar add-on e upgrade via /settings/billing
+7. Configurar info fiscal no Asaas
 
-## Versao atual: v1.02.54
+## Versao atual: v1.02.56
 
 ## IDs importantes WhatsApp Meta:
 - WABA ID: 1421505052856896

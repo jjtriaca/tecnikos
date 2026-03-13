@@ -42,6 +42,7 @@ import { THROTTLE_LIMIT, THROTTLE_TTL_MS } from './common/throttler';
 
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { VerificationGuard } from './auth/guards/verification.guard';
 
 @Module({
   imports: [
@@ -87,7 +88,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     VerificationModule,
   ],
   providers: [
-    // Order matters: Throttle → JWT Auth → Roles
+    // Order matters: Throttle → JWT Auth → Roles → Verification
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
@@ -99,6 +100,10 @@ import { RolesGuard } from './auth/guards/roles.guard';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: VerificationGuard,
     },
   ],
 })

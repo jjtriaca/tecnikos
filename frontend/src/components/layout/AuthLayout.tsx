@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, isVerificationPending } from "@/contexts/AuthContext";
 import { FiscalModuleProvider } from "@/contexts/FiscalModuleContext";
 import { ChatIAProvider } from "@/contexts/ChatIAContext";
 import Sidebar from "./Sidebar";
@@ -39,13 +39,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     return null;
   }
 
-  const isTenantPending = user.tenantStatus === "PENDING_VERIFICATION" || user.tenantStatus === "PENDING_PAYMENT";
+  // Restrict features when docs not yet approved (works for ACTIVE tenants too)
+  const pendingVerification = isVerificationPending(user);
 
   return (
     <FiscalModuleProvider>
       <ChatIAProvider>
         <div className="min-h-screen bg-slate-50">
-          {/* Verification status banner — fixed at top */}
+          {/* Verification status banner — shows when docs are pending/rejected */}
           <VerificationBanner />
           {/* Billing warning banner — overdue, due today, blocked */}
           <BillingBanner />
@@ -53,7 +54,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Sidebar
             collapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed((c) => !c)}
-            tenantPending={isTenantPending}
+            tenantPending={pendingVerification}
           />
           <Header sidebarCollapsed={sidebarCollapsed} />
 

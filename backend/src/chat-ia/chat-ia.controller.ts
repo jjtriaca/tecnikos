@@ -68,7 +68,7 @@ export class ChatIAController {
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: any,
   ) {
-    return this.service.getWelcomeMessage(user.companyId, req.tenantSchema, req.tenantStatus);
+    return this.service.getWelcomeMessage(user.companyId, req.tenantSchema, req.tenantId);
   }
 
   @Get('onboarding-status')

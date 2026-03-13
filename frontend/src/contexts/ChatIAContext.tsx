@@ -81,9 +81,12 @@ export function ChatIAProvider({ children }: { children: ReactNode }) {
         if (res.available && !localStorage.getItem("chatia_opened")) {
           localStorage.setItem("chatia_opened", "1");
           setIsOpen(true);
+          // Load welcome message on auto-open
+          loadWelcome();
         }
       })
       .catch(() => setAvailable(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Load usage + onboarding on open

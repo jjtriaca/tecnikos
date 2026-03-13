@@ -19,6 +19,7 @@ import { CreateFinancialAccountDto, UpdateFinancialAccountDto } from './dto/fina
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { RequireVerification } from '../auth/decorators/require-verification.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
@@ -492,6 +493,7 @@ export class FinanceController {
     return this.service.findOneEntry(id, user.companyId);
   }
 
+  @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Post('entries')
   createEntry(

@@ -453,11 +453,22 @@ export class ChatIAService {
 
   // ── Welcome Message ────────────────────────────────────
 
-  async getWelcomeMessage(companyId: string, tenantSchema?: string, tenantStatus?: string): Promise<MessageResult> {
+  async getWelcomeMessage(companyId: string, tenantSchema?: string, tenantId?: string): Promise<MessageResult> {
     const onboardingStatus = await this.onboarding.getStatus(companyId, tenantSchema);
     const db = tenantSchema ? this.tenantConnection.getClient(tenantSchema) : this.prisma;
     const company = await db.company.findFirst({ select: { tradeName: true, name: true } });
     const companyName = company?.tradeName || company?.name || 'sua empresa';
+
+    // Check verification status from VerificationSession
+    let verificationPending = false;
+    if (tenantId) {
+      const session = await this.prisma.verificationSession.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+        select: { reviewStatus: true },
+      });
+      verificationPending = !!session && session.reviewStatus !== 'APPROVED';
+    }
 
     if (!onboardingStatus.requiredDone) {
       // New company — onboarding mode
@@ -470,8 +481,8 @@ export class ChatIAService {
       let content = `Olá! 👋 Bem-vindo ao **Tecnikos**!\n\n`;
       content += `Sou seu assistente e vou te guiar na configuração do sistema para a **${companyName}**.\n\n`;
 
-      // Show verification status notice if tenant is pending
-      if (tenantStatus === 'PENDING_VERIFICATION') {
+      // Show verification status notice if documents not yet approved
+      if (verificationPending) {
         content += `⏳ **Seus documentos estão em análise.** Enquanto aguarda a validação, algumas funcionalidades como Ordens de Serviço, Financeiro e Orçamentos estarão temporariamente bloqueadas. Mas não se preocupe — você já pode ir configurando o sistema!\n\n`;
       }
 
@@ -513,9 +524,12 @@ export class ChatIAService {
     }
 
     // All required done — normal assistant mode
-    return {
-      content: `Olá! 👋 Como posso ajudar a **${companyName}** hoje?\n\nPosso consultar suas ordens de serviço, clientes, financeiro, ou ajudar com qualquer dúvida sobre o sistema.`,
-    };
+    let normalContent = `Olá! 👋 Como posso ajudar a **${companyName}** hoje?\n\n`;
+    if (verificationPending) {
+      normalContent += `⏳ **Seus documentos ainda estão em análise.** Funcionalidades como Ordens de Serviço, Financeiro e Orçamentos estarão disponíveis assim que a validação for concluída.\n\n`;
+    }
+    normalContent += `Posso consultar suas ordens de serviço, clientes, financeiro, ou ajudar com qualquer dúvida sobre o sistema.`;
+    return { content: normalContent };
   }
 
   // ── Stream Message ────────────────────────────────────

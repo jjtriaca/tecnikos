@@ -16,6 +16,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { AsaasService } from '../tenant/asaas.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -28,6 +29,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly asaasService: AsaasService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Public()
@@ -134,10 +136,23 @@ export class AuthController {
   @Get('me')
   async me(@CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
     const data = await this.authService.me(user);
-    // Attach tenant status so frontend can show verification banners
+    const tenantId = (req as any).tenantId;
+
+    // Get verification status from latest VerificationSession
+    let verificationStatus: string | null = null;
+    if (tenantId) {
+      const session = await this.prisma.verificationSession.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+        select: { reviewStatus: true },
+      });
+      verificationStatus = session?.reviewStatus || null;
+    }
+
     return {
       ...data,
       tenantStatus: (req as any).tenantStatus || null,
+      verificationStatus, // PENDING | APPROVED | REJECTED | null
     };
   }
 

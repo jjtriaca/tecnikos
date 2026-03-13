@@ -23,6 +23,7 @@ import { SendQuoteDto } from './dto/send-quote.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { RequireVerification } from '../auth/decorators/require-verification.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { diskStorage } from 'multer';
 import { randomUUID } from 'crypto';
@@ -38,6 +39,7 @@ export class QuoteController {
     private readonly pdfService: QuotePdfService,
   ) {}
 
+  @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post()
   create(

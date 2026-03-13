@@ -791,4 +791,99 @@ Deploy v1.02.53
 - **createAddOnCheckout()**: manteve Checkout API com `chargeTypes: ["DETACHED"]` (funciona com multiplos billingTypes)
 - **Frontend Step 4**: removidos cards informativos PIX/Boleto/Cartao (tanto no form quanto no estado pendente)
 
-### Deploy: v1.02.54
+### Deploy: v1.02.54, v1.02.55
+
+---
+
+## 2026-03-13 — Sessao 115: Restricoes por Verificacao de Documentos (v1.02.56)
+
+### Pedidos do Juliano:
+1. "Parece que o host nao esta funcionando" — sls.tecnikos.com.br inacessivel
+2. "o cliente recebe o email para acessar o host. porem nao consegue fazer lancamentos de OS, orcamentos, lancamentos financeiros tbm nao, o restante fica operacional"
+3. "A IA deve dar boas vindas e avisar que o sistema esta com restricao de alguns campos enquanto os documentos sao analisados"
+4. "pode comecar as configuracoes do sistema enquanto isso, primeiro o upload do certificado digital, depois smtp, WhatsApp"
+5. "essas metricas e para todos os novos clientes, nao somente para a sls obras"
+
+### Diagnostico do Host:
+- DNS: sls.tecnikos.com.br retorna NXDOMAIN — nao existe registro wildcard
+- SSL: certificado so cobre tecnikos.com.br (sem wildcard)
+- Nginx: server_name so tinha tecnikos.com.br
+- DNS esta no Cloudflare (proxy ativo) → SSL automatico se wildcard DNS existir
+- Tenant SLS: status ACTIVE, schema tenant_sls existe, onboarding feito
+
+### Correcoes:
+
+**Nginx (nginx.conf):**
+- HTTP block: `server_name tecnikos.com.br www.tecnikos.com.br *.tecnikos.com.br`
+- HTTPS block: `server_name tecnikos.com.br *.tecnikos.com.br`
+- HTTP redirect preserva $host (subdominio vai para HTTPS do subdominio)
+- PENDENTE: Juliano precisa adicionar registro DNS wildcard `*.tecnikos.com.br` no Cloudflare
+
+**Backend (auth.controller.ts):**
+- `/auth/me` agora retorna `verificationStatus` (PENDING/APPROVED/REJECTED/null)
+- Query da VerificationSession mais recente do tenant
+
+**Backend (VerificationGuard):**
+- Novo guard global: `guards/verification.guard.ts`
+- Registrado como APP_GUARD em app.module.ts (ordem: Throttle → JWT → Roles → Verification)
+- Verifica se VerificationSession.reviewStatus === 'APPROVED' antes de permitir acesso
+- Master tenant (isMaster=true) e rotas sem tenantId: sempre permitidos
+- Decorator `@RequireVerification()` em: `require-verification.decorator.ts`
+
+**Backend — Endpoints protegidos por @RequireVerification():**
+- `POST /service-orders` (criar OS)
+- `POST /finance/entries` (criar lancamento financeiro)
+- `POST /quotes` (criar orcamento)
+
+**Frontend (AuthContext.tsx):**
+- Novo tipo: `VerificationStatus = "PENDING" | "APPROVED" | "REJECTED"`
+- `AuthUser.verificationStatus` populado de `/auth/me`
+- Helper: `isVerificationPending(user)` — true se docs nao aprovados
+- `refreshVerification()` agora tambem refaz /auth/me para atualizar verificationStatus
+- Fetch de verificationInfo baseado em verificationStatus (nao mais tenantStatus)
+
+**Frontend (AuthLayout.tsx):**
+- `pendingVerification = isVerificationPending(user)` substitui `isTenantPending` baseado em tenantStatus
+- Sidebar recebe restricao baseada em verificationStatus (funciona mesmo com tenant ACTIVE)
+
+**Frontend (VerificationBanner.tsx):**
+- Agora mostra baseado em `user.verificationStatus` (nao mais tenantStatus)
+- PENDING: "Documentos em analise — voce pode configurar o sistema enquanto aguarda a aprovacao"
+- REJECTED: banner vermelho com motivo + botao reenviar
+- APPROVED: banner verde "Documentos aprovados!" + botao recarregar
+
+**Backend (tenant-onboarding.service.ts) — Welcome Email:**
+- Assunto: "Bem-vindo ao Tecnikos" (era "Pagamento confirmado")
+- Titulo: "Bem-vindo ao Tecnikos!"
+- Corpo: avisa sobre restricoes (OS, orcamentos, financeiro temporariamente limitados)
+- Nova secao verde: "Enquanto isso, voce pode configurar:" com 5 itens
+  1. Certificado Digital (Configuracoes)
+  2. Email SMTP (Configuracoes > Email)
+  3. WhatsApp (Configuracoes > WhatsApp)
+  4. Usuarios da equipe
+  5. Workflow e automacoes
+
+### Build: Backend tsc OK, Frontend next build OK
+### Deploy: v1.02.56
+
+### DNS + SSL Wildcard — CONCLUIDO
+- Juliano adicionou registro DNS wildcard `*.tecnikos.com.br` no Cloudflare (tipo A, proxied)
+- DNS propagado: sls.tecnikos.com.br resolve para Cloudflare IPs
+- SSL: Cloudflare Origin Certificate (wildcard *.tecnikos.com.br + tecnikos.com.br, valido ate 2041)
+- Certificado instalado em /opt/tecnikos/app/nginx/ssl/ (fullchain.pem + privkey.pem)
+- Nginx container restartado para pegar nova config (docker compose restart nginx)
+- Teste OK: sls.tecnikos.com.br/login → HTTP 200, /api/health → v1.02.56
+
+---
+
+## 2026-03-13 — Sessao 116: Limpeza SLS + Teste Compra do Zero
+
+### Limpeza completa para teste fresh:
+- Asaas: Subscription `sub_f330i47frr8tubpx` cancelada (DELETE)
+- Asaas: Customer `cus_000165863289` deletado (DELETE)
+- Banco: VerificationSession deletada
+- Banco: Subscription deletada
+- Banco: Schema `tenant_sls` dropado (CASCADE, 74 objetos)
+- Banco: Tenant SLS deletado
+- Promocao PIONEIRO-PISCINAS: currentUses resetado para 0
+- Verificacao: 0 registros restantes, schema nao existe, promo limpa

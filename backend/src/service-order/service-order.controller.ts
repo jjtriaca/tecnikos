@@ -8,6 +8,7 @@ import { AssignPartnerDto } from './dto/assign-partner.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { RequireVerification } from '../auth/decorators/require-verification.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 
@@ -16,6 +17,7 @@ import { UserRole } from '@prisma/client';
 export class ServiceOrderController {
   constructor(private readonly service: ServiceOrderService) {}
 
+  @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post()
   create(
