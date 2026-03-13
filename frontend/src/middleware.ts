@@ -2,19 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Middleware server-side para proteção de rotas.
- * - Domínio raiz (tecnikos.com.br): redireciona /login e rotas protegidas para landing page
- * - Subdomínios (sls.tecnikos.com.br, admin.tecnikos.com.br): login + rotas protegidas normais
+ * - Domínio raiz (tecnikos.com.br): landing page, sem login
+ * - Subdomínios (sls.tecnikos.com.br, admin.tecnikos.com.br): login + dashboard
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get('host') || '';
 
   // Detecta se é o domínio raiz (sem subdomínio) — login não existe aqui
-  const isBareHost = host === 'tecnikos.com.br' || host === 'www.tecnikos.com.br';
+  const isBareHost = host === 'tecnikos.com.br' || host === 'www.tecnikos.com.br' || host.startsWith('localhost');
 
-  // Domínio raiz: /login e /tech/login redirecionam para landing page
+  // ── Domínio raiz: /login redireciona para landing page ──
   if (isBareHost && (pathname === '/login' || pathname === '/tech/login')) {
     return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // ── Subdomínios: / redireciona para /dashboard (logado) ou /login (deslogado) ──
+  if (!isBareHost && pathname === '/') {
+    const refreshToken = request.cookies.get('refresh_token');
+    if (refreshToken) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   // Login pages em subdomínios: pass through normalmente
@@ -37,7 +46,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/nfe') ||
     pathname.startsWith('/products') ||
     pathname.startsWith('/whatsapp') ||
-    pathname.startsWith('/quotes')
+    pathname.startsWith('/quotes') ||
+    pathname.startsWith('/ctrl-zr8k2x')
   ) {
     const refreshToken = request.cookies.get('refresh_token');
     if (!refreshToken) {
@@ -77,8 +87,8 @@ export const config = {
      * - _next/image (image optimization)
      * - favicon.ico, public files
      * - public pages (p/, q/, rate/, demo)
-     * Note: /login is now matched (handled inside middleware for bare domain redirect)
+     * Note: / and /login are now matched (handled inside middleware)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|p/|q/|rate/|demo|reset-password|verify/|signup|$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|p/|q/|rate/|demo|reset-password|verify/|signup).*)',
   ],
 };
