@@ -52,7 +52,7 @@ function ConfigRow({ children, visible }: { children: React.ReactNode; visible: 
 
 /* ── Sub-section for a trigger (new tech or new specialization) ── */
 
-const WELCOME_VARIABLES = ['{nome}', '{empresa}', '{razao_social}', '{telefone}', '{email}', '{data}'];
+const WELCOME_VARIABLES = ['{nome}', '{empresa}', '{razao_social}', '{telefone}', '{email}', '{especializacao}', '{data}'];
 const CONTRACT_VARIABLES = ['{nome}', '{empresa}', '{razao_social}', '{cnpj_empresa}', '{endereco_empresa}', '{documento}', '{email}', '{telefone}', '{especializacao}', '{data}'];
 
 const DEFAULT_POSITIVE_KEYWORDS = ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'];
@@ -403,7 +403,7 @@ function TriggerSection({
                       />
                       <div className="flex flex-wrap gap-1">
                         <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
-                        {['{nome}', '{empresa}', '{razao_social}', '{data}'].map((v) => (
+                        {['{nome}', '{empresa}', '{razao_social}', '{especializacao}', '{data}'].map((v) => (
                           <button
                             key={v}
                             type="button"
@@ -491,7 +491,7 @@ function TriggerSection({
                         />
                         <div className="flex flex-wrap gap-1">
                           <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
-                          {['{nome}', '{empresa}', '{resposta}'].map((v) => (
+                          {['{nome}', '{empresa}', '{especializacao}', '{resposta}'].map((v) => (
                             <button
                               key={v}
                               type="button"
