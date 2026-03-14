@@ -106,7 +106,16 @@
 - [x] ALTER TABLE tenant_sls aplicado manualmente
 - [x] Deploy v1.02.80
 
-## Versao atual: v1.02.80 (em producao)
+### TenantMigratorService — Auto-sync de schemas (v1.02.81)
+- [x] Novo servico: backend/src/tenant/tenant-migrator.service.ts
+- [x] Roda no startup (OnApplicationBootstrap)
+- [x] Compara colunas de TODAS as tabelas em public vs cada tenant schema
+- [x] Adiciona colunas faltantes automaticamente (tipo correto, nullable, default, enums)
+- [x] Testado: removeu sortOrder do tenant_sls, restart detectou e restaurou automaticamente
+- [x] Nunca mais precisa de ALTER TABLE manual em tenant schemas!
+- [x] Deploy v1.02.81
+
+## Versao atual: v1.02.81 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

@@ -164,6 +164,38 @@ function SignupPage() {
     };
   });
 
+  // ── Persist signup form to sessionStorage (deploy-safe) ──
+  // Restore form data on mount (if page reloaded during deploy)
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("__signup_form");
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.form) setForm(data.form);
+        if (data.step && data.step > 1 && data.step <= 3) setStep(data.step);
+        if (data.selectedPlanId) setSelectedPlanId(data.selectedPlanId);
+        if (data.billingCycle) setBillingCycle(data.billingCycle);
+        if (data.promoCode) setPromoCode(data.promoCode);
+        if (data.password) setPassword(data.password);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Save form data on every change
+  useEffect(() => {
+    try {
+      // Only persist steps 1-3 (before payment/verification)
+      if (step <= 3) {
+        sessionStorage.setItem("__signup_form", JSON.stringify({
+          form, step, selectedPlanId, billingCycle, promoCode, password,
+        }));
+      } else {
+        // After submission, clear saved data
+        sessionStorage.removeItem("__signup_form");
+      }
+    } catch { /* ignore */ }
+  }, [form, step, selectedPlanId, billingCycle, promoCode, password]);
+
   // Render error block with "Report Problem" option
   function renderError() {
     if (!error) return null;

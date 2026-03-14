@@ -1,4 +1,4 @@
-// lib/api.ts — fetch wrapper with JWT refresh interceptor (no axios dependency)
+// lib/api.ts — fetch wrapper with JWT refresh interceptor + deploy-safe retry (no axios dependency)
 
 export type ApiErrorPayload = {
   message?: string;
@@ -40,6 +40,21 @@ export function getAccessToken(): string | null {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Retry config for deploy resilience                                 */
+/* ------------------------------------------------------------------ */
+const MAX_RETRIES = 2;           // Up to 2 retries (3 total attempts)
+const RETRY_DELAY_MS = 3000;     // 3 seconds between retries
+const RETRYABLE_STATUSES = [502, 503, 504]; // Gateway errors during deploy
+
+function isRetryable(status: number): boolean {
+  return RETRYABLE_STATUSES.includes(status);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/* ------------------------------------------------------------------ */
 /*  Core request function                                              */
 /* ------------------------------------------------------------------ */
 type RequestOptions = {
@@ -48,6 +63,7 @@ type RequestOptions = {
   body?: unknown;
   signal?: AbortSignal;
   _skipRefresh?: boolean;
+  _retryCount?: number;
 };
 
 async function request<T>(
@@ -74,14 +90,34 @@ async function request<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(url, {
-    method: options.method || "GET",
-    headers,
-    body,
-    signal: options.signal,
-    credentials: "include",
-    cache: "no-store",
-  });
+  const retryCount = options._retryCount ?? 0;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: options.method || "GET",
+      headers,
+      body,
+      signal: options.signal,
+      credentials: "include",
+      cache: "no-store",
+    });
+  } catch (fetchError) {
+    // Network error (server unreachable — likely during deploy restart)
+    if (retryCount < MAX_RETRIES) {
+      console.warn(`[API] Network error on ${path}, retrying in ${RETRY_DELAY_MS}ms (${retryCount + 1}/${MAX_RETRIES})...`);
+      await sleep(RETRY_DELAY_MS);
+      return request<T>(path, { ...options, _retryCount: retryCount + 1 });
+    }
+    throw fetchError;
+  }
+
+  // Retry on gateway errors (502/503/504 — backend restarting during deploy)
+  if (isRetryable(res.status) && retryCount < MAX_RETRIES) {
+    console.warn(`[API] ${res.status} on ${path}, retrying in ${RETRY_DELAY_MS}ms (${retryCount + 1}/${MAX_RETRIES})...`);
+    await sleep(RETRY_DELAY_MS);
+    return request<T>(path, { ...options, _retryCount: retryCount + 1 });
+  }
 
   // 401 interceptor: attempt silent refresh
   if (res.status === 401 && !options._skipRefresh && accessToken) {
