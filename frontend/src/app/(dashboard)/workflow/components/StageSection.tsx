@@ -1243,16 +1243,6 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                           </div>
                         )}
 
-                        {/* Auto-iniciar execução */}
-                        <div>
-                          <SubToggle checked={stage.autoActions.proximityTrigger.onEnterRadius.autoStartExecution}
-                            onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, autoStartExecution: v } })}
-                            label="Iniciar execução automaticamente" />
-                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">
-                            Ao entrar no raio, muda o status da OS para &quot;Em Execução&quot; automaticamente.
-                          </p>
-                        </div>
-
                         {/* Alerta dashboard */}
                         <SubToggle checked={stage.autoActions.proximityTrigger.onEnterRadius.alert.enabled}
                           onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, alert: { ...stage.autoActions.proximityTrigger.onEnterRadius.alert, enabled: v } } })}
@@ -1272,10 +1262,69 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                       </p>
                     </div>
 
+                    {/* ── Iniciar execução — radio group ── */}
+                    <div className="pt-3 border-t border-purple-200">
+                      <label className="text-xs font-medium text-slate-600 block mb-2">🚀 Iniciar execução automaticamente:</label>
+                      <div className="space-y-1.5 ml-1">
+                        {(() => {
+                          const onRadius = stage.autoActions.proximityTrigger.onEnterRadius.autoStartExecution;
+                          const onArrival = stage.autoActions.proximityTrigger.arrivalButton?.autoStartExecution ?? false;
+                          const mode = onRadius ? 'radius' : onArrival ? 'arrival' : 'manual';
+                          const setMode = (m: string) => {
+                            updateAuto('proximityTrigger', {
+                              onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, autoStartExecution: m === 'radius' },
+                              arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, autoStartExecution: m === 'arrival' },
+                            });
+                          };
+                          return (
+                            <>
+                              <label className="flex items-start gap-2 cursor-pointer">
+                                <input type="radio" name={`${stage.id}_startExec`} checked={mode === 'radius'}
+                                  onChange={() => setMode('radius')} className="text-purple-600 focus:ring-purple-200 mt-0.5" />
+                                <div>
+                                  <span className="text-xs text-slate-700">Ao entrar no raio de proximidade</span>
+                                  <p className="text-[10px] text-slate-400">A OS muda para &quot;Em Execução&quot; automaticamente quando o GPS detecta proximidade.</p>
+                                </div>
+                              </label>
+                              <label className={`flex items-start gap-2 cursor-pointer ${!(stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true) ? 'opacity-40 pointer-events-none' : ''}`}>
+                                <input type="radio" name={`${stage.id}_startExec`} checked={mode === 'arrival'}
+                                  onChange={() => setMode('arrival')} className="text-purple-600 focus:ring-purple-200 mt-0.5"
+                                  disabled={!(stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true)} />
+                                <div>
+                                  <span className="text-xs text-slate-700">Ao clicar &quot;Cheguei no local&quot;</span>
+                                  <p className="text-[10px] text-slate-400">O técnico confirma manualmente que chegou. A OS muda para &quot;Em Execução&quot; ao clicar.</p>
+                                </div>
+                              </label>
+                              <label className="flex items-start gap-2 cursor-pointer">
+                                <input type="radio" name={`${stage.id}_startExec`} checked={mode === 'manual'}
+                                  onChange={() => setMode('manual')} className="text-purple-600 focus:ring-purple-200 mt-0.5" />
+                                <div>
+                                  <span className="text-xs text-slate-700">Não iniciar automaticamente</span>
+                                  <p className="text-[10px] text-slate-400">O gestor decide manualmente quando a OS entra em execução.</p>
+                                </div>
+                              </label>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
                     {/* ── Botão "Cheguei no local" ── */}
                     <div className="pt-3 border-t border-purple-200">
                       <Toggle checked={stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true}
-                        onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, enabled: v } })}
+                        onChange={v => {
+                          const patch: any = { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, enabled: v } };
+                          // Se ligar o botão e o raio tem autoStart, desliga o do raio
+                          if (v && stage.autoActions.proximityTrigger.onEnterRadius.autoStartExecution) {
+                            patch.onEnterRadius = { ...stage.autoActions.proximityTrigger.onEnterRadius, autoStartExecution: false };
+                            patch.arrivalButton.autoStartExecution = true;
+                          }
+                          // Se desligar o botão, o autoStart vai pro raio
+                          if (!v && stage.autoActions.proximityTrigger.arrivalButton?.autoStartExecution) {
+                            patch.onEnterRadius = { ...stage.autoActions.proximityTrigger.onEnterRadius, autoStartExecution: true };
+                          }
+                          updateAuto('proximityTrigger', patch);
+                        }}
                         label="📍 Botão &quot;Cheguei no local&quot;"
                         hint="Exibe um botão na página de tracking para o técnico confirmar que chegou ao endereço do cliente." />
                       {(stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true) && (
@@ -1287,14 +1336,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                             Salva as coordenadas GPS do técnico no endereço de atendimento do parceiro. Melhora a precisão do raio nos próximos atendimentos naquele local.
                           </p>
 
-                          <SubToggle checked={stage.autoActions.proximityTrigger.arrivalButton?.autoStartExecution ?? true}
-                            onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, autoStartExecution: v } })}
-                            label="Iniciar execução automaticamente" />
-                          <p className="text-[10px] text-slate-400 ml-5 -mt-2">
-                            Ao clicar &quot;Cheguei&quot;, a OS muda para &quot;Em Execução&quot; automaticamente.
-                          </p>
-
-                          {/* Notificar cliente ao chegar */}
+                          {/* Notificar cliente ao clicar Cheguei */}
                           <SubToggle checked={stage.autoActions.proximityTrigger.arrivalButton?.notifyCliente?.enabled ?? false}
                             onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyCliente: { ...stage.autoActions.proximityTrigger.arrivalButton?.notifyCliente, enabled: v } } })}
                             label="Notificar cliente ao chegar" />
