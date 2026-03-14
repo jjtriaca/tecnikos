@@ -96,6 +96,17 @@ export class PublicLinkController {
     return this.service.getTrackingConfig(token);
   }
 
+  @Post(':token/arrived')
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  markArrived(
+    @Param('token') token: string,
+    @Body('phone') phone: string,
+    @Body('lat') lat: number,
+    @Body('lng') lng: number,
+  ) {
+    return this.service.markArrived(token, phone, lat, lng);
+  }
+
   @Post(':token/pause')
   pauseExecution(
     @Param('token') token: string,

@@ -1271,6 +1271,63 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                         Os eventos disparam apenas UMA vez (quando o técnico entra no raio pela primeira vez).
                       </p>
                     </div>
+
+                    {/* ── Botão "Cheguei no local" ── */}
+                    <div className="pt-3 border-t border-purple-200">
+                      <Toggle checked={stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true}
+                        onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, enabled: v } })}
+                        label="📍 Botão &quot;Cheguei no local&quot;"
+                        hint="Exibe um botão na página de tracking para o técnico confirmar que chegou ao endereço do cliente." />
+                      {(stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true) && (
+                        <div className="ml-13 pl-3 border-l-2 border-purple-100 mt-2 space-y-3">
+                          <SubToggle checked={stage.autoActions.proximityTrigger.arrivalButton?.updateAddressCoords ?? true}
+                            onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, updateAddressCoords: v } })}
+                            label="Atualizar coordenadas do endereço ao chegar" />
+                          <p className="text-[10px] text-slate-400 ml-5 -mt-2">
+                            Salva as coordenadas GPS do técnico no endereço de atendimento do parceiro. Melhora a precisão do raio nos próximos atendimentos naquele local.
+                          </p>
+
+                          <SubToggle checked={stage.autoActions.proximityTrigger.arrivalButton?.autoStartExecution ?? true}
+                            onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, autoStartExecution: v } })}
+                            label="Iniciar execução automaticamente" />
+                          <p className="text-[10px] text-slate-400 ml-5 -mt-2">
+                            Ao clicar &quot;Cheguei&quot;, a OS muda para &quot;Em Execução&quot; automaticamente.
+                          </p>
+
+                          {/* Notificar cliente ao chegar */}
+                          <SubToggle checked={stage.autoActions.proximityTrigger.arrivalButton?.notifyCliente?.enabled ?? false}
+                            onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyCliente: { ...stage.autoActions.proximityTrigger.arrivalButton?.notifyCliente, enabled: v } } })}
+                            label="Notificar cliente ao chegar" />
+                          {stage.autoActions.proximityTrigger.arrivalButton?.notifyCliente?.enabled && (
+                            <div className="ml-5 space-y-1.5">
+                              <SelectField label="Canal" value={stage.autoActions.proximityTrigger.arrivalButton.notifyCliente.channel}
+                                onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyCliente: { ...stage.autoActions.proximityTrigger.arrivalButton.notifyCliente, channel: v } } })}
+                                options={CHANNEL_OPTIONS} />
+                              <WhatsAppCostWarning channel={stage.autoActions.proximityTrigger.arrivalButton.notifyCliente.channel} />
+                              <TextAreaField label="Mensagem" value={stage.autoActions.proximityTrigger.arrivalButton.notifyCliente.message}
+                                onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyCliente: { ...stage.autoActions.proximityTrigger.arrivalButton.notifyCliente, message: v } } })}
+                                placeholder="O técnico {tecnico} chegou ao local! OS: {titulo}" vars />
+                            </div>
+                          )}
+
+                          {/* Notificar gestor ao chegar */}
+                          <SubToggle checked={stage.autoActions.proximityTrigger.arrivalButton?.notifyGestor?.enabled ?? false}
+                            onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyGestor: { ...stage.autoActions.proximityTrigger.arrivalButton?.notifyGestor, enabled: v } } })}
+                            label="Notificar gestor ao chegar" />
+                          {stage.autoActions.proximityTrigger.arrivalButton?.notifyGestor?.enabled && (
+                            <div className="ml-5 space-y-1.5">
+                              <SelectField label="Canal" value={stage.autoActions.proximityTrigger.arrivalButton.notifyGestor.channel}
+                                onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyGestor: { ...stage.autoActions.proximityTrigger.arrivalButton.notifyGestor, channel: v } } })}
+                                options={CHANNEL_OPTIONS} />
+                              <WhatsAppCostWarning channel={stage.autoActions.proximityTrigger.arrivalButton.notifyGestor.channel} />
+                              <TextAreaField label="Mensagem" value={stage.autoActions.proximityTrigger.arrivalButton.notifyGestor.message}
+                                onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyGestor: { ...stage.autoActions.proximityTrigger.arrivalButton.notifyGestor, message: v } } })}
+                                placeholder="Técnico {tecnico} chegou ao local — OS: {titulo}" vars />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </ConfigRow>
               </div>

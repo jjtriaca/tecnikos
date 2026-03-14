@@ -1080,6 +1080,145 @@ export class PublicOfferService {
   }
 
   /* ================================================================ */
+  /*  ARRIVAL BUTTON (v1.03.19)                                      */
+  /* ================================================================ */
+
+  async markArrived(token: string, phone: string, lat: number, lng: number) {
+    const offer = await this.prisma.serviceOrderOffer.findUnique({ where: { token } });
+    if (!offer) throw new NotFoundException('Token inválido');
+    const so = await this.prisma.serviceOrder.findUniqueOrThrow({
+      where: { id: offer.serviceOrderId },
+      include: { workflowTemplate: true, assignedPartner: true, clientPartner: true, company: true },
+    });
+    if (so.deletedAt || so.status === 'CANCELADA') {
+      throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
+    }
+
+    // Get arrivalButton config from workflow
+    const def = so.workflowTemplate?.steps as any;
+    const blocks = def?.version === 2 ? def.blocks : (def?.blocks || []);
+    const proxBlock = blocks?.find((b: any) => b.type === 'PROXIMITY_TRIGGER');
+    const arrivalCfg = proxBlock?.config?.arrivalButton || { enabled: true, updateAddressCoords: true, autoStartExecution: true };
+
+    if (!arrivalCfg.enabled) {
+      throw new BadRequestException('Botão "Cheguei" não está habilitado neste fluxo.');
+    }
+
+    const now = new Date();
+
+    // 1. Update service order coordinates
+    const soUpdateData: any = {
+      lat,
+      lng,
+      arrivedAt: now,
+    };
+
+    // 2. Auto-start execution if configured
+    if (arrivalCfg.autoStartExecution && ['ATRIBUIDA', 'A_CAMINHO'].includes(so.status)) {
+      soUpdateData.status = ServiceOrderStatus.EM_EXECUCAO;
+      soUpdateData.startedAt = so.startedAt || now;
+    }
+
+    await this.prisma.serviceOrder.update({
+      where: { id: so.id },
+      data: soUpdateData,
+    });
+
+    // 3. Update address coordinates on partner's ServiceAddress (if configured)
+    if (arrivalCfg.updateAddressCoords && so.clientPartnerId) {
+      try {
+        // Find matching ServiceAddress by street+number+city
+        const matchingAddress = await this.prisma.serviceAddress.findFirst({
+          where: {
+            companyId: so.companyId,
+            partnerId: so.clientPartnerId,
+            addressStreet: so.addressStreet || undefined,
+            addressNumber: so.addressNumber || undefined,
+            city: so.city || undefined,
+            active: true,
+          },
+        });
+
+        if (matchingAddress) {
+          await this.prisma.serviceAddress.update({
+            where: { id: matchingAddress.id },
+            data: { lat, lng },
+          });
+          this.logger.log(`📍 ARRIVAL: Updated ServiceAddress ${matchingAddress.id} coords → ${lat}, ${lng}`);
+        }
+      } catch (err) {
+        this.logger.error(`Failed to update ServiceAddress coords: ${(err as Error).message}`);
+      }
+    }
+
+    // 4. Create event
+    await this.prisma.serviceOrderEvent.create({
+      data: {
+        companyId: so.companyId,
+        serviceOrderId: so.id,
+        type: 'TECH_ARRIVED',
+        actorType: 'TECHNICIAN',
+        actorId: so.assignedPartnerId,
+        payload: {
+          lat,
+          lng,
+          previousStatus: so.status,
+          newStatus: soUpdateData.status || so.status,
+          addressUpdated: arrivalCfg.updateAddressCoords,
+        },
+      },
+    });
+
+    // 5. Notifications
+    const vars: Record<string, string> = {
+      '{titulo}': so.title || '',
+      '{tecnico}': so.assignedPartner?.name || '',
+      '{cliente}': so.clientPartner?.name || (so as any).contactPersonName || '',
+      '{empresa}': so.company?.name || '',
+      '{endereco}': so.addressText || '',
+    };
+    const replaceVars = (text: string): string => {
+      let result = text;
+      for (const [k, v] of Object.entries(vars)) result = result.split(k).join(v);
+      return result;
+    };
+
+    if (arrivalCfg.notifyCliente?.enabled) {
+      const msg = replaceVars(arrivalCfg.notifyCliente.message || `O técnico ${vars['{tecnico}']} chegou ao local!`);
+      this.notifications.send({
+        companyId: so.companyId,
+        serviceOrderId: so.id,
+        channel: arrivalCfg.notifyCliente.channel || 'WHATSAPP',
+        message: msg,
+        type: 'TECH_ARRIVED',
+        recipientPhone: so.clientPartner?.phone || undefined,
+        recipientEmail: so.clientPartner?.email || undefined,
+      }).catch((err) => this.logger.error(`Notify client on arrival failed: ${(err as Error).message}`));
+    }
+
+    if (arrivalCfg.notifyGestor?.enabled) {
+      const msg = replaceVars(arrivalCfg.notifyGestor.message || `Técnico ${vars['{tecnico}']} chegou ao local — OS: ${vars['{titulo}']}`);
+      this.notifications.send({
+        companyId: so.companyId,
+        serviceOrderId: so.id,
+        channel: arrivalCfg.notifyGestor.channel || 'WHATSAPP',
+        message: msg,
+        type: 'TECH_ARRIVED',
+        recipientPhone: so.company?.phone || undefined,
+        recipientEmail: so.company?.email || undefined,
+      }).catch((err) => this.logger.error(`Notify gestor on arrival failed: ${(err as Error).message}`));
+    }
+
+    this.logger.log(`📍 ARRIVAL: Tech arrived at SO ${so.id} (${lat}, ${lng})`);
+
+    return {
+      ok: true,
+      autoStarted: !!soUpdateData.status,
+      addressCoordsUpdated: arrivalCfg.updateAddressCoords,
+    };
+  }
+
+  /* ================================================================ */
   /*  PAUSE SYSTEM (v1.00.42)                                        */
   /* ================================================================ */
 

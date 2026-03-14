@@ -1485,3 +1485,13 @@ Solucao:
 - [x] Info banner "Regime de Agenda ativo" quando etapas ocultas
 - [x] Build frontend OK sem erros
 - [x] version.json → v1.03.16
+
+### Sessao 107 (cont): Cleanup canais + textos exemplo — v1.03.18
+- [x] Removido SMS e Push das opcoes de canal (CHANNEL_OPTIONS) — so WhatsApp e E-mail
+- [x] Defaults que usavam 'sms'/'push' trocados para 'whatsapp'
+- [x] Fix hint pagina de tracking: "Atribuida" → "A Caminho"
+- [x] Pergunta do tecnico movida para DENTRO do linkConfig (antes era seccao solta na ABERTA)
+- [x] Removido toggle "Exibir na pagina do link" (agora sempre dentro do link)
+- [x] WhatsAppCostWarning adicionado nas notificacoes de proximidade (A_CAMINHO)
+- [x] Placeholders de mensagem atualizados com textos exemplo uteis em todos os campos
+- [x] Build OK, deploy v1.03.18

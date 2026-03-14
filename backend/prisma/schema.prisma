@@ -338,6 +338,7 @@ model ServiceOrder {
   trackingStartedAt         DateTime?  // Quando o GPS tracking foi ativado (v1.00.40)
   proximityEnteredAt        DateTime?  // Quando o técnico entrou no raio de proximidade (v1.00.40)
   proximityRadiusMeters     Int?       // Raio configurado no momento do tracking (snapshot) (v1.00.40)
+  arrivedAt                 DateTime?  // Quando o técnico clicou "Cheguei no local" (v1.03.19)
 
   // Sistema de Pausas (v1.00.42)
   isPaused        Boolean  @default(false)
@@ -1452,6 +1453,8 @@ model ServiceAddress {
   neighborhood    String?
   city            String
   state           String                  // UF (2 chars)
+  lat             Float?                  // GPS latitude (atualizado pelo técnico ao chegar)
+  lng             Float?                  // GPS longitude (atualizado pelo técnico ao chegar)
   active          Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
