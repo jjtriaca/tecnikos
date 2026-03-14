@@ -317,7 +317,7 @@ export class WhatsAppService {
       this.logger.log(`📱 forceTemplate=true — skipping text, sending via template to ${formattedPhone}`);
     }
 
-    // 2. Fallback: send via template "notificacao_tecnikos" with the message as body
+    // 2. Fallback: send via template "aviso_os" with the message as body
     //    Template must accept {{1}} parameter (the message content)
     //    If no such template, try the generic "hello_world" just to notify the user
     try {
@@ -332,7 +332,7 @@ export class WhatsAppService {
         to: formattedPhone,
         type: 'template',
         template: {
-          name: 'notificacao_tecnikos',
+          name: 'aviso_os',
           language: { code: 'pt_BR' },
           components: [
             {
@@ -345,10 +345,39 @@ export class WhatsAppService {
         },
       });
 
-      this.logger.log(`📱 WhatsApp template "notificacao_tecnikos" sent to ${formattedPhone}`);
+      this.logger.log(`📱 WhatsApp template "aviso_os" sent to ${formattedPhone}`);
       return true;
     } catch (templateErr: any) {
-      this.logger.warn(`📱 Template "notificacao_tecnikos" failed: ${templateErr.message}, trying teste_conexao`);
+      this.logger.warn(`📱 Template "aviso_os" failed: ${templateErr.message}, trying notificacao_tecnikos`);
+    }
+
+    // 2b. Fallback: try legacy template "notificacao_tecnikos" (same format)
+    try {
+      let sanitizedMsg2 = message.replace(/[\r\n\t]+/g, ' | ').replace(/ {4,}/g, '   ').trim();
+      const truncatedMsg2 = sanitizedMsg2.length > 1000 ? sanitizedMsg2.substring(0, 997) + '...' : sanitizedMsg2;
+
+      await this.metaRequest(token, phoneNumberId, {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'template',
+        template: {
+          name: 'notificacao_tecnikos',
+          language: { code: 'pt_BR' },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: truncatedMsg2 },
+              ],
+            },
+          ],
+        },
+      });
+
+      this.logger.log(`📱 WhatsApp template "notificacao_tecnikos" sent to ${formattedPhone}`);
+      return true;
+    } catch (legacyErr: any) {
+      this.logger.warn(`📱 Template "notificacao_tecnikos" also failed: ${legacyErr.message}, trying teste_conexao`);
     }
 
     // 3. Last resort: generic template without parameters

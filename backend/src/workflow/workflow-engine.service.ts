@@ -1409,10 +1409,6 @@ export class WorkflowEngineService {
           for (const r of config.recipients) {
             if (r.enabled !== false) {
               let msg = replaceVars(r.message || '');
-              // Append OS link only for recipients with includeLink enabled (typically TECNICO)
-              if (r.includeLink) {
-                msg += `\n\nLink da OS: ${vars['{link}']}`;
-              }
               recipients.push({
                 type: r.type,
                 channel: r.channel || config.channel || 'WHATSAPP',
@@ -1423,9 +1419,6 @@ export class WorkflowEngineService {
         } else if (config.recipient) {
           // Legacy single recipient format
           let msg = replaceVars(config.message || `Fluxo: bloco "${block.name}" executado`);
-          if (config.includeLink) {
-            msg += `\n\nLink da OS: ${vars['{link}']}`;
-          }
           recipients.push({
             type: config.recipient,
             channel: config.channel || 'MOCK',

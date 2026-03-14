@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiError, api } from "@/lib/api";
 import PasswordInput from "@/components/ui/PasswordInput";
@@ -11,7 +12,17 @@ const SAVED_EMAIL_KEY = "tk_saved_email";
 type ForgotState = "idle" | "form" | "sending" | "sent";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const { login } = useAuth();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || undefined;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberEmail, setRememberEmail] = useState(false);
@@ -90,7 +101,7 @@ export default function LoginPage() {
     }
 
     try {
-      await login(email, password, captchaToken || undefined);
+      await login(email, password, captchaToken || undefined, redirectTo);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         const msg = err.payload?.message || err.message;

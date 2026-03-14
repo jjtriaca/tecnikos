@@ -59,7 +59,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   verificationInfo: VerificationInfo | null;
-  login: (email: string, password: string, captchaToken?: string) => Promise<void>;
+  login: (email: string, password: string, captchaToken?: string, redirectTo?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshVerification: () => Promise<void>;
 }
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchVerification]);
 
   const login = useCallback(
-    async (email: string, password: string, captchaToken?: string) => {
+    async (email: string, password: string, captchaToken?: string, redirectTo?: string) => {
       const res = await api.post<LoginResponse>("/auth/login", {
         email,
         password,
@@ -182,7 +182,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      router.push("/dashboard");
+      // Redirect to the original page if provided, otherwise dashboard
+      const destination = redirectTo && redirectTo.startsWith("/") ? redirectTo : "/dashboard";
+      router.push(destination);
     },
     [router, fetchVerification]
   );
