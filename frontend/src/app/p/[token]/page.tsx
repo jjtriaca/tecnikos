@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, use } from "react";
 import { api, ApiError } from "@/lib/api";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -99,8 +99,8 @@ type PageStep = "loading" | "offer" | "otp" | "accepting" | "arrival" | "trackin
 
 /* ── Page ──────────────────────────────────────────────────── */
 
-export default function PublicTokenPage({ params }: { params: { token: string } }) {
-  const { token } = params;
+export default function PublicTokenPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = use(params);
 
   const [step, setStep] = useState<PageStep>("loading");
   const [data, setData] = useState<PublicViewData | null>(null);
