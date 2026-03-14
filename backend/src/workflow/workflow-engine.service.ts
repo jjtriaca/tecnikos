@@ -1777,9 +1777,22 @@ export class WorkflowEngineService {
       const blocks = v2.blocks;
       this.logger.log(`📨 Workflow "${template.name}" has ${blocks.length} blocks, looking for STATUS=${targetStatus}`);
 
-      const statusBlockIdx = blocks.findIndex(
+      let statusBlockIdx = blocks.findIndex(
         b => b.type === 'STATUS' && b.config?.targetStatus === targetStatus,
       );
+
+      // BY_AGENDA fallback: OS created as ATRIBUIDA but workflow has no STATUS:ATRIBUIDA block.
+      // Fall back to STATUS:ABERTA since that's where the user configured notifications.
+      if (statusBlockIdx === -1 && targetStatus === 'ATRIBUIDA') {
+        this.logger.log(`📨 No STATUS:ATRIBUIDA block — trying fallback to STATUS:ABERTA (BY_AGENDA mode)`);
+        statusBlockIdx = blocks.findIndex(
+          b => b.type === 'STATUS' && b.config?.targetStatus === 'ABERTA',
+        );
+        if (statusBlockIdx !== -1) {
+          this.logger.log(`📨 Fallback: using STATUS:ABERTA block to trigger notifications`);
+        }
+      }
+
       if (statusBlockIdx === -1) {
         this.logger.log(`📨 No STATUS block found for ${targetStatus} — available: ${blocks.filter(b => b.type === 'STATUS').map(b => b.config?.targetStatus).join(', ')}`);
         return;

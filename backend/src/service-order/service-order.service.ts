@@ -149,7 +149,9 @@ export class ServiceOrderService {
         data.companyId,
         result.status,
         resolvedWorkflowId,
-      ).catch(() => {});
+      ).catch(err => {
+        console.error('executeStageNotifications failed:', err?.message || err);
+      });
     }
 
     return result;
