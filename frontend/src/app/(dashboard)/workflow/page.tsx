@@ -43,6 +43,7 @@ type WorkflowListItem = {
   id: string;
   name: string;
   isDefault: boolean;
+  isActive: boolean;
   createdAt: string;
 };
 
@@ -201,6 +202,16 @@ export default function WorkflowPage() {
     }
   };
 
+  const handleToggleActive = async (wf: WorkflowListItem) => {
+    try {
+      await api.put(`/workflows/${wf.id}`, { isActive: !wf.isActive });
+      setWorkflows(prev => prev.map(w => w.id === wf.id ? { ...w, isActive: !wf.isActive } : w));
+      toast(wf.isActive ? "Fluxo desativado" : "Fluxo ativado", "success");
+    } catch {
+      toast("Erro ao alterar status do fluxo", "error");
+    }
+  };
+
   const handlePreset = (presetId: string) => {
     const preset = WORKFLOW_PRESETS.find(p => p.id === presetId);
     if (!preset) return;
@@ -298,23 +309,37 @@ export default function WorkflowPage() {
         {!loading && workflows.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {workflows.map(wf => (
-              <div key={wf.id} className="bg-white rounded-xl border border-slate-200 hover:shadow-md transition-all overflow-hidden group">
+              <div key={wf.id} className={`bg-white rounded-xl border hover:shadow-md transition-all overflow-hidden group ${wf.isActive ? "border-slate-200" : "border-slate-200 opacity-60"}`}>
                 {/* Color bar */}
-                <div className="h-1.5 bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500" />
+                <div className={`h-1.5 ${wf.isActive ? "bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500" : "bg-slate-300"}`} />
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold text-slate-800 truncate">{wf.name}</h3>
+                      <h3 className={`text-sm font-bold truncate ${wf.isActive ? "text-slate-800" : "text-slate-400"}`}>{wf.name}</h3>
                       <p className="text-xs text-slate-400 mt-0.5">
                         Criado em {new Date(wf.createdAt).toLocaleDateString("pt-BR")}
                       </p>
                     </div>
-                    {wf.isDefault && (
-                      <span className="ml-2 shrink-0 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                        Padrão
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2 ml-2 shrink-0">
+                      {wf.isDefault && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                          Padrão
+                        </span>
+                      )}
+                      {/* Toggle ativo/inativo */}
+                      <button
+                        onClick={() => handleToggleActive(wf)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${wf.isActive ? "bg-emerald-500" : "bg-slate-300"}`}
+                        title={wf.isActive ? "Desativar fluxo" : "Ativar fluxo"}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${wf.isActive ? "translate-x-[18px]" : "translate-x-[3px]"}`} />
+                      </button>
+                    </div>
                   </div>
+
+                  {!wf.isActive && (
+                    <p className="text-[10px] text-amber-600 bg-amber-50 rounded px-2 py-0.5 mb-2 inline-block">Inativo</p>
+                  )}
 
                   {/* Actions */}
                   <div className="flex items-center gap-1 pt-3 border-t border-slate-100">

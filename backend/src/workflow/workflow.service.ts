@@ -30,7 +30,7 @@ export class WorkflowService {
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
-        select: { id: true, name: true, isDefault: true, createdAt: true },
+        select: { id: true, name: true, isDefault: true, isActive: true, createdAt: true },
       }),
       this.prisma.workflowTemplate.count({ where }),
     ]);
@@ -59,7 +59,7 @@ export class WorkflowService {
     });
   }
 
-  async update(id: string, companyId: string, body: { name?: string; steps?: any; isDefault?: boolean; requiredSpecializationIds?: string[] }) {
+  async update(id: string, companyId: string, body: { name?: string; steps?: any; isDefault?: boolean; isActive?: boolean; requiredSpecializationIds?: string[] }) {
     await this.findOne(id, companyId);
     if (body.steps) this.validateSteps(body.steps);
 
@@ -75,6 +75,7 @@ export class WorkflowService {
     if (body.name !== undefined) data.name = body.name;
     if (body.steps !== undefined) data.steps = body.steps as any;
     if (body.isDefault !== undefined) data.isDefault = body.isDefault;
+    if (body.isActive !== undefined) data.isActive = body.isActive;
     if (body.requiredSpecializationIds !== undefined) data.requiredSpecializationIds = body.requiredSpecializationIds;
 
     return this.prisma.workflowTemplate.update({

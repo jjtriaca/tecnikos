@@ -68,7 +68,13 @@
 - [x] compileToV2/decompileFromV2 persistem supplierOnboarding
 - [x] Deploy v1.02.74
 
-## Versao atual: v1.02.74 (em producao)
+### Analytics 24h nos Cards (v1.02.75)
+- [x] Backend: access-24h retorna signupStarts24h, signupComplete24h, externalSessions24h, externalPageviews24h, conversionRate24h
+- [x] Frontend: interface Access24h atualizada com novos campos
+- [x] Frontend: sub-linha azul "24h: X" em cada um dos 4 cards de analytics (Visitantes Reais, Signups, Conversoes, Taxa)
+- [x] Deploy v1.02.75
+
+## Versao atual: v1.02.75 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar
