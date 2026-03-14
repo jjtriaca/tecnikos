@@ -1167,3 +1167,21 @@ Deploy v1.02.53
 - Secao colapsavel "Acessos do Brasil" com top 10 IPs brasileiros
 
 ### Deploys: v1.02.73
+
+---
+
+## 2026-03-14 — Sessao 121 (cont): Supplier Onboarding + Fix Retorno (v1.02.74)
+
+### Pedido do Juliano:
+- "use a mesma logica que fez para quando um cliente e criado, apenas mude as logicas para fornecedor"
+- "o botao quando um retorno e criado deve ser 'quando uma OS de retorno e criada'"
+
+### Implementacao:
+- Label trigger retorno: "Um retorno e criado" → "Uma OS de retorno e criada"
+- SupplierOnboardingConfig + createDefaultSupplierOnboarding() (stage-config.ts)
+- DEFAULT_SUPPLIER_CONTRACT: Contrato de Fornecimento (7 clausulas)
+- SupplierOnboardingSection.tsx: componente completo tema amber (~620 linhas)
+- workflow/page.tsx: import, isOnboardingTrigger, render, resumo para supplier
+- compileToV2/decompileFromV2 persistem supplierOnboarding
+
+### Deploy: v1.02.74

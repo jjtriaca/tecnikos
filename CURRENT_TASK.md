@@ -59,7 +59,16 @@
 - `/etc/fail2ban/jail.local` — 3 jails (sshd, nginx-scanner, nginx-login-bf)
 - `/etc/ssh/sshd_config` — SSH key-only
 
-## Versao atual: v1.02.73 (em producao)
+### Supplier Onboarding + Fix Retorno (v1.02.74)
+- [x] Label "Um retorno e criado" corrigido para "Uma OS de retorno e criada"
+- [x] SupplierOnboardingConfig type + createDefaultSupplierOnboarding()
+- [x] Contrato padrao "Contrato de Fornecimento de Materiais e Servicos" (7 clausulas)
+- [x] SupplierOnboardingSection.tsx: UI completa (contrato + mensagem + reply) tema amber
+- [x] workflow/page.tsx: partner_supplier_created no isOnboardingTrigger
+- [x] compileToV2/decompileFromV2 persistem supplierOnboarding
+- [x] Deploy v1.02.74
+
+## Versao atual: v1.02.74 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

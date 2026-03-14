@@ -30,6 +30,12 @@ interface Access24h {
   brazilAccess: ForeignAccessEntry[];
   brazilCount: number;
   hasForeignAccess: boolean;
+  // 24h analytics KPIs
+  externalSessions24h: number;
+  externalPageviews24h: number;
+  signupStarts24h: number;
+  signupComplete24h: number;
+  conversionRate24h: number;
 }
 
 interface SaasMetrics {
@@ -450,6 +456,9 @@ export default function SaasDashboardPage() {
               </div>
               <p className="text-2xl font-bold text-slate-900">{analytics.externalSessions || analytics.uniqueVisitors}</p>
               <p className="text-[10px] text-slate-400">{analytics.externalPageviews || analytics.landingViews} pageviews reais</p>
+              {access24h && (
+                <p className="text-[10px] text-blue-500 mt-0.5">24h: {access24h.externalSessions24h} sessoes · {access24h.externalPageviews24h} pageviews</p>
+              )}
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex items-center gap-1">
@@ -457,6 +466,9 @@ export default function SaasDashboardPage() {
                 <Tooltip text="Tentativas unicas de cadastro (SignupAttempt). Cada tentativa e uma pessoa diferente que iniciou o processo de cadastro." />
               </div>
               <p className="text-2xl font-bold text-slate-900">{analytics.signupStarts}</p>
+              {access24h && (
+                <p className="text-[10px] text-blue-500 mt-0.5">24h: {access24h.signupStarts24h}</p>
+              )}
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex items-center gap-1">
@@ -464,6 +476,9 @@ export default function SaasDashboardPage() {
                 <Tooltip text="Empresas que completaram TODO o processo: cadastro, documentos, verificacao e ativacao. Somente tenants com status ACTIVE." />
               </div>
               <p className="text-2xl font-bold text-green-600">{analytics.signupComplete}</p>
+              {access24h && (
+                <p className="text-[10px] text-blue-500 mt-0.5">24h: {access24h.signupComplete24h}</p>
+              )}
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex items-center gap-1">
@@ -471,6 +486,9 @@ export default function SaasDashboardPage() {
                 <Tooltip text="Percentual de visitantes reais que completaram o cadastro. Calculado como: conversoes / visitantes reais x 100." />
               </div>
               <p className="text-2xl font-bold text-blue-600">{analytics.externalConversion || analytics.conversionRate}%</p>
+              {access24h && (
+                <p className="text-[10px] text-blue-500 mt-0.5">24h: {access24h.conversionRate24h}%</p>
+              )}
             </div>
           </div>
 

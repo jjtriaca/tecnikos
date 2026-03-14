@@ -799,6 +799,30 @@ export class TenantController {
     const externalEvents = events.filter((e) => !isInternal(e.ipAddress, e.userAgent)).length;
     const internalEvents = totalEvents - externalEvents;
 
+    // ── 24h Analytics KPIs ──
+    const [signupStarts24h, signupComplete24h] = await Promise.all([
+      this.prisma.signupAttempt.count({ where: { createdAt: { gte: since } } }),
+      this.prisma.tenant.count({ where: { status: 'ACTIVE', createdAt: { gte: since } } }),
+    ]);
+
+    // External sessions (unique session IDs from non-internal events)
+    const externalSessionIds = new Set<string>();
+    events.forEach((e) => {
+      if (e.sessionId && !isInternal(e.ipAddress, e.userAgent)) {
+        externalSessionIds.add(e.sessionId);
+      }
+    });
+    const externalSessions24h = externalSessionIds.size;
+
+    // External pageviews (landing_view only, external)
+    const externalPageviews24h = events.filter(
+      (e) => e.event === 'landing_view' && !isInternal(e.ipAddress, e.userAgent),
+    ).length;
+
+    const conversionRate24h = externalSessions24h > 0
+      ? Math.round((signupComplete24h / externalSessions24h) * 10000) / 100
+      : 0;
+
     return {
       period: '24h',
       totalEvents,
@@ -812,6 +836,12 @@ export class TenantController {
       brazilAccess: brazilAccess.slice(0, 10), // Top 10 Brazil IPs
       brazilCount: brazilAccess.length,
       hasForeignAccess: foreignAccess.length > 0,
+      // 24h analytics KPIs
+      externalSessions24h,
+      externalPageviews24h,
+      signupStarts24h,
+      signupComplete24h,
+      conversionRate24h,
     };
   }
 
