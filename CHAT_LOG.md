@@ -1439,5 +1439,49 @@ Solucao:
 - Juliano encontrou problema: com Regime de Agenda, OS pula ABERTA → ATRIBUIDA, mas configs estao na ABERTA
 - Proposta de remover OFERTADA e ATRIBUIDA
 - Claude recomendou manter (etapas tem funcao real, impacto massivo em dezenas de arquivos)
-- Sugestao: fazer backend executar configs da ABERTA quando agenda pula direto pra ATRIBUIDA + hints inteligentes
-- **Decisao do Juliano: manter como esta por enquanto** — revisitar no futuro
+- **Decisao: manter etapas, mas ESCONDER OFERTADA e ATRIBUIDA quando Regime de Agenda ativo**
+- Remover numeracao das etapas (nome + icone suficiente)
+
+### Limpeza do Workflow — Decisoes campo a campo
+- Arquivo completo: `WORKFLOW_CLEANUP_DECISIONS.md`
+- **Globais**: remover Webhook de tudo, mover Pergunta pro link, aviso custo WhatsApp em toda notificacao
+- **ABERTA**: esconder Alerta, remover Aguardar evento
+- **OFERTADA**: remover NotifyTecnico, FinancialEntry, Aguardar evento. Esconder Alerta
+- **ATRIBUIDA**: remover NotifyTecnico, FinancialEntry, Alerta, Aguardar evento. Acoes tecnico: so Foto/Nota/Checklist
+- **A_CAMINHO**: remover TUDO exceto Rastreamento por proximidade
+- **EM_EXECUCAO**: manter todas acoes tecnico, notifyGestor, notifyCliente, cronometro, pausas. Remover notifyTecnico, financialEntry, alerta, aguardar
+- **CONCLUIDA**: manter notifyGestor, notifyCliente, financialEntry, aprovacao gestor. Acoes tecnico: so Foto/Nota
+- **APROVADA**: manter financialEntry. Remover TUDO mais
+- **CANCELADA**: nao visivel na UI, nao faz parte da limpeza
+- Todas decisoes documentadas e aprovadas em WORKFLOW_CLEANUP_DECISIONS.md
+
+### Sessao 107 (cont): Hints + Conflitos + WhatsApp Warning
+- [x] Hints descritivos reescritos em TECH_ACTION_LABELS, AUTO_ACTION_LABELS, TIME_CONTROL_LABELS
+- [x] Numeracao das etapas removida (era "index+2. label", agora so "label")
+- [x] Hint contextual no notifyGestor da OFERTADA: "Util quando outro operador despacha..."
+- [x] Hint contextual no notifyCliente da ATRIBUIDA: aviso de duplicidade com onAccept do link
+- [x] Conflito cross-stage: notifyCliente ATRIBUIDA vs onAccept.notifyCliente do link (ABERTA)
+- [x] Componente WhatsAppCostWarning criado — aparece quando canal=whatsapp
+- [x] WhatsAppCostWarning aplicado em: notifyGestor, notifyTecnico, notifyCliente genericos, messageDispatch.toTechnicians, onAccept/onGps/onEnRoute (gestor e cliente)
+- [x] Build frontend OK sem erros
+
+### Sessao 107 (cont): Workflow Cleanup — v1.03.16
+- [x] Removido Webhook de todas as etapas (UI)
+- [x] Removido Alerta de todas as etapas (UI)
+- [x] Removido Aguardar Evento de todas as etapas (UI)
+- [x] Filtrar notificacoes por etapa: notifyTecnico so ATRIBUIDA, sem notificacoes em A_CAMINHO/APROVADA
+- [x] Filtrar acoes do tecnico por etapa:
+  - GPS: so EM_EXECUCAO
+  - Checklist: ATRIBUIDA + EM_EXECUCAO
+  - Form: so EM_EXECUCAO
+  - Signature: so EM_EXECUCAO
+  - Question: so EM_EXECUCAO
+  - STEP: so EM_EXECUCAO
+  - PHOTO (single): ATRIBUIDA + CONCLUIDA
+  - NOTE: todas etapas (correto)
+  - MATERIALS: so EM_EXECUCAO (ja estava)
+- [x] Lancamento financeiro: ja restrito a CONCLUIDA+APROVADA (correto)
+- [x] Esconder OFERTADA+ATRIBUIDA quando scheduleConfig ativo (workflow/page.tsx)
+- [x] Info banner "Regime de Agenda ativo" quando etapas ocultas
+- [x] Build frontend OK sem erros
+- [x] version.json → v1.03.16

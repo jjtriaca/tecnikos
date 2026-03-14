@@ -912,35 +912,35 @@ export const NOTIFY_VARS = [
 /* ── Labels de ações (PT-BR) ──────────────────────────────── */
 
 export const TECH_ACTION_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
-  step:      { label: 'Registrar atividade',      icon: '⚙️', hint: 'O tecnico registra uma atividade nesta etapa (foto, nota e/ou GPS opcionais)' },
-  photo:     { label: 'Tirar fotos obrigatorias',  icon: '📸', hint: 'O tecnico e obrigado a enviar fotos nesta etapa para prosseguir' },
-  note:      { label: 'Escrever observacao',       icon: '📝', hint: 'O tecnico pode registrar observacoes em texto livre nesta etapa' },
-  gps:       { label: 'Capturar localizacao GPS',  icon: '📍', hint: 'Registra as coordenadas GPS do tecnico ao chegar nesta etapa' },
-  checklist: { label: 'Preencher checklist',       icon: '☑️', hint: 'O tecnico preenche uma lista de verificacao antes de concluir esta etapa' },
-  form:      { label: 'Preencher formulario',      icon: '📋', hint: 'O tecnico preenche campos personalizados (texto, numero, selecao) definidos por voce' },
-  signature:         { label: 'Coletar assinatura',            icon: '✍️', hint: 'O tecnico coleta assinatura digital do cliente ou responsavel no local' },
-  question:          { label: 'Responder pergunta',            icon: '❓', hint: 'O tecnico responde uma pergunta com opcoes — a resposta pode disparar acoes automaticas' },
-  photoRequirements: { label: 'Fotos por momento',             icon: '📷', hint: 'Exige fotos em momentos especificos (antes, depois, pausa, retorno) com quantidade minima' },
-  materials:         { label: 'Registrar materiais utilizados', icon: '🔩', hint: 'O tecnico informa pecas e materiais usados no servico, com quantidade e custo' },
+  step:      { label: 'Registrar atividade',      icon: '⚙️', hint: 'Dispara quando o tecnico interage nesta etapa. Ele registra uma atividade com foto, nota e/ou GPS opcionais.' },
+  photo:     { label: 'Tirar fotos obrigatorias',  icon: '📸', hint: 'O tecnico so consegue avancar nesta etapa apos enviar a quantidade minima de fotos configurada.' },
+  note:      { label: 'Escrever observacao',       icon: '📝', hint: 'Habilita campo de texto livre para o tecnico registrar observacoes nesta etapa.' },
+  gps:       { label: 'Capturar localizacao GPS',  icon: '📍', hint: 'Captura automaticamente as coordenadas GPS do tecnico quando ele entra nesta etapa. Registrado no historico da OS.' },
+  checklist: { label: 'Preencher checklist',       icon: '☑️', hint: 'Lista de verificacao obrigatoria — o tecnico deve marcar todos os itens antes de concluir esta etapa.' },
+  form:      { label: 'Preencher formulario',      icon: '📋', hint: 'Campos personalizados (texto, numero, selecao) que o tecnico preenche nesta etapa. Voce define os campos.' },
+  signature:         { label: 'Coletar assinatura',            icon: '✍️', hint: 'O tecnico coleta assinatura digital do cliente ou responsavel no local. Registrada com timestamp e GPS.' },
+  question:          { label: 'Responder pergunta',            icon: '❓', hint: 'Exibe uma pergunta com opcoes ao tecnico. Cada resposta pode disparar uma acao automatica (aceitar, redistribuir, notificar).' },
+  photoRequirements: { label: 'Fotos por momento',             icon: '📷', hint: 'Define grupos de fotos obrigatorias por momento (antes, depois, pausa, retorno) com quantidade minima e instrucoes.' },
+  materials:         { label: 'Registrar materiais utilizados', icon: '🔩', hint: 'O tecnico informa pecas e materiais gastos no servico. Quantidade e custo podem alimentar o lancamento financeiro.' },
 };
 
 export const AUTO_ACTION_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
-  notifyGestor:   { label: 'Notificar gestor',                 icon: '👔', hint: 'Dispara automaticamente quando a OS entra nesta etapa — o gestor recebe a mensagem' },
-  notifyTecnico:  { label: 'Notificar tecnico',                icon: '👷', hint: 'Dispara automaticamente quando a OS entra nesta etapa — o tecnico recebe a mensagem' },
-  notifyCliente:  { label: 'Notificar cliente',                icon: '👤', hint: 'Dispara automaticamente quando a OS entra nesta etapa — o cliente da OS e notificado' },
-  financialEntry: { label: 'Lancar financeiro',                icon: '💰', hint: 'Cria lancamento financeiro (a receber ou a pagar) automaticamente quando a OS chega nesta etapa' },
-  alert:          { label: 'Enviar alerta',                    icon: '🔔', hint: 'Cria notificacao visual no painel do gestor quando a OS entra nesta etapa' },
-  webhook:        { label: 'Webhook externo',                  icon: '🔗', hint: 'Envia os dados da OS para outro sistema via URL quando a OS entra nesta etapa (integracao com ERP, BI, etc.)' },
-  assignTech:     { label: 'Atribuir tecnico automaticamente', icon: '🎯', hint: 'Atribui tecnico automaticamente por avaliacao ou disponibilidade, sem intervencao do operador' },
-  duplicateOS:    { label: 'Duplicar OS',                      icon: '📑', hint: 'Cria uma copia da OS automaticamente quando ela chega nesta etapa' },
-  scheduleConfig:    { label: 'Regime de agenda',                 icon: '📅', hint: 'Muda o despacho: o operador escolhe tecnico + data/hora na agenda. A OS pula Aberta/Ofertada e nasce como Atribuida' },
-  techReviewScreen:  { label: 'Revisao de tecnicos',              icon: '👁️', hint: 'Exibe tela de revisao para o operador conferir os tecnicos selecionados antes de disparar' },
-  gestorApproval: { label: 'Aprovacao do gestor',              icon: '👔', hint: 'A OS fica retida em Concluida ate o gestor revisar e aprovar. Sem isso, a OS e aprovada automaticamente' },
+  notifyGestor:   { label: 'Notificar gestor',                 icon: '👔', hint: 'Dispara quando a OS entra nesta etapa. O gestor recebe aviso automatico pelo canal configurado.' },
+  notifyTecnico:  { label: 'Notificar tecnico',                icon: '👷', hint: 'Dispara quando a OS entra nesta etapa. O tecnico recebe a mensagem pelo canal configurado.' },
+  notifyCliente:  { label: 'Notificar cliente',                icon: '👤', hint: 'Dispara quando a OS entra nesta etapa. O cliente da OS recebe a mensagem pelo canal configurado.' },
+  financialEntry: { label: 'Lancar financeiro',                icon: '💰', hint: 'Gera lancamento financeiro (a receber, a pagar, comissao) automaticamente quando a OS chega nesta etapa.' },
+  alert:          { label: 'Enviar alerta',                    icon: '🔔', hint: 'Cria notificacao visual no painel do gestor. Util para chamar atencao em etapas criticas.' },
+  webhook:        { label: 'Webhook externo',                  icon: '🔗', hint: 'Envia os dados da OS para outro sistema via URL quando a OS entra nesta etapa (integracao com ERP, BI, etc.).' },
+  assignTech:     { label: 'Atribuir tecnico automaticamente', icon: '🎯', hint: 'Atribui um tecnico automaticamente por avaliacao, proximidade ou disponibilidade, sem intervencao do operador.' },
+  duplicateOS:    { label: 'Duplicar OS',                      icon: '📑', hint: 'Cria uma copia da OS automaticamente quando ela chega nesta etapa. A copia herda os dados da original.' },
+  scheduleConfig:    { label: 'Regime de agenda',                 icon: '📅', hint: 'Muda o despacho: o operador escolhe tecnico + data/hora na agenda. A OS pula Aberta/Ofertada e nasce como Atribuida.' },
+  techReviewScreen:  { label: 'Revisao de tecnicos',              icon: '👁️', hint: 'Antes de disparar as mensagens, exibe tela para o operador conferir e editar a lista de tecnicos selecionados.' },
+  gestorApproval: { label: 'Aprovacao do gestor',              icon: '👔', hint: 'A OS fica retida em Concluida ate o gestor revisar e aprovar. Sem isso, a OS e aprovada automaticamente.' },
 };
 
 export const TIME_CONTROL_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
-  waitFor:        { label: 'Aguardar evento',                icon: '⏸️', hint: 'A OS fica retida nesta etapa ate um evento ocorrer ou o tempo limite expirar' },
-  executionTimer: { label: 'Cronometro de execucao',         icon: '⏲️', hint: 'Mede o tempo real de execucao do tecnico. Pausas (se ativas) sao descontadas automaticamente' },
+  waitFor:        { label: 'Aguardar evento',                icon: '⏸️', hint: 'Retém a OS nesta etapa ate um evento externo ocorrer ou o tempo limite expirar. Util para integracoes.' },
+  executionTimer: { label: 'Cronometro de execucao',         icon: '⏲️', hint: 'Mede o tempo real de execucao. Pausas (se ativas) sao descontadas automaticamente do tempo total.' },
 };
 
 /* ── Factory ───────────────────────────────────────────────── */

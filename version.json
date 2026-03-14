@@ -1,5 +1,5 @@
 {
-  "version": "1.03.15",
-  "codename": "Fix GPS defaults + Link invalidation on OS delete/cancel",
-  "releasedAt": "2026-03-14T20:51:16.816Z"
+  "version": "1.03.17",
+  "codename": "Workflow cleanup + smart hints + conflict detection",
+  "releasedAt": "2026-03-14T22:27:52.430Z"
 }

@@ -565,24 +565,43 @@ export default function WorkflowPage() {
         <div>
 
           <div className="space-y-3">
-            {config.stages.map((stage, index) => (
-              <div key={stage.id}>
-                <StageSection
-                  stage={stage}
-                  index={index}
-                  onChange={(updated) => handleStageChange(index, updated)}
-                  allStages={config.stages}
-                />
-                {/* Connection arrow */}
-                {index < config.stages.length - 1 && (
-                  <div className="flex justify-center py-1">
-                    <div className="w-0.5 h-6 bg-slate-300 relative">
-                      <div className="absolute -bottom-1 -left-[3px] w-2 h-2 border-b-2 border-r-2 border-slate-300 transform rotate-45" />
+            {(() => {
+              const abertaStage = config.stages.find(s => s.status === 'ABERTA');
+              const scheduleActive = abertaStage?.autoActions?.scheduleConfig?.enabled ?? false;
+              const hiddenStatuses = scheduleActive ? ['OFERTADA', 'ATRIBUIDA'] : [];
+              const visibleStages = config.stages.filter(s => !hiddenStatuses.includes(s.status));
+
+              return visibleStages.map((stage, index) => (
+                <div key={stage.id}>
+                  <StageSection
+                    stage={stage}
+                    index={index}
+                    onChange={(updated) => {
+                      const realIndex = config.stages.findIndex(s => s.id === stage.id);
+                      handleStageChange(realIndex, updated);
+                    }}
+                    allStages={config.stages}
+                  />
+                  {/* Connection arrow */}
+                  {index < visibleStages.length - 1 && (
+                    <div className="flex justify-center py-1">
+                      <div className="w-0.5 h-6 bg-slate-300 relative">
+                        <div className="absolute -bottom-1 -left-[3px] w-2 h-2 border-b-2 border-r-2 border-slate-300 transform rotate-45" />
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              ));
+            })()}
+            {/* Info when schedule hides stages */}
+            {config.stages.find(s => s.status === 'ABERTA')?.autoActions?.scheduleConfig?.enabled && (
+              <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-800">
+                <span>ℹ️</span>
+                <span>
+                  <strong>Regime de Agenda ativo</strong> — As etapas &quot;Ofertada&quot; e &quot;Atribuída&quot; estão ocultas porque a OS nasce direto como Atribuída quando o operador agenda na criação.
+                </span>
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}

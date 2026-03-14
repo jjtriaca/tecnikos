@@ -229,6 +229,17 @@ function ConflictWarning({ message }: { message: string }) {
   );
 }
 
+/* ── WhatsApp Cost Warning ────────────────────────────────── */
+
+function WhatsAppCostWarning({ channel }: { channel: string }) {
+  if (channel !== 'whatsapp') return null;
+  return (
+    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1 flex items-center gap-1">
+      <span>💰</span> Notificações WhatsApp têm custo por mensagem. Use com critério para evitar gastos desnecessários.
+    </p>
+  );
+}
+
 /* ── Section header ────────────────────────────────────────── */
 
 function SectionLabel({ icon, title }: { icon: string; title: string }) {
@@ -283,7 +294,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
           <span className="text-lg">{stage.icon}</span>
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-800">
-              {index + 2}. {stage.label}
+              {stage.label}
             </h3>
             <p className="text-xs text-slate-400">{stage.status.replace('_', ' ')}</p>
           </div>
@@ -481,6 +492,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                             <SelectField label="Canal" value={stage.autoActions.messageDispatch.toTechnicians.channel}
                               onChange={v => updateAuto('messageDispatch', { toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians, channel: v } })}
                               options={CHANNEL_OPTIONS} />
+                            <WhatsAppCostWarning channel={stage.autoActions.messageDispatch.toTechnicians.channel} />
                             <TextAreaField label="Mensagem" value={stage.autoActions.messageDispatch.toTechnicians.message}
                               onChange={v => updateAuto('messageDispatch', { toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians, message: v } })}
                               placeholder="Mensagem para os técnicos..." vars />
@@ -597,6 +609,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                               <SelectField label="Canal" value={lnk.onAccept.notifyGestor.channel}
                                                 onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyGestor: { ...lnk.onAccept.notifyGestor, channel: v } } })}
                                                 options={CHANNEL_OPTIONS} />
+                                              <WhatsAppCostWarning channel={lnk.onAccept.notifyGestor.channel} />
                                               <TextAreaField label="Mensagem" value={lnk.onAccept.notifyGestor.message}
                                                 onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyGestor: { ...lnk.onAccept.notifyGestor, message: v } } })}
                                                 placeholder="Ex: Técnico {tecnico} aceitou a OS {titulo}." vars />
@@ -610,6 +623,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                               <SelectField label="Canal" value={lnk.onAccept.notifyCliente.channel}
                                                 onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyCliente: { ...lnk.onAccept.notifyCliente, channel: v } } })}
                                                 options={CHANNEL_OPTIONS} />
+                                              <WhatsAppCostWarning channel={lnk.onAccept.notifyCliente.channel} />
                                               <TextAreaField label="Mensagem" value={lnk.onAccept.notifyCliente.message}
                                                 onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyCliente: { ...lnk.onAccept.notifyCliente, message: v } } })}
                                                 placeholder="Ex: Um técnico foi designado para {titulo}." vars />
@@ -641,6 +655,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                   <SelectField label="Canal" value={lnk.onGps.notifyGestor.channel}
                                                     onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, channel: v } } })}
                                                     options={CHANNEL_OPTIONS} />
+                                                  <WhatsAppCostWarning channel={lnk.onGps.notifyGestor.channel} />
                                                   <TextAreaField label="Mensagem" value={lnk.onGps.notifyGestor.message}
                                                     onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, message: v } } })}
                                                     placeholder="Ex: Técnico {tecnico} ativou GPS — a caminho de {endereco}." vars />
@@ -654,6 +669,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                   <SelectField label="Canal" value={lnk.onGps.notifyCliente.channel}
                                                     onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, channel: v } } })}
                                                     options={CHANNEL_OPTIONS} />
+                                                  <WhatsAppCostWarning channel={lnk.onGps.notifyCliente.channel} />
                                                   <TextAreaField label="Mensagem" value={lnk.onGps.notifyCliente.message}
                                                     onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, message: v } } })}
                                                     placeholder="Ex: O técnico está rastreando sua localização." vars />
@@ -677,6 +693,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                   <SelectField label="Canal" value={lnk.onEnRoute.notifyGestor.channel}
                                                     onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, channel: v } } })}
                                                     options={CHANNEL_OPTIONS} />
+                                                  <WhatsAppCostWarning channel={lnk.onEnRoute.notifyGestor.channel} />
                                                   <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyGestor.message}
                                                     onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, message: v } } })}
                                                     placeholder="Ex: Técnico {tecnico} está a caminho. OS: {titulo}." vars />
@@ -690,6 +707,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                   <SelectField label="Canal" value={lnk.onEnRoute.notifyCliente.channel}
                                                     onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, channel: v } } })}
                                                     options={CHANNEL_OPTIONS} />
+                                                  <WhatsAppCostWarning channel={lnk.onEnRoute.notifyCliente.channel} />
                                                   <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyCliente.message}
                                                     onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, message: v } } })}
                                                     placeholder="Ex: O técnico está a caminho! OS: {titulo}." vars />
@@ -723,6 +741,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                   <SelectField label="Canal" value={lnk.onGps.notifyGestor.channel}
                                                     onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, channel: v } } })}
                                                     options={CHANNEL_OPTIONS} />
+                                                  <WhatsAppCostWarning channel={lnk.onGps.notifyGestor.channel} />
                                                   <TextAreaField label="Mensagem" value={lnk.onGps.notifyGestor.message}
                                                     onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, message: v } } })}
                                                     placeholder="Ex: Técnico {tecnico} ativou GPS." vars />
@@ -736,6 +755,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                   <SelectField label="Canal" value={lnk.onGps.notifyCliente.channel}
                                                     onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, channel: v } } })}
                                                     options={CHANNEL_OPTIONS} />
+                                                  <WhatsAppCostWarning channel={lnk.onGps.notifyCliente.channel} />
                                                   <TextAreaField label="Mensagem" value={lnk.onGps.notifyCliente.message}
                                                     onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, message: v } } })}
                                                     placeholder="Ex: O técnico está rastreando sua localização." vars />
@@ -759,6 +779,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                   <SelectField label="Canal" value={lnk.onEnRoute.notifyGestor.channel}
                                                     onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, channel: v } } })}
                                                     options={CHANNEL_OPTIONS} />
+                                                  <WhatsAppCostWarning channel={lnk.onEnRoute.notifyGestor.channel} />
                                                   <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyGestor.message}
                                                     onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, message: v } } })}
                                                     placeholder="Ex: Técnico {tecnico} está a caminho." vars />
@@ -772,6 +793,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                   <SelectField label="Canal" value={lnk.onEnRoute.notifyCliente.channel}
                                                     onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, channel: v } } })}
                                                     options={CHANNEL_OPTIONS} />
+                                                  <WhatsAppCostWarning channel={lnk.onEnRoute.notifyCliente.channel} />
                                                   <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyCliente.message}
                                                     onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, message: v } } })}
                                                     placeholder="Ex: O técnico está a caminho! OS: {titulo}." vars />
@@ -1259,39 +1281,67 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
 
             {/* ═══ AÇÕES GENÉRICAS (filtradas por etapa) ═══ */}
 
-            {/* Notificações simples — todas exceto ABERTA (que usa messageDispatch rico) */}
-            {stage.status !== 'ABERTA' && (
+            {/* ═══ NOTIFICAÇÕES SIMPLES — filtradas por etapa ═══ */}
+            {/* ABERTA usa messageDispatch rico. A_CAMINHO e APROVADA não têm notificações. */}
+            {!['ABERTA', 'A_CAMINHO', 'APROVADA'].includes(stage.status) && (
               <>
+                {/* Notificar gestor — OFERTADA, ATRIBUÍDA, EM_EXECUÇÃO, CONCLUÍDA */}
                 <div>
                   <Toggle checked={stage.autoActions.notifyGestor.enabled} onChange={v => updateAuto('notifyGestor', { enabled: v })}
-                    label={AUTO_ACTION_LABELS.notifyGestor.label} hint={AUTO_ACTION_LABELS.notifyGestor.hint} />
+                    label={AUTO_ACTION_LABELS.notifyGestor.label}
+                    hint={stage.status === 'OFERTADA'
+                      ? 'Útil quando outro operador despacha a OS ou em despachos automáticos — avisa o gestor que a oferta foi enviada aos técnicos.'
+                      : AUTO_ACTION_LABELS.notifyGestor.hint} />
                   <ConfigRow visible={stage.autoActions.notifyGestor.enabled}>
                     <SelectField label="Canal" value={stage.autoActions.notifyGestor.channel}
                       onChange={v => updateAuto('notifyGestor', { channel: v })} options={CHANNEL_OPTIONS} />
+                    <WhatsAppCostWarning channel={stage.autoActions.notifyGestor.channel} />
                     <TextAreaField label="Mensagem" value={stage.autoActions.notifyGestor.message}
                       onChange={v => updateAuto('notifyGestor', { message: v })} placeholder="Mensagem para o gestor..." vars />
                   </ConfigRow>
                 </div>
+
+                {/* Notificar técnico — REMOVIDO de OFERTADA (duplicado com ABERTA), A_CAMINHO (sem sentido), EM_EXECUÇÃO (já sabe), CONCLUÍDA (já sabe), APROVADA (encerrado) */}
+                {/* Só aparece na ATRIBUÍDA */}
+                {stage.status === 'ATRIBUIDA' && (
                 <div>
                   <Toggle checked={stage.autoActions.notifyTecnico.enabled} onChange={v => updateAuto('notifyTecnico', { enabled: v })}
                     label={AUTO_ACTION_LABELS.notifyTecnico.label} hint={AUTO_ACTION_LABELS.notifyTecnico.hint} />
-                  {stage.status === 'ATRIBUIDA' && stage.autoActions.notifyTecnico.enabled && scheduleNotifiesTech && (
+                  {stage.autoActions.notifyTecnico.enabled && scheduleNotifiesTech && (
                     <ConflictWarning message="O Regime de Agenda (etapa Aberta) já notifica o técnico sobre o agendamento. Ativar esta notificação pode gerar mensagem duplicada para o técnico." />
                   )}
                   <ConfigRow visible={stage.autoActions.notifyTecnico.enabled}>
                     <SelectField label="Canal" value={stage.autoActions.notifyTecnico.channel}
                       onChange={v => updateAuto('notifyTecnico', { channel: v })} options={CHANNEL_OPTIONS} />
+                    <WhatsAppCostWarning channel={stage.autoActions.notifyTecnico.channel} />
                     <TextAreaField label="Mensagem" value={stage.autoActions.notifyTecnico.message}
                       onChange={v => updateAuto('notifyTecnico', { message: v })} placeholder="Mensagem para o técnico..." vars />
                     <SubToggle checked={stage.autoActions.notifyTecnico.includeLink} onChange={v => updateAuto('notifyTecnico', { includeLink: v })} label="Incluir link da OS" />
                   </ConfigRow>
                 </div>
+                )}
+
+                {/* Notificar cliente — OFERTADA, ATRIBUÍDA, EM_EXECUÇÃO, CONCLUÍDA */}
                 <div>
                   <Toggle checked={stage.autoActions.notifyCliente.enabled} onChange={v => updateAuto('notifyCliente', { enabled: v })}
-                    label={AUTO_ACTION_LABELS.notifyCliente.label} hint={AUTO_ACTION_LABELS.notifyCliente.hint} />
+                    label={AUTO_ACTION_LABELS.notifyCliente.label}
+                    hint={stage.status === 'OFERTADA'
+                      ? 'Avisa o cliente que a OS foi enviada aos técnicos e está aguardando aceite.'
+                      : stage.status === 'ATRIBUIDA'
+                        ? 'Avisa o cliente que um técnico foi designado. Se o link já notifica no aceite (onAccept), pode ser duplicado.'
+                        : AUTO_ACTION_LABELS.notifyCliente.hint} />
+                  {stage.status === 'ATRIBUIDA' && stage.autoActions.notifyCliente.enabled && (
+                    (() => {
+                      const linkOnAcceptClient = abertaStage?.autoActions.messageDispatch?.toTechnicians?.link?.onAccept?.notifyCliente?.enabled;
+                      return linkOnAcceptClient ? (
+                        <ConflictWarning message="O link do técnico (etapa Aberta) já notifica o cliente ao aceitar a OS. Ativar esta notificação pode gerar mensagem duplicada para o cliente." />
+                      ) : null;
+                    })()
+                  )}
                   <ConfigRow visible={stage.autoActions.notifyCliente.enabled}>
                     <SelectField label="Canal" value={stage.autoActions.notifyCliente.channel}
                       onChange={v => updateAuto('notifyCliente', { channel: v })} options={CHANNEL_OPTIONS} />
+                    <WhatsAppCostWarning channel={stage.autoActions.notifyCliente.channel} />
                     <TextAreaField label="Mensagem" value={stage.autoActions.notifyCliente.message}
                       onChange={v => updateAuto('notifyCliente', { message: v })} placeholder="Mensagem para o cliente..." vars />
                   </ConfigRow>
@@ -1623,34 +1673,18 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             {/* - Redistribuição deve ser feita manualmente pelo gestor */}
             {/* - Duplicar OS para follow-up é decisão manual, não automática */}
 
-            {/* Alerta e Webhook — todas as etapas */}
-            <div>
-              <Toggle checked={stage.autoActions.alert.enabled} onChange={v => updateAuto('alert', { enabled: v })}
-                label={AUTO_ACTION_LABELS.alert.label} hint={AUTO_ACTION_LABELS.alert.hint} />
-              <ConfigRow visible={stage.autoActions.alert.enabled}>
-                <TextField label="Mensagem" value={stage.autoActions.alert.message}
-                  onChange={v => updateAuto('alert', { message: v })} placeholder="Texto do alerta..." />
-                <SelectField label="Severidade" value={stage.autoActions.alert.severity}
-                  onChange={v => updateAuto('alert', { severity: v })} options={SEVERITY_OPTIONS} />
-              </ConfigRow>
-            </div>
-            <div>
-              <Toggle checked={stage.autoActions.webhook.enabled} onChange={v => updateAuto('webhook', { enabled: v })}
-                label={AUTO_ACTION_LABELS.webhook.label} hint={AUTO_ACTION_LABELS.webhook.hint} />
-              <ConfigRow visible={stage.autoActions.webhook.enabled}>
-                <TextField label="URL" value={stage.autoActions.webhook.url}
-                  onChange={v => updateAuto('webhook', { url: v })} placeholder="https://..." />
-              </ConfigRow>
-            </div>
+            {/* Webhook — REMOVIDO de todas as etapas (decisão global) */}
+            {/* Alerta — REMOVIDO de todas as etapas (redundante com status no card) */}
           </div>
 
-          {/* ── AÇÕES DO TÉCNICO (ATRIBUÍDA até CONCLUÍDA — antes não há técnico, APROVADA é etapa gerencial) ── */}
-          {!['ABERTA', 'OFERTADA', 'APROVADA'].includes(stage.status) && (
+          {/* ── AÇÕES DO TÉCNICO ── */}
+          {/* ABERTA/OFERTADA: sem técnico. A_CAMINHO: dirigindo, sem interação. APROVADA: encerrado. */}
+          {!['ABERTA', 'OFERTADA', 'A_CAMINHO', 'APROVADA'].includes(stage.status) && (
           <>
           <SectionLabel icon="👷" title="Ações do Técnico" />
           <div className="space-y-3">
-            {/* STEP — não disponível em CONCLUÍDA (redundante com EM_EXECUÇÃO) */}
-            {stage.status !== 'CONCLUIDA' && (
+            {/* STEP — só EM_EXECUÇÃO (ATRIBUÍDA: filtrado, CONCLUÍDA: filtrado) */}
+            {stage.status === 'EM_EXECUCAO' && (
             <div>
               <Toggle checked={stage.techActions.step.enabled} onChange={v => updateTech('step', { enabled: v })}
                 label={TECH_ACTION_LABELS.step.label} hint={TECH_ACTION_LABELS.step.hint} />
@@ -1687,9 +1721,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
               </div>
             )}
 
-            {/* PHOTO (single group — legacy, para etapas que não EM_EXECUCAO nem CONCLUIDA) */}
-            {/* CONCLUÍDA usa photoRequirements.on_conclude da EM_EXECUÇÃO */}
-            {!['EM_EXECUCAO', 'CONCLUIDA'].includes(stage.status) && (
+            {/* PHOTO (single group) — ATRIBUÍDA e CONCLUÍDA */}
+            {['ATRIBUIDA', 'CONCLUIDA'].includes(stage.status) && (
               <div>
                 <Toggle checked={stage.techActions.photo.enabled} onChange={v => updateTech('photo', { enabled: v })}
                   label={TECH_ACTION_LABELS.photo.label} hint={TECH_ACTION_LABELS.photo.hint} />
@@ -1716,7 +1749,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
               </ConfigRow>
             </div>
 
-            {/* GPS */}
+            {/* GPS — only EM_EXECUCAO */}
+            {stage.status === 'EM_EXECUCAO' && (
             <div>
               <Toggle checked={stage.techActions.gps.enabled} onChange={v => updateTech('gps', { enabled: v })}
                 label={TECH_ACTION_LABELS.gps.label} hint={TECH_ACTION_LABELS.gps.hint} />
@@ -1724,8 +1758,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 <SubToggle checked={stage.techActions.gps.requireAccuracy} onChange={v => updateTech('gps', { requireAccuracy: v })} label="Alta precisão obrigatória" />
               </ConfigRow>
             </div>
+            )}
 
-            {/* CHECKLIST */}
+            {/* CHECKLIST — ATRIBUIDA + EM_EXECUCAO */}
+            {['ATRIBUIDA', 'EM_EXECUCAO'].includes(stage.status) && (
             <div>
               <Toggle checked={stage.techActions.checklist.enabled} onChange={v => updateTech('checklist', { enabled: v })}
                 label={TECH_ACTION_LABELS.checklist.label} hint={TECH_ACTION_LABELS.checklist.hint} />
@@ -1734,8 +1770,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   onChange={items => updateTech('checklist', { items })} placeholder="Item do checklist" />
               </ConfigRow>
             </div>
+            )}
 
-            {/* FORM */}
+            {/* FORM — only EM_EXECUCAO */}
+            {stage.status === 'EM_EXECUCAO' && (
             <div>
               <Toggle checked={stage.techActions.form.enabled} onChange={v => updateTech('form', { enabled: v })}
                 label={TECH_ACTION_LABELS.form.label} hint={TECH_ACTION_LABELS.form.hint} />
@@ -1744,6 +1782,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   onChange={fields => updateTech('form', { fields })} />
               </ConfigRow>
             </div>
+            )}
 
             {/* MATERIALS — only EM_EXECUCAO */}
             {stage.status === 'EM_EXECUCAO' && (
@@ -1769,8 +1808,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
               </div>
             )}
 
-            {/* SIGNATURE — só a partir de EM_EXECUÇÃO (antes disso o cliente não está presente) */}
-            {!['ATRIBUIDA', 'A_CAMINHO'].includes(stage.status) && (
+            {/* SIGNATURE — only EM_EXECUCAO */}
+            {stage.status === 'EM_EXECUCAO' && (
             <div>
               <Toggle checked={stage.techActions.signature.enabled} onChange={v => updateTech('signature', { enabled: v })}
                 label={TECH_ACTION_LABELS.signature.label} hint={TECH_ACTION_LABELS.signature.hint} />
@@ -1781,7 +1820,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             </div>
             )}
 
-            {/* QUESTION */}
+            {/* QUESTION — only EM_EXECUCAO */}
+            {stage.status === 'EM_EXECUCAO' && (
             <div>
               <Toggle checked={stage.techActions.question.enabled} onChange={v => updateTech('question', { enabled: v })}
                 label={TECH_ACTION_LABELS.question.label} hint={TECH_ACTION_LABELS.question.hint} />
@@ -1795,6 +1835,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 </div>
               </ConfigRow>
             </div>
+            )}
           </div>
           </>
           )}
@@ -1818,36 +1859,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
           {/* ── CONTROLE DE TEMPO ── */}
           <SectionLabel icon="⏱️" title="Controle de Tempo" />
           <div className="space-y-3">
-            {/* WAIT_FOR */}
-            <div>
-              <Toggle checked={stage.timeControl.waitFor.enabled} onChange={v => updateTime('waitFor', { enabled: v })}
-                label={TIME_CONTROL_LABELS.waitFor.label} hint={TIME_CONTROL_LABELS.waitFor.hint} />
-              <ConfigRow visible={stage.timeControl.waitFor.enabled}>
-                <NumberField label="Tempo limite" value={stage.timeControl.waitFor.timeoutMinutes}
-                  onChange={v => updateTime('waitFor', { timeoutMinutes: v })} suffix="minutos" />
-                <div>
-                  <span className="text-xs text-slate-500 mb-1 block">Condições de disparo antecipado:</span>
-                  <div className="space-y-1">
-                    {TRIGGER_CONDITIONS.map(tc => (
-                      <label key={tc.value} className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox"
-                          checked={stage.timeControl.waitFor.triggerConditions.includes(tc.value)}
-                          onChange={e => {
-                            const conds = e.target.checked
-                              ? [...stage.timeControl.waitFor.triggerConditions, tc.value]
-                              : stage.timeControl.waitFor.triggerConditions.filter(c => c !== tc.value);
-                            updateTime('waitFor', { triggerConditions: conds });
-                          }}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-200 h-3.5 w-3.5" />
-                        <span className="text-xs text-slate-600">{tc.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <SelectField label="Ao expirar" value={stage.timeControl.waitFor.timeoutAction}
-                  onChange={v => updateTime('waitFor', { timeoutAction: v })} options={TIMEOUT_ACTIONS} />
-              </ConfigRow>
-            </div>
+            {/* WAIT_FOR — REMOVIDO de todas as etapas (coberto por configs específicas de cada etapa) */}
 
             {/* EXECUTION TIMER — only EM_EXECUCAO */}
             {stage.status === 'EM_EXECUCAO' && (
