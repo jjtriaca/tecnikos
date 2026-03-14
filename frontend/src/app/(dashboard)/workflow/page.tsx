@@ -43,6 +43,7 @@ type WorkflowListItem = {
   name: string;
   isDefault: boolean;
   isActive: boolean;
+  sortOrder: number;
   createdAt: string;
 };
 
@@ -63,6 +64,10 @@ export default function WorkflowPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Drag-and-drop reorder
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   // Trigger section: collapsed by default, auto-collapse when scrolled out of view
   const [triggerExpanded, setTriggerExpanded] = useState(false);
@@ -207,6 +212,62 @@ export default function WorkflowPage() {
     }
   };
 
+  /* ── Drag-and-drop reorder ──────────────────────────────── */
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDragId(id);
+    e.dataTransfer.effectAllowed = "move";
+    // Make ghost semi-transparent
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = "0.5";
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = "1";
+    }
+    setDragId(null);
+    setDragOverId(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (id !== dragOverId) setDragOverId(id);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!dragId || dragId === targetId) {
+      setDragId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    const oldList = [...workflows];
+    const dragIndex = oldList.findIndex(w => w.id === dragId);
+    const targetIndex = oldList.findIndex(w => w.id === targetId);
+    if (dragIndex < 0 || targetIndex < 0) return;
+
+    // Move item
+    const [moved] = oldList.splice(dragIndex, 1);
+    oldList.splice(targetIndex, 0, moved);
+
+    // Optimistic update
+    setWorkflows(oldList);
+    setDragId(null);
+    setDragOverId(null);
+
+    // Persist order
+    try {
+      await api.patch("/workflows/reorder", { orderedIds: oldList.map(w => w.id) });
+    } catch {
+      toast("Erro ao reordenar fluxos", "error");
+      loadWorkflows(); // revert
+    }
+  };
+
   const handleStageChange = (index: number, stage: StageConfig) => {
     const stages = [...config.stages];
     stages[index] = stage;
@@ -296,16 +357,30 @@ export default function WorkflowPage() {
         {!loading && workflows.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {workflows.map(wf => (
-              <div key={wf.id} className={`bg-white rounded-xl border hover:shadow-md transition-all overflow-hidden group ${wf.isActive ? "border-slate-200" : "border-slate-200 opacity-60"}`}>
+              <div
+                key={wf.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, wf.id)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, wf.id)}
+                onDrop={(e) => handleDrop(e, wf.id)}
+                className={`bg-white rounded-xl border hover:shadow-md transition-all overflow-hidden group cursor-grab active:cursor-grabbing ${
+                  wf.isActive ? "border-slate-200" : "border-slate-200 opacity-60"
+                } ${dragOverId === wf.id && dragId !== wf.id ? "ring-2 ring-blue-400 scale-[1.02]" : ""}`}
+              >
                 {/* Color bar */}
                 <div className={`h-1.5 ${wf.isActive ? "bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500" : "bg-slate-300"}`} />
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`text-sm font-bold truncate ${wf.isActive ? "text-slate-800" : "text-slate-400"}`}>{wf.name}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Criado em {new Date(wf.createdAt).toLocaleDateString("pt-BR")}
-                      </p>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {/* Drag handle */}
+                      <span className="text-slate-300 group-hover:text-slate-400 shrink-0 select-none" title="Arraste para reordenar">⠿</span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`text-sm font-bold truncate ${wf.isActive ? "text-slate-800" : "text-slate-400"}`}>{wf.name}</h3>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Criado em {new Date(wf.createdAt).toLocaleDateString("pt-BR")}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 ml-2 shrink-0">
                       {wf.isDefault && (

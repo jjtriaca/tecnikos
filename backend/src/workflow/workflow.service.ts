@@ -27,10 +27,10 @@ export class WorkflowService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.workflowTemplate.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
         skip,
         take: limit,
-        select: { id: true, name: true, isDefault: true, isActive: true, createdAt: true },
+        select: { id: true, name: true, isDefault: true, isActive: true, sortOrder: true, createdAt: true },
       }),
       this.prisma.workflowTemplate.count({ where }),
     ]);
@@ -90,6 +90,22 @@ export class WorkflowService {
       where: { id },
       data: { deletedAt: new Date() },
     });
+  }
+
+  async reorder(companyId: string, orderedIds: string[]) {
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+      throw new BadRequestException('Lista de IDs é obrigatória');
+    }
+
+    const updates = orderedIds.map((id, index) =>
+      this.prisma.workflowTemplate.updateMany({
+        where: { id, companyId, deletedAt: null },
+        data: { sortOrder: index },
+      }),
+    );
+
+    await this.prisma.$transaction(updates);
+    return { success: true };
   }
 
   /* ── Validation ── */

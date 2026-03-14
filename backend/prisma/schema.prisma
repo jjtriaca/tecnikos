@@ -448,6 +448,7 @@ model WorkflowTemplate {
   name      String
   isDefault Boolean  @default(false)
   isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
   steps     Json     // V1: Array<{order,name,icon,requirePhoto,requireNote}> | V2: {version:2, blocks: Block[]}
   requiredSpecializationIds String[] @default([]) // IDs de especializações necessárias
   createdAt DateTime @default(now())

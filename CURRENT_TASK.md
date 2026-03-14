@@ -82,7 +82,20 @@
 - [x] Card fica com opacity-60 + barra cinza quando inativo + badge "Inativo"
 - [x] Deploy v1.02.76
 
-## Versao atual: v1.02.76 (em producao)
+### isActive enforcement (v1.02.77)
+- [x] workflow-engine.service.ts: attachDefaultWorkflow filtra isActive: true
+- [x] partner.service.ts: onboarding dispatch filtra isActive: true
+- [x] whatsapp.service.ts: welcome reply filtra isActive: true
+- [x] service-order.service.ts: default workflow filtra isActive: true
+- [x] Fix: migration nao aplicou em tenant_sls — ALTER TABLE manual aplicado
+- [x] Deploy v1.02.77
+
+### Remocao Modelos Prontos (v1.02.79)
+- [x] Removida secao "Modelos Prontos" / "Click para preencher automaticamente" do editor de workflow
+- [x] Removidos: WORKFLOW_PRESETS import, activePreset state, handlePreset function
+- [x] Deploy v1.02.79
+
+## Versao atual: v1.02.79 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

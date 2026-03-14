@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -50,6 +50,15 @@ export class WorkflowController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.update(id, user.companyId, body);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Patch('reorder')
+  reorder(
+    @Body() body: { orderedIds: string[] },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.reorder(user.companyId, body.orderedIds);
   }
 
   @Roles(UserRole.ADMIN)
