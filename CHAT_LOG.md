@@ -1418,3 +1418,26 @@ Solucao:
 
 ### Frontend StageSection.tsx (sessao anterior)
 - UI reestruturada: Pagina 1 (oferta + layout + acceptOS), Pagina 2 (pos-aceite), Pagina sem aceite, Pagina tracking
+
+---
+
+## 2026-03-14 — Sessao 107: Fix GPS + Link Invalidation (v1.03.13-14)
+
+### Fix GPS startTracking (v1.03.13)
+- Backend `startTracking()` usava defaults quando nao tem PROXIMITY_TRIGGER (antes lancava BadRequestException)
+- GPS funciona pelo linkConfig mesmo sem bloco PROXIMITY_TRIGGER no workflow
+
+### Link Publico Invalidado (v1.03.14)
+- OS excluida ou cancelada invalida o link publico
+- 6 endpoints protegidos: getOfferByToken, resolveAssignedTech, markEnRoute, submitPosition, getTrackingConfig, findOsByToken
+- Verificam `deletedAt` + status `CANCELADA`
+- Mensagem: "Esta ordem de serviço não está mais disponível."
+
+### Deploy v1.03.14 — OK
+
+### Discussao: Remover etapas OFERTADA e ATRIBUIDA?
+- Juliano encontrou problema: com Regime de Agenda, OS pula ABERTA → ATRIBUIDA, mas configs estao na ABERTA
+- Proposta de remover OFERTADA e ATRIBUIDA
+- Claude recomendou manter (etapas tem funcao real, impacto massivo em dezenas de arquivos)
+- Sugestao: fazer backend executar configs da ABERTA quando agenda pula direto pra ATRIBUIDA + hints inteligentes
+- **Decisao do Juliano: manter como esta por enquanto** — revisitar no futuro

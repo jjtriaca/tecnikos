@@ -100,6 +100,10 @@ export interface StageConfig {
           gpsNavigation: boolean;
           enRoute: boolean;
           pageLayout: LinkPageBlock[];
+          /* ── Notificações por ação do link ── */
+          onAccept:  { notifyGestor: { enabled: boolean; channel: string; message: string }; notifyCliente: { enabled: boolean; channel: string; message: string } };
+          onGps:     { notifyGestor: { enabled: boolean; channel: string; message: string }; notifyCliente: { enabled: boolean; channel: string; message: string } };
+          onEnRoute: { notifyGestor: { enabled: boolean; channel: string; message: string }; notifyCliente: { enabled: boolean; channel: string; message: string } };
         };
       };
       toGestor:  { enabled: boolean; channel: string; message: string };
@@ -1029,6 +1033,9 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
               { id: 'bl_12', type: 'text', label: 'Texto livre 2', content: '', enabled: false },
               { id: 'bl_13', type: 'text', label: 'Texto livre 3', content: '', enabled: false },
             ],
+            onAccept:  { notifyGestor: { enabled: false, channel: 'whatsapp', message: 'Técnico {tecnico} aceitou a OS {titulo}.' }, notifyCliente: { enabled: false, channel: 'sms', message: 'Um técnico foi designado para sua solicitação {titulo}.' } },
+            onGps:     { notifyGestor: { enabled: false, channel: 'whatsapp', message: 'Técnico {tecnico} ativou GPS — a caminho de {endereco}.' }, notifyCliente: { enabled: false, channel: 'sms', message: '' } },
+            onEnRoute: { notifyGestor: { enabled: false, channel: 'whatsapp', message: 'Técnico {tecnico} está a caminho. OS: {titulo}.' }, notifyCliente: { enabled: false, channel: 'sms', message: 'O técnico está a caminho! OS: {titulo}.' } },
           },
         },
         toGestor:  { enabled: false, channel: 'whatsapp', message: 'OS {titulo} foi aberta e enviada para técnicos' },
@@ -1549,6 +1556,9 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
             gpsNavigation: techLink.gpsNavigation,
             enRoute: techLink.enRoute,
             pageLayout: techLink.pageLayout,  // save ALL blocks (enabled flag preserved for round-trip)
+            onAccept:  techLink.onAccept,
+            onGps:     techLink.onGps,
+            onEnRoute: techLink.onEnRoute,
           } : undefined,
         });
       }
@@ -2087,6 +2097,26 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
                 stage.autoActions.messageDispatch.toTechnicians.link.acceptOS = r.linkConfig.acceptOS ?? true;
                 stage.autoActions.messageDispatch.toTechnicians.link.gpsNavigation = r.linkConfig.gpsNavigation ?? false;
                 stage.autoActions.messageDispatch.toTechnicians.link.enRoute = r.linkConfig.enRoute ?? false;
+                // Restore per-action notifications
+                const defNotif = { enabled: false, channel: 'whatsapp', message: '' };
+                if (r.linkConfig.onAccept) {
+                  stage.autoActions.messageDispatch.toTechnicians.link.onAccept = {
+                    notifyGestor:  { ...defNotif, ...r.linkConfig.onAccept.notifyGestor },
+                    notifyCliente: { ...defNotif, channel: 'sms', ...r.linkConfig.onAccept.notifyCliente },
+                  };
+                }
+                if (r.linkConfig.onGps) {
+                  stage.autoActions.messageDispatch.toTechnicians.link.onGps = {
+                    notifyGestor:  { ...defNotif, ...r.linkConfig.onGps.notifyGestor },
+                    notifyCliente: { ...defNotif, channel: 'sms', ...r.linkConfig.onGps.notifyCliente },
+                  };
+                }
+                if (r.linkConfig.onEnRoute) {
+                  stage.autoActions.messageDispatch.toTechnicians.link.onEnRoute = {
+                    notifyGestor:  { ...defNotif, ...r.linkConfig.onEnRoute.notifyGestor },
+                    notifyCliente: { ...defNotif, channel: 'sms', ...r.linkConfig.onEnRoute.notifyCliente },
+                  };
+                }
                 if (r.linkConfig.pageLayout?.length) {
                   // Merge saved layout with defaults (preserves blocks added in future versions)
                   const defaultLayout = stage.autoActions.messageDispatch.toTechnicians.link.pageLayout;

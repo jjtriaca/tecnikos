@@ -587,6 +587,36 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                           ? 'Técnico clica para aceitar. Primeiro clique trava o link para este dispositivo.'
                                           : 'Desativado — a página é informativa. GPS ou "Estou a caminho" serão mostrados aqui.'}
                                       </p>
+                                      {lnk.acceptOS && (
+                                        <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-green-200">
+                                          <SubToggle checked={lnk.onAccept.notifyGestor.enabled}
+                                            onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyGestor: { ...lnk.onAccept.notifyGestor, enabled: v } } })}
+                                            label="👔 Notificar gestor ao aceitar" />
+                                          {lnk.onAccept.notifyGestor.enabled && (
+                                            <div className="ml-5 space-y-1">
+                                              <SelectField label="Canal" value={lnk.onAccept.notifyGestor.channel}
+                                                onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyGestor: { ...lnk.onAccept.notifyGestor, channel: v } } })}
+                                                options={CHANNEL_OPTIONS} />
+                                              <TextAreaField label="Mensagem" value={lnk.onAccept.notifyGestor.message}
+                                                onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyGestor: { ...lnk.onAccept.notifyGestor, message: v } } })}
+                                                placeholder="Ex: Técnico {tecnico} aceitou a OS {titulo}." vars />
+                                            </div>
+                                          )}
+                                          <SubToggle checked={lnk.onAccept.notifyCliente.enabled}
+                                            onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyCliente: { ...lnk.onAccept.notifyCliente, enabled: v } } })}
+                                            label="👤 Notificar cliente ao aceitar" />
+                                          {lnk.onAccept.notifyCliente.enabled && (
+                                            <div className="ml-5 space-y-1">
+                                              <SelectField label="Canal" value={lnk.onAccept.notifyCliente.channel}
+                                                onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyCliente: { ...lnk.onAccept.notifyCliente, channel: v } } })}
+                                                options={CHANNEL_OPTIONS} />
+                                              <TextAreaField label="Mensagem" value={lnk.onAccept.notifyCliente.message}
+                                                onChange={v => updateLink({ onAccept: { ...lnk.onAccept, notifyCliente: { ...lnk.onAccept.notifyCliente, message: v } } })}
+                                                placeholder="Ex: Um técnico foi designado para {titulo}." vars />
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
 
@@ -595,16 +625,78 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     <div className="pt-2 border-t border-blue-200">
                                       <span className="text-xs font-bold text-slate-600 block mb-2">📄 Página 2 — Pós-aceite</span>
                                       <p className="text-[10px] text-slate-400 mb-2">Após aceitar, o técnico vê esta página até agir.</p>
-                                      <div className="space-y-2">
+                                      <div className="space-y-3">
+                                        {/* GPS button + notifications */}
                                         <div>
                                           <SubToggle checked={lnk.gpsNavigation} onChange={v => updateLink({ gpsNavigation: v })}
                                             label="📡 Botão &quot;Ativar GPS&quot;" />
                                           <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Rastreamento por proximidade até o local do serviço.</p>
+                                          {lnk.gpsNavigation && (
+                                            <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-cyan-200">
+                                              <SubToggle checked={lnk.onGps.notifyGestor.enabled}
+                                                onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, enabled: v } } })}
+                                                label="👔 Notificar gestor ao ativar GPS" />
+                                              {lnk.onGps.notifyGestor.enabled && (
+                                                <div className="ml-5 space-y-1">
+                                                  <SelectField label="Canal" value={lnk.onGps.notifyGestor.channel}
+                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, channel: v } } })}
+                                                    options={CHANNEL_OPTIONS} />
+                                                  <TextAreaField label="Mensagem" value={lnk.onGps.notifyGestor.message}
+                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, message: v } } })}
+                                                    placeholder="Ex: Técnico {tecnico} ativou GPS — a caminho de {endereco}." vars />
+                                                </div>
+                                              )}
+                                              <SubToggle checked={lnk.onGps.notifyCliente.enabled}
+                                                onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, enabled: v } } })}
+                                                label="👤 Notificar cliente ao ativar GPS" />
+                                              {lnk.onGps.notifyCliente.enabled && (
+                                                <div className="ml-5 space-y-1">
+                                                  <SelectField label="Canal" value={lnk.onGps.notifyCliente.channel}
+                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, channel: v } } })}
+                                                    options={CHANNEL_OPTIONS} />
+                                                  <TextAreaField label="Mensagem" value={lnk.onGps.notifyCliente.message}
+                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, message: v } } })}
+                                                    placeholder="Ex: O técnico está rastreando sua localização." vars />
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
                                         </div>
+                                        {/* En Route button + notifications */}
                                         <div>
                                           <SubToggle checked={lnk.enRoute} onChange={v => updateLink({ enRoute: v })}
                                             label="🚗 Botão &quot;Estou a caminho&quot;" />
-                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Registra timestamp de partida e notifica o gestor.</p>
+                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Registra timestamp de partida.</p>
+                                          {lnk.enRoute && (
+                                            <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-orange-200">
+                                              <SubToggle checked={lnk.onEnRoute.notifyGestor.enabled}
+                                                onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, enabled: v } } })}
+                                                label="👔 Notificar gestor ao sair" />
+                                              {lnk.onEnRoute.notifyGestor.enabled && (
+                                                <div className="ml-5 space-y-1">
+                                                  <SelectField label="Canal" value={lnk.onEnRoute.notifyGestor.channel}
+                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, channel: v } } })}
+                                                    options={CHANNEL_OPTIONS} />
+                                                  <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyGestor.message}
+                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, message: v } } })}
+                                                    placeholder="Ex: Técnico {tecnico} está a caminho. OS: {titulo}." vars />
+                                                </div>
+                                              )}
+                                              <SubToggle checked={lnk.onEnRoute.notifyCliente.enabled}
+                                                onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, enabled: v } } })}
+                                                label="👤 Notificar cliente ao sair" />
+                                              {lnk.onEnRoute.notifyCliente.enabled && (
+                                                <div className="ml-5 space-y-1">
+                                                  <SelectField label="Canal" value={lnk.onEnRoute.notifyCliente.channel}
+                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, channel: v } } })}
+                                                    options={CHANNEL_OPTIONS} />
+                                                  <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyCliente.message}
+                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, message: v } } })}
+                                                    placeholder="Ex: O técnico está a caminho! OS: {titulo}." vars />
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
@@ -615,16 +707,78 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     <div className="pt-2 border-t border-blue-200">
                                       <span className="text-xs font-bold text-slate-600 block mb-2">📄 Ações na página (sem aceite)</span>
                                       <p className="text-[10px] text-slate-400 mb-2">Página informativa. O primeiro clique em qualquer botão trava o link para o dispositivo.</p>
-                                      <div className="space-y-2">
+                                      <div className="space-y-3">
+                                        {/* GPS button + notifications (no-accept mode) */}
                                         <div>
                                           <SubToggle checked={lnk.gpsNavigation} onChange={v => updateLink({ gpsNavigation: v })}
                                             label="📡 Botão &quot;Ativar GPS&quot;" />
                                           <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Rastreamento por proximidade até o local do serviço.</p>
+                                          {lnk.gpsNavigation && (
+                                            <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-cyan-200">
+                                              <SubToggle checked={lnk.onGps.notifyGestor.enabled}
+                                                onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, enabled: v } } })}
+                                                label="👔 Notificar gestor ao ativar GPS" />
+                                              {lnk.onGps.notifyGestor.enabled && (
+                                                <div className="ml-5 space-y-1">
+                                                  <SelectField label="Canal" value={lnk.onGps.notifyGestor.channel}
+                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, channel: v } } })}
+                                                    options={CHANNEL_OPTIONS} />
+                                                  <TextAreaField label="Mensagem" value={lnk.onGps.notifyGestor.message}
+                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, message: v } } })}
+                                                    placeholder="Ex: Técnico {tecnico} ativou GPS." vars />
+                                                </div>
+                                              )}
+                                              <SubToggle checked={lnk.onGps.notifyCliente.enabled}
+                                                onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, enabled: v } } })}
+                                                label="👤 Notificar cliente ao ativar GPS" />
+                                              {lnk.onGps.notifyCliente.enabled && (
+                                                <div className="ml-5 space-y-1">
+                                                  <SelectField label="Canal" value={lnk.onGps.notifyCliente.channel}
+                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, channel: v } } })}
+                                                    options={CHANNEL_OPTIONS} />
+                                                  <TextAreaField label="Mensagem" value={lnk.onGps.notifyCliente.message}
+                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, message: v } } })}
+                                                    placeholder="Ex: O técnico está rastreando sua localização." vars />
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
                                         </div>
+                                        {/* En Route button + notifications (no-accept mode) */}
                                         <div>
                                           <SubToggle checked={lnk.enRoute} onChange={v => updateLink({ enRoute: v })}
                                             label="🚗 Botão &quot;Estou a caminho&quot;" />
-                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Registra timestamp de partida e notifica o gestor.</p>
+                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Registra timestamp de partida.</p>
+                                          {lnk.enRoute && (
+                                            <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-orange-200">
+                                              <SubToggle checked={lnk.onEnRoute.notifyGestor.enabled}
+                                                onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, enabled: v } } })}
+                                                label="👔 Notificar gestor ao sair" />
+                                              {lnk.onEnRoute.notifyGestor.enabled && (
+                                                <div className="ml-5 space-y-1">
+                                                  <SelectField label="Canal" value={lnk.onEnRoute.notifyGestor.channel}
+                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, channel: v } } })}
+                                                    options={CHANNEL_OPTIONS} />
+                                                  <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyGestor.message}
+                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, message: v } } })}
+                                                    placeholder="Ex: Técnico {tecnico} está a caminho." vars />
+                                                </div>
+                                              )}
+                                              <SubToggle checked={lnk.onEnRoute.notifyCliente.enabled}
+                                                onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, enabled: v } } })}
+                                                label="👤 Notificar cliente ao sair" />
+                                              {lnk.onEnRoute.notifyCliente.enabled && (
+                                                <div className="ml-5 space-y-1">
+                                                  <SelectField label="Canal" value={lnk.onEnRoute.notifyCliente.channel}
+                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, channel: v } } })}
+                                                    options={CHANNEL_OPTIONS} />
+                                                  <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyCliente.message}
+                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, message: v } } })}
+                                                    placeholder="Ex: O técnico está a caminho! OS: {titulo}." vars />
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
                                         </div>
                                         {!lnk.gpsNavigation && !lnk.enRoute && (
                                           <p className="text-[10px] text-amber-600 italic">⚠️ Nenhum botão ativado — a página será apenas leitura (sem trava de dispositivo).</p>
@@ -648,39 +802,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                         )}
                       </div>
 
-                      {/* Mensagem para gestor */}
-                      <div className="rounded border border-violet-100 bg-violet-50/30 p-2.5">
-                        <SubToggle checked={stage.autoActions.messageDispatch.toGestor.enabled}
-                          onChange={v => updateAuto('messageDispatch', { toGestor: { ...stage.autoActions.messageDispatch.toGestor, enabled: v } })}
-                          label="👔 Mensagem para o gestor" />
-                        {stage.autoActions.messageDispatch.toGestor.enabled && (
-                          <div className="mt-2 ml-5 space-y-2">
-                            <SelectField label="Canal" value={stage.autoActions.messageDispatch.toGestor.channel}
-                              onChange={v => updateAuto('messageDispatch', { toGestor: { ...stage.autoActions.messageDispatch.toGestor, channel: v } })}
-                              options={CHANNEL_OPTIONS} />
-                            <TextAreaField label="Mensagem" value={stage.autoActions.messageDispatch.toGestor.message}
-                              onChange={v => updateAuto('messageDispatch', { toGestor: { ...stage.autoActions.messageDispatch.toGestor, message: v } })}
-                              placeholder="Mensagem para o gestor..." vars />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Mensagem para cliente */}
-                      <div className="rounded border border-emerald-100 bg-emerald-50/30 p-2.5">
-                        <SubToggle checked={stage.autoActions.messageDispatch.toCliente.enabled}
-                          onChange={v => updateAuto('messageDispatch', { toCliente: { ...stage.autoActions.messageDispatch.toCliente, enabled: v } })}
-                          label="👤 Mensagem para o cliente" />
-                        {stage.autoActions.messageDispatch.toCliente.enabled && (
-                          <div className="mt-2 ml-5 space-y-2">
-                            <SelectField label="Canal" value={stage.autoActions.messageDispatch.toCliente.channel}
-                              onChange={v => updateAuto('messageDispatch', { toCliente: { ...stage.autoActions.messageDispatch.toCliente, channel: v } })}
-                              options={CHANNEL_OPTIONS} />
-                            <TextAreaField label="Mensagem" value={stage.autoActions.messageDispatch.toCliente.message}
-                              onChange={v => updateAuto('messageDispatch', { toCliente: { ...stage.autoActions.messageDispatch.toCliente, message: v } })}
-                              placeholder="Mensagem para o cliente..." vars />
-                          </div>
-                        )}
-                      </div>
+                      {/* Mensagem para gestor e cliente movidas para dentro dos botões do link (onAccept, onGps, onEnRoute) */}
                     </div>
                   </ConfigRow>
                 </div>

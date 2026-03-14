@@ -47,6 +47,17 @@ function generateAccessKey(token: string): string {
   return createHmac('sha256', secret).update(`offer-access:${token}`).digest('hex').slice(0, 32);
 }
 
+/** Notification config for a single action (gestor + cliente) */
+export interface ActionNotifyConfig {
+  notifyGestor:  { enabled: boolean; channel: string; message: string };
+  notifyCliente: { enabled: boolean; channel: string; message: string };
+}
+
+const DEFAULT_ACTION_NOTIFY: ActionNotifyConfig = {
+  notifyGestor:  { enabled: false, channel: 'whatsapp', message: '' },
+  notifyCliente: { enabled: false, channel: 'sms', message: '' },
+};
+
 /** Extract linkConfig (acceptOS, gpsNavigation, enRoute, etc.) from workflow template's NOTIFY block */
 function extractLinkConfig(workflowTemplate: any): {
   acceptOS: boolean;
@@ -54,6 +65,9 @@ function extractLinkConfig(workflowTemplate: any): {
   enRoute: boolean;
   validityHours: number;
   agendaMarginHours: number;
+  onAccept:  ActionNotifyConfig;
+  onGps:     ActionNotifyConfig;
+  onEnRoute: ActionNotifyConfig;
 } | null {
   const steps = workflowTemplate?.steps as any;
   if (!steps) return null;
@@ -64,12 +78,16 @@ function extractLinkConfig(workflowTemplate: any): {
     if (!Array.isArray(recipients)) continue;
     const techRecipient = recipients.find((r: any) => r.type === 'TECNICO' && r.includeLink);
     if (techRecipient?.linkConfig) {
+      const lc = techRecipient.linkConfig;
       return {
-        acceptOS: techRecipient.linkConfig.acceptOS ?? true,
-        gpsNavigation: techRecipient.linkConfig.gpsNavigation ?? false,
-        enRoute: techRecipient.linkConfig.enRoute ?? false,
-        validityHours: techRecipient.linkConfig.validityHours || 24,
-        agendaMarginHours: techRecipient.linkConfig.agendaMarginHours ?? 24,
+        acceptOS: lc.acceptOS ?? true,
+        gpsNavigation: lc.gpsNavigation ?? false,
+        enRoute: lc.enRoute ?? false,
+        validityHours: lc.validityHours || 24,
+        agendaMarginHours: lc.agendaMarginHours ?? 24,
+        onAccept:  { notifyGestor: { ...DEFAULT_ACTION_NOTIFY.notifyGestor, ...lc.onAccept?.notifyGestor }, notifyCliente: { ...DEFAULT_ACTION_NOTIFY.notifyCliente, ...lc.onAccept?.notifyCliente } },
+        onGps:     { notifyGestor: { ...DEFAULT_ACTION_NOTIFY.notifyGestor, ...lc.onGps?.notifyGestor }, notifyCliente: { ...DEFAULT_ACTION_NOTIFY.notifyCliente, ...lc.onGps?.notifyCliente } },
+        onEnRoute: { notifyGestor: { ...DEFAULT_ACTION_NOTIFY.notifyGestor, ...lc.onEnRoute?.notifyGestor }, notifyCliente: { ...DEFAULT_ACTION_NOTIFY.notifyCliente, ...lc.onEnRoute?.notifyCliente } },
       };
     }
   }
@@ -84,6 +102,78 @@ export class PublicOfferService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
   ) {}
+
+  /**
+   * Fire action-specific notifications (onAccept, onGps, onEnRoute).
+   * Loads OS + related data for variable interpolation and recipient phone numbers.
+   */
+  private async fireActionNotifications(
+    serviceOrderId: string,
+    companyId: string,
+    actionConfig: ActionNotifyConfig,
+    actionType: string,
+  ) {
+    if (!actionConfig.notifyGestor.enabled && !actionConfig.notifyCliente.enabled) return;
+
+    // Load OS with company, assigned tech, and client for phone/variable data
+    const so = await this.prisma.serviceOrder.findUnique({
+      where: { id: serviceOrderId },
+      include: {
+        company: true,
+        assignedPartner: true,
+        clientPartner: true,
+      },
+    });
+    if (!so) return;
+
+    const techName = so.assignedPartner?.name || 'Técnico';
+    const vars: Record<string, string> = {
+      '{titulo}': so.title || '',
+      '{tecnico}': techName,
+      '{endereco}': so.addressText || '',
+      '{empresa}': so.company?.name || '',
+      '{cliente}': so.clientPartner?.name || '',
+    };
+    const interpolate = (msg: string) => {
+      let result = msg;
+      for (const [key, val] of Object.entries(vars)) {
+        result = result.split(key).join(val);
+      }
+      return result;
+    };
+
+    // Notify gestor
+    if (actionConfig.notifyGestor.enabled && actionConfig.notifyGestor.message) {
+      const gestorPhone = so.company?.phone || so.company?.ownerPhone;
+      if (gestorPhone) {
+        this.notifications.send({
+          companyId,
+          serviceOrderId,
+          channel: actionConfig.notifyGestor.channel,
+          recipientPhone: gestorPhone,
+          message: interpolate(actionConfig.notifyGestor.message),
+          type: `LINK_ACTION_${actionType}_GESTOR`,
+          forceTemplate: true,
+        }).catch(err => this.logger.error(`Action notify gestor error: ${err.message}`));
+      }
+    }
+
+    // Notify client
+    if (actionConfig.notifyCliente.enabled && actionConfig.notifyCliente.message) {
+      const clientPhone = so.clientPartner?.phone;
+      if (clientPhone) {
+        this.notifications.send({
+          companyId,
+          serviceOrderId,
+          channel: actionConfig.notifyCliente.channel,
+          recipientPhone: clientPhone,
+          message: interpolate(actionConfig.notifyCliente.message),
+          type: `LINK_ACTION_${actionType}_CLIENTE`,
+          forceTemplate: true,
+        }).catch(err => this.logger.error(`Action notify client error: ${err.message}`));
+      }
+    }
+  }
 
   /**
    * Resolve the assigned technician for a revoked offer (post-acceptance).
@@ -280,7 +370,7 @@ export class PublicOfferService {
         requestOtpUrl,
         acceptUrl,
       },
-      linkConfig: linkConfig || { acceptOS: true, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24 },
+      linkConfig: linkConfig || { acceptOS: true, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24, onAccept: DEFAULT_ACTION_NOTIFY, onGps: DEFAULT_ACTION_NOTIFY, onEnRoute: DEFAULT_ACTION_NOTIFY },
       // State flags for returning visitors
       enRouteAt: so?.enRouteAt?.toISOString() || null,
       trackingStartedAt: so?.trackingStartedAt?.toISOString() || null,
@@ -356,7 +446,7 @@ export class PublicOfferService {
    * The link token itself is the authentication (UUID v4, expires, single-use).
    */
   async acceptDirect(token: string) {
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         const offer = await tx.serviceOrderOffer.findFirst({
           where: { token, revokedAt: null, expiresAt: { gt: new Date() } },
@@ -417,12 +507,22 @@ export class PublicOfferService {
           }
         }
 
+        // Extract linkConfig for action notifications
+        const linkConfig = serviceOrder?.workflowTemplate ? extractLinkConfig(serviceOrder.workflowTemplate) : null;
+
         const { workflowTemplate, ...soData } = serviceOrder || {} as any;
         const accessKey = generateAccessKey(token);
-        return { serviceOrder: soData, offer: acceptedOffer, arrivalQuestion, accessKey };
+        return { serviceOrder: soData, offer: acceptedOffer, arrivalQuestion, accessKey, _notifyConfig: linkConfig?.onAccept, _companyId: offer.companyId, _soId: offer.serviceOrderId };
       },
       { isolationLevel: 'Serializable' },
     );
+
+    // Fire onAccept notifications outside transaction (fire-and-forget)
+    if (result._notifyConfig) {
+      this.fireActionNotifications(result._soId, result._companyId, result._notifyConfig, 'ACCEPT');
+    }
+    const { _notifyConfig, _companyId, _soId, ...response } = result;
+    return response;
   }
 
   /**
@@ -433,13 +533,13 @@ export class PublicOfferService {
     // Find the accepted (revoked) offer
     const offer = await this.prisma.serviceOrderOffer.findFirst({
       where: { token, revokedAt: { not: null } },
-      include: { serviceOrder: true },
+      include: { serviceOrder: { include: { workflowTemplate: true } } },
     });
 
     // If no revoked offer, try active offer (acceptOS=false mode — no accept step)
     const activeOffer = offer || await this.prisma.serviceOrderOffer.findFirst({
       where: { token, revokedAt: null, expiresAt: { gt: new Date() } },
-      include: { serviceOrder: true },
+      include: { serviceOrder: { include: { workflowTemplate: true } } },
     });
 
     if (!activeOffer) throw new NotFoundException('Oferta não encontrada');
@@ -454,6 +554,14 @@ export class PublicOfferService {
       where: { id: activeOffer.serviceOrderId },
       data: { enRouteAt: new Date() },
     });
+
+    // Fire onEnRoute notifications (fire-and-forget)
+    const linkConfig = activeOffer.serviceOrder.workflowTemplate
+      ? extractLinkConfig(activeOffer.serviceOrder.workflowTemplate)
+      : null;
+    if (linkConfig?.onEnRoute) {
+      this.fireActionNotifications(activeOffer.serviceOrderId, activeOffer.companyId, linkConfig.onEnRoute, 'EN_ROUTE');
+    }
 
     const accessKey = generateAccessKey(token);
     return { success: true, accessKey, enRouteAt: new Date().toISOString() };
@@ -705,6 +813,14 @@ export class PublicOfferService {
         proximityRadiusMeters: radius,
       } as any,
     });
+
+    // Fire onGps notifications (fire-and-forget)
+    const linkConfig = offer.serviceOrder.workflowTemplate
+      ? extractLinkConfig(offer.serviceOrder.workflowTemplate)
+      : null;
+    if (linkConfig?.onGps) {
+      this.fireActionNotifications(offer.serviceOrderId, offer.companyId, linkConfig.onGps, 'GPS');
+    }
 
     return {
       success: true,
