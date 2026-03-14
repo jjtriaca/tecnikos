@@ -30,6 +30,12 @@ export interface SearchLookupModalProps<T> {
   renderItem: (item: T) => ReactNode;
   onSelect: (item: T) => void;
   onClose: () => void;
+  /** When true, shows a "Confirmar" button in the footer */
+  showConfirmButton?: boolean;
+  /** Number of currently selected items (used for confirm button label) */
+  selectedCount?: number;
+  /** Called when confirm button is clicked */
+  onConfirm?: () => void;
 }
 
 /* ---- Component ---- */
@@ -43,6 +49,9 @@ export default function SearchLookupModal<T>({
   renderItem,
   onSelect,
   onClose,
+  showConfirmButton,
+  selectedCount = 0,
+  onConfirm,
 }: SearchLookupModalProps<T>) {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
@@ -249,6 +258,25 @@ export default function SearchLookupModal<T>({
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Confirm button for multi-select */}
+        {showConfirmButton && (
+          <div className="border-t border-slate-200 px-5 py-3">
+            <button
+              type="button"
+              onClick={() => { onConfirm?.(); onClose(); }}
+              className={`w-full rounded-lg py-2.5 text-sm font-semibold transition-colors ${
+                selectedCount > 0
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-slate-100 text-slate-400 cursor-default"
+              }`}
+            >
+              {selectedCount > 0
+                ? `Confirmar ${selectedCount} selecionado${selectedCount !== 1 ? "s" : ""}`
+                : "Selecione ao menos um item"}
+            </button>
           </div>
         )}
       </div>

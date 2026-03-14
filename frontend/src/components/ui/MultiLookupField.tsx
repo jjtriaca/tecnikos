@@ -150,6 +150,8 @@ export default function MultiLookupField<T>({
         }}
         onSelect={handleSelect}
         onClose={() => setModalOpen(false)}
+        showConfirmButton
+        selectedCount={values.length}
       />
     </div>
   );
