@@ -1465,6 +1465,9 @@ export class WorkflowEngineService {
               type: 'WORKFLOW_AUTO',
               recipientPhone,
               recipientEmail,
+              // Workflow notifications are business-initiated (no 24h window),
+              // so force template delivery to avoid Meta silently dropping text messages
+              forceTemplate: true,
             });
             results.push({ recipient: r.type, status: 'sent' });
           } catch {
