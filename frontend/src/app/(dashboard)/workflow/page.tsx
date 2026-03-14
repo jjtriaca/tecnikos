@@ -18,7 +18,6 @@ import {
   createDefaultConfig,
   compileToV2,
   decompileFromV2,
-  WORKFLOW_PRESETS,
   OS_STATUSES,
   TRIGGER_OPTIONS,
 } from "@/types/stage-config";
@@ -62,8 +61,6 @@ export default function WorkflowPage() {
   // Form state
   const [config, setConfig] = useState<WorkflowFormConfig>(createDefaultConfig());
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [activePreset, setActivePreset] = useState<string>("blank");
-
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -103,7 +100,6 @@ export default function WorkflowPage() {
   const handleNew = () => {
     setConfig(createDefaultConfig());
     setEditingId(null);
-    setActivePreset("blank");
     setView("form");
   };
 
@@ -127,7 +123,6 @@ export default function WorkflowPage() {
       }
 
       setEditingId(full.id);
-      setActivePreset("");
       setView("form");
     } catch {
       toast("Erro ao carregar fluxo", "error");
@@ -212,13 +207,6 @@ export default function WorkflowPage() {
     }
   };
 
-  const handlePreset = (presetId: string) => {
-    const preset = WORKFLOW_PRESETS.find(p => p.id === presetId);
-    if (!preset) return;
-    setConfig(preset.apply(config));
-    setActivePreset(presetId);
-  };
-
   const handleStageChange = (index: number, stage: StageConfig) => {
     const stages = [...config.stages];
     stages[index] = stage;
@@ -251,7 +239,6 @@ export default function WorkflowPage() {
     }
 
     setConfig({ ...config, stages });
-    setActivePreset(""); // preset no longer applies
   };
 
   /* ── Computed ──────────────────────────────────────────── */
@@ -435,35 +422,6 @@ export default function WorkflowPage() {
         </div>
       </div>
 
-      {/* Presets */}
-      {!['partner_tech_created', 'partner_spec_added', 'partner_client_created', 'partner_supplier_created'].includes(config.trigger.id) && <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-          🎨 Modelos Prontos
-          <span className="text-xs font-normal text-slate-400">— clique para preencher automaticamente</span>
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          {WORKFLOW_PRESETS.map(preset => (
-            <button
-              key={preset.id}
-              onClick={() => handlePreset(preset.id)}
-              className={`rounded-lg px-3 py-2 text-sm font-medium border transition-all ${
-                activePreset === preset.id
-                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600"
-              }`}
-            >
-              <span className="mr-1.5">{preset.icon}</span>
-              {preset.name}
-            </button>
-          ))}
-        </div>
-        {activePreset && activePreset !== "blank" && (
-          <p className="text-xs text-blue-600 mt-2">
-            ✓ Modelo &ldquo;{WORKFLOW_PRESETS.find(p => p.id === activePreset)?.name}&rdquo; aplicado — personalize abaixo
-          </p>
-        )}
-      </div>}
-
       {/* Trigger Selector — collapsible */}
       <div ref={triggerRef} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <button
@@ -491,7 +449,7 @@ export default function WorkflowPage() {
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => { setConfig({ ...config, trigger: opt }); setActivePreset(""); setTriggerExpanded(false); }}
+                  onClick={() => { setConfig({ ...config, trigger: opt }); setTriggerExpanded(false); }}
                   className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 transition-all ${
                     config.trigger.id === opt.id
                       ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200"
