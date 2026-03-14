@@ -1,48 +1,65 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 120 — Workflow Triggers + Client Onboarding (CONCLUIDO)
+## Status: SESSAO 121 — Security Hardening + Access Geo (CONCLUIDO)
 
-## Ultima sessao: 120 (14/03/2026)
-- Sessao 117: Isolamento de dados multi-tenant via AsyncLocalStorage + Proxy (v1.02.58)
+## Ultima sessao: 121 (14/03/2026)
 - Sessao 118: Admin Host isolado + Migracao de dados completa (v1.02.59)
 - Sessao 119: Remocao login do dominio raiz + domain-aware routing (v1.02.63)
 - Sessao 120: Triggers, Conflito, Especializacao, Templates, Client Onboarding (v1.02.64-71)
+- Sessao 121: Security Hardening + Access Geo (v1.02.72-73)
 
 ## O que foi feito nesta sessao:
 
-### Fixes (v1.02.64-67)
-- [x] CAPTCHA: removido cache 7 dias do frontend (widget sempre visivel)
-- [x] Analytics: deduplicacao por sessionId + metricas reais (SignupAttempt, Tenant ACTIVE)
-- [x] Workflow: trigger partner_tech_created mostra TechnicianOnboardingSection
-- [x] Workflow: header "Etapas do Fluxo" consistente para todos triggers
+### Auditoria de Seguranca do Servidor
+- [x] Verificacao CPU/processos: LIMPO, sem mineracao
+- [x] fail2ban ativo: SSH (2178 falhas, 413 banidos, 19 ativos)
+- [x] 777 tentativas SSH em 24h — ja bloqueadas
+- [x] Analise nginx: 7409 requests/24h, scanners identificados (89.248.168.239, 45.79.190.208, 185.16.39.146)
 
-### Novo Trigger "Nova Especializacao" + Conflito (v1.02.68)
-- [x] Trigger `partner_spec_added` em TRIGGER_OPTIONS
-- [x] conflictResolution em TechnicianOnboardingConfig (send_both | tech_only | spec_only)
-- [x] TechnicianOnboardingSection: triggerId prop, filtro, banners conflito/info
-- [x] workflow/page.tsx: isOnboardingTrigger, presets, subtitles, validacao
+### Hardening nginx (v1.02.72-73)
+- [x] Bloqueio de arquivos sensiveis (.env, .git, .svn, .htaccess, .sql, .yml, etc)
+- [x] Bloqueio de paths CMS (wp-admin, phpmyadmin, adminer, cgi-bin)
+- [x] Bloqueio de extensoes perigosas (.php, .asp, .aspx, .jsp, .cgi, .pl)
+- [x] Bloqueio de user-agents de scanners (nmap, nikto, sqlmap, dirbuster, masscan, zgrab, censys, shodan, nuclei)
+- [x] Todas as rotas bloqueadas retornam HTTP 444 (connection drop) com log em /var/log/nginx/blocked.log
 
-### Variavel {especializacao} (v1.02.69)
-- [x] Adicionada em WELCOME_VARIABLES e todas as variable buttons
+### fail2ban — Novas Jails
+- [x] `nginx-scanner`: bane IPs que tentam acessar paths bloqueados (3 retries, 24h ban)
+- [x] `nginx-login-bf`: bane IPs com tentativas de login falhas na API (10 retries, 1h ban)
+- [x] 3 jails ativas: sshd + nginx-scanner + nginx-login-bf
 
-### Templates Default (v1.02.70)
-- [x] Todos os campos de texto pre-preenchidos com templates profissionais
-- [x] Variable buttons na mensagem de notificacao (faltava)
+### SSH Hardening
+- [x] PasswordAuthentication no (apenas chave SSH)
+- [x] PermitRootLogin prohibit-password (chave obrigatoria)
 
-### Client Onboarding (v1.02.71)
-- [x] ClientOnboardingConfig type + createDefaultClientOnboarding()
-- [x] Contrato padrao "Termos de Prestacao de Servicos Tecnicos" (8 clausulas)
-- [x] ClientOnboardingSection.tsx: UI completa (termos + mensagem + reply)
-- [x] workflow/page.tsx: partner_client_created no isOnboardingTrigger
-- [x] compileToV2/decompileFromV2 persistem clientOnboarding
-- [x] Deploy v1.02.71
+### Backend: Endpoint Access-24h com Geolocalizacao
+- [x] GET /admin/tenants/analytics/access-24h
+- [x] Consulta SaasEvent ultimas 24h, agrupa por IP
+- [x] Geo-IP via ip-api.com batch API (pais, cidade, estado, ISP)
+- [x] Classifica Brasil vs estrangeiro
+- [x] Retorna: totalEvents, externalEvents, uniqueIps, foreignAccess[], brazilAccess[]
+
+### Admin Frontend: Widgets de Seguranca 24h
+- [x] Card "Acessos 24h" com total de eventos externos
+- [x] Card "IPs Unicos 24h" com contagem de sessoes
+- [x] Card "Brasil" com IPs brasileiros (verde)
+- [x] Card "Fora do Brasil" com alerta vermelho se detectado
+- [x] Banner vermelho de alerta com tabela detalhada de IPs estrangeiros (pais, cidade, ISP, eventos)
+- [x] Secao colapsavel "Acessos do Brasil" com top 10 IPs brasileiros
+- [x] Deploy v1.02.73
 
 ## Arquivos modificados:
-- `frontend/src/types/stage-config.ts` — ClientOnboardingConfig, createDefaultClientOnboarding, compile/decompile
-- `frontend/src/app/(dashboard)/workflow/components/ClientOnboardingSection.tsx` — NOVO componente
-- `frontend/src/app/(dashboard)/workflow/page.tsx` — import, isOnboardingTrigger, render, resumo
+- `nginx/nginx.conf` — Bloqueio de scanners, arquivos sensiveis, user-agents
+- `backend/src/tenant/tenant.controller.ts` — Endpoint /analytics/access-24h com geo-IP
+- `frontend/src/app/(dashboard)/ctrl-zr8k2x/page.tsx` — Widgets de seguranca 24h + alertas estrangeiros
 
-## Versao atual: v1.02.71 (em producao)
+## Arquivos no servidor (aplicados via SSH direto):
+- `/etc/fail2ban/filter.d/nginx-scanner.conf` — Filtro de scanners
+- `/etc/fail2ban/filter.d/nginx-login-bf.conf` — Filtro de brute force de login
+- `/etc/fail2ban/jail.local` — 3 jails (sshd, nginx-scanner, nginx-login-bf)
+- `/etc/ssh/sshd_config` — SSH key-only
+
+## Versao atual: v1.02.73 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

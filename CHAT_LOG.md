@@ -1122,3 +1122,48 @@ Deploy v1.02.53
 - Presets escondidos, subtitles e resumo adaptados
 
 ### Deploys: v1.02.66, v1.02.67, v1.02.68, v1.02.69, v1.02.70, v1.02.71
+
+---
+
+## 2026-03-14 — Sessao 121: Security Hardening + Access Geo (v1.02.72-73)
+
+### Pedido do Juliano:
+- Verificar servidor por mineracao/invasao
+- Analisar brute force e criar protecoes
+- Admin: alertas de acessos estrangeiros 24h + contagem total 24h
+
+### Auditoria de Seguranca:
+- Servidor LIMPO: 0% CPU, nenhum processo de mineracao
+- fail2ban ativo: 2178 falhas SSH, 413 banidos, 19 ativos
+- 777 tentativas SSH em 24h — ja tratadas pelo fail2ban
+- Scanners identificados: 89.248.168.239 (.env), 45.79.190.208 (nmap), 185.16.39.146 (bot)
+- API login: apenas 22 tentativas em 24h (nao e brute force)
+
+### Hardening nginx:
+- Bloqueio .env/.git/.svn/.htaccess + extensoes sensiveis (.sql, .yml, .conf, etc)
+- Bloqueio CMS paths (wp-admin, phpmyadmin, adminer, cgi-bin)
+- Bloqueio extensoes perigosas (.php, .asp, .aspx, .jsp, .cgi, .pl)
+- Bloqueio user-agents scanners (nmap, nikto, sqlmap, dirbuster, etc)
+- HTTP 444 (connection drop) + log em blocked.log
+
+### fail2ban — Novas Jails:
+- nginx-scanner: 3 retries → ban 24h (scanners de vulnerabilidade)
+- nginx-login-bf: 10 retries → ban 1h (brute force de login API)
+- Total: 3 jails ativas (sshd + nginx-scanner + nginx-login-bf)
+
+### SSH Hardening:
+- PasswordAuthentication no
+- PermitRootLogin prohibit-password (somente chave)
+
+### Backend — Endpoint Access-24h com Geolocalizacao:
+- GET /admin/tenants/analytics/access-24h
+- Consulta SaasEvent ultimas 24h, agrupa por IP externo
+- Geo-IP via ip-api.com batch API (pais, cidade, estado, ISP)
+- Classifica Brasil vs estrangeiro, retorna foreignAccess[] e brazilAccess[]
+
+### Admin Frontend — Widgets de Seguranca 24h:
+- 4 cards: Acessos 24h, IPs Unicos 24h, Brasil (verde), Fora do Brasil (vermelho se detectado)
+- Banner vermelho com tabela de IPs estrangeiros (pais, cidade, ISP, eventos, horario)
+- Secao colapsavel "Acessos do Brasil" com top 10 IPs brasileiros
+
+### Deploys: v1.02.73

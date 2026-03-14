@@ -579,6 +579,125 @@ As partes acima qualificadas celebram os presentes Termos de Prestacao de Servic
 PRESTADORA: {razao_social} ({empresa})
 CLIENTE: {nome} — Documento: {documento}`;
 
+/* ── Configuração de Onboarding de Fornecedor ────────────────── */
+
+export interface SupplierOnboardingConfig {
+  enabled: boolean;
+  // Envio de contrato / termos de fornecimento
+  sendContractLink: boolean;
+  channel: string;         // WHATSAPP | EMAIL
+  contractName: string;
+  contractContent: string;
+  requireSignature: boolean;
+  requireAcceptance: boolean;
+  blockUntilAccepted: boolean;
+  expirationDays: number;
+  expirationUnit?: 'days' | 'months' | 'years' | 'indefinite';
+  notifyMessage: string;
+  // Mensagem de boas-vindas
+  sendWelcomeMessage: boolean;
+  welcomeChannel: string;
+  welcomeMessage: string;
+  welcomeWaitForReply: boolean;
+  welcomeConfirmVia: string;
+  // Resposta do fornecedor
+  welcomeReplyMessage: string;
+  welcomeDeclineActions: string[];
+  welcomeDeclineMessage: string;
+  welcomePositiveKeywords: string[];
+  welcomeNegativeKeywords: string[];
+}
+
+const DEFAULT_SUPPLIER_CONTRACT = `CONTRATO DE FORNECIMENTO DE MATERIAIS E SERVICOS
+
+CONTRATANTE: {razao_social}, nome fantasia {empresa}, inscrita no CNPJ sob n. {cnpj_empresa}, com sede em {endereco_empresa}, neste ato representada por seus administradores legais.
+
+FORNECEDOR(A): {nome}, portador(a) do documento n. {documento}, doravante denominado(a) FORNECEDOR(A).
+
+As partes acima qualificadas celebram o presente Contrato de Fornecimento, que se regera pelas clausulas e condicoes a seguir.
+
+--- CLAUSULA 1 — OBJETO ---
+
+1.1. O presente contrato tem por objeto o fornecimento de materiais, pecas, equipamentos e/ou servicos pelo(a) FORNECEDOR(A) em favor da CONTRATANTE, conforme pedidos de compra emitidos pela plataforma Tecnikos.
+
+1.2. Os pedidos serao formalizados por meio de Ordens de Compra (OC) contendo descricao dos itens, quantidades, valores unitarios, prazo de entrega e local de entrega.
+
+1.3. O(A) FORNECEDOR(A) podera aceitar ou recusar pedidos, devendo comunicar a decisao em ate 24 horas apos o recebimento da OC.
+
+--- CLAUSULA 2 — OBRIGACOES DO(A) FORNECEDOR(A) ---
+
+2.1. Fornecer materiais e pecas originais, de qualidade comprovada e em conformidade com as especificacoes tecnicas solicitadas.
+2.2. Cumprir os prazos de entrega estipulados em cada Ordem de Compra.
+2.3. Emitir nota fiscal para cada fornecimento, conforme legislacao vigente.
+2.4. Garantir a procedencia e a qualidade dos produtos fornecidos, substituindo itens defeituosos sem custo adicional.
+2.5. Manter sigilo sobre informacoes comerciais da CONTRATANTE, incluindo precos, volumes e dados de clientes.
+2.6. Comunicar imediatamente qualquer impedimento ou atraso na entrega dos materiais solicitados.
+2.7. Disponibilizar catalogo atualizado de produtos e precos quando solicitado.
+2.8. Aceitar devolucoes de materiais com defeito em ate 30 dias apos o recebimento, sem custo para a CONTRATANTE.
+
+--- CLAUSULA 3 — OBRIGACOES DA CONTRATANTE ---
+
+3.1. Emitir pedidos de compra claros e detalhados, com especificacoes tecnicas adequadas.
+3.2. Efetuar os pagamentos nos prazos e valores acordados em cada Ordem de Compra.
+3.3. Conferir os materiais no ato do recebimento e comunicar divergencias em ate 48 horas.
+3.4. Fornecer previsao de demanda quando possivel, facilitando o planejamento do(a) FORNECEDOR(A).
+
+--- CLAUSULA 4 — PRECOS E PAGAMENTO ---
+
+4.1. Os precos serao os constantes na tabela vigente do(a) FORNECEDOR(A), podendo ser negociados caso a caso em cada Ordem de Compra.
+4.2. O pagamento sera realizado conforme condicoes definidas em cada OC (a vista, 15, 30 ou 60 dias).
+4.3. Os pagamentos serao efetuados via transferencia bancaria, PIX ou boleto bancario.
+4.4. Reajustes de precos deverao ser comunicados com antecedencia minima de 30 dias.
+
+--- CLAUSULA 5 — GARANTIA DOS PRODUTOS ---
+
+5.1. Os produtos fornecidos terao garantia minima conforme legislacao do consumidor e especificacoes do fabricante.
+5.2. Produtos com defeito de fabricacao serao substituidos sem custo adicional em ate 15 dias uteis.
+5.3. A garantia nao cobre danos causados por mau uso, instalacao incorreta ou modificacoes nao autorizadas.
+
+--- CLAUSULA 6 — VIGENCIA ---
+
+6.1. Este contrato tem vigencia por prazo indeterminado a partir do aceite digital.
+6.2. Qualquer das partes podera rescindir mediante comunicacao previa de 30 (trinta) dias.
+6.3. A rescisao nao exime as partes do cumprimento de obrigacoes ja assumidas (pedidos em andamento, pagamentos pendentes).
+
+--- CLAUSULA 7 — DISPOSICOES FINAIS ---
+
+7.1. O aceite digital deste termo tem plena validade juridica, conforme a Lei 14.063/2020 (assinaturas eletronicas) e o Marco Civil da Internet (Lei 12.965/2014).
+7.2. Ao aceitar este termo, serao registrados a data, hora, endereco IP e identificador do dispositivo utilizado.
+7.3. Fica eleito o foro da comarca da sede da CONTRATANTE para dirimir quaisquer controversias oriundas deste contrato.
+
+{razao_social}, {data}
+
+CONTRATANTE: {razao_social} ({empresa})
+FORNECEDOR(A): {nome} — Documento: {documento}`;
+
+export function createDefaultSupplierOnboarding(): SupplierOnboardingConfig {
+  return {
+    enabled: false,
+    sendContractLink: false,
+    channel: 'WHATSAPP',
+    contractName: 'Contrato de Fornecimento',
+    contractContent: DEFAULT_SUPPLIER_CONTRACT,
+    requireSignature: false,
+    requireAcceptance: true,
+    blockUntilAccepted: false,
+    expirationDays: 30,
+    expirationUnit: 'days',
+    notifyMessage: 'Ola {nome}! Voce foi cadastrado(a) como fornecedor da {empresa} ({razao_social}). Para formalizar nossa parceria, preparamos um contrato de fornecimento. Acesse o link abaixo para visualizar e aceitar os termos.',
+    sendWelcomeMessage: false,
+    welcomeChannel: 'WHATSAPP',
+    welcomeMessage: 'Ola {nome}, seja bem-vindo(a) como fornecedor parceiro da {empresa} ({razao_social})! A partir de agora voce podera receber pedidos de materiais e pecas pela nossa plataforma Teknikos. Estamos felizes em contar com voce como parceiro. Para confirmar seu cadastro, responda com "Sim, confirmo".',
+    welcomeWaitForReply: true,
+    welcomeConfirmVia: 'WHATSAPP',
+    welcomeReplyMessage: 'Perfeito {nome}! Seu cadastro como fornecedor da {razao_social} esta confirmado. A partir de agora voce podera receber pedidos pela plataforma. Qualquer duvida entre em contato pelo {telefone}. Seja bem-vindo(a)!',
+    welcomeDeclineActions: ['NOTIFY_GESTOR'],
+    welcomeDeclineMessage: 'Atencao: o fornecedor {nome} ({email}) recusou o cadastro. Resposta recebida: "{resposta}". O cadastro foi mantido como pendente.',
+    welcomePositiveKeywords: ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'],
+    welcomeNegativeKeywords: ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'],
+  };
+}
+
 export function createDefaultClientOnboarding(): ClientOnboardingConfig {
   return {
     enabled: false,
@@ -612,6 +731,7 @@ export interface WorkflowFormConfig {
   stages: StageConfig[];
   technicianOnboarding: TechnicianOnboardingConfig;
   clientOnboarding: ClientOnboardingConfig;
+  supplierOnboarding: SupplierOnboardingConfig;
 }
 
 /* ── Gatilho (Trigger) ─────────────────────────────────────── */
@@ -627,7 +747,7 @@ export interface TriggerDefinition {
 
 export const TRIGGER_OPTIONS: TriggerDefinition[] = [
   { id: 'os_created',               entity: 'SERVICE_ORDER', event: 'created',          icon: '📋', label: 'Uma OS é criada',                      description: 'Quando uma nova ordem de serviço é aberta' },
-  { id: 'os_return_created',        entity: 'SERVICE_ORDER', event: 'return_created',   icon: '🔄', label: 'Um retorno é criado',                   description: 'Quando uma OS de retorno/revisita é criada' },
+  { id: 'os_return_created',        entity: 'SERVICE_ORDER', event: 'return_created',   icon: '🔄', label: 'Uma OS de retorno é criada',             description: 'Quando uma OS de retorno/revisita é criada' },
   { id: 'quote_request_created',    entity: 'QUOTE',         event: 'request_created',  icon: '📩', label: 'Uma solicitação de orçamento é criada', description: 'Quando o cliente solicita um orçamento' },
   { id: 'quote_created',            entity: 'QUOTE',         event: 'created',          icon: '📝', label: 'Um orçamento é criado',                 description: 'Quando um orçamento é gerado/salvo' },
   { id: 'partner_client_created',   entity: 'PARTNER',       event: 'client_created',   icon: '👤', label: 'Um cliente é criado',                   description: 'Quando um parceiro tipo cliente é cadastrado' },
@@ -1003,6 +1123,7 @@ export function createDefaultConfig(): WorkflowFormConfig {
     stages: OS_STATUSES.map(s => createEmptyStage(s.status, s.label, s.icon)),
     technicianOnboarding: createDefaultOnboarding(),
     clientOnboarding: createDefaultClientOnboarding(),
+    supplierOnboarding: createDefaultSupplierOnboarding(),
   };
 }
 
@@ -1337,6 +1458,9 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
     }
     if (config.clientOnboarding?.enabled) {
       earlyResult.clientOnboarding = config.clientOnboarding;
+    }
+    if (config.supplierOnboarding?.enabled) {
+      earlyResult.supplierOnboarding = config.supplierOnboarding;
     }
     return earlyResult;
   }
@@ -1738,6 +1862,11 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
     result.clientOnboarding = config.clientOnboarding;
   }
 
+  // Persist supplier onboarding config alongside blocks
+  if (config.supplierOnboarding?.enabled) {
+    result.supplierOnboarding = config.supplierOnboarding;
+  }
+
   return result;
 }
 
@@ -1771,6 +1900,14 @@ export function decompileFromV2(steps: any): WorkflowFormConfig | null {
     config.clientOnboarding = {
       ...createDefaultClientOnboarding(),
       ...steps.clientOnboarding,
+    };
+  }
+
+  // Restore supplier onboarding config if present
+  if (steps?.supplierOnboarding) {
+    config.supplierOnboarding = {
+      ...createDefaultSupplierOnboarding(),
+      ...steps.supplierOnboarding,
     };
   }
 

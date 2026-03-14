@@ -8,11 +8,13 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import StageSection from "./components/StageSection";
 import TechnicianOnboardingSection from "./components/TechnicianOnboardingSection";
 import ClientOnboardingSection from "./components/ClientOnboardingSection";
+import SupplierOnboardingSection from "./components/SupplierOnboardingSection";
 import {
   type WorkflowFormConfig,
   type StageConfig,
   type TechnicianOnboardingConfig,
   type ClientOnboardingConfig,
+  type SupplierOnboardingConfig,
   createDefaultConfig,
   compileToV2,
   decompileFromV2,
@@ -139,7 +141,7 @@ export default function WorkflowPage() {
       return;
     }
 
-    const isOnboardingTrigger = ['partner_tech_created', 'partner_spec_added', 'partner_client_created'].includes(config.trigger.id);
+    const isOnboardingTrigger = ['partner_tech_created', 'partner_spec_added', 'partner_client_created', 'partner_supplier_created'].includes(config.trigger.id);
     const enabledStages = config.stages.filter(s => s.enabled);
     if (!isOnboardingTrigger && enabledStages.length === 0) {
       toast("Ative pelo menos uma etapa", "error");
@@ -409,7 +411,7 @@ export default function WorkflowPage() {
       </div>
 
       {/* Presets */}
-      {!['partner_tech_created', 'partner_spec_added', 'partner_client_created'].includes(config.trigger.id) && <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {!['partner_tech_created', 'partner_spec_added', 'partner_client_created', 'partner_supplier_created'].includes(config.trigger.id) && <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
           🎨 Modelos Prontos
           <span className="text-xs font-normal text-slate-400">— clique para preencher automaticamente</span>
@@ -505,11 +507,18 @@ export default function WorkflowPage() {
               ? '— configure o envio por especialização'
               : config.trigger.id === 'partner_client_created'
               ? '— configure o onboarding do cliente'
+              : config.trigger.id === 'partner_supplier_created'
+              ? '— configure o onboarding do fornecedor'
               : '— ative e configure cada etapa'}
           </span>
         </h2>
 
-      {config.trigger.id === 'partner_client_created' ? (
+      {config.trigger.id === 'partner_supplier_created' ? (
+        <SupplierOnboardingSection
+          config={config.supplierOnboarding}
+          onChange={(onboarding) => setConfig({ ...config, supplierOnboarding: onboarding })}
+        />
+      ) : config.trigger.id === 'partner_client_created' ? (
         <ClientOnboardingSection
           config={config.clientOnboarding}
           onChange={(onboarding) => setConfig({ ...config, clientOnboarding: onboarding })}
@@ -553,7 +562,9 @@ export default function WorkflowPage() {
           <div>
             <h3 className="text-sm font-semibold text-slate-700">Resumo</h3>
             <p className="text-xs text-slate-500 mt-1">
-              {config.trigger.id === 'partner_client_created' ? (
+              {config.trigger.id === 'partner_supplier_created' ? (
+                <>&#9889; {config.trigger.label} · Onboarding de fornecedor {config.supplierOnboarding.enabled ? '\u2705 ativo' : '\u23F8 desativado'}</>
+              ) : config.trigger.id === 'partner_client_created' ? (
                 <>&#9889; {config.trigger.label} · Onboarding de cliente {config.clientOnboarding.enabled ? '\u2705 ativo' : '\u23F8 desativado'}</>
               ) : ['partner_tech_created', 'partner_spec_added'].includes(config.trigger.id) ? (
                 <>&#9889; {config.trigger.label} · {config.trigger.id === 'partner_tech_created' ? 'Onboarding de técnico' : 'Nova especialização'} {config.technicianOnboarding.enabled ? '\u2705 ativo' : '\u23F8 desativado'}</>
@@ -561,7 +572,7 @@ export default function WorkflowPage() {
                 <>⚡ {config.trigger.label} · {totalEnabled} {totalEnabled === 1 ? "etapa ativa" : "etapas ativas"} · {totalActions} {totalActions === 1 ? "ação configurada" : "ações configuradas"}</>
               )}
             </p>
-            {!['partner_tech_created', 'partner_spec_added', 'partner_client_created'].includes(config.trigger.id) && totalEnabled > 0 && (
+            {!['partner_tech_created', 'partner_spec_added', 'partner_client_created', 'partner_supplier_created'].includes(config.trigger.id) && totalEnabled > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {config.stages.filter(s => s.enabled).map(s => (
                   <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
