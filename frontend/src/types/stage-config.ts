@@ -315,6 +315,35 @@ export interface TechnicianOnboardingConfig {
   };
 }
 
+/* ── Configuração de Onboarding de Cliente ──────────────────── */
+
+export interface ClientOnboardingConfig {
+  enabled: boolean;
+  // Envio de contrato / termos de serviço
+  sendContractLink: boolean;
+  channel: string;         // WHATSAPP | EMAIL
+  contractName: string;
+  contractContent: string;
+  requireSignature: boolean;
+  requireAcceptance: boolean;
+  blockUntilAccepted: boolean;
+  expirationDays: number;
+  expirationUnit?: 'days' | 'months' | 'years' | 'indefinite';
+  notifyMessage: string;
+  // Mensagem de boas-vindas
+  sendWelcomeMessage: boolean;
+  welcomeChannel: string;
+  welcomeMessage: string;
+  welcomeWaitForReply: boolean;
+  welcomeConfirmVia: string;
+  // Resposta do cliente
+  welcomeReplyMessage: string;
+  welcomeDeclineActions: string[];
+  welcomeDeclineMessage: string;
+  welcomePositiveKeywords: string[];
+  welcomeNegativeKeywords: string[];
+}
+
 const DEFAULT_CONTRACT_CONTENT = `CONTRATO DE PRESTACAO DE SERVICOS TECNICOS TERCEIRIZADOS
 
 CONTRATANTE: {razao_social}, nome fantasia {empresa}, inscrita no CNPJ sob n. {cnpj_empresa}, com sede em {endereco_empresa}, neste ato representada por seus administradores legais.
@@ -476,12 +505,113 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
   };
 }
 
+const DEFAULT_CLIENT_CONTRACT = `TERMOS DE PRESTACAO DE SERVICOS TECNICOS
+
+PRESTADORA: {razao_social}, nome fantasia {empresa}, inscrita no CNPJ sob n. {cnpj_empresa}, com sede em {endereco_empresa}, neste ato representada por seus administradores legais.
+
+CLIENTE: {nome}, portador(a) do documento n. {documento}, doravante denominado(a) CONTRATANTE.
+
+As partes acima qualificadas celebram os presentes Termos de Prestacao de Servicos, regidos pelas clausulas a seguir.
+
+--- CLAUSULA 1 — OBJETO ---
+
+1.1. A PRESTADORA se compromete a executar servicos tecnicos especializados conforme solicitacoes do CONTRATANTE, mediante Ordens de Servico (OS) abertas pela plataforma Tecnikos.
+
+1.2. Os servicos incluem, mas nao se limitam a: instalacao, manutencao preventiva e corretiva, reparo e assistencia tecnica de equipamentos e sistemas.
+
+--- CLAUSULA 2 — SOLICITACAO E EXECUCAO ---
+
+2.1. O CONTRATANTE solicitara os servicos por meio da plataforma Tecnikos ou canais indicados pela PRESTADORA, descrevendo a necessidade, local e urgencia.
+
+2.2. A PRESTADORA designara profissional tecnico qualificado para cada atendimento, conforme disponibilidade e especializacao requerida.
+
+2.3. O CONTRATANTE devera garantir acesso ao local de execucao do servico, bem como informar sobre condicoes especiais (riscos, restricoes de acesso, animais, etc.).
+
+2.4. O CONTRATANTE devera designar responsavel presente no local durante a execucao dos servicos, quando aplicavel.
+
+--- CLAUSULA 3 — VALORES E PAGAMENTO ---
+
+3.1. Os valores serao definidos em cada Ordem de Servico, conforme tabela de precos vigente ou orcamento previo aprovado pelo CONTRATANTE.
+
+3.2. O pagamento devera ser realizado conforme condicoes estabelecidas na OS ou conforme acordo comercial vigente entre as partes.
+
+3.3. Em caso de atraso no pagamento, incidirao juros de 1% ao mes e multa de 2%, alem de correcao monetaria pelo IPCA.
+
+3.4. O cancelamento de servico agendado com menos de 24 horas de antecedencia podera gerar cobranca de taxa de deslocamento.
+
+--- CLAUSULA 4 — GARANTIA ---
+
+4.1. Os servicos executados possuem garantia de 90 (noventa) dias, contados a partir da conclusao e aprovacao pelo CONTRATANTE.
+
+4.2. A garantia cobre exclusivamente defeitos decorrentes da execucao do servico pela PRESTADORA.
+
+4.3. A garantia nao cobre danos causados por mau uso, negligencia, alteracoes nao autorizadas ou intervencao de terceiros.
+
+--- CLAUSULA 5 — OBRIGACOES DO CONTRATANTE ---
+
+5.1. Fornecer informacoes precisas e completas sobre o servico necessario.
+5.2. Garantir acesso seguro e adequado ao local de execucao.
+5.3. Efetuar os pagamentos nos prazos e valores acordados.
+5.4. Avaliar os servicos prestados pela plataforma Teknikos apos a conclusao.
+5.5. Comunicar eventuais problemas ou insatisfacoes em ate 48 horas apos a conclusao do servico.
+
+--- CLAUSULA 6 — OBRIGACOES DA PRESTADORA ---
+
+6.1. Executar os servicos com qualidade, diligencia e dentro dos prazos acordados.
+6.2. Designar profissionais qualificados e devidamente equipados.
+6.3. Manter sigilo sobre informacoes do CONTRATANTE obtidas durante a prestacao dos servicos.
+6.4. Fornecer relatorio de execucao com fotos e descricao dos servicos realizados.
+
+--- CLAUSULA 7 — VIGENCIA ---
+
+7.1. Estes termos tem vigencia por prazo indeterminado a partir do aceite digital.
+7.2. Qualquer das partes podera rescindir mediante comunicacao previa de 15 (quinze) dias.
+7.3. A rescisao nao exime o CONTRATANTE do pagamento de servicos ja executados ou em andamento.
+
+--- CLAUSULA 8 — DISPOSICOES FINAIS ---
+
+8.1. O aceite digital deste termo tem plena validade juridica, conforme a Lei 14.063/2020 (assinaturas eletronicas) e o Marco Civil da Internet (Lei 12.965/2014).
+8.2. Ao aceitar este termo, serao registrados a data, hora, endereco IP e identificador do dispositivo utilizado.
+8.3. Fica eleito o foro da comarca da sede da PRESTADORA para dirimir quaisquer controversias oriundas destes termos.
+
+{razao_social}, {data}
+
+PRESTADORA: {razao_social} ({empresa})
+CLIENTE: {nome} — Documento: {documento}`;
+
+export function createDefaultClientOnboarding(): ClientOnboardingConfig {
+  return {
+    enabled: false,
+    sendContractLink: false,
+    channel: 'WHATSAPP',
+    contractName: 'Termos de Prestacao de Servicos',
+    contractContent: DEFAULT_CLIENT_CONTRACT,
+    requireSignature: false,
+    requireAcceptance: true,
+    blockUntilAccepted: false,
+    expirationDays: 30,
+    expirationUnit: 'days',
+    notifyMessage: 'Ola {nome}! Voce foi cadastrado(a) como cliente da {empresa} ({razao_social}). Para formalizar nossa relacao, preparamos os termos de prestacao de servicos. Acesse o link abaixo para visualizar e aceitar os termos.',
+    sendWelcomeMessage: false,
+    welcomeChannel: 'WHATSAPP',
+    welcomeMessage: 'Ola {nome}, seja bem-vindo(a) como cliente da {empresa} ({razao_social})! A partir de agora voce podera solicitar servicos tecnicos pela nossa plataforma Teknikos. Estamos a disposicao para atende-lo(a) com qualidade e agilidade. Para confirmar seu cadastro, responda com "Sim, confirmo".',
+    welcomeWaitForReply: true,
+    welcomeConfirmVia: 'WHATSAPP',
+    welcomeReplyMessage: 'Perfeito {nome}! Seu cadastro como cliente da {razao_social} esta confirmado. A partir de agora voce podera solicitar servicos tecnicos pela plataforma. Qualquer duvida entre em contato pelo {telefone}. Seja bem-vindo(a)!',
+    welcomeDeclineActions: ['NOTIFY_GESTOR'],
+    welcomeDeclineMessage: 'Atencao: o cliente {nome} ({email}) recusou o cadastro. Resposta recebida: "{resposta}". O cadastro foi mantido como pendente.',
+    welcomePositiveKeywords: ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'],
+    welcomeNegativeKeywords: ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'],
+  };
+}
+
 export interface WorkflowFormConfig {
   name: string;
   isDefault: boolean;
   trigger: TriggerDefinition;
   stages: StageConfig[];
   technicianOnboarding: TechnicianOnboardingConfig;
+  clientOnboarding: ClientOnboardingConfig;
 }
 
 /* ── Gatilho (Trigger) ─────────────────────────────────────── */
@@ -872,6 +1002,7 @@ export function createDefaultConfig(): WorkflowFormConfig {
     trigger: TRIGGER_OPTIONS[0],
     stages: OS_STATUSES.map(s => createEmptyStage(s.status, s.label, s.icon)),
     technicianOnboarding: createDefaultOnboarding(),
+    clientOnboarding: createDefaultClientOnboarding(),
   };
 }
 
@@ -1203,6 +1334,9 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
     const earlyResult: any = { version: 2, blocks };
     if (config.technicianOnboarding?.enabled) {
       earlyResult.technicianOnboarding = config.technicianOnboarding;
+    }
+    if (config.clientOnboarding?.enabled) {
+      earlyResult.clientOnboarding = config.clientOnboarding;
     }
     return earlyResult;
   }
@@ -1599,6 +1733,11 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
     result.technicianOnboarding = config.technicianOnboarding;
   }
 
+  // Persist client onboarding config alongside blocks
+  if (config.clientOnboarding?.enabled) {
+    result.clientOnboarding = config.clientOnboarding;
+  }
+
   return result;
 }
 
@@ -1624,6 +1763,14 @@ export function decompileFromV2(steps: any): WorkflowFormConfig | null {
     config.technicianOnboarding = {
       ...createDefaultOnboarding(),
       ...steps.technicianOnboarding,
+    };
+  }
+
+  // Restore client onboarding config if present
+  if (steps?.clientOnboarding) {
+    config.clientOnboarding = {
+      ...createDefaultClientOnboarding(),
+      ...steps.clientOnboarding,
     };
   }
 
