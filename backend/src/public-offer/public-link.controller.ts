@@ -36,13 +36,9 @@ export class PublicLinkController {
   }
 
   @Post(':token/accept')
-  @Throttle({ default: { limit: 10, ttl: 600_000 } }) // 10 tentativas de OTP a cada 10 min
-  accept(
-    @Param('token') token: string,
-    @Body('phone') phone: string,
-    @Body('code') code: string,
-  ) {
-    return this.service.acceptWithOtp(token, phone, code);
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
+  accept(@Param('token') token: string) {
+    return this.service.acceptDirect(token);
   }
 
   @Post(':token/arrival-time')

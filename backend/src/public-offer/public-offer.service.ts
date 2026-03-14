@@ -49,6 +49,23 @@ export class PublicOfferService {
     private readonly notifications: NotificationService,
   ) {}
 
+  /**
+   * Resolve the assigned technician for a revoked offer (post-acceptance).
+   * Uses assignedPartnerId from the service order instead of phone lookup.
+   */
+  private async resolveAssignedTech(token: string) {
+    const offer = await this.prisma.serviceOrderOffer.findFirst({
+      where: { token, revokedAt: { not: null } },
+      include: { serviceOrder: { include: { workflowTemplate: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!offer) throw new NotFoundException('Oferta não encontrada');
+    if (!offer.serviceOrder.assignedPartnerId) {
+      throw new BadRequestException('OS sem técnico atribuído');
+    }
+    return { offer, technicianId: offer.serviceOrder.assignedPartnerId };
+  }
+
   /** Get technicians eligible for a service order based on workflow specializations */
   async getEligibleTechnicians(serviceOrderId: string, companyId: string) {
     const so = await this.prisma.serviceOrder.findFirst({
@@ -245,6 +262,79 @@ export class PublicOfferService {
     };
   }
 
+  /**
+   * Accept offer directly — no OTP required.
+   * The link token itself is the authentication (UUID v4, expires, single-use).
+   */
+  async acceptDirect(token: string) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const offer = await tx.serviceOrderOffer.findFirst({
+          where: { token, revokedAt: null, expiresAt: { gt: new Date() } },
+          select: { id: true, serviceOrderId: true, companyId: true },
+        });
+        if (!offer) throw new NotFoundException('Oferta inválida ou expirada');
+
+        const so = await tx.serviceOrder.findUnique({
+          where: { id: offer.serviceOrderId },
+          select: { assignedPartnerId: true, status: true, acceptedAt: true },
+        });
+
+        const now = new Date();
+
+        // If OS already has technician assigned (BY_AGENDA), just mark accepted
+        if (so?.assignedPartnerId && !so.acceptedAt) {
+          await tx.serviceOrder.update({
+            where: { id: offer.serviceOrderId },
+            data: { acceptedAt: now, status: ServiceOrderStatus.ATRIBUIDA },
+          });
+        } else if (!so?.assignedPartnerId) {
+          // DIRECTED mode — need to find which tech got this link
+          // For now, just mark the offer as accepted without assigning
+          // (future: associate technicianId with the offer)
+          throw new BadRequestException('Técnico não atribuído a esta OS');
+        }
+
+        // Revoke all offers for this OS
+        await tx.serviceOrderOffer.updateMany({
+          where: { serviceOrderId: offer.serviceOrderId, revokedAt: null },
+          data: { revokedAt: now },
+        });
+
+        const serviceOrder = await tx.serviceOrder.findUnique({
+          where: { id: offer.serviceOrderId },
+          include: { workflowTemplate: true },
+        });
+
+        const acceptedOffer = await tx.serviceOrderOffer.findUnique({
+          where: { id: offer.id },
+        });
+
+        // Check workflow for ARRIVAL_QUESTION block
+        let arrivalQuestion: any = null;
+        if (serviceOrder?.workflowTemplate) {
+          const def = serviceOrder.workflowTemplate.steps as any;
+          const blocks = def?.version === 2 ? def.blocks : (def?.blocks || []);
+          const arrivalBlock = blocks?.find((b: any) => b.type === 'ARRIVAL_QUESTION');
+          if (arrivalBlock) {
+            arrivalQuestion = {
+              blockId: arrivalBlock.id,
+              question: arrivalBlock.config?.question || 'Quanto tempo até você estar a caminho?',
+              options: arrivalBlock.config?.options || [],
+              onDecline: arrivalBlock.config?.onDecline || 'notify_gestor',
+              useAsDynamicTimeout: arrivalBlock.config?.useAsDynamicTimeout ?? false,
+              enRouteTimeoutMinutes: (serviceOrder as any).enRouteTimeoutMinutes || null,
+            };
+          }
+        }
+
+        const { workflowTemplate, ...soData } = serviceOrder || {} as any;
+        return { serviceOrder: soData, offer: acceptedOffer, arrivalQuestion };
+      },
+      { isolationLevel: 'Serializable' },
+    );
+  }
+
   async acceptWithOtp(token: string, phone: string, code: string) {
     const phoneNorm = normalizePhone(phone);
     const codeNorm = String(code || '').replace(/\D/g, '');
@@ -381,9 +471,7 @@ export class PublicOfferService {
   }
 
   /** Submit arrival time after accepting an offer */
-  async submitArrivalTime(token: string, phone: string, selectedMinutes: number) {
-    const phoneNorm = normalizePhone(phone);
-    if (!phoneNorm) throw new BadRequestException('Telefone inválido');
+  async submitArrivalTime(token: string, phone: string | undefined, selectedMinutes: number) {
     if (typeof selectedMinutes !== 'number' || selectedMinutes < 1) {
       throw new BadRequestException('Informe um tempo estimado válido.');
     }
@@ -396,12 +484,9 @@ export class PublicOfferService {
     });
     if (!offer) throw new NotFoundException('Oferta não encontrada');
 
-    // Verify tech matches assigned
-    const technician = await this.prisma.partner.findFirst({
-      where: { companyId: offer.companyId, phone: phoneNorm, deletedAt: null },
-    });
-    if (!technician || offer.serviceOrder.assignedPartnerId !== technician.id) {
-      throw new BadRequestException('Técnico não corresponde');
+    // Verify OS has an assigned technician
+    if (!offer.serviceOrder.assignedPartnerId) {
+      throw new BadRequestException('OS sem técnico atribuído');
     }
 
     // Validate against enRouteTimeout
@@ -423,23 +508,8 @@ export class PublicOfferService {
   }
 
   /** Tech declines after acceptance (can't meet deadline) */
-  async declineAfterAccept(token: string, phone: string) {
-    const phoneNorm = normalizePhone(phone);
-    if (!phoneNorm) throw new BadRequestException('Telefone inválido');
-
-    const offer = await this.prisma.serviceOrderOffer.findFirst({
-      where: { token, revokedAt: { not: null } },
-      include: { serviceOrder: { include: { workflowTemplate: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!offer) throw new NotFoundException('Oferta não encontrada');
-
-    const technician = await this.prisma.partner.findFirst({
-      where: { companyId: offer.companyId, phone: phoneNorm, deletedAt: null },
-    });
-    if (!technician || offer.serviceOrder.assignedPartnerId !== technician.id) {
-      throw new BadRequestException('Técnico não corresponde');
-    }
+  async declineAfterAccept(token: string, _phone?: string) {
+    const { offer } = await this.resolveAssignedTech(token);
 
     // Get onDecline action from workflow
     let onDecline = 'notify_gestor';
@@ -482,23 +552,9 @@ export class PublicOfferService {
   }
 
   /** Start GPS tracking for a service order */
-  async startTracking(token: string, phone: string) {
-    const phoneNorm = normalizePhone(phone);
-    if (!phoneNorm) throw new BadRequestException('Telefone inválido');
-
-    const offer = await this.prisma.serviceOrderOffer.findFirst({
-      where: { token, revokedAt: { not: null } },
-      include: { serviceOrder: { include: { workflowTemplate: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!offer) throw new NotFoundException('Oferta não encontrada');
-
-    const technician = await this.prisma.partner.findFirst({
-      where: { companyId: offer.companyId, phone: phoneNorm, deletedAt: null },
-    });
-    if (!technician || offer.serviceOrder.assignedPartnerId !== technician.id) {
-      throw new BadRequestException('Técnico não corresponde');
-    }
+  async startTracking(token: string, _phone?: string) {
+    const { offer, technicianId } = await this.resolveAssignedTech(token);
+    const technician = { id: technicianId };
 
     // Get proximity config from workflow
     let proximityConfig: any = null;
@@ -540,15 +596,13 @@ export class PublicOfferService {
   /** Receive position update from technician and check proximity */
   async submitPosition(
     token: string,
-    phone: string,
+    _phone: string | undefined,
     lat: number,
     lng: number,
     accuracy?: number,
     speed?: number,
     heading?: number,
   ) {
-    const phoneNorm = normalizePhone(phone);
-    if (!phoneNorm) throw new BadRequestException('Telefone inválido');
     if (typeof lat !== 'number' || typeof lng !== 'number') {
       throw new BadRequestException('Coordenadas inválidas');
     }
@@ -569,12 +623,10 @@ export class PublicOfferService {
     });
     if (!offer) throw new NotFoundException('Oferta não encontrada');
 
-    const technician = await this.prisma.partner.findFirst({
-      where: { companyId: offer.companyId, phone: phoneNorm, deletedAt: null },
-    });
-    if (!technician || offer.serviceOrder.assignedPartnerId !== technician.id) {
-      throw new BadRequestException('Técnico não corresponde');
+    if (!offer.serviceOrder.assignedPartnerId) {
+      throw new BadRequestException('OS sem técnico atribuído');
     }
+    const technician = { id: offer.serviceOrder.assignedPartnerId };
 
     const so = offer.serviceOrder;
 

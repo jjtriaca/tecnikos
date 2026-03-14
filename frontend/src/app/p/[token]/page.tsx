@@ -161,7 +161,6 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
         proximityReached: boolean;
         radiusMeters: number;
       }>(`/p/${token}/position`, {
-        phone: phoneDigitsRef.current,
         lat, lng, accuracy, speed, heading,
       });
 
@@ -193,7 +192,6 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     try {
       // Start tracking on backend
       const res = await api.post<{ success: boolean; config: TrackingConfig }>(`/p/${token}/start-tracking`, {
-        phone: phoneDigitsRef.current,
       });
 
       setTrackingConfig(res.config);
@@ -254,33 +252,12 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     })();
   }, [token]);
 
-  // Request OTP
-  const handleRequestOtp = async () => {
-    if (!phone.trim()) return;
-    setOtpLoading(true);
-    setErrorMsg("");
-    try {
-      await api.post(`/p/${token}/request-otp`, { phone: phone.replace(/\D/g, "") });
-      setOtpSent(true);
-      setStep("otp");
-    } catch (e: any) {
-      setErrorMsg(e?.message || "Erro ao enviar código.");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  // Accept with OTP
+  // Accept directly (no OTP)
   const handleAccept = async () => {
-    if (!otpCode.trim()) return;
     setAcceptLoading(true);
     setErrorMsg("");
-    phoneDigitsRef.current = phone.replace(/\D/g, "");
     try {
-      const res = await api.post<AcceptResult>(`/p/${token}/accept`, {
-        phone: phoneDigitsRef.current,
-        code: otpCode.replace(/\D/g, ""),
-      });
+      const res = await api.post<AcceptResult>(`/p/${token}/accept`, {});
       if (res.arrivalQuestion) {
         setArrivalConfig(res.arrivalQuestion);
         setStep("arrival");
@@ -299,15 +276,11 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     setArrivalLoading(true);
     setArrivalError(null);
     try {
-      await api.post(`/p/${token}/arrival-time`, {
-        phone: phoneDigitsRef.current,
-        selectedMinutes,
-      });
-      // Check if tracking is available, then offer GPS
+      await api.post(`/p/${token}/arrival-time`, { selectedMinutes });
       try {
         const trackRes = await api.get<{ enabled: boolean; config: any }>(`/p/${token}/tracking-config`);
         if (trackRes.enabled) {
-          setStep("done"); // Will show GPS offer in "done" state
+          setStep("done");
         } else {
           setStep("done");
         }
@@ -324,9 +297,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
   const handleDecline = async () => {
     setArrivalLoading(true);
     try {
-      await api.post(`/p/${token}/decline`, {
-        phone: phoneDigitsRef.current,
-      });
+      await api.post(`/p/${token}/decline`, {});
       setStep("declined");
     } catch (e: any) {
       setArrivalError(e?.message || "Erro ao recusar.");
@@ -356,7 +327,6 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     setPauseError(null);
     try {
       await api.post(`/p/${token}/pause`, {
-        phone: phoneDigitsRef.current,
         reasonCategory: pauseReason,
         reason: pauseReason === 'other' ? pauseReasonText : undefined,
         photos: [], // TODO: photo upload integration
@@ -376,7 +346,6 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     setPauseError(null);
     try {
       await api.post(`/p/${token}/resume`, {
-        phone: phoneDigitsRef.current,
         photos: [], // TODO: photo upload integration
       });
       await fetchPauseStatus();
@@ -901,67 +870,16 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
           </div>
         )}
 
-        {/* Phone + OTP */}
+        {/* Accept button */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-slate-700">Aceitar esta OS</h3>
-
-          {/* Phone input */}
-          <div>
-            <label className="text-xs text-slate-500 block mb-1">Seu telefone cadastrado:</label>
-            <div className="flex gap-2">
-              <input
-                type="tel"
-                value={phone}
-                onChange={e => setPhone(maskPhone(e.target.value))}
-                placeholder="(11) 99999-9999"
-                disabled={otpSent}
-                className="flex-1 rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none disabled:bg-slate-100"
-              />
-              {!otpSent && (
-                <button
-                  type="button"
-                  onClick={handleRequestOtp}
-                  disabled={otpLoading || !phone.trim()}
-                  className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium disabled:bg-slate-300 hover:bg-blue-700 transition-colors whitespace-nowrap"
-                >
-                  {otpLoading ? "..." : "Enviar código"}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* OTP input */}
-          {otpSent && (
-            <div className="space-y-3 animate-fadeIn">
-              <div>
-                <label className="text-xs text-slate-500 block mb-1">Código de verificação (6 dígitos):</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={e => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="000000"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-center text-lg tracking-[0.5em] font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={handleAccept}
-                disabled={acceptLoading || otpCode.length !== 6}
-                className="w-full py-3 rounded-xl bg-green-600 text-white font-semibold disabled:bg-slate-300 hover:bg-green-700 transition-colors"
-              >
-                {acceptLoading ? "Aceitando..." : "✓ Aceitar OS"}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setOtpSent(false); setOtpCode(""); setErrorMsg(""); }}
-                className="w-full text-xs text-slate-400 hover:text-slate-600"
-              >
-                Alterar telefone
-              </button>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={handleAccept}
+            disabled={acceptLoading}
+            className="w-full py-3 rounded-xl bg-green-600 text-white font-semibold text-base disabled:bg-slate-300 hover:bg-green-700 transition-colors"
+          >
+            {acceptLoading ? "Aceitando..." : "✅ Aceitar OS"}
+          </button>
         </div>
 
         {/* Expiry info */}
