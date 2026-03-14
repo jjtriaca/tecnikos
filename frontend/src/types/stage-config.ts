@@ -772,9 +772,7 @@ export const OS_STATUSES = [
 
 export const CHANNEL_OPTIONS = [
   { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'sms',      label: 'SMS' },
   { value: 'email',    label: 'E-mail' },
-  { value: 'push',     label: 'Push' },
 ];
 
 export const SEVERITY_OPTIONS = [
@@ -967,7 +965,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
     autoActions: {
       notifyGestor:   { enabled: false, channel: 'whatsapp', message: '' },
       notifyTecnico:  { enabled: false, channel: 'whatsapp', message: '', includeLink: false },
-      notifyCliente:  { enabled: false, channel: 'sms', message: '' },
+      notifyCliente:  { enabled: false, channel: 'whatsapp', message: '' },
       financialEntry: { enabled: false, entries: [] },
       alert:          { enabled: false, message: '', severity: 'info' },
       webhook:        { enabled: false, url: '' },
@@ -977,8 +975,8 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
         enabled: false,
         reviewChecklist: ['Verificar fotos do serviço', 'Conferir checklist do técnico', 'Revisar materiais utilizados'],
         onApprove: {
-          notifyTecnico: { enabled: true,  channel: 'push',     message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
-          notifyCliente: { enabled: false, channel: 'sms',      message: 'Seu serviço "{titulo}" foi finalizado com sucesso. Obrigado!' },
+          notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
+          notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Seu serviço "{titulo}" foi finalizado com sucesso. Obrigado!' },
         },
         onApproveWithReservations: {
           enabled: true,
@@ -986,13 +984,13 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
           commissionAdjustment: { enabled: false, type: 'reduce_percent', value: 10 },
           flagOS: true,
           notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
-          notifyCliente: { enabled: false, channel: 'sms',      message: '' },
+          notifyCliente: { enabled: false, channel: 'whatsapp', message: '' },
         },
         onReject: {
           action: 'reopen_execution',
           requireReason: true,
           notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
-          notifyCliente: { enabled: false, channel: 'sms',      message: '' },
+          notifyCliente: { enabled: false, channel: 'whatsapp', message: '' },
         },
       },
       techSelection: {

@@ -495,7 +495,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                             <WhatsAppCostWarning channel={stage.autoActions.messageDispatch.toTechnicians.channel} />
                             <TextAreaField label="Mensagem" value={stage.autoActions.messageDispatch.toTechnicians.message}
                               onChange={v => updateAuto('messageDispatch', { toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians, message: v } })}
-                              placeholder="Mensagem para os técnicos..." vars />
+                              placeholder="Olá {tecnico}, você recebeu uma nova OS: {titulo}. Endereço: {endereco}, {cidade}." vars />
 
                             {/* ── LINK PARA OS TÉCNICOS ── */}
                             <div className="rounded border border-blue-200 bg-blue-50/50 p-2.5 mt-2">
@@ -813,126 +813,121 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                   {lnk.gpsNavigation && (
                                     <div className="pt-2 border-t border-blue-200">
                                       <span className="text-xs font-bold text-slate-600 block mb-1">📡 Página de tracking</span>
-                                      <p className="text-[10px] text-slate-400">Automática ao ativar GPS — mostra distância em tempo real, barra de proximidade e botão &quot;Cheguei no local&quot;. Configuração do raio na etapa Atribuída (Proximidade GPS).</p>
+                                      <p className="text-[10px] text-slate-400">Automática ao ativar GPS — mostra distância em tempo real, barra de proximidade e botão &quot;Cheguei no local&quot;. Configuração do raio na etapa A Caminho (Proximidade GPS).</p>
                                     </div>
                                   )}
                                 </div>
                                 );
                               })()}
+
+                              {/* ── PERGUNTA PARA O TÉCNICO (dentro do link) ── */}
+                              <div className="pt-3 border-t border-blue-200 mt-3">
+                                <Toggle checked={stage.autoActions.techQuestion.enabled}
+                                  onChange={v => {
+                                    updateAuto('techQuestion', { enabled: v });
+                                    if (v) {
+                                      const tq = stage.autoActions.techQuestion;
+                                      onChange({
+                                        ...stage,
+                                        autoActions: { ...stage.autoActions, techQuestion: { ...tq, enabled: true } },
+                                        techActions: {
+                                          ...stage.techActions,
+                                          question: {
+                                            enabled: true,
+                                            question: tq.question,
+                                            options: tq.options.map(o => o.label),
+                                          },
+                                        },
+                                      });
+                                    } else {
+                                      onChange({
+                                        ...stage,
+                                        autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, enabled: false } },
+                                        techActions: {
+                                          ...stage.techActions,
+                                          question: { enabled: false, question: '', options: [] },
+                                        },
+                                      });
+                                    }
+                                  }}
+                                  label="❓ Pergunta para o técnico"
+                                  hint="Exibe uma pergunta na página do link. O técnico responde antes de aceitar a OS. Cada opção pode disparar uma ação automática." />
+                                <ConfigRow visible={stage.autoActions.techQuestion.enabled}>
+                                  <div className="space-y-3">
+                                    <TextField label="Pergunta" value={stage.autoActions.techQuestion.question}
+                                      onChange={v => {
+                                        onChange({
+                                          ...stage,
+                                          autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, question: v } },
+                                          techActions: { ...stage.techActions, question: { ...stage.techActions.question, question: v } },
+                                        });
+                                      }}
+                                      placeholder="Ex: Você tem disponibilidade para atender esta OS?" />
+
+                                    <div>
+                                      <span className="text-xs font-medium text-slate-600 block mb-2">Opções de resposta:</span>
+                                      <div className="space-y-2">
+                                        {stage.autoActions.techQuestion.options.map((opt, oi) => (
+                                          <div key={oi} className="flex items-start gap-2 p-2 rounded border border-slate-200 bg-white">
+                                            <span className="text-xs text-slate-400 mt-1.5 font-mono w-4">{oi + 1}.</span>
+                                            <div className="flex-1 space-y-1.5">
+                                              <input type="text" value={opt.label} placeholder="Texto da opção"
+                                                onChange={e => {
+                                                  const newOpts = [...stage.autoActions.techQuestion.options];
+                                                  newOpts[oi] = { ...newOpts[oi], label: e.target.value };
+                                                  onChange({
+                                                    ...stage,
+                                                    autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
+                                                    techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
+                                                  });
+                                                }}
+                                                className="w-full text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                                              <SelectField label="Ação" value={opt.action}
+                                                onChange={v => {
+                                                  const newOpts = [...stage.autoActions.techQuestion.options];
+                                                  newOpts[oi] = { ...newOpts[oi], action: v };
+                                                  updateAuto('techQuestion', { options: newOpts });
+                                                }}
+                                                options={QUESTION_ACTIONS} />
+                                            </div>
+                                            <button type="button"
+                                              onClick={() => {
+                                                const newOpts = stage.autoActions.techQuestion.options.filter((_, i) => i !== oi);
+                                                onChange({
+                                                  ...stage,
+                                                  autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
+                                                  techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
+                                                });
+                                              }}
+                                              className="text-red-400 hover:text-red-600 p-0.5 text-xs mt-1">✕</button>
+                                          </div>
+                                        ))}
+                                        <button type="button"
+                                          onClick={() => {
+                                            const newOpt: TechQuestionOption = { label: '', action: 'none' };
+                                            const newOpts = [...stage.autoActions.techQuestion.options, newOpt];
+                                            onChange({
+                                              ...stage,
+                                              autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
+                                              techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
+                                            });
+                                          }}
+                                          className="text-xs text-blue-600 hover:text-blue-800 font-medium">+ Adicionar opção</button>
+                                      </div>
+                                    </div>
+
+                                    <SubToggle checked={stage.autoActions.techQuestion.required}
+                                      onChange={v => updateAuto('techQuestion', { required: v })}
+                                      label="Obrigatória (técnico deve responder para prosseguir)" />
+                                  </div>
+                                </ConfigRow>
+                              </div>
                             </div>
                           </div>
                         )}
                       </div>
 
                       {/* Mensagem para gestor e cliente movidas para dentro dos botões do link (onAccept, onGps, onEnRoute) */}
-                    </div>
-                  </ConfigRow>
-                </div>
-
-                {/* ── 3. PERGUNTA PARA O TÉCNICO ── */}
-                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                  <Toggle checked={stage.autoActions.techQuestion.enabled}
-                    onChange={v => {
-                      updateAuto('techQuestion', { enabled: v });
-                      if (v) {
-                        const tq = stage.autoActions.techQuestion;
-                        onChange({
-                          ...stage,
-                          autoActions: { ...stage.autoActions, techQuestion: { ...tq, enabled: true } },
-                          techActions: {
-                            ...stage.techActions,
-                            question: {
-                              enabled: true,
-                              question: tq.question,
-                              options: tq.options.map(o => o.label),
-                            },
-                          },
-                        });
-                      } else {
-                        onChange({
-                          ...stage,
-                          autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, enabled: false } },
-                          techActions: {
-                            ...stage.techActions,
-                            question: { enabled: false, question: '', options: [] },
-                          },
-                        });
-                      }
-                    }}
-                    label="❓ Pergunta para o técnico"
-                    hint="Envia uma pergunta ao técnico com opções de resposta. Cada opção pode disparar uma ação automática." />
-                  <ConfigRow visible={stage.autoActions.techQuestion.enabled}>
-                    <div className="space-y-3">
-                      <TextField label="Pergunta" value={stage.autoActions.techQuestion.question}
-                        onChange={v => {
-                          onChange({
-                            ...stage,
-                            autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, question: v } },
-                            techActions: { ...stage.techActions, question: { ...stage.techActions.question, question: v } },
-                          });
-                        }}
-                        placeholder="Ex: Você tem disponibilidade para atender esta OS?" />
-
-                      <div>
-                        <span className="text-xs font-medium text-slate-600 block mb-2">Opções de resposta:</span>
-                        <div className="space-y-2">
-                          {stage.autoActions.techQuestion.options.map((opt, oi) => (
-                            <div key={oi} className="flex items-start gap-2 p-2 rounded border border-slate-200 bg-white">
-                              <span className="text-xs text-slate-400 mt-1.5 font-mono w-4">{oi + 1}.</span>
-                              <div className="flex-1 space-y-1.5">
-                                <input type="text" value={opt.label} placeholder="Texto da opção"
-                                  onChange={e => {
-                                    const newOpts = [...stage.autoActions.techQuestion.options];
-                                    newOpts[oi] = { ...newOpts[oi], label: e.target.value };
-                                    onChange({
-                                      ...stage,
-                                      autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
-                                      techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
-                                    });
-                                  }}
-                                  className="w-full text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
-                                <SelectField label="Ação" value={opt.action}
-                                  onChange={v => {
-                                    const newOpts = [...stage.autoActions.techQuestion.options];
-                                    newOpts[oi] = { ...newOpts[oi], action: v };
-                                    updateAuto('techQuestion', { options: newOpts });
-                                  }}
-                                  options={QUESTION_ACTIONS} />
-                              </div>
-                              <button type="button"
-                                onClick={() => {
-                                  const newOpts = stage.autoActions.techQuestion.options.filter((_, i) => i !== oi);
-                                  onChange({
-                                    ...stage,
-                                    autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
-                                    techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
-                                  });
-                                }}
-                                className="text-red-400 hover:text-red-600 p-0.5 text-xs mt-1">✕</button>
-                            </div>
-                          ))}
-                          <button type="button"
-                            onClick={() => {
-                              const newOpt: TechQuestionOption = { label: '', action: 'none' };
-                              const newOpts = [...stage.autoActions.techQuestion.options, newOpt];
-                              onChange({
-                                ...stage,
-                                autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
-                                techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
-                              });
-                            }}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium">+ Adicionar opção</button>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-200">
-                        <SubToggle checked={stage.autoActions.techQuestion.required}
-                          onChange={v => updateAuto('techQuestion', { required: v })}
-                          label="Obrigatória (técnico deve responder para prosseguir)" />
-                        <SubToggle checked={stage.autoActions.techQuestion.showOnLinkPage}
-                          onChange={v => updateAuto('techQuestion', { showOnLinkPage: v })}
-                          label="Exibir na página do link" />
-                      </div>
                     </div>
                   </ConfigRow>
                 </div>
@@ -1225,9 +1220,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                             <SelectField label="Canal" value={stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente.channel}
                               onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyCliente: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente, channel: v } } })}
                               options={CHANNEL_OPTIONS} />
+                            <WhatsAppCostWarning channel={stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente.channel} />
                             <TextAreaField label="Mensagem" value={stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente.message}
                               onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyCliente: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente, message: v } } })}
-                              placeholder="Ex: O técnico está chegando..." vars />
+                              placeholder="O técnico {tecnico} está chegando! OS: {titulo}" vars />
                           </div>
                         )}
 
@@ -1240,9 +1236,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                             <SelectField label="Canal" value={stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor.channel}
                               onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyGestor: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor, channel: v } } })}
                               options={CHANNEL_OPTIONS} />
+                            <WhatsAppCostWarning channel={stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor.channel} />
                             <TextAreaField label="Mensagem" value={stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor.message}
                               onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyGestor: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor, message: v } } })}
-                              placeholder="Ex: Técnico chegando na OS..." vars />
+                              placeholder="Técnico {tecnico} chegou no raio de {distancia_tecnico} — OS: {titulo}" vars />
                           </div>
                         )}
 
@@ -1297,7 +1294,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                       onChange={v => updateAuto('notifyGestor', { channel: v })} options={CHANNEL_OPTIONS} />
                     <WhatsAppCostWarning channel={stage.autoActions.notifyGestor.channel} />
                     <TextAreaField label="Mensagem" value={stage.autoActions.notifyGestor.message}
-                      onChange={v => updateAuto('notifyGestor', { message: v })} placeholder="Mensagem para o gestor..." vars />
+                      onChange={v => updateAuto('notifyGestor', { message: v })} placeholder="OS {titulo} entrou na etapa {status}. Cliente: {cliente}." vars />
                   </ConfigRow>
                 </div>
 
@@ -1315,7 +1312,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                       onChange={v => updateAuto('notifyTecnico', { channel: v })} options={CHANNEL_OPTIONS} />
                     <WhatsAppCostWarning channel={stage.autoActions.notifyTecnico.channel} />
                     <TextAreaField label="Mensagem" value={stage.autoActions.notifyTecnico.message}
-                      onChange={v => updateAuto('notifyTecnico', { message: v })} placeholder="Mensagem para o técnico..." vars />
+                      onChange={v => updateAuto('notifyTecnico', { message: v })} placeholder="Você foi atribuído à OS {titulo}. Cliente: {cliente}, Endereço: {endereco}." vars />
                     <SubToggle checked={stage.autoActions.notifyTecnico.includeLink} onChange={v => updateAuto('notifyTecnico', { includeLink: v })} label="Incluir link da OS" />
                   </ConfigRow>
                 </div>
@@ -1343,7 +1340,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                       onChange={v => updateAuto('notifyCliente', { channel: v })} options={CHANNEL_OPTIONS} />
                     <WhatsAppCostWarning channel={stage.autoActions.notifyCliente.channel} />
                     <TextAreaField label="Mensagem" value={stage.autoActions.notifyCliente.message}
-                      onChange={v => updateAuto('notifyCliente', { message: v })} placeholder="Mensagem para o cliente..." vars />
+                      onChange={v => updateAuto('notifyCliente', { message: v })} placeholder="Olá {cliente}, sua OS {titulo} foi atualizada. Status: {status}." vars />
                   </ConfigRow>
                 </div>
               </>
@@ -1383,7 +1380,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                 options={CHANNEL_OPTIONS} />
                               <TextAreaField label="Mensagem" value={stage.autoActions.gestorApproval.onApprove.notifyTecnico.message}
                                 onChange={v => updateAuto('gestorApproval', { onApprove: { ...stage.autoActions.gestorApproval.onApprove, notifyTecnico: { ...stage.autoActions.gestorApproval.onApprove.notifyTecnico, message: v } } })}
-                                placeholder="Mensagem de aprovação ao técnico..." vars />
+                                placeholder="✅ Seu serviço {titulo} foi aprovado pelo gestor!" vars />
                             </div>
                           )}
                         </div>
@@ -1398,7 +1395,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                 options={CHANNEL_OPTIONS} />
                               <TextAreaField label="Mensagem" value={stage.autoActions.gestorApproval.onApprove.notifyCliente.message}
                                 onChange={v => updateAuto('gestorApproval', { onApprove: { ...stage.autoActions.gestorApproval.onApprove, notifyCliente: { ...stage.autoActions.gestorApproval.onApprove.notifyCliente, message: v } } })}
-                                placeholder="Mensagem de confirmação ao cliente..." vars />
+                                placeholder="Olá {cliente}, seu serviço {titulo} foi finalizado com sucesso. Obrigado!" vars />
                             </div>
                           )}
                         </div>
@@ -1473,7 +1470,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     options={CHANNEL_OPTIONS} />
                                   <TextAreaField label="Mensagem" value={stage.autoActions.gestorApproval.onApproveWithReservations.notifyCliente.message}
                                     onChange={v => updateAuto('gestorApproval', { onApproveWithReservations: { ...stage.autoActions.gestorApproval.onApproveWithReservations, notifyCliente: { ...stage.autoActions.gestorApproval.onApproveWithReservations.notifyCliente, message: v } } })}
-                                    placeholder="Mensagem ao cliente..." vars />
+                                    placeholder="Olá {cliente}, seu serviço {titulo} foi aprovado com ressalvas: {ressalvas}." vars />
                                 </div>
                               )}
                             </div>
@@ -1523,7 +1520,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                 options={CHANNEL_OPTIONS} />
                               <TextAreaField label="Mensagem" value={stage.autoActions.gestorApproval.onReject.notifyCliente.message}
                                 onChange={v => updateAuto('gestorApproval', { onReject: { ...stage.autoActions.gestorApproval.onReject, notifyCliente: { ...stage.autoActions.gestorApproval.onReject.notifyCliente, message: v } } })}
-                                placeholder="Mensagem ao cliente..." vars />
+                                placeholder="Olá {cliente}, houve um problema com seu serviço {titulo}. Entraremos em contato." vars />
                             </div>
                           )}
                         </div>
@@ -1952,7 +1949,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                               options={CHANNEL_OPTIONS} />
                             <TextAreaField label="Mensagem" value={stage.timeControl.pauseSystem?.notifications?.onPause?.gestor?.message || ''}
                               onChange={v => updateTime('pauseSystem', { ...stage.timeControl.pauseSystem, notifications: { ...stage.timeControl.pauseSystem?.notifications, onPause: { ...stage.timeControl.pauseSystem?.notifications?.onPause, gestor: { ...stage.timeControl.pauseSystem?.notifications?.onPause?.gestor, message: v } } } })}
-                              placeholder="Mensagem ao gestor ao pausar..." vars />
+                              placeholder="Técnico {tecnico} pausou a OS {titulo}. Motivo: {motivo_pausa}." vars />
                           </div>
                         )}
                       </div>
@@ -1968,7 +1965,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                               options={CHANNEL_OPTIONS} />
                             <TextAreaField label="Mensagem" value={stage.timeControl.pauseSystem?.notifications?.onPause?.cliente?.message || ''}
                               onChange={v => updateTime('pauseSystem', { ...stage.timeControl.pauseSystem, notifications: { ...stage.timeControl.pauseSystem?.notifications, onPause: { ...stage.timeControl.pauseSystem?.notifications?.onPause, cliente: { ...stage.timeControl.pauseSystem?.notifications?.onPause?.cliente, message: v } } } })}
-                              placeholder="Mensagem ao cliente ao pausar..." vars />
+                              placeholder="Olá {cliente}, seu serviço {titulo} foi pausado temporariamente. Motivo: {motivo_pausa}." vars />
                           </div>
                         )}
                       </div>
@@ -1984,7 +1981,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                               options={CHANNEL_OPTIONS} />
                             <TextAreaField label="Mensagem" value={stage.timeControl.pauseSystem?.notifications?.onPause?.tecnico?.message || ''}
                               onChange={v => updateTime('pauseSystem', { ...stage.timeControl.pauseSystem, notifications: { ...stage.timeControl.pauseSystem?.notifications, onPause: { ...stage.timeControl.pauseSystem?.notifications?.onPause, tecnico: { ...stage.timeControl.pauseSystem?.notifications?.onPause?.tecnico, message: v } } } })}
-                              placeholder="Mensagem de confirmação ao técnico..." vars />
+                              placeholder="Pausa registrada na OS {titulo}. Tempo pausado: {tempo_pausado}." vars />
                           </div>
                         )}
                       </div>
@@ -2007,7 +2004,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                               options={CHANNEL_OPTIONS} />
                             <TextAreaField label="Mensagem" value={stage.timeControl.pauseSystem?.notifications?.onResume?.gestor?.message || ''}
                               onChange={v => updateTime('pauseSystem', { ...stage.timeControl.pauseSystem, notifications: { ...stage.timeControl.pauseSystem?.notifications, onResume: { ...stage.timeControl.pauseSystem?.notifications?.onResume, gestor: { ...stage.timeControl.pauseSystem?.notifications?.onResume?.gestor, message: v } } } })}
-                              placeholder="Mensagem ao gestor ao retomar..." vars />
+                              placeholder="Técnico {tecnico} retomou a OS {titulo}. Pausado por: {tempo_pausado}." vars />
                           </div>
                         )}
                       </div>
@@ -2023,7 +2020,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                               options={CHANNEL_OPTIONS} />
                             <TextAreaField label="Mensagem" value={stage.timeControl.pauseSystem?.notifications?.onResume?.cliente?.message || ''}
                               onChange={v => updateTime('pauseSystem', { ...stage.timeControl.pauseSystem, notifications: { ...stage.timeControl.pauseSystem?.notifications, onResume: { ...stage.timeControl.pauseSystem?.notifications?.onResume, cliente: { ...stage.timeControl.pauseSystem?.notifications?.onResume?.cliente, message: v } } } })}
-                              placeholder="Mensagem ao cliente ao retomar..." vars />
+                              placeholder="Olá {cliente}, seu serviço {titulo} foi retomado." vars />
                           </div>
                         )}
                       </div>
@@ -2039,7 +2036,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                               options={CHANNEL_OPTIONS} />
                             <TextAreaField label="Mensagem" value={stage.timeControl.pauseSystem?.notifications?.onResume?.tecnico?.message || ''}
                               onChange={v => updateTime('pauseSystem', { ...stage.timeControl.pauseSystem, notifications: { ...stage.timeControl.pauseSystem?.notifications, onResume: { ...stage.timeControl.pauseSystem?.notifications?.onResume, tecnico: { ...stage.timeControl.pauseSystem?.notifications?.onResume?.tecnico, message: v } } } })}
-                              placeholder="Mensagem de confirmação ao técnico..." vars />
+                              placeholder="Pausa registrada na OS {titulo}. Tempo pausado: {tempo_pausado}." vars />
                           </div>
                         )}
                       </div>
