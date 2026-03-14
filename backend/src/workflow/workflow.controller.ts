@@ -46,7 +46,7 @@ export class WorkflowController {
   @Put(':id')
   update(
     @Param('id') id: string,
-    @Body() body: { name?: string; steps?: any; isDefault?: boolean; isActive?: boolean; requiredSpecializationIds?: string[] },
+    @Body() body: { name?: string; steps?: any; isActive?: boolean; requiredSpecializationIds?: string[] },
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.update(id, user.companyId, body);

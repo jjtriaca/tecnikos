@@ -148,9 +148,6 @@ const AUTO_TYPES = new Set([
   "NOTIFY",
   "ALERT",
   "STATUS",
-  "DELAY",
-  "SLA",
-  "RESCHEDULE",
 ]);
 
 function formatCurrency(cents: number) {

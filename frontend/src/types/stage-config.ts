@@ -1351,7 +1351,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
   {
     id: 'urgente',
     name: 'Atendimento Urgente',
-    description: 'SLA curto, auto-atribuição, notificações rápidas',
+    description: 'Auto-atribuição, alerta imediato, notificações rápidas',
     icon: '🚨',
     apply: (cfg) => {
       const c = createDefaultConfig();
