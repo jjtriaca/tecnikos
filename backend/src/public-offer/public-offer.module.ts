@@ -8,5 +8,6 @@ import { NotificationModule } from '../notification/notification.module';
   imports: [NotificationModule],
   controllers: [PublicOfferController, PublicLinkController],
   providers: [PublicOfferService],
+  exports: [PublicOfferService],
 })
 export class PublicOfferModule {}

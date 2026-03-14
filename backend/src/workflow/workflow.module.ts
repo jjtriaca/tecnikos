@@ -6,9 +6,10 @@ import { WorkflowEngineService } from './workflow-engine.service';
 import { WaitForService } from './wait-for.service';
 import { NotificationModule } from '../notification/notification.module';
 import { FinanceModule } from '../finance/finance.module';
+import { PublicOfferModule } from '../public-offer/public-offer.module';
 
 @Module({
-  imports: [NotificationModule, FinanceModule],
+  imports: [NotificationModule, FinanceModule, PublicOfferModule],
   controllers: [WorkflowController, WorkflowEngineController],
   providers: [WorkflowService, WorkflowEngineService, WaitForService],
   exports: [WorkflowService, WorkflowEngineService, WaitForService],

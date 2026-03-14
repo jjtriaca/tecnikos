@@ -12,6 +12,7 @@ import { ServiceOrderStatus } from '@prisma/client';
 import { WorkflowStep } from './workflow.service';
 import { NotificationService } from '../notification/notification.service';
 import { FinanceService } from '../finance/finance.service';
+import { PublicOfferService } from '../public-offer/public-offer.service';
 import { StepProgressDto } from './dto/step-progress.dto';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -361,6 +362,9 @@ export class WorkflowEngineService {
     @Optional()
     @Inject(FinanceService)
     private readonly finance?: FinanceService,
+    @Optional()
+    @Inject(PublicOfferService)
+    private readonly publicOffer?: PublicOfferService,
   ) {}
 
   /* ──────────────────────────────────────────────────────────── */
@@ -1402,7 +1406,7 @@ export class WorkflowEngineService {
         };
 
         // Support new multi-recipient format (recipients array) AND old single-recipient format
-        const recipients: Array<{ type: string; channel: string; message: string }> = [];
+        const recipients: Array<{ type: string; channel: string; message: string; includeLink?: boolean }> = [];
 
         if (Array.isArray(config.recipients) && config.recipients.length > 0) {
           // New format: multiple recipients with individual messages
@@ -1413,6 +1417,7 @@ export class WorkflowEngineService {
                 type: r.type,
                 channel: r.channel || config.channel || 'WHATSAPP',
                 message: msg,
+                includeLink: r.includeLink === true,
               });
             }
           }
@@ -1472,15 +1477,38 @@ export class WorkflowEngineService {
               continue;
             }
 
-            this.logger.log(`💬 Sending TECNICO notification to ${techTargets.length} technician(s)`);
+            this.logger.log(`💬 Sending TECNICO notification to ${techTargets.length} technician(s), includeLink=${r.includeLink}`);
+
+            // Generate public link if includeLink is enabled
+            let publicLinkUrl = '';
+            const recipientConfig = Array.isArray(config.recipients)
+              ? config.recipients.find((rc: any) => rc.type === 'TECNICO')
+              : null;
+            if (r.includeLink && this.publicOffer) {
+              try {
+                const validityHours = recipientConfig?.linkConfig?.validityHours || 24;
+                const offer = await this.publicOffer.createOffer(serviceOrderId, companyId, validityHours);
+                const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+                publicLinkUrl = `${frontendUrl}/p/${offer.token}`;
+                this.logger.log(`📎 Public link generated: ${publicLinkUrl} (valid ${validityHours}h)`);
+              } catch (linkErr: any) {
+                this.logger.warn(`📎 Failed to generate public link: ${linkErr.message}`);
+              }
+            }
 
             for (const target of techTargets) {
               try {
+                // Append public link to message if generated
+                let finalMessage = r.message;
+                if (publicLinkUrl) {
+                  finalMessage += ` | Acesse: ${publicLinkUrl}`;
+                }
+
                 await this.notifications.send({
                   companyId,
                   serviceOrderId,
                   channel: r.channel,
-                  message: r.message,
+                  message: finalMessage,
                   type: 'WORKFLOW_AUTO',
                   recipientPhone: target.phone,
                   recipientEmail: target.email,
