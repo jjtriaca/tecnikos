@@ -61,11 +61,11 @@ export class PartnerService {
     try {
       // Search ALL workflows for technician onboarding config (default first, then others)
       const workflows = await this.prisma.workflowTemplate.findMany({
-        where: { companyId, deletedAt: null },
+        where: { companyId, isActive: true, deletedAt: null },
         orderBy: { isDefault: 'desc' },
       });
 
-      this.logger.log(`📄 Checking ${workflows.length} workflow(s) for onboarding config (trigger: ${trigger})`);
+      this.logger.log(`📄 Checking ${workflows.length} active workflow(s) for onboarding config (trigger: ${trigger})`);
 
       let onboarding: any = null;
       for (const wf of workflows) {

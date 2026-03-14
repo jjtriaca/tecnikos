@@ -372,7 +372,7 @@ export class WorkflowEngineService {
     companyId: string,
   ): Promise<void> {
     const defaultTemplate = await this.prisma.workflowTemplate.findFirst({
-      where: { companyId, isDefault: true, deletedAt: null },
+      where: { companyId, isDefault: true, isActive: true, deletedAt: null },
     });
     if (!defaultTemplate) return;
 

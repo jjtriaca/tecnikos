@@ -74,7 +74,15 @@
 - [x] Frontend: sub-linha azul "24h: X" em cada um dos 4 cards de analytics (Visitantes Reais, Signups, Conversoes, Taxa)
 - [x] Deploy v1.02.75
 
-## Versao atual: v1.02.75 (em producao)
+### Toggle Ativar/Desativar Fluxo (v1.02.76)
+- [x] Prisma: campo isActive (Boolean, default true) no WorkflowTemplate
+- [x] Migration 20260314020000_workflow_is_active
+- [x] Backend: findAll retorna isActive, update aceita isActive
+- [x] Frontend: toggle switch nos cards da listagem (verde=ativo, cinza=inativo)
+- [x] Card fica com opacity-60 + barra cinza quando inativo + badge "Inativo"
+- [x] Deploy v1.02.76
+
+## Versao atual: v1.02.76 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

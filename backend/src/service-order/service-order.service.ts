@@ -314,7 +314,7 @@ export class ServiceOrderService {
     let result;
     if (!so.workflowTemplateId) {
       const defaultWf = await this.prisma.workflowTemplate.findFirst({
-        where: { companyId, isDefault: true, deletedAt: null },
+        where: { companyId, isDefault: true, isActive: true, deletedAt: null },
       });
       if (defaultWf) {
         result = await this.prisma.serviceOrder.update({
