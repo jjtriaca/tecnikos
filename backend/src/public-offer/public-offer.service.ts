@@ -216,7 +216,25 @@ export class PublicOfferService {
       },
     });
 
-    // TODO: integrar envio de SMS com provider (Twilio, etc.)
+    // Send OTP via WhatsApp
+    try {
+      if (this.notifications) {
+        await this.notifications.send({
+          companyId: technician.companyId,
+          channel: 'WHATSAPP',
+          message: `Seu código de verificação Tecnikos: ${code}. Válido por 10 minutos.`,
+          type: 'OTP',
+          recipientPhone: phoneNorm,
+          forceTemplate: true,
+        });
+        this.logger.log(`[OTP] Code sent via WhatsApp to ${phoneNorm}`);
+      } else {
+        this.logger.warn(`[OTP] NotificationService not available, code=${code}`);
+      }
+    } catch (err: any) {
+      this.logger.warn(`[OTP] Failed to send via WhatsApp: ${err.message}`);
+    }
+
     if (process.env.NODE_ENV !== 'production') {
       this.logger.debug(`[OTP-DEV] code=${code} partnerId=${technician.id}`);
     }

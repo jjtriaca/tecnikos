@@ -105,6 +105,12 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
   const [step, setStep] = useState<PageStep>("loading");
   const [data, setData] = useState<PublicViewData | null>(null);
   const [phone, setPhone] = useState("");
+  const maskPhone = (v: string) => {
+    const d = v.replace(/\D/g, "").slice(0, 11);
+    if (d.length <= 2) return d.length ? `(${d}` : "";
+    if (d.length <= 7) return `(${d.slice(0,2)}) ${d.slice(2)}`;
+    return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+  };
   const [otpCode, setOtpCode] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -906,7 +912,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
               <input
                 type="tel"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={e => setPhone(maskPhone(e.target.value))}
                 placeholder="(11) 99999-9999"
                 disabled={otpSent}
                 className="flex-1 rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none disabled:bg-slate-100"
