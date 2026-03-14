@@ -28,7 +28,7 @@ export class NotificationService {
    * Supports: WHATSAPP (via Meta Cloud API), MOCK (console log), EMAIL/SMS (future).
    */
   async send(dto: SendNotificationDto) {
-    const channel = dto.channel || 'MOCK';
+    const channel = (dto.channel || 'MOCK').toUpperCase();
     let status = 'SENT';
 
     // ── WhatsApp channel — send via Meta Cloud API ──
