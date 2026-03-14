@@ -142,6 +142,16 @@ export class ServiceOrderService {
       });
     }
 
+    // Execute workflow stage notifications (NOTIFY blocks for the initial status)
+    if (resolvedWorkflowId && this.workflowEngine) {
+      this.workflowEngine.executeStageNotifications(
+        result.id,
+        data.companyId,
+        result.status,
+        resolvedWorkflowId,
+      ).catch(() => {});
+    }
+
     return result;
   }
 
@@ -412,6 +422,11 @@ export class ServiceOrderService {
       companyId, entity: 'SERVICE_ORDER', entityId: id, eventType,
       data: { status, oldStatus, state: (so as any).state, city: (so as any).city, neighborhood: (so as any).neighborhood, valueCents: so.valueCents, assignedPartnerId: so.assignedPartnerId ?? undefined, clientPartnerId: so.clientPartnerId ?? undefined, title: so.title, description: so.description ?? undefined, addressStreet: (so as any).addressStreet, cep: (so as any).cep, deadlineAt: so.deadlineAt?.toISOString(), createdAt: so.createdAt?.toISOString() },
     });
+
+    // Execute workflow stage notifications (NOTIFY blocks for new status)
+    if (this.workflowEngine) {
+      this.workflowEngine.executeStageNotifications(id, companyId, status).catch(() => {});
+    }
 
     return updated;
   }

@@ -1256,7 +1256,7 @@ export class WorkflowEngineService {
     block: BlockDef,
     serviceOrderId: string,
     companyId: string,
-    technicianId: string,
+    technicianId?: string,
   ): Promise<any> {
     const config = block.config || {};
 
@@ -1719,6 +1719,86 @@ export class WorkflowEngineService {
             `"${block.name}" requer uma resposta (Sim/Não)`,
           );
         break;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────── */
+  /*  Execute NOTIFY blocks for a given status (stage entry)     */
+  /*  Called when an OS is created or changes status              */
+  /* ──────────────────────────────────────────────────────────── */
+
+  async executeStageNotifications(
+    serviceOrderId: string,
+    companyId: string,
+    targetStatus: string,
+    workflowTemplateId?: string | null,
+  ): Promise<void> {
+    if (!this.notifications) return;
+
+    try {
+      // Load template if not provided
+      let templateId = workflowTemplateId;
+      if (!templateId) {
+        const so = await this.prisma.serviceOrder.findUnique({
+          where: { id: serviceOrderId },
+          select: { workflowTemplateId: true },
+        });
+        templateId = so?.workflowTemplateId;
+      }
+      if (!templateId) return;
+
+      const template = await this.prisma.workflowTemplate.findFirst({
+        where: { id: templateId, deletedAt: null },
+      });
+      if (!template) return;
+
+      // Parse steps V2
+      const rawSteps = template.steps as any;
+      let v2: V2Def | null = null;
+      if (isV3(rawSteps)) v2 = convertV3toV2(rawSteps);
+      else if (isV2(rawSteps)) v2 = rawSteps;
+      if (!v2) return;
+
+      // Find the STATUS block for this status, then find subsequent NOTIFY blocks
+      const blocks = v2.blocks;
+      const statusBlockIdx = blocks.findIndex(
+        b => b.type === 'STATUS' && b.config?.targetStatus === targetStatus,
+      );
+      if (statusBlockIdx === -1) return;
+
+      // Traverse from the status block via next pointers, executing NOTIFY and FINANCIAL_ENTRY blocks
+      let currentBlock = blocks[statusBlockIdx];
+      const visited = new Set<string>();
+
+      while (currentBlock?.next) {
+        const nextBlock = blocks.find(b => b.id === currentBlock!.next);
+        if (!nextBlock || visited.has(nextBlock.id)) break;
+        visited.add(nextBlock.id);
+
+        // Stop at the next STATUS block (different stage) or END
+        if (nextBlock.type === 'STATUS' || nextBlock.type === 'END') break;
+
+        // Execute NOTIFY and FINANCIAL_ENTRY system blocks
+        if (nextBlock.type === 'NOTIFY' || nextBlock.type === 'FINANCIAL_ENTRY' || nextBlock.type === 'ALERT') {
+          try {
+            await this.executeSystemBlock(nextBlock, serviceOrderId, companyId, undefined);
+          } catch (err) {
+            this.logger.error(
+              `Stage notification ${nextBlock.type} failed for OS ${serviceOrderId}: ${(err as Error).message}`,
+            );
+          }
+        }
+
+        currentBlock = nextBlock;
+      }
+
+      this.logger.log(
+        `📨 Executed stage notifications for OS ${serviceOrderId} → ${targetStatus}`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `executeStageNotifications error: ${(err as Error).message}`,
+      );
     }
   }
 }
