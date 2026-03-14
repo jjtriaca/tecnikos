@@ -266,6 +266,9 @@ export class PublicOfferService {
         acceptUrl,
       },
       linkConfig: linkConfig || { acceptOS: true, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24 },
+      // State flags for returning visitors
+      enRouteAt: so?.enRouteAt?.toISOString() || null,
+      trackingStartedAt: so?.trackingStartedAt?.toISOString() || null,
     };
   }
 

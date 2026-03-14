@@ -50,6 +50,8 @@ type PublicViewData = {
   distance: { meters: number; km: number } | null;
   otp: { requestOtpUrl: string; acceptUrl: string };
   linkConfig?: LinkConfig;
+  enRouteAt?: string | null;
+  trackingStartedAt?: string | null;
 };
 
 type AcceptResult = {
@@ -275,8 +277,20 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
         const akParam = storedKey ? `?ak=${storedKey}` : "";
         const res = await api.get<PublicViewData>(`/p/${token}${akParam}`);
         setData(res);
+        // Restore enRouteAt from backend if previously set
+        if (res.enRouteAt) {
+          setEnRouteAt(res.enRouteAt);
+        }
         if (res.offer.accepted) {
-          setStep("done");
+          // If GPS or enRoute available (and not all done), go to post-accept
+          const lc = res.linkConfig;
+          const hasEnRoute = lc?.enRoute && !res.enRouteAt;
+          const hasGps = lc?.gpsNavigation && !res.trackingStartedAt;
+          if (hasEnRoute || hasGps) {
+            setStep("post-accept");
+          } else {
+            setStep("done");
+          }
         } else {
           setStep("offer");
         }
