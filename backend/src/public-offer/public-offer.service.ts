@@ -96,6 +96,10 @@ export class PublicOfferService {
       orderBy: { createdAt: 'desc' },
     });
     if (!offer) throw new NotFoundException('Oferta não encontrada');
+    // Block access if OS was deleted or cancelled
+    if (offer.serviceOrder.deletedAt || offer.serviceOrder.status === 'CANCELADA') {
+      throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
+    }
     if (!offer.serviceOrder.assignedPartnerId) {
       throw new BadRequestException('OS sem técnico atribuído');
     }
@@ -165,7 +169,13 @@ export class PublicOfferService {
       },
     });
 
-    if (offer) return offer;
+    if (offer) {
+      // Check if the service order was deleted or cancelled
+      if (offer.serviceOrder.deletedAt || offer.serviceOrder.status === 'CANCELADA') {
+        throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
+      }
+      return offer;
+    }
 
     // Second try: revoked offer (already accepted) — requires accessKey
     offer = await this.prisma.serviceOrderOffer.findFirst({
@@ -181,6 +191,11 @@ export class PublicOfferService {
     });
 
     if (!offer) throw new NotFoundException('Oferta inválida ou expirada');
+
+    // Check if the service order was deleted or cancelled
+    if (offer.serviceOrder.deletedAt || offer.serviceOrder.status === 'CANCELADA') {
+      throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
+    }
 
     // Validate accessKey for revoked offers
     const expectedKey = generateAccessKey(token);
@@ -429,6 +444,11 @@ export class PublicOfferService {
 
     if (!activeOffer) throw new NotFoundException('Oferta não encontrada');
 
+    // Block access if OS was deleted or cancelled
+    if (activeOffer.serviceOrder.deletedAt || activeOffer.serviceOrder.status === 'CANCELADA') {
+      throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
+    }
+
     // Update en-route timestamp on the service order
     await this.prisma.serviceOrder.update({
       where: { id: activeOffer.serviceOrderId },
@@ -671,26 +691,28 @@ export class PublicOfferService {
       }
     }
 
-    if (!proximityConfig) {
-      throw new BadRequestException('Rastreamento por proximidade não configurado neste fluxo');
-    }
+    // Use defaults if no PROXIMITY_TRIGGER block (gpsNavigation in linkConfig is enough)
+    const radius = proximityConfig?.radiusMeters || 200;
+    const interval = proximityConfig?.trackingIntervalSeconds || 30;
+    const highAccuracy = proximityConfig?.requireHighAccuracy ?? true;
+    const keepActive = proximityConfig?.keepActiveUntil || 'radius';
 
     // Mark tracking started
     await this.prisma.serviceOrder.update({
       where: { id: offer.serviceOrderId },
       data: {
         trackingStartedAt: new Date(),
-        proximityRadiusMeters: proximityConfig.radiusMeters || 200,
+        proximityRadiusMeters: radius,
       } as any,
     });
 
     return {
       success: true,
       config: {
-        radiusMeters: proximityConfig.radiusMeters || 200,
-        trackingIntervalSeconds: proximityConfig.trackingIntervalSeconds || 30,
-        requireHighAccuracy: proximityConfig.requireHighAccuracy ?? true,
-        keepActiveUntil: proximityConfig.keepActiveUntil || 'radius',
+        radiusMeters: radius,
+        trackingIntervalSeconds: interval,
+        requireHighAccuracy: highAccuracy,
+        keepActiveUntil: keepActive,
         targetLat: offer.serviceOrder.lat,
         targetLng: offer.serviceOrder.lng,
       },
@@ -726,6 +748,11 @@ export class PublicOfferService {
       orderBy: { createdAt: 'desc' },
     });
     if (!offer) throw new NotFoundException('Oferta não encontrada');
+
+    // Block access if OS was deleted or cancelled
+    if (offer.serviceOrder.deletedAt || offer.serviceOrder.status === 'CANCELADA') {
+      throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
+    }
 
     if (!offer.serviceOrder.assignedPartnerId) {
       throw new BadRequestException('OS sem técnico atribuído');
@@ -794,6 +821,9 @@ export class PublicOfferService {
       orderBy: { createdAt: 'desc' },
     });
     if (!offer) throw new NotFoundException('Oferta não encontrada');
+    if (offer.serviceOrder.deletedAt || offer.serviceOrder.status === 'CANCELADA') {
+      throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
+    }
 
     let proximityConfig: any = null;
     if (offer.serviceOrder.workflowTemplate) {
@@ -941,10 +971,15 @@ export class PublicOfferService {
   private async findOsByToken(token: string) {
     const offer = await this.prisma.serviceOrderOffer.findUnique({ where: { token } });
     if (!offer) throw new Error('Token inválido');
-    return this.prisma.serviceOrder.findUniqueOrThrow({
+    const so = await this.prisma.serviceOrder.findUniqueOrThrow({
       where: { id: offer.serviceOrderId },
       include: { workflowTemplate: true, assignedPartner: true, company: true },
     });
+    // Block access if OS was deleted or cancelled
+    if (so.deletedAt || so.status === 'CANCELADA') {
+      throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
+    }
+    return so;
   }
 
   /** Get pause config from workflow template */

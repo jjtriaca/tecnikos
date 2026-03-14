@@ -1,41 +1,30 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 106 — Link Publico Multi-Pagina + enRoute (CONCLUIDO)
+## Status: SESSAO 107 — Fix GPS + Hints Workflow (EM ANDAMENTO)
 
-## Ultima sessao: 106 (14/03/2026)
-- Sessao 104: WhatsApp Notificacao OS + Link Publico Tecnico (v1.03.02 a v1.03.09)
+## Ultima sessao: 107 (14/03/2026)
 - Sessao 105: Correcoes Workflow UI + linkConfig (v1.03.10)
-- Sessao 106: Link Publico Multi-Pagina + enRoute (v1.03.11)
+- Sessao 106: Link Publico Multi-Pagina + enRoute (v1.03.11 a v1.03.12)
+- Sessao 107: Fix GPS startTracking + Hints Workflow (v1.03.13)
 
 ## O que foi feito nesta sessao:
 
-### Link Publico Multi-Pagina + enRoute (v1.03.11)
-- [x] linkConfig expandido: `enRoute` (boolean) + `agendaMarginHours` (number)
-- [x] Backend: extractLinkConfig() retorna 5 campos (acceptOS, gpsNavigation, enRoute, validityHours, agendaMarginHours)
-- [x] Backend: getPublicView() retorna linkConfig completo
-- [x] Backend: novo endpoint POST /p/:token/en-route + markEnRoute()
-- [x] Backend: campo enRouteAt DateTime? no ServiceOrder (migration criada)
-- [x] Frontend: novo step "post-accept" — pagina 2 com enRoute + GPS
-- [x] Frontend: acceptOS=OFF mostra enRoute + GPS direto na oferta
-- [x] Frontend: secao "done" simplificada
-- [x] Frontend: stage-config.ts atualizado (tipos, defaults, serialization)
-- [x] Frontend: StageSection.tsx reestruturado (Pagina 1/2/sem aceite/tracking)
-- [x] Build backend + frontend OK
+### Fix GPS startTracking (v1.03.13)
+- [x] Backend: startTracking() agora usa defaults quando nao tem PROXIMITY_TRIGGER (antes lancava BadRequestException)
+- [x] Isso permite que gpsNavigation funcione pelo linkConfig mesmo sem bloco PROXIMITY_TRIGGER no workflow
+- [x] Link publico invalidado quando OS excluida ou cancelada — todos os endpoints verificam deletedAt + status CANCELADA
+- [x] Pontos protegidos: getOfferByToken, resolveAssignedTech, markEnRoute, submitPosition, getTrackingConfig, findOsByToken
+- [x] Mensagem ao tecnico: "Esta ordem de serviço não está mais disponível."
+- [x] Build backend OK
 
 ## Arquivos modificados:
-- `backend/prisma/schema.prisma` — enRouteAt field
-- `backend/prisma/migrations/20260314220000_add_en_route_at/migration.sql`
-- `backend/src/public-offer/public-offer.service.ts` — extractLinkConfig() + markEnRoute()
-- `backend/src/public-offer/public-link.controller.ts` — POST /p/:token/en-route
-- `frontend/src/app/p/[token]/page.tsx` — fluxo multi-pagina + post-accept + enRoute
-- `frontend/src/types/stage-config.ts` — enRoute, agendaMarginHours
-- `frontend/src/app/(dashboard)/workflow/components/StageSection.tsx` — UI reestruturada
+- `backend/src/public-offer/public-offer.service.ts` — startTracking defaults + invalidacao de link em OS deletada/cancelada
 
 ## Pendente para deploy:
-- Rodar migration no servidor: `docker exec tecnikos_backend npx prisma migrate deploy`
-- Deploy via script
+- Rodar migration no servidor (enRouteAt): `docker exec tecnikos_backend npx prisma migrate deploy`
+- Deploy via script (v1.03.13)
 
-## Versao atual: v1.03.10 (em producao) — proximo deploy sera v1.03.11
+## Versao atual: v1.03.12 (em producao) — proximo deploy sera v1.03.13
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar
