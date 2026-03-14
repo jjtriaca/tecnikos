@@ -25,6 +25,12 @@ type TrackingConfig = {
   targetLng: number | null;
 };
 
+type LinkConfig = {
+  acceptOS: boolean;
+  gpsNavigation: boolean;
+  validityHours: number;
+};
+
 type PublicViewData = {
   offer: { token: string; expiresAt: string; channel: string; accepted?: boolean };
   company: { id: string; name: string };
@@ -41,6 +47,7 @@ type PublicViewData = {
   };
   distance: { meters: number; km: number } | null;
   otp: { requestOtpUrl: string; acceptUrl: string };
+  linkConfig?: LinkConfig;
 };
 
 type AcceptResult = {
@@ -274,19 +281,18 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     })();
   }, [token]);
 
-  // Check if GPS tracking is available when entering "done" state
+  // Pre-load tracking config when entering "done" state (for GPS button)
   useEffect(() => {
-    if (step !== "done") return;
+    if (step !== "done" || !data?.linkConfig?.gpsNavigation) return;
     (async () => {
       try {
         const trackRes = await api.get<{ enabled: boolean; config: any }>(`/p/${token}/tracking-config`);
-        setTrackingEnabled(trackRes.enabled);
         if (trackRes.config) setTrackingConfig(trackRes.config);
       } catch {
-        setTrackingEnabled(false);
+        // Tracking config not available — GPS button already controlled by linkConfig
       }
     })();
-  }, [step, token]);
+  }, [step, token, data]);
 
   // Accept directly (no OTP)
   const handleAccept = async () => {
@@ -747,8 +753,8 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
               : "Você foi atribuído a esta ordem de serviço."}
           </p>
 
-          {/* GPS Tracking offer */}
-          {!trackingActive && typeof navigator !== "undefined" && navigator.geolocation && (
+          {/* GPS Tracking offer — only if gpsNavigation is enabled in workflow */}
+          {data?.linkConfig?.gpsNavigation && !trackingActive && typeof navigator !== "undefined" && navigator.geolocation && (
             <div className="mt-6 bg-white rounded-2xl shadow-sm border border-purple-200 p-4">
               <div className="text-2xl mb-2">📡</div>
               <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS?</h3>
@@ -910,17 +916,19 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
           </div>
         )}
 
-        {/* Accept button */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
-          <button
-            type="button"
-            onClick={handleAccept}
-            disabled={acceptLoading}
-            className="w-full py-3 rounded-xl bg-green-600 text-white font-semibold text-base disabled:bg-slate-300 hover:bg-green-700 transition-colors"
-          >
-            {acceptLoading ? "Aceitando..." : "✅ Aceitar OS"}
-          </button>
-        </div>
+        {/* Accept button — only if acceptOS is enabled in workflow */}
+        {(data?.linkConfig?.acceptOS !== false) && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+            <button
+              type="button"
+              onClick={handleAccept}
+              disabled={acceptLoading}
+              className="w-full py-3 rounded-xl bg-green-600 text-white font-semibold text-base disabled:bg-slate-300 hover:bg-green-700 transition-colors"
+            >
+              {acceptLoading ? "Aceitando..." : "✅ Aceitar OS"}
+            </button>
+          </div>
+        )}
 
         {/* Expiry info */}
         <p className="text-center text-xs text-slate-400">

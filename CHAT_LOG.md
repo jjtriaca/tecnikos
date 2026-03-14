@@ -1361,3 +1361,30 @@ Solucao:
 
 ### Deploys: v1.02.93, v1.02.95, v1.02.97, v1.02.99
 ### Status: FUNCIONANDO — mensagem da OS chegou no WhatsApp com template correto
+
+---
+
+## 2026-03-14 — Sessao 104: WhatsApp Notificacao OS + Link Publico Tecnico (v1.03.02 a v1.03.09)
+
+### WhatsApp Notificacao OS Criada
+- Template `notificacao_tecnikos` (APPROVED) usado como fallback
+- Template `aviso_os` (PENDING aprovacao Meta) criado via API
+- Sanitizacao de newlines em parametros de template Meta (erro 132018)
+- FRONTEND_URL atualizado para `sls.tecnikos.com.br` em producao
+- Fallback chain: aviso_os → notificacao_tecnikos → teste_conexao
+
+### Link Publico do Tecnico (`/p/[token]`)
+- `includeLink: true` no workflow NOTIFY agora gera link publico via `PublicOfferService.createOffer()`
+- Link adicionado na mensagem WhatsApp: `| Acesse: https://sls.tecnikos.com.br/p/{uuid}`
+- Fix Next.js 15: `params` e Promise, usar `use(params)`
+- OTP removido — aceite direto pelo token (UUID v4 + expiracao = seguranca suficiente)
+- AccessKey (HMAC do token) salvo no localStorage do celular para proteger link pos-aceite
+- Outros dispositivos recebem "Esta oferta ja foi aceita por outro tecnico"
+- Backend: `acceptDirect()`, `resolveAssignedTech()` helper, phone removido de todos endpoints
+
+### Pendente (aguardando instrucoes do Juliano)
+- **linkConfig do fluxo**: O frontend precisa ler `acceptOS` e `gpsNavigation` do workflow para mostrar/esconder botoes
+- Atualmente o botao GPS aparece sempre (errado) — deve respeitar a config do fluxo
+- Juliano pediu para parar e aguardar novas instrucoes
+
+### Versoes: v1.03.02 → v1.03.09

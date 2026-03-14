@@ -47,6 +47,27 @@ function generateAccessKey(token: string): string {
   return createHmac('sha256', secret).update(`offer-access:${token}`).digest('hex').slice(0, 32);
 }
 
+/** Extract linkConfig (acceptOS, gpsNavigation, etc.) from workflow template's NOTIFY block */
+function extractLinkConfig(workflowTemplate: any): { acceptOS: boolean; gpsNavigation: boolean; validityHours: number } | null {
+  const steps = workflowTemplate?.steps as any;
+  if (!steps) return null;
+  const blocks = steps?.version === 2 ? steps.blocks : (steps?.blocks || []);
+  for (const block of blocks) {
+    if (block.type !== 'NOTIFY') continue;
+    const recipients = block.config?.recipients;
+    if (!Array.isArray(recipients)) continue;
+    const techRecipient = recipients.find((r: any) => r.type === 'TECNICO' && r.includeLink);
+    if (techRecipient?.linkConfig) {
+      return {
+        acceptOS: techRecipient.linkConfig.acceptOS ?? true,
+        gpsNavigation: techRecipient.linkConfig.gpsNavigation ?? false,
+        validityHours: techRecipient.linkConfig.validityHours || 24,
+      };
+    }
+  }
+  return null;
+}
+
 @Injectable()
 export class PublicOfferService {
   private readonly logger = new Logger(PublicOfferService.name);
@@ -171,6 +192,12 @@ export class PublicOfferService {
   ) {
     const offer = await this.getOfferByToken(token, accessKey);
 
+    // Load workflow template for linkConfig
+    const so = await this.prisma.serviceOrder.findUnique({
+      where: { id: offer.serviceOrderId },
+      include: { workflowTemplate: true },
+    });
+
     let distanceMeters: number | null = null;
 
     if (
@@ -194,6 +221,9 @@ export class PublicOfferService {
     )}/p/${offer.token}/request-otp`;
 
     const isAccepted = offer.revokedAt != null && offer.serviceOrder.acceptedAt != null;
+
+    // Extract linkConfig from workflow
+    const linkConfig = extractLinkConfig(so?.workflowTemplate);
 
     return {
       offer: {
@@ -227,6 +257,7 @@ export class PublicOfferService {
         requestOtpUrl,
         acceptUrl,
       },
+      linkConfig: linkConfig || { acceptOS: true, gpsNavigation: false, validityHours: 24 },
     };
   }
 
