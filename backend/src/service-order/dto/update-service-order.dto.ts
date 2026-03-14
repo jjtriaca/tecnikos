@@ -142,4 +142,8 @@ export class UpdateServiceOrderDto {
   @IsOptional()
   @IsBoolean()
   returnPaidToTech?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isUrgent?: boolean;
 }

@@ -356,6 +356,7 @@ model ServiceOrder {
   techCommissionCents Int?       // Valor em centavos que vai para o tecnico
   isReturn            Boolean @default(false) // Retorno de atendimento anterior
   returnPaidToTech    Boolean @default(true)  // Se retorno: paga o tecnico ou obrigacao dele
+  isUrgent            Boolean @default(false) // OS urgente (prioridade maxima)
 
   // Agendamento CLT (v1.01.72)
   scheduledStartAt          DateTime?  // Data/hora agendada para inicio do servico

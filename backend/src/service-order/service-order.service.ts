@@ -88,6 +88,7 @@ export class ServiceOrderService {
         techCommissionCents: data.techCommissionCents ?? undefined,
         isReturn: data.isReturn ?? undefined,
         returnPaidToTech: data.returnPaidToTech ?? undefined,
+        isUrgent: data.isUrgent ?? undefined,
         // Pre-atribuicao (BY_AGENDA): tecnico ja definido + status ATRIBUIDA
         ...(data.techAssignmentMode === 'BY_AGENDA' && data.assignedPartnerId ? {
           assignedPartnerId: data.assignedPartnerId,
@@ -107,10 +108,28 @@ export class ServiceOrderService {
       after: { title: result.title, status: result.status },
     });
 
+    const eventData = { status: result.status, state: data.state, city: data.city, neighborhood: data.neighborhood, valueCents: data.valueCents, clientPartnerId: data.clientPartnerId, title: result.title, description: data.description, addressStreet: data.addressStreet, cep: data.cep, deadlineAt: data.deadlineAt, createdAt: result.createdAt?.toISOString(), scheduledStartAt: data.scheduledStartAt, isReturn: data.isReturn, isUrgent: data.isUrgent };
+
     this.dispatchAutomation({
       companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'created',
-      data: { status: result.status, state: data.state, city: data.city, neighborhood: data.neighborhood, valueCents: data.valueCents, clientPartnerId: data.clientPartnerId, title: result.title, description: data.description, addressStreet: data.addressStreet, cep: data.cep, deadlineAt: data.deadlineAt, createdAt: result.createdAt?.toISOString(), scheduledStartAt: data.scheduledStartAt },
+      data: eventData,
     });
+
+    // Dispatch return_created for return OS → triggers "Uma OS de retorno e criada"
+    if (data.isReturn) {
+      this.dispatchAutomation({
+        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'return_created',
+        data: eventData,
+      });
+    }
+
+    // Dispatch urgent_created for urgent OS → triggers "Uma OS urgente e criada"
+    if (data.isUrgent) {
+      this.dispatchAutomation({
+        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'urgent_created',
+        data: eventData,
+      });
+    }
 
     return result;
   }
@@ -481,6 +500,9 @@ export class ServiceOrderService {
     }
     if (data.returnPaidToTech !== undefined) {
       checkField('returnPaidToTech', data.returnPaidToTech, (so as any).returnPaidToTech);
+    }
+    if (data.isUrgent !== undefined) {
+      checkField('isUrgent', data.isUrgent, (so as any).isUrgent);
     }
 
     if (Object.keys(updateData).length === 0) return so;

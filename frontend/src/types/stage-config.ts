@@ -748,6 +748,7 @@ export interface TriggerDefinition {
 export const TRIGGER_OPTIONS: TriggerDefinition[] = [
   { id: 'os_created',               entity: 'SERVICE_ORDER', event: 'created',          icon: '📋', label: 'Uma OS é criada',                      description: 'Quando uma nova ordem de serviço é aberta' },
   { id: 'os_return_created',        entity: 'SERVICE_ORDER', event: 'return_created',   icon: '🔄', label: 'Uma OS de retorno é criada',             description: 'Quando uma OS de retorno/revisita é criada' },
+  { id: 'os_urgent_created',        entity: 'SERVICE_ORDER', event: 'urgent_created',   icon: '🚨', label: 'Uma OS urgente é criada',                description: 'Quando uma OS marcada como urgente é criada' },
   { id: 'quote_request_created',    entity: 'QUOTE',         event: 'request_created',  icon: '📩', label: 'Uma solicitação de orçamento é criada', description: 'Quando o cliente solicita um orçamento' },
   { id: 'quote_created',            entity: 'QUOTE',         event: 'created',          icon: '📝', label: 'Um orçamento é criado',                 description: 'Quando um orçamento é gerado/salvo' },
   { id: 'partner_client_created',   entity: 'PARTNER',       event: 'client_created',   icon: '👤', label: 'Um cliente é criado',                   description: 'Quando um parceiro tipo cliente é cadastrado' },

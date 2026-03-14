@@ -143,4 +143,8 @@ export class CreateServiceOrderDto {
   @IsOptional()
   @IsBoolean()
   returnPaidToTech?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isUrgent?: boolean;
 }

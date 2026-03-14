@@ -81,8 +81,8 @@ function NewOrderPage() {
   const [selectedTechs, setSelectedTechs] = useState<TechnicianSummary[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowSummary | null>(null);
 
-  // Agenda CLT (v1.01.72)
-  const [isAgendaMode, setIsAgendaMode] = useState(false);
+  // Agenda CLT (v1.01.72) — now also triggered by BY_AGENDA mode directly
+  const isAgendaMode = techMode === "BY_AGENDA";
   const [agendaSelection, setAgendaSelection] = useState<AgendaSelection | null>(null);
   const [scheduleConfig, setScheduleConfig] = useState<{
     defaultDurationMinutes: number;
@@ -90,10 +90,20 @@ function NewOrderPage() {
     workingDays: number[];
   } | null>(null);
 
-  // Fetch workflow definition when workflow changes to detect scheduleConfig
+  // Fetch company schedule config for BY_AGENDA mode
   useEffect(() => {
+    if (techMode === "BY_AGENDA") {
+      // Default schedule config for direct agenda mode
+      if (!scheduleConfig) {
+        setScheduleConfig({
+          defaultDurationMinutes: 60,
+          workingHours: { start: "08:00", end: "18:00" },
+          workingDays: [1, 2, 3, 4, 5],
+        });
+      }
+      return;
+    }
     if (techMode !== "BY_WORKFLOW" || !selectedWorkflow) {
-      setIsAgendaMode(false);
       setScheduleConfig(null);
       setAgendaSelection(null);
       return;
@@ -108,7 +118,6 @@ function NewOrderPage() {
           if (def?.version === 2 && Array.isArray(def.blocks)) {
             const schedBlock = def.blocks.find((b: { type: string }) => b.type === "SCHEDULE_CONFIG");
             if (schedBlock?.data?.enabled) {
-              setIsAgendaMode(true);
               setScheduleConfig({
                 defaultDurationMinutes: schedBlock.data.defaultDurationMinutes || 60,
                 workingHours: schedBlock.data.workingHours || { start: "08:00", end: "18:00" },
@@ -118,13 +127,11 @@ function NewOrderPage() {
             }
           }
         } catch { /* ignore parse errors */ }
-        setIsAgendaMode(false);
         setScheduleConfig(null);
         setAgendaSelection(null);
       })
       .catch(() => {
         if (!cancelled) {
-          setIsAgendaMode(false);
           setScheduleConfig(null);
         }
       });
@@ -554,7 +561,7 @@ function NewOrderPage() {
         }
       }
 
-      const effectiveMode = isAgendaMode ? "BY_AGENDA" : techMode;
+      const effectiveMode = isAgendaMode ? "BY_AGENDA" : techMode === "URGENT" ? "BY_SPECIALIZATION" : techMode;
 
       // Salvar novo endereco de atendimento se label preenchido
       if (addressSource === "new" && newAddressLabel.trim() && selectedClient) {
@@ -620,6 +627,7 @@ function NewOrderPage() {
         techCommissionCents: finalTechCents,
         isReturn,
         returnPaidToTech: isReturn ? returnPaidToTech : true,
+        isUrgent: techMode === "URGENT",
         // Tempo para clicar a caminho (null = usa do fluxo)
         enRouteTimeoutMinutes: isAgendaMode ? undefined
           : enRouteTimeoutMode === 'from_flow' ? undefined
@@ -697,6 +705,44 @@ function NewOrderPage() {
             )}
           />
 
+          {/* Tipo de Atendimento — MOVIDO PARA O TOPO */}
+          <CollapsibleSection
+            title={techMode === "URGENT" ? "🚨 Tipo de Atendimento" : "Tipo de Atendimento"}
+            icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
+            defaultOpen={true}
+            summary={
+              techMode === "URGENT" ? "🚨 Urgente"
+              : techMode === "BY_AGENDA" ? "📅 Por agenda"
+              : techMode === "BY_SPECIALIZATION" ? (selectedSpecs.length ? selectedSpecs.map(s => s.name).join(", ") : "Por especialização")
+              : techMode === "DIRECTED" ? (selectedTechs.length ? selectedTechs.map(t => t.name).join(", ") : "Direcionado")
+              : selectedWorkflow?.name || "Por fluxo"
+            }
+          >
+            <TechAssignmentSection
+              mode={techMode}
+              onModeChange={setTechMode}
+              selectedSpecializations={selectedSpecs}
+              onSpecializationsChange={setSelectedSpecs}
+              selectedTechnicians={selectedTechs}
+              onTechniciansChange={setSelectedTechs}
+              selectedWorkflow={selectedWorkflow}
+              onWorkflowChange={setSelectedWorkflow}
+              showExtendedModes
+              hideHeader
+            />
+          </CollapsibleSection>
+
+          {/* Agenda CLT — aparece quando mode=BY_AGENDA ou quando o fluxo tem scheduleConfig.enabled */}
+          {isAgendaMode && scheduleConfig && (
+            <AgendaSelector
+              workingHours={scheduleConfig.workingHours}
+              workingDays={scheduleConfig.workingDays}
+              defaultDurationMinutes={scheduleConfig.defaultDurationMinutes}
+              selection={agendaSelection}
+              onSelect={setAgendaSelection}
+            />
+          )}
+
           {/* Obra (opcional, só aparece se cliente tem obras) */}
           {obras.length > 0 && (
             <label className="flex flex-col gap-1.5">
@@ -765,38 +811,8 @@ function NewOrderPage() {
             />
           </label>
 
-          {/* Atribuir Técnico */}
-          <CollapsibleSection
-            title="Atribuir Técnico"
-            icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
-            summary={techMode === "BY_SPECIALIZATION" ? (selectedSpecs.length ? selectedSpecs.map(s => s.name).join(", ") : "Por especialização") : techMode === "DIRECTED" ? (selectedTechs.length ? selectedTechs.map(t => t.name).join(", ") : "Direcionado") : selectedWorkflow?.name || "Por fluxo"}
-          >
-            <TechAssignmentSection
-              mode={techMode}
-              onModeChange={setTechMode}
-              selectedSpecializations={selectedSpecs}
-              onSpecializationsChange={setSelectedSpecs}
-              selectedTechnicians={selectedTechs}
-              onTechniciansChange={setSelectedTechs}
-              selectedWorkflow={selectedWorkflow}
-              onWorkflowChange={setSelectedWorkflow}
-              hideHeader
-            />
-          </CollapsibleSection>
-
-          {/* Agenda CLT — aparece quando o fluxo tem scheduleConfig.enabled */}
-          {isAgendaMode && scheduleConfig && (
-            <AgendaSelector
-              workingHours={scheduleConfig.workingHours}
-              workingDays={scheduleConfig.workingDays}
-              defaultDurationMinutes={scheduleConfig.defaultDurationMinutes}
-              selection={agendaSelection}
-              onSelect={setAgendaSelection}
-            />
-          )}
-
-          {/* Tempo para aceitar + a caminho — oculto em modo agenda */}
-          {!isAgendaMode && (<>
+          {/* Tempo para aceitar + a caminho — oculto em modo agenda ou urgente */}
+          {!isAgendaMode && techMode !== "URGENT" && (<>
           <CollapsibleSection
             title="Tempo para aceitar"
             icon={<span className="text-base leading-none">⏱️</span>}
@@ -1096,7 +1112,24 @@ function NewOrderPage() {
             </label>
 
             {isReturn && (
-              <div className="ml-6 space-y-1">
+              <div className="ml-6 space-y-2">
+                {/* Urgente toggle para retornos */}
+                <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={techMode === "URGENT"}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setTechMode("URGENT");
+                      } else {
+                        setTechMode("BY_SPECIALIZATION");
+                      }
+                    }}
+                    className="rounded border-red-300 text-red-600 focus:ring-red-500"
+                  />
+                  <span className="text-sm font-medium text-red-700">🚨 Retorno urgente / emergencial</span>
+                </label>
+
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"

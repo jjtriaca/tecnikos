@@ -115,7 +115,40 @@
 - [x] Nunca mais precisa de ALTER TABLE manual em tenant schemas!
 - [x] Deploy v1.02.81
 
-## Versao atual: v1.02.81 (em producao)
+### Deploy Resilience — Zero Data Loss (v1.02.82)
+- [x] DeployGuard component: intercepta ChunkLoadError global (window.onerror + unhandledrejection)
+  - Se usuario NAO esta digitando: auto-reload silencioso
+  - Se usuario ESTA digitando: banner azul "Nova versao disponivel" com botao "Atualizar agora"
+  - Previne loop infinito com sessionStorage (1 tentativa por minuto)
+- [x] error.tsx melhorado: detecta ChunkLoadError e mostra UI amigavel "Atualizacao disponivel"
+- [x] API retry: network errors e 502/503/504 retentam automaticamente (ate 2x, intervalo 3s)
+  - Cobre o ~15s de indisponibilidade durante restart dos containers
+- [x] Signup form persistence: sessionStorage salva form/step/plano/senha durante cadastro
+  - Restaura automaticamente se a pagina recarregar durante deploy
+  - Limpa apos step 3 (pagamento/verificacao)
+- [x] Deploy v1.02.82
+
+### OS Urgente + Reorganizacao Form (v1.02.83)
+- [x] Prisma: campo isUrgent (Boolean, default false) no ServiceOrder
+- [x] Migration 20260315010000_add_is_urgent
+- [x] Backend DTOs: isUrgent em CreateServiceOrderDto e UpdateServiceOrderDto
+- [x] Backend: service-order.service.ts dispara eventos adicionais:
+  - isReturn → dispatch return_created (alem de created)
+  - isUrgent → dispatch urgent_created (alem de created)
+- [x] Frontend stage-config.ts: trigger os_urgent_created (🚨 Uma OS urgente e criada)
+- [x] Frontend TechAssignmentSection: novos modos BY_AGENDA e URGENT
+  - URGENT com estilo vermelho e banner explicativo
+  - BY_AGENDA como opcao direta (antes era hidden, so via workflow)
+  - showExtendedModes prop para controlar visibilidade
+- [x] Frontend orders/new/page.tsx:
+  - Secao "Tipo de Atendimento" MOVIDA para o TOPO (logo apos Cliente)
+  - Secao ja aberta por default (defaultOpen)
+  - isAgendaMode agora reativo ao techMode === "BY_AGENDA"
+  - Modo URGENT: set isUrgent=true no submit, esconde tempos de aceitar/caminho
+  - Retorno: checkbox "🚨 Retorno urgente / emergencial" com destaque vermelho
+- [x] Deploy v1.02.83
+
+## Versao atual: v1.02.83 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar
