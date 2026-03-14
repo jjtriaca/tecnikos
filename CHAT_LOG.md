@@ -1185,3 +1185,32 @@ Deploy v1.02.53
 - compileToV2/decompileFromV2 persistem supplierOnboarding
 
 ### Deploy: v1.02.74
+
+---
+
+## 2026-03-14 — Sessao 122: Presets, Drag-Drop, TenantMigrator, Deploy Resilience, OS Urgente (v1.02.79-84)
+
+### Pedidos do Juliano:
+- Remover secao "Modelos Prontos" do editor de workflow
+- Cards dos fluxos devem ser organizaveis clicando e arrastando
+- Melhorias devem ser automaticas em todos os tenants (sem ALTER TABLE manual)
+- Cliente nao deve perder dados durante deploy
+- Secao de agendamento/atribuicao deve ficar no topo da criacao de OS
+- Opcoes: por fluxo de atendimento, por agenda e URGENTE
+- Criar gatilho "Quando uma OS Urgente e criada"
+- Ao cadastrar OS de retorno, perguntar se e urgente
+
+### Implementacoes:
+- v1.02.79: Remocao Modelos Prontos
+- v1.02.80: Drag-and-drop reorder de fluxos (sortOrder + HTML5 DnD)
+- v1.02.81: TenantMigratorService auto-sync schemas no startup
+- v1.02.82: Deploy Resilience (DeployGuard, API retry, signup persistence)
+- v1.02.84: OS Urgente + Reorganizacao Form
+  - isUrgent Boolean no ServiceOrder
+  - Trigger os_urgent_created (🚨 Uma OS urgente e criada)
+  - TechAssignmentSection: modos BY_AGENDA e URGENT
+  - Form: "Tipo de Atendimento" movido para o topo (apos Cliente)
+  - Retorno: checkbox "Retorno urgente / emergencial"
+  - Backend: dispatch return_created + urgent_created adicionais
+
+### Deploy: v1.02.84

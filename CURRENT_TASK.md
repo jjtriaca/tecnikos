@@ -146,9 +146,9 @@
   - isAgendaMode agora reativo ao techMode === "BY_AGENDA"
   - Modo URGENT: set isUrgent=true no submit, esconde tempos de aceitar/caminho
   - Retorno: checkbox "🚨 Retorno urgente / emergencial" com destaque vermelho
-- [x] Deploy v1.02.83
+- [x] Deploy v1.02.84
 
-## Versao atual: v1.02.83 (em producao)
+## Versao atual: v1.02.84 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

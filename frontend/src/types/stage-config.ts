@@ -1454,6 +1454,14 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
   if (enabledStages.length === 0) {
     blocks[0].next = endId;
     const earlyResult: any = { version: 2, blocks };
+    // Persist trigger definition (same as normal return path)
+    if (config.trigger) {
+      earlyResult.trigger = {
+        entity: config.trigger.entity,
+        event: config.trigger.event,
+        triggerId: config.trigger.id,
+      };
+    }
     if (config.technicianOnboarding?.enabled) {
       earlyResult.technicianOnboarding = config.technicianOnboarding;
     }
