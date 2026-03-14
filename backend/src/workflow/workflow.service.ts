@@ -30,7 +30,7 @@ export class WorkflowService {
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
         skip,
         take: limit,
-        select: { id: true, name: true, isDefault: true, isActive: true, sortOrder: true, createdAt: true },
+        select: { id: true, name: true, isActive: true, sortOrder: true, createdAt: true },
       }),
       this.prisma.workflowTemplate.count({ where }),
     ]);
@@ -59,22 +59,13 @@ export class WorkflowService {
     });
   }
 
-  async update(id: string, companyId: string, body: { name?: string; steps?: any; isDefault?: boolean; isActive?: boolean; requiredSpecializationIds?: string[] }) {
+  async update(id: string, companyId: string, body: { name?: string; steps?: any; isActive?: boolean; requiredSpecializationIds?: string[] }) {
     await this.findOne(id, companyId);
     if (body.steps) this.validateSteps(body.steps);
-
-    // If setting as default, unset other defaults first
-    if (body.isDefault) {
-      await this.prisma.workflowTemplate.updateMany({
-        where: { companyId, isDefault: true },
-        data: { isDefault: false },
-      });
-    }
 
     const data: Record<string, unknown> = {};
     if (body.name !== undefined) data.name = body.name;
     if (body.steps !== undefined) data.steps = body.steps as any;
-    if (body.isDefault !== undefined) data.isDefault = body.isDefault;
     if (body.isActive !== undefined) data.isActive = body.isActive;
     if (body.requiredSpecializationIds !== undefined) data.requiredSpecializationIds = body.requiredSpecializationIds;
 

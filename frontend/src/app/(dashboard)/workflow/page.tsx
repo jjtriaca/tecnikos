@@ -32,7 +32,6 @@ import {
 type WorkflowTemplate = {
   id: string;
   name: string;
-  isDefault: boolean;
   steps: any;
   createdAt: string;
   requiredSpecializationIds: string[];
@@ -41,7 +40,6 @@ type WorkflowTemplate = {
 type WorkflowListItem = {
   id: string;
   name: string;
-  isDefault: boolean;
   isActive: boolean;
   sortOrder: number;
   createdAt: string;
@@ -116,13 +114,11 @@ export default function WorkflowPage() {
       const decompiled = decompileFromV2(full.steps);
       if (decompiled) {
         decompiled.name = full.name;
-        decompiled.isDefault = full.isDefault;
         setConfig(decompiled);
       } else {
         // Can't decompile (has CONDITION blocks or unknown format)
         const fresh = createDefaultConfig();
         fresh.name = full.name;
-        fresh.isDefault = full.isDefault;
         setConfig(fresh);
         toast("Fluxo antigo com blocos complexos. Configuração resetada.", "warning");
       }
@@ -155,7 +151,6 @@ export default function WorkflowPage() {
       const payload = {
         name: config.name.trim(),
         steps: v2,
-        isDefault: config.isDefault,
       };
 
       if (editingId) {
@@ -181,7 +176,6 @@ export default function WorkflowPage() {
       await api.post("/workflows", {
         name: `${full.name} (cópia)`,
         steps: full.steps,
-        isDefault: false,
       });
       toast("Fluxo duplicado com sucesso!", "success");
       loadWorkflows();
@@ -383,11 +377,6 @@ export default function WorkflowPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-2 shrink-0">
-                      {wf.isDefault && (
-                        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                          Padrão
-                        </span>
-                      )}
                       {/* Toggle ativo/inativo */}
                       <button
                         onClick={() => handleToggleActive(wf)}
@@ -468,33 +457,18 @@ export default function WorkflowPage() {
         </div>
       </div>
 
-      {/* Name + Default */}
+      {/* Name */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="sm:col-span-2">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-slate-700">Nome do fluxo *</span>
-              <input
-                type="text"
-                value={config.name}
-                onChange={e => setConfig({ ...config, name: e.target.value })}
-                placeholder="Ex: Instalação Padrão, Manutenção Corretiva..."
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-colors"
-              />
-            </label>
-          </div>
-          <div className="flex items-end">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.isDefault}
-                onChange={e => setConfig({ ...config, isDefault: e.target.checked })}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-200 h-4 w-4"
-              />
-              <span className="text-sm text-slate-700">Fluxo padrão</span>
-            </label>
-          </div>
-        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-slate-700">Nome do fluxo *</span>
+          <input
+            type="text"
+            value={config.name}
+            onChange={e => setConfig({ ...config, name: e.target.value })}
+            placeholder="Ex: Instalação Padrão, Manutenção Corretiva..."
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-colors"
+          />
+        </label>
       </div>
 
       {/* Trigger Selector — collapsible */}

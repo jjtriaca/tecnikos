@@ -335,10 +335,113 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
           <SectionLabel icon="⚡" title="Ações Automáticas" />
           <div className="space-y-3">
 
-            {/* ═══ ABERTA — Seleção de Técnicos + Despacho ═══ */}
+            {/* ═══ ABERTA — Regime + Seleção de Técnicos + Despacho ═══ */}
             {stage.status === 'ABERTA' && (
               <>
-                {/* ── 1. SELEÇÃO DE TÉCNICOS (método + limite) ── */}
+                {/* ── 1. REGIME DE ATENDIMENTO ── */}
+                <div className="rounded-lg border border-teal-200 bg-teal-50/30 p-3">
+                  <Toggle checked={stage.autoActions.scheduleConfig.enabled}
+                    onChange={v => updateAuto('scheduleConfig', { enabled: v })}
+                    label="📅 Regime de Agenda (CLT)"
+                    hint="Ativa despacho por agenda — ao criar OS com este fluxo, o operador escolhe técnico, data e horário no calendário." />
+                  <ConfigRow visible={stage.autoActions.scheduleConfig.enabled}>
+                    <div className="space-y-3">
+                      {/* Duração padrão */}
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 whitespace-nowrap">Duração padrão:</span>
+                          <select
+                            value={stage.autoActions.scheduleConfig.defaultDurationMinutes}
+                            onChange={e => updateAuto('scheduleConfig', { defaultDurationMinutes: parseInt(e.target.value) })}
+                            className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                          >
+                            <option value={30}>30 minutos</option>
+                            <option value={60}>1 hora</option>
+                            <option value={90}>1h30</option>
+                            <option value={120}>2 horas</option>
+                            <option value={180}>3 horas</option>
+                            <option value={240}>4 horas</option>
+                            <option value={480}>Dia inteiro (8h)</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      {/* Horário de trabalho */}
+                      <div className="pt-2 border-t border-teal-200">
+                        <span className="text-xs font-medium text-slate-600 block mb-2">Horário de trabalho:</span>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1">
+                            <span className="text-xs text-slate-500">De:</span>
+                            <input type="time" value={stage.autoActions.scheduleConfig.workingHours.start}
+                              onChange={e => updateAuto('scheduleConfig', { workingHours: { ...stage.autoActions.scheduleConfig.workingHours, start: e.target.value } })}
+                              className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                          </label>
+                          <label className="flex items-center gap-1">
+                            <span className="text-xs text-slate-500">Até:</span>
+                            <input type="time" value={stage.autoActions.scheduleConfig.workingHours.end}
+                              onChange={e => updateAuto('scheduleConfig', { workingHours: { ...stage.autoActions.scheduleConfig.workingHours, end: e.target.value } })}
+                              className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Dias da semana */}
+                      <div className="pt-2 border-t border-teal-200">
+                        <span className="text-xs font-medium text-slate-600 block mb-2">Dias de trabalho:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { day: 1, label: 'Seg' }, { day: 2, label: 'Ter' }, { day: 3, label: 'Qua' },
+                            { day: 4, label: 'Qui' }, { day: 5, label: 'Sex' }, { day: 6, label: 'Sáb' }, { day: 0, label: 'Dom' },
+                          ].map(d => {
+                            const active = stage.autoActions.scheduleConfig.workingDays.includes(d.day);
+                            return (
+                              <button key={d.day} type="button"
+                                onClick={() => {
+                                  const days = active
+                                    ? stage.autoActions.scheduleConfig.workingDays.filter((dd: number) => dd !== d.day)
+                                    : [...stage.autoActions.scheduleConfig.workingDays, d.day].sort();
+                                  updateAuto('scheduleConfig', { workingDays: days });
+                                }}
+                                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                                  active ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                }`}
+                              >
+                                {d.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Notificação do técnico */}
+                      <div className="pt-2 border-t border-teal-200">
+                        <SubToggle checked={stage.autoActions.scheduleConfig.notifyTechnician.enabled}
+                          onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, enabled: v } })}
+                          label="Notificar técnico sobre agendamento" />
+                        {stage.autoActions.scheduleConfig.notifyTechnician.enabled && (
+                          <div className="ml-5 mt-2 space-y-2">
+                            <SelectField label="Canal" value={stage.autoActions.scheduleConfig.notifyTechnician.channel}
+                              onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, channel: v } })}
+                              options={CHANNEL_OPTIONS} />
+                            <NumberField label="Notificar antes" value={stage.autoActions.scheduleConfig.notifyTechnician.minutesBefore}
+                              onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, minutesBefore: v } })}
+                              min={0} suffix="min (0 = ao agendar)" />
+                            <TextAreaField label="Mensagem" value={stage.autoActions.scheduleConfig.notifyTechnician.message}
+                              onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, message: v } })}
+                              placeholder="{nome}, você tem um serviço agendado para {data_agendamento} às {hora_agendamento}..." vars />
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="text-[10px] text-slate-400 italic mt-1">
+                        💡 Quando ativo, ao criar OS com este fluxo o operador escolhe técnico + data/hora na agenda.
+                        A OS já nasce como &quot;Atribuída&quot; (pula Aberta → Ofertada).
+                      </p>
+                    </div>
+                  </ConfigRow>
+                </div>
+
+                {/* ── 2. SELEÇÃO DE TÉCNICOS (método + limite) ── */}
                 <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
                   <Toggle checked={stage.autoActions.techSelection.enabled}
                     onChange={v => updateAuto('techSelection', { enabled: v })}
@@ -677,108 +780,6 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   </ConfigRow>
                 </div>
 
-                {/* ── 7. REGIME DE AGENDA (CLT) ── */}
-                <div className="rounded-lg border border-teal-200 bg-teal-50/30 p-3">
-                  <Toggle checked={stage.autoActions.scheduleConfig.enabled}
-                    onChange={v => updateAuto('scheduleConfig', { enabled: v })}
-                    label="📅 Regime de Agenda (CLT)"
-                    hint="Ativa despacho por agenda — ao criar OS com este fluxo, o operador escolhe técnico, data e horário no calendário." />
-                  <ConfigRow visible={stage.autoActions.scheduleConfig.enabled}>
-                    <div className="space-y-3">
-                      {/* Duração padrão */}
-                      <div className="flex flex-wrap gap-4">
-                        <label className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500 whitespace-nowrap">Duração padrão:</span>
-                          <select
-                            value={stage.autoActions.scheduleConfig.defaultDurationMinutes}
-                            onChange={e => updateAuto('scheduleConfig', { defaultDurationMinutes: parseInt(e.target.value) })}
-                            className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-                          >
-                            <option value={30}>30 minutos</option>
-                            <option value={60}>1 hora</option>
-                            <option value={90}>1h30</option>
-                            <option value={120}>2 horas</option>
-                            <option value={180}>3 horas</option>
-                            <option value={240}>4 horas</option>
-                            <option value={480}>Dia inteiro (8h)</option>
-                          </select>
-                        </label>
-                      </div>
-
-                      {/* Horário de trabalho */}
-                      <div className="pt-2 border-t border-teal-200">
-                        <span className="text-xs font-medium text-slate-600 block mb-2">Horário de trabalho:</span>
-                        <div className="flex items-center gap-2">
-                          <label className="flex items-center gap-1">
-                            <span className="text-xs text-slate-500">De:</span>
-                            <input type="time" value={stage.autoActions.scheduleConfig.workingHours.start}
-                              onChange={e => updateAuto('scheduleConfig', { workingHours: { ...stage.autoActions.scheduleConfig.workingHours, start: e.target.value } })}
-                              className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
-                          </label>
-                          <label className="flex items-center gap-1">
-                            <span className="text-xs text-slate-500">Até:</span>
-                            <input type="time" value={stage.autoActions.scheduleConfig.workingHours.end}
-                              onChange={e => updateAuto('scheduleConfig', { workingHours: { ...stage.autoActions.scheduleConfig.workingHours, end: e.target.value } })}
-                              className="text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* Dias da semana */}
-                      <div className="pt-2 border-t border-teal-200">
-                        <span className="text-xs font-medium text-slate-600 block mb-2">Dias de trabalho:</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {[
-                            { day: 1, label: 'Seg' }, { day: 2, label: 'Ter' }, { day: 3, label: 'Qua' },
-                            { day: 4, label: 'Qui' }, { day: 5, label: 'Sex' }, { day: 6, label: 'Sáb' }, { day: 0, label: 'Dom' },
-                          ].map(d => {
-                            const active = stage.autoActions.scheduleConfig.workingDays.includes(d.day);
-                            return (
-                              <button key={d.day} type="button"
-                                onClick={() => {
-                                  const days = active
-                                    ? stage.autoActions.scheduleConfig.workingDays.filter((dd: number) => dd !== d.day)
-                                    : [...stage.autoActions.scheduleConfig.workingDays, d.day].sort();
-                                  updateAuto('scheduleConfig', { workingDays: days });
-                                }}
-                                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
-                                  active ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                }`}
-                              >
-                                {d.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Notificação do técnico */}
-                      <div className="pt-2 border-t border-teal-200">
-                        <SubToggle checked={stage.autoActions.scheduleConfig.notifyTechnician.enabled}
-                          onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, enabled: v } })}
-                          label="Notificar técnico sobre agendamento" />
-                        {stage.autoActions.scheduleConfig.notifyTechnician.enabled && (
-                          <div className="ml-5 mt-2 space-y-2">
-                            <SelectField label="Canal" value={stage.autoActions.scheduleConfig.notifyTechnician.channel}
-                              onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, channel: v } })}
-                              options={CHANNEL_OPTIONS} />
-                            <NumberField label="Notificar antes" value={stage.autoActions.scheduleConfig.notifyTechnician.minutesBefore}
-                              onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, minutesBefore: v } })}
-                              min={0} suffix="min (0 = ao agendar)" />
-                            <TextAreaField label="Mensagem" value={stage.autoActions.scheduleConfig.notifyTechnician.message}
-                              onChange={v => updateAuto('scheduleConfig', { notifyTechnician: { ...stage.autoActions.scheduleConfig.notifyTechnician, message: v } })}
-                              placeholder="{nome}, você tem um serviço agendado para {data_agendamento} às {hora_agendamento}..." vars />
-                          </div>
-                        )}
-                      </div>
-
-                      <p className="text-[10px] text-slate-400 italic mt-1">
-                        💡 Quando ativo, ao criar OS com este fluxo o operador escolhe técnico + data/hora na agenda.
-                        A OS já nasce como &quot;Atribuída&quot; (pula Aberta → Ofertada).
-                      </p>
-                    </div>
-                  </ConfigRow>
-                </div>
               </>
             )}
 
@@ -1676,17 +1677,6 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
           {/* ── CONTROLE DE TEMPO ── */}
           <SectionLabel icon="⏱️" title="Controle de Tempo" />
           <div className="space-y-3">
-            {/* SLA */}
-            <div>
-              <Toggle checked={stage.timeControl.sla.enabled} onChange={v => updateTime('sla', { enabled: v })}
-                label={TIME_CONTROL_LABELS.sla.label} hint={TIME_CONTROL_LABELS.sla.hint} />
-              <ConfigRow visible={stage.timeControl.sla.enabled}>
-                <NumberField label="Tempo máximo" value={stage.timeControl.sla.maxMinutes}
-                  onChange={v => updateTime('sla', { maxMinutes: v })} suffix="minutos" />
-                <SubToggle checked={stage.timeControl.sla.alertOnExceed} onChange={v => updateTime('sla', { alertOnExceed: v })} label="Alertar ao exceder" />
-              </ConfigRow>
-            </div>
-
             {/* WAIT_FOR */}
             <div>
               <Toggle checked={stage.timeControl.waitFor.enabled} onChange={v => updateTime('waitFor', { enabled: v })}
@@ -1718,18 +1708,6 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
               </ConfigRow>
             </div>
 
-            {/* DELAY — hidden for EM_EXECUCAO (no practical use during execution) */}
-            {stage.status !== 'EM_EXECUCAO' && (
-              <div>
-                <Toggle checked={stage.timeControl.delay.enabled} onChange={v => updateTime('delay', { enabled: v })}
-                  label={TIME_CONTROL_LABELS.delay.label} hint={TIME_CONTROL_LABELS.delay.hint} />
-                <ConfigRow visible={stage.timeControl.delay.enabled}>
-                  <NumberField label="Aguardar" value={stage.timeControl.delay.minutes}
-                    onChange={v => updateTime('delay', { minutes: v })} suffix="minutos" />
-                </ConfigRow>
-              </div>
-            )}
-
             {/* EXECUTION TIMER — only EM_EXECUCAO */}
             {stage.status === 'EM_EXECUCAO' && (
               <div className="rounded-lg border border-teal-200 bg-teal-50/30 p-3">
@@ -1742,7 +1720,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                     label="Exibir cronômetro para o técnico" />
                   <SubToggle checked={stage.timeControl.executionTimer.pauseDiscountsFromSla}
                     onChange={v => updateTime('executionTimer', { pauseDiscountsFromSla: v })}
-                    label="Pausas descontam do SLA" />
+                    label="Pausas descontam do tempo" />
                   <p className="text-[10px] text-slate-400">
                     ⏲️ Registra o tempo efetivo de execução. O cronômetro é pausado/retomado automaticamente
                     quando o técnico pausa o atendimento (requer Sistema de Pausas ativado abaixo).

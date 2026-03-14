@@ -364,22 +364,28 @@ export class WorkflowEngineService {
   ) {}
 
   /* ──────────────────────────────────────────────────────────── */
-  /*  Attach default workflow to OS                              */
+  /*  Find workflow by trigger ID                                 */
   /* ──────────────────────────────────────────────────────────── */
 
-  async attachDefaultWorkflow(
-    serviceOrderId: string,
+  async findWorkflowByTrigger(
     companyId: string,
-  ): Promise<void> {
-    const defaultTemplate = await this.prisma.workflowTemplate.findFirst({
-      where: { companyId, isDefault: true, isActive: true, deletedAt: null },
+    triggerIds: string[],
+  ): Promise<{ id: string } | null> {
+    const workflows = await this.prisma.workflowTemplate.findMany({
+      where: { companyId, isActive: true, deletedAt: null },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
-    if (!defaultTemplate) return;
 
-    await this.prisma.serviceOrder.update({
-      where: { id: serviceOrderId },
-      data: { workflowTemplateId: defaultTemplate.id },
-    });
+    // Try each trigger in priority order (e.g. urgent > return > created)
+    for (const triggerId of triggerIds) {
+      const match = workflows.find(wf => {
+        const steps = wf.steps as any;
+        return steps?.trigger?.triggerId === triggerId;
+      });
+      if (match) return { id: match.id };
+    }
+
+    return null;
   }
 
   /* ──────────────────────────────────────────────────────────── */
@@ -1616,28 +1622,6 @@ export class WorkflowEngineService {
             workflowTemplateId: original.workflowTemplateId,
           },
         });
-      }
-
-      case 'DELAY': {
-        // Delay blocks just log — actual delay logic would need a scheduler
-        this.logger.log(
-          `⏳ System block: Delay ${config.minutes || 0} minutes (logged only)`,
-        );
-        return { delayed: true, minutes: config.minutes || 0 };
-      }
-
-      case 'SLA': {
-        this.logger.log(
-          `⏱️ System block: SLA ${config.maxMinutes || 0} minutes (logged only)`,
-        );
-        return { sla: true, maxMinutes: config.maxMinutes || 0 };
-      }
-
-      case 'RESCHEDULE': {
-        this.logger.log(
-          `📅 System block: Reschedule (reason: ${config.reason || 'N/A'})`,
-        );
-        return { rescheduled: true, reason: config.reason };
       }
 
       default:

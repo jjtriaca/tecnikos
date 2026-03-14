@@ -152,9 +152,7 @@ export interface StageConfig {
   };
 
   timeControl: {
-    sla:     { enabled: boolean; maxMinutes: number; alertOnExceed: boolean };
     waitFor: { enabled: boolean; timeoutMinutes: number; triggerConditions: string[]; targetStatus: string; timeoutAction: string };
-    delay:   { enabled: boolean; minutes: number };
     executionTimer: { enabled: boolean; showToTech: boolean; pauseDiscountsFromSla: boolean };
     pauseSystem: {
       enabled: boolean;
@@ -726,7 +724,6 @@ export function createDefaultClientOnboarding(): ClientOnboardingConfig {
 
 export interface WorkflowFormConfig {
   name: string;
-  isDefault: boolean;
   trigger: TriggerDefinition;
   stages: StageConfig[];
   technicianOnboarding: TechnicianOnboardingConfig;
@@ -749,8 +746,6 @@ export const TRIGGER_OPTIONS: TriggerDefinition[] = [
   { id: 'os_created',               entity: 'SERVICE_ORDER', event: 'created',          icon: '📋', label: 'Uma OS é criada',                      description: 'Quando uma nova ordem de serviço é aberta' },
   { id: 'os_return_created',        entity: 'SERVICE_ORDER', event: 'return_created',   icon: '🔄', label: 'Uma OS de retorno é criada',             description: 'Quando uma OS de retorno/revisita é criada' },
   { id: 'os_urgent_created',        entity: 'SERVICE_ORDER', event: 'urgent_created',   icon: '🚨', label: 'Uma OS urgente é criada',                description: 'Quando uma OS marcada como urgente é criada' },
-  { id: 'quote_request_created',    entity: 'QUOTE',         event: 'request_created',  icon: '📩', label: 'Uma solicitação de orçamento é criada', description: 'Quando o cliente solicita um orçamento' },
-  { id: 'quote_created',            entity: 'QUOTE',         event: 'created',          icon: '📝', label: 'Um orçamento é criado',                 description: 'Quando um orçamento é gerado/salvo' },
   { id: 'partner_client_created',   entity: 'PARTNER',       event: 'client_created',   icon: '👤', label: 'Um cliente é criado',                   description: 'Quando um parceiro tipo cliente é cadastrado' },
   { id: 'partner_tech_created',     entity: 'PARTNER',       event: 'tech_created',     icon: '👷', label: 'Um técnico é criado',                   description: 'Quando um parceiro tipo técnico é cadastrado' },
   { id: 'partner_spec_added',      entity: 'PARTNER',       event: 'spec_added',       icon: '🔧', label: 'Um técnico recebe nova especialização', description: 'Quando uma nova especialização é atribuída ao técnico' },
@@ -938,9 +933,7 @@ export const AUTO_ACTION_LABELS: Record<string, { label: string; icon: string; h
 };
 
 export const TIME_CONTROL_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
-  sla:            { label: 'Tempo máximo nesta etapa (SLA)', icon: '⏱️', hint: 'Define prazo máximo para completar esta etapa' },
   waitFor:        { label: 'Aguardar evento',                icon: '⏸️', hint: 'Pausa o fluxo até evento ou timeout' },
-  delay:          { label: 'Atraso entre etapas',            icon: '⏳', hint: 'Aguarda X minutos antes de prosseguir' },
   executionTimer: { label: 'Cronômetro de execução',         icon: '⏲️', hint: 'Mede tempo efetivo de execução (descontando pausas futuras)' },
 };
 
@@ -1089,9 +1082,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
       },
     },
     timeControl: {
-      sla:     { enabled: false, maxMinutes: 120, alertOnExceed: true },
       waitFor: { enabled: false, timeoutMinutes: 60, triggerConditions: [], targetStatus: '', timeoutAction: 'continue' },
-      delay:   { enabled: false, minutes: 30 },
       executionTimer: { enabled: false, showToTech: true, pauseDiscountsFromSla: true },
       pauseSystem: {
         enabled: false,
@@ -1119,7 +1110,6 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
 export function createDefaultConfig(): WorkflowFormConfig {
   return {
     name: '',
-    isDefault: false,
     trigger: TRIGGER_OPTIONS[0],
     stages: OS_STATUSES.map(s => createEmptyStage(s.status, s.label, s.icon)),
     technicianOnboarding: createDefaultOnboarding(),
@@ -1180,7 +1170,6 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       exec.techActions.step = { enabled: true, description: 'Realizar a instalação conforme procedimento', requirePhoto: true, requireNote: true, requireGPS: false };
       exec.techActions.materials = { enabled: true, label: 'Materiais utilizados na instalação', requireQuantity: true, requireUnitCost: false };
       exec.techActions.signature = { enabled: true, label: 'Assinatura do cliente' };
-      exec.timeControl.sla = { enabled: true, maxMinutes: 240, alertOnExceed: true };
       exec.timeControl.executionTimer = { enabled: true, showToTech: true, pauseDiscountsFromSla: true };
       exec.timeControl.pauseSystem = {
         ...exec.timeControl.pauseSystem,
@@ -1263,7 +1252,6 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       exec.techActions.note = { enabled: true, placeholder: 'Descreva o diagnóstico...' };
       exec.techActions.step = { enabled: true, description: 'Executar o reparo', requirePhoto: true, requireNote: true, requireGPS: false };
       exec.techActions.materials = { enabled: true, label: 'Peças e materiais usados no reparo', requireQuantity: true, requireUnitCost: true };
-      exec.timeControl.sla = { enabled: true, maxMinutes: 180, alertOnExceed: true };
       exec.timeControl.executionTimer = { enabled: true, showToTech: true, pauseDiscountsFromSla: true };
       exec.timeControl.pauseSystem = {
         ...exec.timeControl.pauseSystem,
@@ -1387,7 +1375,6 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         { id: 'pr_before', moment: 'before_start', minPhotos: 1, maxPhotos: 0, label: 'Foto do problema', instructions: 'Registre o problema antes de iniciar', required: true },
         { id: 'pr_after', moment: 'after_completion', minPhotos: 1, maxPhotos: 0, label: 'Foto após resolução', instructions: 'Registre que o problema foi resolvido', required: true },
       ]};
-      exec.timeControl.sla = { enabled: true, maxMinutes: 120, alertOnExceed: true };
       exec.timeControl.executionTimer = { enabled: true, showToTech: true, pauseDiscountsFromSla: false };
       // CONCLUIDA
       const conc = c.stages.find(s => s.status === 'CONCLUIDA')!;
@@ -1678,25 +1665,7 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
       });
     }
 
-    // 4. DELAY
-    if (stage.timeControl.delay.enabled) {
-      stageBlocks.push({
-        id: genId('delay'), type: 'DELAY', name: 'Aguardar', icon: '⏳',
-        config: { minutes: stage.timeControl.delay.minutes },
-        next: null,
-      });
-    }
-
-    // 5. SLA
-    if (stage.timeControl.sla.enabled) {
-      stageBlocks.push({
-        id: genId('sla'), type: 'SLA', name: 'Controle SLA', icon: '⏱️',
-        config: { maxMinutes: stage.timeControl.sla.maxMinutes, alertOnExceed: stage.timeControl.sla.alertOnExceed },
-        next: null,
-      });
-    }
-
-    // 5b. PAUSE_SYSTEM
+    // 4. PAUSE_SYSTEM
     if (stage.timeControl.pauseSystem?.enabled) {
       stageBlocks.push({
         id: genId('pause'), type: 'PAUSE_SYSTEM', name: 'Sistema de pausas', icon: '⏸️',
@@ -2262,10 +2231,8 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
       };
       break;
     case 'SLA':
-      stage.timeControl.sla = { enabled: true, maxMinutes: cfg.maxMinutes || 120, alertOnExceed: cfg.alertOnExceed ?? true };
-      break;
     case 'DELAY':
-      stage.timeControl.delay = { enabled: true, minutes: cfg.minutes || 30 };
+      // Removed — these were stubs (backend only logged, no actual enforcement)
       break;
     case 'EXECUTION_TIMER':
       stage.timeControl.executionTimer = {

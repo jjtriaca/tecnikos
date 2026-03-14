@@ -638,7 +638,7 @@ export class WhatsAppService {
     // Load onboarding config from workflow to get reply settings
     const workflows = await this.prisma.workflowTemplate.findMany({
       where: { companyId, isActive: true, deletedAt: null },
-      orderBy: { isDefault: 'desc' },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
 
     let triggerConfig: any = null;

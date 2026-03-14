@@ -1,154 +1,36 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 121 — Security Hardening + Access Geo (CONCLUIDO)
+## Status: SESSAO 122+ — Correcoes Arquiteturais Workflow (CONCLUIDO)
 
-## Ultima sessao: 121 (14/03/2026)
-- Sessao 118: Admin Host isolado + Migracao de dados completa (v1.02.59)
-- Sessao 119: Remocao login do dominio raiz + domain-aware routing (v1.02.63)
+## Ultima sessao: 122+ (14/03/2026)
 - Sessao 120: Triggers, Conflito, Especializacao, Templates, Client Onboarding (v1.02.64-71)
 - Sessao 121: Security Hardening + Access Geo (v1.02.72-73)
+- Sessao 121+: isUrgent, Reorganizacao Form, Fix Trigger, Auditoria (v1.02.83-85)
+- Sessao 122+: Correcoes Arquiteturais Workflow (v1.02.86)
 
 ## O que foi feito nesta sessao:
 
-### Auditoria de Seguranca do Servidor
-- [x] Verificacao CPU/processos: LIMPO, sem mineracao
-- [x] fail2ban ativo: SSH (2178 falhas, 413 banidos, 19 ativos)
-- [x] 777 tentativas SSH em 24h — ja bloqueadas
-- [x] Analise nginx: 7409 requests/24h, scanners identificados (89.248.168.239, 45.79.190.208, 185.16.39.146)
-
-### Hardening nginx (v1.02.72-73)
-- [x] Bloqueio de arquivos sensiveis (.env, .git, .svn, .htaccess, .sql, .yml, etc)
-- [x] Bloqueio de paths CMS (wp-admin, phpmyadmin, adminer, cgi-bin)
-- [x] Bloqueio de extensoes perigosas (.php, .asp, .aspx, .jsp, .cgi, .pl)
-- [x] Bloqueio de user-agents de scanners (nmap, nikto, sqlmap, dirbuster, masscan, zgrab, censys, shodan, nuclei)
-- [x] Todas as rotas bloqueadas retornam HTTP 444 (connection drop) com log em /var/log/nginx/blocked.log
-
-### fail2ban — Novas Jails
-- [x] `nginx-scanner`: bane IPs que tentam acessar paths bloqueados (3 retries, 24h ban)
-- [x] `nginx-login-bf`: bane IPs com tentativas de login falhas na API (10 retries, 1h ban)
-- [x] 3 jails ativas: sshd + nginx-scanner + nginx-login-bf
-
-### SSH Hardening
-- [x] PasswordAuthentication no (apenas chave SSH)
-- [x] PermitRootLogin prohibit-password (chave obrigatoria)
-
-### Backend: Endpoint Access-24h com Geolocalizacao
-- [x] GET /admin/tenants/analytics/access-24h
-- [x] Consulta SaasEvent ultimas 24h, agrupa por IP
-- [x] Geo-IP via ip-api.com batch API (pais, cidade, estado, ISP)
-- [x] Classifica Brasil vs estrangeiro
-- [x] Retorna: totalEvents, externalEvents, uniqueIps, foreignAccess[], brazilAccess[]
-
-### Admin Frontend: Widgets de Seguranca 24h
-- [x] Card "Acessos 24h" com total de eventos externos
-- [x] Card "IPs Unicos 24h" com contagem de sessoes
-- [x] Card "Brasil" com IPs brasileiros (verde)
-- [x] Card "Fora do Brasil" com alerta vermelho se detectado
-- [x] Banner vermelho de alerta com tabela detalhada de IPs estrangeiros (pais, cidade, ISP, eventos)
-- [x] Secao colapsavel "Acessos do Brasil" com top 10 IPs brasileiros
-- [x] Deploy v1.02.73
+### 4 Correcoes Arquiteturais baseadas na Auditoria (v1.02.86)
+- [x] 1. Remocao completa do conceito isDefault (7 arquivos backend+frontend)
+- [x] 2. Trigger-based workflow selection via findWorkflowByTrigger()
+- [x] 3. Remocao DELAY e SLA (tipos, UI, compile/decompile, backend handlers, presets)
+- [x] 4. Reordenacao de campos no StageSection (scheduleConfig primeiro)
+- [x] 5. Ghost triggers removidos (quote_request_created, quote_created)
+- [x] Build backend ✅ frontend ✅
+- [x] Deploy v1.02.86
 
 ## Arquivos modificados:
-- `nginx/nginx.conf` — Bloqueio de scanners, arquivos sensiveis, user-agents
-- `backend/src/tenant/tenant.controller.ts` — Endpoint /analytics/access-24h com geo-IP
-- `frontend/src/app/(dashboard)/ctrl-zr8k2x/page.tsx` — Widgets de seguranca 24h + alertas estrangeiros
+- `backend/src/workflow/workflow-engine.service.ts` — findWorkflowByTrigger, removido DELAY/SLA/RESCHEDULE
+- `backend/src/service-order/service-order.service.ts` — trigger matching em create/assign
+- `backend/src/workflow/workflow.service.ts` — removido isDefault
+- `backend/src/partner/partner.service.ts` — orderBy sortOrder
+- `backend/src/whatsapp/whatsapp.service.ts` — orderBy sortOrder
+- `frontend/src/types/stage-config.ts` — removido sla/delay types, ghost triggers, presets fix
+- `frontend/src/app/(dashboard)/workflow/page.tsx` — removido isDefault
+- `frontend/src/app/(dashboard)/workflow/components/StageSection.tsx` — removido SLA/DELAY toggles, reorder
+- `frontend/src/components/os/TechAssignmentSection.tsx` — removido isDefault badge
 
-## Arquivos no servidor (aplicados via SSH direto):
-- `/etc/fail2ban/filter.d/nginx-scanner.conf` — Filtro de scanners
-- `/etc/fail2ban/filter.d/nginx-login-bf.conf` — Filtro de brute force de login
-- `/etc/fail2ban/jail.local` — 3 jails (sshd, nginx-scanner, nginx-login-bf)
-- `/etc/ssh/sshd_config` — SSH key-only
-
-### Supplier Onboarding + Fix Retorno (v1.02.74)
-- [x] Label "Um retorno e criado" corrigido para "Uma OS de retorno e criada"
-- [x] SupplierOnboardingConfig type + createDefaultSupplierOnboarding()
-- [x] Contrato padrao "Contrato de Fornecimento de Materiais e Servicos" (7 clausulas)
-- [x] SupplierOnboardingSection.tsx: UI completa (contrato + mensagem + reply) tema amber
-- [x] workflow/page.tsx: partner_supplier_created no isOnboardingTrigger
-- [x] compileToV2/decompileFromV2 persistem supplierOnboarding
-- [x] Deploy v1.02.74
-
-### Analytics 24h nos Cards (v1.02.75)
-- [x] Backend: access-24h retorna signupStarts24h, signupComplete24h, externalSessions24h, externalPageviews24h, conversionRate24h
-- [x] Frontend: interface Access24h atualizada com novos campos
-- [x] Frontend: sub-linha azul "24h: X" em cada um dos 4 cards de analytics (Visitantes Reais, Signups, Conversoes, Taxa)
-- [x] Deploy v1.02.75
-
-### Toggle Ativar/Desativar Fluxo (v1.02.76)
-- [x] Prisma: campo isActive (Boolean, default true) no WorkflowTemplate
-- [x] Migration 20260314020000_workflow_is_active
-- [x] Backend: findAll retorna isActive, update aceita isActive
-- [x] Frontend: toggle switch nos cards da listagem (verde=ativo, cinza=inativo)
-- [x] Card fica com opacity-60 + barra cinza quando inativo + badge "Inativo"
-- [x] Deploy v1.02.76
-
-### isActive enforcement (v1.02.77)
-- [x] workflow-engine.service.ts: attachDefaultWorkflow filtra isActive: true
-- [x] partner.service.ts: onboarding dispatch filtra isActive: true
-- [x] whatsapp.service.ts: welcome reply filtra isActive: true
-- [x] service-order.service.ts: default workflow filtra isActive: true
-- [x] Fix: migration nao aplicou em tenant_sls — ALTER TABLE manual aplicado
-- [x] Deploy v1.02.77
-
-### Remocao Modelos Prontos (v1.02.79)
-- [x] Removida secao "Modelos Prontos" / "Click para preencher automaticamente" do editor de workflow
-- [x] Removidos: WORKFLOW_PRESETS import, activePreset state, handlePreset function
-- [x] Deploy v1.02.79
-
-### Drag-and-Drop Reorder de Fluxos (v1.02.80)
-- [x] Prisma: campo sortOrder (Int, default 0) no WorkflowTemplate
-- [x] Migration 20260314030000_workflow_sort_order
-- [x] Backend: findAll ordena por sortOrder ASC + createdAt DESC, retorna sortOrder
-- [x] Backend: endpoint PATCH /workflows/reorder com orderedIds[]
-- [x] Frontend: HTML5 drag-and-drop nos cards da listagem
-- [x] Visual: cursor grab, ícone de drag (⠿), ring azul no drop target, scale animado
-- [x] Reorder otimista com fallback em caso de erro
-- [x] ALTER TABLE tenant_sls aplicado manualmente
-- [x] Deploy v1.02.80
-
-### TenantMigratorService — Auto-sync de schemas (v1.02.81)
-- [x] Novo servico: backend/src/tenant/tenant-migrator.service.ts
-- [x] Roda no startup (OnApplicationBootstrap)
-- [x] Compara colunas de TODAS as tabelas em public vs cada tenant schema
-- [x] Adiciona colunas faltantes automaticamente (tipo correto, nullable, default, enums)
-- [x] Testado: removeu sortOrder do tenant_sls, restart detectou e restaurou automaticamente
-- [x] Nunca mais precisa de ALTER TABLE manual em tenant schemas!
-- [x] Deploy v1.02.81
-
-### Deploy Resilience — Zero Data Loss (v1.02.82)
-- [x] DeployGuard component: intercepta ChunkLoadError global (window.onerror + unhandledrejection)
-  - Se usuario NAO esta digitando: auto-reload silencioso
-  - Se usuario ESTA digitando: banner azul "Nova versao disponivel" com botao "Atualizar agora"
-  - Previne loop infinito com sessionStorage (1 tentativa por minuto)
-- [x] error.tsx melhorado: detecta ChunkLoadError e mostra UI amigavel "Atualizacao disponivel"
-- [x] API retry: network errors e 502/503/504 retentam automaticamente (ate 2x, intervalo 3s)
-  - Cobre o ~15s de indisponibilidade durante restart dos containers
-- [x] Signup form persistence: sessionStorage salva form/step/plano/senha durante cadastro
-  - Restaura automaticamente se a pagina recarregar durante deploy
-  - Limpa apos step 3 (pagamento/verificacao)
-- [x] Deploy v1.02.82
-
-### OS Urgente + Reorganizacao Form (v1.02.83)
-- [x] Prisma: campo isUrgent (Boolean, default false) no ServiceOrder
-- [x] Migration 20260315010000_add_is_urgent
-- [x] Backend DTOs: isUrgent em CreateServiceOrderDto e UpdateServiceOrderDto
-- [x] Backend: service-order.service.ts dispara eventos adicionais:
-  - isReturn → dispatch return_created (alem de created)
-  - isUrgent → dispatch urgent_created (alem de created)
-- [x] Frontend stage-config.ts: trigger os_urgent_created (🚨 Uma OS urgente e criada)
-- [x] Frontend TechAssignmentSection: novos modos BY_AGENDA e URGENT
-  - URGENT com estilo vermelho e banner explicativo
-  - BY_AGENDA como opcao direta (antes era hidden, so via workflow)
-  - showExtendedModes prop para controlar visibilidade
-- [x] Frontend orders/new/page.tsx:
-  - Secao "Tipo de Atendimento" MOVIDA para o TOPO (logo apos Cliente)
-  - Secao ja aberta por default (defaultOpen)
-  - isAgendaMode agora reativo ao techMode === "BY_AGENDA"
-  - Modo URGENT: set isUrgent=true no submit, esconde tempos de aceitar/caminho
-  - Retorno: checkbox "🚨 Retorno urgente / emergencial" com destaque vermelho
-- [x] Deploy v1.02.84
-
-## Versao atual: v1.02.84 (em producao)
+## Versao atual: v1.02.86 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

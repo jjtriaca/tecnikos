@@ -51,6 +51,17 @@ export class ServiceOrderService {
     // Auto-generate sequential code
     const code = await this.codeGenerator.generateCode(data.companyId, 'SERVICE_ORDER');
 
+    // Auto-attach workflow by trigger if no explicit workflowTemplateId
+    let resolvedWorkflowId = data.workflowTemplateId || undefined;
+    if (!resolvedWorkflowId && this.workflowEngine) {
+      const triggerIds: string[] = [];
+      if (data.isUrgent) triggerIds.push('os_urgent_created');
+      if (data.isReturn) triggerIds.push('os_return_created');
+      triggerIds.push('os_created');
+      const matched = await this.workflowEngine.findWorkflowByTrigger(data.companyId, triggerIds);
+      if (matched) resolvedWorkflowId = matched.id;
+    }
+
     const result = await this.prisma.serviceOrder.create({
       data: {
         companyId: data.companyId,
@@ -62,7 +73,7 @@ export class ServiceOrderService {
         lng: data.lng ?? null,
         valueCents: data.valueCents,
         deadlineAt: new Date(data.deadlineAt),
-        workflowTemplateId: data.workflowTemplateId || undefined,
+        workflowTemplateId: resolvedWorkflowId,
         clientPartnerId: data.clientPartnerId || undefined,
         // Endereço estruturado
         addressStreet: data.addressStreet || undefined,
@@ -331,14 +342,17 @@ export class ServiceOrderService {
     const so = await this.findOne(id, companyId);
 
     let result;
-    if (!so.workflowTemplateId) {
-      const defaultWf = await this.prisma.workflowTemplate.findFirst({
-        where: { companyId, isDefault: true, isActive: true, deletedAt: null },
-      });
-      if (defaultWf) {
+    if (!so.workflowTemplateId && this.workflowEngine) {
+      // Auto-attach workflow by trigger (priority: urgent > return > normal)
+      const triggerIds: string[] = [];
+      if ((so as any).isUrgent) triggerIds.push('os_urgent_created');
+      if ((so as any).isReturn) triggerIds.push('os_return_created');
+      triggerIds.push('os_created');
+      const matched = await this.workflowEngine.findWorkflowByTrigger(companyId, triggerIds);
+      if (matched) {
         result = await this.prisma.serviceOrder.update({
           where: { id },
-          data: { assignedPartnerId: technicianId, acceptedAt: new Date(), status: ServiceOrderStatus.ATRIBUIDA, workflowTemplateId: defaultWf.id },
+          data: { assignedPartnerId: technicianId, acceptedAt: new Date(), status: ServiceOrderStatus.ATRIBUIDA, workflowTemplateId: matched.id },
         });
       }
     }

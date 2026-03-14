@@ -1213,4 +1213,95 @@ Deploy v1.02.53
   - Retorno: checkbox "Retorno urgente / emergencial"
   - Backend: dispatch return_created + urgent_created adicionais
 
-### Deploy: v1.02.84
+### Bug Report do Juliano:
+- Ao alterar o gatilho ("Quando") de um fluxo e salvar, ao reabrir ele voltava ao valor anterior
+- Enviou 5 screenshots mostrando o problema
+
+### Fix: Trigger nao persistia (v1.02.85)
+- Causa: compileToV2() tinha 2 caminhos de retorno (early return para workflows sem etapas vs normal return)
+- O early return (usado por todos os triggers de onboarding) NAO incluia o trigger no JSON
+- Fix: adicionado `result.trigger = { entity, event, triggerId }` no early return path
+- Deploy v1.02.85
+
+### Deploy: v1.02.85
+
+---
+
+## 2026-03-14 — Sessao 122+: Correcoes Arquiteturais de Workflow (v1.02.86)
+
+### Pedido do Juliano (sessao anterior):
+- "Seja critico! vamos refinar ao máximo!" com 4 pontos:
+  1. Remover "Fluxo Padrao" (isDefault) — nao tem logica, todos podem ser usados
+  2. Corrigir triggers — trigger selector era puramente visual
+  3. Remover DELAY e SLA — stubs que so faziam console.log
+  4. Reordenar campos — logica linear de cima pra baixo
+
+### Implementacoes:
+
+**1. Remocao isDefault (backend + frontend)**
+- workflow-engine.service.ts: substituiu attachDefaultWorkflow() por findWorkflowByTrigger()
+- service-order.service.ts: assign() e create() usam trigger-based matching
+- workflow.service.ts: removido isDefault de findAll select e update logic
+- partner.service.ts: orderBy por sortOrder+createdAt em vez de isDefault
+- whatsapp.service.ts: idem
+- workflow/page.tsx: removido da types, UI (badge/checkbox), save/duplicate payloads
+- TechAssignmentSection.tsx: removido isDefault de WorkflowSummary e badge
+
+**2. Trigger-based workflow selection**
+- Novo metodo findWorkflowByTrigger(companyId, triggerIds) no workflow-engine
+- Busca workflows ativos, match por steps.trigger.triggerId
+- Prioridade: urgent > return > normal (os_urgent_created > os_return_created > os_created)
+- Auto-attach no create() e fallback no assign()
+
+**3. Remocao DELAY e SLA**
+- Backend: removidos case handlers DELAY, SLA, RESCHEDULE do workflow-engine
+- Frontend types: removido sla e delay do StageConfig.timeControl
+- Frontend UI: removidos toggles SLA e DELAY do StageSection.tsx
+- Compilador: removida geracao de blocos DELAY/SLA do compileToV2()
+- Decompilador: silently skip SLA/DELAY blocks de workflows existentes
+- Presets: removido timeControl.sla dos 3 presets (Instalacao, Manutencao, Urgente)
+- Label: "Pausas descontam do SLA" → "Pausas descontam do tempo"
+
+**4. Reordenacao de campos**
+- scheduleConfig movido para posicao 1 na secao ABERTA (antes de techSelection)
+
+**5. Ghost triggers removidos**
+- quote_request_created e quote_created removidos do TRIGGER_OPTIONS
+
+### Build: backend ✅ frontend ✅
+### Deploy: v1.02.86
+
+---
+
+### Pedido do Juliano: Auditoria Completa dos Fluxos de Atendimento
+- "Seja critico! Quero fazer um plano de cada fluxo, campo a campo, vendo gatilhos fantasmas, combinacoes perigosas, campos que nao fazem sentido, logica linear de cima para baixo"
+- Objetivo: documentar tudo para treinar a IA embarcada do cliente
+
+### Auditoria Realizada — docs/wizard/AUDITORIA-WORKFLOW.md
+Descobertas principais:
+
+**Gatilhos Fantasmas:**
+- quote_request_created e quote_created — frontend existe, backend NUNCA despacha
+- partner_client_created — frontend tem ClientOnboardingSection, backend NAO tem dispatch
+- partner_supplier_created — frontend tem SupplierOnboardingSection, backend NAO tem dispatch
+- Triggers de tecnico funcionam mas ignoram o trigger ID (buscam QUALQUER workflow com onboarding)
+
+**Blocos STUB (so fazem log):**
+- DELAY — usuario configura, backend so loga
+- SLA — usuario configura, backend so loga
+
+**Blocos NAO processados por ninguem:**
+- TECH_REVIEW_SCREEN, SCHEDULE_CONFIG, EXECUTION_TIMER, GESTOR_APPROVAL, MATERIALS
+
+**Blocos processados pela public-offer (nao pelo workflow-engine):**
+- PROXIMITY_TRIGGER ✅, PAUSE_SYSTEM ✅, PHOTO_REQUIREMENTS ✅
+
+**Problema arquitetural critico:**
+- O campo "Quando" (trigger) nos workflows de OS e PURAMENTE VISUAL
+- attachDefaultWorkflow() busca por isDefault:true — ignora o trigger ID
+- Se o usuario cria 3 workflows com triggers diferentes, so o "padrao" e usado
+
+**Ordem dos campos:**
+- scheduleConfig deveria ser primeiro na ABERTA (antes de techSelection)
+- Campos de A_CAMINHO incluem Step/Photo/Form que nao fazem sentido no trajeto
+- techSelection e scheduleConfig podem ambos estar ativos (conflito)

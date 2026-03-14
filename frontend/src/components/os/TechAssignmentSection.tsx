@@ -24,7 +24,6 @@ export interface TechnicianSummary {
 export interface WorkflowSummary {
   id: string;
   name: string;
-  isDefault?: boolean;
 }
 
 export type TechAssignmentMode = "BY_SPECIALIZATION" | "DIRECTED" | "BY_WORKFLOW" | "BY_AGENDA" | "URGENT";
@@ -251,11 +250,6 @@ export default function TechAssignmentSection({
                   renderItem={(w) => (
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-slate-900">{w.name}</p>
-                      {w.isDefault && (
-                        <span className="rounded bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-600 border border-green-200">
-                          PADRÃO
-                        </span>
-                      )}
                     </div>
                   )}
                   disabled={disabled}
