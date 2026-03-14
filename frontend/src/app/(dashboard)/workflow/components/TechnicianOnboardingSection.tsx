@@ -77,6 +77,7 @@ function TriggerSection({
   onChange: (c: TechnicianOnboardingConfig['onNewTechnician']) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const notifyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const welcomeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const declineTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -94,6 +95,24 @@ function TriggerSection({
     const text = triggerConfig.contractContent;
     const newText = text.substring(0, start) + variable + text.substring(end);
     update({ contractContent: newText });
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const pos = start + variable.length;
+      textarea.setSelectionRange(pos, pos);
+    });
+  };
+
+  const insertNotifyVariable = (variable: string) => {
+    const textarea = notifyTextareaRef.current;
+    if (!textarea) {
+      update({ notifyMessage: (triggerConfig.notifyMessage || '') + variable });
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = triggerConfig.notifyMessage || '';
+    const newText = text.substring(0, start) + variable + text.substring(end);
+    update({ notifyMessage: newText });
     requestAnimationFrame(() => {
       textarea.focus();
       const pos = start + variable.length;
@@ -237,16 +256,31 @@ function TriggerSection({
             </div>
 
             {/* Notification message */}
-            <label className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
               <span className="text-xs text-slate-500">Mensagem de notificacao:</span>
               <textarea
+                ref={notifyTextareaRef}
                 value={triggerConfig.notifyMessage}
                 onChange={(e) => update({ notifyMessage: e.target.value })}
-                placeholder="Mensagem enviada junto com o link..."
-                rows={2}
-                className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-none"
+                placeholder="Mensagem enviada junto com o link do contrato..."
+                rows={3}
+                className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
               />
-            </label>
+              <div className="flex flex-wrap gap-1 mt-1">
+                <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                {WELCOME_VARIABLES.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => insertNotifyVariable(v)}
+                    title={`Inserir ${v} na posicao do cursor`}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-purple-100 hover:text-purple-600 transition-colors"
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Options row */}
             <div className="flex flex-wrap gap-4">
