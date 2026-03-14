@@ -832,6 +832,7 @@ export class PublicOfferService {
         targetLat: offer.serviceOrder.lat,
         targetLng: offer.serviceOrder.lng,
       },
+      arrivalButton: proximityConfig?.arrivalButton ?? { enabled: true, updateAddressCoords: true, autoStartExecution: true },
     };
   }
 
@@ -961,6 +962,7 @@ export class PublicOfferService {
             keepActiveUntil: proximityConfig.keepActiveUntil || 'radius',
           }
         : null,
+      arrivalButton: proximityConfig?.arrivalButton ?? { enabled: true, updateAddressCoords: true, autoStartExecution: true },
       target: {
         lat: offer.serviceOrder.lat,
         lng: offer.serviceOrder.lng,

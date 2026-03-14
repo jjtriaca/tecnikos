@@ -23,6 +23,7 @@ type TrackingConfig = {
   keepActiveUntil: string; // 'radius' | 'execution_end'
   targetLat: number | null;
   targetLng: number | null;
+  arrivalButtonEnabled: boolean;
 };
 
 type LinkConfig = {
@@ -192,6 +193,10 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
         if (trackingConfig?.keepActiveUntil === 'radius') {
           stopTracking();
         }
+        // Call arrived endpoint with coordinates
+        try {
+          await api.post(`/p/${token}/arrived`, { phone: phoneDigitsRef.current, lat, lng });
+        } catch { /* handled by backend */ }
         setStep("arrived");
       }
     } catch (e: any) {
@@ -215,11 +220,13 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
         keepActiveUntil: "radius",
         targetLat: data?.serviceOrder?.lat ?? null,
         targetLng: data?.serviceOrder?.lng ?? null,
+        arrivalButtonEnabled: true,
       };
 
       try {
-        const res = await api.post<{ success: boolean; config: TrackingConfig }>(`/p/${token}/start-tracking`, {});
-        if (res.config) config = res.config;
+        const res = await api.post<{ success: boolean; config: TrackingConfig; arrivalButton?: any }>(`/p/${token}/start-tracking`, {});
+        if (res.config) config = { ...config, ...res.config };
+        if (res.arrivalButton !== undefined) config.arrivalButtonEnabled = res.arrivalButton?.enabled ?? true;
       } catch {
         // Backend may not have PROXIMITY_TRIGGER — use defaults, still track locally
       }
@@ -306,8 +313,14 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     if (step !== "post-accept" || !data?.linkConfig?.gpsNavigation) return;
     (async () => {
       try {
-        const trackRes = await api.get<{ enabled: boolean; config: any }>(`/p/${token}/tracking-config`);
-        if (trackRes.config) setTrackingConfig(trackRes.config);
+        const trackRes = await api.get<{ enabled: boolean; config: any; arrivalButton?: any }>(`/p/${token}/tracking-config`);
+        if (trackRes.config) {
+          setTrackingConfig(prev => ({
+            ...(prev || { radiusMeters: 200, trackingIntervalSeconds: 30, requireHighAccuracy: true, keepActiveUntil: 'radius', targetLat: null, targetLng: null, arrivalButtonEnabled: true }),
+            ...trackRes.config,
+            arrivalButtonEnabled: trackRes.arrivalButton?.enabled ?? true,
+          }));
+        }
       } catch {
         // Tracking config not available — GPS button already controlled by linkConfig
       }
@@ -541,14 +554,32 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             </div>
           )}
 
-          {/* Manual arrival button */}
+          {/* Manual arrival button — only if arrivalButton enabled */}
+          {(trackingConfig?.arrivalButtonEnabled !== false) && (
           <button
             type="button"
-            onClick={() => { stopTracking(); setStep("arrived"); }}
+            onClick={async () => {
+              stopTracking();
+              try {
+                // Get current position for coordinates
+                const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+                  navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+                );
+                await api.post(`/p/${token}/arrived`, {
+                  phone: phoneDigitsRef.current,
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                });
+              } catch (e) {
+                console.warn("[ARRIVAL] Error:", e);
+              }
+              setStep("arrived");
+            }}
             className="w-full py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors"
           >
             📍 Cheguei no local
           </button>
+          )}
 
           {/* Stop tracking button */}
           <button

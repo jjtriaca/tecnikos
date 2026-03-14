@@ -1495,3 +1495,10 @@ Solucao:
 - [x] WhatsAppCostWarning adicionado nas notificacoes de proximidade (A_CAMINHO)
 - [x] Placeholders de mensagem atualizados com textos exemplo uteis em todos os campos
 - [x] Build OK, deploy v1.03.18
+
+### Sessao 107 (cont): Botao "Cheguei no local" — v1.03.19
+- [x] Tipo arrivalButton adicionado ao proximityTrigger em stage-config.ts
+- [x] UI: toggle "Botao Cheguei" na A_CAMINHO com sub-opcoes (coords, auto-exec, notificacoes)
+- [x] Backend: POST /p/:token/arrived — atualiza coords OS + ServiceAddress, auto-start, notificacoes
+- [x] Migration: lat/lng no ServiceAddress + arrivedAt no ServiceOrder
+- [x] Build OK, deploy v1.03.19
