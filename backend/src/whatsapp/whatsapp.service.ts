@@ -387,55 +387,36 @@ export class WhatsAppService {
 
     const formattedPhone = this.formatPhone(phone);
 
+    // Always use template for test messages — text messages are silently dropped
+    // by Meta outside the 24h conversation window (returns 200 but never delivers)
     try {
-      // Try sending a plain text message first (works within 24h service window)
       const res = await this.metaRequest(token, phoneNumberId, {
         messaging_product: 'whatsapp',
         to: formattedPhone,
-        type: 'text',
-        text: {
-          body: 'Tecnikos - Teste de conexao realizado com sucesso! Seu WhatsApp Business esta configurado e pronto para uso.',
+        type: 'template',
+        template: {
+          name: 'teste_conexao',
+          language: { code: 'pt_BR' },
         },
       });
 
-      this.logger.log(`WhatsApp test text sent to ${formattedPhone}`);
+      this.logger.log(`📱 WhatsApp test template sent to ${formattedPhone}`);
       return {
         success: true,
         messageId: res.messages?.[0]?.id || undefined,
       };
-    } catch (textErr: any) {
-      // If text fails (no open conversation window), try template
-      this.logger.warn(`WhatsApp test text failed, trying template: ${textErr.message}`);
+    } catch (templateErr: any) {
+      const errorMsg = templateErr.message || 'Erro desconhecido';
+      this.logger.error(`📱 WhatsApp test send failed to ${formattedPhone}: ${errorMsg}`);
 
-      try {
-        const res = await this.metaRequest(token, phoneNumberId, {
-          messaging_product: 'whatsapp',
-          to: formattedPhone,
-          type: 'template',
-          template: {
-            name: 'teste_conexao',
-            language: { code: 'pt_BR' },
-          },
-        });
-
-        this.logger.log(`WhatsApp test template sent to ${formattedPhone}`);
-        return {
-          success: true,
-          messageId: res.messages?.[0]?.id || undefined,
-        };
-      } catch (templateErr: any) {
-        const errorMsg = templateErr.message || textErr.message || 'Erro desconhecido';
-        this.logger.error(`WhatsApp test send failed to ${formattedPhone}: ${errorMsg}`);
-
-        let friendlyError = errorMsg;
-        if (errorMsg.includes('Invalid phone number')) {
-          friendlyError = 'Numero de telefone invalido. Verifique o formato (DDD + numero).';
-        } else if (errorMsg.includes('Template name does not exist') || errorMsg.includes('template')) {
-          friendlyError = 'Nenhum template aprovado disponivel. O destinatario precisa enviar uma mensagem primeiro para o numero da empresa.';
-        }
-
-        return { success: false, error: friendlyError };
+      let friendlyError = errorMsg;
+      if (errorMsg.includes('Invalid phone number')) {
+        friendlyError = 'Numero de telefone invalido. Verifique o formato (DDD + numero).';
+      } else if (errorMsg.includes('Template name does not exist') || errorMsg.includes('template')) {
+        friendlyError = 'Nenhum template aprovado disponivel. Verifique seus templates no Painel da Meta.';
       }
+
+      return { success: false, error: friendlyError };
     }
   }
 
