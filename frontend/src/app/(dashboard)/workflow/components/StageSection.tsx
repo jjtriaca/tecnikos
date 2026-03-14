@@ -1206,169 +1206,157 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                       </div>
                     </div>
 
-                    {/* Eventos ao entrar no raio */}
+                    {/* ── Quando o técnico chegar ao local — Radio unificado ── */}
                     <div className="pt-2 border-t border-purple-200">
-                      <span className="text-xs font-semibold text-purple-800 block mb-2">🔔 Eventos ao entrar no raio:</span>
+                      <label className="text-xs font-semibold text-purple-800 block mb-3">🚀 Quando o técnico chegar ao local:</label>
+                      {(() => {
+                        const prox = stage.autoActions.proximityTrigger;
+                        const onRadius = prox.onEnterRadius.autoStartExecution;
+                        const onArrival = prox.arrivalButton?.autoStartExecution ?? false;
+                        const arrEnabled = prox.arrivalButton?.enabled ?? true;
+                        const mode = onRadius ? 'radius' : (onArrival && arrEnabled) ? 'arrival' : 'manual';
+                        const setMode = (m: string) => {
+                          updateAuto('proximityTrigger', {
+                            onEnterRadius: { ...prox.onEnterRadius, autoStartExecution: m === 'radius' },
+                            arrivalButton: { ...prox.arrivalButton, enabled: m === 'arrival', autoStartExecution: m === 'arrival' },
+                          });
+                        };
+                        const radioOpts = [
+                          { value: 'radius', label: 'Ao entrar no raio de proximidade', desc: 'A OS muda para "Em Execução" automaticamente quando o GPS detecta que o técnico entrou no raio configurado.' },
+                          { value: 'arrival', label: 'Ao clicar "Cheguei no local"', desc: 'O técnico confirma manualmente que chegou. A OS muda para "Em Execução" ao clicar o botão.' },
+                          { value: 'manual', label: 'Não iniciar automaticamente', desc: 'O gestor decide manualmente quando a OS entra em execução.' },
+                        ];
+                        return (
+                          <div className="space-y-2">
+                            {radioOpts.map(opt => (
+                              <div key={opt.value}>
+                                <label className="flex items-start gap-2 cursor-pointer">
+                                  <input type="radio" name={`${stage.id}_arrivalMode`} checked={mode === opt.value}
+                                    onChange={() => setMode(opt.value)} className="text-purple-600 focus:ring-purple-200 mt-0.5" />
+                                  <div>
+                                    <span className="text-xs text-slate-700 font-medium">{opt.label}</span>
+                                    <p className="text-[10px] text-slate-400">{opt.desc}</p>
+                                  </div>
+                                </label>
 
-                      {/* Notificar cliente */}
-                      <div className="space-y-2">
-                        <SubToggle checked={stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente.enabled}
-                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyCliente: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente, enabled: v } } })}
-                          label="Notificar cliente" />
-                        {stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente.enabled && (
-                          <div className="ml-5 space-y-1.5">
-                            <SelectField label="Canal" value={stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente.channel}
-                              onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyCliente: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente, channel: v } } })}
-                              options={CHANNEL_OPTIONS} />
-                            <WhatsAppCostWarning channel={stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente.channel} />
-                            <TextAreaField label="Mensagem" value={stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente.message}
-                              onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyCliente: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyCliente, message: v } } })}
-                              placeholder="O técnico {tecnico} está chegando! OS: {titulo}" vars />
+                                {/* ── Painel expandido: Ao entrar no raio ── */}
+                                {opt.value === 'radius' && mode === 'radius' && (
+                                  <div className="ml-5 mt-2 p-3 rounded-lg border border-purple-200 bg-purple-50/40 space-y-3">
+                                    <SubToggle checked={prox.onEnterRadius.notifyCliente.enabled}
+                                      onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyCliente: { ...prox.onEnterRadius.notifyCliente, enabled: v } } })}
+                                      label="Notificar cliente" />
+                                    {prox.onEnterRadius.notifyCliente.enabled && (
+                                      <div className="ml-5 space-y-1.5">
+                                        <SelectField label="Canal" value={prox.onEnterRadius.notifyCliente.channel}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyCliente: { ...prox.onEnterRadius.notifyCliente, channel: v } } })}
+                                          options={CHANNEL_OPTIONS} />
+                                        <WhatsAppCostWarning channel={prox.onEnterRadius.notifyCliente.channel} />
+                                        <TextAreaField label="Mensagem" value={prox.onEnterRadius.notifyCliente.message}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyCliente: { ...prox.onEnterRadius.notifyCliente, message: v } } })}
+                                          placeholder="O técnico {tecnico} está chegando! OS: {titulo}" vars />
+                                      </div>
+                                    )}
+
+                                    <SubToggle checked={prox.onEnterRadius.notifyGestor.enabled}
+                                      onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyGestor: { ...prox.onEnterRadius.notifyGestor, enabled: v } } })}
+                                      label="Notificar gestor" />
+                                    {prox.onEnterRadius.notifyGestor.enabled && (
+                                      <div className="ml-5 space-y-1.5">
+                                        <SelectField label="Canal" value={prox.onEnterRadius.notifyGestor.channel}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyGestor: { ...prox.onEnterRadius.notifyGestor, channel: v } } })}
+                                          options={CHANNEL_OPTIONS} />
+                                        <WhatsAppCostWarning channel={prox.onEnterRadius.notifyGestor.channel} />
+                                        <TextAreaField label="Mensagem" value={prox.onEnterRadius.notifyGestor.message}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyGestor: { ...prox.onEnterRadius.notifyGestor, message: v } } })}
+                                          placeholder="Técnico {tecnico} chegou no raio de {distancia_tecnico} — OS: {titulo}" vars />
+                                      </div>
+                                    )}
+
+                                    <SubToggle checked={prox.onEnterRadius.alert.enabled}
+                                      onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, alert: { ...prox.onEnterRadius.alert, enabled: v } } })}
+                                      label="Alerta no dashboard" />
+                                    {prox.onEnterRadius.alert.enabled && (
+                                      <div className="ml-5">
+                                        <TextField label="Mensagem do alerta" value={prox.onEnterRadius.alert.message}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, alert: { ...prox.onEnterRadius.alert, message: v } } })}
+                                          placeholder="Ex: Técnico chegou ao local" />
+                                      </div>
+                                    )}
+
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                      💡 Use <code className="bg-slate-100 px-1 rounded">{'{distancia_tecnico}'}</code> e <code className="bg-slate-100 px-1 rounded">{'{tecnico}'}</code> nas mensagens.
+                                      Os eventos disparam apenas UMA vez.
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* ── Painel expandido: Ao clicar Cheguei ── */}
+                                {opt.value === 'arrival' && mode === 'arrival' && (
+                                  <div className="ml-5 mt-2 p-3 rounded-lg border border-purple-200 bg-purple-50/40 space-y-3">
+                                    <SubToggle checked={prox.arrivalButton?.updateAddressCoords ?? true}
+                                      onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, updateAddressCoords: v } })}
+                                      label="Atualizar coordenadas do endereço ao chegar" />
+                                    <p className="text-[10px] text-slate-400 ml-5 -mt-2">
+                                      Salva as coordenadas GPS do técnico no endereço de atendimento do parceiro. Melhora a precisão do raio nos próximos atendimentos.
+                                    </p>
+
+                                    <SubToggle checked={prox.arrivalButton?.notifyCliente?.enabled ?? false}
+                                      onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, notifyCliente: { ...prox.arrivalButton?.notifyCliente, enabled: v } } })}
+                                      label="Notificar cliente ao chegar" />
+                                    {prox.arrivalButton?.notifyCliente?.enabled && (
+                                      <div className="ml-5 space-y-1.5">
+                                        <SelectField label="Canal" value={prox.arrivalButton.notifyCliente.channel}
+                                          onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, notifyCliente: { ...prox.arrivalButton.notifyCliente, channel: v } } })}
+                                          options={CHANNEL_OPTIONS} />
+                                        <WhatsAppCostWarning channel={prox.arrivalButton.notifyCliente.channel} />
+                                        <TextAreaField label="Mensagem" value={prox.arrivalButton.notifyCliente.message}
+                                          onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, notifyCliente: { ...prox.arrivalButton.notifyCliente, message: v } } })}
+                                          placeholder="O técnico {tecnico} chegou ao local! OS: {titulo}" vars />
+                                      </div>
+                                    )}
+
+                                    <SubToggle checked={prox.arrivalButton?.notifyGestor?.enabled ?? false}
+                                      onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, notifyGestor: { ...prox.arrivalButton?.notifyGestor, enabled: v } } })}
+                                      label="Notificar gestor ao chegar" />
+                                    {prox.arrivalButton?.notifyGestor?.enabled && (
+                                      <div className="ml-5 space-y-1.5">
+                                        <SelectField label="Canal" value={prox.arrivalButton.notifyGestor.channel}
+                                          onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, notifyGestor: { ...prox.arrivalButton.notifyGestor, channel: v } } })}
+                                          options={CHANNEL_OPTIONS} />
+                                        <WhatsAppCostWarning channel={prox.arrivalButton.notifyGestor.channel} />
+                                        <TextAreaField label="Mensagem" value={prox.arrivalButton.notifyGestor.message}
+                                          onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, notifyGestor: { ...prox.arrivalButton.notifyGestor, message: v } } })}
+                                          placeholder="Técnico {tecnico} chegou ao local — OS: {titulo}" vars />
+                                      </div>
+                                    )}
+
+                                    <SubToggle checked={prox.onEnterRadius.alert.enabled}
+                                      onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, alert: { ...prox.onEnterRadius.alert, enabled: v } } })}
+                                      label="Alerta no dashboard" />
+                                    {prox.onEnterRadius.alert.enabled && (
+                                      <div className="ml-5">
+                                        <TextField label="Mensagem do alerta" value={prox.onEnterRadius.alert.message}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, alert: { ...prox.onEnterRadius.alert, message: v } } })}
+                                          placeholder="Ex: Técnico chegou ao local" />
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* ── Painel expandido: Manual ── */}
+                                {opt.value === 'manual' && mode === 'manual' && (
+                                  <div className="ml-5 mt-2 p-3 rounded-lg border border-slate-200 bg-slate-50/40">
+                                    <p className="text-[10px] text-slate-500">
+                                      ℹ️ A OS permanece em &quot;A Caminho&quot; até que o gestor ou operador mude manualmente para &quot;Em Execução&quot;.
+                                      O tracking GPS continua ativo para monitoramento, mas nenhuma ação automática é disparada.
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        )}
-
-                        {/* Notificar gestor */}
-                        <SubToggle checked={stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor.enabled}
-                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyGestor: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor, enabled: v } } })}
-                          label="Notificar gestor" />
-                        {stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor.enabled && (
-                          <div className="ml-5 space-y-1.5">
-                            <SelectField label="Canal" value={stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor.channel}
-                              onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyGestor: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor, channel: v } } })}
-                              options={CHANNEL_OPTIONS} />
-                            <WhatsAppCostWarning channel={stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor.channel} />
-                            <TextAreaField label="Mensagem" value={stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor.message}
-                              onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, notifyGestor: { ...stage.autoActions.proximityTrigger.onEnterRadius.notifyGestor, message: v } } })}
-                              placeholder="Técnico {tecnico} chegou no raio de {distancia_tecnico} — OS: {titulo}" vars />
-                          </div>
-                        )}
-
-                        {/* Alerta dashboard */}
-                        <SubToggle checked={stage.autoActions.proximityTrigger.onEnterRadius.alert.enabled}
-                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, alert: { ...stage.autoActions.proximityTrigger.onEnterRadius.alert, enabled: v } } })}
-                          label="Alerta no dashboard" />
-                        {stage.autoActions.proximityTrigger.onEnterRadius.alert.enabled && (
-                          <div className="ml-5">
-                            <TextField label="Mensagem do alerta" value={stage.autoActions.proximityTrigger.onEnterRadius.alert.message}
-                              onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, alert: { ...stage.autoActions.proximityTrigger.onEnterRadius.alert, message: v } } })}
-                              placeholder="Ex: Técnico chegou ao local" />
-                          </div>
-                        )}
-                      </div>
-
-                      <p className="text-[10px] text-slate-400 mt-2">
-                        💡 Use <code className="bg-slate-100 px-1 rounded">{'{distancia_tecnico}'}</code> e <code className="bg-slate-100 px-1 rounded">{'{tecnico}'}</code> nas mensagens.
-                        Os eventos disparam apenas UMA vez (quando o técnico entra no raio pela primeira vez).
-                      </p>
-                    </div>
-
-                    {/* ── Iniciar execução — radio group ── */}
-                    <div className="pt-3 border-t border-purple-200">
-                      <label className="text-xs font-medium text-slate-600 block mb-2">🚀 Iniciar execução automaticamente:</label>
-                      <div className="space-y-1.5 ml-1">
-                        {(() => {
-                          const onRadius = stage.autoActions.proximityTrigger.onEnterRadius.autoStartExecution;
-                          const onArrival = stage.autoActions.proximityTrigger.arrivalButton?.autoStartExecution ?? false;
-                          const mode = onRadius ? 'radius' : onArrival ? 'arrival' : 'manual';
-                          const setMode = (m: string) => {
-                            updateAuto('proximityTrigger', {
-                              onEnterRadius: { ...stage.autoActions.proximityTrigger.onEnterRadius, autoStartExecution: m === 'radius' },
-                              arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, autoStartExecution: m === 'arrival' },
-                            });
-                          };
-                          return (
-                            <>
-                              <label className="flex items-start gap-2 cursor-pointer">
-                                <input type="radio" name={`${stage.id}_startExec`} checked={mode === 'radius'}
-                                  onChange={() => setMode('radius')} className="text-purple-600 focus:ring-purple-200 mt-0.5" />
-                                <div>
-                                  <span className="text-xs text-slate-700">Ao entrar no raio de proximidade</span>
-                                  <p className="text-[10px] text-slate-400">A OS muda para &quot;Em Execução&quot; automaticamente quando o GPS detecta proximidade.</p>
-                                </div>
-                              </label>
-                              <label className={`flex items-start gap-2 cursor-pointer ${!(stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true) ? 'opacity-40 pointer-events-none' : ''}`}>
-                                <input type="radio" name={`${stage.id}_startExec`} checked={mode === 'arrival'}
-                                  onChange={() => setMode('arrival')} className="text-purple-600 focus:ring-purple-200 mt-0.5"
-                                  disabled={!(stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true)} />
-                                <div>
-                                  <span className="text-xs text-slate-700">Ao clicar &quot;Cheguei no local&quot;</span>
-                                  <p className="text-[10px] text-slate-400">O técnico confirma manualmente que chegou. A OS muda para &quot;Em Execução&quot; ao clicar.</p>
-                                </div>
-                              </label>
-                              <label className="flex items-start gap-2 cursor-pointer">
-                                <input type="radio" name={`${stage.id}_startExec`} checked={mode === 'manual'}
-                                  onChange={() => setMode('manual')} className="text-purple-600 focus:ring-purple-200 mt-0.5" />
-                                <div>
-                                  <span className="text-xs text-slate-700">Não iniciar automaticamente</span>
-                                  <p className="text-[10px] text-slate-400">O gestor decide manualmente quando a OS entra em execução.</p>
-                                </div>
-                              </label>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* ── Botão "Cheguei no local" ── */}
-                    <div className="pt-3 border-t border-purple-200">
-                      <Toggle checked={stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true}
-                        onChange={v => {
-                          const patch: any = { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, enabled: v } };
-                          // Se ligar o botão e o raio tem autoStart, desliga o do raio
-                          if (v && stage.autoActions.proximityTrigger.onEnterRadius.autoStartExecution) {
-                            patch.onEnterRadius = { ...stage.autoActions.proximityTrigger.onEnterRadius, autoStartExecution: false };
-                            patch.arrivalButton.autoStartExecution = true;
-                          }
-                          // Se desligar o botão, o autoStart vai pro raio
-                          if (!v && stage.autoActions.proximityTrigger.arrivalButton?.autoStartExecution) {
-                            patch.onEnterRadius = { ...stage.autoActions.proximityTrigger.onEnterRadius, autoStartExecution: true };
-                          }
-                          updateAuto('proximityTrigger', patch);
-                        }}
-                        label="📍 Botão &quot;Cheguei no local&quot;"
-                        hint="Exibe um botão na página de tracking para o técnico confirmar que chegou ao endereço do cliente." />
-                      {(stage.autoActions.proximityTrigger.arrivalButton?.enabled ?? true) && (
-                        <div className="ml-13 pl-3 border-l-2 border-purple-100 mt-2 space-y-3">
-                          <SubToggle checked={stage.autoActions.proximityTrigger.arrivalButton?.updateAddressCoords ?? true}
-                            onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, updateAddressCoords: v } })}
-                            label="Atualizar coordenadas do endereço ao chegar" />
-                          <p className="text-[10px] text-slate-400 ml-5 -mt-2">
-                            Salva as coordenadas GPS do técnico no endereço de atendimento do parceiro. Melhora a precisão do raio nos próximos atendimentos naquele local.
-                          </p>
-
-                          {/* Notificar cliente ao clicar Cheguei */}
-                          <SubToggle checked={stage.autoActions.proximityTrigger.arrivalButton?.notifyCliente?.enabled ?? false}
-                            onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyCliente: { ...stage.autoActions.proximityTrigger.arrivalButton?.notifyCliente, enabled: v } } })}
-                            label="Notificar cliente ao chegar" />
-                          {stage.autoActions.proximityTrigger.arrivalButton?.notifyCliente?.enabled && (
-                            <div className="ml-5 space-y-1.5">
-                              <SelectField label="Canal" value={stage.autoActions.proximityTrigger.arrivalButton.notifyCliente.channel}
-                                onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyCliente: { ...stage.autoActions.proximityTrigger.arrivalButton.notifyCliente, channel: v } } })}
-                                options={CHANNEL_OPTIONS} />
-                              <WhatsAppCostWarning channel={stage.autoActions.proximityTrigger.arrivalButton.notifyCliente.channel} />
-                              <TextAreaField label="Mensagem" value={stage.autoActions.proximityTrigger.arrivalButton.notifyCliente.message}
-                                onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyCliente: { ...stage.autoActions.proximityTrigger.arrivalButton.notifyCliente, message: v } } })}
-                                placeholder="O técnico {tecnico} chegou ao local! OS: {titulo}" vars />
-                            </div>
-                          )}
-
-                          {/* Notificar gestor ao chegar */}
-                          <SubToggle checked={stage.autoActions.proximityTrigger.arrivalButton?.notifyGestor?.enabled ?? false}
-                            onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyGestor: { ...stage.autoActions.proximityTrigger.arrivalButton?.notifyGestor, enabled: v } } })}
-                            label="Notificar gestor ao chegar" />
-                          {stage.autoActions.proximityTrigger.arrivalButton?.notifyGestor?.enabled && (
-                            <div className="ml-5 space-y-1.5">
-                              <SelectField label="Canal" value={stage.autoActions.proximityTrigger.arrivalButton.notifyGestor.channel}
-                                onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyGestor: { ...stage.autoActions.proximityTrigger.arrivalButton.notifyGestor, channel: v } } })}
-                                options={CHANNEL_OPTIONS} />
-                              <WhatsAppCostWarning channel={stage.autoActions.proximityTrigger.arrivalButton.notifyGestor.channel} />
-                              <TextAreaField label="Mensagem" value={stage.autoActions.proximityTrigger.arrivalButton.notifyGestor.message}
-                                onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...stage.autoActions.proximityTrigger.arrivalButton, notifyGestor: { ...stage.autoActions.proximityTrigger.arrivalButton.notifyGestor, message: v } } })}
-                                placeholder="Técnico {tecnico} chegou ao local — OS: {titulo}" vars />
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   </div>
                 </ConfigRow>

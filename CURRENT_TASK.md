@@ -1,41 +1,31 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 107 — Fix GPS + Hints + Workflow Cleanup (CONCLUIDO)
+## Status: SESSAO 108 — Radio unificado com paineis expansiveis (CONCLUIDO)
 
-## Ultima sessao: 107 (14/03/2026)
-- Sessao 105: Correcoes Workflow UI + linkConfig (v1.03.10)
+## Ultima sessao: 108 (15/03/2026)
 - Sessao 106: Link Publico Multi-Pagina + enRoute (v1.03.11 a v1.03.12)
-- Sessao 107: Fix GPS startTracking + Hints + Workflow Cleanup (v1.03.13 a v1.03.16)
+- Sessao 107: Fix GPS + Hints + Workflow Cleanup + Cheguei + Radio (v1.03.13 a v1.03.21)
+- Sessao 108: Radio unificado com paineis expansiveis (v1.03.22)
 
 ## O que foi feito nesta sessao:
 
-### Fix GPS startTracking (v1.03.13-15) — JA FEITO
-- [x] Backend: startTracking() defaults + link invalidacao
-- [x] Deployado como v1.03.14 e v1.03.15
-
-### Hints + Conflitos + WhatsApp Warning — JA FEITO
-- [x] Hints descritivos reescritos em TECH/AUTO/TIME_LABELS (stage-config.ts)
-- [x] Numeracao das etapas removida do StageSection
-- [x] WhatsAppCostWarning em todos os pontos de notificacao
-- [x] Conflito cross-stage: notifyCliente ATRIBUIDA vs onAccept do link
-
-### Workflow Cleanup (v1.03.16) — JA FEITO
-- [x] Removido Webhook/Alerta/AguardarEvento de todas as etapas
-- [x] Notificacoes filtradas por etapa (notifyTecnico so ATRIBUIDA, sem A_CAMINHO/APROVADA)
-- [x] Acoes do tecnico filtradas por etapa (GPS/Form/Signature/Question so EM_EXECUCAO, Checklist ATRIBUIDA+EM_EXECUCAO, PHOTO ATRIBUIDA+CONCLUIDA)
-- [x] Lancamento financeiro ja restrito a CONCLUIDA+APROVADA
-- [x] OFERTADA+ATRIBUIDA ocultas quando scheduleConfig ativo (workflow/page.tsx)
+### Radio unificado A_CAMINHO — v1.03.22 — JA FEITO
+- [x] Reestruturado secao proximidade da A_CAMINHO em StageSection.tsx
+- [x] 3 secoes separadas (eventos raio + radio iniciar exec + toggle botao cheguei) → 1 radio unificado
+- [x] Opcao "Ao entrar no raio": painel com notifyCliente, notifyGestor, alerta dashboard
+- [x] Opcao "Ao clicar Cheguei": painel com updateAddressCoords, notifyCliente, notifyGestor, alerta dashboard
+- [x] Opcao "Manual": painel com texto informativo
+- [x] arrivalButton.enabled sincronizado automaticamente com selecao do radio
+- [x] Toggle separado removido, secao "Eventos ao entrar no raio" removida
 - [x] Build frontend OK
 
 ## Arquivos modificados:
-- `frontend/src/types/stage-config.ts` — Hints reescritos
-- `frontend/src/app/(dashboard)/workflow/components/StageSection.tsx` — Cleanup completo
-- `frontend/src/app/(dashboard)/workflow/page.tsx` — Hide stages when scheduleConfig active
+- `frontend/src/app/(dashboard)/workflow/components/StageSection.tsx` — Radio unificado
 
 ## Pendente:
-- Deploy v1.03.16
+- Deploy v1.03.22
 
-## Versao atual: v1.03.16 (local, pronto para deploy)
+## Versao atual: v1.03.22 (local, pronto para deploy)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

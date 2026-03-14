@@ -1502,3 +1502,18 @@ Solucao:
 - [x] Backend: POST /p/:token/arrived — atualiza coords OS + ServiceAddress, auto-start, notificacoes
 - [x] Migration: lat/lng no ServiceAddress + arrivedAt no ServiceOrder
 - [x] Build OK, deploy v1.03.19
+
+### Sessao 107 (cont): Radio exclusividade + layout Cheguei — v1.03.20-21
+- [x] Radio mutuamente exclusivo: "ao entrar no raio" vs "ao clicar Cheguei" vs "manual"
+- [x] Frontend conectado: arrivalButton.enabled respeitado na pagina de tracking
+- [x] v1.03.20 deploy
+
+### Sessao 108: Radio unificado com paineis expansiveis — v1.03.22
+- [x] Reestruturado A_CAMINHO: 3 secoes separadas (eventos raio + radio + botao cheguei) → 1 radio unificado
+- [x] Cada opcao do radio expande painel com borda e fundo (border-purple-200 bg-purple-50/40)
+- [x] "Ao entrar no raio": notifyCliente, notifyGestor, alerta dashboard
+- [x] "Ao clicar Cheguei": updateAddressCoords, notifyCliente, notifyGestor, alerta dashboard
+- [x] "Manual": texto informativo
+- [x] Toggle separado "Botao Cheguei" removido — arrivalButton.enabled sincronizado com radio
+- [x] Secao "Eventos ao entrar no raio" removida — conteudo movido para dentro dos paineis
+- [x] Build frontend OK
