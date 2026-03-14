@@ -192,11 +192,24 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     }
 
     try {
-      // Start tracking on backend
-      const res = await api.post<{ success: boolean; config: TrackingConfig }>(`/p/${token}/start-tracking`, {
-      });
+      // Try to start tracking on backend — use defaults if not configured
+      let config: TrackingConfig = {
+        radiusMeters: 200,
+        trackingIntervalSeconds: 30,
+        requireHighAccuracy: true,
+        keepActiveUntil: "radius",
+        targetLat: data?.serviceOrder?.lat ?? null,
+        targetLng: data?.serviceOrder?.lng ?? null,
+      };
 
-      setTrackingConfig(res.config);
+      try {
+        const res = await api.post<{ success: boolean; config: TrackingConfig }>(`/p/${token}/start-tracking`, {});
+        if (res.config) config = res.config;
+      } catch {
+        // Backend may not have PROXIMITY_TRIGGER — use defaults, still track locally
+      }
+
+      setTrackingConfig(config);
       setTrackingActive(true);
       setStep("tracking");
 
@@ -221,7 +234,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
           }
         },
         {
-          enableHighAccuracy: res.config.requireHighAccuracy,
+          enableHighAccuracy: config.requireHighAccuracy,
           maximumAge: 10000,
           timeout: 20000,
         }
@@ -734,8 +747,8 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
               : "Você foi atribuído a esta ordem de serviço."}
           </p>
 
-          {/* GPS Tracking offer — only if PROXIMITY_TRIGGER is configured in workflow */}
-          {!trackingActive && trackingEnabled && typeof navigator !== "undefined" && navigator.geolocation && (
+          {/* GPS Tracking offer */}
+          {!trackingActive && typeof navigator !== "undefined" && navigator.geolocation && (
             <div className="mt-6 bg-white rounded-2xl shadow-sm border border-purple-200 p-4">
               <div className="text-2xl mb-2">📡</div>
               <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS?</h3>
