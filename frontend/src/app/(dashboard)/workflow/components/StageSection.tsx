@@ -218,6 +218,17 @@ function PhotoRequirementList({ groups, onChange }: { groups: PhotoRequirementGr
   );
 }
 
+/* ── Conflict Warning ──────────────────────────────────────── */
+
+function ConflictWarning({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-300 text-xs text-amber-800">
+      <span className="shrink-0">⚠️</span>
+      <span>{message}</span>
+    </div>
+  );
+}
+
 /* ── Section header ────────────────────────────────────────── */
 
 function SectionLabel({ icon, title }: { icon: string; title: string }) {
@@ -252,6 +263,13 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
     Object.values(stage.techActions).filter(a => a.enabled).length +
     Object.values(stage.autoActions).filter(a => a.enabled).length +
     Object.values(stage.timeControl).filter(a => a.enabled).length;
+
+  // Cross-stage conflict detection
+  const abertaStage = allStages?.find(s => s.status === 'ABERTA');
+  const atribuidaStage = allStages?.find(s => s.status === 'ATRIBUIDA');
+  const execucaoStage = allStages?.find(s => s.status === 'EM_EXECUCAO');
+  const scheduleActive = abertaStage?.autoActions.scheduleConfig?.enabled ?? false;
+  const scheduleNotifiesTech = scheduleActive && (abertaStage?.autoActions.scheduleConfig?.notifyTechnician?.enabled ?? false);
 
   return (
     <div className={`rounded-xl border-2 transition-all ${stage.enabled ? 'border-blue-200 bg-white shadow-sm' : 'border-slate-200 bg-slate-50'}`}>
@@ -446,7 +464,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   <Toggle checked={stage.autoActions.techSelection.enabled}
                     onChange={v => updateAuto('techSelection', { enabled: v })}
                     label="Seleção de técnicos"
-                    hint="Como os técnicos serão selecionados para esta OS" />
+                    hint="Define como os técnicos serão filtrados e ordenados para receber a OS (por avaliação, proximidade, etc.)" />
+                  {stage.autoActions.techSelection.enabled && scheduleActive && (
+                    <ConflictWarning message="O Regime de Agenda está ativo — o técnico é escolhido manualmente na agenda. A seleção automática não será utilizada." />
+                  )}
                   <ConfigRow visible={stage.autoActions.techSelection.enabled}>
                     <div className="space-y-2.5">
                       <div>
@@ -487,7 +508,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   <Toggle checked={stage.autoActions.techReviewScreen.enabled}
                     onChange={v => updateAuto('techReviewScreen', { enabled: v })}
                     label="👁️ Tela de revisão dos técnicos"
-                    hint="Exibe uma tela para o despacho revisar os técnicos selecionados antes de disparar as mensagens" />
+                    hint="Exibe uma tela para o operador conferir e editar a lista de técnicos antes de disparar as mensagens" />
+                  {stage.autoActions.techReviewScreen.enabled && scheduleActive && (
+                    <ConflictWarning message="O Regime de Agenda está ativo — o técnico é escolhido na agenda, a tela de revisão não será exibida." />
+                  )}
                   <ConfigRow visible={stage.autoActions.techReviewScreen.enabled}>
                     <div className="space-y-2">
                       <SubToggle checked={stage.autoActions.techReviewScreen.allowEdit}
@@ -505,7 +529,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   <Toggle checked={stage.autoActions.messageDispatch.enabled}
                     onChange={v => updateAuto('messageDispatch', { enabled: v })}
                     label="Disparo de mensagens"
-                    hint="Enviar mensagens automáticas ao abrir a OS" />
+                    hint="Mensagens enviadas automaticamente quando a OS é criada. Configure canal, texto e link para técnicos, gestor e cliente." />
+                  {stage.autoActions.messageDispatch.enabled && scheduleActive && (
+                    <ConflictWarning message="O Regime de Agenda está ativo — a OS nasce direto como Atribuída, pulando a etapa Aberta. As mensagens desta seção não serão disparadas." />
+                  )}
                   <ConfigRow visible={stage.autoActions.messageDispatch.enabled}>
                     <div className="space-y-3">
                       {/* Mensagem para técnicos */}
@@ -873,7 +900,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   <Toggle checked={stage.autoActions.arrivalQuestion.enabled}
                     onChange={v => updateAuto('arrivalQuestion', { enabled: v })}
                     label="🕐 Pergunta de tempo estimado"
-                    hint="Após aceitar a OS, o técnico responde quanto tempo levará para estar a caminho." />
+                    hint="Após aceitar a OS, o sistema pergunta ao técnico quanto tempo levará para estar a caminho. A resposta é exibida ao gestor e pode ser enviada ao cliente." />
                   <ConfigRow visible={stage.autoActions.arrivalQuestion.enabled}>
                     <div className="space-y-3">
                       {/* Pergunta */}
@@ -986,7 +1013,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 <Toggle checked={stage.autoActions.proximityTrigger.enabled}
                   onChange={v => updateAuto('proximityTrigger', { enabled: v })}
                   label="📡 Rastreamento por proximidade"
-                  hint="Ao clicar &quot;A caminho&quot;, o técnico pode ativar o GPS para monitorar a aproximação ao endereço do cliente." />
+                  hint="Monitora o GPS do técnico e dispara ações automáticas quando ele se aproxima do endereço do cliente (notificar cliente, iniciar execução, etc)." />
                 <ConfigRow visible={stage.autoActions.proximityTrigger.enabled}>
                   <div className="space-y-3">
 
@@ -1140,6 +1167,9 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 <div>
                   <Toggle checked={stage.autoActions.notifyTecnico.enabled} onChange={v => updateAuto('notifyTecnico', { enabled: v })}
                     label={AUTO_ACTION_LABELS.notifyTecnico.label} hint={AUTO_ACTION_LABELS.notifyTecnico.hint} />
+                  {stage.status === 'ATRIBUIDA' && stage.autoActions.notifyTecnico.enabled && scheduleNotifiesTech && (
+                    <ConflictWarning message="O Regime de Agenda (etapa Aberta) já notifica o técnico sobre o agendamento. Ativar esta notificação pode gerar mensagem duplicada para o técnico." />
+                  )}
                   <ConfigRow visible={stage.autoActions.notifyTecnico.enabled}>
                     <SelectField label="Canal" value={stage.autoActions.notifyTecnico.channel}
                       onChange={v => updateAuto('notifyTecnico', { channel: v })} options={CHANNEL_OPTIONS} />
@@ -1167,7 +1197,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 <Toggle checked={stage.autoActions.gestorApproval.enabled}
                   onChange={v => updateAuto('gestorApproval', { enabled: v })}
                   label="👔 Aprovação do gestor"
-                  hint="O gestor analisa fotos, checklist e documentos antes de aprovar ou reprovar a conclusão." />
+                  hint="A OS fica retida em 'Concluída' até o gestor revisar e aprovar. Ele pode aprovar, aprovar com ressalvas (desconto na comissão), ou reprovar (reabrir). Sem isso, a OS é aprovada automaticamente." />
                 <ConfigRow visible={stage.autoActions.gestorApproval.enabled}>
                   <div className="space-y-4">
                     {/* Checklist de revisão */}
@@ -1376,7 +1406,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                     }
                     updateAuto('financialEntry', { enabled: v });
                   }}
-                  label={AUTO_ACTION_LABELS.financialEntry.label} hint="Cria lançamentos financeiros automáticos ao atingir esta etapa" />
+                  label={AUTO_ACTION_LABELS.financialEntry.label} hint="Quando a OS chega nesta etapa, gera lançamentos financeiros automaticamente (a receber do cliente e/ou a pagar para o técnico)" />
 
                 {/* Aviso de conflito — outra etapa já tem financeiro ativo */}
                 {stage.autoActions.financialEntry.enabled && otherHasFinancial && (
@@ -1538,6 +1568,9 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   <PhotoRequirementList
                     groups={stage.techActions.photoRequirements.groups}
                     onChange={groups => updateTech('photoRequirements', { groups })} />
+                  {stage.techActions.photoRequirements.groups.some((g: PhotoRequirementGroup) => ['on_pause', 'on_resume'].includes(g.moment)) && !stage.timeControl.pauseSystem?.enabled && (
+                    <ConflictWarning message="Há fotos configuradas para momento de pausa/retorno, mas o Sistema de Pausas não está ativo nesta etapa. As fotos de pausa/retorno não serão solicitadas." />
+                  )}
                   <p className="text-[10px] text-slate-400 mt-1">
                     💡 Configure múltiplos grupos: ex. fotos &quot;Antes de iniciar&quot; + fotos &quot;Após concluir&quot;.
                     Cada grupo pode exigir quantidade e momento diferentes.
@@ -1734,7 +1767,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
               <div className="rounded-lg border border-orange-200 bg-orange-50/30 p-3">
                 <Toggle checked={stage.timeControl.pauseSystem?.enabled ?? false}
                   onChange={v => updateTime('pauseSystem', { ...(stage.timeControl.pauseSystem || {}), enabled: v })}
-                  label="⏸️ Sistema de pausas" hint="Permite ao técnico pausar e retomar o atendimento (almoço, noite, buscar peças, etc.)" />
+                  label="⏸️ Sistema de pausas" hint="Permite ao técnico pausar e retomar o atendimento (almoço, buscar peças, etc). O tempo pausado é registrado separadamente e pode descontar do cronômetro." />
                 <ConfigRow visible={stage.timeControl.pauseSystem?.enabled ?? false}>
                   {/* Limites */}
                   <div className="grid grid-cols-2 gap-2">
