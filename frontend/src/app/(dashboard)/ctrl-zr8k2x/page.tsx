@@ -5,6 +5,33 @@ import { api } from "@/lib/api";
 import { useAuth, hasRole } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 
+interface ForeignAccessEntry {
+  ip: string;
+  country: string;
+  countryCode: string;
+  city: string;
+  region: string;
+  isp: string;
+  accessCount: number;
+  events: string[];
+  lastSeen: string;
+}
+
+interface Access24h {
+  period: string;
+  totalEvents: number;
+  externalEvents: number;
+  internalEvents: number;
+  uniqueIps: number;
+  externalUniqueIps: number;
+  uniqueSessions: number;
+  foreignAccess: ForeignAccessEntry[];
+  foreignCount: number;
+  brazilAccess: ForeignAccessEntry[];
+  brazilCount: number;
+  hasForeignAccess: boolean;
+}
+
 interface SaasMetrics {
   totalTenants: number;
   activeTenants: number;
@@ -89,8 +116,11 @@ export default function SaasDashboardPage() {
   const router = useRouter();
   const [metrics, setMetrics] = useState<SaasMetrics | null>(null);
   const [analytics, setAnalytics] = useState<SaasAnalytics | null>(null);
+  const [access24h, setAccess24h] = useState<Access24h | null>(null);
   const [loading, setLoading] = useState(true);
   const [showIps, setShowIps] = useState(false);
+  const [showForeign, setShowForeign] = useState(false);
+  const [showBrazil, setShowBrazil] = useState(false);
 
   useEffect(() => {
     if (user && !hasRole(user, "ADMIN")) {
@@ -100,8 +130,9 @@ export default function SaasDashboardPage() {
     Promise.all([
       api.get<SaasMetrics>("/admin/tenants/metrics/overview"),
       api.get<SaasAnalytics>("/admin/tenants/analytics/overview?days=30"),
+      api.get<Access24h>("/admin/tenants/analytics/access-24h"),
     ])
-      .then(([m, a]) => { setMetrics(m); setAnalytics(a); })
+      .then(([m, a, acc]) => { setMetrics(m); setAnalytics(a); setAccess24h(acc); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [user, router]);
@@ -154,6 +185,180 @@ export default function SaasDashboardPage() {
         <h1 className="text-xl font-bold text-slate-900">Painel SaaS</h1>
         <p className="text-sm text-slate-500">Visao geral de todas as empresas e planos</p>
       </div>
+
+      {/* ── Security: Access 24h + Foreign Alert ── */}
+      {access24h && (
+        <div className="space-y-4">
+          {/* Access 24h summary + Foreign alert */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Total accesses 24h */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-blue-500" />
+                <span className="text-xs text-slate-500">Acessos 24h</span>
+                <Tooltip text="Total de eventos registrados nas ultimas 24 horas (pageviews, cliques, signups). Inclui internos e externos." />
+              </div>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{access24h.externalEvents}</p>
+              <p className="text-[10px] text-slate-400">{access24h.totalEvents} total ({access24h.internalEvents} internos)</p>
+            </div>
+
+            {/* Unique IPs 24h */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-indigo-500" />
+                <span className="text-xs text-slate-500">IPs Unicos 24h</span>
+                <Tooltip text="Enderecos IP unicos que acessaram o sistema nas ultimas 24 horas (excluindo bots e servidor)." />
+              </div>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{access24h.externalUniqueIps}</p>
+              <p className="text-[10px] text-slate-400">{access24h.uniqueSessions} sessoes</p>
+            </div>
+
+            {/* Brazil accesses */}
+            <div className="rounded-xl border border-green-200 bg-green-50/50 p-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🇧🇷</span>
+                <span className="text-xs text-green-700">Brasil</span>
+                <Tooltip text="IPs unicos do Brasil que acessaram nas ultimas 24 horas. Estes sao os acessos esperados." />
+              </div>
+              <p className="mt-1 text-2xl font-bold text-green-700">{access24h.brazilCount}</p>
+              <p className="text-[10px] text-green-600">IPs brasileiros</p>
+            </div>
+
+            {/* Foreign accesses */}
+            <div className={`rounded-xl border p-4 ${
+              access24h.hasForeignAccess
+                ? "border-red-300 bg-red-50"
+                : "border-green-200 bg-green-50/50"
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">{access24h.hasForeignAccess ? "⚠️" : "✅"}</span>
+                <span className={`text-xs ${access24h.hasForeignAccess ? "text-red-700" : "text-green-700"}`}>
+                  Fora do Brasil
+                </span>
+                <Tooltip text="IPs de fora do Brasil que acessaram nas ultimas 24 horas. Acessos internacionais podem indicar tentativas de invasao, scanners ou bots." />
+              </div>
+              <p className={`mt-1 text-2xl font-bold ${access24h.hasForeignAccess ? "text-red-700" : "text-green-700"}`}>
+                {access24h.foreignCount}
+              </p>
+              <p className={`text-[10px] ${access24h.hasForeignAccess ? "text-red-600" : "text-green-600"}`}>
+                {access24h.hasForeignAccess ? "IPs estrangeiros detectados" : "Nenhum acesso estrangeiro"}
+              </p>
+            </div>
+          </div>
+
+          {/* Foreign access alert banner */}
+          {access24h.hasForeignAccess && (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-800">
+                    Acessos de fora do Brasil nas ultimas 24h
+                  </p>
+                  <p className="text-xs text-red-700 mt-1">
+                    Foram detectados <strong>{access24h.foreignCount}</strong> IP(s) de fora do Brasil acessando o sistema.
+                    Isso pode indicar scanners de vulnerabilidade, tentativas de invasao ou bots automatizados.
+                    Os IPs estao bloqueados automaticamente pelo firewall (fail2ban) ao tentar acessar recursos suspeitos.
+                  </p>
+
+                  {/* Foreign IP table */}
+                  <button
+                    onClick={() => setShowForeign(!showForeign)}
+                    className="mt-2 text-xs font-medium text-red-700 hover:text-red-900 underline"
+                  >
+                    {showForeign ? "Ocultar detalhes" : `Ver ${access24h.foreignCount} IP(s) estrangeiro(s)`}
+                  </button>
+
+                  {showForeign && (
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-red-400">
+                            <th className="pb-2 font-medium">IP</th>
+                            <th className="pb-2 font-medium">Pais</th>
+                            <th className="pb-2 font-medium">Cidade</th>
+                            <th className="pb-2 font-medium">ISP</th>
+                            <th className="pb-2 font-medium">Acessos</th>
+                            <th className="pb-2 font-medium">Eventos</th>
+                            <th className="pb-2 font-medium">Ultimo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {access24h.foreignAccess.map((f) => (
+                            <tr key={f.ip} className="border-t border-red-100">
+                              <td className="py-1.5 font-mono text-red-700">{f.ip}</td>
+                              <td className="py-1.5 text-red-700">
+                                <span className="font-medium">{f.countryCode}</span>
+                                <span className="text-red-500 ml-1">{f.country}</span>
+                              </td>
+                              <td className="py-1.5 text-red-600">{f.city || "—"}{f.region ? `, ${f.region}` : ""}</td>
+                              <td className="py-1.5 text-red-500 max-w-[150px] truncate" title={f.isp}>{f.isp || "—"}</td>
+                              <td className="py-1.5 font-bold text-red-700">{f.accessCount}</td>
+                              <td className="py-1.5 text-red-500">{f.events.join(", ")}</td>
+                              <td className="py-1.5 text-red-500">{new Date(f.lastSeen).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Brazil IP details (collapsible) */}
+          {access24h.brazilCount > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <button
+                onClick={() => setShowBrazil(!showBrazil)}
+                className="w-full px-5 py-3 text-left flex items-center justify-between hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🇧🇷</span>
+                  <h3 className="text-sm font-semibold text-slate-700">Acessos do Brasil (24h)</h3>
+                  <span className="text-[10px] text-slate-400">Top 10 IPs</span>
+                </div>
+                <svg className={`w-4 h-4 text-slate-400 transition-transform ${showBrazil ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                </svg>
+              </button>
+              {showBrazil && (
+                <div className="border-t border-slate-100 p-5 pt-3">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-slate-400">
+                          <th className="pb-2 font-medium">IP</th>
+                          <th className="pb-2 font-medium">Cidade</th>
+                          <th className="pb-2 font-medium">Estado</th>
+                          <th className="pb-2 font-medium">ISP</th>
+                          <th className="pb-2 font-medium">Acessos</th>
+                          <th className="pb-2 font-medium">Eventos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {access24h.brazilAccess.map((b) => (
+                          <tr key={b.ip} className="border-t border-slate-50">
+                            <td className="py-1.5 font-mono text-slate-600">{b.ip}</td>
+                            <td className="py-1.5 text-slate-600">{b.city || "—"}</td>
+                            <td className="py-1.5 text-slate-500">{b.region || "—"}</td>
+                            <td className="py-1.5 text-slate-400 max-w-[150px] truncate" title={b.isp}>{b.isp || "—"}</td>
+                            <td className="py-1.5 font-bold text-slate-700">{b.accessCount}</td>
+                            <td className="py-1.5 text-slate-400">{b.events.join(", ")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

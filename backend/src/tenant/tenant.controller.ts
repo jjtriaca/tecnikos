@@ -659,6 +659,162 @@ export class TenantController {
     };
   }
 
+  // ─── ACCESS 24H (Security & Geo) ──────────────────────
+
+  @Get('/analytics/access-24h')
+  async getAccess24h() {
+    const since = new Date();
+    since.setHours(since.getHours() - 24);
+
+    // All events in last 24h (not just landing_view — any activity)
+    const events = await this.prisma.saasEvent.findMany({
+      where: { createdAt: { gte: since } },
+      select: {
+        ipAddress: true,
+        userAgent: true,
+        event: true,
+        createdAt: true,
+        sessionId: true,
+      },
+    });
+
+    // Known internal IPs
+    const INTERNAL_IPS = ['178.156.240.163', '127.0.0.1', '::1'];
+    const INTERNAL_UA_PATTERNS = [
+      'HeadlessChrome', 'Puppeteer', 'ClaudeBot', 'node-fetch',
+      'python-requests', 'curl/', 'Googlebot', 'bingbot',
+      'Bytespider', 'AhrefsBot', 'SemrushBot', 'MJ12bot',
+      'DotBot', 'PetalBot', 'YandexBot', 'facebookexternalhit',
+      'Twitterbot', 'LinkedInBot',
+    ];
+
+    function isInternal(ip?: string | null, ua?: string | null): boolean {
+      if (ip && INTERNAL_IPS.some((iip) => ip.includes(iip))) return true;
+      if (ua && INTERNAL_UA_PATTERNS.some((p) => ua.includes(p))) return true;
+      return false;
+    }
+
+    // Group by IP
+    const ipMap: Record<string, { count: number; ua: string; events: string[]; firstSeen: Date; lastSeen: Date; isInternal: boolean }> = {};
+    events.forEach((e) => {
+      const ip = e.ipAddress || 'unknown';
+      if (!ipMap[ip]) {
+        ipMap[ip] = {
+          count: 0,
+          ua: e.userAgent || '',
+          events: [],
+          firstSeen: e.createdAt,
+          lastSeen: e.createdAt,
+          isInternal: isInternal(e.ipAddress, e.userAgent),
+        };
+      }
+      ipMap[ip].count++;
+      if (!ipMap[ip].events.includes(e.event)) ipMap[ip].events.push(e.event);
+      if (e.createdAt < ipMap[ip].firstSeen) ipMap[ip].firstSeen = e.createdAt;
+      if (e.createdAt > ipMap[ip].lastSeen) ipMap[ip].lastSeen = e.createdAt;
+    });
+
+    // Filter to external IPs only for geo lookup
+    const externalIps = Object.entries(ipMap)
+      .filter(([_, v]) => !v.isInternal)
+      .map(([ip]) => ip)
+      .filter((ip) => ip !== 'unknown' && !ip.startsWith('172.') && !ip.startsWith('10.') && !ip.startsWith('192.168.'));
+
+    // Batch geo-IP lookup via ip-api.com (free, 100 IPs per batch, 45 req/min)
+    type GeoResult = { query: string; status: string; country: string; countryCode: string; region: string; regionName: string; city: string; isp: string };
+    const geoMap: Record<string, GeoResult> = {};
+
+    if (externalIps.length > 0) {
+      // ip-api.com batch: POST http://ip-api.com/batch with array of IPs (max 100)
+      const batches: string[][] = [];
+      for (let i = 0; i < externalIps.length; i += 100) {
+        batches.push(externalIps.slice(i, i + 100));
+      }
+
+      for (const batch of batches) {
+        try {
+          const resp = await fetch('http://ip-api.com/batch?fields=query,status,country,countryCode,region,regionName,city,isp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(batch),
+          });
+          if (resp.ok) {
+            const results: GeoResult[] = await resp.json();
+            results.forEach((r) => { geoMap[r.query] = r; });
+          }
+        } catch {
+          // Silent fail — geo data is best-effort
+        }
+      }
+    }
+
+    // Build results
+    const foreignAccess: {
+      ip: string;
+      country: string;
+      countryCode: string;
+      city: string;
+      region: string;
+      isp: string;
+      accessCount: number;
+      events: string[];
+      lastSeen: string;
+    }[] = [];
+
+    const brazilAccess: typeof foreignAccess = [];
+
+    externalIps.forEach((ip) => {
+      const geo = geoMap[ip];
+      const info = ipMap[ip];
+      if (!info) return;
+
+      const entry = {
+        ip,
+        country: geo?.country || 'Desconhecido',
+        countryCode: geo?.countryCode || '??',
+        city: geo?.city || '',
+        region: geo?.regionName || '',
+        isp: geo?.isp || '',
+        accessCount: info.count,
+        events: info.events,
+        lastSeen: info.lastSeen.toISOString(),
+      };
+
+      if (geo?.countryCode === 'BR') {
+        brazilAccess.push(entry);
+      } else {
+        foreignAccess.push(entry);
+      }
+    });
+
+    // Sort foreign by count desc
+    foreignAccess.sort((a, b) => b.accessCount - a.accessCount);
+    brazilAccess.sort((a, b) => b.accessCount - a.accessCount);
+
+    // Unique sessions
+    const uniqueSessions = new Set(events.filter((e) => e.sessionId).map((e) => e.sessionId));
+
+    // Total counts
+    const totalEvents = events.length;
+    const externalEvents = events.filter((e) => !isInternal(e.ipAddress, e.userAgent)).length;
+    const internalEvents = totalEvents - externalEvents;
+
+    return {
+      period: '24h',
+      totalEvents,
+      externalEvents,
+      internalEvents,
+      uniqueIps: Object.keys(ipMap).length,
+      externalUniqueIps: externalIps.length,
+      uniqueSessions: uniqueSessions.size,
+      foreignAccess,
+      foreignCount: foreignAccess.length,
+      brazilAccess: brazilAccess.slice(0, 10), // Top 10 Brazil IPs
+      brazilCount: brazilAccess.length,
+      hasForeignAccess: foreignAccess.length > 0,
+    };
+  }
+
   // ─── INVOICES (NFS-e) ──────────────────────────────────
 
   /** Issue an invoice for a tenant */

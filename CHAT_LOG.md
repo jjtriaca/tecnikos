@@ -1084,3 +1084,41 @@ Deploy v1.02.53
 - **Resultado real**: 7 signups iniciados, 1 conversao (antes: 32 signups, 3 conversoes)
 
 ### Deploys: v1.02.64, v1.02.65
+
+---
+
+## 2026-03-14 — Sessao 120: Workflow Triggers + Conflito + Client Onboarding (v1.02.66-71)
+
+### Trigger-based stages (v1.02.66-67):
+- Trigger `partner_tech_created` mostra TechnicianOnboardingSection em vez de etapas de OS
+- Header "Etapas do Fluxo" consistente para todos triggers
+
+### Novo trigger "Nova Especializacao" + Conflito (v1.02.68):
+- Adicionado trigger `partner_spec_added` em TRIGGER_OPTIONS
+- `conflictResolution` em TechnicianOnboardingConfig: send_both | tech_only | spec_only
+- TechnicianOnboardingSection: prop `triggerId` para filtrar sub-sections por trigger
+- Banner de conflito (amarelo) no trigger partner_tech_created com radio buttons
+- Banner info (azul) no trigger partner_spec_added
+- isOnboardingTrigger para ambos triggers, presets escondidos
+
+### Variavel {especializacao} em todos os campos (v1.02.69):
+- Adicionada em WELCOME_VARIABLES, reply, decline e todas as variable buttons
+
+### Templates default em todos os campos de texto (v1.02.70):
+- Todos os campos (contrato, notificacao, boas-vindas, resposta, recusa) pre-preenchidos
+- Adicionado variable buttons na mensagem de notificacao (faltava ref + UI)
+
+### Client Onboarding — Trigger "Um cliente e criado" (v1.02.71):
+- Novo tipo `ClientOnboardingConfig` em stage-config.ts
+- `createDefaultClientOnboarding()` com contrato de termos de servico completo
+- Contrato padrao: Termos de Prestacao de Servicos Tecnicos (8 clausulas)
+- Templates default: notificacao, boas-vindas, resposta positiva/negativa
+- Componente `ClientOnboardingSection.tsx` com UI completa:
+  - Secao "Termos" (contrato de servicos) com variable buttons
+  - Secao "Mensagem" (boas-vindas) com confirmacao, aceite e recusa
+  - Variable buttons em todos os campos de texto
+- workflow/page.tsx: `partner_client_created` no isOnboardingTrigger
+- compileToV2/decompileFromV2 persistem clientOnboarding
+- Presets escondidos, subtitles e resumo adaptados
+
+### Deploys: v1.02.66, v1.02.67, v1.02.68, v1.02.69, v1.02.70, v1.02.71
