@@ -1733,7 +1733,12 @@ export class WorkflowEngineService {
     targetStatus: string,
     workflowTemplateId?: string | null,
   ): Promise<void> {
-    if (!this.notifications) return;
+    this.logger.log(`📨 executeStageNotifications called: OS=${serviceOrderId}, status=${targetStatus}, templateId=${workflowTemplateId || 'auto'}`);
+
+    if (!this.notifications) {
+      this.logger.warn('📨 NotificationService not available — skipping');
+      return;
+    }
 
     try {
       // Load template if not provided
@@ -1745,55 +1750,82 @@ export class WorkflowEngineService {
         });
         templateId = so?.workflowTemplateId;
       }
-      if (!templateId) return;
+      if (!templateId) {
+        this.logger.log('📨 No workflow template attached — skipping');
+        return;
+      }
 
       const template = await this.prisma.workflowTemplate.findFirst({
         where: { id: templateId, deletedAt: null },
       });
-      if (!template) return;
+      if (!template) {
+        this.logger.warn(`📨 Template ${templateId} not found — skipping`);
+        return;
+      }
 
       // Parse steps V2
       const rawSteps = template.steps as any;
       let v2: V2Def | null = null;
       if (isV3(rawSteps)) v2 = convertV3toV2(rawSteps);
       else if (isV2(rawSteps)) v2 = rawSteps;
-      if (!v2) return;
+      if (!v2) {
+        this.logger.log('📨 Not a V2 workflow — skipping');
+        return;
+      }
 
       // Find the STATUS block for this status, then find subsequent NOTIFY blocks
       const blocks = v2.blocks;
+      this.logger.log(`📨 Workflow "${template.name}" has ${blocks.length} blocks, looking for STATUS=${targetStatus}`);
+
       const statusBlockIdx = blocks.findIndex(
         b => b.type === 'STATUS' && b.config?.targetStatus === targetStatus,
       );
-      if (statusBlockIdx === -1) return;
+      if (statusBlockIdx === -1) {
+        this.logger.log(`📨 No STATUS block found for ${targetStatus} — available: ${blocks.filter(b => b.type === 'STATUS').map(b => b.config?.targetStatus).join(', ')}`);
+        return;
+      }
 
       // Traverse from the status block via next pointers, executing NOTIFY and FINANCIAL_ENTRY blocks
       let currentBlock = blocks[statusBlockIdx];
       const visited = new Set<string>();
+      let executedCount = 0;
+
+      this.logger.log(`📨 Starting from block "${currentBlock.name}" (${currentBlock.id}), next=${currentBlock.next}`);
 
       while (currentBlock?.next) {
         const nextBlock = blocks.find(b => b.id === currentBlock!.next);
-        if (!nextBlock || visited.has(nextBlock.id)) break;
+        if (!nextBlock || visited.has(nextBlock.id)) {
+          this.logger.log(`📨 Chain ended: nextBlock=${nextBlock?.id || 'null'}, visited=${visited.has(nextBlock?.id || '')}`);
+          break;
+        }
         visited.add(nextBlock.id);
 
         // Stop at the next STATUS block (different stage) or END
-        if (nextBlock.type === 'STATUS' || nextBlock.type === 'END') break;
+        if (nextBlock.type === 'STATUS' || nextBlock.type === 'END') {
+          this.logger.log(`📨 Reached ${nextBlock.type} block — stopping`);
+          break;
+        }
 
         // Execute NOTIFY and FINANCIAL_ENTRY system blocks
         if (nextBlock.type === 'NOTIFY' || nextBlock.type === 'FINANCIAL_ENTRY' || nextBlock.type === 'ALERT') {
+          this.logger.log(`📨 Executing ${nextBlock.type} block "${nextBlock.name}" (${nextBlock.id})`);
           try {
             await this.executeSystemBlock(nextBlock, serviceOrderId, companyId, undefined);
+            executedCount++;
           } catch (err) {
             this.logger.error(
               `Stage notification ${nextBlock.type} failed for OS ${serviceOrderId}: ${(err as Error).message}`,
             );
           }
+        } else {
+          this.logger.log(`📨 Skipping non-notify block: ${nextBlock.type} "${nextBlock.name}"`);
         }
 
         currentBlock = nextBlock;
       }
 
       this.logger.log(
-        `📨 Executed stage notifications for OS ${serviceOrderId} → ${targetStatus}`,
+        `📨 Done: executed ${executedCount} notification(s) for OS ${serviceOrderId} → ${targetStatus}`,
       );
     } catch (err) {
       this.logger.error(
