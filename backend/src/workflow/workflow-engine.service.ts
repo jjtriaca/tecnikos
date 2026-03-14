@@ -1435,43 +1435,100 @@ export class WorkflowEngineService {
 
         this.logger.log(`💬 System block: Sending notifications to ${recipients.length} recipient(s)`);
 
+        // For TECNICO recipients, we may need to send to multiple technicians
+        // (directedTechnicianIds when mode is DIRECTED, or assignedPartner when single)
+        const directedIds: string[] = (notifySO as any).directedTechnicianIds || [];
+        let directedPartners: Array<{ id: string; name: string; phone: string | null; email: string | null }> = [];
+        if (directedIds.length > 0) {
+          directedPartners = await this.prisma.partner.findMany({
+            where: { id: { in: directedIds }, deletedAt: null },
+            select: { id: true, name: true, phone: true, email: true },
+          });
+        }
+
         const results: Array<{ recipient: string; status: string }> = [];
+
         for (const r of recipients) {
-          // Resolve recipient phone/email
-          let recipientPhone: string | undefined;
-          let recipientEmail: string | undefined;
+          if (r.type === 'TECNICO') {
+            // Determine all technician targets
+            const techTargets: Array<{ phone?: string; email?: string; name: string }> = [];
 
-          switch (r.type) {
-            case 'TECNICO':
-              recipientPhone = notifySO.assignedPartner?.phone || undefined;
-              recipientEmail = notifySO.assignedPartner?.email || undefined;
-              break;
-            case 'CLIENTE':
-              recipientPhone = notifySO.clientPartner?.phone || undefined;
-              recipientEmail = notifySO.clientPartner?.email || undefined;
-              break;
-            case 'GESTOR':
-              recipientPhone = notifySO.company?.phone || undefined;
-              recipientEmail = notifySO.company?.email || undefined;
-              break;
-          }
+            if (notifySO.assignedPartner?.phone || notifySO.assignedPartner?.email) {
+              // Single assigned technician (BY_AGENDA or already assigned)
+              techTargets.push({
+                phone: notifySO.assignedPartner.phone || undefined,
+                email: notifySO.assignedPartner.email || undefined,
+                name: notifySO.assignedPartner.name,
+              });
+            } else if (directedPartners.length > 0) {
+              // Multiple directed technicians (DIRECTED mode)
+              for (const dp of directedPartners) {
+                if (dp.phone || dp.email) {
+                  techTargets.push({
+                    phone: dp.phone || undefined,
+                    email: dp.email || undefined,
+                    name: dp.name,
+                  });
+                }
+              }
+            }
 
-          try {
-            await this.notifications.send({
-              companyId,
-              serviceOrderId,
-              channel: r.channel,
-              message: r.message,
-              type: 'WORKFLOW_AUTO',
-              recipientPhone,
-              recipientEmail,
-              // Workflow notifications are business-initiated (no 24h window),
-              // so force template delivery to avoid Meta silently dropping text messages
-              forceTemplate: true,
-            });
-            results.push({ recipient: r.type, status: 'sent' });
-          } catch {
-            results.push({ recipient: r.type, status: 'failed' });
+            if (techTargets.length === 0) {
+              this.logger.warn(`💬 NOTIFY: No technician phone/email found for OS ${serviceOrderId}`);
+              results.push({ recipient: 'TECNICO', status: 'no_target' });
+              continue;
+            }
+
+            this.logger.log(`💬 Sending TECNICO notification to ${techTargets.length} technician(s)`);
+
+            for (const target of techTargets) {
+              try {
+                await this.notifications.send({
+                  companyId,
+                  serviceOrderId,
+                  channel: r.channel,
+                  message: r.message,
+                  type: 'WORKFLOW_AUTO',
+                  recipientPhone: target.phone,
+                  recipientEmail: target.email,
+                  forceTemplate: true,
+                });
+                results.push({ recipient: `TECNICO:${target.name}`, status: 'sent' });
+              } catch {
+                results.push({ recipient: `TECNICO:${target.name}`, status: 'failed' });
+              }
+            }
+          } else {
+            // CLIENTE or GESTOR — single recipient
+            let recipientPhone: string | undefined;
+            let recipientEmail: string | undefined;
+
+            switch (r.type) {
+              case 'CLIENTE':
+                recipientPhone = notifySO.clientPartner?.phone || undefined;
+                recipientEmail = notifySO.clientPartner?.email || undefined;
+                break;
+              case 'GESTOR':
+                recipientPhone = notifySO.company?.phone || undefined;
+                recipientEmail = notifySO.company?.email || undefined;
+                break;
+            }
+
+            try {
+              await this.notifications.send({
+                companyId,
+                serviceOrderId,
+                channel: r.channel,
+                message: r.message,
+                type: 'WORKFLOW_AUTO',
+                recipientPhone,
+                recipientEmail,
+                forceTemplate: true,
+              });
+              results.push({ recipient: r.type, status: 'sent' });
+            } catch {
+              results.push({ recipient: r.type, status: 'failed' });
+            }
           }
         }
 
