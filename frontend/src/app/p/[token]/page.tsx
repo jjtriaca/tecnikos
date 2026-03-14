@@ -47,6 +47,7 @@ type AcceptResult = {
   serviceOrder: any;
   offer: any;
   arrivalQuestion: ArrivalQuestionConfig | null;
+  accessKey?: string;
 };
 
 type PauseReasonCat = { value: string; label: string; icon: string };
@@ -243,10 +244,12 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.get<PublicViewData>(`/p/${token}`);
+        // Include accessKey from localStorage if available (for post-acceptance access)
+        const storedKey = localStorage.getItem(`tk_ak_${token}`);
+        const akParam = storedKey ? `?ak=${storedKey}` : "";
+        const res = await api.get<PublicViewData>(`/p/${token}${akParam}`);
         setData(res);
         if (res.offer.accepted) {
-          // Already accepted — go straight to "done" state
           setStep("done");
         } else {
           setStep("offer");
@@ -278,6 +281,10 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     setErrorMsg("");
     try {
       const res = await api.post<AcceptResult>(`/p/${token}/accept`, {});
+      // Save accessKey for future access to this link
+      if (res.accessKey) {
+        localStorage.setItem(`tk_ak_${token}`, res.accessKey);
+      }
       if (res.arrivalQuestion) {
         setArrivalConfig(res.arrivalQuestion);
         setStep("arrival");

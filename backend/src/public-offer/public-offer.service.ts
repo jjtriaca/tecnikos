@@ -13,6 +13,7 @@ import {
   randomInt,
   scryptSync,
   timingSafeEqual,
+  createHmac,
 } from 'crypto';
 import { haversineMeters } from '../common/geo/haversine';
 
@@ -38,6 +39,12 @@ function verifyOtp(code: string, stored: string): boolean {
   const storedBuf = Buffer.from(hash, 'hex');
   if (storedBuf.length !== test.length) return false;
   return timingSafeEqual(storedBuf, test);
+}
+
+/** Generate a stateless access key for post-acceptance link access */
+function generateAccessKey(token: string): string {
+  const secret = process.env.JWT_SECRET || 'fallback-secret';
+  return createHmac('sha256', secret).update(`offer-access:${token}`).digest('hex').slice(0, 32);
 }
 
 @Injectable()
@@ -114,8 +121,8 @@ export class PublicOfferService {
     });
   }
 
-  async getOfferByToken(token: string) {
-    // First try: active (non-revoked, non-expired) offer
+  async getOfferByToken(token: string, accessKey?: string) {
+    // First try: active (non-revoked, non-expired) offer — anyone with the link can see
     let offer = await this.prisma.serviceOrderOffer.findFirst({
       where: {
         token,
@@ -129,22 +136,29 @@ export class PublicOfferService {
       },
     });
 
-    // Second try: revoked offer (already accepted) — link should still work post-acceptance
-    if (!offer) {
-      offer = await this.prisma.serviceOrderOffer.findFirst({
-        where: {
-          token,
-          revokedAt: { not: null },
+    if (offer) return offer;
+
+    // Second try: revoked offer (already accepted) — requires accessKey
+    offer = await this.prisma.serviceOrderOffer.findFirst({
+      where: {
+        token,
+        revokedAt: { not: null },
+      },
+      include: {
+        serviceOrder: {
+          include: { company: true },
         },
-        include: {
-          serviceOrder: {
-            include: { company: true },
-          },
-        },
-      });
-    }
+      },
+    });
 
     if (!offer) throw new NotFoundException('Oferta inválida ou expirada');
+
+    // Validate accessKey for revoked offers
+    const expectedKey = generateAccessKey(token);
+    if (!accessKey || accessKey !== expectedKey) {
+      throw new NotFoundException('Esta oferta já foi aceita por outro técnico.');
+    }
+
     return offer;
   }
 
@@ -153,8 +167,9 @@ export class PublicOfferService {
     baseUrl: string,
     technicianLat?: number,
     technicianLng?: number,
+    accessKey?: string,
   ) {
-    const offer = await this.getOfferByToken(token);
+    const offer = await this.getOfferByToken(token, accessKey);
 
     let distanceMeters: number | null = null;
 
@@ -346,7 +361,8 @@ export class PublicOfferService {
         }
 
         const { workflowTemplate, ...soData } = serviceOrder || {} as any;
-        return { serviceOrder: soData, offer: acceptedOffer, arrivalQuestion };
+        const accessKey = generateAccessKey(token);
+        return { serviceOrder: soData, offer: acceptedOffer, arrivalQuestion, accessKey };
       },
       { isolationLevel: 'Serializable' },
     );

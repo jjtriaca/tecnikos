@@ -11,7 +11,13 @@ export class PublicLinkController {
   constructor(private readonly service: PublicOfferService) {}
 
   @Get(':token')
-  getPublicView(@Req() req: any, @Param('token') token: string, @Query('lat') lat?: string, @Query('lng') lng?: string) {
+  getPublicView(
+    @Req() req: any,
+    @Param('token') token: string,
+    @Query('lat') lat?: string,
+    @Query('lng') lng?: string,
+    @Query('ak') accessKey?: string,
+  ) {
     const proto =
       (req.headers['x-forwarded-proto'] as string) ||
       (req.protocol as string) ||
@@ -26,7 +32,7 @@ export class PublicLinkController {
     const tLat = lat !== undefined ? Number(lat) : undefined;
     const tLng = lng !== undefined ? Number(lng) : undefined;
 
-    return this.service.getPublicView(token, baseUrl, tLat, tLng);
+    return this.service.getPublicView(token, baseUrl, tLat, tLng, accessKey);
   }
 
   @Post(':token/request-otp')
