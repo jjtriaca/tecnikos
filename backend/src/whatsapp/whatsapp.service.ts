@@ -793,6 +793,8 @@ export class WhatsAppService {
   private async handleMetaStatusUpdate(status: any): Promise<void> {
     if (!status?.id) return;
 
+    this.logger.log(`📬 Meta status: ${status.status} for msgId=${status.id} recipient=${status.recipient_id || 'N/A'}${status.errors ? ' errors=' + JSON.stringify(status.errors) : ''}`);
+
     const statusMap: Record<string, string> = {
       sent: 'SENT',
       delivered: 'DELIVERED',
@@ -802,6 +804,10 @@ export class WhatsAppService {
 
     const newStatus = statusMap[status.status];
     if (!newStatus) return;
+
+    if (status.status === 'failed' && status.errors) {
+      this.logger.error(`📬 Meta delivery FAILED: ${JSON.stringify(status.errors)}`);
+    }
 
     await this.prisma.whatsAppMessage.updateMany({
       where: { whatsappMsgId: status.id },
