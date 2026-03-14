@@ -321,8 +321,11 @@ export class WhatsAppService {
     //    Template must accept {{1}} parameter (the message content)
     //    If no such template, try the generic "hello_world" just to notify the user
     try {
-      // Truncate message for template (max 1024 chars in body parameter)
-      const truncatedMsg = message.length > 1000 ? message.substring(0, 997) + '...' : message;
+      // Meta rejects template parameters with newlines/tabs or 4+ consecutive spaces
+      // Replace newlines with " | " separator and collapse multiple spaces
+      let sanitizedMsg = message.replace(/[\r\n\t]+/g, ' | ').replace(/ {4,}/g, '   ').trim();
+      // Truncate for template (max 1024 chars in body parameter)
+      const truncatedMsg = sanitizedMsg.length > 1000 ? sanitizedMsg.substring(0, 997) + '...' : sanitizedMsg;
 
       await this.metaRequest(token, phoneNumberId, {
         messaging_product: 'whatsapp',

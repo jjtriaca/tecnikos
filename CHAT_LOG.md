@@ -1305,3 +1305,59 @@ Descobertas principais:
 - scheduleConfig deveria ser primeiro na ABERTA (antes de techSelection)
 - Campos de A_CAMINHO incluem Step/Photo/Form que nao fazem sentido no trajeto
 - techSelection e scheduleConfig podem ambos estar ativos (conflito)
+
+---
+
+## 2026-03-14 — Sessao 123: Notificacoes WhatsApp no Workflow (v1.02.93-99)
+
+### Pedidos do Juliano:
+1. Explicacoes/hints claros nos toggles do workflow
+2. Notificacoes de conflito entre opcoes ativadas
+3. Botao confirmar na modal de selecao de tecnicos
+4. Notificacao WhatsApp ao criar OS (nao disparava)
+
+### Implementacoes:
+
+**Hints e explicacoes (StageSection.tsx):**
+- Reescrito TECH_ACTION_LABELS, AUTO_ACTION_LABELS, TIME_CONTROL_LABELS
+- Cada hint explica QUANDO/O QUE/QUEM da funcionalidade
+
+**ConflictWarning (StageSection.tsx):**
+- Componente amarelo (amber-50, border-amber-300)
+- 5 cenarios de conflito: techSelection+agenda, techReview+agenda, messageDispatch+agenda, notifyTecnico(ATRIBUIDA)+scheduleNotify, photo+pause
+
+**SearchLookupModal — Botao confirmar:**
+- Props: showConfirmButton, selectedCount, onConfirm
+- MultiLookupField passa props automaticamente
+
+**Notificacoes WhatsApp — FIX COMPLETO:**
+
+Problema: BY_AGENDA cria OS como ATRIBUIDA, mas workflow so tem STATUS:ABERTA. executeStageNotifications nao encontrava bloco.
+
+Solucao:
+1. `executeStageNotifications()` (workflow-engine.service.ts): fallback STATUS:ABERTA quando nao acha STATUS:ATRIBUIDA
+2. `technicianId` tornado opcional em executeSystemBlock()
+3. `service-order.service.ts`: chama executeStageNotifications no create() e updateStatus()
+4. Canal normalizado: `(channel || 'WHATSAPP').toUpperCase()` no notification.service.ts
+5. `forceTemplate: true` em TODAS as notificacoes WORKFLOW_AUTO (texto e descartado silenciosamente fora da janela 24h)
+6. `sendTestMessage()` mudado para usar template `teste_conexao` (texto fora de 24h era aceito pela Meta mas nao entregue)
+
+**Meta API — Erro 131047 (Re-engagement):**
+- Meta aceita texto via API (HTTP 200) mas descarta silenciosamente fora da janela de 24h
+- Webhook retorna erro 131047 "more than 24 hours since customer last replied"
+- Solucao: sempre usar templates para business-initiated messages
+
+**Meta API — Erro 132018 (Template parameters):**
+- Template `notificacao_tecnikos` rejeitado em um deploy, funcionou no seguinte
+- Fallback para `teste_conexao` (sem parametros) funcionou como contingencia
+
+**FRONTEND_URL atualizado:**
+- Mudado de `https://tecnikos.com.br` para `https://sls.tecnikos.com.br`
+- Link da OS nas notificacoes agora vai para o host correto
+
+**Multiplos tecnicos:**
+- Ja suportado: directedTechnicianIds + findMany + loop individual de envio
+- Cada tecnico recebe sua propria notificacao WhatsApp
+
+### Deploys: v1.02.93, v1.02.95, v1.02.97, v1.02.99
+### Status: FUNCIONANDO — mensagem da OS chegou no WhatsApp com template correto
