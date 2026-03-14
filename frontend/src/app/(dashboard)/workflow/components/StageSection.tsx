@@ -494,105 +494,155 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     link: { ...stage.autoActions.messageDispatch.toTechnicians.link, enabled: v } }
                                 })}
                                 label="🔗 Incluir link na mensagem" />
-                              {stage.autoActions.messageDispatch.toTechnicians.link.enabled && (
-                                <div className="mt-2 ml-5 space-y-2.5">
-                                  <div className="flex flex-wrap gap-3">
-                                    <NumberField label="Validade do link"
-                                      value={stage.autoActions.messageDispatch.toTechnicians.link.validityHours}
-                                      onChange={v => updateAuto('messageDispatch', {
-                                        toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians,
-                                          link: { ...stage.autoActions.messageDispatch.toTechnicians.link, validityHours: v } }
-                                      })} suffix="horas" />
+                              {stage.autoActions.messageDispatch.toTechnicians.link.enabled && (() => {
+                                const lnk = stage.autoActions.messageDispatch.toTechnicians.link;
+                                const updateLink = (patch: any) => updateAuto('messageDispatch', {
+                                  toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians,
+                                    link: { ...lnk, ...patch } }
+                                });
+                                return (
+                                <div className="mt-2 ml-5 space-y-3">
+                                  {/* ── VALIDADE ── */}
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap gap-3">
+                                      <NumberField label="Validade do link" value={lnk.validityHours}
+                                        onChange={v => updateLink({ validityHours: v })} suffix="horas" />
+                                    </div>
+                                    {scheduleActive && (
+                                      <div className="flex flex-wrap gap-3 items-center">
+                                        <span className="text-xs text-slate-500">📅 Modo agenda:</span>
+                                        <span className="text-[10px] text-slate-400">até a data agendada +</span>
+                                        <NumberField label="" value={lnk.agendaMarginHours}
+                                          onChange={v => updateLink({ agendaMarginHours: v })} suffix="horas de margem" />
+                                      </div>
+                                    )}
                                   </div>
-                                  <div className="space-y-1.5">
-                                    <SubToggle
-                                      checked={stage.autoActions.messageDispatch.toTechnicians.link.acceptOS}
-                                      onChange={v => updateAuto('messageDispatch', {
-                                        toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians,
-                                          link: { ...stage.autoActions.messageDispatch.toTechnicians.link, acceptOS: v } }
-                                      })}
-                                      label="Botão para aceitar a OS" />
-                                    <div>
-                                      <SubToggle
-                                        checked={stage.autoActions.messageDispatch.toTechnicians.link.gpsNavigation}
-                                        onChange={v => updateAuto('messageDispatch', {
-                                          toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians,
-                                            link: { ...stage.autoActions.messageDispatch.toTechnicians.link, gpsNavigation: v } }
-                                        })}
-                                        label="Botão de ativação GPS" />
-                                      <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Quando ativado, o técnico precisa ligar o GPS do dispositivo para liberar o botão de aceitar a OS.</p>
+
+                                  {/* ── PÁGINA 1 — OFERTA ── */}
+                                  <div className="pt-2 border-t border-blue-200">
+                                    <span className="text-xs font-bold text-slate-600 block mb-2">📄 Página 1 — Oferta</span>
+                                    <p className="text-[10px] text-slate-400 mb-2">O técnico abre o link e vê os detalhes da OS.</p>
+
+                                    {/* Layout da página */}
+                                    <div className="mb-3">
+                                      <span className="text-xs font-medium text-slate-500 block mb-1.5">Layout:</span>
+                                      <div className="space-y-1">
+                                        {lnk.pageLayout.map((block, bi) => (
+                                          <div key={block.id} className={`flex items-center gap-2 p-1.5 rounded border transition-colors ${block.enabled ? 'border-blue-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
+                                            <div className="flex flex-col gap-0.5">
+                                              <button type="button" disabled={bi === 0}
+                                                onClick={() => {
+                                                  const layout = [...lnk.pageLayout];
+                                                  [layout[bi - 1], layout[bi]] = [layout[bi], layout[bi - 1]];
+                                                  updateLink({ pageLayout: layout });
+                                                }}
+                                                className="text-[10px] text-slate-400 hover:text-slate-600 disabled:opacity-30">▲</button>
+                                              <button type="button" disabled={bi === lnk.pageLayout.length - 1}
+                                                onClick={() => {
+                                                  const layout = [...lnk.pageLayout];
+                                                  [layout[bi], layout[bi + 1]] = [layout[bi + 1], layout[bi]];
+                                                  updateLink({ pageLayout: layout });
+                                                }}
+                                                className="text-[10px] text-slate-400 hover:text-slate-600 disabled:opacity-30">▼</button>
+                                            </div>
+                                            <input type="checkbox" checked={block.enabled}
+                                              onChange={e => {
+                                                const layout = [...lnk.pageLayout];
+                                                layout[bi] = { ...layout[bi], enabled: e.target.checked };
+                                                updateLink({ pageLayout: layout });
+                                              }}
+                                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-200 h-3.5 w-3.5" />
+                                            <span className="text-xs">
+                                              {block.type === 'info'
+                                                ? (LINK_PAGE_FIELDS.find(f => f.field === block.field)?.icon || '📋')
+                                                : '✏️'}
+                                            </span>
+                                            {block.type === 'info' ? (
+                                              <span className="text-xs text-slate-700 flex-1">{block.label}</span>
+                                            ) : (
+                                              <div className="flex-1 flex flex-col gap-1">
+                                                <span className="text-xs font-medium text-slate-600">{block.label}</span>
+                                                {block.enabled && (
+                                                  <input type="text" value={block.content || ''} placeholder="Digite o texto com {variáveis}..."
+                                                    onChange={e => {
+                                                      const layout = [...lnk.pageLayout];
+                                                      layout[bi] = { ...layout[bi], content: e.target.value };
+                                                      updateLink({ pageLayout: layout });
+                                                    }}
+                                                    className="text-xs rounded border border-slate-300 px-2 py-0.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Botão aceitar */}
+                                    <div className="space-y-1">
+                                      <SubToggle checked={lnk.acceptOS} onChange={v => updateLink({ acceptOS: v })}
+                                        label="✅ Botão &quot;Aceitar OS&quot;" />
+                                      <p className="text-[10px] text-slate-400 ml-5">
+                                        {lnk.acceptOS
+                                          ? 'Técnico clica para aceitar. Primeiro clique trava o link para este dispositivo.'
+                                          : 'Desativado — a página é informativa. GPS ou "Estou a caminho" serão mostrados aqui.'}
+                                      </p>
                                     </div>
                                   </div>
 
-                                  {/* ── LAYOUT DA PÁGINA DO TÉCNICO ── */}
-                                  <div className="pt-2 border-t border-blue-200">
-                                    <span className="text-xs font-medium text-slate-600 block mb-2">📄 Layout da página do técnico:</span>
-                                    <p className="text-[10px] text-slate-400 mb-2">Selecione e reordene os campos que o técnico verá ao abrir o link.</p>
-                                    <div className="space-y-1.5">
-                                      {stage.autoActions.messageDispatch.toTechnicians.link.pageLayout.map((block, bi) => (
-                                        <div key={block.id} className={`flex items-center gap-2 p-1.5 rounded border transition-colors ${block.enabled ? 'border-blue-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
-                                          <div className="flex flex-col gap-0.5">
-                                            <button type="button" disabled={bi === 0}
-                                              onClick={() => {
-                                                const layout = [...stage.autoActions.messageDispatch.toTechnicians.link.pageLayout];
-                                                [layout[bi - 1], layout[bi]] = [layout[bi], layout[bi - 1]];
-                                                updateAuto('messageDispatch', {
-                                                  toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians,
-                                                    link: { ...stage.autoActions.messageDispatch.toTechnicians.link, pageLayout: layout } }
-                                                });
-                                              }}
-                                              className="text-[10px] text-slate-400 hover:text-slate-600 disabled:opacity-30">▲</button>
-                                            <button type="button" disabled={bi === stage.autoActions.messageDispatch.toTechnicians.link.pageLayout.length - 1}
-                                              onClick={() => {
-                                                const layout = [...stage.autoActions.messageDispatch.toTechnicians.link.pageLayout];
-                                                [layout[bi], layout[bi + 1]] = [layout[bi + 1], layout[bi]];
-                                                updateAuto('messageDispatch', {
-                                                  toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians,
-                                                    link: { ...stage.autoActions.messageDispatch.toTechnicians.link, pageLayout: layout } }
-                                                });
-                                              }}
-                                              className="text-[10px] text-slate-400 hover:text-slate-600 disabled:opacity-30">▼</button>
-                                          </div>
-                                          <input type="checkbox" checked={block.enabled}
-                                            onChange={e => {
-                                              const layout = [...stage.autoActions.messageDispatch.toTechnicians.link.pageLayout];
-                                              layout[bi] = { ...layout[bi], enabled: e.target.checked };
-                                              updateAuto('messageDispatch', {
-                                                toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians,
-                                                  link: { ...stage.autoActions.messageDispatch.toTechnicians.link, pageLayout: layout } }
-                                              });
-                                            }}
-                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-200 h-3.5 w-3.5" />
-                                          <span className="text-xs">
-                                            {block.type === 'info'
-                                              ? (LINK_PAGE_FIELDS.find(f => f.field === block.field)?.icon || '📋')
-                                              : '✏️'}
-                                          </span>
-                                          {block.type === 'info' ? (
-                                            <span className="text-xs text-slate-700 flex-1">{block.label}</span>
-                                          ) : (
-                                            <div className="flex-1 flex flex-col gap-1">
-                                              <span className="text-xs font-medium text-slate-600">{block.label}</span>
-                                              {block.enabled && (
-                                                <input type="text" value={block.content || ''} placeholder="Digite o texto com {variáveis}..."
-                                                  onChange={e => {
-                                                    const layout = [...stage.autoActions.messageDispatch.toTechnicians.link.pageLayout];
-                                                    layout[bi] = { ...layout[bi], content: e.target.value };
-                                                    updateAuto('messageDispatch', {
-                                                      toTechnicians: { ...stage.autoActions.messageDispatch.toTechnicians,
-                                                        link: { ...stage.autoActions.messageDispatch.toTechnicians.link, pageLayout: layout } }
-                                                    });
-                                                  }}
-                                                  className="text-xs rounded border border-slate-300 px-2 py-0.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
-                                              )}
-                                            </div>
-                                          )}
+                                  {/* ── PÁGINA 2 — PÓS-ACEITE (só se acceptOS ativo) ── */}
+                                  {lnk.acceptOS && (
+                                    <div className="pt-2 border-t border-blue-200">
+                                      <span className="text-xs font-bold text-slate-600 block mb-2">📄 Página 2 — Pós-aceite</span>
+                                      <p className="text-[10px] text-slate-400 mb-2">Após aceitar, o técnico vê esta página até agir.</p>
+                                      <div className="space-y-2">
+                                        <div>
+                                          <SubToggle checked={lnk.gpsNavigation} onChange={v => updateLink({ gpsNavigation: v })}
+                                            label="📡 Botão &quot;Ativar GPS&quot;" />
+                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Rastreamento por proximidade até o local do serviço.</p>
                                         </div>
-                                      ))}
+                                        <div>
+                                          <SubToggle checked={lnk.enRoute} onChange={v => updateLink({ enRoute: v })}
+                                            label="🚗 Botão &quot;Estou a caminho&quot;" />
+                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Registra timestamp de partida e notifica o gestor.</p>
+                                        </div>
+                                      </div>
                                     </div>
-                                  </div>
+                                  )}
+
+                                  {/* ── PÁGINA SEM ACEITE (só se acceptOS desativado) ── */}
+                                  {!lnk.acceptOS && (
+                                    <div className="pt-2 border-t border-blue-200">
+                                      <span className="text-xs font-bold text-slate-600 block mb-2">📄 Ações na página (sem aceite)</span>
+                                      <p className="text-[10px] text-slate-400 mb-2">Página informativa. O primeiro clique em qualquer botão trava o link para o dispositivo.</p>
+                                      <div className="space-y-2">
+                                        <div>
+                                          <SubToggle checked={lnk.gpsNavigation} onChange={v => updateLink({ gpsNavigation: v })}
+                                            label="📡 Botão &quot;Ativar GPS&quot;" />
+                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Rastreamento por proximidade até o local do serviço.</p>
+                                        </div>
+                                        <div>
+                                          <SubToggle checked={lnk.enRoute} onChange={v => updateLink({ enRoute: v })}
+                                            label="🚗 Botão &quot;Estou a caminho&quot;" />
+                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Registra timestamp de partida e notifica o gestor.</p>
+                                        </div>
+                                        {!lnk.gpsNavigation && !lnk.enRoute && (
+                                          <p className="text-[10px] text-amber-600 italic">⚠️ Nenhum botão ativado — a página será apenas leitura (sem trava de dispositivo).</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* ── PÁGINA TRACKING (info) ── */}
+                                  {lnk.gpsNavigation && (
+                                    <div className="pt-2 border-t border-blue-200">
+                                      <span className="text-xs font-bold text-slate-600 block mb-1">📡 Página de tracking</span>
+                                      <p className="text-[10px] text-slate-400">Automática ao ativar GPS — mostra distância em tempo real, barra de proximidade e botão &quot;Cheguei no local&quot;. Configuração do raio na etapa Atribuída (Proximidade GPS).</p>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                                );
+                              })()}
                             </div>
                           </div>
                         )}

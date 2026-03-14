@@ -334,6 +334,7 @@ model ServiceOrder {
   acceptTimeoutMinutes      Int?     // Tempo para aceitar em minutos (v1.00.34) — null = usa do fluxo
   enRouteTimeoutMinutes     Int?     // Tempo para clicar a caminho em minutos (v1.00.35) — null = usa do fluxo
   estimatedArrivalMinutes   Int?     // Tempo estimado de chegada informado pelo técnico (v1.00.37)
+  enRouteAt                 DateTime?  // Quando o técnico clicou "Estou a caminho" (v1.03.11)
   trackingStartedAt         DateTime?  // Quando o GPS tracking foi ativado (v1.00.40)
   proximityEnteredAt        DateTime?  // Quando o técnico entrou no raio de proximidade (v1.00.40)
   proximityRadiusMeters     Int?       // Raio configurado no momento do tracking (snapshot) (v1.00.40)

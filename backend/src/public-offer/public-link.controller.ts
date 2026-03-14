@@ -64,6 +64,12 @@ export class PublicLinkController {
     return this.service.declineAfterAccept(token, phone);
   }
 
+  @Post(':token/en-route')
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
+  enRoute(@Param('token') token: string) {
+    return this.service.markEnRoute(token);
+  }
+
   @Post(':token/start-tracking')
   startTracking(
     @Param('token') token: string,

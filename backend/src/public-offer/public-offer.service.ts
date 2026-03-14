@@ -47,8 +47,14 @@ function generateAccessKey(token: string): string {
   return createHmac('sha256', secret).update(`offer-access:${token}`).digest('hex').slice(0, 32);
 }
 
-/** Extract linkConfig (acceptOS, gpsNavigation, etc.) from workflow template's NOTIFY block */
-function extractLinkConfig(workflowTemplate: any): { acceptOS: boolean; gpsNavigation: boolean; validityHours: number } | null {
+/** Extract linkConfig (acceptOS, gpsNavigation, enRoute, etc.) from workflow template's NOTIFY block */
+function extractLinkConfig(workflowTemplate: any): {
+  acceptOS: boolean;
+  gpsNavigation: boolean;
+  enRoute: boolean;
+  validityHours: number;
+  agendaMarginHours: number;
+} | null {
   const steps = workflowTemplate?.steps as any;
   if (!steps) return null;
   const blocks = steps?.version === 2 ? steps.blocks : (steps?.blocks || []);
@@ -61,7 +67,9 @@ function extractLinkConfig(workflowTemplate: any): { acceptOS: boolean; gpsNavig
       return {
         acceptOS: techRecipient.linkConfig.acceptOS ?? true,
         gpsNavigation: techRecipient.linkConfig.gpsNavigation ?? false,
+        enRoute: techRecipient.linkConfig.enRoute ?? false,
         validityHours: techRecipient.linkConfig.validityHours || 24,
+        agendaMarginHours: techRecipient.linkConfig.agendaMarginHours ?? 24,
       };
     }
   }
@@ -257,7 +265,7 @@ export class PublicOfferService {
         requestOtpUrl,
         acceptUrl,
       },
-      linkConfig: linkConfig || { acceptOS: true, gpsNavigation: false, validityHours: 24 },
+      linkConfig: linkConfig || { acceptOS: true, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24 },
     };
   }
 
@@ -397,6 +405,35 @@ export class PublicOfferService {
       },
       { isolationLevel: 'Serializable' },
     );
+  }
+
+  /**
+   * Mark technician as "en route" (a caminho).
+   * Generates an accessKey to lock the link to the device.
+   */
+  async markEnRoute(token: string) {
+    // Find the accepted (revoked) offer
+    const offer = await this.prisma.serviceOrderOffer.findFirst({
+      where: { token, revokedAt: { not: null } },
+      include: { serviceOrder: true },
+    });
+
+    // If no revoked offer, try active offer (acceptOS=false mode — no accept step)
+    const activeOffer = offer || await this.prisma.serviceOrderOffer.findFirst({
+      where: { token, revokedAt: null, expiresAt: { gt: new Date() } },
+      include: { serviceOrder: true },
+    });
+
+    if (!activeOffer) throw new NotFoundException('Oferta não encontrada');
+
+    // Update en-route timestamp on the service order
+    await this.prisma.serviceOrder.update({
+      where: { id: activeOffer.serviceOrderId },
+      data: { enRouteAt: new Date() },
+    });
+
+    const accessKey = generateAccessKey(token);
+    return { success: true, accessKey, enRouteAt: new Date().toISOString() };
   }
 
   async acceptWithOtp(token: string, phone: string, code: string) {

@@ -95,8 +95,10 @@ export interface StageConfig {
         link: {
           enabled: boolean;
           validityHours: number;
+          agendaMarginHours: number;
           acceptOS: boolean;
           gpsNavigation: boolean;
+          enRoute: boolean;
           pageLayout: LinkPageBlock[];
         };
       };
@@ -1008,8 +1010,10 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
           link: {
             enabled: true,
             validityHours: 24,
+            agendaMarginHours: 24,
             acceptOS: true,
             gpsNavigation: false,
+            enRoute: false,
             pageLayout: [
               { id: 'bl_01', type: 'info', field: 'title',       label: 'Título da OS',        enabled: true },
               { id: 'bl_02', type: 'info', field: 'address',     label: 'Endereço',            enabled: true },
@@ -1540,8 +1544,10 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
           includeLink: techLink.enabled,
           linkConfig: techLink.enabled ? {
             validityHours: techLink.validityHours,
+            agendaMarginHours: techLink.agendaMarginHours,
             acceptOS: techLink.acceptOS,
             gpsNavigation: techLink.gpsNavigation,
+            enRoute: techLink.enRoute,
             pageLayout: techLink.pageLayout,  // save ALL blocks (enabled flag preserved for round-trip)
           } : undefined,
         });
@@ -2077,8 +2083,10 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
               stage.autoActions.messageDispatch.toTechnicians.link.enabled = true;
               if (r.linkConfig) {
                 stage.autoActions.messageDispatch.toTechnicians.link.validityHours = r.linkConfig.validityHours || 24;
+                stage.autoActions.messageDispatch.toTechnicians.link.agendaMarginHours = r.linkConfig.agendaMarginHours ?? 24;
                 stage.autoActions.messageDispatch.toTechnicians.link.acceptOS = r.linkConfig.acceptOS ?? true;
                 stage.autoActions.messageDispatch.toTechnicians.link.gpsNavigation = r.linkConfig.gpsNavigation ?? false;
+                stage.autoActions.messageDispatch.toTechnicians.link.enRoute = r.linkConfig.enRoute ?? false;
                 if (r.linkConfig.pageLayout?.length) {
                   // Merge saved layout with defaults (preserves blocks added in future versions)
                   const defaultLayout = stage.autoActions.messageDispatch.toTechnicians.link.pageLayout;

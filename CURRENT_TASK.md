@@ -1,32 +1,41 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 123 — Hints Inteligentes + Deteccao de Conflitos (CONCLUIDO)
+## Status: SESSAO 106 — Link Publico Multi-Pagina + enRoute (CONCLUIDO)
 
-## Ultima sessao: 123 (14/03/2026)
-- Sessao 121+: isUrgent, Reorganizacao Form, Fix Trigger, Auditoria (v1.02.83-85)
-- Sessao 122+: Correcoes Arquiteturais Workflow (v1.02.86-89)
-- Sessao 123: Hints Inteligentes + Deteccao de Conflitos (v1.02.90)
+## Ultima sessao: 106 (14/03/2026)
+- Sessao 104: WhatsApp Notificacao OS + Link Publico Tecnico (v1.03.02 a v1.03.09)
+- Sessao 105: Correcoes Workflow UI + linkConfig (v1.03.10)
+- Sessao 106: Link Publico Multi-Pagina + enRoute (v1.03.11)
 
 ## O que foi feito nesta sessao:
 
-### Hints Descritivos + Deteccao de Conflitos (v1.02.90)
-- [x] Reescrita de todos os hints em TECH_ACTION_LABELS, AUTO_ACTION_LABELS, TIME_CONTROL_LABELS
-- [x] Hints agora explicam QUANDO dispara, O QUE acontece, QUEM e afetado
-- [x] Componente ConflictWarning reutilizavel (amber warning box)
-- [x] Conflito: Agenda + notifyTecnico na ATRIBUIDA (mensagem duplicada)
-- [x] Conflito: Agenda + messageDispatch na ABERTA (mensagens nao serao disparadas)
-- [x] Conflito: Agenda + techSelection (selecao automatica nao sera usada)
-- [x] Conflito: Agenda + techReviewScreen (tela de revisao nao sera exibida)
-- [x] Conflito: photoRequirements on_pause/on_resume sem pauseSystem ativo
-- [x] Hints inline melhorados: aprovacao gestor, sistema de pausas, proximidade, financeiro
+### Link Publico Multi-Pagina + enRoute (v1.03.11)
+- [x] linkConfig expandido: `enRoute` (boolean) + `agendaMarginHours` (number)
+- [x] Backend: extractLinkConfig() retorna 5 campos (acceptOS, gpsNavigation, enRoute, validityHours, agendaMarginHours)
+- [x] Backend: getPublicView() retorna linkConfig completo
+- [x] Backend: novo endpoint POST /p/:token/en-route + markEnRoute()
+- [x] Backend: campo enRouteAt DateTime? no ServiceOrder (migration criada)
+- [x] Frontend: novo step "post-accept" — pagina 2 com enRoute + GPS
+- [x] Frontend: acceptOS=OFF mostra enRoute + GPS direto na oferta
+- [x] Frontend: secao "done" simplificada
+- [x] Frontend: stage-config.ts atualizado (tipos, defaults, serialization)
+- [x] Frontend: StageSection.tsx reestruturado (Pagina 1/2/sem aceite/tracking)
 - [x] Build backend + frontend OK
-- [x] Deploy v1.02.90
 
 ## Arquivos modificados:
-- `frontend/src/types/stage-config.ts` — hints descritivos reescritos
-- `frontend/src/app/(dashboard)/workflow/components/StageSection.tsx` — ConflictWarning + deteccao cross-stage + hints inline
+- `backend/prisma/schema.prisma` — enRouteAt field
+- `backend/prisma/migrations/20260314220000_add_en_route_at/migration.sql`
+- `backend/src/public-offer/public-offer.service.ts` — extractLinkConfig() + markEnRoute()
+- `backend/src/public-offer/public-link.controller.ts` — POST /p/:token/en-route
+- `frontend/src/app/p/[token]/page.tsx` — fluxo multi-pagina + post-accept + enRoute
+- `frontend/src/types/stage-config.ts` — enRoute, agendaMarginHours
+- `frontend/src/app/(dashboard)/workflow/components/StageSection.tsx` — UI reestruturada
 
-## Versao atual: v1.02.90 (em producao)
+## Pendente para deploy:
+- Rodar migration no servidor: `docker exec tecnikos_backend npx prisma migrate deploy`
+- Deploy via script
+
+## Versao atual: v1.03.10 (em producao) — proximo deploy sera v1.03.11
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

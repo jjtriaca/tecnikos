@@ -28,7 +28,9 @@ type TrackingConfig = {
 type LinkConfig = {
   acceptOS: boolean;
   gpsNavigation: boolean;
+  enRoute: boolean;
   validityHours: number;
+  agendaMarginHours: number;
 };
 
 type PublicViewData = {
@@ -103,7 +105,7 @@ const PAUSE_REASONS: PauseReasonCat[] = [
   { value: 'other', label: 'Outro', icon: '📝' },
 ];
 
-type PageStep = "loading" | "offer" | "otp" | "accepting" | "arrival" | "tracking" | "arrived" | "done" | "declined" | "error" | "executing" | "pausing" | "paused" | "resuming";
+type PageStep = "loading" | "offer" | "otp" | "accepting" | "arrival" | "post-accept" | "tracking" | "arrived" | "done" | "declined" | "error" | "executing" | "pausing" | "paused" | "resuming";
 
 /* ── Page ──────────────────────────────────────────────────── */
 
@@ -128,6 +130,10 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
   const [arrivalLoading, setArrivalLoading] = useState(false);
   const [arrivalError, setArrivalError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // En-route state
+  const [enRouteLoading, setEnRouteLoading] = useState(false);
+  const [enRouteAt, setEnRouteAt] = useState<string | null>(null);
 
   // Tracking state
   const [trackingConfig, setTrackingConfig] = useState<TrackingConfig | null>(null);
@@ -281,9 +287,9 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     })();
   }, [token]);
 
-  // Pre-load tracking config when entering "done" state (for GPS button)
+  // Pre-load tracking config when entering "post-accept" state (for GPS button)
   useEffect(() => {
-    if (step !== "done" || !data?.linkConfig?.gpsNavigation) return;
+    if (step !== "post-accept" || !data?.linkConfig?.gpsNavigation) return;
     (async () => {
       try {
         const trackRes = await api.get<{ enabled: boolean; config: any }>(`/p/${token}/tracking-config`);
@@ -294,25 +300,53 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     })();
   }, [step, token, data]);
 
+  // Save access key and lock device
+  const saveAccessKey = (key: string) => {
+    localStorage.setItem(`tk_ak_${token}`, key);
+  };
+
   // Accept directly (no OTP)
   const handleAccept = async () => {
     setAcceptLoading(true);
     setErrorMsg("");
     try {
       const res = await api.post<AcceptResult>(`/p/${token}/accept`, {});
-      // Save accessKey for future access to this link
+      // Save accessKey — locks this link to this device
       if (res.accessKey) {
-        localStorage.setItem(`tk_ak_${token}`, res.accessKey);
+        saveAccessKey(res.accessKey);
       }
       if (res.arrivalQuestion) {
         setArrivalConfig(res.arrivalQuestion);
         setStep("arrival");
       } else {
-        setStep("done");
+        // If GPS or enRoute enabled, go to post-accept page
+        const lc = data?.linkConfig;
+        if (lc?.gpsNavigation || lc?.enRoute) {
+          setStep("post-accept");
+        } else {
+          setStep("done");
+        }
       }
     } catch (e: any) {
       setErrorMsg(e?.message || "Erro ao aceitar.");
       setAcceptLoading(false);
+    }
+  };
+
+  // Mark en route
+  const handleEnRoute = async () => {
+    setEnRouteLoading(true);
+    setErrorMsg("");
+    try {
+      const res = await api.post<{ success: boolean; accessKey?: string; enRouteAt: string }>(`/p/${token}/en-route`, {});
+      if (res.accessKey) {
+        saveAccessKey(res.accessKey);
+      }
+      setEnRouteAt(res.enRouteAt);
+    } catch (e: any) {
+      setErrorMsg(e?.message || "Erro ao registrar saída.");
+    } finally {
+      setEnRouteLoading(false);
     }
   };
 
@@ -323,14 +357,11 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     setArrivalError(null);
     try {
       await api.post(`/p/${token}/arrival-time`, { selectedMinutes });
-      try {
-        const trackRes = await api.get<{ enabled: boolean; config: any }>(`/p/${token}/tracking-config`);
-        if (trackRes.enabled) {
-          setStep("done");
-        } else {
-          setStep("done");
-        }
-      } catch {
+      // After arrival time, go to post-accept if GPS/enRoute available
+      const lc = data?.linkConfig;
+      if (lc?.gpsNavigation || lc?.enRoute) {
+        setStep("post-accept");
+      } else {
         setStep("done");
       }
     } catch (e: any) {
@@ -740,24 +771,60 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     );
   }
 
-  // ── DONE ──
-  if (step === "done") {
+  // ── POST-ACCEPT (Page 2 — GPS + En Route) ──
+  if (step === "post-accept") {
+    const lc = data?.linkConfig;
     return (
-      <div className="flex min-h-screen items-center justify-center bg-green-50 p-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="text-5xl mb-3">✅</div>
-          <h1 className="text-xl font-bold text-green-800">OS Aceita!</h1>
-          <p className="text-sm text-slate-600 mt-2">
-            {selectedMinutes
-              ? `Tempo estimado informado: ${selectedMinutes >= 60 ? `${selectedMinutes / 60}h` : `${selectedMinutes} min`}`
-              : "Você foi atribuído a esta ordem de serviço."}
-          </p>
+      <div className="flex min-h-screen items-center justify-center bg-blue-50 p-6">
+        <div className="w-full max-w-sm space-y-4">
+          <div className="text-center">
+            <div className="text-4xl mb-2">✅</div>
+            <h2 className="text-lg font-bold text-blue-800">OS Aceita!</h2>
+            <p className="text-sm text-slate-500 mt-1">{data?.serviceOrder.title}</p>
+          </div>
 
-          {/* GPS Tracking offer — only if gpsNavigation is enabled in workflow */}
-          {data?.linkConfig?.gpsNavigation && !trackingActive && typeof navigator !== "undefined" && navigator.geolocation && (
-            <div className="mt-6 bg-white rounded-2xl shadow-sm border border-purple-200 p-4">
+          {/* Error */}
+          {errorMsg && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200">
+              <p className="text-sm text-red-700">{errorMsg}</p>
+            </div>
+          )}
+
+          {/* En Route button */}
+          {lc?.enRoute && !enRouteAt && (
+            <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 text-center">
+              <div className="text-2xl mb-2">🚗</div>
+              <h3 className="text-sm font-semibold text-blue-800">Estou a caminho</h3>
+              <p className="text-xs text-slate-500 mt-1 mb-3">
+                Informe ao gestor que você está se deslocando para o local.
+              </p>
+              <button
+                type="button"
+                onClick={handleEnRoute}
+                disabled={enRouteLoading}
+                className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors disabled:bg-slate-300"
+              >
+                {enRouteLoading ? "Registrando..." : "🚗 Estou a caminho"}
+              </button>
+            </div>
+          )}
+
+          {/* En Route confirmed */}
+          {lc?.enRoute && enRouteAt && (
+            <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+              <div className="text-2xl mb-1">✅</div>
+              <p className="text-sm font-medium text-green-700">Saída registrada</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+          )}
+
+          {/* GPS Tracking */}
+          {lc?.gpsNavigation && !trackingActive && typeof navigator !== "undefined" && navigator.geolocation && (
+            <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-4 text-center">
               <div className="text-2xl mb-2">📡</div>
-              <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS?</h3>
+              <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS</h3>
               <p className="text-xs text-slate-500 mt-1 mb-3">
                 Permite monitorar sua proximidade e notificar automaticamente quando você chegar ao local.
               </p>
@@ -774,6 +841,27 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             </div>
           )}
 
+          {/* If no more actions, show done info */}
+          {(!lc?.gpsNavigation || trackingActive) && (!lc?.enRoute || enRouteAt) && (
+            <p className="text-center text-xs text-slate-400 mt-2">Você pode fechar esta página.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── DONE ──
+  if (step === "done") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-green-50 p-6">
+        <div className="w-full max-w-sm text-center">
+          <div className="text-5xl mb-3">✅</div>
+          <h1 className="text-xl font-bold text-green-800">OS Aceita!</h1>
+          <p className="text-sm text-slate-600 mt-2">
+            {selectedMinutes
+              ? `Tempo estimado informado: ${selectedMinutes >= 60 ? `${selectedMinutes / 60}h` : `${selectedMinutes} min`}`
+              : "Você foi atribuído a esta ordem de serviço."}
+          </p>
           <p className="text-xs text-slate-400 mt-4">Você pode fechar esta página.</p>
         </div>
       </div>
@@ -916,7 +1004,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
           </div>
         )}
 
-        {/* Accept button — only if acceptOS is enabled in workflow */}
+        {/* Accept button — only if acceptOS is enabled */}
         {(data?.linkConfig?.acceptOS !== false) && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
             <button
@@ -929,6 +1017,65 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             </button>
           </div>
         )}
+
+        {/* When acceptOS=OFF: show enRoute + GPS directly on offer page */}
+        {data?.linkConfig?.acceptOS === false && (() => {
+          const lc = data.linkConfig!;
+          return (
+            <>
+              {/* En Route */}
+              {lc.enRoute && !enRouteAt && (
+                <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 text-center">
+                  <div className="text-2xl mb-2">🚗</div>
+                  <h3 className="text-sm font-semibold text-blue-800">Estou a caminho</h3>
+                  <p className="text-xs text-slate-500 mt-1 mb-3">
+                    Informe ao gestor que você está se deslocando para o local.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleEnRoute}
+                    disabled={enRouteLoading}
+                    className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors disabled:bg-slate-300"
+                  >
+                    {enRouteLoading ? "Registrando..." : "🚗 Estou a caminho"}
+                  </button>
+                </div>
+              )}
+
+              {/* En Route confirmed */}
+              {lc.enRoute && enRouteAt && (
+                <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+                  <div className="text-2xl mb-1">✅</div>
+                  <p className="text-sm font-medium text-green-700">Saída registrada</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              )}
+
+              {/* GPS */}
+              {lc.gpsNavigation && !trackingActive && typeof navigator !== "undefined" && navigator.geolocation && (
+                <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-4 text-center">
+                  <div className="text-2xl mb-2">📡</div>
+                  <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS</h3>
+                  <p className="text-xs text-slate-500 mt-1 mb-3">
+                    Permite monitorar sua proximidade e notificar quando você chegar ao local.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={startTracking}
+                    className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
+                  >
+                    🛰️ Ativar GPS
+                  </button>
+                  {trackingError && (
+                    <p className="text-xs text-red-500 mt-2">{trackingError}</p>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* Expiry info */}
         <p className="text-center text-xs text-slate-400">

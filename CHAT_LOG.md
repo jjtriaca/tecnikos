@@ -1388,3 +1388,33 @@ Solucao:
 - Juliano pediu para parar e aguardar novas instrucoes
 
 ### Versoes: v1.03.02 → v1.03.09
+
+---
+
+## 2026-03-14 — Sessao 106: Link Publico Multi-Pagina + enRoute (v1.03.11)
+
+### Redesign linkConfig — Fluxo Multi-Pagina
+- linkConfig expandido: novos campos `enRoute` (boolean) e `agendaMarginHours` (number)
+- Fluxo com acceptOS ON: offer → accept → post-accept (GPS + enRoute) → tracking
+- Fluxo com acceptOS OFF: offer com GPS/enRoute direto → tracking
+- Device locking no primeiro clique de acao (accept, GPS ou enRoute)
+
+### Backend
+- `extractLinkConfig()` atualizado: retorna `enRoute`, `agendaMarginHours` alem de `acceptOS`, `gpsNavigation`, `validityHours`
+- `getPublicView()` retorna linkConfig completo com novos campos
+- Novo endpoint `POST /p/:token/en-route` + `markEnRoute()` — registra `enRouteAt` no ServiceOrder
+- Migration: campo `enRouteAt DateTime?` no model ServiceOrder
+- Prisma client regenerado
+
+### Frontend /p/[token]
+- Novo step `post-accept`: pagina 2 com botoes enRoute + GPS
+- Quando acceptOS OFF: botoes enRoute + GPS aparecem direto na pagina de oferta
+- Secao "done" simplificada (GPS removido, agora esta no post-accept)
+- useEffect de tracking config ajustado para step `post-accept`
+
+### Frontend stage-config.ts (sessao anterior)
+- Tipos e defaults atualizados com `enRoute` e `agendaMarginHours`
+- Serialization/deserialization atualizados
+
+### Frontend StageSection.tsx (sessao anterior)
+- UI reestruturada: Pagina 1 (oferta + layout + acceptOS), Pagina 2 (pos-aceite), Pagina sem aceite, Pagina tracking
