@@ -95,7 +95,18 @@
 - [x] Removidos: WORKFLOW_PRESETS import, activePreset state, handlePreset function
 - [x] Deploy v1.02.79
 
-## Versao atual: v1.02.79 (em producao)
+### Drag-and-Drop Reorder de Fluxos (v1.02.80)
+- [x] Prisma: campo sortOrder (Int, default 0) no WorkflowTemplate
+- [x] Migration 20260314030000_workflow_sort_order
+- [x] Backend: findAll ordena por sortOrder ASC + createdAt DESC, retorna sortOrder
+- [x] Backend: endpoint PATCH /workflows/reorder com orderedIds[]
+- [x] Frontend: HTML5 drag-and-drop nos cards da listagem
+- [x] Visual: cursor grab, ícone de drag (⠿), ring azul no drop target, scale animado
+- [x] Reorder otimista com fallback em caso de erro
+- [x] ALTER TABLE tenant_sls aplicado manualmente
+- [x] Deploy v1.02.80
+
+## Versao atual: v1.02.80 (em producao)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

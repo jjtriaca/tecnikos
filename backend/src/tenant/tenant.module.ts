@@ -6,6 +6,7 @@ import { TenantConnectionService } from './tenant-connection.service';
 import { TenantMiddleware } from './tenant.middleware';
 import { TenantOnboardingService } from './tenant-onboarding.service';
 import { TenantResolverService } from './tenant-resolver.service';
+import { TenantMigratorService } from './tenant-migrator.service';
 import { AsaasProvider } from './asaas.provider';
 import { AsaasService } from './asaas.service';
 import { AsaasWebhookController } from './asaas-webhook.controller';
@@ -19,6 +20,7 @@ import { EmailModule } from '../email/email.module';
     TenantMiddleware,
     TenantOnboardingService,
     TenantResolverService,
+    TenantMigratorService,
     AsaasProvider,
     AsaasService,
   ],
