@@ -115,7 +115,8 @@ export class PublicOfferService {
   }
 
   async getOfferByToken(token: string) {
-    const offer = await this.prisma.serviceOrderOffer.findFirst({
+    // First try: active (non-revoked, non-expired) offer
+    let offer = await this.prisma.serviceOrderOffer.findFirst({
       where: {
         token,
         revokedAt: null,
@@ -123,12 +124,25 @@ export class PublicOfferService {
       },
       include: {
         serviceOrder: {
-          include: {
-            company: true,
-          },
+          include: { company: true },
         },
       },
     });
+
+    // Second try: revoked offer (already accepted) — link should still work post-acceptance
+    if (!offer) {
+      offer = await this.prisma.serviceOrderOffer.findFirst({
+        where: {
+          token,
+          revokedAt: { not: null },
+        },
+        include: {
+          serviceOrder: {
+            include: { company: true },
+          },
+        },
+      });
+    }
 
     if (!offer) throw new NotFoundException('Oferta inválida ou expirada');
     return offer;
@@ -164,11 +178,14 @@ export class PublicOfferService {
       '',
     )}/p/${offer.token}/request-otp`;
 
+    const isAccepted = offer.revokedAt != null && offer.serviceOrder.acceptedAt != null;
+
     return {
       offer: {
         token: offer.token,
         expiresAt: offer.expiresAt,
         channel: offer.channel,
+        accepted: isAccepted,
       },
       company: {
         id: offer.serviceOrder.company.id,

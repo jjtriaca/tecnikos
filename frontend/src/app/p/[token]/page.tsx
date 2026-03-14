@@ -26,7 +26,7 @@ type TrackingConfig = {
 };
 
 type PublicViewData = {
-  offer: { token: string; expiresAt: string; channel: string };
+  offer: { token: string; expiresAt: string; channel: string; accepted?: boolean };
   company: { id: string; name: string };
   serviceOrder: {
     id: string;
@@ -123,6 +123,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
 
   // Tracking state
   const [trackingConfig, setTrackingConfig] = useState<TrackingConfig | null>(null);
+  const [trackingEnabled, setTrackingEnabled] = useState(false);
   const [trackingActive, setTrackingActive] = useState(false);
   const [trackingDistance, setTrackingDistance] = useState<number | null>(null);
   const [trackingLastUpdate, setTrackingLastUpdate] = useState<Date | null>(null);
@@ -244,13 +245,32 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
       try {
         const res = await api.get<PublicViewData>(`/p/${token}`);
         setData(res);
-        setStep("offer");
+        if (res.offer.accepted) {
+          // Already accepted — go straight to "done" state
+          setStep("done");
+        } else {
+          setStep("offer");
+        }
       } catch (e: any) {
         setErrorMsg(e?.message || "Link inválido ou expirado.");
         setStep("error");
       }
     })();
   }, [token]);
+
+  // Check if GPS tracking is available when entering "done" state
+  useEffect(() => {
+    if (step !== "done") return;
+    (async () => {
+      try {
+        const trackRes = await api.get<{ enabled: boolean; config: any }>(`/p/${token}/tracking-config`);
+        setTrackingEnabled(trackRes.enabled);
+        if (trackRes.config) setTrackingConfig(trackRes.config);
+      } catch {
+        setTrackingEnabled(false);
+      }
+    })();
+  }, [step, token]);
 
   // Accept directly (no OTP)
   const handleAccept = async () => {
@@ -707,8 +727,8 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
               : "Você foi atribuído a esta ordem de serviço."}
           </p>
 
-          {/* GPS Tracking offer */}
-          {!trackingActive && navigator.geolocation && (
+          {/* GPS Tracking offer — only if PROXIMITY_TRIGGER is configured in workflow */}
+          {!trackingActive && trackingEnabled && typeof navigator !== "undefined" && navigator.geolocation && (
             <div className="mt-6 bg-white rounded-2xl shadow-sm border border-purple-200 p-4">
               <div className="text-2xl mb-2">📡</div>
               <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS?</h3>
