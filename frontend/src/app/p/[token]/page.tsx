@@ -312,9 +312,17 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
         const akParam = storedKey ? `?ak=${storedKey}` : "";
         const res = await api.get<PublicViewData>(`/p/${token}${akParam}`);
         setData(res);
-        // Mark already-submitted checklists
+        // Mark already-submitted checklists + restore checked items
         if (res.checklistResponses?.length) {
           setChecklistSubmitted(new Set(res.checklistResponses.map(r => r.checklistClass)));
+          const restoredChecked: Record<string, Set<string>> = {};
+          for (const cr of res.checklistResponses) {
+            const items = Array.isArray(cr.items) ? cr.items : [];
+            restoredChecked[cr.checklistClass] = new Set(
+              items.filter((i: any) => i.checked).map((i: any) => i.text),
+            );
+          }
+          setChecklistChecked(restoredChecked);
         }
         // Restore enRouteAt from backend if previously set
         if (res.enRouteAt) {
@@ -1135,52 +1143,70 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             const icon = CLS_ICON[checklistClass] || '📋';
             const checked = checklistChecked[checklistClass] || new Set<string>();
             const submitted = checklistSubmitted.has(checklistClass);
-            const allChecked = items.every(i => checked.has(i));
             const submitting = checklistSubmitting === checklistClass;
+            const clsConfig = data?.checklistConfig?.[checklistClass];
+            const isRequired = clsConfig?.required !== 'RECOMMENDED';
+            // Obrigatório: todos devem ser marcados; Recomendado: pelo menos 1
+            const canSubmit = isRequired
+              ? items.every(i => checked.has(i))
+              : checked.size > 0;
+            const checkedCount = checked.size;
+
+            // Collapsed state after submission
+            if (submitted) {
+              return (
+                <div key={checklistClass} className="bg-white rounded-2xl shadow-sm border border-green-200 p-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold">✓</span>
+                    </div>
+                    <h3 className="text-sm font-semibold text-green-700">{icon} {label}</h3>
+                    <span className="ml-auto text-xs text-green-600">{checkedCount}/{items.length} itens</span>
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div key={checklistClass} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-slate-800">{icon} {label}</h3>
-                  {submitted && <span className="text-xs text-green-600 font-medium">✓ Enviado</span>}
+                  <span className="text-xs text-slate-400">{checkedCount}/{items.length}</span>
                 </div>
-                {submitted ? (
-                  <p className="text-xs text-green-600">Checklist confirmado.</p>
-                ) : (
-                  <>
-                    <div className="space-y-1.5">
-                      {items.map(item => {
-                        const isChecked = checked.has(item);
-                        return (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => toggleChecklistItem(checklistClass, item)}
-                            className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-all ${
-                              isChecked
-                                ? "border-green-300 bg-green-50 text-green-800"
-                                : "border-slate-200 bg-white text-slate-700"
-                            }`}
-                          >
-                            <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border ${
-                              isChecked ? "bg-green-500 border-green-500 text-white" : "border-slate-300"
-                            }`}>
-                              {isChecked && <span className="text-xs">✓</span>}
-                            </div>
-                            <span className="text-left">{item}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleChecklistSubmit(checklistClass, items)}
-                      disabled={!allChecked || submitting}
-                      className="w-full mt-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:bg-slate-300 hover:bg-blue-700 transition-colors"
-                    >
-                      {submitting ? "Enviando..." : `Confirmar ${label}`}
-                    </button>
-                  </>
+                <div className="space-y-1.5">
+                  {items.map(item => {
+                    const isChecked = checked.has(item);
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => toggleChecklistItem(checklistClass, item)}
+                        className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-all ${
+                          isChecked
+                            ? "border-green-300 bg-green-50 text-green-800"
+                            : "border-slate-200 bg-white text-slate-700"
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border ${
+                          isChecked ? "bg-green-500 border-green-500 text-white" : "border-slate-300"
+                        }`}>
+                          {isChecked && <span className="text-xs">✓</span>}
+                        </div>
+                        <span className="text-left">{item}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleChecklistSubmit(checklistClass, items)}
+                  disabled={!canSubmit || submitting}
+                  className="w-full mt-3 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold disabled:bg-slate-300 hover:bg-blue-700 transition-colors"
+                >
+                  {submitting ? "Enviando..." : `Confirmar ${label}`}
+                </button>
+                {!isRequired && (
+                  <p className="text-[10px] text-slate-400 mt-1.5 text-center">Recomendado — marque os itens que você possui</p>
                 )}
               </div>
             );
