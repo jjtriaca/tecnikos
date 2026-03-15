@@ -382,7 +382,7 @@ export default function DashboardPage() {
       ) : (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {/* Card: Total OS */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 p-5 text-white shadow-lg">
+          <Link href="/orders" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 p-5 text-white shadow-lg hover:from-slate-600 hover:to-slate-700 transition-all">
             <div className="absolute -top-4 -right-4 h-20 w-20 rounded-full bg-white/5" />
             <div className="relative">
               <div className="flex items-center justify-between">
@@ -398,10 +398,10 @@ export default function DashboardPage() {
               <p className="mt-3 text-3xl font-bold">{stats?.total ?? 0}</p>
               <p className="mt-0.5 text-xs font-medium text-white/70">Total de OS</p>
             </div>
-          </div>
+          </Link>
 
           {/* Card: Em Execução */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 p-5 text-white shadow-lg">
+          <Link href="/orders?status=EM_EXECUCAO" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 p-5 text-white shadow-lg hover:from-blue-400 hover:to-blue-500 transition-all">
             <div className="absolute -top-4 -right-4 h-20 w-20 rounded-full bg-white/5" />
             <div className="relative">
               <div className="flex items-center justify-between">
@@ -415,10 +415,10 @@ export default function DashboardPage() {
               <p className="mt-3 text-3xl font-bold">{activeOrders}</p>
               <p className="mt-0.5 text-xs font-medium text-white/70">Em Execução</p>
             </div>
-          </div>
+          </Link>
 
           {/* Card: Concluídas Hoje */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 text-white shadow-lg">
+          <Link href="/orders?status=CONCLUIDA" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 text-white shadow-lg hover:from-emerald-400 hover:to-emerald-500 transition-all">
             <div className="absolute -top-4 -right-4 h-20 w-20 rounded-full bg-white/5" />
             <div className="relative">
               <div className="flex items-center justify-between">
@@ -439,10 +439,10 @@ export default function DashboardPage() {
               <p className="mt-3 text-3xl font-bold">{stats?.completedToday ?? 0}</p>
               <p className="mt-0.5 text-xs font-medium text-white/70">Concluídas Hoje</p>
             </div>
-          </div>
+          </Link>
 
           {/* Card: Receita Total */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 p-5 text-white shadow-lg">
+          <Link href="/finance" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 p-5 text-white shadow-lg hover:from-violet-400 hover:to-purple-500 transition-all">
             <div className="absolute -top-4 -right-4 h-20 w-20 rounded-full bg-white/5" />
             <div className="relative">
               <div className="flex items-center justify-between">
@@ -450,12 +450,9 @@ export default function DashboardPage() {
                   <IconMoney />
                 </div>
                 {financeSummary && financeSummary.pendingOs.length > 0 && (
-                  <Link
-                    href="/finance"
-                    className="text-xs font-semibold bg-amber-400/90 text-amber-900 rounded-lg px-2 py-1 hover:bg-amber-400 transition-colors"
-                  >
+                  <span className="text-xs font-semibold bg-amber-400/90 text-amber-900 rounded-lg px-2 py-1">
                     {financeSummary.pendingOs.length} pendentes
-                  </Link>
+                  </span>
                 )}
               </div>
               <p className="mt-3 text-2xl font-bold">
@@ -463,14 +460,14 @@ export default function DashboardPage() {
               </p>
               <p className="mt-0.5 text-xs font-medium text-white/70">Receita Bruta</p>
             </div>
-          </div>
+          </Link>
         </div>
       )}
 
       {/* ──── Finance Mini-Cards ──── */}
       {!loading && financeSummary && financeSummary.totalGrossCents > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <Link href="/finance?type=RECEIVABLE" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-green-300 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-50">
                 <IconMoney className="h-4 w-4 text-green-600" />
@@ -478,8 +475,8 @@ export default function DashboardPage() {
               <span className="text-xs font-medium text-slate-500">Receita Bruta</span>
             </div>
             <p className="text-lg font-bold text-slate-900">{formatCurrency(financeSummary.totalGrossCents)}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          </Link>
+          <Link href="/finance?type=PAYABLE" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-amber-300 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50">
                 <IconWallet className="h-4 w-4 text-amber-600" />
@@ -487,8 +484,8 @@ export default function DashboardPage() {
               <span className="text-xs font-medium text-slate-500">Comissões</span>
             </div>
             <p className="text-lg font-bold text-slate-900">{formatCurrency(financeSummary.totalCommissionCents)}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          </Link>
+          <Link href="/finance" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-300 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
                 <IconTrendUp className="h-4 w-4 text-blue-600" />
@@ -496,7 +493,7 @@ export default function DashboardPage() {
               <span className="text-xs font-medium text-slate-500">Repasse Líquido</span>
             </div>
             <p className="text-lg font-bold text-slate-900">{formatCurrency(financeSummary.totalNetCents)}</p>
-          </div>
+          </Link>
         </div>
       )}
 
@@ -519,7 +516,7 @@ export default function DashboardPage() {
                   .map(([status, count]) => {
                     const pct = Math.round((count / stats.total) * 100);
                     return (
-                      <div key={status}>
+                      <Link key={status} href={`/orders?status=${status}`} className="block hover:bg-slate-50 rounded-lg px-1 py-0.5 -mx-1 transition-colors">
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
                             <div className={`h-2.5 w-2.5 rounded-full ${STATUS_COLORS[status] || "bg-slate-400"}`} />
@@ -540,7 +537,7 @@ export default function DashboardPage() {
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                      </div>
+                      </Link>
                     );
                   })}
               </div>
@@ -711,9 +708,10 @@ export default function DashboardPage() {
             ) : (
               <div className="divide-y divide-slate-100">
                 {topTechs.map((tech, index) => (
-                  <div
+                  <Link
                     key={tech.id}
-                    className="flex items-center gap-3 px-6 py-3.5"
+                    href={`/partners/${tech.id}`}
+                    className="flex items-center gap-3 px-6 py-3.5 hover:bg-slate-50 transition-colors"
                   >
                     {/* Rank badge */}
                     <div className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ${
@@ -747,7 +745,7 @@ export default function DashboardPage() {
                       <p className="text-sm font-bold text-slate-800">{tech.completionRate}%</p>
                       <p className="text-[10px] text-slate-400">conclusão</p>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
