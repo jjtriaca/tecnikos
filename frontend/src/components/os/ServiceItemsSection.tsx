@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { api } from "@/lib/api";
 import LookupField from "@/components/ui/LookupField";
 import type { LookupFetcher, LookupFetcherResult } from "@/components/ui/SearchLookupModal";
@@ -59,15 +58,11 @@ const serviceFetcher: LookupFetcher<ServiceOption> = async (search, page, signal
 /* ── Component ──────────────────────────────────────── */
 
 export default function ServiceItemsSection({ items, onChange }: Props) {
-  const [showLookup, setShowLookup] = useState(false);
 
   function handleAddService(svc: ServiceOption | null) {
     if (!svc) return;
     // Prevent duplicate
-    if (items.some((i) => i.serviceId === svc.id)) {
-      setShowLookup(false);
-      return;
-    }
+    if (items.some((i) => i.serviceId === svc.id)) return;
     const newItem: ServiceItemRow = {
       serviceId: svc.id,
       serviceName: svc.name,
@@ -77,7 +72,6 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
       quantity: 1,
     };
     onChange([...items, newItem]);
-    setShowLookup(false);
   }
 
   function handleRemove(idx: number) {
@@ -95,59 +89,35 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <label className="text-sm font-medium text-slate-700">Serviços *</label>
-        {!showLookup && (
-          <button
-            type="button"
-            onClick={() => setShowLookup(true)}
-            className="text-xs font-medium text-blue-600 hover:text-blue-700"
-          >
-            + Adicionar serviço
-          </button>
+      {/* Search field — always visible */}
+      <LookupField<ServiceOption>
+        label="Serviços *"
+        placeholder="Buscar serviço por nome ou código..."
+        modalTitle="Buscar Serviço"
+        modalPlaceholder="Nome, código ou descrição..."
+        value={null}
+        displayValue={(s) => s.name}
+        onChange={handleAddService}
+        fetcher={serviceFetcher}
+        keyExtractor={(s) => s.id}
+        renderItem={(s) => (
+          <div>
+            <div className="font-medium text-slate-900">
+              {s.code && <span className="text-slate-400 font-mono text-xs mr-2">{s.code}</span>}
+              {s.name}
+            </div>
+            <div className="flex gap-3 text-xs text-slate-400 mt-0.5">
+              <span>{UNIT_LABELS[s.unit] || s.unit}</span>
+              {s.priceCents != null && <span>{formatCurrency(s.priceCents)}</span>}
+              {s.commissionBps != null && <span>Comissão: {(s.commissionBps / 100).toFixed(1)}%</span>}
+            </div>
+          </div>
         )}
-      </div>
-
-      {/* Lookup inline */}
-      {showLookup && (
-        <div className="mb-3">
-          <LookupField<ServiceOption>
-            label=""
-            placeholder="Buscar serviço por nome ou código..."
-            modalTitle="Buscar Serviço"
-            modalPlaceholder="Nome, código ou descrição..."
-            value={null}
-            displayValue={(s) => s.name}
-            onChange={handleAddService}
-            fetcher={serviceFetcher}
-            keyExtractor={(s) => s.id}
-            renderItem={(s) => (
-              <div>
-                <div className="font-medium text-slate-900">
-                  {s.code && <span className="text-slate-400 font-mono text-xs mr-2">{s.code}</span>}
-                  {s.name}
-                </div>
-                <div className="flex gap-3 text-xs text-slate-400 mt-0.5">
-                  <span>{UNIT_LABELS[s.unit] || s.unit}</span>
-                  {s.priceCents != null && <span>{formatCurrency(s.priceCents)}</span>}
-                  {s.commissionBps != null && <span>Comissão: {(s.commissionBps / 100).toFixed(1)}%</span>}
-                </div>
-              </div>
-            )}
-          />
-          <button
-            type="button"
-            onClick={() => setShowLookup(false)}
-            className="mt-1 text-xs text-slate-400 hover:text-slate-600"
-          >
-            Cancelar
-          </button>
-        </div>
-      )}
+      />
 
       {/* Items table */}
-      {items.length > 0 ? (
-        <div className="rounded-lg border border-slate-200 overflow-hidden">
+      {items.length > 0 && (
+        <div className="rounded-lg border border-slate-200 overflow-hidden mt-3">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
@@ -206,19 +176,6 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
               </tr>
             </tfoot>
           </table>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center">
-          <p className="text-sm text-slate-400">Nenhum serviço adicionado.</p>
-          {!showLookup && (
-            <button
-              type="button"
-              onClick={() => setShowLookup(true)}
-              className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-            >
-              + Adicionar serviço
-            </button>
-          )}
         </div>
       )}
     </div>
