@@ -1,61 +1,41 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 111 — Melhorias Servicos + Checklists (CONCLUIDO)
+## Status: SESSAO 112 — Fase 4 Workflow UI (CONCLUIDO)
 
-## Ultima sessao: 111 (15/03/2026)
-- Sessao 109: Simplificacao criacao OS + workflow-centric (v1.03.29 a v1.03.30)
-- Sessao 110: Reorganizacao Nova OS + Servicos por Item (v1.03.31 a v1.03.33)
+## Ultima sessao: 112 (15/03/2026)
 - Sessao 111: Melhorias Servicos + Checklists (v1.03.34)
+- Sessao 112: Fase 4 — Workflow UI Checklists (v1.03.51)
 
 ## O que foi feito nesta sessao:
 
-### Backend — defaultQty + checklists no Service (v1.03.34)
-- [x] Schema: `defaultQty Int?` e `checklists Json?` adicionados ao model Service
-- [x] Migration: 20260315030000_add_service_default_qty (ALTER TABLE ADD COLUMN defaultQty + checklists)
-- [x] DTOs: defaultQty e checklists em CreateServiceDto e UpdateServiceDto
-- [x] service.service.ts: defaultQty e checklists no create
+### Fase 4 — Workflow UI (StageSection) — v1.03.51
+- [x] stage-config.ts: gps_button/enroute_button no LinkPageBlock, page2Layout defaults
+- [x] ABERTA Page 1: blocos checklist ordenaveis no pageLayout com inline mode/required config
+- [x] ABERTA Page 2: GPS/en-route/checklists como page2Layout ordenavel (substitui toggles hardcoded)
+- [x] ABERTA: Pergunta movida para antes do botao Aceitar
+- [x] ATRIBUIDA: filtrado para so checklists relevantes (toolsPpe, materials, custom) + observacao
+- [x] EM_EXECUCAO: secao renomeada "Pagina do Link", itens ordenaveis + footer info
+- [x] CONCLUIDA: secao renomeada "Pagina do Link", filtrado finalCheck/custom + foto/assinatura/observacao
+- [x] Compiler/Decompiler: GPS/en-route derivados do page2Layout, backward compat
+- [x] Build TypeScript limpo (zero erros)
+- [x] Deploy v1.03.51 OK
 
-### Frontend — Cadastro de Servicos melhorado (v1.03.34)
-- [x] Interface Service: defaultQty e checklists adicionados
-- [x] EMPTY_FORM: defaultQty e checklists
-- [x] Coluna "Qtd Padrao" na tabela
-- [x] Campo "Qtd Padrao" no formulario com hint
-- [x] Editor visual de checklists: adicionar checklist → adicionar items → remover
-- [x] Acoes na tabela: Editar + Duplicar + Excluir (antes so tinha Excluir)
-- [x] handleDuplicate: copia todos os campos incluindo checklists
-- [x] openEditForm: popula defaultQty e checklists
-
-### Frontend — ServiceItemsSection (v1.03.34)
-- [x] Interface ServiceOption: defaultQty adicionado
-- [x] handleAddService: usa svc.defaultQty || 1 como quantidade inicial
-
-### Variaveis de template (v1.03.34)
-- [x] NOTIFY_VARS: {servicos_nomes} e {servicos_descricoes} adicionados
-- [x] workflow-engine.service.ts: include items na query notifySO, interpolacao das novas variaveis
-
-### Deploy
-- [x] v1.03.34 deployed OK
-
-## Arquivos criados/modificados:
-- `backend/prisma/schema.prisma` — defaultQty + checklists no Service
-- `backend/prisma/migrations/20260315030000_add_service_default_qty/migration.sql`
-- `backend/src/service/dto/create-service.dto.ts` — defaultQty + checklists
-- `backend/src/service/dto/update-service.dto.ts` — defaultQty + checklists
-- `backend/src/service/service.service.ts` — defaultQty + checklists no create
-- `backend/src/workflow/workflow-engine.service.ts` — include items + novas variaveis
-- `frontend/src/app/(dashboard)/services/page.tsx` — defaultQty, checklists, Editar/Duplicar
-- `frontend/src/components/os/ServiceItemsSection.tsx` — defaultQty na interface + uso
-- `frontend/src/types/stage-config.ts` — NOTIFY_VARS com servicos_nomes/descricoes
+## Arquivos modificados:
+- `frontend/src/types/stage-config.ts` — LinkPageBlock types, page2Layout defaults, compiler/decompiler
+- `frontend/src/app/(dashboard)/workflow/components/StageSection.tsx` — UI reestruturada para checklists
 
 ## Pendente:
-- FUTURO: Configuracao de momento dos checklists no workflow (ao_iniciar, ao_finalizar, livre)
+- FUTURO: Verificacao visual completa do workflow editor (preview nao autenticou)
+- FUTURO: Fix tecnico DIRECTED assignment — assignedPartnerId nao definido
+- FUTURO: Atualizar pagina editar OS para match com criar OS
+- FUTURO: Configuracao de momento dos checklists no workflow
 - FUTURO: Mecanismo para clientes solicitarem melhorias
-- FUTURO: Contrato do cliente com a Tecnikos (correcao de precos)
-- FUTURO: Fix logradouro em dados importados do Sankhya (Rua/Av prefix)
+- FUTURO: Contrato do cliente com a Tecnikos
+- FUTURO: Fix logradouro em dados importados do Sankhya
 - FUTURO: Discutir/remover commissionBps global da empresa
 - FUTURO: Workflow config "Respeitar tecnico direcionado"
 
-## Versao atual: v1.03.34 (deployed)
+## Versao atual: v1.03.51 (deployed)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

@@ -1654,9 +1654,15 @@ Solucao:
 - Decompiler: ENUM_TO_KEY reconhece blocos estruturados e legados
 - Labels: 4 novas entries em TECH_ACTION_LABELS
 
-**Phase 4 — StageSection UI:**
-- Secao "Checklists do Servico" em box azul para etapas ABERTA, ATRIBUIDA, EM_EXECUCAO, CONCLUIDA
-- Toggle por classe + ConfigRow com mode/required SelectField + notifyOnSkip sub-toggle
+**Phase 4 — Workflow UI (StageSection) — CONCLUIDO v1.03.51:**
+- ABERTA Page 1: blocos checklist ordenaveis no pageLayout com inline mode/required config
+- ABERTA Page 2: GPS/en-route/checklists como page2Layout ordenavel (substitui toggles hardcoded)
+- ABERTA: Pergunta movida para antes do botao Aceitar
+- ATRIBUIDA: filtrado para so checklists relevantes (toolsPpe, materials, custom) + observacao
+- EM_EXECUCAO: secao renomeada "Pagina do Link", itens ordenaveis + footer info
+- CONCLUIDA: secao renomeada "Pagina do Link", filtrado finalCheck/custom + foto/assinatura/observacao
+- stage-config.ts: gps_button/enroute_button no LinkPageBlock, page2Layout defaults, compiler/decompiler sync
+- Deploy v1.03.51 OK
 
 **Phase 5 — Link Publico:**
 - Backend: getPublicView inclui checklists agregados + checklistResponses + checklistConfig
