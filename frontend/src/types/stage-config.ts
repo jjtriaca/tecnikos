@@ -984,8 +984,6 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
     enabled: false,
     execLinkLayout: [
       { id: 'ex_cl1', type: 'checklist', checklistClass: 'INITIAL_CHECK', label: 'Verificação Inicial',  enabled: false },
-      { id: 'ex_cl2', type: 'checklist', checklistClass: 'TOOLS_PPE',     label: 'Ferramentas e EPI',    enabled: false },
-      { id: 'ex_cl3', type: 'checklist', checklistClass: 'MATERIALS',     label: 'Materiais',            enabled: false },
       { id: 'ex_stp', type: 'step',      label: 'Passo a passo',          enabled: false },
       { id: 'ex_pho', type: 'photo',     label: 'Foto obrigatória',       enabled: false },
       { id: 'ex_frm', type: 'form',      label: 'Formulário',             enabled: false },
@@ -2069,9 +2067,11 @@ function decompileV2Blocks(blocks: any[], config: WorkflowFormConfig): WorkflowF
           // Restore link layouts from saved STATUS config
           if (cursor.config.execLinkLayout?.length) {
             const defaultExec = currentStage.execLinkLayout;
-            const savedMap = new Map(cursor.config.execLinkLayout.map((b: any) => [b.id, b]));
+            const REMOVED_EXEC = new Set(['ex_cl2', 'ex_cl3']);
+            const cleanedExec = cursor.config.execLinkLayout.filter((b: any) => !REMOVED_EXEC.has(b.id));
+            const savedMap = new Map(cleanedExec.map((b: any) => [b.id, b]));
             currentStage.execLinkLayout = [
-              ...cursor.config.execLinkLayout,
+              ...cleanedExec,
               ...defaultExec.filter(d => !savedMap.has(d.id)),
             ];
           }
@@ -2123,9 +2123,11 @@ function decompileV3Blocks(blocks: any[], config: WorkflowFormConfig): WorkflowF
             currentStage.enabled = true;
             if (block.config.execLinkLayout?.length) {
               const defaultExec = currentStage.execLinkLayout;
-              const savedMap = new Map(block.config.execLinkLayout.map((b: any) => [b.id, b]));
+              const REMOVED_EXEC = new Set(['ex_cl2', 'ex_cl3']);
+              const cleanedExec = block.config.execLinkLayout.filter((b: any) => !REMOVED_EXEC.has(b.id));
+              const savedMap = new Map(cleanedExec.map((b: any) => [b.id, b]));
               currentStage.execLinkLayout = [
-                ...block.config.execLinkLayout,
+                ...cleanedExec,
                 ...defaultExec.filter(d => !savedMap.has(d.id)),
               ];
             }
