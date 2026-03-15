@@ -39,7 +39,7 @@ const TENANT_MODEL_DELEGATES = new Set([
   'obra', 'serviceAddress', 'cardSettlement', 'cardFeeRate', 'financialAccount',
   'nfseEntrada', 'service', 'fiscalPeriod', 'emailConfig', 'technicianContract',
   'codeCounter', 'chatIAConversation', 'chatIAMessage', 'quote', 'quoteItem',
-  'quoteAttachment',
+  'quoteAttachment', 'checklistResponse',
 ]);
 
 /**
@@ -140,6 +140,7 @@ export class PrismaService
     await this.ensureCodeColumns();
     await this.fixOrphanImportedStatus();
     await this.ensureMultiTenantTables();
+    await this.ensureChecklistResponseTable();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -863,6 +864,54 @@ export class PrismaService
       this.logger.log('Multi-tenant tables verified');
     } catch (err) {
       this.logger.warn('Multi-tenant tables auto-migration failed (non-fatal):', err);
+    }
+  }
+
+  private async ensureChecklistResponseTable(): Promise<void> {
+    try {
+      // Enum types
+      await this.$executeRawUnsafe(`
+        DO $$ BEGIN
+          CREATE TYPE "ChecklistClass" AS ENUM ('TOOLS_PPE', 'MATERIALS', 'INITIAL_CHECK', 'FINAL_CHECK', 'CUSTOM');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$
+      `);
+      await this.$executeRawUnsafe(`
+        DO $$ BEGIN
+          CREATE TYPE "ChecklistMode" AS ENUM ('ITEM_BY_ITEM', 'FULL');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$
+      `);
+
+      // ChecklistResponse table
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "ChecklistResponse" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "companyId" TEXT NOT NULL,
+          "serviceOrderId" TEXT NOT NULL,
+          "checklistClass" "ChecklistClass" NOT NULL,
+          "stage" TEXT NOT NULL,
+          "mode" "ChecklistMode" NOT NULL DEFAULT 'ITEM_BY_ITEM',
+          "required" BOOLEAN NOT NULL DEFAULT true,
+          "items" JSONB NOT NULL,
+          "observation" TEXT,
+          "confirmed" BOOLEAN NOT NULL DEFAULT false,
+          "confirmedAt" TIMESTAMP(3),
+          "confirmedBy" TEXT,
+          "technicianName" TEXT,
+          "geolocation" JSONB,
+          "deviceInfo" JSONB,
+          "timeInStage" INTEGER,
+          "skippedItems" JSONB,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "ChecklistResponse_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ChecklistResponse_serviceOrderId_idx" ON "ChecklistResponse"("serviceOrderId")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ChecklistResponse_companyId_serviceOrderId_idx" ON "ChecklistResponse"("companyId", "serviceOrderId")`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ChecklistResponse_serviceOrderId_checklistClass_idx" ON "ChecklistResponse"("serviceOrderId", "checklistClass")`);
+    } catch (err) {
+      this.logger.warn('ChecklistResponse auto-migration check failed (non-fatal):', err);
     }
   }
 

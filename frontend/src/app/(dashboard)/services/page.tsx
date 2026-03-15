@@ -23,7 +23,12 @@ interface Service {
   priceCents: number | null;
   commissionBps: number | null;
   defaultQty: number | null;
-  checklists: Array<{ name: string; items: string[] }> | null;
+  checklists: {
+    toolsPpe?: string[];
+    materials?: string[];
+    initialCheck?: string[];
+    finalCheck?: string[];
+  } | null;
   category: string | null;
   isActive: boolean;
   createdAt: string;
@@ -54,6 +59,13 @@ function parseBRLToCents(value: string): number {
   const num = parseFloat(cleaned);
   return isNaN(num) ? 0 : Math.round(num * 100);
 }
+
+const CHECKLIST_CLASSES = [
+  { key: "toolsPpe" as const, label: "Ferramentas e EPI", icon: "🔧", placeholder: "Ex: Chave de fenda, Multímetro, Luvas isolantes..." },
+  { key: "materials" as const, label: "Materiais", icon: "📦", placeholder: "Ex: Cabo 2.5mm, Disjuntor 20A, Fita isolante..." },
+  { key: "initialCheck" as const, label: "Verificação Inicial", icon: "📋", placeholder: "Ex: Local energizado?, Risco de queda?, Cliente presente?..." },
+  { key: "finalCheck" as const, label: "Verificação Final", icon: "✅", placeholder: "Ex: Área limpa?, Equipamentos testados?, Cliente assinou?..." },
+];
 
 const UNIT_OPTIONS = [
   { value: "SV", label: "Serviço (SV)" },
@@ -184,7 +196,7 @@ const EMPTY_FORM = {
   priceCents: "",
   commissionBps: "",
   defaultQty: "",
-  checklists: [] as Array<{ name: string; items: string[] }>,
+  checklists: { toolsPpe: [] as string[], materials: [] as string[], initialCheck: [] as string[], finalCheck: [] as string[] },
   category: "",
   isActive: true,
 };
@@ -271,7 +283,12 @@ export default function ServicesPage() {
       priceCents: service.priceCents != null ? (service.priceCents / 100).toFixed(2).replace(".", ",") : "",
       commissionBps: service.commissionBps != null ? (service.commissionBps / 100).toFixed(1).replace(".", ",") : "",
       defaultQty: service.defaultQty != null ? String(service.defaultQty) : "",
-      checklists: service.checklists || [],
+      checklists: {
+        toolsPpe: service.checklists?.toolsPpe || [],
+        materials: service.checklists?.materials || [],
+        initialCheck: service.checklists?.initialCheck || [],
+        finalCheck: service.checklists?.finalCheck || [],
+      },
       category: service.category || "",
       isActive: service.isActive,
     });
@@ -294,7 +311,12 @@ export default function ServicesPage() {
         priceCents: formData.priceCents ? parseBRLToCents(formData.priceCents) : undefined,
         commissionBps: commPct != null && !isNaN(commPct) ? Math.round(commPct * 100) : undefined,
         defaultQty: formData.defaultQty ? parseInt(formData.defaultQty) || undefined : undefined,
-        checklists: formData.checklists.length > 0 ? formData.checklists.filter(c => c.name.trim() && c.items.length > 0) : undefined,
+        checklists: {
+          toolsPpe: formData.checklists.toolsPpe.filter(Boolean),
+          materials: formData.checklists.materials.filter(Boolean),
+          initialCheck: formData.checklists.initialCheck.filter(Boolean),
+          finalCheck: formData.checklists.finalCheck.filter(Boolean),
+        },
         category: formData.category || undefined,
         isActive: formData.isActive,
       };
@@ -327,7 +349,12 @@ export default function ServicesPage() {
       priceCents: service.priceCents != null ? (service.priceCents / 100).toFixed(2).replace(".", ",") : "",
       commissionBps: service.commissionBps != null ? (service.commissionBps / 100).toFixed(1).replace(".", ",") : "",
       defaultQty: service.defaultQty != null ? String(service.defaultQty) : "",
-      checklists: service.checklists ? JSON.parse(JSON.stringify(service.checklists)) : [],
+      checklists: {
+        toolsPpe: [...(service.checklists?.toolsPpe || [])],
+        materials: [...(service.checklists?.materials || [])],
+        initialCheck: [...(service.checklists?.initialCheck || [])],
+        finalCheck: [...(service.checklists?.finalCheck || [])],
+      },
       category: service.category || "",
       isActive: true,
     });
@@ -471,93 +498,65 @@ export default function ServicesPage() {
             )}
           </div>
 
-          {/* Checklists editor */}
+          {/* Checklists editor — 4 classes fixas */}
           <div className="mt-4 border-t border-slate-200 pt-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-slate-600">Checklists</label>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, checklists: [...formData.checklists, { name: "", items: [] }] })}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-              >
-                + Adicionar checklist
-              </button>
-            </div>
-            {formData.checklists.length === 0 && (
-              <p className="text-xs text-slate-400">Nenhum checklist configurado. Ex: Ferramentas, Materiais, Verificação Final.</p>
-            )}
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {formData.checklists.map((cl, clIdx) => (
-                <div key={clIdx} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 min-w-[372px] w-[372px] flex-shrink-0">
-                  <div className="flex items-center gap-1 mb-2">
-                    <input
-                      type="text"
-                      value={cl.name}
-                      onChange={(e) => {
-                        const updated = [...formData.checklists];
-                        updated[clIdx] = { ...updated[clIdx], name: e.target.value };
-                        setFormData({ ...formData, checklists: updated });
-                      }}
-                      placeholder="Ex: Ferramentas"
-                      className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-                    />
+            <label className="text-xs font-medium text-slate-600 mb-2 block">Checklists do Serviço</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {CHECKLIST_CLASSES.map((cls) => {
+                const items = formData.checklists[cls.key];
+                return (
+                  <div key={cls.key} className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-slate-700">
+                        {cls.icon} {cls.label}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {items.length} {items.length === 1 ? "item" : "itens"}
+                      </span>
+                    </div>
+                    <div>
+                      {items.map((item, itemIdx) => (
+                        <div key={itemIdx} className="flex items-start gap-1 mb-0.5">
+                          <span className="text-slate-300 text-[10px] mt-1.5">{itemIdx + 1}.</span>
+                          <textarea
+                            value={item}
+                            onChange={(e) => {
+                              const updated = [...items];
+                              updated[itemIdx] = e.target.value;
+                              setFormData({ ...formData, checklists: { ...formData.checklists, [cls.key]: updated } });
+                              e.target.style.height = "auto";
+                              e.target.style.height = e.target.scrollHeight + "px";
+                            }}
+                            onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                            rows={1}
+                            placeholder={cls.placeholder}
+                            className="flex-1 min-w-0 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-none overflow-hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = items.filter((_, i) => i !== itemIdx);
+                              setFormData({ ...formData, checklists: { ...formData.checklists, [cls.key]: updated } });
+                            }}
+                            className="text-red-300 hover:text-red-500 text-[10px] flex-shrink-0 mt-0.5"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, checklists: formData.checklists.filter((_, i) => i !== clIdx) })}
-                      className="text-red-400 hover:text-red-600 text-xs flex-shrink-0"
-                      title="Remover checklist"
+                      onClick={() => {
+                        setFormData({ ...formData, checklists: { ...formData.checklists, [cls.key]: [...items, ""] } });
+                      }}
+                      className="text-[10px] text-blue-500 hover:text-blue-700 mt-1"
                     >
-                      ✕
+                      + Adicionar item
                     </button>
                   </div>
-                  <div>
-                    {cl.items.map((item, itemIdx) => (
-                      <div key={itemIdx} className="flex items-start gap-1 mb-0.5">
-                        <span className="text-slate-300 text-[10px] mt-1">•</span>
-                        <textarea
-                          value={item}
-                          onChange={(e) => {
-                            const updated = [...formData.checklists];
-                            const items = [...updated[clIdx].items];
-                            items[itemIdx] = e.target.value;
-                            updated[clIdx] = { ...updated[clIdx], items };
-                            setFormData({ ...formData, checklists: updated });
-                            // Auto-resize
-                            e.target.style.height = "auto";
-                            e.target.style.height = e.target.scrollHeight + "px";
-                          }}
-                          onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
-                          rows={1}
-                          placeholder="Item..."
-                          className="flex-1 min-w-0 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-none overflow-hidden"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = [...formData.checklists];
-                            updated[clIdx] = { ...updated[clIdx], items: updated[clIdx].items.filter((_, i) => i !== itemIdx) };
-                            setFormData({ ...formData, checklists: updated });
-                          }}
-                          className="text-red-300 hover:text-red-500 text-[10px] flex-shrink-0"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const updated = [...formData.checklists];
-                      updated[clIdx] = { ...updated[clIdx], items: [...updated[clIdx].items, ""] };
-                      setFormData({ ...formData, checklists: updated });
-                    }}
-                    className="text-[10px] text-blue-500 hover:text-blue-700 mt-1"
-                  >
-                    + Item
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

@@ -216,6 +216,34 @@ const EVENT_LABELS: Record<string, string> = {
   STATUS_CHANGE: "Status alterado",
   ASSIGNED: "Técnico atribuído",
   CREATED: "OS criada",
+  CHECKLIST_CONFIRMED: "Checklist confirmado",
+  CHECKLIST_SKIPPED: "Checklist pulado",
+};
+
+const CHECKLIST_CLASS_LABELS: Record<string, { label: string; icon: string }> = {
+  TOOLS_PPE: { label: "Ferramentas e EPI", icon: "🔧" },
+  MATERIALS: { label: "Materiais", icon: "📦" },
+  INITIAL_CHECK: { label: "Verificação Inicial", icon: "🔍" },
+  FINAL_CHECK: { label: "Verificação Final", icon: "✅" },
+  CUSTOM: { label: "Personalizado", icon: "📋" },
+};
+
+type ChecklistResponseData = {
+  id: string;
+  checklistClass: string;
+  stage: string;
+  mode: string;
+  required: boolean;
+  items: Array<{ text: string; checked: boolean; checkedAt?: string }>;
+  observation?: string | null;
+  confirmed: boolean;
+  confirmedAt?: string | null;
+  technicianName?: string | null;
+  geolocation?: { lat: number; lng: number } | null;
+  deviceInfo?: any | null;
+  timeInStage?: number | null;
+  skippedItems?: string[] | null;
+  createdAt: string;
 };
 
 function formatCurrency(cents: number) {
@@ -257,6 +285,9 @@ export default function OrderDetailPage() {
   const [selectedTechIds, setSelectedTechIds] = useState<Set<string>>(new Set());
   const [creatingOffer, setCreatingOffer] = useState(false);
 
+  // Checklists
+  const [checklistResponses, setChecklistResponses] = useState<ChecklistResponseData[]>([]);
+
   // Mapa interativo
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
@@ -271,6 +302,13 @@ export default function OrderDetailPage() {
         setWorkflow(wf);
       } catch {
         setWorkflow(null);
+      }
+      // Load checklist responses
+      try {
+        const clRes = await api.get<{ data: ChecklistResponseData[] }>(`/service-orders/${id}/checklists`);
+        setChecklistResponses(clRes.data || []);
+      } catch {
+        setChecklistResponses([]);
       }
       // Check NFS-e prompt for completed orders
       if ((data.status === "CONCLUIDA" || data.status === "APROVADA") && !nfseDismissed) {
@@ -967,6 +1005,100 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {/* ── Checklists ── */}
+      {checklistResponses.length > 0 && (() => {
+        // Group by stage
+        const byStage: Record<string, ChecklistResponseData[]> = {};
+        for (const r of checklistResponses) {
+          if (!byStage[r.stage]) byStage[r.stage] = [];
+          byStage[r.stage].push(r);
+        }
+        const stageNames: Record<string, string> = {
+          ABERTA: "Aberta", ATRIBUIDA: "Atribuída", EM_EXECUCAO: "Em Execução",
+          CONCLUIDA: "Concluída", APROVADA: "Aprovada",
+        };
+        return (
+          <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6">
+            <h3 className="text-sm font-semibold text-slate-700 mb-4">📋 Checklists</h3>
+            <div className="space-y-5">
+              {Object.entries(byStage).map(([stage, responses]) => (
+                <div key={stage}>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Etapa: {stageNames[stage] || stage}
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {responses.map((r) => {
+                      const cls = CHECKLIST_CLASS_LABELS[r.checklistClass] || { label: r.checklistClass, icon: "📋" };
+                      const items = Array.isArray(r.items) ? r.items : [];
+                      const checked = items.filter((i: any) => i.checked).length;
+                      const total = items.length;
+                      return (
+                        <div key={r.id} className="border border-slate-100 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-slate-700">
+                              {cls.icon} {cls.label}
+                            </span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                              r.confirmed
+                                ? "bg-green-100 text-green-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}>
+                              {r.confirmed ? "Confirmado" : "Pendente"}
+                            </span>
+                          </div>
+                          {/* Items */}
+                          {total > 0 && (
+                            <div className="space-y-1 mb-2">
+                              {items.map((item: any, idx: number) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  <span className={item.checked ? "text-green-600" : "text-slate-400"}>
+                                    {item.checked ? "✓" : "○"}
+                                  </span>
+                                  <span className={item.checked ? "text-slate-700" : "text-slate-500"}>
+                                    {item.text}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {/* Stats bar */}
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400">
+                            <span>{checked}/{total} itens</span>
+                            {r.mode === "ITEM_BY_ITEM" && <span>Item a item</span>}
+                            {r.mode === "FULL" && <span>Lista completa</span>}
+                            {r.required ? <span className="text-red-400">Obrigatório</span> : <span>Recomendado</span>}
+                            {r.technicianName && <span>Por: {r.technicianName}</span>}
+                            {r.confirmedAt && <span>{formatDateTime(r.confirmedAt)}</span>}
+                          </div>
+                          {/* Observation */}
+                          {r.observation && (
+                            <p className="mt-1.5 text-[11px] text-slate-500 italic border-t border-slate-50 pt-1.5">
+                              {r.observation}
+                            </p>
+                          )}
+                          {/* Geolocation */}
+                          {r.geolocation && (
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              📍 {(r.geolocation as any).lat?.toFixed(4)}, {(r.geolocation as any).lng?.toFixed(4)}
+                            </p>
+                          )}
+                          {/* Skipped items */}
+                          {r.skippedItems && (r.skippedItems as string[]).length > 0 && (
+                            <p className="text-[10px] text-amber-500 mt-1">
+                              ⚠ Pulados: {(r.skippedItems as string[]).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Fotos ── */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6">
         <h3 className="text-sm font-semibold text-slate-700 mb-3">📷 Fotos</h3>
@@ -1033,13 +1165,18 @@ export default function OrderDetailPage() {
             {order.events.map((event) => (
               <div key={event.id} className="flex items-start gap-3 border-b border-slate-50 pb-2 last:border-0">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs text-slate-500 flex-shrink-0 mt-0.5">
-                  {event.actorType === "TECNICO" ? "🔧" : "👤"}
+                  {event.type === "CHECKLIST_CONFIRMED" || event.type === "CHECKLIST_SKIPPED"
+                    ? "📋"
+                    : event.actorType === "TECNICO" ? "🔧" : "👤"}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-slate-700">
                     {EVENT_LABELS[event.type] || event.type}
                     {event.payload?.stepName && (
                       <span className="text-slate-500"> — {event.payload.stepName}</span>
+                    )}
+                    {event.payload?.checklistClass && (
+                      <span className="text-slate-500"> — {CHECKLIST_CLASS_LABELS[event.payload.checklistClass]?.label || event.payload.checklistClass}</span>
                     )}
                     {event.payload?.completedSteps && event.payload?.totalSteps && (
                       <span className="text-slate-400"> ({event.payload.completedSteps}/{event.payload.totalSteps})</span>

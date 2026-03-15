@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { ChecklistResponseService } from '../checklist-response/checklist-response.service';
+import { SubmitChecklistDto } from '../checklist-response/dto/submit-checklist.dto';
 import { ServiceOrderStatus } from '@prisma/client';
 import {
   randomUUID,
@@ -94,6 +96,33 @@ function extractLinkConfig(workflowTemplate: any): {
   return null;
 }
 
+/**
+ * Extract checklist configuration from workflow template blocks.
+ * Returns a map of checklistClass → { mode, required, notifyOnSkip } for the current stage.
+ */
+function extractChecklistConfig(workflowTemplate: any, currentStatus: string): Record<string, { mode: string; required: string; notifyOnSkip: boolean }> | null {
+  const steps = workflowTemplate?.steps as any;
+  if (!steps) return null;
+  const blocks = steps?.version === 2 ? steps.blocks : (steps?.blocks || []);
+
+  const result: Record<string, { mode: string; required: string; notifyOnSkip: boolean }> = {};
+
+  for (const block of blocks) {
+    if (block.type !== 'CHECKLIST') continue;
+    // Match blocks for the current stage
+    if (block.stage && block.stage !== currentStatus) continue;
+    const cls = block.config?.checklistClass || block.checklistClass;
+    if (!cls) continue;
+    result[cls] = {
+      mode: block.config?.mode || block.mode || 'ITEM_BY_ITEM',
+      required: block.config?.required || block.required || 'REQUIRED',
+      notifyOnSkip: block.config?.notifyOnSkip ?? block.notifyOnSkip ?? false,
+    };
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
 @Injectable()
 export class PublicOfferService {
   private readonly logger = new Logger(PublicOfferService.name);
@@ -101,6 +130,7 @@ export class PublicOfferService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
+    private readonly checklistResponseService: ChecklistResponseService,
   ) {}
 
   /**
@@ -305,10 +335,13 @@ export class PublicOfferService {
   ) {
     const offer = await this.getOfferByToken(token, accessKey);
 
-    // Load workflow template for linkConfig
+    // Load workflow template for linkConfig + services for checklists
     const so = await this.prisma.serviceOrder.findUnique({
       where: { id: offer.serviceOrderId },
-      include: { workflowTemplate: true },
+      include: {
+        workflowTemplate: true,
+        services: { include: { service: { select: { id: true, name: true, checklists: true } } } },
+      },
     });
 
     let distanceMeters: number | null = null;
@@ -374,6 +407,12 @@ export class PublicOfferService {
       // State flags for returning visitors
       enRouteAt: so?.enRouteAt?.toISOString() || null,
       trackingStartedAt: so?.trackingStartedAt?.toISOString() || null,
+      // Aggregated checklists from all services in the OS
+      checklists: this.aggregateServiceChecklists(so?.services || []),
+      // Checklist config from workflow template (mode, required, notifyOnSkip per class)
+      checklistConfig: extractChecklistConfig(so?.workflowTemplate, offer.serviceOrder.status),
+      // Already submitted checklist responses
+      checklistResponses: await this.getChecklistResponses(offer.companyId, offer.serviceOrderId),
     };
   }
 
@@ -1521,5 +1560,95 @@ export class PublicOfferService {
         durationMs: p.durationMs ? Number(p.durationMs) : null,
       })),
     };
+  }
+
+  /** Aggregate checklist items from all services in the OS, dedup by normalized text */
+  private aggregateServiceChecklists(services: any[]) {
+    const result: Record<string, string[]> = { toolsPpe: [], materials: [], initialCheck: [], finalCheck: [] };
+    const seen: Record<string, Set<string>> = { toolsPpe: new Set(), materials: new Set(), initialCheck: new Set(), finalCheck: new Set() };
+
+    for (const soi of services) {
+      const cl = soi.service?.checklists as any;
+      if (!cl || typeof cl !== 'object') continue;
+      for (const key of Object.keys(result)) {
+        const items = cl[key];
+        if (!Array.isArray(items)) continue;
+        for (const item of items) {
+          const norm = String(item).trim().toLowerCase();
+          if (norm && !seen[key].has(norm)) {
+            seen[key].add(norm);
+            result[key].push(String(item).trim());
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  /** Get existing checklist responses for this OS */
+  private async getChecklistResponses(companyId: string, serviceOrderId: string) {
+    const responses = await this.prisma.checklistResponse.findMany({
+      where: { companyId, serviceOrderId },
+      orderBy: { createdAt: 'asc' },
+    });
+    return responses.map(r => ({
+      id: r.id,
+      checklistClass: r.checklistClass,
+      stage: r.stage,
+      confirmed: r.confirmed,
+      items: r.items,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async submitChecklist(token: string, dto: SubmitChecklistDto) {
+    // Find the offer (active or revoked/accepted)
+    const offer = await this.prisma.serviceOrderOffer.findFirst({
+      where: { token },
+      include: {
+        serviceOrder: { select: { id: true, companyId: true, deletedAt: true, status: true } },
+      },
+    });
+
+    if (!offer || !offer.serviceOrder) {
+      throw new NotFoundException('Link não encontrado');
+    }
+
+    const so = offer.serviceOrder;
+    if (so.deletedAt || so.status === ServiceOrderStatus.CANCELADA) {
+      throw new BadRequestException('Esta ordem de serviço não está mais disponível.');
+    }
+
+    const response = await this.checklistResponseService.create(so.companyId, so.id, {
+      ...dto,
+      technicianName: dto.technicianName || undefined,
+    });
+
+    // Phase 7: Notify manager when technician skips recommended checklist items
+    if (dto.notifyOnSkip && dto.items?.length > 0) {
+      const skipped = dto.items.filter((i) => !i.checked);
+      if (skipped.length > 0) {
+        const classLabels: Record<string, string> = {
+          TOOLS_PPE: 'Ferramentas e EPI',
+          MATERIALS: 'Materiais',
+          INITIAL_CHECK: 'Verificação Inicial',
+          FINAL_CHECK: 'Verificação Final',
+          CUSTOM: 'Personalizado',
+        };
+        const classLabel = classLabels[dto.checklistClass] || dto.checklistClass;
+        const pendingItems = skipped.map((i) => i.text).join(', ');
+        const message = `⚠ Checklist "${classLabel}" submetido com ${skipped.length} item(ns) pendente(s): ${pendingItems}. Técnico: ${dto.technicianName || 'N/I'}.`;
+
+        this.notifications.send({
+          companyId: so.companyId,
+          serviceOrderId: so.id,
+          channel: 'MOCK',
+          message,
+          type: 'CHECKLIST_SKIPPED',
+        }).catch((err) => this.logger.error(`Checklist skip notification error: ${err.message}`));
+      }
+    }
+
+    return response;
   }
 }

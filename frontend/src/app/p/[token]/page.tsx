@@ -34,6 +34,9 @@ type LinkConfig = {
   agendaMarginHours: number;
 };
 
+type ChecklistItems = { toolsPpe: string[]; materials: string[]; initialCheck: string[]; finalCheck: string[] };
+type ChecklistResponse = { id: string; checklistClass: string; stage: string; confirmed: boolean; items: any; createdAt: string };
+
 type PublicViewData = {
   offer: { token: string; expiresAt: string; channel: string; accepted?: boolean };
   company: { id: string; name: string };
@@ -53,6 +56,9 @@ type PublicViewData = {
   linkConfig?: LinkConfig;
   enRouteAt?: string | null;
   trackingStartedAt?: string | null;
+  checklists?: ChecklistItems;
+  checklistConfig?: Record<string, { mode: string; required: string; notifyOnSkip: boolean }> | null;
+  checklistResponses?: ChecklistResponse[];
 };
 
 type AcceptResult = {
@@ -155,6 +161,11 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
   const [pauseReasonText, setPauseReasonText] = useState<string>("");
   const [pauseLoading, setPauseLoading] = useState(false);
   const [pauseError, setPauseError] = useState<string | null>(null);
+
+  // Checklist state
+  const [checklistChecked, setChecklistChecked] = useState<Record<string, Set<string>>>({});
+  const [checklistSubmitting, setChecklistSubmitting] = useState<string | null>(null);
+  const [checklistSubmitted, setChecklistSubmitted] = useState<Set<string>>(new Set());
 
   // Cleanup GPS watch on unmount
   useEffect(() => {
@@ -284,6 +295,10 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
         const akParam = storedKey ? `?ak=${storedKey}` : "";
         const res = await api.get<PublicViewData>(`/p/${token}${akParam}`);
         setData(res);
+        // Mark already-submitted checklists
+        if (res.checklistResponses?.length) {
+          setChecklistSubmitted(new Set(res.checklistResponses.map(r => r.checklistClass)));
+        }
         // Restore enRouteAt from backend if previously set
         if (res.enRouteAt) {
           setEnRouteAt(res.enRouteAt);
@@ -459,6 +474,39 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     } finally {
       setPauseLoading(false);
     }
+  };
+
+  // Checklist submission
+  const handleChecklistSubmit = async (checklistClass: string, items: string[]) => {
+    setChecklistSubmitting(checklistClass);
+    try {
+      const checked = checklistChecked[checklistClass] || new Set<string>();
+      const clsConfig = data?.checklistConfig?.[checklistClass];
+      await api.post(`/p/${token}/checklist`, {
+        checklistClass,
+        stage: data?.serviceOrder.status || 'ABERTA',
+        mode: clsConfig?.mode || 'ITEM_BY_ITEM',
+        required: clsConfig?.required === 'REQUIRED',
+        items: items.map(text => ({ text, checked: checked.has(text) })),
+        confirmed: true,
+        notifyOnSkip: clsConfig?.notifyOnSkip || false,
+        geolocation: undefined,
+        deviceInfo: { userAgent: navigator.userAgent, platform: navigator.platform },
+      });
+      setChecklistSubmitted(prev => new Set(prev).add(checklistClass));
+    } catch {
+      // silently fail - user can retry
+    } finally {
+      setChecklistSubmitting(null);
+    }
+  };
+
+  const toggleChecklistItem = (cls: string, item: string) => {
+    setChecklistChecked(prev => {
+      const set = new Set(prev[cls] || []);
+      if (set.has(item)) set.delete(item); else set.add(item);
+      return { ...prev, [cls]: set };
+    });
   };
 
   // Check if OS is in execution on page load (for returning technicians)
@@ -1048,6 +1096,77 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             <p className="text-sm text-red-700">{errorMsg}</p>
           </div>
         )}
+
+        {/* Checklists — show if there are items for any class */}
+        {data?.checklists && (() => {
+          const CLS_META: { key: keyof ChecklistItems; label: string; icon: string; enumValue: string }[] = [
+            { key: 'toolsPpe', label: 'Ferramentas e EPI', icon: '🔧', enumValue: 'TOOLS_PPE' },
+            { key: 'materials', label: 'Materiais', icon: '📦', enumValue: 'MATERIALS' },
+            { key: 'initialCheck', label: 'Verificação Inicial', icon: '📋', enumValue: 'INITIAL_CHECK' },
+            { key: 'finalCheck', label: 'Verificação Final', icon: '✅', enumValue: 'FINAL_CHECK' },
+          ];
+          const activeCls = CLS_META.filter(c => (data.checklists?.[c.key]?.length || 0) > 0);
+          if (activeCls.length === 0) return null;
+
+          return (
+            <div className="space-y-3">
+              {activeCls.map(cls => {
+                const items = data.checklists![cls.key];
+                const checked = checklistChecked[cls.enumValue] || new Set<string>();
+                const submitted = checklistSubmitted.has(cls.enumValue);
+                const allChecked = items.every(i => checked.has(i));
+                const submitting = checklistSubmitting === cls.enumValue;
+
+                return (
+                  <div key={cls.key} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-slate-800">{cls.icon} {cls.label}</h3>
+                      {submitted && <span className="text-xs text-green-600 font-medium">✓ Enviado</span>}
+                    </div>
+                    {submitted ? (
+                      <p className="text-xs text-green-600">Checklist confirmado.</p>
+                    ) : (
+                      <>
+                        <div className="space-y-1.5">
+                          {items.map(item => {
+                            const isChecked = checked.has(item);
+                            return (
+                              <button
+                                key={item}
+                                type="button"
+                                onClick={() => toggleChecklistItem(cls.enumValue, item)}
+                                className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-all ${
+                                  isChecked
+                                    ? "border-green-300 bg-green-50 text-green-800"
+                                    : "border-slate-200 bg-white text-slate-700"
+                                }`}
+                              >
+                                <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border ${
+                                  isChecked ? "bg-green-500 border-green-500 text-white" : "border-slate-300"
+                                }`}>
+                                  {isChecked && <span className="text-xs">✓</span>}
+                                </div>
+                                <span className="text-left">{item}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleChecklistSubmit(cls.enumValue, items)}
+                          disabled={!allChecked || submitting}
+                          className="w-full mt-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:bg-slate-300 hover:bg-blue-700 transition-colors"
+                        >
+                          {submitting ? "Enviando..." : `Confirmar ${cls.label}`}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Accept button — only if acceptOS is enabled */}
         {(data?.linkConfig?.acceptOS !== false) && (

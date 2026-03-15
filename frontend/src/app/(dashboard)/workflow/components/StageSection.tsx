@@ -261,6 +261,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
     ...stage,
     techActions: { ...stage.techActions, [key]: { ...stage.techActions[key as keyof typeof stage.techActions], ...patch } },
   });
+  const updateChecklistCls = (cls: 'toolsPpe' | 'materials' | 'initialCheck' | 'finalCheck', patch: any) => onChange({
+    ...stage,
+    techActions: { ...stage.techActions, checklistConfig: { ...stage.techActions.checklistConfig, [cls]: { ...stage.techActions.checklistConfig[cls], ...patch } } },
+  });
   const updateAuto = (key: string, patch: any) => onChange({
     ...stage,
     autoActions: { ...stage.autoActions, [key]: { ...stage.autoActions[key as keyof typeof stage.autoActions], ...patch } },
@@ -1947,7 +1951,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             </div>
             )}
 
-            {/* CHECKLIST — ATRIBUIDA + EM_EXECUCAO */}
+            {/* CHECKLIST LEGADO — ATRIBUIDA + EM_EXECUCAO (backward compat) */}
             {['ATRIBUIDA', 'EM_EXECUCAO'].includes(stage.status) && (
             <div>
               <Toggle checked={stage.techActions.checklist.enabled} onChange={v => updateTech('checklist', { enabled: v })}
@@ -1956,6 +1960,47 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 <ItemList items={stage.techActions.checklist.items}
                   onChange={items => updateTech('checklist', { items })} placeholder="Item do checklist" />
               </ConfigRow>
+            </div>
+            )}
+
+            {/* CHECKLISTS ESTRUTURADOS — 4 classes fixas */}
+            {['ABERTA', 'ATRIBUIDA', 'EM_EXECUCAO', 'CONCLUIDA'].includes(stage.status) && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3 space-y-3">
+              <p className="text-xs font-semibold text-blue-700">Checklists do Serviço</p>
+              <p className="text-[10px] text-blue-500 -mt-2">Itens vêm do cadastro de serviços da OS. Configure modo e obrigatoriedade por classe.</p>
+
+              {([
+                { cls: 'toolsPpe' as const, labelKey: 'checklistToolsPpe' },
+                { cls: 'materials' as const, labelKey: 'checklistMaterials' },
+                { cls: 'initialCheck' as const, labelKey: 'checklistInitialCheck' },
+                { cls: 'finalCheck' as const, labelKey: 'checklistFinalCheck' },
+              ]).map(({ cls, labelKey }) => (
+                <div key={cls}>
+                  <Toggle
+                    checked={stage.techActions.checklistConfig[cls].enabled}
+                    onChange={v => updateChecklistCls(cls, { enabled: v })}
+                    label={TECH_ACTION_LABELS[labelKey]?.label || cls}
+                    hint={TECH_ACTION_LABELS[labelKey]?.hint}
+                  />
+                  <ConfigRow visible={stage.techActions.checklistConfig[cls].enabled}>
+                    <div className="flex flex-wrap gap-3">
+                      <SelectField label="Modo" value={stage.techActions.checklistConfig[cls].mode}
+                        onChange={v => updateChecklistCls(cls, { mode: v })}
+                        options={[{ value: 'ITEM_BY_ITEM', label: 'Item a item' }, { value: 'FULL', label: 'Checklist inteiro' }]} />
+                      <SelectField label="Obrigatoriedade" value={stage.techActions.checklistConfig[cls].required}
+                        onChange={v => updateChecklistCls(cls, { required: v })}
+                        options={[{ value: 'REQUIRED', label: 'Obrigatório' }, { value: 'RECOMMENDED', label: 'Recomendado' }]} />
+                    </div>
+                    {stage.techActions.checklistConfig[cls].required === 'RECOMMENDED' && (
+                      <SubToggle
+                        checked={stage.techActions.checklistConfig[cls].notifyOnSkip}
+                        onChange={v => updateChecklistCls(cls, { notifyOnSkip: v })}
+                        label="Notificar gestor se técnico pular"
+                      />
+                    )}
+                  </ConfigRow>
+                </div>
+              ))}
             </div>
             )}
 

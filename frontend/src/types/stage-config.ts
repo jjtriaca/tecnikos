@@ -19,6 +19,12 @@ export interface StageConfig {
     note:      { enabled: boolean; placeholder: string };
     gps:       { enabled: boolean; requireAccuracy: boolean };
     checklist: { enabled: boolean; items: string[] };
+    checklistConfig: {
+      toolsPpe:      { enabled: boolean; mode: 'ITEM_BY_ITEM' | 'FULL'; required: 'REQUIRED' | 'RECOMMENDED'; notifyOnSkip: boolean };
+      materials:     { enabled: boolean; mode: 'ITEM_BY_ITEM' | 'FULL'; required: 'REQUIRED' | 'RECOMMENDED'; notifyOnSkip: boolean };
+      initialCheck:  { enabled: boolean; mode: 'ITEM_BY_ITEM' | 'FULL'; required: 'REQUIRED' | 'RECOMMENDED'; notifyOnSkip: boolean };
+      finalCheck:    { enabled: boolean; mode: 'ITEM_BY_ITEM' | 'FULL'; required: 'REQUIRED' | 'RECOMMENDED'; notifyOnSkip: boolean };
+    };
     form:      { enabled: boolean; fields: FormFieldDef[] };
     signature: { enabled: boolean; label: string };
     question:  { enabled: boolean; question: string; options: string[] };
@@ -927,6 +933,10 @@ export const TECH_ACTION_LABELS: Record<string, { label: string; icon: string; h
   note:      { label: 'Escrever observacao',       icon: '📝', hint: 'Habilita campo de texto livre para o tecnico registrar observacoes nesta etapa.' },
   gps:       { label: 'Capturar localizacao GPS',  icon: '📍', hint: 'Captura automaticamente as coordenadas GPS do tecnico quando ele entra nesta etapa. Registrado no historico da OS.' },
   checklist: { label: 'Preencher checklist',       icon: '☑️', hint: 'Lista de verificacao obrigatoria — o tecnico deve marcar todos os itens antes de concluir esta etapa.' },
+  checklistToolsPpe:     { label: 'Checklist: Ferramentas e EPI',     icon: '🔧', hint: 'Tecnico confirma ferramentas e equipamentos de protecao antes de iniciar. Itens vem do cadastro do servico.' },
+  checklistMaterials:    { label: 'Checklist: Materiais',             icon: '📦', hint: 'Tecnico confirma materiais necessarios para o servico. Itens vem do cadastro do servico.' },
+  checklistInitialCheck: { label: 'Checklist: Verificacao Inicial',   icon: '📋', hint: 'Verificacoes de seguranca e condicoes do local antes de iniciar o servico.' },
+  checklistFinalCheck:   { label: 'Checklist: Verificacao Final',     icon: '✅', hint: 'Checklist de finalizacao — limpeza, testes, assinatura do cliente.' },
   form:      { label: 'Preencher formulario',      icon: '📋', hint: 'Campos personalizados (texto, numero, selecao) que o tecnico preenche nesta etapa. Voce define os campos.' },
   signature:         { label: 'Coletar assinatura',            icon: '✍️', hint: 'O tecnico coleta assinatura digital do cliente ou responsavel no local. Registrada com timestamp e GPS.' },
   question:          { label: 'Responder pergunta',            icon: '❓', hint: 'Exibe uma pergunta com opcoes ao tecnico. Cada resposta pode disparar uma acao automatica (aceitar, redistribuir, notificar).' },
@@ -968,6 +978,12 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
       note:      { enabled: false, placeholder: 'Observações...' },
       gps:       { enabled: false, requireAccuracy: false },
       checklist: { enabled: false, items: [] },
+      checklistConfig: {
+        toolsPpe:     { enabled: false, mode: 'ITEM_BY_ITEM' as const, required: 'REQUIRED' as const, notifyOnSkip: false },
+        materials:    { enabled: false, mode: 'ITEM_BY_ITEM' as const, required: 'REQUIRED' as const, notifyOnSkip: false },
+        initialCheck: { enabled: false, mode: 'ITEM_BY_ITEM' as const, required: 'REQUIRED' as const, notifyOnSkip: false },
+        finalCheck:   { enabled: false, mode: 'ITEM_BY_ITEM' as const, required: 'REQUIRED' as const, notifyOnSkip: false },
+      },
       form:      { enabled: false, fields: [] },
       signature: { enabled: false, label: 'Assinatura do cliente' },
       question:  { enabled: false, question: '', options: [] },
@@ -1771,6 +1787,24 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
         next: null,
       });
     }
+    // Structured checklists (4 classes)
+    const CLS_META: Record<string, { enumValue: string; name: string; icon: string }> = {
+      toolsPpe:     { enumValue: 'TOOLS_PPE',     name: 'Ferramentas e EPI',     icon: '🔧' },
+      materials:    { enumValue: 'MATERIALS',      name: 'Materiais',             icon: '📦' },
+      initialCheck: { enumValue: 'INITIAL_CHECK',  name: 'Verificação Inicial',   icon: '📋' },
+      finalCheck:   { enumValue: 'FINAL_CHECK',    name: 'Verificação Final',     icon: '✅' },
+    };
+    for (const [clsKey, clsCfg] of Object.entries(stage.techActions.checklistConfig)) {
+      if (clsCfg.enabled) {
+        const meta = CLS_META[clsKey];
+        if (!meta) continue;
+        stageBlocks.push({
+          id: genId(`cl_${clsKey}`), type: 'CHECKLIST', name: meta.name, icon: meta.icon,
+          config: { checklistClass: meta.enumValue, mode: clsCfg.mode, required: clsCfg.required, notifyOnSkip: clsCfg.notifyOnSkip },
+          next: null,
+        });
+      }
+    }
     if (stage.techActions.form.enabled && stage.techActions.form.fields.length > 0) {
       stageBlocks.push({
         id: genId('form'), type: 'FORM', name: 'Formulário', icon: '📋',
@@ -2062,10 +2096,24 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
       stage.techActions.gps.enabled = true;
       if (cfg.requireAccuracy) stage.techActions.gps.requireAccuracy = true;
       break;
-    case 'CHECKLIST':
-      stage.techActions.checklist.enabled = true;
-      if (cfg.items?.length) stage.techActions.checklist.items = cfg.items;
+    case 'CHECKLIST': {
+      // Structured checklist (has checklistClass) vs legacy (has items array)
+      const ENUM_TO_KEY: Record<string, keyof StageConfig['techActions']['checklistConfig']> = {
+        TOOLS_PPE: 'toolsPpe', MATERIALS: 'materials', INITIAL_CHECK: 'initialCheck', FINAL_CHECK: 'finalCheck',
+      };
+      const mappedKey = cfg.checklistClass ? ENUM_TO_KEY[cfg.checklistClass] : null;
+      if (mappedKey) {
+        stage.techActions.checklistConfig[mappedKey].enabled = true;
+        if (cfg.mode) stage.techActions.checklistConfig[mappedKey].mode = cfg.mode;
+        if (cfg.required) stage.techActions.checklistConfig[mappedKey].required = cfg.required;
+        if (cfg.notifyOnSkip != null) stage.techActions.checklistConfig[mappedKey].notifyOnSkip = cfg.notifyOnSkip;
+      } else {
+        // Legacy checklist (CUSTOM / old format)
+        stage.techActions.checklist.enabled = true;
+        if (cfg.items?.length) stage.techActions.checklist.items = cfg.items;
+      }
       break;
+    }
     case 'FORM':
       stage.techActions.form.enabled = true;
       if (cfg.fields?.length) stage.techActions.form.fields = cfg.fields;

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsBoolean, IsArray, Min } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, Min } from 'class-validator';
 
 export class UpdateServiceDto {
   @IsOptional()
@@ -33,8 +33,12 @@ export class UpdateServiceDto {
   defaultQty?: number;
 
   @IsOptional()
-  @IsArray()
-  checklists?: Array<{ name: string; items: string[] }>;
+  checklists?: {
+    toolsPpe?: string[];
+    materials?: string[];
+    initialCheck?: string[];
+    finalCheck?: string[];
+  };
 
   @IsOptional()
   @IsString()

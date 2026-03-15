@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { PublicOfferService } from './public-offer.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { SubmitChecklistDto } from '../checklist-response/dto/submit-checklist.dto';
 
 @ApiTags('Public Link')
 @Public()
@@ -130,5 +131,14 @@ export class PublicLinkController {
   @Get(':token/pause-status')
   getPauseStatus(@Param('token') token: string) {
     return this.service.getPauseStatus(token);
+  }
+
+  @Post(':token/checklist')
+  @Throttle({ default: { limit: 20, ttl: 600_000 } })
+  submitChecklist(
+    @Param('token') token: string,
+    @Body() dto: SubmitChecklistDto,
+  ) {
+    return this.service.submitChecklist(token, dto);
   }
 }

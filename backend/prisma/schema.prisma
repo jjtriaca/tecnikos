@@ -27,6 +27,19 @@ enum ServiceOrderStatus {
   CANCELADA
 }
 
+enum ChecklistClass {
+  TOOLS_PPE
+  MATERIALS
+  INITIAL_CHECK
+  FINAL_CHECK
+  CUSTOM
+}
+
+enum ChecklistMode {
+  ITEM_BY_ITEM
+  FULL
+}
+
 enum FinancialEntryType {
   RECEIVABLE
   PAYABLE
@@ -188,6 +201,7 @@ model Company {
   codeCounters         CodeCounter[]
   chatIAConversations  ChatIAConversation[]
   quotes               Quote[]
+  checklistResponses   ChecklistResponse[]
 }
 
 model User {
@@ -387,6 +401,7 @@ model ServiceOrder {
   technicianContracts  TechnicianContract[]
   quotes               Quote[]
   items                ServiceOrderItem[]
+  checklistResponses   ChecklistResponse[]
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -1641,7 +1656,7 @@ model Service {
   priceCents  Int?      // Preço unitário em centavos
   commissionBps Int?    // Comissão do técnico em basis points (ex: 1000 = 10%)
   defaultQty  Int?      // Quantidade padrão ao adicionar na OS (ex: 2 horas)
-  checklists  Json?     // Array de checklists: [{ name: string, items: string[] }]
+  checklists  Json?     // {toolsPpe: string[], materials: string[], initialCheck: string[], finalCheck: string[]}
   category    String?   // Categoria livre
   isActive    Boolean   @default(true)
 
@@ -1675,6 +1690,36 @@ model ServiceOrderItem {
   service          Service      @relation(fields: [serviceId], references: [id])
 
   @@index([serviceOrderId])
+}
+
+// ========== Respostas de Checklist ==========
+
+model ChecklistResponse {
+  id               String         @id @default(uuid())
+  companyId        String
+  serviceOrderId   String
+  checklistClass   ChecklistClass
+  stage            String         // ABERTA, ATRIBUIDA, EM_EXECUCAO, CONCLUIDA
+  mode             ChecklistMode  @default(ITEM_BY_ITEM)
+  required         Boolean        @default(true)
+  items            Json           // [{text: string, checked: boolean, checkedAt?: string}]
+  observation      String?
+  confirmed        Boolean        @default(false)
+  confirmedAt      DateTime?
+  confirmedBy      String?        // Partner ID do técnico
+  technicianName   String?
+  geolocation      Json?          // {lat: number, lng: number, accuracy?: number}
+  deviceInfo       Json?          // {browser?: string, os?: string, device?: string}
+  timeInStage      Int?           // Segundos entre receber e confirmar
+  skippedItems     Json?          // Itens não confirmados quando modo Recomendado
+  createdAt        DateTime       @default(now())
+
+  company          Company        @relation(fields: [companyId], references: [id])
+  serviceOrder     ServiceOrder   @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId])
+  @@index([companyId, serviceOrderId])
+  @@index([serviceOrderId, checklistClass])
 }
 
 // ========== Período Fiscal (Escrituração) ==========

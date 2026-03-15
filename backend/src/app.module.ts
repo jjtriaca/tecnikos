@@ -27,6 +27,7 @@ import { NfseEntradaModule } from './nfse-entrada/nfse-entrada.module';
 import { ObraModule } from './obra/obra.module';
 import { ServiceAddressModule } from './service-address/service-address.module';
 import { ServiceModule } from './service/service.module';
+import { ChecklistResponseModule } from './checklist-response/checklist-response.module';
 import { FiscalPeriodModule } from './fiscal-period/fiscal-period.module';
 import { SpedModule } from './sped/sped.module';
 import { EmailModule } from './email/email.module';
@@ -78,6 +79,7 @@ import { VerificationGuard } from './auth/guards/verification.guard';
     ObraModule,
     ServiceAddressModule,
     ServiceModule,
+    ChecklistResponseModule,
     FiscalPeriodModule,
     SpedModule,
     EmailModule,

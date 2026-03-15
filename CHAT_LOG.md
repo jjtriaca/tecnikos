@@ -1592,3 +1592,87 @@ Solucao:
 ### Melhorias a discutir:
 1. **Mecanismo para clientes solicitarem melhorias** — A DISCUTIR (verificar se IA embarcada ja tem algo)
 2. **Contrato do cliente com a Tecnikos** — A DISCUTIR (correcao de precos)
+
+---
+
+## 2026-03-15 — Sessao 112: Checklists no Workflow — Especificacao Completa
+
+### Decisoes do Juliano:
+
+**5 Classes de checklist fixas:**
+1. Ferramentas e EPI (itens do servico)
+2. Materiais (itens do servico)
+3. Verificacao Inicial (itens do servico)
+4. Verificacao Final (itens do servico)
+5. Personalizado (itens do workflow)
+
+**Configuracao por classe:** modo (item a item / inteiro) + obrigatoriedade (obrigatorio / recomendado) + notificacao opcional
+
+**Cadastro do Servico:** 4 secoes fixas substituem checklists com nome livre
+
+**Link do tecnico:** canal unico do inicio ao fim, evolui em paginas por etapa
+
+**Por etapa:**
+- ABERTA Pag1: +3 checklists ordenaveis, removido Texto livre 2/3, Pergunta movida acima do Aceitar
+- ABERTA Pag2: mesmo padrao ordenavel (GPS, a caminho, checklists)
+- OFERTADA: sem checklist
+- ATRIBUIDA: nova secao "Checklists do Tecnico" antes das acoes automaticas (Ferramentas, Materiais, Personalizado + observacao). Removidos: Notificar tecnico, Foto, Checklist antigo
+- A_CAMINHO: sem checklist, mantem como esta
+- EM_EXECUCAO: tudo migra pro link ordenavel (verificacao inicial/final, foto, formulario, assinatura, passo a passo, observacao, personalizado). GPS vira acao automatica. Rodape fixo: cronometro + pausar + concluir
+- CONCLUIDA: pagina link (verificacao final, foto, assinatura, observacao, personalizado). Aprovacao: obrigatoria ou automatica. Financeiro REMOVIDO daqui
+- APROVADA: so financeiro + notificacoes. Link vira somente leitura, expira depois
+
+**Gravacao:** nova tabela ChecklistResponse com dados ricos (geo, dispositivo, tempo, itens marcados/pendentes)
+**Visualizacao:** aba Checklists na OS + eventos na timeline
+
+**Override do gestor:** quando checklist e "Recomendado", tecnico pode avancar sem completar. Notificacao ao gestor e opcional com sub-opcoes de canal/mensagem.
+
+**Pausas no link:** rodape fixo com cronometro, botao pausar (com motivo) e concluir. Gravam no mesmo padrao rico.
+
+### Especificacao completa salva em: docs/CHECKLIST_WORKFLOW_SPEC.md
+
+### Implementacao Fases 1-7 — CONCLUIDO
+
+**Phase 1 — Backend Foundation:**
+- Schema: enums ChecklistClass (5 valores), ChecklistMode (2 valores), model ChecklistResponse com dados ricos
+- Migration: 20260315040000_add_checklist_response
+- PrismaService: TENANT_MODEL_DELEGATES + ensureChecklistResponseTable()
+- DTOs: Service.checklists migrado de `[{name, items}]` para `{toolsPpe, materials, initialCheck, finalCheck}`
+- Modulo ChecklistResponse: service + controller + SubmitChecklistDto
+- Endpoints: GET /service-orders/:id/checklists, GET /service-orders/:id/checklists/items/:class
+- Endpoint publico: POST /p/:token/checklist
+- AppModule: ChecklistResponseModule registrado
+
+**Phase 2 — Cadastro de Servicos (Frontend):**
+- 4 cards fixos em grid 2x2 (Ferramentas/EPI, Materiais, Verificacao Inicial, Verificacao Final)
+- Itens numerados, add/remove, auto-resize textarea
+- EMPTY_FORM atualizado para novo formato objeto
+
+**Phase 3 — Stage Config Types:**
+- checklistConfig em StageConfig.techActions (4 classes, cada com enabled/mode/required/notifyOnSkip)
+- Compiler: CLS_META map gera blocos CHECKLIST com checklistClass/mode/required/notifyOnSkip
+- Decompiler: ENUM_TO_KEY reconhece blocos estruturados e legados
+- Labels: 4 novas entries em TECH_ACTION_LABELS
+
+**Phase 4 — StageSection UI:**
+- Secao "Checklists do Servico" em box azul para etapas ABERTA, ATRIBUIDA, EM_EXECUCAO, CONCLUIDA
+- Toggle por classe + ConfigRow com mode/required SelectField + notifyOnSkip sub-toggle
+
+**Phase 5 — Link Publico:**
+- Backend: getPublicView inclui checklists agregados + checklistResponses + checklistConfig
+- aggregateServiceChecklists: combina itens de todos servicos, dedup por texto normalizado
+- Frontend: 4 cards com itens clicaveis, botao confirmar, badge "Enviado" para classes ja submetidas
+- handleChecklistSubmit usa mode/required/notifyOnSkip da checklistConfig
+
+**Phase 6 — Visualizacao na OS:**
+- Secao "Checklists" entre Workflow e Fotos na pagina de detalhes
+- Agrupado por etapa, cards por classe com itens marcados/pendentes, stats, observacao, geo, pulados
+- EVENT_LABELS + icone timeline para CHECKLIST_CONFIRMED e CHECKLIST_SKIPPED
+
+**Phase 7 — Notificacoes:**
+- SubmitChecklistDto: campo notifyOnSkip
+- submitChecklist: se notifyOnSkip=true e ha itens nao marcados, cria notificacao CHECKLIST_SKIPPED
+- Mensagem com classe, itens pendentes, nome do tecnico
+- extractChecklistConfig: extrai config de blocos CHECKLIST do workflow template por etapa
+
+**Builds:** Backend OK (sem erros), Frontend OK (compilacao limpa)
