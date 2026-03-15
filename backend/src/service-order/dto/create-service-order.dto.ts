@@ -147,4 +147,9 @@ export class CreateServiceOrderDto {
   @IsOptional()
   @IsBoolean()
   isUrgent?: boolean;
+
+  // Itens de serviço (v1.03.31)
+  @IsOptional()
+  @IsArray()
+  items?: { serviceId: string; quantity: number }[];
 }

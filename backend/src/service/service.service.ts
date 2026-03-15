@@ -39,7 +39,7 @@ export class ServiceService {
 
     const sortBy = pagination.sortBy || 'name';
     const sortOrder = pagination.sortOrder || 'asc';
-    const validSorts = ['name', 'code', 'priceCents', 'category', 'createdAt', 'updatedAt'];
+    const validSorts = ['name', 'code', 'priceCents', 'commissionBps', 'category', 'createdAt', 'updatedAt'];
     const orderBy = validSorts.includes(sortBy) ? { [sortBy]: sortOrder } : { name: 'asc' as const };
 
     const [data, total] = await Promise.all([
@@ -72,6 +72,7 @@ export class ServiceService {
         description: dto.description,
         unit: dto.unit || 'SV',
         priceCents: dto.priceCents,
+        commissionBps: dto.commissionBps,
         category: dto.category,
         isActive: dto.isActive ?? true,
       },

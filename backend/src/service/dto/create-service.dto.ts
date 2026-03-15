@@ -22,6 +22,11 @@ export class CreateServiceDto {
   priceCents?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  commissionBps?: number;
+
+  @IsOptional()
   @IsString()
   category?: string;
 

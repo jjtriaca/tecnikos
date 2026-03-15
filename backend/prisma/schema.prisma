@@ -386,6 +386,7 @@ model ServiceOrder {
   executionPauses      ExecutionPause[]
   technicianContracts  TechnicianContract[]
   quotes               Quote[]
+  items                ServiceOrderItem[]
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -1638,6 +1639,7 @@ model Service {
   description String?   // Descrição detalhada
   unit        String    @default("SV") // SV, HR, UN
   priceCents  Int?      // Preço unitário em centavos
+  commissionBps Int?    // Comissão do técnico em basis points (ex: 1000 = 10%)
   category    String?   // Categoria livre
   isActive    Boolean   @default(true)
 
@@ -1647,9 +1649,30 @@ model Service {
 
   company     Company   @relation(fields: [companyId], references: [id])
   quoteItems  QuoteItem[]
+  orderItems  ServiceOrderItem[]
 
   @@unique([companyId, code])
   @@index([companyId])
+}
+
+// ========== Itens de Serviço na OS ==========
+
+model ServiceOrderItem {
+  id               String   @id @default(uuid())
+  serviceOrderId   String
+  serviceId        String
+  serviceName      String   // Snapshot do nome no momento da criação
+  unit             String   // Snapshot da unidade
+  quantity         Int      @default(1)
+  unitPriceCents   Int      // Preço unitário em centavos (snapshot)
+  commissionBps    Int?     // Comissão em basis points (snapshot do serviço)
+
+  createdAt        DateTime @default(now())
+
+  serviceOrder     ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  service          Service      @relation(fields: [serviceId], references: [id])
+
+  @@index([serviceOrderId])
 }
 
 // ========== Período Fiscal (Escrituração) ==========

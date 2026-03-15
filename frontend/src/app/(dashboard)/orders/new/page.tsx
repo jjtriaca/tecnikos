@@ -13,8 +13,8 @@ import TechAssignmentSection, {
   type TechnicianSummary,
   type WorkflowSummary,
 } from "@/components/os/TechAssignmentSection";
-// AgendaSelector now triggered only via workflow scheduleConfig (BY_WORKFLOW mode)
 import AgendaSelector, { type AgendaSelection } from "@/components/os/AgendaSelector";
+import ServiceItemsSection, { type ServiceItemRow } from "@/components/os/ServiceItemsSection";
 import {
   STATES,
   STATE_NAMES,
@@ -103,7 +103,6 @@ function NewOrderPage() {
         if (cancelled) return;
         try {
           const def = typeof res.definition === "string" ? JSON.parse(res.definition) : res.definition;
-          // V2 format: look for SCHEDULE_CONFIG block
           if (def?.version === 2 && Array.isArray(def.blocks)) {
             const schedBlock = def.blocks.find((b: { type: string }) => b.type === "SCHEDULE_CONFIG");
             if (schedBlock?.data?.enabled) {
@@ -120,45 +119,17 @@ function NewOrderPage() {
         setAgendaSelection(null);
       })
       .catch(() => {
-        if (!cancelled) {
-          setScheduleConfig(null);
-        }
+        if (!cancelled) setScheduleConfig(null);
       });
     return () => { cancelled = true; };
   }, [techMode, selectedWorkflow]);
   const hasAgendaFromWorkflow = techMode === "BY_WORKFLOW" && !!scheduleConfig;
 
-  // Accept timeout state — restored from localStorage
-  const [acceptTimeoutMode, setAcceptTimeoutMode] = useState<'minutes' | 'hours' | 'from_flow'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lastAcceptTimeout');
-      if (saved) { try { return JSON.parse(saved).mode || 'minutes'; } catch { /* */ } }
-    }
-    return 'minutes';
-  });
-  const [acceptTimeoutValue, setAcceptTimeoutValue] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lastAcceptTimeout');
-      if (saved) { try { return JSON.parse(saved).value || 60; } catch { /* */ } }
-    }
-    return 60;
-  });
+  // Service items
+  const [serviceItems, setServiceItems] = useState<ServiceItemRow[]>([]);
 
-  // En-route timeout state — restored from localStorage
-  const [enRouteTimeoutMode, setEnRouteTimeoutMode] = useState<'minutes' | 'hours' | 'from_flow'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lastEnRouteTimeout');
-      if (saved) { try { return JSON.parse(saved).mode || 'from_flow'; } catch { /* */ } }
-    }
-    return 'from_flow';
-  });
-  const [enRouteTimeoutValue, setEnRouteTimeoutValue] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lastEnRouteTimeout');
-      if (saved) { try { return JSON.parse(saved).value || 30; } catch { /* */ } }
-    }
-    return 30;
-  });
+  // Agendamento toggle
+  const [agendamentoEnabled, setAgendamentoEnabled] = useState(false);
 
   // Service address states
   const [serviceAddresses, setServiceAddresses] = useState<ServiceAddressSummary[]>([]);
@@ -166,29 +137,12 @@ function NewOrderPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [newAddressLabel, setNewAddressLabel] = useState("");
 
-  // Helper: parse BRL string "150,00" → 150.00
-  function parseBRL(s: string): number { return parseFloat((s || "0").replace(/[^\d,]/g, "").replace(",", ".")); }
-
-  // Commission + return states
-  const [companyCommission, setCompanyCommission] = useState<{
-    commissionBps: number; overrideEnabled: boolean; minBps: number | null; maxBps: number | null;
-  }>({ commissionBps: 1000, overrideEnabled: false, minBps: null, maxBps: null });
+  // Return states
   const [isReturn, setIsReturn] = useState(false);
   const [returnPaidToTech, setReturnPaidToTech] = useState(true);
-  const [techCommissionValue, setTechCommissionValue] = useState("");
-  const [commissionError, setCommissionError] = useState<string | null>(null);
 
-  // Load company commission config on mount
-  useEffect(() => {
-    api.get<any>("/company/me").then(c => {
-      setCompanyCommission({
-        commissionBps: c.commissionBps ?? 1000,
-        overrideEnabled: c.commissionOverrideEnabled ?? false,
-        minBps: c.commissionMinBps ?? null,
-        maxBps: c.commissionMaxBps ?? null,
-      });
-    }).catch(() => {});
-  }, []);
+  // Helper: parse BRL string "150,00" → 150.00
+  function parseBRL(s: string): number { return parseFloat((s || "0").replace(/[^\d,]/g, "").replace(",", ".")); }
 
   // Buscar obras + enderecos de atendimento do cliente selecionado
   useEffect(() => {
@@ -208,14 +162,12 @@ function NewOrderPage() {
         if (cancelled) return;
         const addrs = Array.isArray(res) ? res : [];
         setServiceAddresses(addrs);
-        // Default: ultimo endereco de atendimento (mais recente = primeiro, ordenado por createdAt desc)
         if (addrs.length > 0) {
           const last = addrs[0];
           setAddressSource("saved");
           setSelectedAddressId(last.id);
           fillAddress(last);
         } else if (selectedClient.addressStreet) {
-          // Se nao tem enderecos salvos mas tem endereco principal, usa ele
           setAddressSource("main");
           fillAddress(selectedClient);
         }
@@ -226,16 +178,14 @@ function NewOrderPage() {
 
   const [form, setForm] = useState({
     title: "",
-    description: "",
     state: "",
     cep: "",
     addressStreet: "",
     addressNumber: "",
     addressComp: "",
     neighborhood: "",
-    valueCents: "",
-    deadlineAt: "",
     contactPersonName: "",
+    deadlineAt: "",
     scheduledStartAt: "",
     estimatedDurationMinutes: "",
   });
@@ -250,30 +200,36 @@ function NewOrderPage() {
         const orig = await api.get<any>(`/service-orders/${returnFromId}`);
         if (cancelled) return;
 
-        // Pre-populate form fields
-        const valueBrl = orig.valueCents ? (orig.valueCents / 100).toFixed(2) : "";
         setForm(f => ({
           ...f,
           title: `Retorno: ${orig.title || ""}`,
-          description: orig.description || "",
           state: orig.state || "",
           cep: orig.cep ? maskCep(orig.cep) : "",
           addressStreet: orig.addressStreet || "",
           addressNumber: orig.addressNumber || "",
           addressComp: orig.addressComp || "",
           neighborhood: orig.neighborhood || "",
-          valueCents: valueBrl,
           contactPersonName: orig.contactPersonName || "",
           deadlineAt: "",
           scheduledStartAt: "",
           estimatedDurationMinutes: "",
         }));
 
-        // Mark as return
+        // Pre-populate items from original OS if available
+        if (orig.items?.length) {
+          setServiceItems(orig.items.map((item: any) => ({
+            serviceId: item.serviceId,
+            serviceName: item.serviceName,
+            unit: item.unit,
+            unitPriceCents: item.unitPriceCents,
+            commissionBps: item.commissionBps ?? null,
+            quantity: item.quantity || 1,
+          })));
+        }
+
         setIsReturn(true);
         setReturnPaidToTech(true);
 
-        // Select client
         if (orig.clientPartnerId) {
           try {
             const client = await api.get<PartnerSummary>(`/partners/${orig.clientPartnerId}`);
@@ -281,7 +237,6 @@ function NewOrderPage() {
           } catch { /* ignore */ }
         }
 
-        // Select city
         if (orig.state && orig.city) {
           try {
             const cities = await fetchCitiesByState(orig.state);
@@ -290,12 +245,8 @@ function NewOrderPage() {
           } catch { /* ignore */ }
         }
 
-        // Select obra
-        if (orig.obraId) {
-          setSelectedObraId(orig.obraId);
-        }
+        if (orig.obraId) setSelectedObraId(orig.obraId);
 
-        // Select tech if assigned (directed mode)
         if (orig.assignedPartnerId && orig.assignedPartner) {
           setTechMode("DIRECTED");
           setSelectedTechs([{
@@ -305,15 +256,6 @@ function NewOrderPage() {
           }]);
         }
 
-        // Recalc commission with value
-        if (valueBrl) {
-          const v = parseFloat(valueBrl);
-          if (!isNaN(v) && v > 0) {
-            // Will be auto-recalculated when companyCommission loads, for now use default
-          }
-        }
-
-        // Scroll to return section after a short delay
         setTimeout(() => {
           const el = document.getElementById("return-section");
           if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -324,46 +266,22 @@ function NewOrderPage() {
     return () => { cancelled = true; };
   }, [returnFromId]);
 
-  // Auto-recalculate tech commission when value or commission config changes
-  function recalcTechCommission(valueCentsStr: string, bps: number) {
-    const v = parseBRL(valueCentsStr);
-    if (!isNaN(v) && v > 0) {
-      const commission = (v * bps) / 10000;
-      setTechCommissionValue(commission.toFixed(2).replace(".", ","));
-    } else {
-      setTechCommissionValue("");
-    }
-    setCommissionError(null);
-  }
-
   function onChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) {
     const { name, value } = e.target;
 
     if (name === "state") {
-      // Quando estado muda, limpa cidade selecionada
       setSelectedCity(null);
       setForm((f) => ({ ...f, state: value }));
-      return;
-    }
-
-    if (name === "valueCents") {
-      setForm((f) => ({ ...f, valueCents: value }));
-      if (!isReturn || returnPaidToTech) {
-        recalcTechCommission(value, companyCommission.commissionBps);
-      }
       return;
     }
 
     if (name === "cep") {
       const masked = maskCep(value);
       setForm((f) => ({ ...f, cep: masked }));
-      // Auto-lookup quando CEP completo (8 dígitos)
       const digits = masked.replace(/\D/g, "");
-      if (digits.length === 8) {
-        handleCepLookup(digits);
-      }
+      if (digits.length === 8) handleCepLookup(digits);
       return;
     }
 
@@ -381,7 +299,6 @@ function NewOrderPage() {
           neighborhood: result.bairro || f.neighborhood,
           state: result.uf || f.state,
         }));
-        // Tentar selecionar a cidade retornada pelo ViaCEP
         if (result.uf && result.localidade) {
           const cities = await fetchCitiesByState(result.uf);
           const found = cities.find(
@@ -394,7 +311,6 @@ function NewOrderPage() {
     finally { setCepLoading(false); }
   }
 
-  // Preencher endereco a partir de um objeto de endereco
   async function fillAddress(addr: { state?: string | null; cep?: string | null; addressStreet?: string | null; addressNumber?: string | null; addressComp?: string | null; neighborhood?: string | null; city?: string | null }) {
     const updates: Partial<typeof form> = {};
     if (addr.state) updates.state = addr.state;
@@ -404,7 +320,6 @@ function NewOrderPage() {
     if (addr.addressComp) updates.addressComp = addr.addressComp || "";
     if (addr.neighborhood) updates.neighborhood = addr.neighborhood;
     setForm((f) => ({ ...f, ...updates }));
-    // Auto-selecionar cidade
     if (addr.state && addr.city) {
       try {
         const cities = await fetchCitiesByState(addr.state);
@@ -414,7 +329,6 @@ function NewOrderPage() {
     }
   }
 
-  // Ao mudar fonte de endereco
   function handleAddressSourceChange(source: "main" | "saved" | "new", addrId?: string) {
     setAddressSource(source);
     if (source === "main" && selectedClient) {
@@ -426,13 +340,11 @@ function NewOrderPage() {
       if (addr) fillAddress(addr);
     } else if (source === "new") {
       setSelectedAddressId("");
-      // Limpar campos de endereco
       setForm(f => ({ ...f, state: "", cep: "", addressStreet: "", addressNumber: "", addressComp: "", neighborhood: "" }));
       setSelectedCity(null);
     }
   }
 
-  // City fetcher — busca IBGE e filtra client-side
   const cityFetcher: LookupFetcher<IBGECity> = useCallback(
     async (search, page, signal) => {
       if (!form.state) {
@@ -441,14 +353,12 @@ function NewOrderPage() {
       const allCities = await fetchCitiesByState(form.state);
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
 
-      // Filtrar por busca
       let filtered = allCities;
       if (search) {
         const lower = search.toLowerCase();
         filtered = allCities.filter((c) => c.nome.toLowerCase().includes(lower));
       }
 
-      // Paginar client-side
       const limit = 20;
       const start = (page - 1) * limit;
       const data = filtered.slice(start, start + limit);
@@ -466,6 +376,16 @@ function NewOrderPage() {
     [form.state],
   );
 
+  // Computed values from service items
+  const totalValueCents = serviceItems.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0);
+  const totalCommissionCents = serviceItems.reduce((sum, i) => {
+    const bps = i.commissionBps ?? 0;
+    return sum + Math.round((i.unitPriceCents * i.quantity * bps) / 10000);
+  }, 0);
+  const weightedCommissionBps = totalValueCents > 0
+    ? Math.round((totalCommissionCents / totalValueCents) * 10000)
+    : 0;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -479,44 +399,28 @@ function NewOrderPage() {
         return;
       }
 
-      const valueNum = Math.round(parseBRL(form.valueCents) * 100);
-      if (isNaN(valueNum) || valueNum <= 0) {
-        setError("Valor inválido");
+      if (serviceItems.length === 0) {
+        setError("Adicione pelo menos um serviço");
         setLoading(false);
         return;
       }
 
-      // Calcular comissão do técnico
-      let finalCommissionBps = companyCommission.commissionBps;
-      let finalTechCents = Math.round(valueNum * finalCommissionBps / 10000);
+      if (totalValueCents <= 0) {
+        setError("O valor total dos serviços deve ser maior que zero");
+        setLoading(false);
+        return;
+      }
+
+      // Calculate commission
+      let finalCommissionBps = weightedCommissionBps;
+      let finalTechCents = totalCommissionCents;
 
       if (isReturn && !returnPaidToTech) {
         finalCommissionBps = 0;
         finalTechCents = 0;
-      } else if (companyCommission.overrideEnabled && techCommissionValue) {
-        finalTechCents = Math.round(parseBRL(techCommissionValue) * 100);
-        if (isNaN(finalTechCents) || finalTechCents < 0) {
-          setError("Valor do técnico inválido");
-          setLoading(false);
-          return;
-        }
-        finalCommissionBps = valueNum > 0 ? Math.round((finalTechCents / valueNum) * 10000) : 0;
-        // Validar faixa min/max
-        if (companyCommission.minBps != null && finalCommissionBps < companyCommission.minBps) {
-          const minPct = (companyCommission.minBps / 100).toFixed(2);
-          setError(`Comissão abaixo do mínimo permitido (${minPct}%)`);
-          setLoading(false);
-          return;
-        }
-        if (companyCommission.maxBps != null && finalCommissionBps > companyCommission.maxBps) {
-          const maxPct = (companyCommission.maxBps / 100).toFixed(2);
-          setError(`Comissão acima do máximo permitido (${maxPct}%)`);
-          setLoading(false);
-          return;
-        }
       }
 
-      // Compor endereço
+      // Compose address
       const cityName = selectedCity?.nome || "";
       const addressText = composeAddressText({
         addressStreet: form.addressStreet,
@@ -532,7 +436,7 @@ function NewOrderPage() {
         return;
       }
 
-      // Geocoding automático (estruturado + fallback texto)
+      // Geocoding
       setGeocodingMsg("Obtendo coordenadas...");
       const coords = await geocodeAddress(addressText, {
         street: form.addressStreet,
@@ -542,16 +446,16 @@ function NewOrderPage() {
       });
       setGeocodingMsg(null);
 
-      // Validar agenda se workflow com scheduleConfig ativo
+      // Validate agenda if workflow with scheduleConfig
       if (hasAgendaFromWorkflow) {
         if (!agendaSelection) {
-          setError("Selecione um tecnico, data e hora na agenda");
+          setError("Selecione um técnico, data e hora na agenda");
           setLoading(false);
           return;
         }
       }
 
-      // Salvar novo endereco de atendimento se label preenchido
+      // Save new service address if label filled
       if (addressSource === "new" && newAddressLabel.trim() && selectedClient) {
         try {
           await api.post("/service-addresses", {
@@ -565,19 +469,18 @@ function NewOrderPage() {
             city: cityName,
             state: form.state,
           });
-        } catch { /* nao impede criacao da OS */ }
+        } catch { /* don't block OS creation */ }
       }
 
       await api.post("/service-orders", {
         title: form.title,
-        description: form.description || undefined,
         addressText,
         lat: coords?.lat ?? undefined,
         lng: coords?.lng ?? undefined,
-        valueCents: valueNum,
+        valueCents: totalValueCents,
         deadlineAt: new Date(form.deadlineAt).toISOString(),
-        clientPartnerId: selectedClient?.id || undefined,
-        // Campos estruturados
+        clientPartnerId: selectedClient.id,
+        // Structured address fields
         addressStreet: form.addressStreet || undefined,
         addressNumber: form.addressNumber || undefined,
         addressComp: form.addressComp || undefined,
@@ -585,47 +488,35 @@ function NewOrderPage() {
         city: cityName || undefined,
         state: form.state || undefined,
         cep: form.cep ? form.cep.replace(/\D/g, "") : undefined,
-        // Atribuicao de tecnico
+        // Tech assignment
         techAssignmentMode: techMode,
         requiredSpecializationIds: techMode === "BY_SPECIALIZATION" ? selectedSpecs.map((s) => s.id) : [],
         directedTechnicianIds: techMode === "DIRECTED" ? selectedTechs.map((t) => t.id) : [],
         workflowTemplateId: techMode === "BY_WORKFLOW" ? selectedWorkflow?.id || undefined : undefined,
-        // Agenda CLT — pre-atribuir tecnico (quando workflow tem scheduleConfig)
+        // Agenda CLT pre-assign
         ...(hasAgendaFromWorkflow && agendaSelection ? {
           assignedPartnerId: agendaSelection.technicianId,
         } : {}),
-        // Agendamento (manual ou via Agenda CLT)
+        // Scheduling (agenda CLT or manual toggle)
         scheduledStartAt: hasAgendaFromWorkflow && agendaSelection
           ? agendaSelection.scheduledStartAt
-          : form.scheduledStartAt ? new Date(form.scheduledStartAt).toISOString() : undefined,
+          : agendamentoEnabled && form.scheduledStartAt ? new Date(form.scheduledStartAt).toISOString() : undefined,
         estimatedDurationMinutes: hasAgendaFromWorkflow && agendaSelection
           ? agendaSelection.estimatedDurationMinutes
-          : form.estimatedDurationMinutes ? parseInt(form.estimatedDurationMinutes) || undefined : undefined,
-        // Contato no local
+          : agendamentoEnabled && form.estimatedDurationMinutes ? parseInt(form.estimatedDurationMinutes) || undefined : undefined,
+        // Contact
         contactPersonName: form.contactPersonName || undefined,
-        // Obra vinculada
+        // Obra
         obraId: selectedObraId || undefined,
-        // Tempo para aceitar (null = usa do fluxo)
-        acceptTimeoutMinutes: hasAgendaFromWorkflow ? undefined
-          : acceptTimeoutMode === 'from_flow' ? undefined
-          : acceptTimeoutMode === 'hours' ? acceptTimeoutValue * 60
-          : acceptTimeoutValue,
-        // Comissão e retorno (v1.01.81)
+        // Commission and return
         commissionBps: finalCommissionBps,
         techCommissionCents: finalTechCents,
         isReturn,
         returnPaidToTech: isReturn ? returnPaidToTech : true,
         isUrgent: false,
-        // Tempo para clicar a caminho (null = usa do fluxo)
-        enRouteTimeoutMinutes: hasAgendaFromWorkflow ? undefined
-          : enRouteTimeoutMode === 'from_flow' ? undefined
-          : enRouteTimeoutMode === 'hours' ? enRouteTimeoutValue * 60
-          : enRouteTimeoutValue,
+        // Service items
+        items: serviceItems.map(i => ({ serviceId: i.serviceId, quantity: i.quantity })),
       });
-
-      // Salvar no localStorage para pré-popular próxima OS
-      localStorage.setItem('lastAcceptTimeout', JSON.stringify({ mode: acceptTimeoutMode, value: acceptTimeoutValue }));
-      localStorage.setItem('lastEnRouteTimeout', JSON.stringify({ mode: enRouteTimeoutMode, value: enRouteTimeoutValue }));
 
       router.push("/orders");
     } catch (err) {
@@ -670,7 +561,8 @@ function NewOrderPage() {
         className="max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
       >
         <div className="space-y-4">
-          {/* Cliente (LookupField) */}
+
+          {/* ─── 1. Cliente ─────────────────────────────────── */}
           <LookupField
             label="Cliente"
             placeholder="Selecione um cliente"
@@ -693,7 +585,185 @@ function NewOrderPage() {
             )}
           />
 
-          {/* Tipo de Atendimento — MOVIDO PARA O TOPO */}
+          {/* ─── 2. Titulo ──────────────────────────────────── */}
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-slate-700">Título *</span>
+            <input
+              name="title"
+              value={form.title}
+              onChange={onChange}
+              onBlur={() => setForm((f) => ({ ...f, title: toTitleCase(f.title) }))}
+              required
+              placeholder="Ex: Manutenção ar-condicionado"
+              className={inputClass}
+            />
+          </label>
+
+          {/* ─── 3. Endereco (sempre aberto, nao colapsavel) ─ */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="text-sm font-semibold text-slate-800">Endereço do Serviço</span>
+            </div>
+
+            {/* Address source selector */}
+            {selectedClient && (selectedClient.addressStreet || serviceAddresses.length > 0) && (
+              <div className="space-y-1.5">
+                {selectedClient.addressStreet && (
+                  <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                    style={{ borderColor: addressSource === "main" ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
+                    <input type="radio" name="addressSource" checked={addressSource === "main"}
+                      onChange={() => handleAddressSourceChange("main")}
+                      className="mt-0.5 text-blue-600 focus:ring-blue-200" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-slate-700">Endereço do cadastro</span>
+                      <p className="text-xs text-slate-500 truncate">
+                        {[selectedClient.addressStreet, selectedClient.addressNumber, selectedClient.neighborhood, selectedClient.city && selectedClient.state ? `${selectedClient.city}/${selectedClient.state}` : ""].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+                  </label>
+                )}
+
+                {serviceAddresses.map(addr => (
+                  <label key={addr.id} className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                    style={{ borderColor: addressSource === "saved" && selectedAddressId === addr.id ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
+                    <input type="radio" name="addressSource" checked={addressSource === "saved" && selectedAddressId === addr.id}
+                      onChange={() => handleAddressSourceChange("saved", addr.id)}
+                      className="mt-0.5 text-blue-600 focus:ring-blue-200" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-slate-700">{addr.label}</span>
+                      <p className="text-xs text-slate-500 truncate">
+                        {[addr.addressStreet, addr.addressNumber, addr.neighborhood, `${addr.city}/${addr.state}`].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+
+                <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                  style={{ borderColor: addressSource === "new" ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
+                  <input type="radio" name="addressSource" checked={addressSource === "new"}
+                    onChange={() => handleAddressSourceChange("new")}
+                    className="mt-0.5 text-blue-600 focus:ring-blue-200" />
+                  <span className="text-sm font-medium text-blue-600">+ Novo endereço de atendimento</span>
+                </label>
+              </div>
+            )}
+
+            {/* New address fields */}
+            {(addressSource === "new" || !selectedClient) && (
+              <div className="space-y-3">
+                {selectedClient && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">
+                      Nome do endereço
+                      <span className="text-xs text-slate-400 font-normal ml-1">(preencha para salvar no cadastro do cliente)</span>
+                    </span>
+                    <input
+                      value={newAddressLabel}
+                      onChange={(e) => setNewAddressLabel(e.target.value)}
+                      onBlur={() => setNewAddressLabel(toTitleCase(newAddressLabel))}
+                      placeholder="Ex: Escritório Centro, Casa do Cliente"
+                      className={inputClass}
+                    />
+                  </label>
+                )}
+
+                {/* Rua/Av + Numero */}
+                <div className="grid grid-cols-3 gap-3">
+                  <label className="flex flex-col gap-1.5 col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Rua/Av *</span>
+                    <input name="addressStreet" value={form.addressStreet} onChange={onChange}
+                      onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))}
+                      required placeholder="Logradouro" className={inputClass} />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">Nº</span>
+                    <input name="addressNumber" value={form.addressNumber} onChange={onChange} placeholder="Nº" className={inputClass} />
+                  </label>
+                </div>
+
+                {/* Bairro + Cidade */}
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">Bairro</span>
+                    <input name="neighborhood" value={form.neighborhood} onChange={onChange}
+                      onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))}
+                      placeholder="Bairro" className={inputClass} />
+                  </label>
+                  <LookupField
+                    label="Cidade *"
+                    placeholder={form.state ? "Buscar cidade..." : "Selecione o estado"}
+                    modalTitle={`Cidades - ${form.state || "UF"}`}
+                    modalPlaceholder="Digite o nome da cidade..."
+                    value={selectedCity}
+                    displayValue={(c) => c.nome}
+                    onChange={(c) => setSelectedCity(c)}
+                    fetcher={cityFetcher}
+                    keyExtractor={(c) => String(c.id)}
+                    renderItem={(c) => (<div className="font-medium text-slate-900">{c.nome}</div>)}
+                    disabled={!form.state}
+                    required
+                  />
+                </div>
+
+                {/* UF + CEP */}
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">UF *</span>
+                    <select name="state" value={form.state} onChange={onChange} required className={`${inputClass} bg-white`}>
+                      <option value="">Selecione</option>
+                      {STATES.map((uf) => (
+                        <option key={uf} value={uf}>{uf}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">
+                      CEP
+                      {cepLoading && (<span className="ml-2 text-xs text-blue-500 font-normal">Buscando...</span>)}
+                    </span>
+                    <input name="cep" value={form.cep} onChange={onChange} placeholder="00000-000" maxLength={9} className={inputClass} />
+                  </label>
+                </div>
+
+                {/* Complemento */}
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-sm font-medium text-slate-700">Complemento</span>
+                  <input name="addressComp" value={form.addressComp} onChange={onChange}
+                    onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))}
+                    placeholder="Apt, Sala, Bloco..." className={inputClass} />
+                </label>
+              </div>
+            )}
+
+            {/* Readonly address preview when main or saved is selected */}
+            {selectedClient && addressSource !== "new" && (
+              <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                <p className="text-xs text-slate-500">
+                  {[form.addressStreet, form.addressNumber, form.neighborhood, selectedCity?.nome || "", form.state].filter(Boolean).join(", ")}
+                  {form.cep && <span className="ml-2 text-slate-400">CEP: {form.cep}</span>}
+                </p>
+              </div>
+            )}
+
+            {/* Contato no Local (dentro do Endereco) */}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">Contato no Local</span>
+              <input
+                name="contactPersonName"
+                value={form.contactPersonName}
+                onChange={onChange}
+                onBlur={() => setForm((f) => ({ ...f, contactPersonName: toTitleCase(f.contactPersonName) }))}
+                placeholder="Nome de quem estará no local"
+                className={inputClass}
+              />
+            </label>
+          </div>
+
+          {/* ─── 4. Tipo de Atendimento ─────────────────────── */}
           <CollapsibleSection
             title="Tipo de Atendimento"
             icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
@@ -717,7 +787,7 @@ function NewOrderPage() {
             />
           </CollapsibleSection>
 
-          {/* Agenda CLT — aparece quando o fluxo selecionado tem scheduleConfig.enabled */}
+          {/* Agenda CLT — when workflow has scheduleConfig */}
           {hasAgendaFromWorkflow && scheduleConfig && (
             <AgendaSelector
               workingHours={scheduleConfig.workingHours}
@@ -728,7 +798,7 @@ function NewOrderPage() {
             />
           )}
 
-          {/* Obra (opcional, só aparece se cliente tem obras) */}
+          {/* Obra (optional, only when client has obras) */}
           {obras.length > 0 && (
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">
@@ -750,347 +820,84 @@ function NewOrderPage() {
             </label>
           )}
 
-          {/* Título */}
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">
-              Título *
-            </span>
+          {/* ─── 5. Servicos (tabela) ──────────────────────── */}
+          <ServiceItemsSection
+            items={serviceItems}
+            onChange={setServiceItems}
+          />
+
+          {/* ─── 6. Prazo ───────────────────────────────────── */}
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-slate-700">Prazo *</span>
+            <span className="text-[10px] text-slate-400">Data limite para concluir o serviço</span>
             <input
-              name="title"
-              value={form.title}
+              name="deadlineAt"
+              value={form.deadlineAt}
               onChange={onChange}
-              onBlur={() => setForm((f) => ({ ...f, title: toTitleCase(f.title) }))}
               required
-              placeholder="Ex: Manutenção ar-condicionado"
+              type="datetime-local"
               className={inputClass}
             />
           </label>
 
-          {/* Descrição */}
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">
-              Descrição
-            </span>
-            <textarea
-              name="description"
-              value={form.description}
-              onChange={onChange}
-              rows={3}
-              placeholder="Detalhes do serviço..."
-              className={`${inputClass} resize-none`}
-            />
-          </label>
-
-          {/* Contato no Local */}
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">
-              Contato no Local
-            </span>
-            <input
-              name="contactPersonName"
-              value={form.contactPersonName}
-              onChange={onChange}
-              onBlur={() => setForm((f) => ({ ...f, contactPersonName: toTitleCase(f.contactPersonName) }))}
-              placeholder="Nome de quem estará no local"
-              className={inputClass}
-            />
-          </label>
-
-          {/* Tempo para aceitar + a caminho — oculto quando workflow tem agenda */}
-          {!hasAgendaFromWorkflow && (<>
-          <CollapsibleSection
-            title="Tempo para aceitar"
-            icon={<span className="text-base leading-none">⏱️</span>}
-            summary={acceptTimeoutMode === 'from_flow' ? "Definido no fluxo" : `${acceptTimeoutValue} ${acceptTimeoutMode === 'hours' ? 'h' : 'min'}`}
-          >
-            <p className="text-xs text-slate-400 mb-2">
-              Quanto tempo o técnico tem para aceitar esta OS.
-            </p>
-            <div className="space-y-2 ml-1">
-              {([
-                { mode: 'minutes' as const, label: 'Minutos', hint: 'Define um tempo fixo em minutos para esta OS' },
-                { mode: 'hours' as const, label: 'Horas', hint: 'Define um tempo fixo em horas para esta OS' },
-                { mode: 'from_flow' as const, label: 'Definido no fluxo de atendimento', hint: 'Usa o tempo configurado no fluxo (evita duplicidade)' },
-              ]).map(opt => (
-                <label key={opt.mode} className="flex items-start gap-2 cursor-pointer group">
-                  <input type="radio" name="acceptTimeoutMode"
-                    checked={acceptTimeoutMode === opt.mode}
-                    onChange={() => {
-                      setAcceptTimeoutMode(opt.mode);
-                      if (opt.mode === 'hours' && acceptTimeoutValue > 200) setAcceptTimeoutValue(2);
-                      if (opt.mode === 'minutes' && acceptTimeoutValue < 5) setAcceptTimeoutValue(60);
-                    }}
-                    className="mt-0.5 text-blue-600 focus:ring-blue-200" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-700">{opt.label}</span>
-                      {acceptTimeoutMode === opt.mode && opt.mode !== 'from_flow' && (
-                        <input type="number" min={1}
-                          value={acceptTimeoutValue}
-                          onChange={e => setAcceptTimeoutValue(parseInt(e.target.value) || 1)}
-                          className="rounded-lg border border-slate-300 px-2 py-1 text-sm w-20 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200" />
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{opt.hint}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            {acceptTimeoutMode !== 'from_flow' && (
-              <p className="text-[10px] text-amber-600 mt-2 ml-5 flex items-center gap-1">
-                <span>⚠️</span> Este valor sobrescreve a configuração do fluxo de atendimento para esta OS.
-              </p>
-            )}
-          </CollapsibleSection>
-
-          {/* Tempo para clicar a caminho */}
-          <CollapsibleSection
-            title="Tempo para clicar a caminho"
-            icon={<span className="text-base leading-none">🚗</span>}
-            summary={enRouteTimeoutMode === 'from_flow' ? "Definido no fluxo" : `${enRouteTimeoutValue} ${enRouteTimeoutMode === 'hours' ? 'h' : 'min'}`}
-          >
-            <p className="text-xs text-slate-400 mb-2">
-              Quanto tempo o técnico tem para indicar que está a caminho.
-            </p>
-            <div className="space-y-2 ml-1">
-              {([
-                { mode: 'minutes' as const, label: 'Minutos', hint: 'Define um tempo fixo em minutos para esta OS' },
-                { mode: 'hours' as const, label: 'Horas', hint: 'Define um tempo fixo em horas para esta OS' },
-                { mode: 'from_flow' as const, label: 'Definido no fluxo de atendimento', hint: 'Usa o tempo configurado no fluxo (evita duplicidade)' },
-              ]).map(opt => (
-                <label key={`enroute_${opt.mode}`} className="flex items-start gap-2 cursor-pointer group">
-                  <input type="radio" name="enRouteTimeoutMode"
-                    checked={enRouteTimeoutMode === opt.mode}
-                    onChange={() => {
-                      setEnRouteTimeoutMode(opt.mode);
-                      if (opt.mode === 'hours' && enRouteTimeoutValue > 200) setEnRouteTimeoutValue(1);
-                      if (opt.mode === 'minutes' && enRouteTimeoutValue < 5) setEnRouteTimeoutValue(30);
-                    }}
-                    className="mt-0.5 text-green-600 focus:ring-green-200" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-700">{opt.label}</span>
-                      {enRouteTimeoutMode === opt.mode && opt.mode !== 'from_flow' && (
-                        <input type="number" min={1}
-                          value={enRouteTimeoutValue}
-                          onChange={e => setEnRouteTimeoutValue(parseInt(e.target.value) || 1)}
-                          className="rounded-lg border border-slate-300 px-2 py-1 text-sm w-20 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-200" />
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{opt.hint}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            {enRouteTimeoutMode !== 'from_flow' && (
-              <p className="text-[10px] text-amber-600 mt-2 ml-5 flex items-center gap-1">
-                <span>⚠️</span> Este valor sobrescreve a configuração do fluxo de atendimento para esta OS.
-              </p>
-            )}
-          </CollapsibleSection>
-          </>)}
-
-          {/* Endereco do Servico */}
-          <CollapsibleSection
-            title="Endereço do Serviço"
-            icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-            defaultOpen={true}
-            summary={form.addressStreet ? [form.addressStreet, form.addressNumber, selectedCity?.nome || ""].filter(Boolean).join(", ") : ""}
-          >
-            {/* Seletor de enderecos — so aparece quando tem cliente selecionado */}
-            {selectedClient && (selectedClient.addressStreet || serviceAddresses.length > 0) && (
-              <div className="space-y-1.5 mb-4">
-                {/* Endereco principal do cadastro */}
-                {selectedClient.addressStreet && (
-                  <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
-                    style={{ borderColor: addressSource === "main" ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
-                    <input type="radio" name="addressSource" checked={addressSource === "main"}
-                      onChange={() => handleAddressSourceChange("main")}
-                      className="mt-0.5 text-blue-600 focus:ring-blue-200" />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-slate-700">Endereco do cadastro</span>
-                      <p className="text-xs text-slate-500 truncate">
-                        {[selectedClient.addressStreet, selectedClient.addressNumber, selectedClient.neighborhood, selectedClient.city && selectedClient.state ? `${selectedClient.city}/${selectedClient.state}` : ""].filter(Boolean).join(", ")}
-                      </p>
-                    </div>
-                  </label>
-                )}
-
-                {/* Enderecos de atendimento salvos */}
-                {serviceAddresses.map(addr => (
-                  <label key={addr.id} className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
-                    style={{ borderColor: addressSource === "saved" && selectedAddressId === addr.id ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
-                    <input type="radio" name="addressSource" checked={addressSource === "saved" && selectedAddressId === addr.id}
-                      onChange={() => handleAddressSourceChange("saved", addr.id)}
-                      className="mt-0.5 text-blue-600 focus:ring-blue-200" />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-slate-700">{addr.label}</span>
-                      <p className="text-xs text-slate-500 truncate">
-                        {[addr.addressStreet, addr.addressNumber, addr.neighborhood, `${addr.city}/${addr.state}`].filter(Boolean).join(", ")}
-                      </p>
-                    </div>
-                  </label>
-                ))}
-
-                {/* Novo endereco */}
-                <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
-                  style={{ borderColor: addressSource === "new" ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
-                  <input type="radio" name="addressSource" checked={addressSource === "new"}
-                    onChange={() => handleAddressSourceChange("new")}
-                    className="mt-0.5 text-blue-600 focus:ring-blue-200" />
-                  <span className="text-sm font-medium text-blue-600">+ Novo endereco de atendimento</span>
-                </label>
-              </div>
-            )}
-
-            {/* Campos de endereco — aparecem quando addressSource="new" OU quando nao tem cliente */}
-            {(addressSource === "new" || !selectedClient) && (
-              <div className="space-y-3">
-                {/* Label para salvar (opcional) — so aparece se tem cliente */}
-                {selectedClient && (
+          {/* ─── 7. Agendamento (toggle, nao colapsavel) ───── */}
+          {!hasAgendaFromWorkflow && (
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <span className="text-sm font-semibold text-slate-800">Agendamento</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={agendamentoEnabled}
+                  onClick={() => setAgendamentoEnabled(!agendamentoEnabled)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    agendamentoEnabled ? "bg-blue-600" : "bg-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      agendamentoEnabled ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              </label>
+              {agendamentoEnabled && (
+                <div className="grid grid-cols-2 gap-3 pl-1">
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">
-                      Nome do endereco
-                      <span className="text-xs text-slate-400 font-normal ml-1">(preencha para salvar no cadastro do cliente)</span>
-                    </span>
+                    <span className="text-sm font-medium text-slate-700">Data e hora do serviço</span>
                     <input
-                      value={newAddressLabel}
-                      onChange={(e) => setNewAddressLabel(e.target.value)}
-                      onBlur={() => setNewAddressLabel(toTitleCase(newAddressLabel))}
-                      placeholder="Ex: Escritorio Centro, Casa do Cliente"
+                      name="scheduledStartAt"
+                      value={form.scheduledStartAt}
+                      onChange={onChange}
+                      type="datetime-local"
                       className={inputClass}
                     />
                   </label>
-                )}
-
-                {/* Estado + Cidade */}
-                <div className="grid grid-cols-2 gap-4">
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">Estado *</span>
-                    <select name="state" value={form.state} onChange={onChange} required className={`${inputClass} bg-white`}>
-                      <option value="">Selecione o UF</option>
-                      {STATES.map((uf) => (
-                        <option key={uf} value={uf}>{uf} - {STATE_NAMES[uf]}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <LookupField
-                    label="Cidade *"
-                    placeholder={form.state ? "Buscar cidade..." : "Selecione o estado"}
-                    modalTitle={`Cidades - ${form.state || "UF"}`}
-                    modalPlaceholder="Digite o nome da cidade..."
-                    value={selectedCity}
-                    displayValue={(c) => c.nome}
-                    onChange={(c) => setSelectedCity(c)}
-                    fetcher={cityFetcher}
-                    keyExtractor={(c) => String(c.id)}
-                    renderItem={(c) => (<div className="font-medium text-slate-900">{c.nome}</div>)}
-                    disabled={!form.state}
-                    required
-                  />
-                </div>
-
-                {/* CEP + Bairro */}
-                <div className="grid grid-cols-2 gap-4">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">
-                      CEP
-                      {cepLoading && (<span className="ml-2 text-xs text-blue-500 font-normal">Buscando...</span>)}
-                    </span>
-                    <input name="cep" value={form.cep} onChange={onChange} placeholder="00000-000" maxLength={9} className={inputClass} />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">Bairro</span>
-                    <input name="neighborhood" value={form.neighborhood} onChange={onChange}
-                      onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))}
-                      placeholder="Bairro" className={inputClass} />
+                    <span className="text-sm font-medium text-slate-700">Duração estimada (min)</span>
+                    <input
+                      name="estimatedDurationMinutes"
+                      value={form.estimatedDurationMinutes}
+                      onChange={onChange}
+                      type="number"
+                      min="15"
+                      step="15"
+                      placeholder="60"
+                      className={inputClass}
+                    />
                   </label>
                 </div>
+              )}
+            </div>
+          )}
 
-                {/* Rua + Numero */}
-                <div className="grid grid-cols-3 gap-4">
-                  <label className="flex flex-col gap-1.5 col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Rua *</span>
-                    <input name="addressStreet" value={form.addressStreet} onChange={onChange}
-                      onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))}
-                      required placeholder="Endereco" className={inputClass} />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">Numero</span>
-                    <input name="addressNumber" value={form.addressNumber} onChange={onChange} placeholder="No" className={inputClass} />
-                  </label>
-                </div>
-
-                {/* Complemento */}
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-slate-700">Complemento</span>
-                  <input name="addressComp" value={form.addressComp} onChange={onChange}
-                    onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))}
-                    placeholder="Apt, Sala, Bloco..." className={inputClass} />
-                </label>
-              </div>
-            )}
-
-            {/* Endereco preenchido (readonly preview) — quando selecionou main ou saved */}
-            {selectedClient && addressSource !== "new" && (
-              <div className="mt-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                <p className="text-xs text-slate-500">
-                  {[form.addressStreet, form.addressNumber, form.neighborhood, selectedCity?.nome || "", form.state].filter(Boolean).join(", ")}
-                  {form.cep && <span className="ml-2 text-slate-400">CEP: {form.cep}</span>}
-                </p>
-              </div>
-            )}
-          </CollapsibleSection>
-
-          {/* Valor e Prazo */}
-          <div className="grid grid-cols-2 gap-4">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-slate-700">
-                Valor (R$) *
-              </span>
-              <input
-                name="valueCents"
-                value={form.valueCents}
-                onChange={(e) => onChange({ target: { name: "valueCents", value: e.target.value.replace(/[^\d,]/g, "") } } as any)}
-                required
-                type="text"
-                inputMode="decimal"
-                placeholder="150,00"
-                className={inputClass}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-slate-700">
-                Prazo de execução *
-              </span>
-              <span className="text-[10px] text-slate-400">Data limite para concluir o serviço</span>
-              <input
-                name="deadlineAt"
-                value={form.deadlineAt}
-                onChange={onChange}
-                required
-                type="datetime-local"
-                className={inputClass}
-              />
-            </label>
-          </div>
-
-          {/* Retorno + Comissão do Técnico */}
+          {/* ─── 8. Retorno ─────────────────────────────────── */}
           <div id="return-section" className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            {/* Retorno */}
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isReturn}
-                onChange={(e) => {
-                  const ret = e.target.checked;
-                  setIsReturn(ret);
-                  if (ret && !returnPaidToTech) {
-                    setTechCommissionValue("0.00");
-                  } else {
-                    recalcTechCommission(form.valueCents, companyCommission.commissionBps);
-                  }
-                }}
+                onChange={(e) => setIsReturn(e.target.checked)}
                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm font-medium text-slate-700">Retorno de atendimento anterior</span>
@@ -1103,10 +910,7 @@ function NewOrderPage() {
                     type="radio"
                     name="returnPaid"
                     checked={returnPaidToTech}
-                    onChange={() => {
-                      setReturnPaidToTech(true);
-                      recalcTechCommission(form.valueCents, companyCommission.commissionBps);
-                    }}
+                    onChange={() => setReturnPaidToTech(true)}
                     className="text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-slate-600">Lançar valor para o técnico</span>
@@ -1116,113 +920,17 @@ function NewOrderPage() {
                     type="radio"
                     name="returnPaid"
                     checked={!returnPaidToTech}
-                    onChange={() => {
-                      setReturnPaidToTech(false);
-                      setTechCommissionValue("0.00");
-                      setCommissionError(null);
-                    }}
+                    onChange={() => setReturnPaidToTech(false)}
                     className="text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-slate-600">Obrigação do técnico (sem comissão)</span>
                 </label>
               </div>
             )}
-
-            {/* Comissão do técnico */}
-            {(!isReturn || returnPaidToTech) && (
-              <div className="flex items-end gap-3">
-                <div className="flex flex-col gap-1 flex-1">
-                  <span className="text-sm font-medium text-slate-700">Valor do técnico (R$)</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={techCommissionValue}
-                    onChange={(e) => {
-                      if (!companyCommission.overrideEnabled) return;
-                      const val = e.target.value.replace(/[^\d,]/g, "");
-                      setTechCommissionValue(val);
-                      const v = parseBRL(form.valueCents);
-                      const tc = parseBRL(val);
-                      if (!isNaN(v) && v > 0 && !isNaN(tc)) {
-                        const bps = Math.round((tc / v) * 10000);
-                        if (companyCommission.minBps != null && bps < companyCommission.minBps) {
-                          setCommissionError(`Mínimo: ${(companyCommission.minBps / 100).toFixed(2)}%`);
-                        } else if (companyCommission.maxBps != null && bps > companyCommission.maxBps) {
-                          setCommissionError(`Máximo: ${(companyCommission.maxBps / 100).toFixed(2)}%`);
-                        } else {
-                          setCommissionError(null);
-                        }
-                      }
-                    }}
-                    readOnly={!companyCommission.overrideEnabled}
-                    className={`${inputClass} ${companyCommission.overrideEnabled ? "" : "bg-slate-100 text-slate-500 cursor-not-allowed"} ${commissionError ? "border-red-400 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    placeholder="0,00"
-                  />
-                  {commissionError && (
-                    <span className="text-xs text-red-600">{commissionError}</span>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1 w-28">
-                  <span className="text-sm font-medium text-slate-700">Comissão %</span>
-                  <input
-                    type="text"
-                    readOnly
-                    value={(() => {
-                      const v = parseBRL(form.valueCents);
-                      const tc = parseBRL(techCommissionValue);
-                      if (!isNaN(v) && v > 0 && !isNaN(tc)) {
-                        return ((tc / v) * 100).toFixed(2) + "%";
-                      }
-                      return (companyCommission.commissionBps / 100).toFixed(2) + "%";
-                    })()}
-                    className={`${inputClass} bg-slate-100 text-slate-500 cursor-not-allowed text-center`}
-                  />
-                </div>
-              </div>
-            )}
             {isReturn && !returnPaidToTech && (
               <p className="text-xs text-amber-600 ml-1">Técnico não receberá comissão neste retorno</p>
             )}
           </div>
-
-          {/* Agendamento — aparece sempre (exceto quando workflow tem agenda CLT que usa AgendaSelector) */}
-          {!hasAgendaFromWorkflow && (
-            <CollapsibleSection
-              title="Agendamento"
-              icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-              subtitle="(opcional)"
-              summary={form.scheduledStartAt ? new Date(form.scheduledStartAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
-            >
-              <p className="text-xs text-slate-400 mb-3">
-                Preencha para que a OS apareca na aba Agenda.
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-slate-700">Data e hora do servico</span>
-                  <input
-                    name="scheduledStartAt"
-                    value={form.scheduledStartAt}
-                    onChange={onChange}
-                    type="datetime-local"
-                    className={inputClass}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-slate-700">Duracao estimada (min)</span>
-                  <input
-                    name="estimatedDurationMinutes"
-                    value={form.estimatedDurationMinutes}
-                    onChange={onChange}
-                    type="number"
-                    min="15"
-                    step="15"
-                    placeholder="60"
-                    className={inputClass}
-                  />
-                </label>
-              </div>
-            </CollapsibleSection>
-          )}
 
           {/* Geocoding indicator */}
           {geocodingMsg && (

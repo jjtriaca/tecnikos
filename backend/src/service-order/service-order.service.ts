@@ -108,6 +108,31 @@ export class ServiceOrderService {
       },
     });
 
+    // Create service items if provided (v1.03.31)
+    if (data.items?.length) {
+      const services = await this.prisma.service.findMany({
+        where: { id: { in: data.items.map(i => i.serviceId) }, companyId: data.companyId, deletedAt: null },
+      });
+      const serviceMap = new Map(services.map(s => [s.id, s]));
+      const itemsData = data.items
+        .filter(i => serviceMap.has(i.serviceId))
+        .map(i => {
+          const svc = serviceMap.get(i.serviceId)!;
+          return {
+            serviceOrderId: result.id,
+            serviceId: svc.id,
+            serviceName: svc.name,
+            unit: svc.unit,
+            quantity: i.quantity || 1,
+            unitPriceCents: svc.priceCents || 0,
+            commissionBps: svc.commissionBps ?? null,
+          };
+        });
+      if (itemsData.length) {
+        await this.prisma.serviceOrderItem.createMany({ data: itemsData });
+      }
+    }
+
     this.audit.log({
       companyId: data.companyId,
       entityType: 'SERVICE_ORDER',
@@ -344,6 +369,7 @@ export class ServiceOrderService {
         workflowStepLogs: { orderBy: { stepOrder: 'asc' } },
         events: { orderBy: { createdAt: 'desc' }, take: 20 },
         attachments: { orderBy: { createdAt: 'asc' } },
+        items: { include: { service: { select: { id: true, name: true, unit: true, priceCents: true } } } },
       },
     });
     if (!so) throw new NotFoundException('OS não encontrada');

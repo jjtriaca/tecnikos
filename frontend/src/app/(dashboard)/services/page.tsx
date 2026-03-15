@@ -21,6 +21,7 @@ interface Service {
   description: string | null;
   unit: string;
   priceCents: number | null;
+  commissionBps: number | null;
   category: string | null;
   isActive: boolean;
   createdAt: string;
@@ -128,6 +129,17 @@ const SERVICE_COLUMNS: ColumnDefinition<Service>[] = [
     ),
   },
   {
+    id: "commissionBps",
+    label: "Comissão",
+    sortable: true,
+    align: "right",
+    render: (s) => (
+      <span className="text-sm text-slate-600">
+        {s.commissionBps != null ? `${(s.commissionBps / 100).toFixed(1)}%` : "—"}
+      </span>
+    ),
+  },
+  {
     id: "category",
     label: "Categoria",
     sortable: true,
@@ -160,6 +172,7 @@ const EMPTY_FORM = {
   description: "",
   unit: "SV",
   priceCents: "",
+  commissionBps: "",
   category: "",
   isActive: true,
 };
@@ -244,6 +257,7 @@ export default function ServicesPage() {
       description: service.description || "",
       unit: service.unit,
       priceCents: service.priceCents != null ? (service.priceCents / 100).toFixed(2).replace(".", ",") : "",
+      commissionBps: service.commissionBps != null ? (service.commissionBps / 100).toFixed(1).replace(".", ",") : "",
       category: service.category || "",
       isActive: service.isActive,
     });
@@ -257,12 +271,14 @@ export default function ServicesPage() {
     }
     setSaving(true);
     try {
+      const commPct = formData.commissionBps ? parseFloat(formData.commissionBps.replace(",", ".")) : null;
       const payload = {
         code: formData.code || undefined,
         name: formData.name,
         description: formData.description || undefined,
         unit: formData.unit,
         priceCents: formData.priceCents ? parseBRLToCents(formData.priceCents) : undefined,
+        commissionBps: commPct != null && !isNaN(commPct) ? Math.round(commPct * 100) : undefined,
         category: formData.category || undefined,
         isActive: formData.isActive,
       };
@@ -371,6 +387,17 @@ export default function ServicesPage() {
                 value={formData.priceCents}
                 onChange={(e) => setFormData({ ...formData, priceCents: e.target.value })}
                 placeholder="Ex: 350,00"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Comissão (%)</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={formData.commissionBps}
+                onChange={(e) => setFormData({ ...formData, commissionBps: e.target.value })}
+                placeholder="Ex: 10,0"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
               />
             </div>
