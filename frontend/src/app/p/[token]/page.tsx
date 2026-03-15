@@ -26,12 +26,24 @@ type TrackingConfig = {
   arrivalButtonEnabled: boolean;
 };
 
+type PageLayoutBlock = {
+  id: string;
+  type: string;        // 'info' | 'text' | 'checklist' | 'gps_button' | 'enroute_button' | 'form'
+  field?: string;
+  label: string;
+  enabled: boolean;
+  content?: string;
+  checklistClass?: string;
+};
+
 type LinkConfig = {
   acceptOS: boolean;
   gpsNavigation: boolean;
   enRoute: boolean;
   validityHours: number;
   agendaMarginHours: number;
+  pageLayout?: PageLayoutBlock[];
+  page2Layout?: PageLayoutBlock[];
 };
 
 type ChecklistItems = { toolsPpe: string[]; materials: string[]; initialCheck: string[]; finalCheck: string[]; custom: string[] };
@@ -50,6 +62,11 @@ type PublicViewData = {
     valueCents: number;
     deadlineAt: string;
     status: string;
+    city?: string | null;
+    state?: string | null;
+    contactPersonName?: string | null;
+    clientPartnerName?: string | null;
+    commissionCents?: number;
   };
   distance: { meters: number; km: number } | null;
   otp: { requestOtpUrl: string; acceptUrl: string };
@@ -1063,32 +1080,213 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
           <h2 className="text-sm font-semibold text-blue-600">{company.name}</h2>
         </div>
 
-        {/* OS card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
-          <h1 className="text-lg font-bold text-slate-800">{so.title}</h1>
-          {so.description && <p className="text-sm text-slate-600">{so.description}</p>}
+        {/* OS card — rendered based on pageLayout */}
+        {(() => {
+          const layout = data?.linkConfig?.pageLayout;
+          const CLS_KEY_MAP: Record<string, keyof ChecklistItems> = {
+            TOOLS_PPE: 'toolsPpe', MATERIALS: 'materials',
+            INITIAL_CHECK: 'initialCheck', FINAL_CHECK: 'finalCheck', CUSTOM: 'custom',
+          };
+          const CLS_ICON: Record<string, string> = {
+            TOOLS_PPE: '🔧', MATERIALS: '📦', INITIAL_CHECK: '📋', FINAL_CHECK: '✅', CUSTOM: '📝',
+          };
 
-          <div className="space-y-2 text-sm">
-            <div className="flex items-start gap-2">
-              <span className="text-base">📍</span>
-              <span className="text-slate-600">{so.addressText}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-base">💰</span>
-              <span className="text-slate-700 font-medium">R$ {(so.valueCents / 100).toFixed(2)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-base">📅</span>
-              <span className="text-slate-600">Prazo: {new Date(so.deadlineAt).toLocaleDateString("pt-BR")}</span>
-            </div>
-            {distance && (
-              <div className="flex items-center gap-2">
-                <span className="text-base">🗺️</span>
-                <span className="text-slate-600">{distance.km < 1 ? `${distance.meters}m` : `${distance.km} km`} de distância</span>
+          // Helper: render a single info field
+          const renderInfoField = (field: string | undefined, label: string) => {
+            if (!field) return null;
+            const FIELD_MAP: Record<string, { icon: string; value: string | null }> = {
+              title:       { icon: '📋', value: so.title },
+              address:     { icon: '📍', value: so.addressText },
+              commission:  { icon: '💰', value: so.commissionCents ? `R$ ${(so.commissionCents / 100).toFixed(2)}` : null },
+              value:       { icon: '💰', value: `R$ ${(so.valueCents / 100).toFixed(2)}` },
+              deadline:    { icon: '📅', value: `Prazo: ${new Date(so.deadlineAt).toLocaleDateString("pt-BR")}` },
+              clientName:  { icon: '👤', value: so.clientPartnerName || null },
+              contact:     { icon: '📞', value: so.contactPersonName || null },
+              description: { icon: '📝', value: so.description || null },
+              city:        { icon: '🏙️', value: so.city && so.state ? `${so.city} - ${so.state}` : so.city || null },
+              company:     { icon: '🏢', value: company.name },
+            };
+            const entry = FIELD_MAP[field];
+            if (!entry || !entry.value) return null;
+
+            // Title gets special rendering
+            if (field === 'title') {
+              return <h1 key={field} className="text-lg font-bold text-slate-800">{entry.value}</h1>;
+            }
+            // Description gets multi-line rendering
+            if (field === 'description') {
+              return <p key={field} className="text-sm text-slate-600">{entry.value}</p>;
+            }
+            return (
+              <div key={field} className="flex items-start gap-2 text-sm">
+                <span className="text-base flex-shrink-0">{entry.icon}</span>
+                <span className={field === 'value' || field === 'commission' ? "text-slate-700 font-medium" : "text-slate-600"}>
+                  {entry.value}
+                </span>
               </div>
-            )}
-          </div>
-        </div>
+            );
+          };
+
+          // Helper: render a checklist block
+          const renderChecklist = (checklistClass: string, label: string) => {
+            const key = CLS_KEY_MAP[checklistClass];
+            if (!key || !data?.checklists?.[key]?.length) return null;
+            const items = data.checklists[key];
+            const icon = CLS_ICON[checklistClass] || '📋';
+            const checked = checklistChecked[checklistClass] || new Set<string>();
+            const submitted = checklistSubmitted.has(checklistClass);
+            const allChecked = items.every(i => checked.has(i));
+            const submitting = checklistSubmitting === checklistClass;
+
+            return (
+              <div key={checklistClass} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-slate-800">{icon} {label}</h3>
+                  {submitted && <span className="text-xs text-green-600 font-medium">✓ Enviado</span>}
+                </div>
+                {submitted ? (
+                  <p className="text-xs text-green-600">Checklist confirmado.</p>
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      {items.map(item => {
+                        const isChecked = checked.has(item);
+                        return (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => toggleChecklistItem(checklistClass, item)}
+                            className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-all ${
+                              isChecked
+                                ? "border-green-300 bg-green-50 text-green-800"
+                                : "border-slate-200 bg-white text-slate-700"
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border ${
+                              isChecked ? "bg-green-500 border-green-500 text-white" : "border-slate-300"
+                            }`}>
+                              {isChecked && <span className="text-xs">✓</span>}
+                            </div>
+                            <span className="text-left">{item}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleChecklistSubmit(checklistClass, items)}
+                      disabled={!allChecked || submitting}
+                      className="w-full mt-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:bg-slate-300 hover:bg-blue-700 transition-colors"
+                    >
+                      {submitting ? "Enviando..." : `Confirmar ${label}`}
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          };
+
+          // If pageLayout exists, render in order; otherwise fallback to hardcoded
+          if (layout && layout.length > 0) {
+            const enabledBlocks = layout.filter(b => b.enabled);
+            // Group consecutive info blocks into a single card
+            const groups: { type: 'card'; blocks: typeof enabledBlocks }[] | { type: 'checklist'; block: PageLayoutBlock }[] | { type: 'text'; block: PageLayoutBlock }[] = [];
+            let currentInfoGroup: typeof enabledBlocks = [];
+
+            const flushInfoGroup = () => {
+              if (currentInfoGroup.length > 0) {
+                (groups as any[]).push({ type: 'card', blocks: [...currentInfoGroup] });
+                currentInfoGroup = [];
+              }
+            };
+
+            for (const block of enabledBlocks) {
+              if (block.type === 'info') {
+                currentInfoGroup.push(block);
+              } else {
+                flushInfoGroup();
+                (groups as any[]).push({ type: block.type, block });
+              }
+            }
+            flushInfoGroup();
+
+            // Also show distance if available (always at end of info card)
+            return (
+              <>
+                {groups.map((group: any, gi: number) => {
+                  if (group.type === 'card') {
+                    return (
+                      <div key={`card-${gi}`} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+                        {group.blocks.map((b: PageLayoutBlock) => renderInfoField(b.field, b.label))}
+                        {/* Distance — show inside info card if present */}
+                        {gi === 0 && distance && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-base flex-shrink-0">🗺️</span>
+                            <span className="text-slate-600">{distance.km < 1 ? `${distance.meters}m` : `${distance.km} km`} de distância</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  if (group.type === 'checklist' && group.block.checklistClass) {
+                    return renderChecklist(group.block.checklistClass, group.block.label);
+                  }
+                  if (group.type === 'text' && group.block.content) {
+                    return (
+                      <div key={`text-${gi}`} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{group.block.content}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </>
+            );
+          }
+
+          // Fallback: no pageLayout — render hardcoded (backward compat)
+          return (
+            <>
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+                <h1 className="text-lg font-bold text-slate-800">{so.title}</h1>
+                {so.description && <p className="text-sm text-slate-600">{so.description}</p>}
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-base">📍</span>
+                    <span className="text-slate-600">{so.addressText}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💰</span>
+                    <span className="text-slate-700 font-medium">R$ {(so.valueCents / 100).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📅</span>
+                    <span className="text-slate-600">Prazo: {new Date(so.deadlineAt).toLocaleDateString("pt-BR")}</span>
+                  </div>
+                  {distance && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🗺️</span>
+                      <span className="text-slate-600">{distance.km < 1 ? `${distance.meters}m` : `${distance.km} km`} de distância</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Fallback checklists */}
+              {data?.checklists && (() => {
+                const CLS_META: { key: keyof ChecklistItems; label: string; enumValue: string }[] = [
+                  { key: 'toolsPpe', label: 'Ferramentas e EPI', enumValue: 'TOOLS_PPE' },
+                  { key: 'materials', label: 'Materiais', enumValue: 'MATERIALS' },
+                  { key: 'initialCheck', label: 'Verificação Inicial', enumValue: 'INITIAL_CHECK' },
+                  { key: 'finalCheck', label: 'Verificação Final', enumValue: 'FINAL_CHECK' },
+                  { key: 'custom', label: 'Personalizado', enumValue: 'CUSTOM' },
+                ];
+                const activeCls = CLS_META.filter(c => (data.checklists?.[c.key]?.length || 0) > 0);
+                if (activeCls.length === 0) return null;
+                return <div className="space-y-3">{activeCls.map(c => renderChecklist(c.enumValue, c.label))}</div>;
+              })()}
+            </>
+          );
+        })()}
 
         {/* Error */}
         {errorMsg && (
@@ -1096,78 +1294,6 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             <p className="text-sm text-red-700">{errorMsg}</p>
           </div>
         )}
-
-        {/* Checklists — show if there are items for any class */}
-        {data?.checklists && (() => {
-          const CLS_META: { key: keyof ChecklistItems; label: string; icon: string; enumValue: string }[] = [
-            { key: 'toolsPpe', label: 'Ferramentas e EPI', icon: '🔧', enumValue: 'TOOLS_PPE' },
-            { key: 'materials', label: 'Materiais', icon: '📦', enumValue: 'MATERIALS' },
-            { key: 'initialCheck', label: 'Verificação Inicial', icon: '📋', enumValue: 'INITIAL_CHECK' },
-            { key: 'finalCheck', label: 'Verificação Final', icon: '✅', enumValue: 'FINAL_CHECK' },
-            { key: 'custom', label: 'Personalizado', icon: '📝', enumValue: 'CUSTOM' },
-          ];
-          const activeCls = CLS_META.filter(c => (data.checklists?.[c.key]?.length || 0) > 0);
-          if (activeCls.length === 0) return null;
-
-          return (
-            <div className="space-y-3">
-              {activeCls.map(cls => {
-                const items = data.checklists![cls.key];
-                const checked = checklistChecked[cls.enumValue] || new Set<string>();
-                const submitted = checklistSubmitted.has(cls.enumValue);
-                const allChecked = items.every(i => checked.has(i));
-                const submitting = checklistSubmitting === cls.enumValue;
-
-                return (
-                  <div key={cls.key} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-slate-800">{cls.icon} {cls.label}</h3>
-                      {submitted && <span className="text-xs text-green-600 font-medium">✓ Enviado</span>}
-                    </div>
-                    {submitted ? (
-                      <p className="text-xs text-green-600">Checklist confirmado.</p>
-                    ) : (
-                      <>
-                        <div className="space-y-1.5">
-                          {items.map(item => {
-                            const isChecked = checked.has(item);
-                            return (
-                              <button
-                                key={item}
-                                type="button"
-                                onClick={() => toggleChecklistItem(cls.enumValue, item)}
-                                className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-all ${
-                                  isChecked
-                                    ? "border-green-300 bg-green-50 text-green-800"
-                                    : "border-slate-200 bg-white text-slate-700"
-                                }`}
-                              >
-                                <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border ${
-                                  isChecked ? "bg-green-500 border-green-500 text-white" : "border-slate-300"
-                                }`}>
-                                  {isChecked && <span className="text-xs">✓</span>}
-                                </div>
-                                <span className="text-left">{item}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleChecklistSubmit(cls.enumValue, items)}
-                          disabled={!allChecked || submitting}
-                          className="w-full mt-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:bg-slate-300 hover:bg-blue-700 transition-colors"
-                        >
-                          {submitting ? "Enviando..." : `Confirmar ${cls.label}`}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
 
         {/* Accept button — only if acceptOS is enabled */}
         {(data?.linkConfig?.acceptOS !== false) && (

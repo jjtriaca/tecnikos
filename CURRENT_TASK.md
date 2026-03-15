@@ -1,28 +1,31 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 112 — Fase 4 Workflow UI (CONCLUIDO)
+## Status: SESSAO 113 — Revisao Workflow vs Spec (EM ANDAMENTO)
 
-## Ultima sessao: 112 (15/03/2026)
+## Ultima sessao: 113 (15/03/2026)
 - Sessao 111: Melhorias Servicos + Checklists (v1.03.34)
 - Sessao 112: Fase 4 — Workflow UI Checklists (v1.03.51)
+- Sessao 113: Revisao Workflow vs Spec + Fixes (v1.03.57)
 
 ## O que foi feito nesta sessao:
 
-### Fase 4 — Workflow UI (StageSection) — v1.03.51
-- [x] stage-config.ts: gps_button/enroute_button no LinkPageBlock, page2Layout defaults
-- [x] ABERTA Page 1: blocos checklist ordenaveis no pageLayout com inline mode/required config
-- [x] ABERTA Page 2: GPS/en-route/checklists como page2Layout ordenavel (substitui toggles hardcoded)
-- [x] ABERTA: Pergunta movida para antes do botao Aceitar
-- [x] ATRIBUIDA: filtrado para so checklists relevantes (toolsPpe, materials, custom) + observacao
-- [x] EM_EXECUCAO: secao renomeada "Pagina do Link", itens ordenaveis + footer info
-- [x] CONCLUIDA: secao renomeada "Pagina do Link", filtrado finalCheck/custom + foto/assinatura/observacao
-- [x] Compiler/Decompiler: GPS/en-route derivados do page2Layout, backward compat
-- [x] Build TypeScript limpo (zero erros)
-- [x] Deploy v1.03.51 OK
+### Revisao etapa-por-etapa contra CHECKLIST_WORKFLOW_SPEC.md
+- [x] ABERTA: OK (conforme spec)
+- [x] OFERTADA: OK (conforme spec)
+- [x] A_CAMINHO: OK (conforme spec)
+- [x] ATRIBUIDA: OK (conforme spec)
+- [x] EM_EXECUCAO: Convertido para execLinkLayout ordenavel, removido Ferramentas/Materiais
+- [x] CONCLUIDA: Convertido para concLinkLayout ordenavel
+- [x] Fix race condition: checkbox + techActions em single onChange
+- [x] Removido bl_12/bl_13 (Texto livre 2/3) do decompiler
+- [x] PhotoRequirementList inline no bloco foto EM_EXECUCAO
+- [x] Labels melhorados: "Assinatura do cliente", placeholders descritivos
+- [x] Step sub-toggles: "Exigir foto"/"Exigir nota"
+- [x] Deploy v1.03.57 OK
 
 ## Arquivos modificados:
-- `frontend/src/types/stage-config.ts` — LinkPageBlock types, page2Layout defaults, compiler/decompiler
-- `frontend/src/app/(dashboard)/workflow/components/StageSection.tsx` — UI reestruturada para checklists
+- `frontend/src/types/stage-config.ts` — execLinkLayout, concLinkLayout, compiler/decompiler
+- `frontend/src/app/(dashboard)/workflow/components/StageSection.tsx` — UI ordenavel EM_EXECUCAO/CONCLUIDA
 
 ## Pendente:
 - FUTURO: Verificacao visual completa do workflow editor (preview nao autenticou)
@@ -35,7 +38,19 @@
 - FUTURO: Discutir/remover commissionBps global da empresa
 - FUTURO: Workflow config "Respeitar tecnico direcionado"
 
-## Versao atual: v1.03.51 (deployed)
+### Extras implementados (v1.03.57 → v1.03.61)
+- [x] Foto por momento: "Durante o serviço" + hints de posição no link
+- [x] Formulário rico: unidade (30+ chips), largura mobile, multiline, validação
+- [x] Formulário em todas as etapas: ABERTA p2, ATRIBUIDA, EM_EXEC, CONCLUIDA, APROVADA
+- [x] APROVADA: formulário do gestor (tema emerald)
+
+### Revisão completa do fluxo mobile (v1.03.61)
+- [x] Ferramentas/EPI e Materiais mantidos FORA da EM_EXECUCAO (decisão do Juliano)
+- [x] Cada stage independente com seu próprio techActions.form.fields
+- [x] page2Layout, execLinkLayout, concLinkLayout: compiler/decompiler com merge OK
+- [x] Sem conflito de dados entre forms de stages diferentes
+
+## Versao atual: v1.03.61 (deployed)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

@@ -60,13 +60,15 @@ const DEFAULT_ACTION_NOTIFY: ActionNotifyConfig = {
   notifyCliente: { enabled: false, channel: 'sms', message: '' },
 };
 
-/** Extract linkConfig (acceptOS, gpsNavigation, enRoute, etc.) from workflow template's NOTIFY block */
+/** Extract linkConfig (acceptOS, gpsNavigation, enRoute, pageLayout, page2Layout, etc.) from workflow template's NOTIFY block */
 function extractLinkConfig(workflowTemplate: any): {
   acceptOS: boolean;
   gpsNavigation: boolean;
   enRoute: boolean;
   validityHours: number;
   agendaMarginHours: number;
+  pageLayout: any[];
+  page2Layout: any[];
   onAccept:  ActionNotifyConfig;
   onGps:     ActionNotifyConfig;
   onEnRoute: ActionNotifyConfig;
@@ -87,6 +89,8 @@ function extractLinkConfig(workflowTemplate: any): {
         enRoute: lc.enRoute ?? false,
         validityHours: lc.validityHours || 24,
         agendaMarginHours: lc.agendaMarginHours ?? 24,
+        pageLayout: lc.pageLayout || [],
+        page2Layout: lc.page2Layout || [],
         onAccept:  { notifyGestor: { ...DEFAULT_ACTION_NOTIFY.notifyGestor, ...lc.onAccept?.notifyGestor }, notifyCliente: { ...DEFAULT_ACTION_NOTIFY.notifyCliente, ...lc.onAccept?.notifyCliente } },
         onGps:     { notifyGestor: { ...DEFAULT_ACTION_NOTIFY.notifyGestor, ...lc.onGps?.notifyGestor }, notifyCliente: { ...DEFAULT_ACTION_NOTIFY.notifyCliente, ...lc.onGps?.notifyCliente } },
         onEnRoute: { notifyGestor: { ...DEFAULT_ACTION_NOTIFY.notifyGestor, ...lc.onEnRoute?.notifyGestor }, notifyCliente: { ...DEFAULT_ACTION_NOTIFY.notifyCliente, ...lc.onEnRoute?.notifyCliente } },
@@ -341,6 +345,7 @@ export class PublicOfferService {
       include: {
         workflowTemplate: true,
         items: { include: { service: { select: { id: true, name: true, checklists: true } } } },
+        clientPartner: { select: { name: true } },
       },
     });
 
@@ -392,6 +397,14 @@ export class PublicOfferService {
         valueCents: offer.serviceOrder.valueCents,
         deadlineAt: offer.serviceOrder.deadlineAt,
         status: offer.serviceOrder.status,
+        city: so?.city || null,
+        state: so?.state || null,
+        contactPersonName: so?.contactPersonName || null,
+        clientPartnerName: so?.clientPartner?.name || null,
+        commissionCents: so?.items?.reduce((sum, item) => {
+          const bps = item.commissionBps || 0;
+          return sum + Math.round((item.unitPriceCents * item.quantity * bps) / 10000);
+        }, 0) || 0,
       },
       distance: distanceMeters !== null
         ? {
@@ -403,12 +416,15 @@ export class PublicOfferService {
         requestOtpUrl,
         acceptUrl,
       },
-      linkConfig: linkConfig || { acceptOS: true, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24, onAccept: DEFAULT_ACTION_NOTIFY, onGps: DEFAULT_ACTION_NOTIFY, onEnRoute: DEFAULT_ACTION_NOTIFY },
+      linkConfig: linkConfig || { acceptOS: true, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24, pageLayout: [], page2Layout: [], onAccept: DEFAULT_ACTION_NOTIFY, onGps: DEFAULT_ACTION_NOTIFY, onEnRoute: DEFAULT_ACTION_NOTIFY },
       // State flags for returning visitors
       enRouteAt: so?.enRouteAt?.toISOString() || null,
       trackingStartedAt: so?.trackingStartedAt?.toISOString() || null,
-      // Aggregated checklists from all services in the OS
-      checklists: this.aggregateServiceChecklists(so?.items || []),
+      // Aggregated checklists from all services in the OS, filtered by pageLayout
+      checklists: this.filterChecklistsByLayout(
+        this.aggregateServiceChecklists(so?.items || []),
+        linkConfig?.pageLayout || [],
+      ),
       // Checklist config from workflow template (mode, required, notifyOnSkip per class)
       checklistConfig: extractChecklistConfig(so?.workflowTemplate, offer.serviceOrder.status),
       // Already submitted checklist responses
@@ -1583,6 +1599,40 @@ export class PublicOfferService {
       }
     }
     return result;
+  }
+
+  /** Filter checklists to only include classes enabled in pageLayout */
+  private filterChecklistsByLayout(
+    checklists: Record<string, string[]>,
+    pageLayout: any[],
+  ): Record<string, string[]> {
+    // If no pageLayout configured, return all checklists (backward compat)
+    if (!pageLayout || pageLayout.length === 0) return checklists;
+
+    // Map checklistClass from pageLayout to checklists key
+    const classToKey: Record<string, string> = {
+      TOOLS_PPE: 'toolsPpe',
+      MATERIALS: 'materials',
+      INITIAL_CHECK: 'initialCheck',
+      FINAL_CHECK: 'finalCheck',
+      CUSTOM: 'custom',
+    };
+
+    // Find which checklist classes are enabled in pageLayout
+    const enabledKeys = new Set<string>();
+    for (const block of pageLayout) {
+      if (block.type === 'checklist' && block.enabled && block.checklistClass) {
+        const key = classToKey[block.checklistClass];
+        if (key) enabledKeys.add(key);
+      }
+    }
+
+    // Filter: only return checklists that are enabled in pageLayout
+    const filtered: Record<string, string[]> = {};
+    for (const [key, items] of Object.entries(checklists)) {
+      filtered[key] = enabledKeys.has(key) ? items : [];
+    }
+    return filtered;
   }
 
   /** Get existing checklist responses for this OS */
