@@ -913,7 +913,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-200 h-3.5 w-3.5" />
                                               <span className="text-xs">
                                                 {block.type === 'gps_button' ? '📡' : block.type === 'enroute_button' ? '🚗' :
-                                                  block.type === 'checklist' ? ({ TOOLS_PPE: '🔧', MATERIALS: '📦', CUSTOM: '📝' }[block.checklistClass || ''] || '☑️') : '📋'}
+                                                  block.type === 'checklist' ? ({ TOOLS_PPE: '🔧', MATERIALS: '📦', CUSTOM: '📝' }[block.checklistClass || ''] || '☑️') :
+                                                  block.type === 'form' ? '📋' : '📄'}
                                               </span>
                                               <div className="flex-1">
                                                 <span className="text-xs font-medium text-slate-700">{block.label}</span>
@@ -1005,6 +1006,15 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                                       placeholder="Ex: O técnico está a caminho! OS: {titulo}." vars />
                                                   </div>
                                                 )}
+                                              </div>
+                                            )}
+                                            {/* Inline form config for page2 */}
+                                            {block.type === 'form' && block.enabled && (
+                                              <div className="ml-8 mt-1 mb-1 pl-3 border-l-2 border-blue-200">
+                                                <FormFieldList
+                                                  fields={stage.techActions.form.fields}
+                                                  onChange={fields => updateTech('form', { fields })}
+                                                />
                                               </div>
                                             )}
                                           </div>
@@ -2093,6 +2103,16 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
               })}
             </div>
             <div>
+              <Toggle checked={stage.techActions.form.enabled} onChange={v => updateTech('form', { enabled: v })}
+                label={TECH_ACTION_LABELS.form.label} hint={TECH_ACTION_LABELS.form.hint} />
+              <ConfigRow visible={stage.techActions.form.enabled}>
+                <FormFieldList
+                  fields={stage.techActions.form.fields}
+                  onChange={fields => updateTech('form', { fields })}
+                />
+              </ConfigRow>
+            </div>
+            <div>
               <Toggle checked={stage.techActions.note.enabled} onChange={v => updateTech('note', { enabled: v })}
                 label={TECH_ACTION_LABELS.note.label} hint={TECH_ACTION_LABELS.note.hint} />
               <ConfigRow visible={stage.techActions.note.enabled}>
@@ -2255,11 +2275,27 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             </div>
           )}
           {stage.status === 'APROVADA' && (
+          <>
             <div className="mt-2 px-3 py-2 rounded bg-slate-50 border border-dashed border-slate-200">
               <p className="text-[10px] text-slate-400 italic">
-                👔 Ações do técnico não estão disponíveis nesta etapa — &quot;Aprovada&quot; é uma etapa gerencial. O trabalho de campo termina na &quot;Concluída&quot;.
+                👔 Etapa gerencial — o trabalho de campo termina na &quot;Concluída&quot;.
               </p>
             </div>
+            <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/30 p-3 space-y-3">
+              <p className="text-xs font-semibold text-emerald-700">📋 Formulário do Gestor</p>
+              <p className="text-[10px] text-emerald-500 -mt-2">
+                Campos que o gestor preenche ao aprovar a OS.
+              </p>
+              <Toggle checked={stage.techActions.form.enabled} onChange={v => updateTech('form', { enabled: v })}
+                label="Habilitar formulário de aprovação" hint="Campos customizados para o gestor preencher ao aprovar." />
+              <ConfigRow visible={stage.techActions.form.enabled}>
+                <FormFieldList
+                  fields={stage.techActions.form.fields}
+                  onChange={fields => updateTech('form', { fields })}
+                />
+              </ConfigRow>
+            </div>
+          </>
           )}
 
           {/* ── CONTROLE DE TEMPO ── */}

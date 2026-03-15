@@ -1024,6 +1024,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
     ],
     concLinkLayout: [
       { id: 'cn_cl1', type: 'checklist', checklistClass: 'FINAL_CHECK', label: 'Verificação Final',    enabled: false },
+      { id: 'cn_frm', type: 'form',      label: 'Formulário',           enabled: false },
       { id: 'cn_pho', type: 'photo',     label: 'Foto obrigatória',     enabled: false },
       { id: 'cn_sig', type: 'signature', label: 'Assinatura do cliente', enabled: false },
       { id: 'cn_not', type: 'note',      label: 'Escrever observação',  enabled: false },
@@ -1124,6 +1125,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
               { id: 'p2_cl1', type: 'checklist', checklistClass: 'TOOLS_PPE',    label: 'Ferramentas e EPI',    enabled: false },
               { id: 'p2_cl2', type: 'checklist', checklistClass: 'MATERIALS',    label: 'Materiais',            enabled: false },
               { id: 'p2_cl3', type: 'checklist', checklistClass: 'CUSTOM',       label: 'Personalizado',        enabled: false },
+              { id: 'p2_frm', type: 'form',      label: 'Formulário',            enabled: false },
             ],
             onAccept:  { notifyGestor: { enabled: false, channel: 'whatsapp', message: 'Técnico {tecnico} aceitou a OS {titulo}.' }, notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Um técnico foi designado para sua solicitação {titulo}.' } },
             onGps:     { notifyGestor: { enabled: false, channel: 'whatsapp', message: 'Técnico {tecnico} ativou GPS — a caminho de {endereco}.' }, notifyCliente: { enabled: false, channel: 'whatsapp', message: 'O técnico está rastreando sua localização. OS: {titulo}.' } },
