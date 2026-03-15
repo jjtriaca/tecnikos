@@ -273,6 +273,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
     ...stage,
     timeControl: { ...stage.timeControl, [key]: { ...stage.timeControl[key as keyof typeof stage.timeControl], ...patch } },
   });
+  const updateExecLayout = (layout: LinkPageBlock[]) => onChange({ ...stage, execLinkLayout: layout });
+  const updateConcLayout = (layout: LinkPageBlock[]) => onChange({ ...stage, concLinkLayout: layout });
 
   const enabledCount =
     Object.entries(stage.techActions).filter(([k, a]) => k !== 'checklistConfig' && (a as any).enabled).length +
@@ -1926,136 +1928,24 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
           </div>
 
           {/* ── AÇÕES DO TÉCNICO / LINK ── */}
-          {/* ABERTA/OFERTADA: sem técnico. A_CAMINHO: dirigindo, sem interação. APROVADA: encerrado. */}
-          {!['ABERTA', 'OFERTADA', 'A_CAMINHO', 'APROVADA'].includes(stage.status) && (
+          {/* ATRIBUIDA: checklists filtrados + observação */}
+          {stage.status === 'ATRIBUIDA' && (
           <>
-          <SectionLabel
-            icon={stage.status === 'ATRIBUIDA' ? '📋' : '📱'}
-            title={stage.status === 'ATRIBUIDA' ? 'Checklists do Técnico' : stage.status === 'EM_EXECUCAO' ? 'Página do Link — Em Execução' : stage.status === 'CONCLUIDA' ? 'Página do Link — Concluída' : 'Ações do Técnico'} />
+          <SectionLabel icon="📋" title="Checklists do Técnico" />
           <div className="space-y-3">
-            {/* STEP — só EM_EXECUÇÃO (ATRIBUÍDA: filtrado, CONCLUÍDA: filtrado) */}
-            {stage.status === 'EM_EXECUCAO' && (
-            <div>
-              <Toggle checked={stage.techActions.step.enabled} onChange={v => updateTech('step', { enabled: v })}
-                label={TECH_ACTION_LABELS.step.label} hint={TECH_ACTION_LABELS.step.hint} />
-              <ConfigRow visible={stage.techActions.step.enabled}>
-                <TextField label="Descrição da atividade" value={stage.techActions.step.description}
-                  onChange={v => updateTech('step', { description: v })} placeholder="O que o técnico deve fazer..." />
-                <div className="flex flex-wrap gap-3">
-                  <SubToggle checked={stage.techActions.step.requirePhoto} onChange={v => updateTech('step', { requirePhoto: v })} label="Exigir foto" />
-                  <SubToggle checked={stage.techActions.step.requireNote} onChange={v => updateTech('step', { requireNote: v })} label="Exigir nota" />
-                  <SubToggle checked={stage.techActions.step.requireGPS} onChange={v => updateTech('step', { requireGPS: v })} label="Exigir GPS" />
-                </div>
-              </ConfigRow>
-            </div>
-            )}
-
-            {/* PHOTO REQUIREMENTS (multi-group) — EM_EXECUCAO */}
-            {stage.status === 'EM_EXECUCAO' && (
-              <div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-3">
-                <Toggle checked={stage.techActions.photoRequirements.enabled}
-                  onChange={v => updateTech('photoRequirements', { enabled: v })}
-                  label={TECH_ACTION_LABELS.photoRequirements.label} hint={TECH_ACTION_LABELS.photoRequirements.hint} />
-                <ConfigRow visible={stage.techActions.photoRequirements.enabled}>
-                  <PhotoRequirementList
-                    groups={stage.techActions.photoRequirements.groups}
-                    onChange={groups => updateTech('photoRequirements', { groups })} />
-                  {stage.techActions.photoRequirements.groups.some((g: PhotoRequirementGroup) => ['on_pause', 'on_resume'].includes(g.moment)) && !stage.timeControl.pauseSystem?.enabled && (
-                    <ConflictWarning message="Há fotos configuradas para momento de pausa/retorno, mas o Sistema de Pausas não está ativo nesta etapa. As fotos de pausa/retorno não serão solicitadas." />
-                  )}
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    💡 Configure múltiplos grupos: ex. fotos &quot;Antes de iniciar&quot; + fotos &quot;Após concluir&quot;.
-                    Cada grupo pode exigir quantidade e momento diferentes.
-                  </p>
-                </ConfigRow>
-              </div>
-            )}
-
-            {/* PHOTO (single group) — CONCLUÍDA only (removed from ATRIBUIDA per spec) */}
-            {['CONCLUIDA'].includes(stage.status) && (
-              <div>
-                <Toggle checked={stage.techActions.photo.enabled} onChange={v => updateTech('photo', { enabled: v })}
-                  label={TECH_ACTION_LABELS.photo.label} hint={TECH_ACTION_LABELS.photo.hint} />
-                <ConfigRow visible={stage.techActions.photo.enabled}>
-                  <div className="flex flex-wrap gap-3">
-                    <NumberField label="Mínimo de fotos" value={stage.techActions.photo.minPhotos}
-                      onChange={v => updateTech('photo', { minPhotos: v })} />
-                    <SelectField label="Tipo" value={stage.techActions.photo.photoType}
-                      onChange={v => updateTech('photo', { photoType: v })} options={PHOTO_TYPE_OPTIONS} />
-                  </div>
-                  <TextField label="Rótulo" value={stage.techActions.photo.label}
-                    onChange={v => updateTech('photo', { label: v })} placeholder="Ex: Foto antes do serviço" />
-                </ConfigRow>
-              </div>
-            )}
-
-            {/* NOTE */}
-            <div>
-              <Toggle checked={stage.techActions.note.enabled} onChange={v => updateTech('note', { enabled: v })}
-                label={TECH_ACTION_LABELS.note.label} hint={TECH_ACTION_LABELS.note.hint} />
-              <ConfigRow visible={stage.techActions.note.enabled}>
-                <TextField label="Placeholder" value={stage.techActions.note.placeholder}
-                  onChange={v => updateTech('note', { placeholder: v })} placeholder="Texto de exemplo..." />
-              </ConfigRow>
-            </div>
-
-            {/* GPS — only EM_EXECUCAO */}
-            {stage.status === 'EM_EXECUCAO' && (
-            <div>
-              <Toggle checked={stage.techActions.gps.enabled} onChange={v => updateTech('gps', { enabled: v })}
-                label={TECH_ACTION_LABELS.gps.label} hint={TECH_ACTION_LABELS.gps.hint} />
-              <ConfigRow visible={stage.techActions.gps.enabled}>
-                <SubToggle checked={stage.techActions.gps.requireAccuracy} onChange={v => updateTech('gps', { requireAccuracy: v })} label="Alta precisão obrigatória" />
-              </ConfigRow>
-            </div>
-            )}
-
-            {/* CHECKLIST LEGADO — EM_EXECUCAO only (backward compat) */}
-            {['EM_EXECUCAO'].includes(stage.status) && (
-            <div>
-              <Toggle checked={stage.techActions.checklist.enabled} onChange={v => updateTech('checklist', { enabled: v })}
-                label={TECH_ACTION_LABELS.checklist.label} hint={TECH_ACTION_LABELS.checklist.hint} />
-              <ConfigRow visible={stage.techActions.checklist.enabled}>
-                <ItemList items={stage.techActions.checklist.items}
-                  onChange={items => updateTech('checklist', { items })} placeholder="Item do checklist" />
-              </ConfigRow>
-            </div>
-            )}
-
-            {/* CHECKLISTS ESTRUTURADOS — 5 classes */}
-            {['ABERTA', 'ATRIBUIDA', 'EM_EXECUCAO', 'CONCLUIDA'].includes(stage.status) && (() => {
-              // ATRIBUIDA: só TOOLS_PPE, MATERIALS, CUSTOM (técnico não está no local)
-              // CONCLUIDA: só FINAL_CHECK, CUSTOM
-              // EM_EXECUCAO/ABERTA: todas as 5
-              const allClasses = [
-                { cls: 'toolsPpe' as const, labelKey: 'checklistToolsPpe' },
-                { cls: 'materials' as const, labelKey: 'checklistMaterials' },
-                { cls: 'initialCheck' as const, labelKey: 'checklistInitialCheck' },
-                { cls: 'finalCheck' as const, labelKey: 'checklistFinalCheck' },
-                { cls: 'custom' as const, labelKey: 'checklistCustom' },
-              ];
-              const filteredClasses = stage.status === 'ATRIBUIDA'
-                ? allClasses.filter(c => ['toolsPpe', 'materials', 'custom'].includes(c.cls))
-                : stage.status === 'CONCLUIDA'
-                  ? allClasses.filter(c => ['finalCheck', 'custom'].includes(c.cls))
-                  : allClasses;
-              return (
             <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3 space-y-3">
               <p className="text-xs font-semibold text-blue-700">Checklists do Serviço</p>
               <p className="text-[10px] text-blue-500 -mt-2">
-                {stage.status === 'ATRIBUIDA'
-                  ? 'Técnico confere antes de ir ao local. Verificações Inicial/Final ficam em Em Execução.'
-                  : 'Itens vêm do cadastro de serviços da OS. Configure modo e obrigatoriedade por classe.'}
+                Técnico confere antes de ir ao local. Verificações Inicial/Final ficam em Em Execução.
               </p>
-
-              {filteredClasses.map(({ cls, labelKey }) => (
+              {(['toolsPpe', 'materials', 'custom'] as const).map(cls => {
+                const labelKey = { toolsPpe: 'checklistToolsPpe', materials: 'checklistMaterials', custom: 'checklistCustom' }[cls];
+                return (
                 <div key={cls}>
-                  <Toggle
-                    checked={stage.techActions.checklistConfig[cls].enabled}
+                  <Toggle checked={stage.techActions.checklistConfig[cls].enabled}
                     onChange={v => updateChecklistCls(cls, { enabled: v })}
                     label={TECH_ACTION_LABELS[labelKey]?.label || cls}
-                    hint={TECH_ACTION_LABELS[labelKey]?.hint}
-                  />
+                    hint={TECH_ACTION_LABELS[labelKey]?.hint} />
                   <ConfigRow visible={stage.techActions.checklistConfig[cls].enabled}>
                     <div className="flex flex-wrap gap-3">
                       <SelectField label="Modo" value={stage.techActions.checklistConfig[cls].mode}
@@ -2066,85 +1956,141 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                         options={[{ value: 'REQUIRED', label: 'Obrigatório' }, { value: 'RECOMMENDED', label: 'Recomendado' }]} />
                     </div>
                     {stage.techActions.checklistConfig[cls].required === 'RECOMMENDED' && (
-                      <SubToggle
-                        checked={stage.techActions.checklistConfig[cls].notifyOnSkip}
+                      <SubToggle checked={stage.techActions.checklistConfig[cls].notifyOnSkip}
                         onChange={v => updateChecklistCls(cls, { notifyOnSkip: v })}
-                        label="Notificar gestor se técnico pular"
-                      />
+                        label="Notificar gestor se técnico pular" />
                     )}
                   </ConfigRow>
                 </div>
-              ))}
+                );
+              })}
             </div>
-              );
-            })()}
-
-            {/* FORM — only EM_EXECUCAO */}
-            {stage.status === 'EM_EXECUCAO' && (
             <div>
-              <Toggle checked={stage.techActions.form.enabled} onChange={v => updateTech('form', { enabled: v })}
-                label={TECH_ACTION_LABELS.form.label} hint={TECH_ACTION_LABELS.form.hint} />
-              <ConfigRow visible={stage.techActions.form.enabled}>
-                <FormFieldList fields={stage.techActions.form.fields}
-                  onChange={fields => updateTech('form', { fields })} />
+              <Toggle checked={stage.techActions.note.enabled} onChange={v => updateTech('note', { enabled: v })}
+                label={TECH_ACTION_LABELS.note.label} hint={TECH_ACTION_LABELS.note.hint} />
+              <ConfigRow visible={stage.techActions.note.enabled}>
+                <TextField label="Placeholder" value={stage.techActions.note.placeholder}
+                  onChange={v => updateTech('note', { placeholder: v })} placeholder="Texto de exemplo..." />
               </ConfigRow>
             </div>
-            )}
+          </div>
+          </>
+          )}
 
-            {/* MATERIALS — only EM_EXECUCAO */}
-            {stage.status === 'EM_EXECUCAO' && (
-              <div className="rounded-lg border border-orange-200 bg-orange-50/30 p-3">
-                <Toggle checked={stage.techActions.materials.enabled}
-                  onChange={v => updateTech('materials', { enabled: v })}
-                  label={TECH_ACTION_LABELS.materials.label} hint={TECH_ACTION_LABELS.materials.hint} />
-                <ConfigRow visible={stage.techActions.materials.enabled}>
-                  <TextField label="Rótulo" value={stage.techActions.materials.label}
-                    onChange={v => updateTech('materials', { label: v })} placeholder="Ex: Materiais utilizados" />
-                  <div className="flex flex-wrap gap-3">
-                    <SubToggle checked={stage.techActions.materials.requireQuantity}
-                      onChange={v => updateTech('materials', { requireQuantity: v })}
-                      label="Exigir quantidade" />
-                    <SubToggle checked={stage.techActions.materials.requireUnitCost}
-                      onChange={v => updateTech('materials', { requireUnitCost: v })}
-                      label="Exigir custo unitário" />
-                  </div>
-                  <p className="text-[10px] text-slate-400">
-                    O técnico poderá adicionar materiais/peças usados com nome{stage.techActions.materials.requireQuantity ? ', quantidade' : ''}{stage.techActions.materials.requireUnitCost ? ' e custo unitário' : ''}.
-                  </p>
-                </ConfigRow>
-              </div>
-            )}
-
-            {/* SIGNATURE — EM_EXECUCAO + CONCLUIDA */}
-            {['EM_EXECUCAO', 'CONCLUIDA'].includes(stage.status) && (
-            <div>
-              <Toggle checked={stage.techActions.signature.enabled} onChange={v => updateTech('signature', { enabled: v })}
-                label={TECH_ACTION_LABELS.signature.label} hint={TECH_ACTION_LABELS.signature.hint} />
-              <ConfigRow visible={stage.techActions.signature.enabled}>
-                <TextField label="Rótulo" value={stage.techActions.signature.label}
-                  onChange={v => updateTech('signature', { label: v })} placeholder="Assinatura do cliente" />
-              </ConfigRow>
-            </div>
-            )}
-
-            {/* QUESTION — only EM_EXECUCAO */}
-            {stage.status === 'EM_EXECUCAO' && (
-            <div>
-              <Toggle checked={stage.techActions.question.enabled} onChange={v => updateTech('question', { enabled: v })}
-                label={TECH_ACTION_LABELS.question.label} hint={TECH_ACTION_LABELS.question.hint} />
-              <ConfigRow visible={stage.techActions.question.enabled}>
-                <TextField label="Pergunta" value={stage.techActions.question.question}
-                  onChange={v => updateTech('question', { question: v })} placeholder="Qual a pergunta?" />
-                <div>
-                  <span className="text-xs text-slate-500">Opções de resposta:</span>
-                  <ItemList items={stage.techActions.question.options}
-                    onChange={options => updateTech('question', { options })} placeholder="Opção" />
+          {/* EM_EXECUCAO / CONCLUIDA: Página do Link — itens ordenáveis */}
+          {['EM_EXECUCAO', 'CONCLUIDA'].includes(stage.status) && (() => {
+            const isExec = stage.status === 'EM_EXECUCAO';
+            const layout = isExec ? stage.execLinkLayout : stage.concLinkLayout;
+            const updateLayout = isExec ? updateExecLayout : updateConcLayout;
+            const BLOCK_ICONS: Record<string, string> = {
+              checklist: '☑️', step: '⚙️', photo: '📸', form: '📋', note: '📝', signature: '✍️',
+            };
+            const CLS_ICONS: Record<string, string> = {
+              TOOLS_PPE: '🔧', MATERIALS: '📦', INITIAL_CHECK: '📋', FINAL_CHECK: '✅', CUSTOM: '📝',
+            };
+            const CLS_KEY_MAP: Record<string, 'toolsPpe' | 'materials' | 'initialCheck' | 'finalCheck' | 'custom'> = {
+              TOOLS_PPE: 'toolsPpe', MATERIALS: 'materials', INITIAL_CHECK: 'initialCheck', FINAL_CHECK: 'finalCheck', CUSTOM: 'custom',
+            };
+            return (
+          <>
+          <SectionLabel icon="📱"
+            title={isExec ? 'Página do Link — Em Execução' : 'Página do Link — Concluída'} />
+          <div className="space-y-1">
+            {layout.map((block, bi) => (
+              <div key={block.id} className={`flex items-start gap-2 p-1.5 rounded border transition-colors ${block.enabled ? 'border-blue-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
+                <div className="flex flex-col gap-0.5 mt-0.5">
+                  <button type="button" disabled={bi === 0}
+                    onClick={() => { const l = [...layout]; [l[bi - 1], l[bi]] = [l[bi], l[bi - 1]]; updateLayout(l); }}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 disabled:opacity-30">▲</button>
+                  <button type="button" disabled={bi === layout.length - 1}
+                    onClick={() => { const l = [...layout]; [l[bi], l[bi + 1]] = [l[bi + 1], l[bi]]; updateLayout(l); }}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 disabled:opacity-30">▼</button>
                 </div>
-              </ConfigRow>
-            </div>
-            )}
+                <input type="checkbox" checked={block.enabled}
+                  onChange={e => {
+                    const l = [...layout];
+                    l[bi] = { ...l[bi], enabled: e.target.checked };
+                    updateLayout(l);
+                    // Sync techActions enabled state
+                    if (block.type === 'checklist' && block.checklistClass) {
+                      const clsKey = CLS_KEY_MAP[block.checklistClass];
+                      if (clsKey) updateChecklistCls(clsKey, { enabled: e.target.checked });
+                    } else if (['step', 'photo', 'form', 'note', 'signature'].includes(block.type)) {
+                      const techKey = block.type === 'photo' ? (isExec ? 'photoRequirements' : 'photo') : block.type;
+                      updateTech(techKey, { enabled: e.target.checked });
+                    }
+                  }}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-200 h-3.5 w-3.5 mt-0.5" />
+                <span className="text-xs mt-0.5">
+                  {block.type === 'checklist' ? (CLS_ICONS[block.checklistClass || ''] || '☑️') : (BLOCK_ICONS[block.type] || '📋')}
+                </span>
+                <div className="flex-1">
+                  <span className="text-xs font-medium text-slate-700">{block.label}</span>
+                  {/* Inline config for checklists */}
+                  {block.enabled && block.type === 'checklist' && block.checklistClass && (() => {
+                    const clsKey = CLS_KEY_MAP[block.checklistClass!];
+                    if (!clsKey) return null;
+                    const cfg = stage.techActions.checklistConfig[clsKey];
+                    return (
+                      <div className="flex items-center gap-2 mt-1">
+                        <select value={cfg.mode} onChange={e => updateChecklistCls(clsKey, { mode: e.target.value })}
+                          className="text-[10px] rounded border border-slate-300 px-1 py-0.5 bg-white">
+                          <option value="ITEM_BY_ITEM">Item a item</option>
+                          <option value="FULL">Inteiro</option>
+                        </select>
+                        <select value={cfg.required} onChange={e => updateChecklistCls(clsKey, { required: e.target.value })}
+                          className="text-[10px] rounded border border-slate-300 px-1 py-0.5 bg-white">
+                          <option value="REQUIRED">Obrigatório</option>
+                          <option value="RECOMMENDED">Recomendado</option>
+                        </select>
+                      </div>
+                    );
+                  })()}
+                  {/* Inline config for step */}
+                  {block.enabled && block.type === 'step' && (
+                    <div className="mt-1 space-y-1">
+                      <input type="text" value={stage.techActions.step.description} placeholder="O que o técnico deve fazer..."
+                        onChange={e => updateTech('step', { description: e.target.value })}
+                        className="text-xs w-full rounded border border-slate-300 px-2 py-0.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                      <div className="flex flex-wrap gap-2">
+                        <SubToggle checked={stage.techActions.step.requirePhoto} onChange={v => updateTech('step', { requirePhoto: v })} label="Foto" />
+                        <SubToggle checked={stage.techActions.step.requireNote} onChange={v => updateTech('step', { requireNote: v })} label="Nota" />
+                      </div>
+                    </div>
+                  )}
+                  {/* Inline config for photo */}
+                  {block.enabled && block.type === 'photo' && isExec && (
+                    <div className="mt-1">
+                      <p className="text-[10px] text-slate-400">Configurar grupos de fotos por momento (antes, durante, após).</p>
+                    </div>
+                  )}
+                  {block.enabled && block.type === 'photo' && !isExec && (
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      <NumberField label="Mín fotos" value={stage.techActions.photo.minPhotos}
+                        onChange={v => updateTech('photo', { minPhotos: v })} />
+                    </div>
+                  )}
+                  {/* Inline config for signature */}
+                  {block.enabled && block.type === 'signature' && (
+                    <div className="mt-1">
+                      <input type="text" value={stage.techActions.signature.label} placeholder="Assinatura do cliente"
+                        onChange={e => updateTech('signature', { label: e.target.value })}
+                        className="text-xs w-full rounded border border-slate-300 px-2 py-0.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                    </div>
+                  )}
+                  {/* Inline config for note */}
+                  {block.enabled && block.type === 'note' && (
+                    <div className="mt-1">
+                      <input type="text" value={stage.techActions.note.placeholder} placeholder="Texto de exemplo..."
+                        onChange={e => updateTech('note', { placeholder: e.target.value })}
+                        className="text-xs w-full rounded border border-slate-300 px-2 py-0.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
             {/* Rodapé fixo info — EM_EXECUCAO */}
-            {stage.status === 'EM_EXECUCAO' && (
+            {isExec && (
               <div className="mt-2 px-3 py-2 rounded bg-slate-50 border border-dashed border-slate-200">
                 <p className="text-[10px] text-slate-400 italic">
                   ⏱️ Rodapé fixo no link: Cronômetro + [Pausar] + [Concluir]. Configuráveis em &quot;Controle de Tempo&quot;.
@@ -2153,7 +2099,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             )}
           </div>
           </>
-          )}
+            );
+          })()}
 
           {/* Hint para etapas sem ações do técnico */}
           {['ABERTA', 'OFERTADA'].includes(stage.status) && (

@@ -13,6 +13,11 @@ export interface StageConfig {
   icon: string;
   enabled: boolean;
 
+  /** Layout ordenável da página do link — EM_EXECUCAO */
+  execLinkLayout: LinkPageBlock[];
+  /** Layout ordenável da página do link — CONCLUIDA */
+  concLinkLayout: LinkPageBlock[];
+
   techActions: {
     step:      { enabled: boolean; description: string; requirePhoto: boolean; requireNote: boolean; requireGPS: boolean };
     photo:     { enabled: boolean; minPhotos: number; label: string; photoType: string };
@@ -233,7 +238,7 @@ export interface FinancialEntryConfig {
 
 export interface LinkPageBlock {
   id: string;
-  type: 'info' | 'text' | 'checklist' | 'gps_button' | 'enroute_button';
+  type: 'info' | 'text' | 'checklist' | 'gps_button' | 'enroute_button' | 'step' | 'photo' | 'form' | 'note' | 'signature';
   /** Para type='info': qual campo de dados exibir */
   field?: string;
   /** Label exibido na página */
@@ -977,6 +982,25 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
     label,
     icon,
     enabled: false,
+    execLinkLayout: [
+      { id: 'ex_cl1', type: 'checklist', checklistClass: 'INITIAL_CHECK', label: 'Verificação Inicial',  enabled: false },
+      { id: 'ex_cl2', type: 'checklist', checklistClass: 'TOOLS_PPE',     label: 'Ferramentas e EPI',    enabled: false },
+      { id: 'ex_cl3', type: 'checklist', checklistClass: 'MATERIALS',     label: 'Materiais',            enabled: false },
+      { id: 'ex_stp', type: 'step',      label: 'Passo a passo',          enabled: false },
+      { id: 'ex_pho', type: 'photo',     label: 'Foto obrigatória',       enabled: false },
+      { id: 'ex_frm', type: 'form',      label: 'Formulário',             enabled: false },
+      { id: 'ex_not', type: 'note',      label: 'Escrever observação',    enabled: false },
+      { id: 'ex_sig', type: 'signature', label: 'Assinatura',             enabled: false },
+      { id: 'ex_cl4', type: 'checklist', checklistClass: 'FINAL_CHECK',   label: 'Verificação Final',    enabled: false },
+      { id: 'ex_cl5', type: 'checklist', checklistClass: 'CUSTOM',        label: 'Personalizado',        enabled: false },
+    ],
+    concLinkLayout: [
+      { id: 'cn_cl1', type: 'checklist', checklistClass: 'FINAL_CHECK', label: 'Verificação Final',    enabled: false },
+      { id: 'cn_pho', type: 'photo',     label: 'Foto obrigatória',     enabled: false },
+      { id: 'cn_sig', type: 'signature', label: 'Assinatura',           enabled: false },
+      { id: 'cn_not', type: 'note',      label: 'Escrever observação',  enabled: false },
+      { id: 'cn_cl2', type: 'checklist', checklistClass: 'CUSTOM',      label: 'Personalizado',        enabled: false },
+    ],
     techActions: {
       step:      { enabled: false, description: '', requirePhoto: false, requireNote: false, requireGPS: false },
       photo:     { enabled: false, minPhotos: 1, label: 'Foto', photoType: 'general' },
@@ -1534,7 +1558,11 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
       type: 'STATUS',
       name: `Mudar para ${stage.label}`,
       icon: stage.icon,
-      config: { targetStatus: stage.status },
+      config: {
+        targetStatus: stage.status,
+        ...(stage.status === 'EM_EXECUCAO' && stage.execLinkLayout?.length ? { execLinkLayout: stage.execLinkLayout } : {}),
+        ...(stage.status === 'CONCLUIDA' && stage.concLinkLayout?.length ? { concLinkLayout: stage.concLinkLayout } : {}),
+      },
       next: null,
     });
 
@@ -2036,7 +2064,26 @@ function decompileV2Blocks(blocks: any[], config: WorkflowFormConfig): WorkflowF
       const targetStatus = cursor.config?.targetStatus;
       if (targetStatus) {
         currentStage = config.stages.find(s => s.status === targetStatus) || null;
-        if (currentStage) currentStage.enabled = true;
+        if (currentStage) {
+          currentStage.enabled = true;
+          // Restore link layouts from saved STATUS config
+          if (cursor.config.execLinkLayout?.length) {
+            const defaultExec = currentStage.execLinkLayout;
+            const savedMap = new Map(cursor.config.execLinkLayout.map((b: any) => [b.id, b]));
+            currentStage.execLinkLayout = [
+              ...cursor.config.execLinkLayout,
+              ...defaultExec.filter(d => !savedMap.has(d.id)),
+            ];
+          }
+          if (cursor.config.concLinkLayout?.length) {
+            const defaultConc = currentStage.concLinkLayout;
+            const savedMap = new Map(cursor.config.concLinkLayout.map((b: any) => [b.id, b]));
+            currentStage.concLinkLayout = [
+              ...cursor.config.concLinkLayout,
+              ...defaultConc.filter(d => !savedMap.has(d.id)),
+            ];
+          }
+        }
       }
     } else if (cursor.type !== 'START' && cursor.type !== 'END' && currentStage) {
       mapBlockToStage(cursor, currentStage, config.stages);
@@ -2072,7 +2119,25 @@ function decompileV3Blocks(blocks: any[], config: WorkflowFormConfig): WorkflowF
         const targetStatus = block.config?.targetStatus;
         if (targetStatus) {
           currentStage = config.stages.find(s => s.status === targetStatus) || null;
-          if (currentStage) currentStage.enabled = true;
+          if (currentStage) {
+            currentStage.enabled = true;
+            if (block.config.execLinkLayout?.length) {
+              const defaultExec = currentStage.execLinkLayout;
+              const savedMap = new Map(block.config.execLinkLayout.map((b: any) => [b.id, b]));
+              currentStage.execLinkLayout = [
+                ...block.config.execLinkLayout,
+                ...defaultExec.filter(d => !savedMap.has(d.id)),
+              ];
+            }
+            if (block.config.concLinkLayout?.length) {
+              const defaultConc = currentStage.concLinkLayout;
+              const savedMap = new Map(block.config.concLinkLayout.map((b: any) => [b.id, b]));
+              currentStage.concLinkLayout = [
+                ...block.config.concLinkLayout,
+                ...defaultConc.filter(d => !savedMap.has(d.id)),
+              ];
+            }
+          }
         }
       } else if (block.type !== 'TRIGGER_START' && block.type !== 'END' && currentStage) {
         mapBlockToStage(block, currentStage, config.stages);
