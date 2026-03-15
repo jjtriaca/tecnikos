@@ -335,12 +335,12 @@ export class PublicOfferService {
   ) {
     const offer = await this.getOfferByToken(token, accessKey);
 
-    // Load workflow template for linkConfig + services for checklists
+    // Load workflow template for linkConfig + service items for checklists
     const so = await this.prisma.serviceOrder.findUnique({
       where: { id: offer.serviceOrderId },
       include: {
         workflowTemplate: true,
-        services: { include: { service: { select: { id: true, name: true, checklists: true } } } },
+        items: { include: { service: { select: { id: true, name: true, checklists: true } } } },
       },
     });
 
@@ -408,7 +408,7 @@ export class PublicOfferService {
       enRouteAt: so?.enRouteAt?.toISOString() || null,
       trackingStartedAt: so?.trackingStartedAt?.toISOString() || null,
       // Aggregated checklists from all services in the OS
-      checklists: this.aggregateServiceChecklists(so?.services || []),
+      checklists: this.aggregateServiceChecklists(so?.items || []),
       // Checklist config from workflow template (mode, required, notifyOnSkip per class)
       checklistConfig: extractChecklistConfig(so?.workflowTemplate, offer.serviceOrder.status),
       // Already submitted checklist responses
