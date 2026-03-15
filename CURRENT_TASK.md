@@ -1,65 +1,61 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 110 — Reorganizacao Nova OS + Servicos por Item (EM ANDAMENTO)
+## Status: SESSAO 111 — Melhorias Servicos + Checklists (CONCLUIDO)
 
-## Ultima sessao: 110 (15/03/2026)
-- Sessao 108: Radio unificado com paineis expansiveis (v1.03.22 a v1.03.28)
+## Ultima sessao: 111 (15/03/2026)
 - Sessao 109: Simplificacao criacao OS + workflow-centric (v1.03.29 a v1.03.30)
-- Sessao 110: Reorganizacao Nova OS + Servicos por Item
+- Sessao 110: Reorganizacao Nova OS + Servicos por Item (v1.03.31 a v1.03.33)
+- Sessao 111: Melhorias Servicos + Checklists (v1.03.34)
 
 ## O que foi feito nesta sessao:
 
-### Backend — ServiceOrderItem + commissionBps — JA FEITO (sessao anterior)
-- [x] Model ServiceOrderItem no schema.prisma (serviceOrderId, serviceId, serviceName, unit, qty, unitPriceCents, commissionBps)
-- [x] commissionBps adicionado ao model Service
-- [x] Migration manual: 20260315020000_add_service_order_items/migration.sql
-- [x] DTOs: commissionBps em CreateServiceDto e UpdateServiceDto
-- [x] service.service.ts: commissionBps no create, sortBy validado
-- [x] service-order.service.ts: cria ServiceOrderItems apos criar OS, inclui items no findOne
-- [x] create-service-order.dto.ts: items array aceito
+### Backend — defaultQty + checklists no Service (v1.03.34)
+- [x] Schema: `defaultQty Int?` e `checklists Json?` adicionados ao model Service
+- [x] Migration: 20260315030000_add_service_default_qty (ALTER TABLE ADD COLUMN defaultQty + checklists)
+- [x] DTOs: defaultQty e checklists em CreateServiceDto e UpdateServiceDto
+- [x] service.service.ts: defaultQty e checklists no create
 
-### Frontend — Pagina de Servicos (commissionBps) — JA FEITO
-- [x] Interface Service: commissionBps adicionado
-- [x] EMPTY_FORM: commissionBps: ""
-- [x] openEditForm: popula commissionBps
-- [x] handleSave: envia commissionBps convertido (% → bps)
-- [x] Coluna "Comissao" adicionada a tabela
-- [x] Campo "Comissao (%)" no formulario
+### Frontend — Cadastro de Servicos melhorado (v1.03.34)
+- [x] Interface Service: defaultQty e checklists adicionados
+- [x] EMPTY_FORM: defaultQty e checklists
+- [x] Coluna "Qtd Padrao" na tabela
+- [x] Campo "Qtd Padrao" no formulario com hint
+- [x] Editor visual de checklists: adicionar checklist → adicionar items → remover
+- [x] Acoes na tabela: Editar + Duplicar + Excluir (antes so tinha Excluir)
+- [x] handleDuplicate: copia todos os campos incluindo checklists
+- [x] openEditForm: popula defaultQty e checklists
 
-### Frontend — ServiceItemsSection (NOVO) — JA FEITO
-- [x] Componente `frontend/src/components/os/ServiceItemsSection.tsx` criado
-- [x] Lookup de servicos do catalogo (filtro status=active)
-- [x] Tabela: Servico | Qtd (editavel) | Un | Valor Unit | Comissao % | Total | Remover
-- [x] Total geral calculado
-- [x] Prevencao de duplicatas
+### Frontend — ServiceItemsSection (v1.03.34)
+- [x] Interface ServiceOption: defaultQty adicionado
+- [x] handleAddService: usa svc.defaultQty || 1 como quantidade inicial
 
-### Frontend — Nova OS Reorganizada — JA FEITO
-- [x] Nova ordem: Cliente → Titulo → Endereco (aberto) → Tipo Atendimento → Servicos → Prazo → Agendamento → Retorno
-- [x] REMOVIDO: campo Descricao (vem do servico)
-- [x] REMOVIDO: campo Valor solto (vem dos items)
-- [x] REMOVIDO: campo Comissao/Valor tecnico (vem do catalogo de servicos)
-- [x] REMOVIDO: Tempo para aceitar (definido no fluxo)
-- [x] REMOVIDO: Tempo para clicar a caminho (definido no fluxo)
-- [x] Endereco: sempre aberto (nao colapsavel), Contato no Local movido para dentro
-- [x] Endereco reordenado: Rua/Av + No | Bairro + Cidade | UF + CEP | Complemento
-- [x] Agendamento: toggle ON/OFF (nao colapsavel), mostra data/hora quando ativado
-- [x] Submit calcula valueCents e commissionBps a partir dos items
-- [x] Build frontend OK, Build backend OK
+### Variaveis de template (v1.03.34)
+- [x] NOTIFY_VARS: {servicos_nomes} e {servicos_descricoes} adicionados
+- [x] workflow-engine.service.ts: include items na query notifySO, interpolacao das novas variaveis
+
+### Deploy
+- [x] v1.03.34 deployed OK
 
 ## Arquivos criados/modificados:
-- `frontend/src/components/os/ServiceItemsSection.tsx` — NOVO componente
-- `frontend/src/app/(dashboard)/services/page.tsx` — commissionBps na interface, form, tabela
-- `frontend/src/app/(dashboard)/orders/new/page.tsx` — REESCRITO com nova ordem
-- `backend/src/service/service.service.ts` — commissionBps no validSorts
+- `backend/prisma/schema.prisma` — defaultQty + checklists no Service
+- `backend/prisma/migrations/20260315030000_add_service_default_qty/migration.sql`
+- `backend/src/service/dto/create-service.dto.ts` — defaultQty + checklists
+- `backend/src/service/dto/update-service.dto.ts` — defaultQty + checklists
+- `backend/src/service/service.service.ts` — defaultQty + checklists no create
+- `backend/src/workflow/workflow-engine.service.ts` — include items + novas variaveis
+- `frontend/src/app/(dashboard)/services/page.tsx` — defaultQty, checklists, Editar/Duplicar
+- `frontend/src/components/os/ServiceItemsSection.tsx` — defaultQty na interface + uso
+- `frontend/src/types/stage-config.ts` — NOTIFY_VARS com servicos_nomes/descricoes
 
 ## Pendente:
-- [ ] Deploy
-- [ ] Atualizar version.json
+- FUTURO: Configuracao de momento dos checklists no workflow (ao_iniciar, ao_finalizar, livre)
+- FUTURO: Mecanismo para clientes solicitarem melhorias
+- FUTURO: Contrato do cliente com a Tecnikos (correcao de precos)
 - FUTURO: Fix logradouro em dados importados do Sankhya (Rua/Av prefix)
 - FUTURO: Discutir/remover commissionBps global da empresa
 - FUTURO: Workflow config "Respeitar tecnico direcionado"
 
-## Versao atual: v1.03.30 (deployed) — mudancas locais pendentes de deploy
+## Versao atual: v1.03.34 (deployed)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

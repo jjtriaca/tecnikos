@@ -1579,19 +1579,15 @@ Solucao:
 - **Titulo da OS**: MANTER campo titulo. Auto-fill CANCELADO (titulo vem antes dos servicos)
 - **Variaveis de template**: adicionar {servicos_nomes} e {servicos_descricoes} em TODOS os templates de mensagem (FUTURO)
 
-### Melhorias pendentes (levantadas pelo Juliano):
-1. **defaultQuantity no Servico** — Campo no cadastro com qtd padrao (ex: horas/dias). ServiceItemsSection usa em vez de 1. APROVADO, aguardando implementacao
-2. **Editar/Duplicar no cadastro de Servicos** — Acoes na tabela: Editar + Duplicar + Excluir. APROVADO, aguardando implementacao
-3. **Variaveis {servicos_nomes} e {servicos_descricoes}** — Em todos os templates de mensagem. APROVADO, aguardando implementacao
-4. ~~Auto-fill titulo~~ — CANCELADO (titulo vem antes dos servicos)
+### Implementacao v1.03.34
+- [x] **defaultQuantity** — Campo `defaultQty` no schema Service, DTOs, backend create, frontend form + tabela, ServiceItemsSection usa como qtd inicial
+- [x] **Editar/Duplicar** — Tabela de servicos com 3 acoes: Editar, Duplicar, Excluir (antes so tinha Excluir)
+- [x] **Variaveis {servicos_nomes} e {servicos_descricoes}** — NOTIFY_VARS frontend + interpolacao no workflow-engine.service.ts (include items na query)
+- [x] **Checklist por servico** — Campo `checklists Json?` no Service, editor visual no formulario (adicionar checklist → items), DTOs, backend create
+- [x] ~~Auto-fill titulo~~ — CANCELADO (titulo vem antes dos servicos)
+- [x] Deploy v1.03.34 OK
 
-### Melhorias discutidas:
-1. **Checklist por servico** — DECISAO TOMADA:
-   - Cada servico tem checklists com categorias (ferramentas, materiais, verificacao final)
-   - Items definidos no cadastro do servico (O QUE verificar)
-   - **Momento (QUANDO preencher) decidido na configuracao do workflow**, NAO no servico
-   - Ex: workflow config define que checklist de ferramentas = ao_iniciar, verificacao final = ao_finalizar
-   - Isso permite flexibilidade: mesmo servico pode ter momentos diferentes em workflows diferentes
+**Decisao checklist (Juliano):** O QUE verificar = definido no servico. QUANDO = configurado no workflow (FUTURO).
 
 ### Melhorias a discutir:
 1. **Mecanismo para clientes solicitarem melhorias** — A DISCUTIR (verificar se IA embarcada ja tem algo)

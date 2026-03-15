@@ -486,71 +486,75 @@ export default function ServicesPage() {
             {formData.checklists.length === 0 && (
               <p className="text-xs text-slate-400">Nenhum checklist configurado. Ex: Ferramentas, Materiais, Verificação Final.</p>
             )}
-            {formData.checklists.map((cl, clIdx) => (
-              <div key={clIdx} className="border border-slate-200 rounded-lg p-3 mb-2 bg-slate-50">
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={cl.name}
-                    onChange={(e) => {
-                      const updated = [...formData.checklists];
-                      updated[clIdx] = { ...updated[clIdx], name: e.target.value };
-                      setFormData({ ...formData, checklists: updated });
-                    }}
-                    placeholder="Nome do checklist (ex: Ferramentas)"
-                    className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, checklists: formData.checklists.filter((_, i) => i !== clIdx) })}
-                    className="text-red-400 hover:text-red-600 text-xs"
-                    title="Remover checklist"
-                  >
-                    ✕
-                  </button>
-                </div>
-                {cl.items.map((item, itemIdx) => (
-                  <div key={itemIdx} className="flex items-center gap-1.5 ml-4 mb-1">
-                    <span className="text-slate-300 text-xs">•</span>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {formData.checklists.map((cl, clIdx) => (
+                <div key={clIdx} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 min-w-[220px] w-[220px] flex-shrink-0">
+                  <div className="flex items-center gap-1 mb-2">
                     <input
                       type="text"
-                      value={item}
+                      value={cl.name}
                       onChange={(e) => {
                         const updated = [...formData.checklists];
-                        const items = [...updated[clIdx].items];
-                        items[itemIdx] = e.target.value;
-                        updated[clIdx] = { ...updated[clIdx], items };
+                        updated[clIdx] = { ...updated[clIdx], name: e.target.value };
                         setFormData({ ...formData, checklists: updated });
                       }}
-                      placeholder="Item do checklist..."
-                      className="flex-1 rounded border border-slate-200 px-2 py-0.5 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                      placeholder="Ex: Ferramentas"
+                      className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        const updated = [...formData.checklists];
-                        updated[clIdx] = { ...updated[clIdx], items: updated[clIdx].items.filter((_, i) => i !== itemIdx) };
-                        setFormData({ ...formData, checklists: updated });
-                      }}
-                      className="text-red-300 hover:text-red-500 text-[10px]"
+                      onClick={() => setFormData({ ...formData, checklists: formData.checklists.filter((_, i) => i !== clIdx) })}
+                      className="text-red-400 hover:text-red-600 text-xs flex-shrink-0"
+                      title="Remover checklist"
                     >
                       ✕
                     </button>
                   </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const updated = [...formData.checklists];
-                    updated[clIdx] = { ...updated[clIdx], items: [...updated[clIdx].items, ""] };
-                    setFormData({ ...formData, checklists: updated });
-                  }}
-                  className="ml-4 text-[11px] text-blue-500 hover:text-blue-700 mt-1"
-                >
-                  + Adicionar item
-                </button>
-              </div>
-            ))}
+                  <div className="max-h-[200px] overflow-y-auto">
+                    {cl.items.map((item, itemIdx) => (
+                      <div key={itemIdx} className="flex items-center gap-1 mb-0.5">
+                        <span className="text-slate-300 text-[10px]">•</span>
+                        <input
+                          type="text"
+                          value={item}
+                          onChange={(e) => {
+                            const updated = [...formData.checklists];
+                            const items = [...updated[clIdx].items];
+                            items[itemIdx] = e.target.value;
+                            updated[clIdx] = { ...updated[clIdx], items };
+                            setFormData({ ...formData, checklists: updated });
+                          }}
+                          placeholder="Item..."
+                          className="flex-1 min-w-0 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...formData.checklists];
+                            updated[clIdx] = { ...updated[clIdx], items: updated[clIdx].items.filter((_, i) => i !== itemIdx) };
+                            setFormData({ ...formData, checklists: updated });
+                          }}
+                          className="text-red-300 hover:text-red-500 text-[10px] flex-shrink-0"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = [...formData.checklists];
+                      updated[clIdx] = { ...updated[clIdx], items: [...updated[clIdx].items, ""] };
+                      setFormData({ ...formData, checklists: updated });
+                    }}
+                    className="text-[10px] text-blue-500 hover:text-blue-700 mt-1"
+                  >
+                    + Item
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 mt-4">
