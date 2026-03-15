@@ -1970,7 +1970,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 label={TECH_ACTION_LABELS.note.label} hint={TECH_ACTION_LABELS.note.hint} />
               <ConfigRow visible={stage.techActions.note.enabled}>
                 <TextField label="Placeholder" value={stage.techActions.note.placeholder}
-                  onChange={v => updateTech('note', { placeholder: v })} placeholder="Texto de exemplo..." />
+                  onChange={v => updateTech('note', { placeholder: v })} placeholder="Ex: Descreva o que foi feito no serviço..." />
               </ConfigRow>
             </div>
           </div>
@@ -2052,12 +2052,12 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   {/* Inline config for step */}
                   {block.enabled && block.type === 'step' && (
                     <div className="mt-1 space-y-1">
-                      <input type="text" value={stage.techActions.step.description} placeholder="O que o técnico deve fazer..."
+                      <input type="text" value={stage.techActions.step.description} placeholder="Ex: Desligar disjuntor, verificar tensão, instalar equipamento"
                         onChange={e => updateTech('step', { description: e.target.value })}
                         className="text-xs w-full rounded border border-slate-300 px-2 py-0.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
                       <div className="flex flex-wrap gap-2">
-                        <SubToggle checked={stage.techActions.step.requirePhoto} onChange={v => updateTech('step', { requirePhoto: v })} label="Foto" />
-                        <SubToggle checked={stage.techActions.step.requireNote} onChange={v => updateTech('step', { requireNote: v })} label="Nota" />
+                        <SubToggle checked={stage.techActions.step.requirePhoto} onChange={v => updateTech('step', { requirePhoto: v })} label="Exigir foto" />
+                        <SubToggle checked={stage.techActions.step.requireNote} onChange={v => updateTech('step', { requireNote: v })} label="Exigir nota" />
                       </div>
                     </div>
                   )}
@@ -2089,7 +2089,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   {/* Inline config for note */}
                   {block.enabled && block.type === 'note' && (
                     <div className="mt-1">
-                      <input type="text" value={stage.techActions.note.placeholder} placeholder="Texto de exemplo..."
+                      <input type="text" value={stage.techActions.note.placeholder} placeholder="Ex: Descreva o que foi feito no serviço..."
                         onChange={e => updateTech('note', { placeholder: e.target.value })}
                         className="text-xs w-full rounded border border-slate-300 px-2 py-0.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
                     </div>
