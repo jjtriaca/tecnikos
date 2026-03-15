@@ -25,7 +25,7 @@ const PUBLIC_ONLY_MODELS = new Set([
  * schema when a tenant context is active. Any model NOT in PUBLIC_ONLY_MODELS.
  */
 const TENANT_MODEL_DELEGATES = new Set([
-  'company', 'user', 'session', 'partner', 'serviceOrder',
+  'company', 'user', 'session', 'partner', 'serviceOrder', 'serviceOrderItem',
   'serviceOrderOffer', 'serviceOrderEvent', 'otpCode',
   'workflowTemplate', 'workflowStepLog', 'serviceOrderLedger',
   'attachment', 'notification', 'specialization', 'partnerSpecialization',
