@@ -210,8 +210,11 @@ export interface StageConfig {
 }
 
 export interface FormFieldDef {
+  id: string;
   name: string;
   type: 'text' | 'number' | 'select';
+  placeholder: string;
+  options: string[];   // only for type='select'
   required: boolean;
 }
 
@@ -1422,8 +1425,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         { id: 'pr_problems', moment: 'general', minPhotos: 0, maxPhotos: 0, label: 'Fotos de problemas encontrados', instructions: 'Se encontrar problemas, registre com fotos', required: false },
       ]};
       exec.techActions.form = { enabled: true, fields: [
-        { name: 'Parecer técnico', type: 'text', required: true },
-        { name: 'Nota geral (1-10)', type: 'number', required: true },
+        { id: 'ff_1', name: 'Parecer técnico', type: 'text', placeholder: 'Descreva o resultado da vistoria...', options: [], required: true },
+        { id: 'ff_2', name: 'Nota geral (1-10)', type: 'number', placeholder: '', options: [], required: true },
       ]};
       // CONCLUIDA
       const conc = c.stages.find(s => s.status === 'CONCLUIDA')!;
@@ -2201,7 +2204,14 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
     }
     case 'FORM':
       stage.techActions.form.enabled = true;
-      if (cfg.fields?.length) stage.techActions.form.fields = cfg.fields;
+      if (cfg.fields?.length) stage.techActions.form.fields = cfg.fields.map((f: any, i: number) => ({
+        id: f.id || `ff_${i}`,
+        name: f.name || '',
+        type: f.type || 'text',
+        placeholder: f.placeholder || '',
+        options: f.options || [],
+        required: f.required ?? false,
+      }));
       break;
     case 'SIGNATURE':
       stage.techActions.signature.enabled = true;

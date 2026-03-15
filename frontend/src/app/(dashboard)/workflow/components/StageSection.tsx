@@ -130,31 +130,7 @@ function ItemList({ items, onChange, placeholder }: { items: string[]; onChange:
   );
 }
 
-function FormFieldList({ fields, onChange }: { fields: FormFieldDef[]; onChange: (fields: FormFieldDef[]) => void }) {
-  const add = () => onChange([...fields, { name: '', type: 'text', required: false }]);
-  const remove = (i: number) => onChange(fields.filter((_, idx) => idx !== i));
-  const update = (i: number, patch: Partial<FormFieldDef>) => onChange(fields.map((f, idx) => idx === i ? { ...f, ...patch } : f));
-
-  return (
-    <div className="space-y-1.5">
-      {fields.map((field, i) => (
-        <div key={i} className="flex items-center gap-1.5">
-          <input type="text" value={field.name} onChange={e => update(i, { name: e.target.value })} placeholder="Nome do campo"
-            className="flex-1 text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
-          <select value={field.type} onChange={e => update(i, { type: e.target.value as FormFieldDef['type'] })}
-            className="text-xs rounded border border-slate-300 px-1 py-1 bg-white">
-            <option value="text">Texto</option>
-            <option value="number">Número</option>
-            <option value="select">Seleção</option>
-          </select>
-          <SubToggle checked={field.required} onChange={v => update(i, { required: v })} label="Obrig." />
-          <button type="button" onClick={() => remove(i)} className="text-red-400 hover:text-red-600 p-0.5 text-xs">✕</button>
-        </div>
-      ))}
-      <button type="button" onClick={add} className="text-xs text-blue-600 hover:text-blue-800 font-medium">+ Adicionar campo</button>
-    </div>
-  );
-}
+/* Old FormFieldList removed — replaced by full version below PhotoRequirementList */
 
 /* ── Photo Requirements list ──────────────────────────────── */
 
@@ -213,6 +189,79 @@ function PhotoRequirementList({ groups, onChange }: { groups: PhotoRequirementGr
       </button>
       {groups.length === 0 && (
         <p className="text-[10px] text-slate-400 italic">Nenhum grupo configurado. Clique para adicionar.</p>
+      )}
+    </div>
+  );
+}
+
+/* ── Form Field List ──────────────────────────────────────── */
+
+const FORM_FIELD_TYPES = [
+  { value: 'text',   label: 'Texto' },
+  { value: 'number', label: 'Número' },
+  { value: 'select', label: 'Seleção' },
+];
+
+function FormFieldList({ fields, onChange }: { fields: FormFieldDef[]; onChange: (fields: FormFieldDef[]) => void }) {
+  const add = () => onChange([...fields, {
+    id: `ff_${Date.now().toString(36)}`,
+    name: '',
+    type: 'text',
+    placeholder: '',
+    options: [],
+    required: false,
+  }]);
+  const remove = (i: number) => onChange(fields.filter((_, idx) => idx !== i));
+  const update = (i: number, patch: Partial<FormFieldDef>) => onChange(fields.map((f, idx) => idx === i ? { ...f, ...patch } : f));
+
+  return (
+    <div className="space-y-3">
+      {fields.map((field, i) => (
+        <div key={field.id} className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-600">
+              Campo {i + 1}{field.name ? `: ${field.name}` : ''}
+            </span>
+            <button type="button" onClick={() => remove(i)} className="text-red-400 hover:text-red-600 p-0.5 text-xs" title="Remover campo">✕</button>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex-1 min-w-[140px]">
+              <TextField label="Nome do campo" value={field.name} onChange={v => update(i, { name: v })} placeholder="Ex: Número de série" />
+            </div>
+            <label className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 whitespace-nowrap">Tipo:</span>
+              <select value={field.type} onChange={e => update(i, { type: e.target.value as FormFieldDef['type'] })}
+                className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none">
+                {FORM_FIELD_TYPES.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {field.type === 'text' && (
+            <TextField label="Placeholder" value={field.placeholder} onChange={v => update(i, { placeholder: v })} placeholder="Ex: Digite o número de série do equipamento..." />
+          )}
+          {field.type === 'select' && (
+            <div className="space-y-1">
+              <span className="text-xs text-slate-500">Opções (uma por linha):</span>
+              <textarea
+                value={(field.options || []).join('\n')}
+                onChange={e => update(i, { options: e.target.value.split('\n') })}
+                placeholder="Aprovado&#10;Reprovado&#10;Pendente"
+                rows={3}
+                className="text-xs w-full rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
+              />
+            </div>
+          )}
+          <SubToggle checked={field.required} onChange={v => update(i, { required: v })} label="Obrigatório" />
+        </div>
+      ))}
+      <button type="button" onClick={add}
+        className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+        + Adicionar campo
+      </button>
+      {fields.length === 0 && (
+        <p className="text-[10px] text-slate-400 italic">Nenhum campo configurado. Clique para adicionar.</p>
       )}
     </div>
   );
@@ -2084,6 +2133,15 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                       <input type="text" value={stage.techActions.signature.label} placeholder="Assinatura do cliente"
                         onChange={e => updateTech('signature', { label: e.target.value })}
                         className="text-xs w-full rounded border border-slate-300 px-2 py-0.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                    </div>
+                  )}
+                  {/* Inline config for form */}
+                  {block.enabled && block.type === 'form' && (
+                    <div className="mt-1">
+                      <FormFieldList
+                        fields={stage.techActions.form.fields}
+                        onChange={fields => updateTech('form', { fields })}
+                      />
                     </div>
                   )}
                   {/* Inline config for note */}
