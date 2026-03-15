@@ -26,12 +26,10 @@ type DashboardStats = {
   completedToday: number;
 };
 
-type FinanceSummary = {
-  totalGrossCents: number;
-  totalCommissionCents: number;
-  totalNetCents: number;
-  confirmedCount: number;
-  pendingOs: { id: string; title: string; valueCents: number; status: string }[];
+type FinanceSummaryV2 = {
+  receivables: { pendingCents: number; confirmedCents: number; paidCents: number; pendingCount: number; confirmedCount: number; paidCount: number };
+  payables: { pendingCents: number; confirmedCents: number; paidCents: number; pendingCount: number; confirmedCount: number; paidCount: number };
+  balanceCents: number;
 };
 
 type OrdersReport = {
@@ -250,7 +248,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<ServiceOrder[]>([]);
-  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummaryV2 | null>(null);
   const [ordersReport, setOrdersReport] = useState<OrdersReport | null>(null);
   const [topTechs, setTopTechs] = useState<TechPerformance[]>([]);
   const [todayAgenda, setTodayAgenda] = useState<{ id: string; code: string; title: string; status: string; scheduledStartAt: string; estimatedDurationMinutes: number | null; assignedPartner: { id: string; name: string } | null; clientPartner: { id: string; name: string } | null; city: string | null }[]>([]);
@@ -267,7 +265,7 @@ export default function DashboardPage() {
         const results = await Promise.allSettled([
           api.get<DashboardStats>("/service-orders/stats"),
           api.get<{ data: ServiceOrder[]; meta: any }>("/service-orders?limit=5&sortBy=createdAt&sortOrder=desc"),
-          api.get<FinanceSummary>("/finance/summary"),
+          api.get<FinanceSummaryV2>("/finance/summary-v2"),
           api.get<OrdersReport>("/reports/orders"),
           api.get<TechPerformance[]>("/reports/technicians"),
           api.get<any[]>(`/service-orders/agenda?dateFrom=${todayStr}&dateTo=${todayStr}`),
@@ -441,58 +439,67 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* Card: Receita Total */}
-          <Link href="/finance" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 p-5 text-white shadow-lg hover:from-violet-400 hover:to-purple-500 transition-all">
+          {/* Card: A Receber */}
+          <Link href="/finance?type=RECEIVABLE" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 p-5 text-white shadow-lg hover:from-violet-400 hover:to-purple-500 transition-all">
             <div className="absolute -top-4 -right-4 h-20 w-20 rounded-full bg-white/5" />
             <div className="relative">
               <div className="flex items-center justify-between">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15">
                   <IconMoney />
                 </div>
-                {financeSummary && financeSummary.pendingOs.length > 0 && (
+                {financeSummary && (financeSummary.receivables.pendingCount + financeSummary.receivables.confirmedCount) > 0 && (
                   <span className="text-xs font-semibold bg-amber-400/90 text-amber-900 rounded-lg px-2 py-1">
-                    {financeSummary.pendingOs.length} pendentes
+                    {financeSummary.receivables.pendingCount + financeSummary.receivables.confirmedCount} pendentes
                   </span>
                 )}
               </div>
               <p className="mt-3 text-2xl font-bold">
-                {financeSummary ? formatCurrency(financeSummary.totalGrossCents) : "R$ 0,00"}
+                {financeSummary ? formatCurrency(financeSummary.receivables.pendingCents + financeSummary.receivables.confirmedCents) : "R$ 0,00"}
               </p>
-              <p className="mt-0.5 text-xs font-medium text-white/70">Receita Bruta</p>
+              <p className="mt-0.5 text-xs font-medium text-white/70">A Receber</p>
             </div>
           </Link>
         </div>
       )}
 
       {/* ──── Finance Mini-Cards ──── */}
-      {!loading && financeSummary && financeSummary.totalGrossCents > 0 && (
+      {!loading && financeSummary && (
         <div className="grid grid-cols-3 gap-4">
           <Link href="/finance?type=RECEIVABLE" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-green-300 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-50">
                 <IconMoney className="h-4 w-4 text-green-600" />
               </div>
-              <span className="text-xs font-medium text-slate-500">Receita Bruta</span>
+              <span className="text-xs font-medium text-slate-500">A Receber</span>
             </div>
-            <p className="text-lg font-bold text-slate-900">{formatCurrency(financeSummary.totalGrossCents)}</p>
+            <p className="text-lg font-bold text-green-700">{formatCurrency(financeSummary.receivables.pendingCents + financeSummary.receivables.confirmedCents)}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {financeSummary.receivables.pendingCount + financeSummary.receivables.confirmedCount} pendente{(financeSummary.receivables.pendingCount + financeSummary.receivables.confirmedCount) !== 1 ? "s" : ""} · {formatCurrency(financeSummary.receivables.paidCents)} recebido
+            </p>
           </Link>
-          <Link href="/finance?type=PAYABLE" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-amber-300 hover:shadow-md transition-all">
+          <Link href="/finance?type=PAYABLE" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-red-300 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50">
-                <IconWallet className="h-4 w-4 text-amber-600" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50">
+                <IconWallet className="h-4 w-4 text-red-600" />
               </div>
-              <span className="text-xs font-medium text-slate-500">Comissões</span>
+              <span className="text-xs font-medium text-slate-500">A Pagar</span>
             </div>
-            <p className="text-lg font-bold text-slate-900">{formatCurrency(financeSummary.totalCommissionCents)}</p>
+            <p className="text-lg font-bold text-red-700">{formatCurrency(financeSummary.payables.pendingCents + financeSummary.payables.confirmedCents)}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {financeSummary.payables.pendingCount + financeSummary.payables.confirmedCount} pendente{(financeSummary.payables.pendingCount + financeSummary.payables.confirmedCount) !== 1 ? "s" : ""} · {formatCurrency(financeSummary.payables.paidCents)} pago
+            </p>
           </Link>
           <Link href="/finance" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-300 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
                 <IconTrendUp className="h-4 w-4 text-blue-600" />
               </div>
-              <span className="text-xs font-medium text-slate-500">Repasse Líquido</span>
+              <span className="text-xs font-medium text-slate-500">Saldo</span>
             </div>
-            <p className="text-lg font-bold text-slate-900">{formatCurrency(financeSummary.totalNetCents)}</p>
+            <p className={`text-lg font-bold ${financeSummary.balanceCents >= 0 ? "text-green-700" : "text-red-700"}`}>
+              {formatCurrency(financeSummary.balanceCents)}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Recebido - Pago</p>
           </Link>
         </div>
       )}
@@ -820,54 +827,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ──── Pending Financial Confirmations ──── */}
-      {!loading && financeSummary && financeSummary.pendingOs.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
-          <div className="flex items-center justify-between border-b border-amber-200 px-6 py-4">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100">
-                <IconWarning className="h-4 w-4 text-amber-600" />
-              </div>
-              <h3 className="text-sm font-semibold text-amber-800">
-                OS Aguardando Confirmação Financeira ({financeSummary.pendingOs.length})
-              </h3>
-            </div>
-            <Link
-              href="/finance"
-              className="flex items-center gap-1 rounded-lg bg-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-300 transition-colors"
-            >
-              Ir para Financeiro
-              <IconArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="divide-y divide-amber-200">
-            {financeSummary.pendingOs.slice(0, 3).map((os) => (
-              <Link
-                key={os.id}
-                href={`/orders/${os.id}`}
-                className="flex items-center justify-between px-6 py-3 hover:bg-amber-100/50 transition-colors"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-amber-900 truncate">{os.title}</p>
-                  <p className="text-[11px] text-amber-600">
-                    {STATUS_LABELS[os.status] || os.status}
-                  </p>
-                </div>
-                <span className="text-sm font-bold text-amber-800 flex-shrink-0 ml-4">
-                  {formatCurrency(os.valueCents)}
-                </span>
-              </Link>
-            ))}
-            {financeSummary.pendingOs.length > 3 && (
-              <div className="px-6 py-2.5 text-center">
-                <Link href="/finance" className="text-xs font-medium text-amber-700 hover:text-amber-800">
-                  + {financeSummary.pendingOs.length - 3} mais pendentes
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+
+
     </div>
   );
 }
