@@ -2064,7 +2064,12 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   {/* Inline config for photo */}
                   {block.enabled && block.type === 'photo' && isExec && (
                     <div className="mt-1">
-                      <p className="text-[10px] text-slate-400">Configurar grupos de fotos por momento (antes, durante, após).</p>
+                      <PhotoRequirementList
+                        groups={stage.techActions.photoRequirements.groups}
+                        onChange={groups => updateTech('photoRequirements', { groups })} />
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        💡 Configure grupos: ex. fotos &quot;Antes de iniciar&quot; + fotos &quot;Após concluir&quot;.
+                      </p>
                     </div>
                   )}
                   {block.enabled && block.type === 'photo' && !isExec && (
