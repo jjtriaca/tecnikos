@@ -739,16 +739,6 @@ function NewOrderPage() {
               </div>
             )}
 
-            {/* Readonly address preview when main or saved is selected */}
-            {selectedClient && addressSource !== "new" && (
-              <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                <p className="text-xs text-slate-500">
-                  {[form.addressStreet, form.addressNumber, form.neighborhood, selectedCity?.nome || "", form.state].filter(Boolean).join(", ")}
-                  {form.cep && <span className="ml-2 text-slate-400">CEP: {form.cep}</span>}
-                </p>
-              </div>
-            )}
-
             {/* Contato no Local (dentro do Endereco) */}
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">Contato no Local</span>

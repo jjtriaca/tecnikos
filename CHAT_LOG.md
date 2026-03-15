@@ -1556,3 +1556,21 @@ Solucao:
 - [x] isUrgent sempre false no form (urgencia definida pelo workflow)
 - [x] Backend: GET /workflows aceita ?activeOnly=true — filtra isActive
 - [x] Build frontend + backend OK
+
+---
+
+## 2026-03-15 — Sessao 110: Reorganizacao Nova OS + Servicos por Item (v1.03.31)
+
+### Implementacao v1.03.31
+- [x] commissionBps adicionado ao cadastro de Servicos (frontend: interface, form, tabela, save)
+- [x] ServiceItemsSection: novo componente para items de servico na OS (lookup + tabela)
+- [x] Nova OS reescrita com nova ordem: Cliente → Titulo → Endereco (aberto) → Tipo Atendimento → Servicos → Prazo → Agendamento (toggle) → Retorno
+- [x] Removidos: Descricao, Valor solto, Comissao solta, Tempo aceitar, Tempo a caminho
+- [x] Endereco sempre aberto, reordenado, Contato no Local dentro
+- [x] Agendamento como toggle ON/OFF nao colapsavel
+- [x] Deploy v1.03.31 OK
+
+### Melhorias a discutir (levantadas pelo Juliano):
+1. **Cadastro de checklist** — A DISCUTIR
+2. **Mecanismo para clientes solicitarem melhorias** — A DISCUTIR (verificar se IA embarcada ja tem algo)
+3. **Contrato do cliente com a Tecnikos** — A DISCUTIR (correcao de precos)
