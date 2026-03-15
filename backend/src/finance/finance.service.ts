@@ -35,7 +35,7 @@ export class FinanceService {
 
   async summary(companyId: string) {
     const ledgers = await this.prisma.serviceOrderLedger.findMany({
-      where: { serviceOrder: { companyId } },
+      where: { serviceOrder: { companyId, deletedAt: null } },
       include: {
         serviceOrder: {
           select: { id: true, title: true, status: true, assignedPartnerId: true },
@@ -52,6 +52,7 @@ export class FinanceService {
     const pendingOs = await this.prisma.serviceOrder.findMany({
       where: {
         companyId,
+        deletedAt: null,
         status: { in: ['CONCLUIDA', 'APROVADA'] },
         ledger: null,
       },
@@ -78,7 +79,7 @@ export class FinanceService {
     const limit = pagination?.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: any = { serviceOrder: { companyId } };
+    const where: any = { serviceOrder: { companyId, deletedAt: null } };
     if (filters?.dateFrom || filters?.dateTo) {
       where.confirmedAt = {};
       if (filters.dateFrom) where.confirmedAt.gte = new Date(filters.dateFrom);
