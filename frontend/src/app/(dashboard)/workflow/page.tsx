@@ -302,9 +302,10 @@ export default function WorkflowPage() {
   const totalActions = config.stages.reduce((sum, s) => {
     if (!s.enabled) return sum;
     return sum +
-      Object.values(s.techActions).filter(a => a.enabled).length +
+      Object.entries(s.techActions).filter(([k, a]) => k !== 'checklistConfig' && (a as any).enabled).length +
       Object.values(s.autoActions).filter(a => a.enabled).length +
-      Object.values(s.timeControl).filter(a => a.enabled).length;
+      Object.values(s.timeControl).filter(a => a.enabled).length +
+      Object.values(s.techActions.checklistConfig).filter(c => c.enabled).length;
   }, 0);
   // onboarding triggers removed — trigger system replaces it
 

@@ -275,9 +275,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
   });
 
   const enabledCount =
-    Object.values(stage.techActions).filter(a => a.enabled).length +
+    Object.entries(stage.techActions).filter(([k, a]) => k !== 'checklistConfig' && (a as any).enabled).length +
     Object.values(stage.autoActions).filter(a => a.enabled).length +
-    Object.values(stage.timeControl).filter(a => a.enabled).length;
+    Object.values(stage.timeControl).filter(a => a.enabled).length +
+    Object.values(stage.techActions.checklistConfig).filter(c => c.enabled).length;
 
   // Cross-stage conflict detection
   const abertaStage = allStages?.find(s => s.status === 'ABERTA');
