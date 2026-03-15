@@ -1527,3 +1527,32 @@ Solucao:
 - [x] Deserializacao com defaults por campo (nao mais objeto inteiro)
 - [x] Template "sms" → "whatsapp" corrigido
 - [x] Build OK
+
+### Sessao 108 (cont): Textos exemplo + SMS/Push removal + Fix notificacao assign — v1.03.25-28
+- [x] TODOS os campos message preenchidos com texto contextual (regra permanente gravada)
+- [x] Removido SMS e Push de todos os defaults em stage-config.ts → whatsapp
+- [x] Fix: assign() agora chama workflowEngine.executeStageNotifications() para ATRIBUIDA
+- [x] SubToggle wraps em <div> para stacking vertical
+- [x] Deploys v1.03.25 a v1.03.28
+
+---
+
+## 2026-03-15 — Sessao 109: Simplificacao criacao OS — workflow-centric (v1.03.29)
+
+### Decisao de negocio: workflow matching
+- Juliano decidiu: remover "Por agenda" e "Urgente" do form Nova OS
+- Esses modos viram workflows normais (ex: "OS URGENTE", "CLT Agenda") selecionaveis via "Por fluxo"
+- Dropdown de workflows mostra APENAS fluxos ativos
+- "Por especializacao" e "Direcionado" auto-match pro workflow padrao (primeiro ativo com trigger os_created)
+- Futuro: config no workflow para "respeitar tecnico direcionado"
+- Futuro: gatilhos condicionais ricos no workflow (match por especializacao, modo, etc.)
+
+### Implementacao v1.03.29
+- [x] TechAssignmentSection: type TechAssignmentMode reduzido para 3 modos (BY_SPECIALIZATION | DIRECTED | BY_WORKFLOW)
+- [x] Removido showExtendedModes, EXTENDED_MODES, URGENT styling
+- [x] workflowFetcher: passa activeOnly=true
+- [x] page.tsx Nova OS: removido isAgendaMode, effectiveMode, checkbox "Retorno urgente"
+- [x] Agenda CLT continua via workflow scheduleConfig (hasAgendaFromWorkflow)
+- [x] isUrgent sempre false no form (urgencia definida pelo workflow)
+- [x] Backend: GET /workflows aceita ?activeOnly=true — filtra isActive
+- [x] Build frontend + backend OK

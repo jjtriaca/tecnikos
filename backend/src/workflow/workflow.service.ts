@@ -13,12 +13,15 @@ export interface WorkflowStep {
 export class WorkflowService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(companyId: string, opts?: { search?: string; page?: number; limit?: number }) {
+  async findAll(companyId: string, opts?: { search?: string; page?: number; limit?: number; activeOnly?: boolean }) {
     const page = opts?.page ?? 1;
     const limit = Math.min(opts?.limit ?? 100, 100);
     const skip = (page - 1) * limit;
 
     const where: any = { companyId, deletedAt: null };
+    if (opts?.activeOnly) {
+      where.isActive = true;
+    }
 
     if (opts?.search) {
       where.name = { contains: opts.search, mode: 'insensitive' };

@@ -26,7 +26,7 @@ export interface WorkflowSummary {
   name: string;
 }
 
-export type TechAssignmentMode = "BY_SPECIALIZATION" | "DIRECTED" | "BY_WORKFLOW" | "BY_AGENDA" | "URGENT";
+export type TechAssignmentMode = "BY_SPECIALIZATION" | "DIRECTED" | "BY_WORKFLOW";
 
 export interface TechAssignmentSectionProps {
   mode: TechAssignmentMode;
@@ -40,8 +40,6 @@ export interface TechAssignmentSectionProps {
   disabled?: boolean;
   /** Hide the section header (when wrapped in CollapsibleSection) */
   hideHeader?: boolean;
-  /** Show agenda and urgent modes */
-  showExtendedModes?: boolean;
 }
 
 /* ── Fetchers ── */
@@ -81,7 +79,7 @@ function workflowFetcher(
   page: number,
   signal: AbortSignal,
 ): Promise<LookupFetcherResult<WorkflowSummary>> {
-  const params = new URLSearchParams({ page: String(page), limit: "20" });
+  const params = new URLSearchParams({ page: String(page), limit: "20", activeOnly: "true" });
   if (search) params.set("search", search);
   return api.get<LookupFetcherResult<WorkflowSummary>>(
     `/workflows?${params}`,
@@ -91,15 +89,10 @@ function workflowFetcher(
 
 /* ── Radio options ── */
 
-const BASE_MODES: { value: TechAssignmentMode; label: string; description?: string }[] = [
+const MODES: { value: TechAssignmentMode; label: string; description?: string }[] = [
   { value: "BY_SPECIALIZATION", label: "Todos com a seguinte especialização" },
   { value: "DIRECTED", label: "Técnicos direcionados" },
-  { value: "BY_WORKFLOW", label: "Por fluxo de atendimento" },
-];
-
-const EXTENDED_MODES: { value: TechAssignmentMode; label: string; description?: string }[] = [
-  { value: "BY_AGENDA", label: "Por agenda", description: "Selecione técnico, data e hora na grade de agenda" },
-  { value: "URGENT", label: "Urgente", description: "Prioridade máxima — dispara fluxo de OS urgente" },
+  { value: "BY_WORKFLOW", label: "Por fluxo de atendimento", description: "Selecione um fluxo ativo para definir o workflow da OS" },
 ];
 
 /* ── Component ── */
@@ -115,9 +108,7 @@ export default function TechAssignmentSection({
   onWorkflowChange,
   disabled = false,
   hideHeader = false,
-  showExtendedModes = false,
 }: TechAssignmentSectionProps) {
-  const MODES = showExtendedModes ? [...BASE_MODES, ...EXTENDED_MODES] : BASE_MODES;
   const handleModeChange = useCallback(
     (newMode: TechAssignmentMode) => {
       if (disabled) return;
@@ -163,24 +154,12 @@ export default function TechAssignmentSection({
                 checked={mode === opt.value}
                 onChange={() => handleModeChange(opt.value)}
                 disabled={disabled}
-                className={`h-4 w-4 border-slate-300 ${
-                  opt.value === "URGENT"
-                    ? "text-red-600 focus:ring-red-500"
-                    : "text-blue-600 focus:ring-blue-500"
-                }`}
+                className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className={`text-sm ${
-                opt.value === "URGENT" && mode === "URGENT"
-                  ? "text-red-700 font-semibold"
-                  : "text-slate-700"
-              }`}>
-                {opt.value === "URGENT" ? "🚨 " : ""}{opt.label}
-              </span>
+              <span className="text-sm text-slate-700">{opt.label}</span>
             </label>
             {opt.description && mode === opt.value && (
-              <p className={`text-xs ml-6 ${
-                opt.value === "URGENT" ? "text-red-500" : "text-slate-400"
-              }`}>
+              <p className="text-xs ml-6 text-slate-400">
                 {opt.description}
               </p>
             )}
@@ -254,16 +233,6 @@ export default function TechAssignmentSection({
                   )}
                   disabled={disabled}
                 />
-              </div>
-            )}
-
-            {/* URGENT banner */}
-            {opt.value === "URGENT" && mode === "URGENT" && (
-              <div className="ml-6 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-                <p className="text-xs text-red-600">
-                  Esta OS será criada com prioridade máxima. O fluxo de atendimento configurado para
-                  OS urgentes será disparado automaticamente.
-                </p>
               </div>
             )}
           </div>

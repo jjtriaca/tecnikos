@@ -17,11 +17,13 @@ export class WorkflowController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('activeOnly') activeOnly?: string,
   ) {
     return this.service.findAll(user.companyId, {
       search,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
+      activeOnly: activeOnly === 'true',
     });
   }
 
