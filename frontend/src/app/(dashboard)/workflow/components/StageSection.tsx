@@ -16,6 +16,7 @@ import {
   KEEP_ACTIVE_OPTIONS, PAUSE_REASON_CATEGORIES,
   FINANCIAL_ENTRY_TYPES, FINANCIAL_VALUE_SOURCES,
   GESTOR_REJECT_ACTIONS, COMMISSION_ADJUSTMENT_TYPES,
+  FORM_FIELD_UNITS,
 } from '@/types/stage-config';
 import type { FinancialEntryConfig, LinkPageBlock } from '@/types/stage-config';
 
@@ -202,6 +203,12 @@ const FORM_FIELD_TYPES = [
   { value: 'select', label: 'Seleção' },
 ];
 
+const FORM_SIZE_OPTIONS = [
+  { value: 'pequeno', label: 'Pequeno (1/3)' },
+  { value: 'medio',   label: 'Médio (1/2)' },
+  { value: 'inteiro', label: 'Inteiro (100%)' },
+];
+
 function FormFieldList({ fields, onChange }: { fields: FormFieldDef[]; onChange: (fields: FormFieldDef[]) => void }) {
   const add = () => onChange([...fields, {
     id: `ff_${Date.now().toString(36)}`,
@@ -210,6 +217,13 @@ function FormFieldList({ fields, onChange }: { fields: FormFieldDef[]; onChange:
     placeholder: '',
     options: [],
     required: false,
+    unit: '',
+    size: 'inteiro',
+    maxLength: 0,
+    multiline: false,
+    decimalPlaces: 0,
+    min: 0,
+    max: 0,
   }]);
   const remove = (i: number) => onChange(fields.filter((_, idx) => idx !== i));
   const update = (i: number, patch: Partial<FormFieldDef>) => onChange(fields.map((f, idx) => idx === i ? { ...f, ...patch } : f));
@@ -224,6 +238,8 @@ function FormFieldList({ fields, onChange }: { fields: FormFieldDef[]; onChange:
             </span>
             <button type="button" onClick={() => remove(i)} className="text-red-400 hover:text-red-600 p-0.5 text-xs" title="Remover campo">✕</button>
           </div>
+
+          {/* Linha 1: Nome + Tipo */}
           <div className="flex flex-wrap gap-3">
             <div className="flex-1 min-w-[140px]">
               <TextField label="Nome do campo" value={field.name} onChange={v => update(i, { name: v })} placeholder="Ex: Número de série" />
@@ -238,9 +254,70 @@ function FormFieldList({ fields, onChange }: { fields: FormFieldDef[]; onChange:
               </select>
             </label>
           </div>
-          {field.type === 'text' && (
-            <TextField label="Placeholder" value={field.placeholder} onChange={v => update(i, { placeholder: v })} placeholder="Ex: Digite o número de série do equipamento..." />
+
+          {/* Linha 2: Largura + Unidade */}
+          <div className="flex flex-wrap gap-3">
+            <label className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 whitespace-nowrap">Largura no celular:</span>
+              <select value={field.size || 'inteiro'} onChange={e => update(i, { size: e.target.value as FormFieldDef['size'] })}
+                className="text-xs rounded border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none">
+                {FORM_SIZE_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+            {field.type !== 'select' && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 whitespace-nowrap">Unidade:</span>
+                <input type="text" value={field.unit || ''} onChange={e => update(i, { unit: e.target.value })}
+                  placeholder="Ex: V, A, m"
+                  className="text-xs w-16 rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+              </div>
+            )}
+          </div>
+
+          {/* Chips de unidades rápidas */}
+          {field.type !== 'select' && (
+            <div className="flex flex-wrap gap-1">
+              {FORM_FIELD_UNITS.map(u => (
+                <button key={u} type="button"
+                  onClick={() => update(i, { unit: u })}
+                  className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                    field.unit === u
+                      ? 'bg-blue-100 border-blue-300 text-blue-700 font-medium'
+                      : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-green-50 hover:border-green-300'
+                  }`}>
+                  {u}
+                </button>
+              ))}
+              {field.unit && (
+                <button type="button" onClick={() => update(i, { unit: '' })}
+                  className="text-[10px] px-1.5 py-0.5 rounded border border-red-200 bg-red-50 text-red-500 hover:bg-red-100">
+                  ✕ Limpar
+                </button>
+              )}
+            </div>
           )}
+
+          {/* Configs específicas por tipo */}
+          {field.type === 'text' && (
+            <div className="space-y-2">
+              <TextField label="Texto exemplo" value={field.placeholder} onChange={v => update(i, { placeholder: v })} placeholder="Ex: Digite o número de série do equipamento..." />
+              <div className="flex flex-wrap gap-3">
+                <SubToggle checked={field.multiline ?? false} onChange={v => update(i, { multiline: v })} label="Múltiplas linhas" />
+                <NumberField label="Máx. caracteres" value={field.maxLength ?? 0} onChange={v => update(i, { maxLength: v })} min={0} suffix="(0=sem limite)" />
+              </div>
+            </div>
+          )}
+
+          {field.type === 'number' && (
+            <div className="flex flex-wrap gap-3">
+              <NumberField label="Mín." value={field.min ?? 0} onChange={v => update(i, { min: v })} min={0} suffix="(0=sem limite)" />
+              <NumberField label="Máx." value={field.max ?? 0} onChange={v => update(i, { max: v })} min={0} suffix="(0=sem limite)" />
+              <NumberField label="Casas decimais" value={field.decimalPlaces ?? 0} onChange={v => update(i, { decimalPlaces: v })} min={0} />
+            </div>
+          )}
+
           {field.type === 'select' && (
             <div className="space-y-1">
               <span className="text-xs text-slate-500">Opções (uma por linha):</span>
@@ -253,6 +330,7 @@ function FormFieldList({ fields, onChange }: { fields: FormFieldDef[]; onChange:
               />
             </div>
           )}
+
           <SubToggle checked={field.required} onChange={v => update(i, { required: v })} label="Obrigatório" />
         </div>
       ))}

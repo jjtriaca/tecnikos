@@ -214,9 +214,35 @@ export interface FormFieldDef {
   name: string;
   type: 'text' | 'number' | 'select';
   placeholder: string;
-  options: string[];   // only for type='select'
+  options: string[];        // only for type='select'
   required: boolean;
+  unit: string;             // sufixo: V, A, kW, m, km, °C, %, R$, etc.
+  size: 'pequeno' | 'medio' | 'inteiro';  // largura no mobile
+  maxLength: number;        // 0 = sem limite
+  multiline: boolean;       // textarea vs input (only for type='text')
+  decimalPlaces: number;    // casas decimais (only for type='number')
+  min: number;              // valor mínimo (only for type='number', 0=sem limite)
+  max: number;              // valor máximo (only for type='number', 0=sem limite)
 }
+
+export const FORM_FIELD_UNITS = [
+  // Elétrica
+  'V', 'A', 'W', 'kW', 'kWh', 'Ω', 'Hz', 'VA', 'kVA',
+  // Temperatura / Pressão
+  '°C', '°F', 'bar', 'psi', 'Pa', 'kPa',
+  // Comprimento / Área
+  'mm', 'cm', 'm', 'km', 'm²', 'm³',
+  // Peso / Volume
+  'g', 'kg', 'L', 'mL',
+  // Tempo
+  'min', 'h', 's',
+  // Financeiro
+  'R$', '%',
+  // Velocidade / Vazão
+  'RPM', 'L/min', 'm/s', 'km/h',
+  // Outros
+  'un', 'pç', 'BTU',
+];
 
 export interface PhotoRequirementGroup {
   id: string;
@@ -1425,8 +1451,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         { id: 'pr_problems', moment: 'general', minPhotos: 0, maxPhotos: 0, label: 'Fotos de problemas encontrados', instructions: 'Se encontrar problemas, registre com fotos', required: false },
       ]};
       exec.techActions.form = { enabled: true, fields: [
-        { id: 'ff_1', name: 'Parecer técnico', type: 'text', placeholder: 'Descreva o resultado da vistoria...', options: [], required: true },
-        { id: 'ff_2', name: 'Nota geral (1-10)', type: 'number', placeholder: '', options: [], required: true },
+        { id: 'ff_1', name: 'Parecer técnico', type: 'text', placeholder: 'Descreva o resultado da vistoria...', options: [], required: true, unit: '', size: 'inteiro', maxLength: 0, multiline: true, decimalPlaces: 0, min: 0, max: 0 },
+        { id: 'ff_2', name: 'Nota geral (1-10)', type: 'number', placeholder: '', options: [], required: true, unit: '', size: 'pequeno', maxLength: 0, multiline: false, decimalPlaces: 0, min: 1, max: 10 },
       ]};
       // CONCLUIDA
       const conc = c.stages.find(s => s.status === 'CONCLUIDA')!;
@@ -2211,6 +2237,13 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
         placeholder: f.placeholder || '',
         options: f.options || [],
         required: f.required ?? false,
+        unit: f.unit || '',
+        size: f.size || 'inteiro',
+        maxLength: f.maxLength ?? 0,
+        multiline: f.multiline ?? false,
+        decimalPlaces: f.decimalPlaces ?? 0,
+        min: f.min ?? 0,
+        max: f.max ?? 0,
       }));
       break;
     case 'SIGNATURE':
