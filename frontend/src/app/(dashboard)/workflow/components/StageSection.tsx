@@ -1283,6 +1283,24 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                       </div>
                                     )}
 
+                                    <SubToggle checked={prox.onEnterRadius.updateAddressCoords}
+                                      onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, updateAddressCoords: v } })}
+                                      label="Atualizar coordenadas do endereço" />
+                                    {prox.onEnterRadius.updateAddressCoords && (
+                                      <div className="ml-5 space-y-1.5">
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-[11px] text-slate-600">Gravar quando estiver a</label>
+                                          <input type="number" min={1} max={100} className="w-16 text-xs border border-slate-300 rounded px-2 py-1"
+                                            value={prox.onEnterRadius.coordsRadiusMeters}
+                                            onChange={e => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, coordsRadiusMeters: Number(e.target.value) || 10 } })} />
+                                          <span className="text-[11px] text-slate-600">metros do endereço</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400">
+                                          Só grava as coordenadas quando o técnico atingir essa distância. Use um valor baixo (ex: 10m ou menos) para maior precisão.
+                                        </p>
+                                      </div>
+                                    )}
+
                                     <p className="text-[10px] text-slate-400 mt-1">
                                       💡 Use <code className="bg-slate-100 px-1 rounded">{'{distancia_tecnico}'}</code> e <code className="bg-slate-100 px-1 rounded">{'{tecnico}'}</code> nas mensagens.
                                       Os eventos disparam apenas UMA vez.
@@ -1293,16 +1311,9 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                 {/* ── Painel expandido: Ao clicar Cheguei ── */}
                                 {opt.value === 'arrival' && mode === 'arrival' && (
                                   <div className="ml-5 mt-2 p-3 rounded-lg border border-purple-200 bg-purple-50/40 space-y-3">
-                                    <SubToggle checked={prox.arrivalButton?.updateAddressCoords ?? true}
-                                      onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, updateAddressCoords: v } })}
-                                      label="Atualizar coordenadas do endereço ao chegar" />
-                                    <p className="text-[10px] text-slate-400 ml-5 -mt-2">
-                                      Salva as coordenadas GPS do técnico no endereço de atendimento do parceiro. Melhora a precisão do raio nos próximos atendimentos.
-                                    </p>
-
                                     <SubToggle checked={prox.arrivalButton?.notifyCliente?.enabled ?? false}
                                       onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, notifyCliente: { ...prox.arrivalButton?.notifyCliente, enabled: v } } })}
-                                      label="Notificar cliente ao chegar" />
+                                      label="Notificar cliente" />
                                     {prox.arrivalButton?.notifyCliente?.enabled && (
                                       <div className="ml-5 space-y-1.5">
                                         <SelectField label="Canal" value={prox.arrivalButton.notifyCliente.channel}
@@ -1317,7 +1328,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
 
                                     <SubToggle checked={prox.arrivalButton?.notifyGestor?.enabled ?? false}
                                       onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, notifyGestor: { ...prox.arrivalButton?.notifyGestor, enabled: v } } })}
-                                      label="Notificar gestor ao chegar" />
+                                      label="Notificar gestor" />
                                     {prox.arrivalButton?.notifyGestor?.enabled && (
                                       <div className="ml-5 space-y-1.5">
                                         <SelectField label="Canal" value={prox.arrivalButton.notifyGestor.channel}
@@ -1330,6 +1341,66 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                       </div>
                                     )}
 
+                                    <SubToggle checked={prox.arrivalButton?.alert?.enabled ?? false}
+                                      onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, alert: { ...prox.arrivalButton?.alert, enabled: v } } })}
+                                      label="Alerta no dashboard" />
+                                    {prox.arrivalButton?.alert?.enabled && (
+                                      <div className="ml-5">
+                                        <TextField label="Mensagem do alerta" value={prox.arrivalButton?.alert?.message ?? ''}
+                                          onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, alert: { ...prox.arrivalButton?.alert, message: v } } })}
+                                          placeholder="Ex: Técnico chegou ao local" />
+                                      </div>
+                                    )}
+
+                                    <SubToggle checked={prox.arrivalButton?.updateAddressCoords ?? true}
+                                      onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, updateAddressCoords: v } })}
+                                      label="Atualizar coordenadas do endereço" />
+                                    {(prox.arrivalButton?.updateAddressCoords ?? true) && (
+                                      <p className="text-[10px] text-slate-400 ml-5 -mt-2">
+                                        Grava as coordenadas exatas do técnico ao confirmar chegada. Maior precisão possível.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* ── Painel expandido: Manual ── */}
+                                {opt.value === 'manual' && mode === 'manual' && (
+                                  <div className="ml-5 mt-2 p-3 rounded-lg border border-purple-200 bg-purple-50/40 space-y-3">
+                                    <p className="text-[10px] text-slate-500 mb-2">
+                                      ℹ️ A OS permanece em &quot;A Caminho&quot; até que o gestor mude manualmente para &quot;Em Execução&quot;.
+                                      O tracking GPS continua ativo — as opções abaixo disparam ao detectar proximidade.
+                                    </p>
+
+                                    <SubToggle checked={prox.onEnterRadius.notifyCliente.enabled}
+                                      onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyCliente: { ...prox.onEnterRadius.notifyCliente, enabled: v } } })}
+                                      label="Notificar cliente ao detectar proximidade" />
+                                    {prox.onEnterRadius.notifyCliente.enabled && (
+                                      <div className="ml-5 space-y-1.5">
+                                        <SelectField label="Canal" value={prox.onEnterRadius.notifyCliente.channel}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyCliente: { ...prox.onEnterRadius.notifyCliente, channel: v } } })}
+                                          options={CHANNEL_OPTIONS} />
+                                        <WhatsAppCostWarning channel={prox.onEnterRadius.notifyCliente.channel} />
+                                        <TextAreaField label="Mensagem" value={prox.onEnterRadius.notifyCliente.message}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyCliente: { ...prox.onEnterRadius.notifyCliente, message: v } } })}
+                                          placeholder="O técnico {tecnico} está chegando! OS: {titulo}" vars />
+                                      </div>
+                                    )}
+
+                                    <SubToggle checked={prox.onEnterRadius.notifyGestor.enabled}
+                                      onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyGestor: { ...prox.onEnterRadius.notifyGestor, enabled: v } } })}
+                                      label="Notificar gestor ao detectar proximidade" />
+                                    {prox.onEnterRadius.notifyGestor.enabled && (
+                                      <div className="ml-5 space-y-1.5">
+                                        <SelectField label="Canal" value={prox.onEnterRadius.notifyGestor.channel}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyGestor: { ...prox.onEnterRadius.notifyGestor, channel: v } } })}
+                                          options={CHANNEL_OPTIONS} />
+                                        <WhatsAppCostWarning channel={prox.onEnterRadius.notifyGestor.channel} />
+                                        <TextAreaField label="Mensagem" value={prox.onEnterRadius.notifyGestor.message}
+                                          onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, notifyGestor: { ...prox.onEnterRadius.notifyGestor, message: v } } })}
+                                          placeholder="Técnico {tecnico} está próximo — OS: {titulo}" vars />
+                                      </div>
+                                    )}
+
                                     <SubToggle checked={prox.onEnterRadius.alert.enabled}
                                       onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, alert: { ...prox.onEnterRadius.alert, enabled: v } } })}
                                       label="Alerta no dashboard" />
@@ -1337,19 +1408,27 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                       <div className="ml-5">
                                         <TextField label="Mensagem do alerta" value={prox.onEnterRadius.alert.message}
                                           onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, alert: { ...prox.onEnterRadius.alert, message: v } } })}
-                                          placeholder="Ex: Técnico chegou ao local" />
+                                          placeholder="Ex: Técnico próximo ao local" />
                                       </div>
                                     )}
-                                  </div>
-                                )}
 
-                                {/* ── Painel expandido: Manual ── */}
-                                {opt.value === 'manual' && mode === 'manual' && (
-                                  <div className="ml-5 mt-2 p-3 rounded-lg border border-slate-200 bg-slate-50/40">
-                                    <p className="text-[10px] text-slate-500">
-                                      ℹ️ A OS permanece em &quot;A Caminho&quot; até que o gestor ou operador mude manualmente para &quot;Em Execução&quot;.
-                                      O tracking GPS continua ativo para monitoramento, mas nenhuma ação automática é disparada.
-                                    </p>
+                                    <SubToggle checked={prox.onEnterRadius.updateAddressCoords}
+                                      onChange={v => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, updateAddressCoords: v } })}
+                                      label="Atualizar coordenadas do endereço" />
+                                    {prox.onEnterRadius.updateAddressCoords && (
+                                      <div className="ml-5 space-y-1.5">
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-[11px] text-slate-600">Gravar quando estiver a</label>
+                                          <input type="number" min={1} max={100} className="w-16 text-xs border border-slate-300 rounded px-2 py-1"
+                                            value={prox.onEnterRadius.coordsRadiusMeters}
+                                            onChange={e => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, coordsRadiusMeters: Number(e.target.value) || 10 } })} />
+                                          <span className="text-[11px] text-slate-600">metros do endereço</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400">
+                                          Só grava as coordenadas quando o técnico atingir essa distância. Use um valor baixo (ex: 10m ou menos) para maior precisão.
+                                        </p>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>

@@ -136,6 +136,8 @@ export interface StageConfig {
         notifyGestor:       { enabled: boolean; channel: string; message: string };
         autoStartExecution: boolean;       // auto-mudar status para EM_EXECUÇÃO ao chegar
         alert:              { enabled: boolean; message: string };
+        updateAddressCoords: boolean;      // salvar coordenadas GPS no endereço ao entrar no raio
+        coordsRadiusMeters: number;        // raio interno para gravar coordenadas (ex: 10m)
       };
       arrivalButton: {
         enabled: boolean;                  // exibir botão "Cheguei no local" na página de tracking
@@ -143,6 +145,7 @@ export interface StageConfig {
         autoStartExecution: boolean;       // mudar OS para EM_EXECUÇÃO ao clicar
         notifyCliente:      { enabled: boolean; channel: string; message: string };
         notifyGestor:       { enabled: boolean; channel: string; message: string };
+        alert:              { enabled: boolean; message: string };
       };
     };
 
@@ -1079,9 +1082,11 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
         keepActiveUntil: 'radius',
         onEnterRadius: {
           notifyCliente:      { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} está chegando! OS: {titulo}' },
-          notifyGestor:       { enabled: false, channel: 'push',     message: '' },
+          notifyGestor:       { enabled: false, channel: 'whatsapp', message: '' },
           autoStartExecution: false,
           alert:              { enabled: false, message: '' },
+          updateAddressCoords: false,
+          coordsRadiusMeters: 10,
         },
         arrivalButton: {
           enabled: true,
@@ -1089,6 +1094,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
           autoStartExecution: true,
           notifyCliente: { enabled: false, channel: 'whatsapp', message: '' },
           notifyGestor:  { enabled: false, channel: 'whatsapp', message: '' },
+          alert:         { enabled: false, message: '' },
         },
       },
       scheduleConfig: {
@@ -1176,7 +1182,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
       caminho.enabled = true;
       caminho.techActions.gps = { enabled: true, requireAccuracy: false };
-      caminho.autoActions.notifyCliente = { enabled: true, channel: 'sms', message: 'O técnico está a caminho. OS: {titulo}' };
+      caminho.autoActions.notifyCliente = { enabled: true, channel: 'whatsapp', message: 'O técnico está a caminho. OS: {titulo}' };
       caminho.autoActions.proximityTrigger = {
         ...caminho.autoActions.proximityTrigger,
         enabled: true, radiusMeters: 200, keepActiveUntil: 'radius',
@@ -2241,18 +2247,21 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
         trackingIntervalSeconds: cfg.trackingIntervalSeconds ?? 30,
         requireHighAccuracy: cfg.requireHighAccuracy ?? true,
         keepActiveUntil: cfg.keepActiveUntil || 'radius',
-        onEnterRadius: cfg.onEnterRadius || {
-          notifyCliente: { enabled: true, channel: 'whatsapp', message: '' },
-          notifyGestor: { enabled: false, channel: 'whatsapp', message: '' },
-          autoStartExecution: false,
-          alert: { enabled: false, message: '' },
+        onEnterRadius: {
+          notifyCliente: cfg.onEnterRadius?.notifyCliente || { enabled: true, channel: 'whatsapp', message: '' },
+          notifyGestor: cfg.onEnterRadius?.notifyGestor || { enabled: false, channel: 'whatsapp', message: '' },
+          autoStartExecution: cfg.onEnterRadius?.autoStartExecution ?? false,
+          alert: cfg.onEnterRadius?.alert || { enabled: false, message: '' },
+          updateAddressCoords: cfg.onEnterRadius?.updateAddressCoords ?? false,
+          coordsRadiusMeters: cfg.onEnterRadius?.coordsRadiusMeters ?? 10,
         },
-        arrivalButton: cfg.arrivalButton || {
-          enabled: true,
-          updateAddressCoords: true,
-          autoStartExecution: true,
-          notifyCliente: { enabled: false, channel: 'whatsapp', message: '' },
-          notifyGestor:  { enabled: false, channel: 'whatsapp', message: '' },
+        arrivalButton: {
+          enabled: cfg.arrivalButton?.enabled ?? true,
+          updateAddressCoords: cfg.arrivalButton?.updateAddressCoords ?? true,
+          autoStartExecution: cfg.arrivalButton?.autoStartExecution ?? true,
+          notifyCliente: cfg.arrivalButton?.notifyCliente || { enabled: false, channel: 'whatsapp', message: '' },
+          notifyGestor: cfg.arrivalButton?.notifyGestor || { enabled: false, channel: 'whatsapp', message: '' },
+          alert: cfg.arrivalButton?.alert || { enabled: false, message: '' },
         },
       };
       break;

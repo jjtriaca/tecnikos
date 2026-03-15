@@ -1517,3 +1517,13 @@ Solucao:
 - [x] Toggle separado "Botao Cheguei" removido — arrivalButton.enabled sincronizado com radio
 - [x] Secao "Eventos ao entrar no raio" removida — conteudo movido para dentro dos paineis
 - [x] Build frontend OK
+
+### Sessao 108 (cont): Paineis ricos + coordsRadius — v1.03.24
+- [x] 3 paineis agora identicos em estrutura: notifyCliente + notifyGestor + alerta + updateAddressCoords
+- [x] "Ao entrar no raio": updateAddressCoords com campo "gravar quando estiver a X metros" (coordsRadiusMeters)
+- [x] "Ao clicar Cheguei": updateAddressCoords (coordenadas exatas, sem campo metros)
+- [x] "Manual": painel completo (notificacoes + alerta + updateAddressCoords com metros) — dispara por proximidade sem auto-start
+- [x] Tipos: updateAddressCoords + coordsRadiusMeters adicionados a onEnterRadius, alert adicionado a arrivalButton
+- [x] Deserializacao com defaults por campo (nao mais objeto inteiro)
+- [x] Template "sms" → "whatsapp" corrigido
+- [x] Build OK
