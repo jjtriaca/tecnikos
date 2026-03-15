@@ -197,11 +197,11 @@ function PhotoRequirementList({ groups, onChange }: { groups: PhotoRequirementGr
             <NumberField label="Mín. fotos" value={group.minPhotos} onChange={v => update(i, { minPhotos: v })} min={0} />
             <NumberField label="Máx. fotos" value={group.maxPhotos} onChange={v => update(i, { maxPhotos: v })} min={0} suffix="(0=ilimitado)" />
           </div>
-          {isPauseRelated(group.moment) && (
-            <p className="text-[10px] text-blue-600 bg-blue-100/50 rounded px-2 py-1">
-              ℹ️ Estas fotos serão exigidas quando o técnico pausar/retomar o atendimento (requer Sistema de Pausas ativado no Controle de Tempo).
-            </p>
-          )}
+          {(() => {
+            const hint = PHOTO_MOMENT_OPTIONS.find(o => o.value === group.moment)?.hint;
+            const color = isPauseRelated(group.moment) ? 'text-blue-600 bg-blue-100/50' : 'text-slate-500 bg-slate-50';
+            return hint ? <p className={`text-[10px] ${color} rounded px-2 py-1`}>ℹ️ {hint}</p> : null;
+          })()}
           <TextField label="Rótulo" value={group.label} onChange={v => update(i, { label: v })} placeholder="Ex: Foto antes do serviço" />
           <TextField label="Instruções para o técnico" value={group.instructions} onChange={v => update(i, { instructions: v })} placeholder="Ex: Tire fotos do equipamento de frente e de lado" />
           <SubToggle checked={group.required} onChange={v => update(i, { required: v })} label="Obrigatório (bloqueia prosseguir sem fotos)" />

@@ -845,11 +845,12 @@ export const PHOTO_TYPE_OPTIONS = [
 ];
 
 export const PHOTO_MOMENT_OPTIONS = [
-  { value: 'before_start',    label: 'Antes de iniciar',   hint: 'Fotos obrigatórias antes de começar o serviço' },
-  { value: 'after_completion', label: 'Após concluir',     hint: 'Fotos obrigatórias depois de finalizar o serviço' },
-  { value: 'on_pause',        label: 'Ao pausar',          hint: 'Fotos do estado ao pausar (requer sistema de pausas)' },
-  { value: 'on_resume',       label: 'Ao retomar',         hint: 'Fotos do estado ao retomar (requer sistema de pausas)' },
-  { value: 'general',         label: 'A qualquer momento', hint: 'Fotos sem momento específico — técnico envia quando quiser' },
+  { value: 'before_start',     label: 'Antes de iniciar',   hint: 'Aparece no topo do link — técnico tira fotos antes de começar o serviço' },
+  { value: 'during',           label: 'Durante o serviço',  hint: 'Aparece entre os passos — fotos do andamento do serviço' },
+  { value: 'after_completion', label: 'Após concluir',      hint: 'Aparece no final do link — fotos do resultado depois de finalizar' },
+  { value: 'on_pause',         label: 'Ao pausar',          hint: 'Exigido ao pausar o atendimento (requer sistema de pausas)' },
+  { value: 'on_resume',        label: 'Ao retomar',         hint: 'Exigido ao retomar o atendimento (requer sistema de pausas)' },
+  { value: 'general',          label: 'A qualquer momento', hint: 'Sem posição fixa — técnico envia quando quiser' },
 ];
 
 export const FINANCIAL_ENTRY_TYPES = [
@@ -950,7 +951,7 @@ export const TECH_ACTION_LABELS: Record<string, { label: string; icon: string; h
   form:      { label: 'Preencher formulario',      icon: '📋', hint: 'Campos personalizados (texto, numero, selecao) que o tecnico preenche nesta etapa. Voce define os campos.' },
   signature:         { label: 'Coletar assinatura',            icon: '✍️', hint: 'O tecnico coleta assinatura digital do cliente ou responsavel no local. Registrada com timestamp e GPS.' },
   question:          { label: 'Responder pergunta',            icon: '❓', hint: 'Exibe uma pergunta com opcoes ao tecnico. Cada resposta pode disparar uma acao automatica (aceitar, redistribuir, notificar).' },
-  photoRequirements: { label: 'Fotos por momento',             icon: '📷', hint: 'Define grupos de fotos obrigatorias por momento (antes, depois, pausa, retorno) com quantidade minima e instrucoes.' },
+  photoRequirements: { label: 'Fotos por momento',             icon: '📷', hint: 'Cada grupo aparece na posicao do link conforme o momento escolhido (antes, durante, depois). O tecnico ve cada grupo na hora certa.' },
   materials:         { label: 'Registrar materiais utilizados', icon: '🔩', hint: 'O tecnico informa pecas e materiais gastos no servico. Quantidade e custo podem alimentar o lancamento financeiro.' },
 };
 
