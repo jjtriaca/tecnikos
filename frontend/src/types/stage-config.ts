@@ -2206,10 +2206,13 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
                 if (r.linkConfig.pageLayout?.length) {
                   // Merge saved layout with defaults (preserves blocks added in future versions)
                   const defaultLayout = stage.autoActions.messageDispatch.toTechnicians.link.pageLayout;
-                  const savedMap = new Map(r.linkConfig.pageLayout.map((b: any) => [b.id, b]));
+                  // Remove discontinued blocks (Texto livre 2/3)
+                  const REMOVED_BLOCK_IDS = new Set(['bl_12', 'bl_13']);
+                  const cleanedLayout = r.linkConfig.pageLayout.filter((b: any) => !REMOVED_BLOCK_IDS.has(b.id));
+                  const savedMap = new Map(cleanedLayout.map((b: any) => [b.id, b]));
                   // Start with saved blocks in saved order, then append any new defaults
                   const merged = [
-                    ...r.linkConfig.pageLayout,
+                    ...cleanedLayout,
                     ...defaultLayout.filter(d => !savedMap.has(d.id)),
                   ];
                   stage.autoActions.messageDispatch.toTechnicians.link.pageLayout = merged;
