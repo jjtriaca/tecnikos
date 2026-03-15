@@ -510,12 +510,11 @@ export default function ServicesPage() {
                       ✕
                     </button>
                   </div>
-                  <div className="max-h-[200px] overflow-y-auto">
+                  <div>
                     {cl.items.map((item, itemIdx) => (
-                      <div key={itemIdx} className="flex items-center gap-1 mb-0.5">
-                        <span className="text-slate-300 text-[10px]">•</span>
-                        <input
-                          type="text"
+                      <div key={itemIdx} className="flex items-start gap-1 mb-0.5">
+                        <span className="text-slate-300 text-[10px] mt-1">•</span>
+                        <textarea
                           value={item}
                           onChange={(e) => {
                             const updated = [...formData.checklists];
@@ -523,9 +522,14 @@ export default function ServicesPage() {
                             items[itemIdx] = e.target.value;
                             updated[clIdx] = { ...updated[clIdx], items };
                             setFormData({ ...formData, checklists: updated });
+                            // Auto-resize
+                            e.target.style.height = "auto";
+                            e.target.style.height = e.target.scrollHeight + "px";
                           }}
+                          onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                          rows={1}
                           placeholder="Item..."
-                          className="flex-1 min-w-0 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                          className="flex-1 min-w-0 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-none overflow-hidden"
                         />
                         <button
                           type="button"
