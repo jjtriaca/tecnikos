@@ -488,7 +488,7 @@ export default function ServicesPage() {
             )}
             <div className="flex gap-2 overflow-x-auto pb-2">
               {formData.checklists.map((cl, clIdx) => (
-                <div key={clIdx} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 min-w-[286px] w-[286px] flex-shrink-0">
+                <div key={clIdx} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 min-w-[372px] w-[372px] flex-shrink-0">
                   <div className="flex items-center gap-1 mb-2">
                     <input
                       type="text"
