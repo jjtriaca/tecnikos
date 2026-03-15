@@ -146,9 +146,37 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     }
 
     for (const [tableName, columns] of publicByTable) {
-      // Skip if table doesn't exist in tenant (it might be a new table — createSchema handles that)
+      // Create missing tables in tenant schema (new tables added via migration after tenant was created)
       if (!tenantTables.has(tableName)) {
-        this.logger.debug(`Table "${tableName}" doesn't exist in "${schemaName}", skipping column sync`);
+        try {
+          await this.rawPrisma.$executeRawUnsafe(
+            `CREATE TABLE IF NOT EXISTS "${schemaName}"."${tableName}" (LIKE public."${tableName}" INCLUDING ALL)`,
+          );
+          // Remap enum column types from public to tenant schema
+          const publicCols = await this.rawPrisma.$queryRawUnsafe<{ column_name: string; data_type: string; udt_name: string; column_default: string | null }[]>(`
+            SELECT column_name, data_type, udt_name, column_default
+            FROM information_schema.columns
+            WHERE table_schema = '${schemaName}' AND table_name = '${tableName}'
+              AND udt_schema = 'public' AND (data_type = 'USER-DEFINED' OR data_type = 'ARRAY')
+          `);
+          for (const { column_name, data_type, udt_name, column_default } of publicCols) {
+            try {
+              const isArr = data_type === 'ARRAY';
+              const enumName = isArr ? udt_name.substring(1) : udt_name;
+              const targetType = isArr ? `"${schemaName}"."${enumName}"[]` : `"${schemaName}"."${enumName}"`;
+              if (column_default) await this.rawPrisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}"."${tableName}" ALTER COLUMN "${column_name}" DROP DEFAULT`);
+              await this.rawPrisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}"."${tableName}" ALTER COLUMN "${column_name}" TYPE ${targetType} USING "${column_name}"::text${isArr ? '[]' : ''}::"${schemaName}"."${enumName}"${isArr ? '[]' : ''}`);
+              if (column_default) {
+                const newDefault = column_default.replace(/::"([A-Za-z]+)"(\[\])?/g, `::"${schemaName}"."$1"$2`);
+                await this.rawPrisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}"."${tableName}" ALTER COLUMN "${column_name}" SET DEFAULT ${newDefault}`);
+              }
+            } catch (colErr) { /* enum remap failed, non-fatal */ }
+          }
+          this.logger.log(`Created missing table "${tableName}" in "${schemaName}"`);
+          added++;
+        } catch (err) {
+          this.logger.warn(`Failed to create table "${tableName}" in "${schemaName}": ${(err as Error).message}`);
+        }
         continue;
       }
 
