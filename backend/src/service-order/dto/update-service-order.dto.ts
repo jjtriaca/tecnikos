@@ -146,4 +146,9 @@ export class UpdateServiceOrderDto {
   @IsOptional()
   @IsBoolean()
   isUrgent?: boolean;
+
+  // Itens de serviço (v1.03.66)
+  @IsOptional()
+  @IsArray()
+  items?: { serviceId: string; quantity: number }[];
 }

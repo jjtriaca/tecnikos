@@ -54,6 +54,29 @@ const clientFetcher: LookupFetcher<PartnerSummary> = async (search, page, signal
 const inputClass =
   "rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
 
+const STATUS_LABELS: Record<string, string> = {
+  ABERTA: "Aberta", OFERTADA: "Ofertada", ATRIBUIDA: "Atribuída",
+  EM_EXECUCAO: "Em Execução", CONCLUIDA: "Concluída", APROVADA: "Aprovada",
+  AJUSTE: "Ajuste", CANCELADA: "Cancelada",
+};
+const STATUS_COLORS: Record<string, string> = {
+  ABERTA: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  OFERTADA: "bg-orange-100 text-orange-800 border-orange-200",
+  ATRIBUIDA: "bg-blue-100 text-blue-800 border-blue-200",
+  EM_EXECUCAO: "bg-indigo-100 text-indigo-800 border-indigo-200",
+  CONCLUIDA: "bg-green-100 text-green-800 border-green-200",
+  APROVADA: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  AJUSTE: "bg-amber-100 text-amber-800 border-amber-200",
+  CANCELADA: "bg-slate-100 text-slate-600 border-slate-200",
+};
+const TERMINAL_STATUSES = ["CONCLUIDA", "APROVADA", "CANCELADA"];
+
+function formatDatetimeLocal(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function NewOrderPageWrapper() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center py-12"><svg className="h-8 w-8 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg></div>}>
@@ -62,7 +85,16 @@ export default function NewOrderPageWrapper() {
   );
 }
 
-function NewOrderPage() {
+/** Shared order form — used for both create and edit */
+export function OrderForm({ editId }: { editId?: string }) {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-12"><svg className="h-8 w-8 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg></div>}>
+      <NewOrderPage editId={editId} />
+    </Suspense>
+  );
+}
+
+function NewOrderPage({ editId }: { editId?: string } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnFromId = searchParams.get("returnFrom");
@@ -178,6 +210,7 @@ function NewOrderPage() {
 
   const [form, setForm] = useState({
     title: "",
+    description: "",
     state: "",
     cep: "",
     addressStreet: "",
@@ -189,6 +222,142 @@ function NewOrderPage() {
     scheduledStartAt: "",
     estimatedDurationMinutes: "",
   });
+
+  // ── Edit-mode states ──
+  const isEditMode = !!editId;
+  const [editLoading, setEditLoading] = useState(!!editId);
+  const [status, setStatus] = useState("");
+  const [isTerminal, setIsTerminal] = useState(false);
+  const [acceptTimeoutMode, setAcceptTimeoutMode] = useState<'minutes' | 'hours' | 'from_flow'>('from_flow');
+  const [acceptTimeoutValue, setAcceptTimeoutValue] = useState<number>(60);
+  const [enRouteTimeoutMode, setEnRouteTimeoutMode] = useState<'minutes' | 'hours' | 'from_flow'>('from_flow');
+  const [enRouteTimeoutValue, setEnRouteTimeoutValue] = useState<number>(30);
+
+  // Field restrictions by status
+  const lockedFields = (() => {
+    if (!isEditMode || !status) return { client: false, address: false, services: false, techMode: false, title: false };
+    switch (status) {
+      case "OFERTADA":
+        return { client: false, address: false, services: false, techMode: true, title: false };
+      case "ATRIBUIDA":
+      case "AJUSTE":
+        return { client: true, address: true, services: status === "AJUSTE" ? false : true, techMode: true, title: false };
+      case "EM_EXECUCAO":
+        return { client: true, address: true, services: true, techMode: true, title: true };
+      default: // ABERTA
+        return { client: false, address: false, services: false, techMode: false, title: false };
+    }
+  })();
+
+  // Load existing OS for edit mode
+  useEffect(() => {
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const order = await api.get<any>(`/service-orders/${editId}`);
+        if (cancelled) return;
+
+        setStatus(order.status);
+        setIsTerminal(TERMINAL_STATUSES.includes(order.status));
+
+        setForm({
+          title: order.title || "",
+          description: order.description || "",
+          state: order.state || "",
+          cep: order.cep ? maskCep(order.cep) : "",
+          addressStreet: order.addressStreet || (order.state ? "" : order.addressText || ""),
+          addressNumber: order.addressNumber || "",
+          addressComp: order.addressComp || "",
+          neighborhood: order.neighborhood || "",
+          contactPersonName: order.contactPersonName || "",
+          deadlineAt: order.deadlineAt ? formatDatetimeLocal(order.deadlineAt) : "",
+          scheduledStartAt: order.scheduledStartAt ? formatDatetimeLocal(order.scheduledStartAt) : "",
+          estimatedDurationMinutes: order.estimatedDurationMinutes != null ? String(order.estimatedDurationMinutes) : "",
+        });
+
+        // Service items
+        if (order.items?.length) {
+          setServiceItems(order.items.map((item: any) => ({
+            serviceId: item.serviceId,
+            serviceName: item.serviceName,
+            unit: item.unit,
+            unitPriceCents: item.unitPriceCents,
+            commissionBps: item.commissionBps ?? null,
+            quantity: item.quantity || 1,
+          })));
+        }
+
+        // Timeouts
+        if (order.acceptTimeoutMinutes != null) {
+          const mins = order.acceptTimeoutMinutes;
+          if (mins >= 60 && mins % 60 === 0) { setAcceptTimeoutMode('hours'); setAcceptTimeoutValue(mins / 60); }
+          else { setAcceptTimeoutMode('minutes'); setAcceptTimeoutValue(mins); }
+        }
+        if (order.enRouteTimeoutMinutes != null) {
+          const mins = order.enRouteTimeoutMinutes;
+          if (mins >= 60 && mins % 60 === 0) { setEnRouteTimeoutMode('hours'); setEnRouteTimeoutValue(mins / 60); }
+          else { setEnRouteTimeoutMode('minutes'); setEnRouteTimeoutValue(mins); }
+        }
+
+        // Return
+        if (order.isReturn) setIsReturn(true);
+        if (order.returnPaidToTech === false) setReturnPaidToTech(false);
+
+        // Client
+        if (order.clientPartner) {
+          setSelectedClient({
+            id: order.clientPartner.id, name: order.clientPartner.name,
+            document: order.clientPartner.document || null, phone: order.clientPartner.phone || null,
+            cep: order.clientPartner.cep || null, addressStreet: order.clientPartner.addressStreet || null,
+            addressNumber: order.clientPartner.addressNumber || null, addressComp: order.clientPartner.addressComp || null,
+            neighborhood: order.clientPartner.neighborhood || null, city: order.clientPartner.city || null,
+            state: order.clientPartner.state || null,
+          });
+        }
+
+        // Tech assignment
+        if (order.techAssignmentMode) setTechMode(order.techAssignmentMode as TechAssignmentMode);
+        if (order.requiredSpecializationIds?.length) {
+          try {
+            const res = await api.get<any>("/specializations?limit=100");
+            const allSpecs: SpecializationSummary[] = Array.isArray(res) ? res : res.data || [];
+            setSelectedSpecs(allSpecs.filter(s => order.requiredSpecializationIds.includes(s.id)));
+          } catch { /* ignore */ }
+        }
+        if (order.directedTechnicianIds?.length) {
+          try {
+            const res = await api.get<any>("/partners?limit=100&type=TECNICO");
+            const allTechs: TechnicianSummary[] = Array.isArray(res) ? res : res.data || [];
+            setSelectedTechs(allTechs.filter(t => order.directedTechnicianIds.includes(t.id)));
+          } catch { /* ignore */ }
+        }
+        if (order.workflowTemplateId && order.workflowTemplate) {
+          setSelectedWorkflow({ id: order.workflowTemplate.id, name: order.workflowTemplate.name });
+        }
+
+        // City
+        if (order.state && order.city) {
+          try {
+            const cities = await fetchCitiesByState(order.state);
+            const found = cities.find((c: IBGECity) => c.nome.toLowerCase() === order.city.toLowerCase());
+            if (found) setSelectedCity(found);
+          } catch { /* ignore */ }
+        }
+
+        // Obra
+        if (order.obraId) setSelectedObraId(order.obraId);
+
+        // Agendamento
+        if (order.scheduledStartAt) setAgendamentoEnabled(true);
+      } catch {
+        setError("Erro ao carregar OS");
+      } finally {
+        if (!cancelled) setEditLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editId]);
 
   // Load original OS for return pre-population
   useEffect(() => {
@@ -472,7 +641,7 @@ function NewOrderPage() {
         } catch { /* don't block OS creation */ }
       }
 
-      await api.post("/service-orders", {
+      const payload: Record<string, any> = {
         title: form.title,
         addressText,
         lat: coords?.lat ?? undefined,
@@ -516,19 +685,51 @@ function NewOrderPage() {
         isUrgent: false,
         // Service items
         items: serviceItems.map(i => ({ serviceId: i.serviceId, quantity: i.quantity })),
-      });
+      };
 
-      router.push("/orders");
+      if (isEditMode) {
+        // Edit-only fields
+        payload.description = form.description || undefined;
+        // Timeouts
+        if (acceptTimeoutMode === 'from_flow') {
+          payload.acceptTimeoutMinutes = null;
+        } else {
+          const mins = acceptTimeoutMode === 'hours' ? acceptTimeoutValue * 60 : acceptTimeoutValue;
+          payload.acceptTimeoutMinutes = mins;
+        }
+        if (enRouteTimeoutMode === 'from_flow') {
+          payload.enRouteTimeoutMinutes = null;
+        } else {
+          const mins = enRouteTimeoutMode === 'hours' ? enRouteTimeoutValue * 60 : enRouteTimeoutValue;
+          payload.enRouteTimeoutMinutes = mins;
+        }
+        await api.put(`/service-orders/${editId}`, payload);
+        router.push(`/orders/${editId}`);
+      } else {
+        await api.post("/service-orders", payload);
+        router.push("/orders");
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.payload?.message || err.message);
       } else {
-        setError("Erro ao criar OS");
+        setError(isEditMode ? "Erro ao salvar OS" : "Erro ao criar OS");
       }
     } finally {
       setLoading(false);
       setGeocodingMsg(null);
     }
+  }
+
+  if (editLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <svg className="h-8 w-8 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+    );
   }
 
   return (
@@ -539,12 +740,41 @@ function NewOrderPage() {
           Ordens de Serviço
         </Link>
         <span>/</span>
-        <span className="text-slate-900 font-medium">Nova OS</span>
+        {isEditMode ? (
+          <>
+            <Link href={`/orders/${editId}`} className="hover:text-blue-600">
+              {form.title || "OS"}
+            </Link>
+            <span>/</span>
+            <span className="text-slate-900 font-medium">Editar</span>
+          </>
+        ) : (
+          <span className="text-slate-900 font-medium">Nova OS</span>
+        )}
       </div>
 
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">
-        {returnFromId ? "Retorno de Atendimento" : "Nova Ordem de Serviço"}
-      </h1>
+      <div className="flex items-center gap-3 mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">
+          {isEditMode ? "Editar Ordem de Serviço" : returnFromId ? "Retorno de Atendimento" : "Nova Ordem de Serviço"}
+        </h1>
+        {isEditMode && status && (
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[status] || "bg-slate-100 text-slate-600"}`}>
+            {STATUS_LABELS[status] || status}
+          </span>
+        )}
+      </div>
+
+      {isTerminal && (
+        <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          Esta OS está em status final ({STATUS_LABELS[status] || status}). Não é possível editar.
+        </div>
+      )}
+
+      {isEditMode && !isTerminal && (lockedFields.client || lockedFields.address || lockedFields.services || lockedFields.techMode) && (
+        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
+          Alguns campos estão bloqueados porque a OS está em status &quot;{STATUS_LABELS[status] || status}&quot;.
+        </div>
+      )}
 
       {returnLoading && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
@@ -574,6 +804,7 @@ function NewOrderPage() {
             fetcher={clientFetcher}
             keyExtractor={(c) => c.id}
             required
+            disabled={lockedFields.client}
             renderItem={(c) => (
               <div>
                 <div className="font-medium text-slate-900">{c.name}</div>
@@ -594,12 +825,29 @@ function NewOrderPage() {
               onChange={onChange}
               onBlur={() => setForm((f) => ({ ...f, title: toTitleCase(f.title) }))}
               required
+              disabled={lockedFields.title}
               placeholder="Ex: Manutenção ar-condicionado"
-              className={inputClass}
+              className={`${inputClass} ${lockedFields.title ? "bg-slate-100 cursor-not-allowed" : ""}`}
             />
           </label>
 
+          {/* ─── 2b. Descricao (edit mode) ──────────────────── */}
+          {isEditMode && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">Descrição</span>
+              <textarea
+                name="description"
+                value={form.description}
+                onChange={onChange}
+                rows={3}
+                placeholder="Detalhes adicionais sobre o serviço, observações internas..."
+                className={`${inputClass} resize-y`}
+              />
+            </label>
+          )}
+
           {/* ─── 3. Endereco (sempre aberto, nao colapsavel) ─ */}
+          <fieldset disabled={lockedFields.address} className={lockedFields.address ? "opacity-60" : ""}>
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -607,6 +855,7 @@ function NewOrderPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span className="text-sm font-semibold text-slate-800">Endereço do Serviço</span>
+              {lockedFields.address && <span className="text-xs text-amber-600 font-normal">(bloqueado neste status)</span>}
             </div>
 
             {/* Address source selector */}
@@ -753,11 +1002,14 @@ function NewOrderPage() {
             </label>
           </div>
 
+          </fieldset>
+
           {/* ─── 4. Tipo de Atendimento ─────────────────────── */}
+          <fieldset disabled={lockedFields.techMode} className={lockedFields.techMode ? "opacity-60" : ""}>
           <CollapsibleSection
-            title="Tipo de Atendimento"
+            title={<>Tipo de Atendimento{lockedFields.techMode && <span className="text-xs text-amber-600 font-normal ml-2">(bloqueado)</span>}</>}
             icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
-            defaultOpen={true}
+            defaultOpen={!lockedFields.techMode}
             autoCollapse={false}
             summary={
               techMode === "BY_SPECIALIZATION" ? (selectedSpecs.length ? selectedSpecs.map(s => s.name).join(", ") : "Por especialização")
@@ -777,6 +1029,7 @@ function NewOrderPage() {
               hideHeader
             />
           </CollapsibleSection>
+          </fieldset>
 
           {/* Agenda CLT — when workflow has scheduleConfig */}
           {hasAgendaFromWorkflow && scheduleConfig && (
@@ -812,10 +1065,13 @@ function NewOrderPage() {
           )}
 
           {/* ─── 5. Servicos (tabela) ──────────────────────── */}
+          <fieldset disabled={lockedFields.services} className={lockedFields.services ? "opacity-60" : ""}>
+          {lockedFields.services && <p className="text-xs text-amber-600 mb-1">Serviços bloqueados neste status</p>}
           <ServiceItemsSection
             items={serviceItems}
             onChange={setServiceItems}
           />
+          </fieldset>
 
           {/* ─── 6. Prazo ───────────────────────────────────── */}
           <label className="flex flex-col gap-1">
@@ -882,6 +1138,74 @@ function NewOrderPage() {
             </div>
           )}
 
+          {/* ─── 7b. Timeouts (edit mode only) ──────────────── */}
+          {isEditMode && (
+            <CollapsibleSection
+              title="Tempos Limite"
+              icon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+              defaultOpen={false}
+              summary={
+                acceptTimeoutMode === 'from_flow' && enRouteTimeoutMode === 'from_flow'
+                  ? "Usando tempos do fluxo"
+                  : [
+                      acceptTimeoutMode !== 'from_flow' ? `Aceitar: ${acceptTimeoutValue}${acceptTimeoutMode === 'hours' ? 'h' : 'min'}` : null,
+                      enRouteTimeoutMode !== 'from_flow' ? `A caminho: ${enRouteTimeoutValue}${enRouteTimeoutMode === 'hours' ? 'h' : 'min'}` : null,
+                    ].filter(Boolean).join(" | ") || "Usando tempos do fluxo"
+              }
+            >
+              <div className="space-y-4">
+                {/* Accept timeout */}
+                <div>
+                  <span className="text-sm font-medium text-slate-700">Tempo para aceitar</span>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <select
+                      value={acceptTimeoutMode}
+                      onChange={(e) => setAcceptTimeoutMode(e.target.value as any)}
+                      className={`${inputClass} bg-white w-36`}
+                    >
+                      <option value="from_flow">Do fluxo</option>
+                      <option value="minutes">Minutos</option>
+                      <option value="hours">Horas</option>
+                    </select>
+                    {acceptTimeoutMode !== 'from_flow' && (
+                      <input
+                        type="number"
+                        min="1"
+                        value={acceptTimeoutValue}
+                        onChange={(e) => setAcceptTimeoutValue(parseInt(e.target.value) || 1)}
+                        className={`${inputClass} w-24`}
+                      />
+                    )}
+                  </div>
+                </div>
+                {/* En-route timeout */}
+                <div>
+                  <span className="text-sm font-medium text-slate-700">Tempo para clicar &quot;a caminho&quot;</span>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <select
+                      value={enRouteTimeoutMode}
+                      onChange={(e) => setEnRouteTimeoutMode(e.target.value as any)}
+                      className={`${inputClass} bg-white w-36`}
+                    >
+                      <option value="from_flow">Do fluxo</option>
+                      <option value="minutes">Minutos</option>
+                      <option value="hours">Horas</option>
+                    </select>
+                    {enRouteTimeoutMode !== 'from_flow' && (
+                      <input
+                        type="number"
+                        min="1"
+                        value={enRouteTimeoutValue}
+                        onChange={(e) => setEnRouteTimeoutValue(parseInt(e.target.value) || 1)}
+                        className={`${inputClass} w-24`}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CollapsibleSection>
+          )}
+
           {/* ─── 8. Retorno ─────────────────────────────────── */}
           <div id="return-section" className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -944,13 +1268,13 @@ function NewOrderPage() {
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || isTerminal}
               className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
-              {loading ? "Criando..." : "Criar OS"}
+              {loading ? (isEditMode ? "Salvando..." : "Criando...") : (isEditMode ? "Salvar Alterações" : "Criar OS")}
             </button>
             <Link
-              href="/orders"
+              href={isEditMode ? `/orders/${editId}` : "/orders"}
               className="rounded-lg border border-slate-300 px-6 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               Cancelar

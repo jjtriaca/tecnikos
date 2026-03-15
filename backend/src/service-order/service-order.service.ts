@@ -567,7 +567,41 @@ export class ServiceOrderService {
       checkField('isUrgent', data.isUrgent, (so as any).isUrgent);
     }
 
-    if (Object.keys(updateData).length === 0) return so;
+    // Atualizar itens de serviço (v1.03.66) — replace strategy
+    if (data.items !== undefined) {
+      await this.prisma.serviceOrderItem.deleteMany({ where: { serviceOrderId: id } });
+      if (data.items.length > 0) {
+        const services = await this.prisma.service.findMany({
+          where: { id: { in: data.items.map(i => i.serviceId) }, companyId, deletedAt: null },
+        });
+        const serviceMap = new Map(services.map(s => [s.id, s]));
+        const itemsData = data.items
+          .filter(i => serviceMap.has(i.serviceId))
+          .map(i => {
+            const svc = serviceMap.get(i.serviceId)!;
+            return {
+              serviceOrderId: id,
+              serviceId: svc.id,
+              serviceName: svc.name,
+              unit: svc.unit || 'SV',
+              unitPriceCents: svc.priceCents || 0,
+              commissionBps: (svc as any).commissionBps ?? null,
+              quantity: i.quantity || 1,
+            };
+          });
+        if (itemsData.length) {
+          await this.prisma.serviceOrderItem.createMany({ data: itemsData });
+        }
+      }
+      // Recalculate valueCents from items if items were provided
+      const newItems = await this.prisma.serviceOrderItem.findMany({ where: { serviceOrderId: id } });
+      const newTotal = newItems.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0);
+      if (newTotal > 0 && updateData['valueCents'] === undefined) {
+        updateData['valueCents'] = newTotal;
+      }
+    }
+
+    if (Object.keys(updateData).length === 0 && data.items === undefined) return so;
 
     const updated = await this.prisma.serviceOrder.update({ where: { id }, data: updateData });
 

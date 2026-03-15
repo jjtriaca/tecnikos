@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, type ReactNode } from "react";
 
 interface CollapsibleSectionProps {
   /** Title displayed in the header */
-  title: string;
+  title: string | ReactNode;
   /** Icon element (SVG/emoji) displayed before the title */
   icon?: ReactNode;
   /** Subtitle/hint shown to the right of the title */
