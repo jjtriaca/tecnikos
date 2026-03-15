@@ -392,6 +392,11 @@ export class ServiceOrderService {
       data: { status: 'ATRIBUIDA', oldStatus: so.status, state: (so as any).state, city: (so as any).city, neighborhood: (so as any).neighborhood, valueCents: so.valueCents, assignedPartnerId: technicianId, clientPartnerId: so.clientPartnerId ?? undefined, title: so.title, description: so.description ?? undefined, addressStreet: (so as any).addressStreet, cep: (so as any).cep, deadlineAt: so.deadlineAt?.toISOString(), createdAt: so.createdAt?.toISOString() },
     });
 
+    // Execute workflow stage notifications (NOTIFY blocks for ATRIBUIDA)
+    if (this.workflowEngine) {
+      this.workflowEngine.executeStageNotifications(id, companyId, ServiceOrderStatus.ATRIBUIDA).catch(() => {});
+    }
+
     return result;
   }
 
