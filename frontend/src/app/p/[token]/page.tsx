@@ -34,7 +34,7 @@ type LinkConfig = {
   agendaMarginHours: number;
 };
 
-type ChecklistItems = { toolsPpe: string[]; materials: string[]; initialCheck: string[]; finalCheck: string[] };
+type ChecklistItems = { toolsPpe: string[]; materials: string[]; initialCheck: string[]; finalCheck: string[]; custom: string[] };
 type ChecklistResponse = { id: string; checklistClass: string; stage: string; confirmed: boolean; items: any; createdAt: string };
 
 type PublicViewData = {
@@ -1104,6 +1104,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             { key: 'materials', label: 'Materiais', icon: '📦', enumValue: 'MATERIALS' },
             { key: 'initialCheck', label: 'Verificação Inicial', icon: '📋', enumValue: 'INITIAL_CHECK' },
             { key: 'finalCheck', label: 'Verificação Final', icon: '✅', enumValue: 'FINAL_CHECK' },
+            { key: 'custom', label: 'Personalizado', icon: '📝', enumValue: 'CUSTOM' },
           ];
           const activeCls = CLS_META.filter(c => (data.checklists?.[c.key]?.length || 0) > 0);
           if (activeCls.length === 0) return null;

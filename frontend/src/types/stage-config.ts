@@ -24,6 +24,7 @@ export interface StageConfig {
       materials:     { enabled: boolean; mode: 'ITEM_BY_ITEM' | 'FULL'; required: 'REQUIRED' | 'RECOMMENDED'; notifyOnSkip: boolean };
       initialCheck:  { enabled: boolean; mode: 'ITEM_BY_ITEM' | 'FULL'; required: 'REQUIRED' | 'RECOMMENDED'; notifyOnSkip: boolean };
       finalCheck:    { enabled: boolean; mode: 'ITEM_BY_ITEM' | 'FULL'; required: 'REQUIRED' | 'RECOMMENDED'; notifyOnSkip: boolean };
+      custom:        { enabled: boolean; mode: 'ITEM_BY_ITEM' | 'FULL'; required: 'REQUIRED' | 'RECOMMENDED'; notifyOnSkip: boolean };
     };
     form:      { enabled: boolean; fields: FormFieldDef[] };
     signature: { enabled: boolean; label: string };
@@ -937,6 +938,7 @@ export const TECH_ACTION_LABELS: Record<string, { label: string; icon: string; h
   checklistMaterials:    { label: 'Checklist: Materiais',             icon: '📦', hint: 'Tecnico confirma materiais necessarios para o servico. Itens vem do cadastro do servico.' },
   checklistInitialCheck: { label: 'Checklist: Verificacao Inicial',   icon: '📋', hint: 'Verificacoes de seguranca e condicoes do local antes de iniciar o servico.' },
   checklistFinalCheck:   { label: 'Checklist: Verificacao Final',     icon: '✅', hint: 'Checklist de finalizacao — limpeza, testes, assinatura do cliente.' },
+  checklistCustom:       { label: 'Checklist: Personalizado',        icon: '📝', hint: 'Checklist personalizado — itens definidos no cadastro do servico para verificacoes especificas.' },
   form:      { label: 'Preencher formulario',      icon: '📋', hint: 'Campos personalizados (texto, numero, selecao) que o tecnico preenche nesta etapa. Voce define os campos.' },
   signature:         { label: 'Coletar assinatura',            icon: '✍️', hint: 'O tecnico coleta assinatura digital do cliente ou responsavel no local. Registrada com timestamp e GPS.' },
   question:          { label: 'Responder pergunta',            icon: '❓', hint: 'Exibe uma pergunta com opcoes ao tecnico. Cada resposta pode disparar uma acao automatica (aceitar, redistribuir, notificar).' },
@@ -983,6 +985,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
         materials:    { enabled: false, mode: 'ITEM_BY_ITEM' as const, required: 'REQUIRED' as const, notifyOnSkip: false },
         initialCheck: { enabled: false, mode: 'ITEM_BY_ITEM' as const, required: 'REQUIRED' as const, notifyOnSkip: false },
         finalCheck:   { enabled: false, mode: 'ITEM_BY_ITEM' as const, required: 'REQUIRED' as const, notifyOnSkip: false },
+        custom:       { enabled: false, mode: 'ITEM_BY_ITEM' as const, required: 'REQUIRED' as const, notifyOnSkip: false },
       },
       form:      { enabled: false, fields: [] },
       signature: { enabled: false, label: 'Assinatura do cliente' },
@@ -1793,6 +1796,7 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
       materials:    { enumValue: 'MATERIALS',      name: 'Materiais',             icon: '📦' },
       initialCheck: { enumValue: 'INITIAL_CHECK',  name: 'Verificação Inicial',   icon: '📋' },
       finalCheck:   { enumValue: 'FINAL_CHECK',    name: 'Verificação Final',     icon: '✅' },
+      custom:       { enumValue: 'CUSTOM',         name: 'Personalizado',         icon: '📝' },
     };
     for (const [clsKey, clsCfg] of Object.entries(stage.techActions.checklistConfig)) {
       if (clsCfg.enabled) {
@@ -2099,7 +2103,7 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
     case 'CHECKLIST': {
       // Structured checklist (has checklistClass) vs legacy (has items array)
       const ENUM_TO_KEY: Record<string, keyof StageConfig['techActions']['checklistConfig']> = {
-        TOOLS_PPE: 'toolsPpe', MATERIALS: 'materials', INITIAL_CHECK: 'initialCheck', FINAL_CHECK: 'finalCheck',
+        TOOLS_PPE: 'toolsPpe', MATERIALS: 'materials', INITIAL_CHECK: 'initialCheck', FINAL_CHECK: 'finalCheck', CUSTOM: 'custom',
       };
       const mappedKey = cfg.checklistClass ? ENUM_TO_KEY[cfg.checklistClass] : null;
       if (mappedKey) {

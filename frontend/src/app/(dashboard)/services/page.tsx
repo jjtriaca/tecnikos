@@ -28,6 +28,7 @@ interface Service {
     materials?: string[];
     initialCheck?: string[];
     finalCheck?: string[];
+    custom?: string[];
   } | null;
   category: string | null;
   isActive: boolean;
@@ -65,6 +66,7 @@ const CHECKLIST_CLASSES = [
   { key: "materials" as const, label: "Materiais", icon: "📦", placeholder: "Ex: Cabo 2.5mm, Disjuntor 20A, Fita isolante..." },
   { key: "initialCheck" as const, label: "Verificação Inicial", icon: "📋", placeholder: "Ex: Local energizado?, Risco de queda?, Cliente presente?..." },
   { key: "finalCheck" as const, label: "Verificação Final", icon: "✅", placeholder: "Ex: Área limpa?, Equipamentos testados?, Cliente assinou?..." },
+  { key: "custom" as const, label: "Personalizado", icon: "📝", placeholder: "Ex: Item específico do serviço, Verificação extra..." },
 ];
 
 const UNIT_OPTIONS = [
@@ -196,7 +198,7 @@ const EMPTY_FORM = {
   priceCents: "",
   commissionBps: "",
   defaultQty: "",
-  checklists: { toolsPpe: [] as string[], materials: [] as string[], initialCheck: [] as string[], finalCheck: [] as string[] },
+  checklists: { toolsPpe: [] as string[], materials: [] as string[], initialCheck: [] as string[], finalCheck: [] as string[], custom: [] as string[] },
   category: "",
   isActive: true,
 };
@@ -288,6 +290,7 @@ export default function ServicesPage() {
         materials: service.checklists?.materials || [],
         initialCheck: service.checklists?.initialCheck || [],
         finalCheck: service.checklists?.finalCheck || [],
+        custom: service.checklists?.custom || [],
       },
       category: service.category || "",
       isActive: service.isActive,
@@ -316,6 +319,7 @@ export default function ServicesPage() {
           materials: formData.checklists.materials.filter(Boolean),
           initialCheck: formData.checklists.initialCheck.filter(Boolean),
           finalCheck: formData.checklists.finalCheck.filter(Boolean),
+          custom: formData.checklists.custom.filter(Boolean),
         },
         category: formData.category || undefined,
         isActive: formData.isActive,
@@ -354,6 +358,7 @@ export default function ServicesPage() {
         materials: [...(service.checklists?.materials || [])],
         initialCheck: [...(service.checklists?.initialCheck || [])],
         finalCheck: [...(service.checklists?.finalCheck || [])],
+        custom: [...(service.checklists?.custom || [])],
       },
       category: service.category || "",
       isActive: true,

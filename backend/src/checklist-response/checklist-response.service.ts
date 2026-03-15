@@ -68,10 +68,11 @@ export class ChecklistResponseService {
       MATERIALS: 'materials',
       INITIAL_CHECK: 'initialCheck',
       FINAL_CHECK: 'finalCheck',
+      CUSTOM: 'custom',
     };
 
     const key = classKeyMap[checklistClass];
-    if (!key) return { items: [] }; // CUSTOM class has no service items
+    if (!key) return { items: [] };
 
     // Combine items from all services, dedup by normalized text
     const seen = new Set<string>();

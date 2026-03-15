@@ -1564,8 +1564,8 @@ export class PublicOfferService {
 
   /** Aggregate checklist items from all services in the OS, dedup by normalized text */
   private aggregateServiceChecklists(services: any[]) {
-    const result: Record<string, string[]> = { toolsPpe: [], materials: [], initialCheck: [], finalCheck: [] };
-    const seen: Record<string, Set<string>> = { toolsPpe: new Set(), materials: new Set(), initialCheck: new Set(), finalCheck: new Set() };
+    const result: Record<string, string[]> = { toolsPpe: [], materials: [], initialCheck: [], finalCheck: [], custom: [] };
+    const seen: Record<string, Set<string>> = { toolsPpe: new Set(), materials: new Set(), initialCheck: new Set(), finalCheck: new Set(), custom: new Set() };
 
     for (const soi of services) {
       const cl = soi.service?.checklists as any;

@@ -37,6 +37,7 @@ export class CreateServiceDto {
     materials?: string[];
     initialCheck?: string[];
     finalCheck?: string[];
+    custom?: string[];
   };
 
   @IsOptional()

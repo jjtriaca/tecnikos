@@ -261,7 +261,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
     ...stage,
     techActions: { ...stage.techActions, [key]: { ...stage.techActions[key as keyof typeof stage.techActions], ...patch } },
   });
-  const updateChecklistCls = (cls: 'toolsPpe' | 'materials' | 'initialCheck' | 'finalCheck', patch: any) => onChange({
+  const updateChecklistCls = (cls: 'toolsPpe' | 'materials' | 'initialCheck' | 'finalCheck' | 'custom', patch: any) => onChange({
     ...stage,
     techActions: { ...stage.techActions, checklistConfig: { ...stage.techActions.checklistConfig, [cls]: { ...stage.techActions.checklistConfig[cls], ...patch } } },
   });
@@ -1980,6 +1980,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 { cls: 'materials' as const, labelKey: 'checklistMaterials' },
                 { cls: 'initialCheck' as const, labelKey: 'checklistInitialCheck' },
                 { cls: 'finalCheck' as const, labelKey: 'checklistFinalCheck' },
+                { cls: 'custom' as const, labelKey: 'checklistCustom' },
               ]).map(({ cls, labelKey }) => (
                 <div key={cls}>
                   <Toggle

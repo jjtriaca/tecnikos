@@ -38,6 +38,7 @@ export class UpdateServiceDto {
     materials?: string[];
     initialCheck?: string[];
     finalCheck?: string[];
+    custom?: string[];
   };
 
   @IsOptional()
