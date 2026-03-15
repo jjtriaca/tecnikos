@@ -344,9 +344,14 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 ⚡ {(AUTO_ACTION_LABELS as any)[key]?.label || key}
               </span>
             ))}
-            {Object.entries(stage.techActions).filter(([, a]) => a.enabled).map(([key]) => (
+            {Object.entries(stage.techActions).filter(([k, a]) => k !== 'checklistConfig' && (a as any).enabled).map(([key]) => (
               <span key={key} className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
                 👷 {(TECH_ACTION_LABELS as any)[key]?.label || key}
+              </span>
+            ))}
+            {Object.entries(stage.techActions.checklistConfig).filter(([, c]) => c.enabled).map(([key]) => (
+              <span key={`cl-${key}`} className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                📋 {(TECH_ACTION_LABELS as any)[`checklist${key.charAt(0).toUpperCase() + key.slice(1)}`]?.label || key}
               </span>
             ))}
             {Object.entries(stage.timeControl).filter(([, a]) => a.enabled).map(([key]) => (
