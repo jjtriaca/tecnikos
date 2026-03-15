@@ -2008,17 +2008,20 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 </div>
                 <input type="checkbox" checked={block.enabled}
                   onChange={e => {
+                    const checked = e.target.checked;
                     const l = [...layout];
-                    l[bi] = { ...l[bi], enabled: e.target.checked };
-                    updateLayout(l);
-                    // Sync techActions enabled state
+                    l[bi] = { ...l[bi], enabled: checked };
+                    // Build combined update: layout + techActions in one onChange call
+                    const layoutKey = isExec ? 'execLinkLayout' : 'concLinkLayout';
+                    let techPatch = { ...stage.techActions };
                     if (block.type === 'checklist' && block.checklistClass) {
                       const clsKey = CLS_KEY_MAP[block.checklistClass];
-                      if (clsKey) updateChecklistCls(clsKey, { enabled: e.target.checked });
+                      if (clsKey) techPatch = { ...techPatch, checklistConfig: { ...techPatch.checklistConfig, [clsKey]: { ...techPatch.checklistConfig[clsKey], enabled: checked } } };
                     } else if (['step', 'photo', 'form', 'note', 'signature'].includes(block.type)) {
                       const techKey = block.type === 'photo' ? (isExec ? 'photoRequirements' : 'photo') : block.type;
-                      updateTech(techKey, { enabled: e.target.checked });
+                      techPatch = { ...techPatch, [techKey]: { ...(techPatch as any)[techKey], enabled: checked } };
                     }
+                    onChange({ ...stage, [layoutKey]: l, techActions: techPatch });
                   }}
                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-200 h-3.5 w-3.5 mt-0.5" />
                 <span className="text-xs mt-0.5">
