@@ -511,7 +511,7 @@ export class PublicOfferService {
 
         const so = await tx.serviceOrder.findUnique({
           where: { id: offer.serviceOrderId },
-          select: { assignedPartnerId: true, status: true, acceptedAt: true },
+          select: { assignedPartnerId: true, status: true, acceptedAt: true, directedTechnicianIds: true, techAssignmentMode: true },
         });
 
         const now = new Date();
@@ -523,10 +523,20 @@ export class PublicOfferService {
             data: { acceptedAt: now, status: ServiceOrderStatus.ATRIBUIDA },
           });
         } else if (!so?.assignedPartnerId) {
-          // DIRECTED mode — need to find which tech got this link
-          // For now, just mark the offer as accepted without assigning
-          // (future: associate technicianId with the offer)
-          throw new BadRequestException('Técnico não atribuído a esta OS');
+          // DIRECTED mode — assign first directed technician
+          const directedIds = so?.directedTechnicianIds || [];
+          if (directedIds.length > 0) {
+            await tx.serviceOrder.update({
+              where: { id: offer.serviceOrderId },
+              data: {
+                assignedPartnerId: directedIds[0],
+                acceptedAt: now,
+                status: ServiceOrderStatus.ATRIBUIDA,
+              },
+            });
+          } else {
+            throw new BadRequestException('Técnico não atribuído a esta OS');
+          }
         }
 
         // Revoke all offers for this OS
