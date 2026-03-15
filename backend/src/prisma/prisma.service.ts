@@ -141,6 +141,7 @@ export class PrismaService
     await this.fixOrphanImportedStatus();
     await this.ensureMultiTenantTables();
     await this.ensureChecklistResponseTable();
+    await this.ensureServiceOrderItemTable();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -912,6 +913,28 @@ export class PrismaService
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ChecklistResponse_serviceOrderId_checklistClass_idx" ON "ChecklistResponse"("serviceOrderId", "checklistClass")`);
     } catch (err) {
       this.logger.warn('ChecklistResponse auto-migration check failed (non-fatal):', err);
+    }
+  }
+
+  private async ensureServiceOrderItemTable(): Promise<void> {
+    try {
+      await this.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "ServiceOrderItem" (
+          "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
+          "serviceOrderId" TEXT NOT NULL,
+          "serviceId" TEXT NOT NULL,
+          "serviceName" TEXT NOT NULL,
+          "unit" TEXT NOT NULL,
+          "quantity" INTEGER NOT NULL DEFAULT 1,
+          "unitPriceCents" INTEGER NOT NULL,
+          "commissionBps" INTEGER,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "ServiceOrderItem_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceOrderItem_serviceOrderId_idx" ON "ServiceOrderItem"("serviceOrderId")`);
+    } catch (err) {
+      this.logger.warn('ServiceOrderItem auto-migration check failed (non-fatal):', err);
     }
   }
 
