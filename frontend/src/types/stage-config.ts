@@ -106,7 +106,8 @@ export interface StageConfig {
           acceptOS: boolean;
           gpsNavigation: boolean;
           enRoute: boolean;
-          pageLayout: LinkPageBlock[];
+          pageLayout: LinkPageBlock[];       // Página 1 — Oferta
+          page2Layout: LinkPageBlock[];      // Página 2 — Pós-aceite
           /* ── Notificações por ação do link ── */
           onAccept:  { notifyGestor: { enabled: boolean; channel: string; message: string }; notifyCliente: { enabled: boolean; channel: string; message: string } };
           onGps:     { notifyGestor: { enabled: boolean; channel: string; message: string }; notifyCliente: { enabled: boolean; channel: string; message: string } };
@@ -232,13 +233,15 @@ export interface FinancialEntryConfig {
 
 export interface LinkPageBlock {
   id: string;
-  type: 'info' | 'text';
+  type: 'info' | 'text' | 'checklist' | 'gps_button' | 'enroute_button';
   /** Para type='info': qual campo de dados exibir */
   field?: string;
   /** Label exibido na página */
   label: string;
   /** Para type='text': conteúdo livre com variáveis de template */
   content?: string;
+  /** Para type='checklist': classe do checklist */
+  checklistClass?: 'TOOLS_PPE' | 'MATERIALS' | 'INITIAL_CHECK' | 'FINAL_CHECK' | 'CUSTOM';
   enabled: boolean;
 }
 
@@ -1059,8 +1062,16 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
               { id: 'bl_09', type: 'info', field: 'city',        label: 'Cidade',              enabled: false },
               { id: 'bl_10', type: 'info', field: 'company',     label: 'Nome da empresa',     enabled: false },
               { id: 'bl_11', type: 'text', label: 'Texto livre 1', content: '', enabled: false },
-              { id: 'bl_12', type: 'text', label: 'Texto livre 2', content: '', enabled: false },
-              { id: 'bl_13', type: 'text', label: 'Texto livre 3', content: '', enabled: false },
+              { id: 'bl_cl1', type: 'checklist', checklistClass: 'TOOLS_PPE',    label: 'Ferramentas e EPI',    enabled: false },
+              { id: 'bl_cl2', type: 'checklist', checklistClass: 'MATERIALS',    label: 'Materiais',            enabled: false },
+              { id: 'bl_cl3', type: 'checklist', checklistClass: 'CUSTOM',       label: 'Personalizado',        enabled: false },
+            ],
+            page2Layout: [
+              { id: 'p2_gps', type: 'gps_button',     label: 'Botão "Ativar GPS"',     enabled: true },
+              { id: 'p2_enr', type: 'enroute_button',  label: 'Botão "Estou a caminho"', enabled: true },
+              { id: 'p2_cl1', type: 'checklist', checklistClass: 'TOOLS_PPE',    label: 'Ferramentas e EPI',    enabled: false },
+              { id: 'p2_cl2', type: 'checklist', checklistClass: 'MATERIALS',    label: 'Materiais',            enabled: false },
+              { id: 'p2_cl3', type: 'checklist', checklistClass: 'CUSTOM',       label: 'Personalizado',        enabled: false },
             ],
             onAccept:  { notifyGestor: { enabled: false, channel: 'whatsapp', message: 'Técnico {tecnico} aceitou a OS {titulo}.' }, notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Um técnico foi designado para sua solicitação {titulo}.' } },
             onGps:     { notifyGestor: { enabled: false, channel: 'whatsapp', message: 'Técnico {tecnico} ativou GPS — a caminho de {endereco}.' }, notifyCliente: { enabled: false, channel: 'whatsapp', message: 'O técnico está rastreando sua localização. OS: {titulo}.' } },
@@ -1592,9 +1603,11 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
             validityHours: techLink.validityHours,
             agendaMarginHours: techLink.agendaMarginHours,
             acceptOS: techLink.acceptOS,
-            gpsNavigation: techLink.gpsNavigation,
-            enRoute: techLink.enRoute,
-            pageLayout: techLink.pageLayout,  // save ALL blocks (enabled flag preserved for round-trip)
+            // Derive gps/enRoute from page2Layout blocks (source of truth) with fallback to legacy flags
+            gpsNavigation: techLink.page2Layout?.some((b: LinkPageBlock) => b.type === 'gps_button' && b.enabled) ?? techLink.gpsNavigation,
+            enRoute: techLink.page2Layout?.some((b: LinkPageBlock) => b.type === 'enroute_button' && b.enabled) ?? techLink.enRoute,
+            pageLayout: techLink.pageLayout,    // Página 1 — Oferta
+            page2Layout: techLink.page2Layout,  // Página 2 — Pós-aceite
             onAccept:  techLink.onAccept,
             onGps:     techLink.onGps,
             onEnRoute: techLink.onEnRoute,
@@ -2200,6 +2213,22 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
                     ...defaultLayout.filter(d => !savedMap.has(d.id)),
                   ];
                   stage.autoActions.messageDispatch.toTechnicians.link.pageLayout = merged;
+                }
+                if (r.linkConfig.page2Layout?.length) {
+                  const defaultP2 = stage.autoActions.messageDispatch.toTechnicians.link.page2Layout;
+                  const savedP2Map = new Map(r.linkConfig.page2Layout.map((b: any) => [b.id, b]));
+                  const mergedP2 = [
+                    ...r.linkConfig.page2Layout,
+                    ...defaultP2.filter((d: LinkPageBlock) => !savedP2Map.has(d.id)),
+                  ];
+                  stage.autoActions.messageDispatch.toTechnicians.link.page2Layout = mergedP2;
+                } else {
+                  // Backward compat: sync legacy gpsNavigation/enRoute flags into page2Layout blocks
+                  const p2 = stage.autoActions.messageDispatch.toTechnicians.link.page2Layout;
+                  const gpsBlock = p2.find(b => b.type === 'gps_button');
+                  const enrBlock = p2.find(b => b.type === 'enroute_button');
+                  if (gpsBlock) gpsBlock.enabled = r.linkConfig.gpsNavigation ?? false;
+                  if (enrBlock) enrBlock.enabled = r.linkConfig.enRoute ?? false;
                 }
               }
             }

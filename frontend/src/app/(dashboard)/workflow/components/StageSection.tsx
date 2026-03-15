@@ -17,7 +17,7 @@ import {
   FINANCIAL_ENTRY_TYPES, FINANCIAL_VALUE_SOURCES,
   GESTOR_REJECT_ACTIONS, COMMISSION_ADJUSTMENT_TYPES,
 } from '@/types/stage-config';
-import type { FinancialEntryConfig } from '@/types/stage-config';
+import type { FinancialEntryConfig, LinkPageBlock } from '@/types/stage-config';
 
 /* ── Props ─────────────────────────────────────────────────── */
 
@@ -577,15 +577,43 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                             <span className="text-xs">
                                               {block.type === 'info'
                                                 ? (LINK_PAGE_FIELDS.find(f => f.field === block.field)?.icon || '📋')
-                                                : '✏️'}
+                                                : block.type === 'checklist'
+                                                  ? ({ TOOLS_PPE: '🔧', MATERIALS: '📦', INITIAL_CHECK: '📋', FINAL_CHECK: '✅', CUSTOM: '📝' }[block.checklistClass || ''] || '☑️')
+                                                  : '✏️'}
                                             </span>
                                             {block.type === 'info' ? (
                                               <span className="text-xs text-slate-700 flex-1">{block.label}</span>
+                                            ) : block.type === 'checklist' ? (
+                                              <div className="flex-1">
+                                                <span className="text-xs font-medium text-slate-700">{block.label}</span>
+                                                {block.enabled && block.checklistClass && (() => {
+                                                  const CLS_KEY_MAP: Record<string, 'toolsPpe' | 'materials' | 'initialCheck' | 'finalCheck' | 'custom'> = {
+                                                    TOOLS_PPE: 'toolsPpe', MATERIALS: 'materials', INITIAL_CHECK: 'initialCheck', FINAL_CHECK: 'finalCheck', CUSTOM: 'custom',
+                                                  };
+                                                  const clsKey = CLS_KEY_MAP[block.checklistClass!];
+                                                  if (!clsKey) return null;
+                                                  const cfg = stage.techActions.checklistConfig[clsKey];
+                                                  return (
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                      <select value={cfg.mode} onChange={e => updateChecklistCls(clsKey, { mode: e.target.value })}
+                                                        className="text-[10px] rounded border border-slate-300 px-1 py-0.5 bg-white">
+                                                        <option value="ITEM_BY_ITEM">Item a item</option>
+                                                        <option value="FULL">Inteiro</option>
+                                                      </select>
+                                                      <select value={cfg.required} onChange={e => updateChecklistCls(clsKey, { required: e.target.value })}
+                                                        className="text-[10px] rounded border border-slate-300 px-1 py-0.5 bg-white">
+                                                        <option value="REQUIRED">Obrigatório</option>
+                                                        <option value="RECOMMENDED">Recomendado</option>
+                                                      </select>
+                                                    </div>
+                                                  );
+                                                })()}
+                                              </div>
                                             ) : (
                                               <div className="flex-1 flex flex-col gap-1">
                                                 <span className="text-xs font-medium text-slate-600">{block.label}</span>
                                                 {block.enabled && (
-                                                  <input type="text" value={block.content || ''} placeholder="Digite o texto com {variáveis}..."
+                                                  <input type="text" value={block.content || ''} placeholder="Ex: Atenção: levar kit completo de ferramentas conforme checklist. Dúvidas ligue {telefone}."
                                                     onChange={e => {
                                                       const layout = [...lnk.pageLayout];
                                                       layout[bi] = { ...layout[bi], content: e.target.value };
@@ -598,6 +626,96 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                           </div>
                                         ))}
                                       </div>
+                                    </div>
+
+                                    {/* ── PERGUNTA PARA O TÉCNICO (acima do Aceitar) ── */}
+                                    <div className="pt-2 border-t border-blue-200">
+                                      <Toggle checked={stage.autoActions.techQuestion.enabled}
+                                        onChange={v => {
+                                          if (v) {
+                                            const tq = stage.autoActions.techQuestion;
+                                            onChange({
+                                              ...stage,
+                                              autoActions: { ...stage.autoActions, techQuestion: { ...tq, enabled: true } },
+                                              techActions: { ...stage.techActions, question: { enabled: true, question: tq.question, options: tq.options.map(o => o.label) } },
+                                            });
+                                          } else {
+                                            onChange({
+                                              ...stage,
+                                              autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, enabled: false } },
+                                              techActions: { ...stage.techActions, question: { enabled: false, question: '', options: [] } },
+                                            });
+                                          }
+                                        }}
+                                        label="❓ Pergunta para o técnico"
+                                        hint="Exibe uma pergunta na página do link. O técnico responde antes de aceitar a OS. Cada opção pode disparar uma ação automática." />
+                                      <ConfigRow visible={stage.autoActions.techQuestion.enabled}>
+                                        <div className="space-y-3">
+                                          <TextField label="Pergunta" value={stage.autoActions.techQuestion.question}
+                                            onChange={v => {
+                                              onChange({
+                                                ...stage,
+                                                autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, question: v } },
+                                                techActions: { ...stage.techActions, question: { ...stage.techActions.question, question: v } },
+                                              });
+                                            }}
+                                            placeholder="Ex: Você tem disponibilidade para atender esta OS?" />
+                                          <div>
+                                            <span className="text-xs font-medium text-slate-600 block mb-2">Opções de resposta:</span>
+                                            <div className="space-y-2">
+                                              {stage.autoActions.techQuestion.options.map((opt, oi) => (
+                                                <div key={oi} className="flex items-start gap-2 p-2 rounded border border-slate-200 bg-white">
+                                                  <span className="text-xs text-slate-400 mt-1.5 font-mono w-4">{oi + 1}.</span>
+                                                  <div className="flex-1 space-y-1.5">
+                                                    <input type="text" value={opt.label} placeholder="Texto da opção"
+                                                      onChange={e => {
+                                                        const newOpts = [...stage.autoActions.techQuestion.options];
+                                                        newOpts[oi] = { ...newOpts[oi], label: e.target.value };
+                                                        onChange({
+                                                          ...stage,
+                                                          autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
+                                                          techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
+                                                        });
+                                                      }}
+                                                      className="w-full text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
+                                                    <SelectField label="Ação" value={opt.action}
+                                                      onChange={v => {
+                                                        const newOpts = [...stage.autoActions.techQuestion.options];
+                                                        newOpts[oi] = { ...newOpts[oi], action: v };
+                                                        updateAuto('techQuestion', { options: newOpts });
+                                                      }}
+                                                      options={QUESTION_ACTIONS} />
+                                                  </div>
+                                                  <button type="button"
+                                                    onClick={() => {
+                                                      const newOpts = stage.autoActions.techQuestion.options.filter((_: TechQuestionOption, i: number) => i !== oi);
+                                                      onChange({
+                                                        ...stage,
+                                                        autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
+                                                        techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map((o: TechQuestionOption) => o.label) } },
+                                                      });
+                                                    }}
+                                                    className="text-red-400 hover:text-red-600 p-0.5 text-xs mt-1">✕</button>
+                                                </div>
+                                              ))}
+                                              <button type="button"
+                                                onClick={() => {
+                                                  const newOpt: TechQuestionOption = { label: '', action: 'none' };
+                                                  const newOpts = [...stage.autoActions.techQuestion.options, newOpt];
+                                                  onChange({
+                                                    ...stage,
+                                                    autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
+                                                    techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
+                                                  });
+                                                }}
+                                                className="text-xs text-blue-600 hover:text-blue-800 font-medium">+ Adicionar opção</button>
+                                            </div>
+                                          </div>
+                                          <SubToggle checked={stage.autoActions.techQuestion.required}
+                                            onChange={v => updateAuto('techQuestion', { required: v })}
+                                            label="Obrigatória (técnico deve responder para prosseguir)" />
+                                        </div>
+                                      </ConfigRow>
                                     </div>
 
                                     {/* Botão aceitar */}
@@ -649,170 +767,205 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     <div className="pt-2 border-t border-blue-200">
                                       <span className="text-xs font-bold text-slate-600 block mb-2">📄 Página 2 — Pós-aceite</span>
                                       <p className="text-[10px] text-slate-400 mb-2">Após aceitar, o técnico vê esta página até agir.</p>
-                                      <div className="space-y-3">
-                                        {/* GPS button + notifications */}
-                                        <div>
-                                          <SubToggle checked={lnk.gpsNavigation} onChange={v => updateLink({ gpsNavigation: v })}
-                                            label="📡 Botão &quot;Ativar GPS&quot;" />
-                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Rastreamento por proximidade até o local do serviço.</p>
-                                          {lnk.gpsNavigation && (
-                                            <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-cyan-200">
-                                              <SubToggle checked={lnk.onGps.notifyGestor.enabled}
-                                                onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, enabled: v } } })}
-                                                label="👔 Notificar gestor ao ativar GPS" />
-                                              {lnk.onGps.notifyGestor.enabled && (
-                                                <div className="ml-5 space-y-1">
-                                                  <SelectField label="Canal" value={lnk.onGps.notifyGestor.channel}
-                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, channel: v } } })}
-                                                    options={CHANNEL_OPTIONS} />
-                                                  <WhatsAppCostWarning channel={lnk.onGps.notifyGestor.channel} />
-                                                  <TextAreaField label="Mensagem" value={lnk.onGps.notifyGestor.message}
-                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, message: v } } })}
-                                                    placeholder="Ex: Técnico {tecnico} ativou GPS — a caminho de {endereco}." vars />
-                                                </div>
-                                              )}
-                                              <SubToggle checked={lnk.onGps.notifyCliente.enabled}
-                                                onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, enabled: v } } })}
-                                                label="👤 Notificar cliente ao ativar GPS" />
-                                              {lnk.onGps.notifyCliente.enabled && (
-                                                <div className="ml-5 space-y-1">
-                                                  <SelectField label="Canal" value={lnk.onGps.notifyCliente.channel}
-                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, channel: v } } })}
-                                                    options={CHANNEL_OPTIONS} />
-                                                  <WhatsAppCostWarning channel={lnk.onGps.notifyCliente.channel} />
-                                                  <TextAreaField label="Mensagem" value={lnk.onGps.notifyCliente.message}
-                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, message: v } } })}
-                                                    placeholder="Ex: O técnico está rastreando sua localização." vars />
-                                                </div>
-                                              )}
+                                      <div className="space-y-1">
+                                        {lnk.page2Layout.map((block: LinkPageBlock, bi: number) => (
+                                          <div key={block.id}>
+                                            <div className={`flex items-center gap-2 p-1.5 rounded border transition-colors ${block.enabled ? 'border-blue-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
+                                              <div className="flex flex-col gap-0.5">
+                                                <button type="button" disabled={bi === 0}
+                                                  onClick={() => { const layout = [...lnk.page2Layout]; [layout[bi - 1], layout[bi]] = [layout[bi], layout[bi - 1]]; updateLink({ page2Layout: layout }); }}
+                                                  className="text-[10px] text-slate-400 hover:text-slate-600 disabled:opacity-30">▲</button>
+                                                <button type="button" disabled={bi === lnk.page2Layout.length - 1}
+                                                  onClick={() => { const layout = [...lnk.page2Layout]; [layout[bi], layout[bi + 1]] = [layout[bi + 1], layout[bi]]; updateLink({ page2Layout: layout }); }}
+                                                  className="text-[10px] text-slate-400 hover:text-slate-600 disabled:opacity-30">▼</button>
+                                              </div>
+                                              <input type="checkbox" checked={block.enabled}
+                                                onChange={e => { const layout = [...lnk.page2Layout]; layout[bi] = { ...layout[bi], enabled: e.target.checked }; updateLink({ page2Layout: layout }); }}
+                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-200 h-3.5 w-3.5" />
+                                              <span className="text-xs">
+                                                {block.type === 'gps_button' ? '📡' : block.type === 'enroute_button' ? '🚗' :
+                                                  block.type === 'checklist' ? ({ TOOLS_PPE: '🔧', MATERIALS: '📦', CUSTOM: '📝' }[block.checklistClass || ''] || '☑️') : '📋'}
+                                              </span>
+                                              <div className="flex-1">
+                                                <span className="text-xs font-medium text-slate-700">{block.label}</span>
+                                                {block.type === 'checklist' && block.enabled && block.checklistClass && (() => {
+                                                  const CLS_KEY_MAP: Record<string, 'toolsPpe' | 'materials' | 'initialCheck' | 'finalCheck' | 'custom'> = {
+                                                    TOOLS_PPE: 'toolsPpe', MATERIALS: 'materials', INITIAL_CHECK: 'initialCheck', FINAL_CHECK: 'finalCheck', CUSTOM: 'custom',
+                                                  };
+                                                  const clsKey = CLS_KEY_MAP[block.checklistClass!];
+                                                  if (!clsKey) return null;
+                                                  const cfg = stage.techActions.checklistConfig[clsKey];
+                                                  return (
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                      <select value={cfg.mode} onChange={e => updateChecklistCls(clsKey, { mode: e.target.value })}
+                                                        className="text-[10px] rounded border border-slate-300 px-1 py-0.5 bg-white">
+                                                        <option value="ITEM_BY_ITEM">Item a item</option>
+                                                        <option value="FULL">Inteiro</option>
+                                                      </select>
+                                                      <select value={cfg.required} onChange={e => updateChecklistCls(clsKey, { required: e.target.value })}
+                                                        className="text-[10px] rounded border border-slate-300 px-1 py-0.5 bg-white">
+                                                        <option value="REQUIRED">Obrigatório</option>
+                                                        <option value="RECOMMENDED">Recomendado</option>
+                                                      </select>
+                                                    </div>
+                                                  );
+                                                })()}
+                                              </div>
                                             </div>
-                                          )}
-                                        </div>
-                                        {/* En Route button + notifications */}
-                                        <div>
-                                          <SubToggle checked={lnk.enRoute} onChange={v => updateLink({ enRoute: v })}
-                                            label="🚗 Botão &quot;Estou a caminho&quot;" />
-                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Registra timestamp de partida.</p>
-                                          {lnk.enRoute && (
-                                            <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-orange-200">
-                                              <SubToggle checked={lnk.onEnRoute.notifyGestor.enabled}
-                                                onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, enabled: v } } })}
-                                                label="👔 Notificar gestor ao sair" />
-                                              {lnk.onEnRoute.notifyGestor.enabled && (
-                                                <div className="ml-5 space-y-1">
-                                                  <SelectField label="Canal" value={lnk.onEnRoute.notifyGestor.channel}
-                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, channel: v } } })}
-                                                    options={CHANNEL_OPTIONS} />
-                                                  <WhatsAppCostWarning channel={lnk.onEnRoute.notifyGestor.channel} />
-                                                  <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyGestor.message}
-                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, message: v } } })}
-                                                    placeholder="Ex: Técnico {tecnico} está a caminho. OS: {titulo}." vars />
-                                                </div>
-                                              )}
-                                              <SubToggle checked={lnk.onEnRoute.notifyCliente.enabled}
-                                                onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, enabled: v } } })}
-                                                label="👤 Notificar cliente ao sair" />
-                                              {lnk.onEnRoute.notifyCliente.enabled && (
-                                                <div className="ml-5 space-y-1">
-                                                  <SelectField label="Canal" value={lnk.onEnRoute.notifyCliente.channel}
-                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, channel: v } } })}
-                                                    options={CHANNEL_OPTIONS} />
-                                                  <WhatsAppCostWarning channel={lnk.onEnRoute.notifyCliente.channel} />
-                                                  <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyCliente.message}
-                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, message: v } } })}
-                                                    placeholder="Ex: O técnico está a caminho! OS: {titulo}." vars />
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
+                                            {/* Sub-notifications for GPS button */}
+                                            {block.type === 'gps_button' && block.enabled && (
+                                              <div className="ml-8 mt-1 mb-1 space-y-1.5 pl-3 border-l-2 border-cyan-200">
+                                                <SubToggle checked={lnk.onGps.notifyGestor.enabled}
+                                                  onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, enabled: v } } })}
+                                                  label="👔 Notificar gestor ao ativar GPS" />
+                                                {lnk.onGps.notifyGestor.enabled && (
+                                                  <div className="ml-5 space-y-1">
+                                                    <SelectField label="Canal" value={lnk.onGps.notifyGestor.channel}
+                                                      onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, channel: v } } })}
+                                                      options={CHANNEL_OPTIONS} />
+                                                    <WhatsAppCostWarning channel={lnk.onGps.notifyGestor.channel} />
+                                                    <TextAreaField label="Mensagem" value={lnk.onGps.notifyGestor.message}
+                                                      onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, message: v } } })}
+                                                      placeholder="Ex: Técnico {tecnico} ativou GPS — a caminho de {endereco}." vars />
+                                                  </div>
+                                                )}
+                                                <SubToggle checked={lnk.onGps.notifyCliente.enabled}
+                                                  onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, enabled: v } } })}
+                                                  label="👤 Notificar cliente ao ativar GPS" />
+                                                {lnk.onGps.notifyCliente.enabled && (
+                                                  <div className="ml-5 space-y-1">
+                                                    <SelectField label="Canal" value={lnk.onGps.notifyCliente.channel}
+                                                      onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, channel: v } } })}
+                                                      options={CHANNEL_OPTIONS} />
+                                                    <WhatsAppCostWarning channel={lnk.onGps.notifyCliente.channel} />
+                                                    <TextAreaField label="Mensagem" value={lnk.onGps.notifyCliente.message}
+                                                      onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, message: v } } })}
+                                                      placeholder="Ex: O técnico está rastreando sua localização." vars />
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                            {/* Sub-notifications for En-route button */}
+                                            {block.type === 'enroute_button' && block.enabled && (
+                                              <div className="ml-8 mt-1 mb-1 space-y-1.5 pl-3 border-l-2 border-orange-200">
+                                                <SubToggle checked={lnk.onEnRoute.notifyGestor.enabled}
+                                                  onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, enabled: v } } })}
+                                                  label="👔 Notificar gestor ao sair" />
+                                                {lnk.onEnRoute.notifyGestor.enabled && (
+                                                  <div className="ml-5 space-y-1">
+                                                    <SelectField label="Canal" value={lnk.onEnRoute.notifyGestor.channel}
+                                                      onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, channel: v } } })}
+                                                      options={CHANNEL_OPTIONS} />
+                                                    <WhatsAppCostWarning channel={lnk.onEnRoute.notifyGestor.channel} />
+                                                    <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyGestor.message}
+                                                      onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, message: v } } })}
+                                                      placeholder="Ex: Técnico {tecnico} está a caminho. OS: {titulo}." vars />
+                                                  </div>
+                                                )}
+                                                <SubToggle checked={lnk.onEnRoute.notifyCliente.enabled}
+                                                  onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, enabled: v } } })}
+                                                  label="👤 Notificar cliente ao sair" />
+                                                {lnk.onEnRoute.notifyCliente.enabled && (
+                                                  <div className="ml-5 space-y-1">
+                                                    <SelectField label="Canal" value={lnk.onEnRoute.notifyCliente.channel}
+                                                      onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, channel: v } } })}
+                                                      options={CHANNEL_OPTIONS} />
+                                                    <WhatsAppCostWarning channel={lnk.onEnRoute.notifyCliente.channel} />
+                                                    <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyCliente.message}
+                                                      onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, message: v } } })}
+                                                      placeholder="Ex: O técnico está a caminho! OS: {titulo}." vars />
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
                                       </div>
                                     </div>
                                   )}
 
-                                  {/* ── PÁGINA SEM ACEITE (só se acceptOS desativado) ── */}
+                                  {/* ── PÁGINA SEM ACEITE (usa page2Layout sem aceite) ── */}
                                   {!lnk.acceptOS && (
                                     <div className="pt-2 border-t border-blue-200">
                                       <span className="text-xs font-bold text-slate-600 block mb-2">📄 Ações na página (sem aceite)</span>
                                       <p className="text-[10px] text-slate-400 mb-2">Página informativa. O primeiro clique em qualquer botão trava o link para o dispositivo.</p>
-                                      <div className="space-y-3">
-                                        {/* GPS button + notifications (no-accept mode) */}
-                                        <div>
-                                          <SubToggle checked={lnk.gpsNavigation} onChange={v => updateLink({ gpsNavigation: v })}
-                                            label="📡 Botão &quot;Ativar GPS&quot;" />
-                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Rastreamento por proximidade até o local do serviço.</p>
-                                          {lnk.gpsNavigation && (
-                                            <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-cyan-200">
-                                              <SubToggle checked={lnk.onGps.notifyGestor.enabled}
-                                                onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, enabled: v } } })}
-                                                label="👔 Notificar gestor ao ativar GPS" />
-                                              {lnk.onGps.notifyGestor.enabled && (
-                                                <div className="ml-5 space-y-1">
-                                                  <SelectField label="Canal" value={lnk.onGps.notifyGestor.channel}
-                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, channel: v } } })}
-                                                    options={CHANNEL_OPTIONS} />
-                                                  <WhatsAppCostWarning channel={lnk.onGps.notifyGestor.channel} />
-                                                  <TextAreaField label="Mensagem" value={lnk.onGps.notifyGestor.message}
-                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, message: v } } })}
-                                                    placeholder="Ex: Técnico {tecnico} ativou GPS." vars />
-                                                </div>
-                                              )}
-                                              <SubToggle checked={lnk.onGps.notifyCliente.enabled}
-                                                onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, enabled: v } } })}
-                                                label="👤 Notificar cliente ao ativar GPS" />
-                                              {lnk.onGps.notifyCliente.enabled && (
-                                                <div className="ml-5 space-y-1">
-                                                  <SelectField label="Canal" value={lnk.onGps.notifyCliente.channel}
-                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, channel: v } } })}
-                                                    options={CHANNEL_OPTIONS} />
-                                                  <WhatsAppCostWarning channel={lnk.onGps.notifyCliente.channel} />
-                                                  <TextAreaField label="Mensagem" value={lnk.onGps.notifyCliente.message}
-                                                    onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, message: v } } })}
-                                                    placeholder="Ex: O técnico está rastreando sua localização." vars />
-                                                </div>
-                                              )}
+                                      <div className="space-y-1">
+                                        {lnk.page2Layout.filter((b: LinkPageBlock) => b.type === 'gps_button' || b.type === 'enroute_button').map((block: LinkPageBlock) => (
+                                          <div key={block.id}>
+                                            <div className={`flex items-center gap-2 p-1.5 rounded border transition-colors ${block.enabled ? 'border-blue-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
+                                              <input type="checkbox" checked={block.enabled}
+                                                onChange={e => { const layout = lnk.page2Layout.map((b: LinkPageBlock) => b.id === block.id ? { ...b, enabled: e.target.checked } : b); updateLink({ page2Layout: layout }); }}
+                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-200 h-3.5 w-3.5" />
+                                              <span className="text-xs">{block.type === 'gps_button' ? '📡' : '🚗'}</span>
+                                              <span className="text-xs font-medium text-slate-700 flex-1">{block.label}</span>
                                             </div>
-                                          )}
-                                        </div>
-                                        {/* En Route button + notifications (no-accept mode) */}
-                                        <div>
-                                          <SubToggle checked={lnk.enRoute} onChange={v => updateLink({ enRoute: v })}
-                                            label="🚗 Botão &quot;Estou a caminho&quot;" />
-                                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">Registra timestamp de partida.</p>
-                                          {lnk.enRoute && (
-                                            <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-orange-200">
-                                              <SubToggle checked={lnk.onEnRoute.notifyGestor.enabled}
-                                                onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, enabled: v } } })}
-                                                label="👔 Notificar gestor ao sair" />
-                                              {lnk.onEnRoute.notifyGestor.enabled && (
-                                                <div className="ml-5 space-y-1">
-                                                  <SelectField label="Canal" value={lnk.onEnRoute.notifyGestor.channel}
-                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, channel: v } } })}
-                                                    options={CHANNEL_OPTIONS} />
-                                                  <WhatsAppCostWarning channel={lnk.onEnRoute.notifyGestor.channel} />
-                                                  <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyGestor.message}
-                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, message: v } } })}
-                                                    placeholder="Ex: Técnico {tecnico} está a caminho." vars />
-                                                </div>
-                                              )}
-                                              <SubToggle checked={lnk.onEnRoute.notifyCliente.enabled}
-                                                onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, enabled: v } } })}
-                                                label="👤 Notificar cliente ao sair" />
-                                              {lnk.onEnRoute.notifyCliente.enabled && (
-                                                <div className="ml-5 space-y-1">
-                                                  <SelectField label="Canal" value={lnk.onEnRoute.notifyCliente.channel}
-                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, channel: v } } })}
-                                                    options={CHANNEL_OPTIONS} />
-                                                  <WhatsAppCostWarning channel={lnk.onEnRoute.notifyCliente.channel} />
-                                                  <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyCliente.message}
-                                                    onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, message: v } } })}
-                                                    placeholder="Ex: O técnico está a caminho! OS: {titulo}." vars />
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                        {!lnk.gpsNavigation && !lnk.enRoute && (
+                                            {block.type === 'gps_button' && block.enabled && (
+                                              <div className="ml-8 mt-1 mb-1 space-y-1.5 pl-3 border-l-2 border-cyan-200">
+                                                <SubToggle checked={lnk.onGps.notifyGestor.enabled}
+                                                  onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, enabled: v } } })}
+                                                  label="👔 Notificar gestor ao ativar GPS" />
+                                                {lnk.onGps.notifyGestor.enabled && (
+                                                  <div className="ml-5 space-y-1">
+                                                    <SelectField label="Canal" value={lnk.onGps.notifyGestor.channel}
+                                                      onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, channel: v } } })}
+                                                      options={CHANNEL_OPTIONS} />
+                                                    <WhatsAppCostWarning channel={lnk.onGps.notifyGestor.channel} />
+                                                    <TextAreaField label="Mensagem" value={lnk.onGps.notifyGestor.message}
+                                                      onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyGestor: { ...lnk.onGps.notifyGestor, message: v } } })}
+                                                      placeholder="Ex: Técnico {tecnico} ativou GPS." vars />
+                                                  </div>
+                                                )}
+                                                <SubToggle checked={lnk.onGps.notifyCliente.enabled}
+                                                  onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, enabled: v } } })}
+                                                  label="👤 Notificar cliente ao ativar GPS" />
+                                                {lnk.onGps.notifyCliente.enabled && (
+                                                  <div className="ml-5 space-y-1">
+                                                    <SelectField label="Canal" value={lnk.onGps.notifyCliente.channel}
+                                                      onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, channel: v } } })}
+                                                      options={CHANNEL_OPTIONS} />
+                                                    <WhatsAppCostWarning channel={lnk.onGps.notifyCliente.channel} />
+                                                    <TextAreaField label="Mensagem" value={lnk.onGps.notifyCliente.message}
+                                                      onChange={v => updateLink({ onGps: { ...lnk.onGps, notifyCliente: { ...lnk.onGps.notifyCliente, message: v } } })}
+                                                      placeholder="Ex: O técnico está rastreando sua localização." vars />
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                            {block.type === 'enroute_button' && block.enabled && (
+                                              <div className="ml-8 mt-1 mb-1 space-y-1.5 pl-3 border-l-2 border-orange-200">
+                                                <SubToggle checked={lnk.onEnRoute.notifyGestor.enabled}
+                                                  onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, enabled: v } } })}
+                                                  label="👔 Notificar gestor ao sair" />
+                                                {lnk.onEnRoute.notifyGestor.enabled && (
+                                                  <div className="ml-5 space-y-1">
+                                                    <SelectField label="Canal" value={lnk.onEnRoute.notifyGestor.channel}
+                                                      onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, channel: v } } })}
+                                                      options={CHANNEL_OPTIONS} />
+                                                    <WhatsAppCostWarning channel={lnk.onEnRoute.notifyGestor.channel} />
+                                                    <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyGestor.message}
+                                                      onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyGestor: { ...lnk.onEnRoute.notifyGestor, message: v } } })}
+                                                      placeholder="Ex: Técnico {tecnico} está a caminho." vars />
+                                                  </div>
+                                                )}
+                                                <SubToggle checked={lnk.onEnRoute.notifyCliente.enabled}
+                                                  onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, enabled: v } } })}
+                                                  label="👤 Notificar cliente ao sair" />
+                                                {lnk.onEnRoute.notifyCliente.enabled && (
+                                                  <div className="ml-5 space-y-1">
+                                                    <SelectField label="Canal" value={lnk.onEnRoute.notifyCliente.channel}
+                                                      onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, channel: v } } })}
+                                                      options={CHANNEL_OPTIONS} />
+                                                    <WhatsAppCostWarning channel={lnk.onEnRoute.notifyCliente.channel} />
+                                                    <TextAreaField label="Mensagem" value={lnk.onEnRoute.notifyCliente.message}
+                                                      onChange={v => updateLink({ onEnRoute: { ...lnk.onEnRoute, notifyCliente: { ...lnk.onEnRoute.notifyCliente, message: v } } })}
+                                                      placeholder="Ex: O técnico está a caminho! OS: {titulo}." vars />
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                        {!lnk.page2Layout.some((b: LinkPageBlock) => (b.type === 'gps_button' || b.type === 'enroute_button') && b.enabled) && (
                                           <p className="text-[10px] text-amber-600 italic">⚠️ Nenhum botão ativado — a página será apenas leitura (sem trava de dispositivo).</p>
                                         )}
                                       </div>
@@ -830,108 +983,6 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                 );
                               })()}
 
-                              {/* ── PERGUNTA PARA O TÉCNICO (dentro do link) ── */}
-                              <div className="pt-3 border-t border-blue-200 mt-3">
-                                <Toggle checked={stage.autoActions.techQuestion.enabled}
-                                  onChange={v => {
-                                    updateAuto('techQuestion', { enabled: v });
-                                    if (v) {
-                                      const tq = stage.autoActions.techQuestion;
-                                      onChange({
-                                        ...stage,
-                                        autoActions: { ...stage.autoActions, techQuestion: { ...tq, enabled: true } },
-                                        techActions: {
-                                          ...stage.techActions,
-                                          question: {
-                                            enabled: true,
-                                            question: tq.question,
-                                            options: tq.options.map(o => o.label),
-                                          },
-                                        },
-                                      });
-                                    } else {
-                                      onChange({
-                                        ...stage,
-                                        autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, enabled: false } },
-                                        techActions: {
-                                          ...stage.techActions,
-                                          question: { enabled: false, question: '', options: [] },
-                                        },
-                                      });
-                                    }
-                                  }}
-                                  label="❓ Pergunta para o técnico"
-                                  hint="Exibe uma pergunta na página do link. O técnico responde antes de aceitar a OS. Cada opção pode disparar uma ação automática." />
-                                <ConfigRow visible={stage.autoActions.techQuestion.enabled}>
-                                  <div className="space-y-3">
-                                    <TextField label="Pergunta" value={stage.autoActions.techQuestion.question}
-                                      onChange={v => {
-                                        onChange({
-                                          ...stage,
-                                          autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, question: v } },
-                                          techActions: { ...stage.techActions, question: { ...stage.techActions.question, question: v } },
-                                        });
-                                      }}
-                                      placeholder="Ex: Você tem disponibilidade para atender esta OS?" />
-
-                                    <div>
-                                      <span className="text-xs font-medium text-slate-600 block mb-2">Opções de resposta:</span>
-                                      <div className="space-y-2">
-                                        {stage.autoActions.techQuestion.options.map((opt, oi) => (
-                                          <div key={oi} className="flex items-start gap-2 p-2 rounded border border-slate-200 bg-white">
-                                            <span className="text-xs text-slate-400 mt-1.5 font-mono w-4">{oi + 1}.</span>
-                                            <div className="flex-1 space-y-1.5">
-                                              <input type="text" value={opt.label} placeholder="Texto da opção"
-                                                onChange={e => {
-                                                  const newOpts = [...stage.autoActions.techQuestion.options];
-                                                  newOpts[oi] = { ...newOpts[oi], label: e.target.value };
-                                                  onChange({
-                                                    ...stage,
-                                                    autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
-                                                    techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
-                                                  });
-                                                }}
-                                                className="w-full text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
-                                              <SelectField label="Ação" value={opt.action}
-                                                onChange={v => {
-                                                  const newOpts = [...stage.autoActions.techQuestion.options];
-                                                  newOpts[oi] = { ...newOpts[oi], action: v };
-                                                  updateAuto('techQuestion', { options: newOpts });
-                                                }}
-                                                options={QUESTION_ACTIONS} />
-                                            </div>
-                                            <button type="button"
-                                              onClick={() => {
-                                                const newOpts = stage.autoActions.techQuestion.options.filter((_, i) => i !== oi);
-                                                onChange({
-                                                  ...stage,
-                                                  autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
-                                                  techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
-                                                });
-                                              }}
-                                              className="text-red-400 hover:text-red-600 p-0.5 text-xs mt-1">✕</button>
-                                          </div>
-                                        ))}
-                                        <button type="button"
-                                          onClick={() => {
-                                            const newOpt: TechQuestionOption = { label: '', action: 'none' };
-                                            const newOpts = [...stage.autoActions.techQuestion.options, newOpt];
-                                            onChange({
-                                              ...stage,
-                                              autoActions: { ...stage.autoActions, techQuestion: { ...stage.autoActions.techQuestion, options: newOpts } },
-                                              techActions: { ...stage.techActions, question: { ...stage.techActions.question, options: newOpts.map(o => o.label) } },
-                                            });
-                                          }}
-                                          className="text-xs text-blue-600 hover:text-blue-800 font-medium">+ Adicionar opção</button>
-                                      </div>
-                                    </div>
-
-                                    <SubToggle checked={stage.autoActions.techQuestion.required}
-                                      onChange={v => updateAuto('techQuestion', { required: v })}
-                                      label="Obrigatória (técnico deve responder para prosseguir)" />
-                                  </div>
-                                </ConfigRow>
-                              </div>
                             </div>
                           </div>
                         )}
@@ -1874,11 +1925,13 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             {/* Alerta — REMOVIDO de todas as etapas (redundante com status no card) */}
           </div>
 
-          {/* ── AÇÕES DO TÉCNICO ── */}
+          {/* ── AÇÕES DO TÉCNICO / LINK ── */}
           {/* ABERTA/OFERTADA: sem técnico. A_CAMINHO: dirigindo, sem interação. APROVADA: encerrado. */}
           {!['ABERTA', 'OFERTADA', 'A_CAMINHO', 'APROVADA'].includes(stage.status) && (
           <>
-          <SectionLabel icon="👷" title="Ações do Técnico" />
+          <SectionLabel
+            icon={stage.status === 'ATRIBUIDA' ? '📋' : '📱'}
+            title={stage.status === 'ATRIBUIDA' ? 'Checklists do Técnico' : stage.status === 'EM_EXECUCAO' ? 'Página do Link — Em Execução' : stage.status === 'CONCLUIDA' ? 'Página do Link — Concluída' : 'Ações do Técnico'} />
           <div className="space-y-3">
             {/* STEP — só EM_EXECUÇÃO (ATRIBUÍDA: filtrado, CONCLUÍDA: filtrado) */}
             {stage.status === 'EM_EXECUCAO' && (
@@ -1918,8 +1971,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
               </div>
             )}
 
-            {/* PHOTO (single group) — ATRIBUÍDA e CONCLUÍDA */}
-            {['ATRIBUIDA', 'CONCLUIDA'].includes(stage.status) && (
+            {/* PHOTO (single group) — CONCLUÍDA only (removed from ATRIBUIDA per spec) */}
+            {['CONCLUIDA'].includes(stage.status) && (
               <div>
                 <Toggle checked={stage.techActions.photo.enabled} onChange={v => updateTech('photo', { enabled: v })}
                   label={TECH_ACTION_LABELS.photo.label} hint={TECH_ACTION_LABELS.photo.hint} />
@@ -1957,8 +2010,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             </div>
             )}
 
-            {/* CHECKLIST LEGADO — ATRIBUIDA + EM_EXECUCAO (backward compat) */}
-            {['ATRIBUIDA', 'EM_EXECUCAO'].includes(stage.status) && (
+            {/* CHECKLIST LEGADO — EM_EXECUCAO only (backward compat) */}
+            {['EM_EXECUCAO'].includes(stage.status) && (
             <div>
               <Toggle checked={stage.techActions.checklist.enabled} onChange={v => updateTech('checklist', { enabled: v })}
                 label={TECH_ACTION_LABELS.checklist.label} hint={TECH_ACTION_LABELS.checklist.hint} />
@@ -1969,19 +2022,33 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             </div>
             )}
 
-            {/* CHECKLISTS ESTRUTURADOS — 4 classes fixas */}
-            {['ABERTA', 'ATRIBUIDA', 'EM_EXECUCAO', 'CONCLUIDA'].includes(stage.status) && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3 space-y-3">
-              <p className="text-xs font-semibold text-blue-700">Checklists do Serviço</p>
-              <p className="text-[10px] text-blue-500 -mt-2">Itens vêm do cadastro de serviços da OS. Configure modo e obrigatoriedade por classe.</p>
-
-              {([
+            {/* CHECKLISTS ESTRUTURADOS — 5 classes */}
+            {['ABERTA', 'ATRIBUIDA', 'EM_EXECUCAO', 'CONCLUIDA'].includes(stage.status) && (() => {
+              // ATRIBUIDA: só TOOLS_PPE, MATERIALS, CUSTOM (técnico não está no local)
+              // CONCLUIDA: só FINAL_CHECK, CUSTOM
+              // EM_EXECUCAO/ABERTA: todas as 5
+              const allClasses = [
                 { cls: 'toolsPpe' as const, labelKey: 'checklistToolsPpe' },
                 { cls: 'materials' as const, labelKey: 'checklistMaterials' },
                 { cls: 'initialCheck' as const, labelKey: 'checklistInitialCheck' },
                 { cls: 'finalCheck' as const, labelKey: 'checklistFinalCheck' },
                 { cls: 'custom' as const, labelKey: 'checklistCustom' },
-              ]).map(({ cls, labelKey }) => (
+              ];
+              const filteredClasses = stage.status === 'ATRIBUIDA'
+                ? allClasses.filter(c => ['toolsPpe', 'materials', 'custom'].includes(c.cls))
+                : stage.status === 'CONCLUIDA'
+                  ? allClasses.filter(c => ['finalCheck', 'custom'].includes(c.cls))
+                  : allClasses;
+              return (
+            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3 space-y-3">
+              <p className="text-xs font-semibold text-blue-700">Checklists do Serviço</p>
+              <p className="text-[10px] text-blue-500 -mt-2">
+                {stage.status === 'ATRIBUIDA'
+                  ? 'Técnico confere antes de ir ao local. Verificações Inicial/Final ficam em Em Execução.'
+                  : 'Itens vêm do cadastro de serviços da OS. Configure modo e obrigatoriedade por classe.'}
+              </p>
+
+              {filteredClasses.map(({ cls, labelKey }) => (
                 <div key={cls}>
                   <Toggle
                     checked={stage.techActions.checklistConfig[cls].enabled}
@@ -2009,7 +2076,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 </div>
               ))}
             </div>
-            )}
+              );
+            })()}
 
             {/* FORM — only EM_EXECUCAO */}
             {stage.status === 'EM_EXECUCAO' && (
@@ -2047,8 +2115,8 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
               </div>
             )}
 
-            {/* SIGNATURE — only EM_EXECUCAO */}
-            {stage.status === 'EM_EXECUCAO' && (
+            {/* SIGNATURE — EM_EXECUCAO + CONCLUIDA */}
+            {['EM_EXECUCAO', 'CONCLUIDA'].includes(stage.status) && (
             <div>
               <Toggle checked={stage.techActions.signature.enabled} onChange={v => updateTech('signature', { enabled: v })}
                 label={TECH_ACTION_LABELS.signature.label} hint={TECH_ACTION_LABELS.signature.hint} />
@@ -2074,6 +2142,14 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 </div>
               </ConfigRow>
             </div>
+            )}
+            {/* Rodapé fixo info — EM_EXECUCAO */}
+            {stage.status === 'EM_EXECUCAO' && (
+              <div className="mt-2 px-3 py-2 rounded bg-slate-50 border border-dashed border-slate-200">
+                <p className="text-[10px] text-slate-400 italic">
+                  ⏱️ Rodapé fixo no link: Cronômetro + [Pausar] + [Concluir]. Configuráveis em &quot;Controle de Tempo&quot;.
+                </p>
+              </div>
             )}
           </div>
           </>
