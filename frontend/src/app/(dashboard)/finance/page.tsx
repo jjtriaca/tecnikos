@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -325,7 +326,21 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
    ══════════════════════════════════════════════════════════ */
 
 export default function FinancePage() {
-  const [activeTab, setActiveTab] = useState<TabId>("resumo");
+  const searchParams = useSearchParams();
+  const typeParam = searchParams.get("type");
+  const tabParam = searchParams.get("tab");
+
+  const initialTab = useMemo<TabId>(() => {
+    if (tabParam && TABS.some((t) => t.id === tabParam)) return tabParam as TabId;
+    if (typeParam === "RECEIVABLE") return "receber";
+    if (typeParam === "PAYABLE") return "pagar";
+    return "resumo";
+  }, [typeParam, tabParam]);
+
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+
+  // Sync when URL changes (e.g. browser back/forward)
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
 
   return (
     <div>
@@ -357,7 +372,7 @@ export default function FinancePage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === "resumo" && <SummaryTab />}
+      {activeTab === "resumo" && <SummaryTab onNavigateTab={setActiveTab} />}
       {activeTab === "receber" && <EntriesTab type="RECEIVABLE" />}
       {activeTab === "pagar" && <EntriesTab type="PAYABLE" />}
       {activeTab === "parcelas" && <InstallmentsOverviewTab />}
@@ -375,7 +390,7 @@ export default function FinancePage() {
    TAB: RESUMO (Summary v2)
    ══════════════════════════════════════════════════════════ */
 
-function SummaryTab() {
+function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void }) {
   const [data, setData] = useState<FinanceSummaryV2 | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -420,6 +435,7 @@ function SummaryTab() {
             count={r.pendingCount + r.confirmedCount}
             colorClass="border-amber-200 bg-amber-50"
             valueColor="text-amber-900"
+            onClick={() => onNavigateTab?.("receber")}
           />
           <SummaryCard
             label="Recebido"
@@ -427,6 +443,7 @@ function SummaryTab() {
             count={r.paidCount}
             colorClass="border-green-200 bg-green-50"
             valueColor="text-green-900"
+            onClick={() => onNavigateTab?.("receber")}
           />
           <SummaryCard
             label="Aguardando Confirmação"
@@ -434,6 +451,7 @@ function SummaryTab() {
             sub="entradas pendentes"
             colorClass="border-slate-200 bg-slate-50"
             valueColor="text-slate-900"
+            onClick={() => onNavigateTab?.("receber")}
           />
         </div>
       </div>
@@ -450,6 +468,7 @@ function SummaryTab() {
             count={p.pendingCount + p.confirmedCount}
             colorClass="border-amber-200 bg-amber-50"
             valueColor="text-amber-900"
+            onClick={() => onNavigateTab?.("pagar")}
           />
           <SummaryCard
             label="Pago"
@@ -457,6 +476,7 @@ function SummaryTab() {
             count={p.paidCount}
             colorClass="border-blue-200 bg-blue-50"
             valueColor="text-blue-900"
+            onClick={() => onNavigateTab?.("pagar")}
           />
           <SummaryCard
             label="Aguardando Confirmação"
@@ -464,6 +484,7 @@ function SummaryTab() {
             sub="entradas pendentes"
             colorClass="border-slate-200 bg-slate-50"
             valueColor="text-slate-900"
+            onClick={() => onNavigateTab?.("pagar")}
           />
         </div>
       </div>
@@ -493,6 +514,7 @@ function SummaryCard({
   sub,
   colorClass,
   valueColor,
+  onClick,
 }: {
   label: string;
   value: string;
@@ -500,9 +522,13 @@ function SummaryCard({
   sub?: string;
   colorClass: string;
   valueColor: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className={`rounded-xl border p-5 shadow-sm ${colorClass}`}>
+    <div
+      className={`rounded-xl border p-5 shadow-sm ${colorClass} ${onClick ? "cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all" : ""}`}
+      onClick={onClick}
+    >
       <span className="text-xs font-medium text-slate-600">{label}</span>
       <p className={`mt-1 text-2xl font-bold ${valueColor}`}>{value}</p>
       {count != null && (
