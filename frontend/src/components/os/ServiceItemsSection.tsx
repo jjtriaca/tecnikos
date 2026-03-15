@@ -23,6 +23,7 @@ interface ServiceOption {
   unit: string;
   priceCents: number | null;
   commissionBps: number | null;
+  defaultQty: number | null;
   category: string | null;
   isActive: boolean;
 }
@@ -69,7 +70,7 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
       unit: svc.unit || "SV",
       unitPriceCents: svc.priceCents || 0,
       commissionBps: svc.commissionBps ?? null,
-      quantity: 1,
+      quantity: svc.defaultQty || 1,
     };
     onChange([...items, newItem]);
   }

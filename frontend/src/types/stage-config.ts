@@ -915,6 +915,8 @@ export const NOTIFY_VARS = [
   { var: '{motivo_pausa}',           label: 'Motivo da última pausa' },
   { var: '{motivo_rejeicao}',       label: 'Motivo da rejeição do gestor' },
   { var: '{ressalvas}',             label: 'Ressalvas do gestor na aprovação' },
+  { var: '{servicos_nomes}',        label: 'Nomes dos serviços da OS' },
+  { var: '{servicos_descricoes}',   label: 'Descrições dos serviços da OS' },
 ];
 
 /* ── Labels de ações (PT-BR) ──────────────────────────────── */

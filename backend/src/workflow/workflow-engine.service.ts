@@ -1315,6 +1315,7 @@ export class WorkflowEngineService {
             assignedPartner: { select: { id: true, name: true, phone: true, email: true } },
             clientPartner: { select: { id: true, name: true, phone: true, email: true } },
             company: { select: { name: true, phone: true, email: true, commissionBps: true } },
+            items: { select: { serviceName: true, service: { select: { description: true } } } },
           },
         });
         if (!notifySO) return null;
@@ -1395,6 +1396,8 @@ export class WorkflowEngineService {
             // This is a sync context so we use the last known reason or 'N/A'
             return (notifySO as any).isPaused ? 'Pausa em andamento' : 'N/A';
           })(),
+          '{servicos_nomes}': ((notifySO as any).items || []).map((i: any) => i.serviceName).filter(Boolean).join(', ') || '',
+          '{servicos_descricoes}': ((notifySO as any).items || []).map((i: any) => i.service?.description || i.serviceName).filter(Boolean).join('; ') || '',
         };
 
         const replaceVars = (text: string): string => {

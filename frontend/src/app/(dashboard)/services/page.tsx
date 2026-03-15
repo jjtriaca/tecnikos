@@ -22,6 +22,8 @@ interface Service {
   unit: string;
   priceCents: number | null;
   commissionBps: number | null;
+  defaultQty: number | null;
+  checklists: Array<{ name: string; items: string[] }> | null;
   category: string | null;
   isActive: boolean;
   createdAt: string;
@@ -140,6 +142,14 @@ const SERVICE_COLUMNS: ColumnDefinition<Service>[] = [
     ),
   },
   {
+    id: "defaultQty",
+    label: "Qtd Padrão",
+    align: "center",
+    render: (s) => (
+      <span className="text-sm text-slate-600">{s.defaultQty ?? "—"}</span>
+    ),
+  },
+  {
     id: "category",
     label: "Categoria",
     sortable: true,
@@ -173,6 +183,8 @@ const EMPTY_FORM = {
   unit: "SV",
   priceCents: "",
   commissionBps: "",
+  defaultQty: "",
+  checklists: [] as Array<{ name: string; items: string[] }>,
   category: "",
   isActive: true,
 };
@@ -258,6 +270,8 @@ export default function ServicesPage() {
       unit: service.unit,
       priceCents: service.priceCents != null ? (service.priceCents / 100).toFixed(2).replace(".", ",") : "",
       commissionBps: service.commissionBps != null ? (service.commissionBps / 100).toFixed(1).replace(".", ",") : "",
+      defaultQty: service.defaultQty != null ? String(service.defaultQty) : "",
+      checklists: service.checklists || [],
       category: service.category || "",
       isActive: service.isActive,
     });
@@ -279,6 +293,8 @@ export default function ServicesPage() {
         unit: formData.unit,
         priceCents: formData.priceCents ? parseBRLToCents(formData.priceCents) : undefined,
         commissionBps: commPct != null && !isNaN(commPct) ? Math.round(commPct * 100) : undefined,
+        defaultQty: formData.defaultQty ? parseInt(formData.defaultQty) || undefined : undefined,
+        checklists: formData.checklists.length > 0 ? formData.checklists.filter(c => c.name.trim() && c.items.length > 0) : undefined,
         category: formData.category || undefined,
         isActive: formData.isActive,
       };
@@ -299,6 +315,23 @@ export default function ServicesPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleDuplicate(service: Service) {
+    setEditingId(null);
+    setFormData({
+      code: "",
+      name: `${service.name} (cópia)`,
+      description: service.description || "",
+      unit: service.unit,
+      priceCents: service.priceCents != null ? (service.priceCents / 100).toFixed(2).replace(".", ",") : "",
+      commissionBps: service.commissionBps != null ? (service.commissionBps / 100).toFixed(1).replace(".", ",") : "",
+      defaultQty: service.defaultQty != null ? String(service.defaultQty) : "",
+      checklists: service.checklists ? JSON.parse(JSON.stringify(service.checklists)) : [],
+      category: service.category || "",
+      isActive: true,
+    });
+    setShowForm(true);
   }
 
   async function handleDelete() {
@@ -402,6 +435,18 @@ export default function ServicesPage() {
               />
             </div>
             <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Qtd Padrão</label>
+              <input
+                type="number"
+                min={1}
+                value={formData.defaultQty}
+                onChange={(e) => setFormData({ ...formData, defaultQty: e.target.value })}
+                placeholder="Ex: 2"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              />
+              <p className="text-[10px] text-slate-400 mt-0.5">Quantidade inicial ao adicionar na OS</p>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Categoria</label>
               <input
                 type="text"
@@ -425,6 +470,89 @@ export default function ServicesPage() {
               </div>
             )}
           </div>
+
+          {/* Checklists editor */}
+          <div className="mt-4 border-t border-slate-200 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-slate-600">Checklists</label>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, checklists: [...formData.checklists, { name: "", items: [] }] })}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                + Adicionar checklist
+              </button>
+            </div>
+            {formData.checklists.length === 0 && (
+              <p className="text-xs text-slate-400">Nenhum checklist configurado. Ex: Ferramentas, Materiais, Verificação Final.</p>
+            )}
+            {formData.checklists.map((cl, clIdx) => (
+              <div key={clIdx} className="border border-slate-200 rounded-lg p-3 mb-2 bg-slate-50">
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={cl.name}
+                    onChange={(e) => {
+                      const updated = [...formData.checklists];
+                      updated[clIdx] = { ...updated[clIdx], name: e.target.value };
+                      setFormData({ ...formData, checklists: updated });
+                    }}
+                    placeholder="Nome do checklist (ex: Ferramentas)"
+                    className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, checklists: formData.checklists.filter((_, i) => i !== clIdx) })}
+                    className="text-red-400 hover:text-red-600 text-xs"
+                    title="Remover checklist"
+                  >
+                    ✕
+                  </button>
+                </div>
+                {cl.items.map((item, itemIdx) => (
+                  <div key={itemIdx} className="flex items-center gap-1.5 ml-4 mb-1">
+                    <span className="text-slate-300 text-xs">•</span>
+                    <input
+                      type="text"
+                      value={item}
+                      onChange={(e) => {
+                        const updated = [...formData.checklists];
+                        const items = [...updated[clIdx].items];
+                        items[itemIdx] = e.target.value;
+                        updated[clIdx] = { ...updated[clIdx], items };
+                        setFormData({ ...formData, checklists: updated });
+                      }}
+                      placeholder="Item do checklist..."
+                      className="flex-1 rounded border border-slate-200 px-2 py-0.5 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = [...formData.checklists];
+                        updated[clIdx] = { ...updated[clIdx], items: updated[clIdx].items.filter((_, i) => i !== itemIdx) };
+                        setFormData({ ...formData, checklists: updated });
+                      }}
+                      className="text-red-300 hover:text-red-500 text-[10px]"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = [...formData.checklists];
+                    updated[clIdx] = { ...updated[clIdx], items: [...updated[clIdx].items, ""] };
+                    setFormData({ ...formData, checklists: updated });
+                  }}
+                  className="ml-4 text-[11px] text-blue-500 hover:text-blue-700 mt-1"
+                >
+                  + Adicionar item
+                </button>
+              </div>
+            ))}
+          </div>
+
           <div className="flex justify-end gap-2 mt-4">
             <button
               onClick={() => { setShowForm(false); setFormData(EMPTY_FORM); setEditingId(null); }}
@@ -502,16 +630,29 @@ export default function ServicesPage() {
                         style={{ width: columnWidths[col.id], textAlign: col.id === "actions" ? "center" : col.align || "left" }}
                       >
                         {col.id === "actions" ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget(service);
-                            }}
-                            className="text-xs text-red-500 hover:text-red-700 font-medium"
-                            title="Excluir"
-                          >
-                            Excluir
-                          </button>
+                          <div className="flex items-center gap-2 justify-center">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openEditForm(service); }}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                              title="Editar"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDuplicate(service); }}
+                              className="text-xs text-slate-500 hover:text-slate-700 font-medium"
+                              title="Duplicar"
+                            >
+                              Duplicar
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(service); }}
+                              className="text-xs text-red-500 hover:text-red-700 font-medium"
+                              title="Excluir"
+                            >
+                              Excluir
+                            </button>
+                          </div>
                         ) : (
                           col.render(service)
                         )}

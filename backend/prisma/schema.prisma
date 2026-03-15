@@ -1640,6 +1640,8 @@ model Service {
   unit        String    @default("SV") // SV, HR, UN
   priceCents  Int?      // Preço unitário em centavos
   commissionBps Int?    // Comissão do técnico em basis points (ex: 1000 = 10%)
+  defaultQty  Int?      // Quantidade padrão ao adicionar na OS (ex: 2 horas)
+  checklists  Json?     // Array de checklists: [{ name: string, items: string[] }]
   category    String?   // Categoria livre
   isActive    Boolean   @default(true)
 

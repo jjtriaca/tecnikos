@@ -73,6 +73,8 @@ export class ServiceService {
         unit: dto.unit || 'SV',
         priceCents: dto.priceCents,
         commissionBps: dto.commissionBps,
+        defaultQty: dto.defaultQty,
+        checklists: dto.checklists ?? undefined,
         category: dto.category,
         isActive: dto.isActive ?? true,
       },

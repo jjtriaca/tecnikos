@@ -1570,7 +1570,29 @@ Solucao:
 - [x] Agendamento como toggle ON/OFF nao colapsavel
 - [x] Deploy v1.03.31 OK
 
-### Melhorias a discutir (levantadas pelo Juliano):
-1. **Cadastro de checklist** — A DISCUTIR
-2. **Mecanismo para clientes solicitarem melhorias** — A DISCUTIR (verificar se IA embarcada ja tem algo)
-3. **Contrato do cliente com a Tecnikos** — A DISCUTIR (correcao de precos)
+### Fixes v1.03.32-33
+- [x] Removido preview duplicado de endereco (aparecia no radio E no preview readonly)
+- [x] Tipo de Atendimento: autoCollapse=false para nao fechar ao rolar
+- [x] Servicos: campo de busca sempre visivel (sem botao intermediario)
+
+### Decisoes de negocio:
+- **Titulo da OS**: MANTER campo titulo. Auto-fill CANCELADO (titulo vem antes dos servicos)
+- **Variaveis de template**: adicionar {servicos_nomes} e {servicos_descricoes} em TODOS os templates de mensagem (FUTURO)
+
+### Melhorias pendentes (levantadas pelo Juliano):
+1. **defaultQuantity no Servico** — Campo no cadastro com qtd padrao (ex: horas/dias). ServiceItemsSection usa em vez de 1. APROVADO, aguardando implementacao
+2. **Editar/Duplicar no cadastro de Servicos** — Acoes na tabela: Editar + Duplicar + Excluir. APROVADO, aguardando implementacao
+3. **Variaveis {servicos_nomes} e {servicos_descricoes}** — Em todos os templates de mensagem. APROVADO, aguardando implementacao
+4. ~~Auto-fill titulo~~ — CANCELADO (titulo vem antes dos servicos)
+
+### Melhorias discutidas:
+1. **Checklist por servico** — DECISAO TOMADA:
+   - Cada servico tem checklists com categorias (ferramentas, materiais, verificacao final)
+   - Items definidos no cadastro do servico (O QUE verificar)
+   - **Momento (QUANDO preencher) decidido na configuracao do workflow**, NAO no servico
+   - Ex: workflow config define que checklist de ferramentas = ao_iniciar, verificacao final = ao_finalizar
+   - Isso permite flexibilidade: mesmo servico pode ter momentos diferentes em workflows diferentes
+
+### Melhorias a discutir:
+1. **Mecanismo para clientes solicitarem melhorias** — A DISCUTIR (verificar se IA embarcada ja tem algo)
+2. **Contrato do cliente com a Tecnikos** — A DISCUTIR (correcao de precos)
