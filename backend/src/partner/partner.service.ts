@@ -280,6 +280,26 @@ export class PartnerService {
           );
         }
       }
+
+      // ── Anti-fraud: cooldown after deactivation (doubles each time) ──
+      if (data.document) {
+        const recentlyDeactivated = await this.prisma.partner.findFirst({
+          where: { companyId, document: data.document, deletedAt: { not: null } },
+          select: { deactivationCount: true, lastDeactivatedAt: true },
+          orderBy: { lastDeactivatedAt: 'desc' },
+        });
+        if (recentlyDeactivated?.lastDeactivatedAt && recentlyDeactivated.deactivationCount > 1) {
+          const cooldownHours = 24 * Math.pow(2, Math.min(recentlyDeactivated.deactivationCount - 2, 5));
+          const cooldownMs = cooldownHours * 60 * 60 * 1000;
+          const elapsed = Date.now() - recentlyDeactivated.lastDeactivatedAt.getTime();
+          if (elapsed < cooldownMs) {
+            const hoursLeft = Math.ceil((cooldownMs - elapsed) / (60 * 60 * 1000));
+            throw new ForbiddenException(
+              `Este técnico foi desativado recentemente. Aguarde ${hoursLeft}h para recriar.`,
+            );
+          }
+        }
+      }
     }
 
     const { specializationIds, password, forceDuplicate, ...rest } = data;

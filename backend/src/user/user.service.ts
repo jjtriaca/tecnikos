@@ -93,6 +93,25 @@ export class UserService {
       );
     }
 
+    // ── Anti-fraud: cooldown after deactivation (doubles each time) ──
+    const recentlyDeactivated = await this.prisma.user.findFirst({
+      where: { companyId: data.companyId, email: data.email, deletedAt: { not: null } },
+      select: { deactivationCount: true, lastDeactivatedAt: true },
+      orderBy: { lastDeactivatedAt: 'desc' },
+    });
+    if (recentlyDeactivated?.lastDeactivatedAt && recentlyDeactivated.deactivationCount > 1) {
+      // Cooldown: 24h * 2^(count-2) → 2nd=24h, 3rd=48h, 4th=96h
+      const cooldownHours = 24 * Math.pow(2, Math.min(recentlyDeactivated.deactivationCount - 2, 5));
+      const cooldownMs = cooldownHours * 60 * 60 * 1000;
+      const elapsed = Date.now() - recentlyDeactivated.lastDeactivatedAt.getTime();
+      if (elapsed < cooldownMs) {
+        const hoursLeft = Math.ceil((cooldownMs - elapsed) / (60 * 60 * 1000));
+        throw new ForbiddenException(
+          `Este email foi desativado recentemente. Aguarde ${hoursLeft}h para recriar.`,
+        );
+      }
+    }
+
     // Check unique email
     const existing = await this.prisma.user.findFirst({
       where: { email: data.email, deletedAt: null },

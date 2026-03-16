@@ -392,6 +392,7 @@ export class AsaasService {
       customer: customerId,
       billingTypes: ['PIX', 'BOLETO', 'CREDIT_CARD'],
       chargeTypes: ['DETACHED'],
+      externalReference: `addon_${purchase.id}`, // Link checkout to specific purchase
       items: [{
         name: `Add-on: ${addOn.name}`,
         description: descStr,
@@ -403,7 +404,7 @@ export class AsaasService {
       },
     });
 
-    this.logger.log(`Add-on checkout created: ${addOn.name} (${descStr}) for tenant ${tenantId}`);
+    this.logger.log(`Add-on checkout created: ${addOn.name} (${descStr}) for tenant ${tenantId}, purchase ${purchase.id}`);
     return { checkoutUrl: checkout.url, purchase };
   }
 
@@ -758,14 +759,26 @@ export class AsaasService {
     // Handle standalone payments (add-on purchases)
     if (!subscriptionId) {
       if ((event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') && payment.id) {
-        // Try by asaasPaymentId first (direct payment flow)
-        const confirmed = await this.confirmAddOnPayment(payment.id);
+        let confirmed = false;
+
+        // 1. Try by externalReference (checkout flow — most reliable)
+        if (payment.externalReference && String(payment.externalReference).startsWith('addon_')) {
+          const purchaseId = String(payment.externalReference).replace('addon_', '');
+          confirmed = await this.confirmAddOnById(purchaseId);
+        }
+
+        // 2. Try by asaasPaymentId (direct payment flow)
+        if (!confirmed) {
+          confirmed = await this.confirmAddOnPayment(payment.id);
+        }
+
+        // 3. Fallback: find by customer (FIFO — last resort)
         if (!confirmed && payment.customer) {
-          // Checkout flow: find by customer → tenant → latest PENDING AddOnPurchase
-          const confirmedByCustomer = await this.confirmAddOnByCustomer(payment.customer);
-          if (!confirmedByCustomer) {
-            this.logger.warn(`Add-on payment webhook: could not confirm payment ${payment.id} for customer ${payment.customer} — no PENDING purchase found`);
-          }
+          confirmed = await this.confirmAddOnByCustomer(payment.customer);
+        }
+
+        if (!confirmed) {
+          this.logger.warn(`Add-on payment webhook: could not confirm payment ${payment.id} for customer ${payment.customer} — no PENDING purchase found`);
         }
       }
       return;
@@ -814,9 +827,29 @@ export class AsaasService {
           overdueAt: null, // Clear overdue on payment
         };
 
+        // ── Apply stored credit balance as discount on next invoice ──
+        if (subscription.creditBalanceCents > 0 && subscription.asaasSubscriptionId) {
+          try {
+            const creditValue = Math.min(subscription.creditBalanceCents, payment.value ? Math.round(payment.value * 100) : subscription.creditBalanceCents);
+            await this.asaas.updateSubscription(subscription.asaasSubscriptionId, {
+              discount: {
+                value: creditValue / 100,
+                type: 'FIXED',
+                dueDateLimitDays: 0, // Only next invoice
+              },
+            });
+            updateData.creditBalanceCents = subscription.creditBalanceCents - creditValue;
+            this.logger.log(`Applied R$${(creditValue / 100).toFixed(2)} credit to next invoice (remaining: R$${((subscription.creditBalanceCents - creditValue) / 100).toFixed(2)})`);
+          } catch (err) {
+            this.logger.warn(`Failed to apply credit discount: ${(err as Error).message}`);
+          }
+        }
+
         // Handle promotion month tracking
+        // For ANNUAL billing, each payment covers 12 months of promo
         if (subscription.promotionMonthsLeft && subscription.promotionMonthsLeft > 0) {
-          const newMonthsLeft = subscription.promotionMonthsLeft - 1;
+          const monthsPerPayment = subscription.billingCycle === 'ANNUAL' ? 12 : 1;
+          const newMonthsLeft = Math.max(0, subscription.promotionMonthsLeft - monthsPerPayment);
           updateData.promotionMonthsLeft = newMonthsLeft;
 
           if (newMonthsLeft === 0 && subscription.originalValueCents && subscription.asaasSubscriptionId) {
@@ -1121,6 +1154,34 @@ export class AsaasService {
 
     this.logger.log(`Add-on purchased: ${addOn.name} for tenant ${tenantId}`);
     return { purchase, asaasPayment };
+  }
+
+  /**
+   * Confirm add-on by purchase ID (from externalReference in checkout flow).
+   * Most reliable method — directly links checkout to purchase.
+   */
+  async confirmAddOnById(purchaseId: string): Promise<boolean> {
+    const purchase = await this.prisma.addOnPurchase.findFirst({
+      where: { id: purchaseId, status: 'PENDING' },
+      include: { subscription: { include: { tenant: true } }, addOn: true },
+    });
+    if (!purchase) return false;
+
+    await this.prisma.addOnPurchase.update({
+      where: { id: purchase.id },
+      data: { status: 'PAID' },
+    });
+    if (purchase.osQuantity > 0) {
+      await this.prisma.subscription.update({
+        where: { id: purchase.subscriptionId },
+        data: { extraOsPurchased: { increment: purchase.osQuantity } },
+      });
+    }
+
+    await this.creditAddOnToTenantCompany(purchase.subscription.tenant, purchase);
+
+    this.logger.log(`Add-on confirmed by ID: ${purchase.id} (OS:${purchase.osQuantity} Users:${purchase.userQuantity} Tech:${purchase.technicianQuantity} AI:${purchase.aiMessageQuantity})`);
+    return true;
   }
 
   /**
@@ -1643,6 +1704,94 @@ export class AsaasService {
         `Overdue check complete: ${overdueSubscriptions.length} tenant(s) processed`,
       );
     }
+  }
+
+  // ─── CRON: APPLY PENDING DOWNGRADES ──────────────────────
+
+  /**
+   * Daily at 00:30 — apply pending downgrades that are past their scheduled date.
+   * This ensures downgrades happen even if the payment webhook didn't fire.
+   */
+  @Cron('30 0 * * *')
+  async applyPendingDowngrades() {
+    this.logger.log('Running daily pending downgrade check...');
+
+    const now = new Date();
+    const pendingSubs = await this.prisma.subscription.findMany({
+      where: {
+        pendingPlanId: { not: null },
+        pendingPlanAt: { not: null, lte: now },
+        status: { in: ['ACTIVE', 'PAST_DUE'] },
+      },
+      include: { tenant: true },
+    });
+
+    if (pendingSubs.length === 0) return;
+
+    let applied = 0;
+    for (const sub of pendingSubs) {
+      try {
+        const pendingPlan = await this.prisma.plan.findUnique({ where: { id: sub.pendingPlanId! } });
+        if (!pendingPlan) {
+          // Plan no longer exists — clear pending
+          await this.prisma.subscription.update({
+            where: { id: sub.id },
+            data: { pendingPlanId: null, pendingPlanAt: null },
+          });
+          continue;
+        }
+
+        // Apply downgrade to subscription
+        await this.prisma.subscription.update({
+          where: { id: sub.id },
+          data: {
+            planId: pendingPlan.id,
+            pendingPlanId: null,
+            pendingPlanAt: null,
+          },
+        });
+
+        // Update tenant limits (snapshot)
+        await this.prisma.tenant.update({
+          where: { id: sub.tenantId },
+          data: {
+            planId: pendingPlan.id,
+            maxUsers: pendingPlan.maxUsers,
+            maxOsPerMonth: pendingPlan.maxOsPerMonth,
+            maxTechnicians: pendingPlan.maxTechnicians,
+            maxAiMessages: pendingPlan.maxAiMessages,
+            supportLevel: pendingPlan.supportLevel,
+            allModulesIncluded: pendingPlan.allModulesIncluded,
+          },
+        });
+
+        // Update Company in tenant schema
+        await this.tenantService.changePlan(sub.tenantId, pendingPlan.id);
+
+        // Update Asaas subscription value
+        if (sub.asaasSubscriptionId) {
+          const isYearly = sub.billingCycle === 'ANNUAL';
+          const newValue = isYearly && pendingPlan.priceYearlyCents
+            ? pendingPlan.priceYearlyCents / 100
+            : pendingPlan.priceCents / 100;
+          try {
+            await this.asaas.updateSubscription(sub.asaasSubscriptionId, {
+              value: newValue,
+              updatePendingPayments: false,
+            });
+          } catch (err) {
+            this.logger.warn(`Failed to update Asaas subscription value for downgrade: ${(err as Error).message}`);
+          }
+        }
+
+        applied++;
+        this.logger.log(`Pending downgrade applied: tenant ${sub.tenant.slug} → plan ${pendingPlan.name}`);
+      } catch (err) {
+        this.logger.error(`Failed to apply pending downgrade for ${sub.tenant.slug}: ${(err as Error).message}`);
+      }
+    }
+
+    this.logger.log(`Pending downgrade check complete: ${applied}/${pendingSubs.length} applied`);
   }
 
   // ─── CRON: EXPIRE ADD-ON PURCHASES ──────────────────────

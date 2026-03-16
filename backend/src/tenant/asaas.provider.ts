@@ -121,6 +121,11 @@ export class AsaasProvider {
       status?: 'ACTIVE' | 'INACTIVE';
       updatePendingPayments?: boolean;
       billingType?: string;
+      discount?: {
+        value: number;
+        type: 'FIXED' | 'PERCENTAGE';
+        dueDateLimitDays?: number;
+      };
     },
   ) {
     return this.request('PUT', `/subscriptions/${id}`, data);
@@ -195,6 +200,7 @@ export class AsaasProvider {
       email?: string;
       phone?: string;
     };
+    externalReference?: string;
     subscription?: {
       cycle: string; // MONTHLY, ANNUAL
       nextDueDate: string; // YYYY-MM-DD
