@@ -154,6 +154,8 @@ model Company {
   fiscalEnabled  Boolean  @default(false) // Módulo fiscal (NFS-e) habilitado
   maxOsPerMonth  Int      @default(0)     // 0 = unlimited
   maxUsers       Int      @default(0)     // 0 = unlimited
+  maxTechnicians Int      @default(0)     // 0 = unlimited
+  maxAiMessages  Int      @default(0)     // 0 = unlimited
 
   // Chat IA
   chatIAMonthlyMsgs   Int       @default(0)     // Messages used this month
@@ -215,6 +217,13 @@ model User {
   passwordResetExpiresAt DateTime?
   invitedAt              DateTime? // Set when user is created via invite (no password)
   passwordSetAt          DateTime? // Set when user defines their own password
+
+  // Chat IA access control
+  chatIAEnabled          Boolean   @default(false) // Toggle: ADMIN always has access
+
+  // Anti-fraud: cooldown on reactivation (doubles each deactivation)
+  deactivationCount      Int       @default(0)
+  lastDeactivatedAt      DateTime?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -282,6 +291,11 @@ model Partner {
   state         String?  // UF (2 chars)
 
   status    String   @default("ATIVO")
+
+  // Anti-fraud: cooldown on reactivation (doubles each deactivation)
+  deactivationCount    Int       @default(0)
+  lastDeactivatedAt    DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?

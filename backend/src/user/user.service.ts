@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { AuditService } from '../common/audit/audit.service';
@@ -23,6 +23,7 @@ export class UserService {
         name: true,
         email: true,
         roles: true,
+        chatIAEnabled: true,
         invitedAt: true,
         passwordSetAt: true,
         createdAt: true,
@@ -48,6 +49,7 @@ export class UserService {
         name: true,
         email: true,
         roles: true,
+        chatIAEnabled: true,
         mfaEnabled: true,
         createdAt: true,
         updatedAt: true,
@@ -73,10 +75,23 @@ export class UserService {
       email: string;
       password?: string; // Optional — if not provided, user is invited via email
       roles: UserRole[];
+      chatIAEnabled?: boolean;
     },
     actor?: AuthenticatedUser,
   ) {
     this.validateRoles(data.roles);
+
+    // ── Enforce maxUsers limit ──
+    const [activeCount, company] = await Promise.all([
+      this.prisma.user.count({ where: { companyId: data.companyId, deletedAt: null } }),
+      this.prisma.company.findUnique({ where: { id: data.companyId }, select: { maxUsers: true } }),
+    ]);
+    const maxUsers = company?.maxUsers || 0;
+    if (maxUsers > 0 && activeCount >= maxUsers) {
+      throw new ForbiddenException(
+        `Limite de ${maxUsers} usuário(s) atingido. Faça upgrade do plano ou adquira usuários adicionais.`,
+      );
+    }
 
     // Check unique email
     const existing = await this.prisma.user.findFirst({
@@ -95,6 +110,7 @@ export class UserService {
         email: data.email.toLowerCase().trim(),
         passwordHash,
         roles: data.roles,
+        chatIAEnabled: data.chatIAEnabled ?? false,
         invitedAt: !data.password ? new Date() : null,
       },
       select: {
@@ -103,6 +119,7 @@ export class UserService {
         name: true,
         email: true,
         roles: true,
+        chatIAEnabled: true,
         createdAt: true,
         invitedAt: true,
         passwordSetAt: true,
@@ -126,7 +143,7 @@ export class UserService {
   async update(
     id: string,
     companyId: string,
-    data: { name?: string; email?: string; roles?: UserRole[]; password?: string },
+    data: { name?: string; email?: string; roles?: UserRole[]; password?: string; chatIAEnabled?: boolean },
     actor?: AuthenticatedUser,
   ) {
     const existing = await this.findOne(id, companyId);
@@ -154,6 +171,11 @@ export class UserService {
       afterFields.roles = data.roles;
       updateData.roles = data.roles;
     }
+    if (data.chatIAEnabled !== undefined && data.chatIAEnabled !== (existing as any).chatIAEnabled) {
+      beforeFields.chatIAEnabled = (existing as any).chatIAEnabled;
+      afterFields.chatIAEnabled = data.chatIAEnabled;
+      updateData.chatIAEnabled = data.chatIAEnabled;
+    }
     if (data.password) {
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
       // Never include password hash in audit
@@ -168,6 +190,7 @@ export class UserService {
         name: true,
         email: true,
         roles: true,
+        chatIAEnabled: true,
         updatedAt: true,
       },
     });
@@ -190,10 +213,14 @@ export class UserService {
   }
 
   async remove(id: string, companyId: string, actor?: AuthenticatedUser) {
-    await this.findOne(id, companyId);
+    const existing = await this.findOne(id, companyId);
     const result = await this.prisma.user.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: {
+        deletedAt: new Date(),
+        deactivationCount: { increment: 1 },
+        lastDeactivatedAt: new Date(),
+      },
     });
 
     this.audit.log({

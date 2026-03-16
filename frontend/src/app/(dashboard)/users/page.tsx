@@ -19,6 +19,7 @@ type User = {
   name: string;
   email: string;
   roles: string[];
+  chatIAEnabled: boolean;
   invitedAt: string | null;
   passwordSetAt: string | null;
   createdAt: string;
@@ -195,6 +196,7 @@ export default function UsersPage() {
     email: "",
     password: "",
     roles: ["DESPACHO"] as string[],
+    chatIAEnabled: false,
   });
 
   async function loadUsers() {
@@ -213,7 +215,7 @@ export default function UsersPage() {
   }, []);
 
   function resetForm() {
-    setForm({ name: "", email: "", password: "", roles: ["DESPACHO"] });
+    setForm({ name: "", email: "", password: "", roles: ["DESPACHO"], chatIAEnabled: false });
     setEditingId(null);
     setShowForm(false);
     setFormError(null);
@@ -225,6 +227,7 @@ export default function UsersPage() {
       email: user.email,
       password: "",
       roles: user.roles,
+      chatIAEnabled: user.chatIAEnabled,
     });
     setEditingId(user.id);
     setShowForm(true);
@@ -263,6 +266,7 @@ export default function UsersPage() {
           name: form.name,
           email: form.email,
           roles: form.roles,
+          chatIAEnabled: form.chatIAEnabled,
         };
         if (form.password) body.password = form.password;
         await api.put(`/users/${editingId}`, body);
@@ -272,6 +276,7 @@ export default function UsersPage() {
           name: form.name,
           email: form.email,
           roles: form.roles,
+          chatIAEnabled: form.chatIAEnabled,
         });
       }
       resetForm();
@@ -457,6 +462,25 @@ export default function UsersPage() {
                 </p>
               )}
             </div>
+
+            {/* Chat IA toggle — ADMIN always has access, this controls non-admin users */}
+            {!form.roles.includes("ADMIN") && (
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.chatIAEnabled}
+                    onChange={(e) => setForm((f) => ({ ...f, chatIAEnabled: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600" />
+                </label>
+                <div>
+                  <span className="text-sm font-medium text-slate-700">Acesso ao Chat IA</span>
+                  <p className="text-xs text-slate-500">Permite que este usuario use o assistente de IA. Administradores sempre tem acesso.</p>
+                </div>
+              </div>
+            )}
 
             {formError && (
               <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">

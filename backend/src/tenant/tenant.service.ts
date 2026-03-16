@@ -357,6 +357,8 @@ export class TenantService {
         data: {
           maxOsPerMonth: plan.maxOsPerMonth,
           maxUsers: plan.maxUsers,
+          maxTechnicians: plan.maxTechnicians,
+          maxAiMessages: plan.maxAiMessages,
         },
       });
     } catch (err) {

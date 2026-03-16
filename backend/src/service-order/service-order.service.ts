@@ -48,6 +48,27 @@ export class ServiceOrderService {
   }
 
   async create(data: CreateServiceOrderDto & { companyId: string }, actor?: AuthenticatedUser) {
+    // ── Enforce maxOsPerMonth limit ──
+    const company = await this.prisma.company.findFirst({
+      select: { maxOsPerMonth: true },
+    });
+    const maxOs = company?.maxOsPerMonth || 0;
+    if (maxOs > 0) {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const osCount = await this.prisma.serviceOrder.count({
+        where: {
+          companyId: data.companyId,
+          createdAt: { gte: startOfMonth },
+        },
+      });
+      if (osCount >= maxOs) {
+        throw new ForbiddenException(
+          `Limite de ${maxOs} OS por mês atingido. Faça upgrade do plano ou adquira OS adicionais.`,
+        );
+      }
+    }
+
     // Auto-generate sequential code
     const code = await this.codeGenerator.generateCode(data.companyId, 'SERVICE_ORDER');
 

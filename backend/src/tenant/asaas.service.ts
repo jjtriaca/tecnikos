@@ -508,6 +508,8 @@ export class AsaasService {
           data: {
             maxUsers: newPlan.maxUsers,
             maxOsPerMonth: newPlan.maxOsPerMonth,
+            maxTechnicians: newPlan.maxTechnicians,
+            maxAiMessages: newPlan.maxAiMessages,
           },
         });
       }
@@ -852,6 +854,8 @@ export class AsaasService {
                   data: {
                     maxUsers: pendingPlan.maxUsers,
                     maxOsPerMonth: pendingPlan.maxOsPerMonth,
+                    maxTechnicians: pendingPlan.maxTechnicians,
+                    maxAiMessages: pendingPlan.maxAiMessages,
                   },
                 });
               }

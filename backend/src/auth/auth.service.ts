@@ -190,6 +190,7 @@ export class AuthService {
         name: true,
         email: true,
         roles: true,
+        chatIAEnabled: true,
         companyId: true,
         company: { select: { id: true, name: true } },
       },

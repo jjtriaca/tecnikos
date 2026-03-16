@@ -259,6 +259,29 @@ export class PartnerService {
   }
 
   async create(companyId: string, data: CreatePartnerDto & { forceDuplicate?: boolean }, actor?: AuthenticatedUser) {
+    // ── Enforce maxTechnicians limit ──
+    if (data.partnerTypes?.includes('TECNICO')) {
+      const company = await this.prisma.company.findFirst({
+        select: { maxTechnicians: true },
+      });
+      const maxTechnicians = company?.maxTechnicians || 0;
+      if (maxTechnicians > 0) {
+        const activeCount = await this.prisma.partner.count({
+          where: {
+            companyId,
+            partnerTypes: { has: 'TECNICO' },
+            deletedAt: null,
+            status: { not: 'INATIVO' },
+          },
+        });
+        if (activeCount >= maxTechnicians) {
+          throw new ForbiddenException(
+            `Limite de ${maxTechnicians} técnico(s) atingido. Faça upgrade do plano para adicionar mais técnicos.`,
+          );
+        }
+      }
+    }
+
     const { specializationIds, password, forceDuplicate, ...rest } = data;
     // Sanitize phone before saving
     if (rest.phone) rest.phone = this.sanitizePhone(rest.phone) as any;
@@ -442,7 +465,11 @@ export class PartnerService {
     await this.findOne(id, companyId);
     const result = await this.prisma.partner.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: {
+        deletedAt: new Date(),
+        deactivationCount: { increment: 1 },
+        lastDeactivatedAt: new Date(),
+      },
     });
 
     this.audit.log({

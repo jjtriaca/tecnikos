@@ -292,17 +292,26 @@ export class ChatIAService {
   }> {
     const db = tenantSchema ? this.tenantConnection.getClient(tenantSchema) : this.prisma;
     const company = await db.company.findFirst({
-      select: { chatIAMonthlyMsgs: true, chatIAMonthReset: true, maxOsPerMonth: true },
+      select: { chatIAMonthlyMsgs: true, chatIAMonthReset: true, maxAiMessages: true },
     });
 
     if (!company) return { allowed: false, used: 0, limit: 0 };
 
-    // Determine limit from plan (stored in features or derived from maxOsPerMonth)
-    // Essencial(100 OS) = 50 msgs, Profissional(250) = 200, Enterprise(600) = 800
-    let limit = 50; // default
-    if (company.maxOsPerMonth >= 600) limit = 800;
-    else if (company.maxOsPerMonth >= 250) limit = 200;
-    else if (company.maxOsPerMonth >= 100) limit = 50;
+    // Use real maxAiMessages from plan snapshot (0 = unlimited)
+    const limit = company.maxAiMessages || 0;
+    if (limit === 0) {
+      // Unlimited — just increment and allow
+      const now = new Date();
+      const resetDate = company.chatIAMonthReset;
+      const needsReset = !resetDate || resetDate.getMonth() !== now.getMonth() || resetDate.getFullYear() !== now.getFullYear();
+      let used = company.chatIAMonthlyMsgs;
+      if (needsReset) {
+        await db.company.updateMany({ data: { chatIAMonthlyMsgs: 0, chatIAMonthReset: now } });
+        used = 0;
+      }
+      await db.company.updateMany({ data: { chatIAMonthlyMsgs: used + 1 } });
+      return { allowed: true, used: used + 1, limit: 0 };
+    }
 
     // Reset monthly counter if needed
     const now = new Date();
@@ -332,14 +341,12 @@ export class ChatIAService {
   async getUsage(companyId: string, tenantSchema?: string): Promise<{ used: number; limit: number }> {
     const db = tenantSchema ? this.tenantConnection.getClient(tenantSchema) : this.prisma;
     const company = await db.company.findFirst({
-      select: { chatIAMonthlyMsgs: true, chatIAMonthReset: true, maxOsPerMonth: true },
+      select: { chatIAMonthlyMsgs: true, chatIAMonthReset: true, maxAiMessages: true },
     });
 
-    if (!company) return { used: 0, limit: 50 };
+    if (!company) return { used: 0, limit: 0 };
 
-    let limit = 50;
-    if (company.maxOsPerMonth >= 600) limit = 800;
-    else if (company.maxOsPerMonth >= 250) limit = 200;
+    const limit = company.maxAiMessages || 0;
 
     // Check if needs reset
     const now = new Date();
@@ -432,6 +439,19 @@ export class ChatIAService {
 
   // ── Send Message ───────────────────────────────────────
 
+  /** Check if user has access to Chat IA (ADMIN always, others need chatIAEnabled) */
+  private async checkChatAccess(userId: string, userRoles: string[], tenantSchema?: string): Promise<void> {
+    if (userRoles.includes('ADMIN')) return; // ADMIN always has access
+    const db = tenantSchema ? this.tenantConnection.getClient(tenantSchema) : this.prisma;
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { chatIAEnabled: true },
+    });
+    if (!user?.chatIAEnabled) {
+      throw new ForbiddenException('Acesso ao Chat IA não habilitado para este usuário. Solicite ao administrador.');
+    }
+  }
+
   async sendMessage(
     companyId: string,
     userId: string,
@@ -443,6 +463,9 @@ export class ChatIAService {
     if (!this.anthropic) {
       throw new ForbiddenException('Assistente IA não configurado (ANTHROPIC_API_KEY)');
     }
+
+    // Check chatIAEnabled access
+    await this.checkChatAccess(userId, userRoles, tenantSchema);
 
     const db = tenantSchema ? this.tenantConnection.getClient(tenantSchema) : this.prisma;
 
@@ -630,6 +653,9 @@ export class ChatIAService {
       emit('error', { message: 'Assistente IA não configurado' });
       return;
     }
+
+    // Check chatIAEnabled access
+    await this.checkChatAccess(userId, userRoles, tenantSchema);
 
     const db = tenantSchema ? this.tenantConnection.getClient(tenantSchema) : this.prisma;
 

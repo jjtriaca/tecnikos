@@ -1754,4 +1754,44 @@ Solucao:
 - **Admin Plans page**: campos estruturados editaveis (max tecnicos, msgs IA, suporte, modulos) + secao visual nos cards
 - Build frontend + backend OK (tsc --noEmit limpo)
 
-### Deploy v1.03.81
+### Deploy v1.03.82
+
+### Auditoria e decisoes de enforcement de limites
+- Auditoria completa: maxUsers, maxOsPerMonth, maxTechnicians, maxAiMessages, supportLevel, allModulesIncluded
+- Resultado: nenhum campo tinha enforcement real no backend (so display)
+- Decisoes gravadas em memory/plan-limits-enforcement.md
+- **4 campos para implementar agora**: maxUsers, maxOsPerMonth, maxTechnicians, maxAiMessages
+- **2 campos pendentes**: supportLevel, allModulesIncluded
+- Anti-fraude: cooldown dobra a cada desativacao (users e tecnicos)
+- Chat IA: toggle chatIAEnabled por usuario, ADMIN sempre tem acesso
+
+---
+
+## 2026-03-16 — Sessao 124: Plan Limits Enforcement (v1.03.83)
+
+### Implementacao de enforcement de limites de plano
+
+#### Schema
+- Company model: +maxTechnicians, +maxAiMessages (propagados do Tenant snapshot)
+- User model: +chatIAEnabled, +deactivationCount, +lastDeactivatedAt
+- Partner model: +deactivationCount, +lastDeactivatedAt
+- Migration: 20260316090000_plan_limits_enforcement
+
+#### Backend
+- **user.service.ts**: maxUsers enforcement no create(), chatIAEnabled no create/update/findAll/findOne, deactivation tracking no remove()
+- **user.controller.ts**: chatIAEnabled no POST/PUT body types
+- **service-order.service.ts**: maxOsPerMonth enforcement no create() (conta OS do mes corrente)
+- **partner.service.ts**: maxTechnicians enforcement no create() para tipo TECNICO, deactivation tracking no remove()
+- **chat-ia.service.ts**: Eliminou calculo hardcoded de limite baseado em maxOsPerMonth; agora usa Company.maxAiMessages real (0=ilimitado)
+- **chat-ia.service.ts**: checkChatAccess() — ADMIN sempre tem acesso, outros precisam chatIAEnabled
+- **chat-ia.controller.ts**: checkChatAccess chamado em sendMessage e sendMessageStream
+- **auth.service.ts**: me() retorna chatIAEnabled
+- **tenant-migrator.service.ts**: syncTenantLimits agora inclui maxTechnicians e maxAiMessages
+- **tenant.service.ts**: changePlan propaga maxTechnicians e maxAiMessages para Company
+- **asaas.service.ts**: upgrade e downgrade propagam maxTechnicians e maxAiMessages para Company
+
+#### Frontend
+- **users/page.tsx**: toggle "Acesso ao Chat IA" no formulario de usuario (escondido para ADMIN)
+- **AuthContext.tsx**: AuthUser +chatIAEnabled
+- **ChatIAContext.tsx**: verifica chatIAEnabled antes de mostrar botao (ADMIN sempre ve)
+- Build backend + frontend OK (tsc --noEmit limpo)

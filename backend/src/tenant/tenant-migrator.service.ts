@@ -450,9 +450,9 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
    */
   private async syncTenantLimits(): Promise<void> {
     const tenants = await this.rawPrisma.$queryRawUnsafe<
-      { schemaName: string; slug: string; maxOsPerMonth: number; maxUsers: number }[]
+      { schemaName: string; slug: string; maxOsPerMonth: number; maxUsers: number; maxTechnicians: number; maxAiMessages: number }[]
     >(`
-      SELECT "schemaName", slug, "maxOsPerMonth", "maxUsers"
+      SELECT "schemaName", slug, "maxOsPerMonth", "maxUsers", "maxTechnicians", "maxAiMessages"
       FROM public."Tenant"
       WHERE "deletedAt" IS NULL AND status NOT IN ('CANCELLED') AND "schemaName" IS NOT NULL
     `);
@@ -463,12 +463,14 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
       try {
         const result = await this.rawPrisma.$executeRawUnsafe(`
           UPDATE "${t.schemaName}"."Company"
-          SET "maxOsPerMonth" = ${t.maxOsPerMonth}, "maxUsers" = ${t.maxUsers}
+          SET "maxOsPerMonth" = ${t.maxOsPerMonth}, "maxUsers" = ${t.maxUsers},
+              "maxTechnicians" = ${t.maxTechnicians}, "maxAiMessages" = ${t.maxAiMessages}
           WHERE "maxOsPerMonth" != ${t.maxOsPerMonth} OR "maxUsers" != ${t.maxUsers}
+             OR "maxTechnicians" != ${t.maxTechnicians} OR "maxAiMessages" != ${t.maxAiMessages}
         `);
         if (result > 0) {
           updated++;
-          this.logger.log(`Synced limits for tenant "${t.slug}": maxOS=${t.maxOsPerMonth}, maxUsers=${t.maxUsers}`);
+          this.logger.log(`Synced limits for tenant "${t.slug}": maxOS=${t.maxOsPerMonth}, maxUsers=${t.maxUsers}, maxTech=${t.maxTechnicians}, maxAI=${t.maxAiMessages}`);
         }
       } catch (err) {
         this.logger.warn(`Failed to sync limits for "${t.slug}": ${(err as Error).message}`);

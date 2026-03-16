@@ -72,8 +72,15 @@ export function ChatIAProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false);
 
   // Check availability + auto-open on first access
+  // ADMIN always has access, others need chatIAEnabled
   useEffect(() => {
     if (!user) return;
+    const isAdmin = user.roles?.includes("ADMIN");
+    const hasAccess = isAdmin || user.chatIAEnabled;
+    if (!hasAccess) {
+      setAvailable(false);
+      return;
+    }
     api.get<{ available: boolean }>("/chat-ia/status")
       .then((res) => {
         setAvailable(res.available);

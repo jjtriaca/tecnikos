@@ -22,6 +22,7 @@ export interface AuthUser {
   name: string;
   email: string;
   roles: UserRole[];
+  chatIAEnabled?: boolean;
   companyId: string;
   companyName?: string;
   tenantSlug?: string | null;       // null = admin host, "sls" = tenant host
