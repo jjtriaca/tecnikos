@@ -27,6 +27,7 @@ export class ChatIAController {
       dto.content,
       dto.conversationId,
       req.tenantSchema,
+      user.roles?.map(String) || [],
     );
   }
 
@@ -55,6 +56,7 @@ export class ChatIAController {
         dto.conversationId,
         req.tenantSchema,
         emit,
+        user.roles?.map(String) || [],
       );
     } catch (err: any) {
       emit('error', { message: err.message || 'Erro interno' });

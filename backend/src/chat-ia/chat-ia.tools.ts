@@ -2,11 +2,62 @@
  * Tool definitions for Claude — context-aware queries on tenant data.
  * Uses `any` for db param since queries run on dynamic tenant schemas.
  */
+import * as crypto from 'crypto';
 
 export interface ToolDefinition {
   name: string;
   description: string;
   input_schema: Record<string, any>;
+}
+
+/** Tools that require ADMIN role */
+const ADMIN_ONLY_TOOLS = new Set([
+  'configurar_whatsapp',
+  'testar_conexao_whatsapp',
+  'configurar_focus_nfe',
+  'testar_focus_nfe',
+]);
+
+/** Encrypt a plaintext string using AES-256-GCM (same as EncryptionService) */
+function encryptToken(plaintext: string): string {
+  const envKey = process.env.ENCRYPTION_KEY;
+  let key: Buffer;
+  if (envKey) {
+    key = Buffer.from(envKey, 'hex');
+  } else {
+    const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
+    key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
+  }
+  const iv = crypto.randomBytes(12); // 96-bit IV for GCM — MUST match EncryptionService
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  let encrypted = cipher.update(plaintext, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  const authTag = cipher.getAuthTag().toString('base64');
+  return `${iv.toString('base64')}:${authTag}:${encrypted}`;
+}
+
+/** Decrypt a token encrypted with encryptToken / EncryptionService */
+function decryptToken(encryptedValue: string): string {
+  const envKey = process.env.ENCRYPTION_KEY;
+  let key: Buffer;
+  if (envKey) {
+    key = Buffer.from(envKey, 'hex');
+  } else {
+    const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
+    key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
+  }
+  const parts = encryptedValue.split(':');
+  if (parts.length !== 3) {
+    throw new Error('Token armazenado está corrompido');
+  }
+  const iv = Buffer.from(parts[0], 'base64');
+  const authTag = Buffer.from(parts[1], 'base64');
+  const encData = parts[2];
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encData, 'base64', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
 }
 
 export const CHAT_IA_TOOLS: ToolDefinition[] = [
@@ -169,13 +220,25 @@ export const CHAT_IA_TOOLS: ToolDefinition[] = [
 
 /**
  * Execute a tool call against the tenant database.
+ * @param userRoles - user roles from JWT (config tools require ADMIN)
  */
 export async function executeTool(
   db: any,
   toolName: string,
   input: Record<string, any>,
+  userRoles: string[] = [],
 ): Promise<string> {
   try {
+    // Security: config tools require ADMIN role
+    if (ADMIN_ONLY_TOOLS.has(toolName)) {
+      if (!userRoles.includes('ADMIN')) {
+        return JSON.stringify({
+          error: 'Acesso negado. Apenas administradores podem usar ferramentas de configuração.',
+          dica: 'Peça ao administrador da empresa para realizar essa configuração.',
+        });
+      }
+    }
+
     switch (toolName) {
       case 'buscar_ordens_servico':
         return await searchServiceOrders(db, input);
@@ -577,23 +640,8 @@ async function configureWhatsApp(db: any, input: Record<string, any>): Promise<s
     const displayName = data.verified_name || data.display_phone_number || 'Desconhecido';
     const phoneNumber = data.display_phone_number || '';
 
-    // Encrypt token using same logic as EncryptionService
-    const crypto = require('crypto');
-    const envKey = process.env.ENCRYPTION_KEY;
-    let key: Buffer;
-    if (envKey) {
-      key = Buffer.from(envKey, 'hex');
-    } else {
-      const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
-      key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
-    }
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    let encrypted = cipher.update(accessToken, 'utf8', 'base64');
-    encrypted += cipher.final('base64');
-    const authTag = cipher.getAuthTag().toString('base64');
-    const encryptedToken = `${iv.toString('base64')}:${authTag}:${encrypted}`;
-
+    // Encrypt token using shared helper (12-byte IV, matches EncryptionService)
+    const encryptedToken = encryptToken(accessToken);
     const verifyToken = crypto.randomBytes(16).toString('hex');
 
     // Save config
@@ -656,28 +704,12 @@ async function testWhatsAppConnection(db: any): Promise<string> {
   }
 
   try {
-    const crypto = require('crypto');
-    const envKey = process.env.ENCRYPTION_KEY;
-    let key: Buffer;
-    if (envKey) {
-      key = Buffer.from(envKey, 'hex');
-    } else {
-      const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
-      key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
-    }
-
-    const parts = config.metaAccessToken.split(':');
-    if (parts.length !== 3) {
+    let token: string;
+    try {
+      token = decryptToken(config.metaAccessToken);
+    } catch {
       return JSON.stringify({ status: 'Erro', message: 'Token armazenado está corrompido. Reconfigure em /settings/whatsapp.' });
     }
-
-    const iv = Buffer.from(parts[0], 'base64');
-    const authTag = Buffer.from(parts[1], 'base64');
-    const encData = parts[2];
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(authTag);
-    let token = decipher.update(encData, 'base64', 'utf8');
-    token += decipher.final('utf8');
 
     const res = await fetch(`https://graph.facebook.com/v21.0/${config.metaPhoneNumberId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -771,22 +803,8 @@ async function configureFocusNfe(db: any, input: Record<string, any>): Promise<s
       });
     }
 
-    // Encrypt token
-    const crypto = require('crypto');
-    const envKey = process.env.ENCRYPTION_KEY;
-    let key: Buffer;
-    if (envKey) {
-      key = Buffer.from(envKey, 'hex');
-    } else {
-      const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
-      key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
-    }
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    let encrypted = cipher.update(focusNfeToken, 'utf8', 'base64');
-    encrypted += cipher.final('base64');
-    const authTag = cipher.getAuthTag().toString('base64');
-    const encryptedToken = `${iv.toString('base64')}:${authTag}:${encrypted}`;
+    // Encrypt token using shared helper (12-byte IV, matches EncryptionService)
+    const encryptedToken = encryptToken(focusNfeToken);
 
     // Build update data - only include provided fields
     const configData: any = {
@@ -868,28 +886,12 @@ async function testFocusNfe(db: any): Promise<string> {
 
   // Decrypt and test token
   try {
-    const crypto = require('crypto');
-    const envKey = process.env.ENCRYPTION_KEY;
-    let key: Buffer;
-    if (envKey) {
-      key = Buffer.from(envKey, 'hex');
-    } else {
-      const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
-      key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
-    }
-
-    const parts = config.focusNfeToken.split(':');
-    if (parts.length !== 3) {
+    let token: string;
+    try {
+      token = decryptToken(config.focusNfeToken);
+    } catch {
       return JSON.stringify({ status: 'Erro', message: 'Token armazenado está corrompido. Reconfigure em /settings/fiscal.' });
     }
-
-    const iv = Buffer.from(parts[0], 'base64');
-    const authTag = Buffer.from(parts[1], 'base64');
-    const encData = parts[2];
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(authTag);
-    let token = decipher.update(encData, 'base64', 'utf8');
-    token += decipher.final('utf8');
 
     const baseUrl = config.focusNfeEnvironment === 'PRODUCTION'
       ? 'https://api.focusnfe.com.br'

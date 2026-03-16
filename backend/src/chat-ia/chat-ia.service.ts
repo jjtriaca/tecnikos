@@ -438,6 +438,7 @@ export class ChatIAService {
     content: string,
     conversationId?: string,
     tenantSchema?: string,
+    userRoles: string[] = [],
   ): Promise<{ conversationId: string; message: MessageResult }> {
     if (!this.anthropic) {
       throw new ForbiddenException('Assistente IA não configurado (ANTHROPIC_API_KEY)');
@@ -488,7 +489,7 @@ export class ChatIAService {
     const contextPrefix = this.buildContextPrefix(onboardingStatus, usage);
 
     // Call Claude with tools
-    const result = await this.callClaude(messages, contextPrefix, db);
+    const result = await this.callClaude(messages, contextPrefix, db, userRoles);
 
     // Detect action buttons from response
     const actionButtons = this.extractActionButtons(result.content, onboardingStatus);
@@ -623,6 +624,7 @@ export class ChatIAService {
     conversationId: string | undefined,
     tenantSchema: string | undefined,
     emit: (event: string, data: any) => void,
+    userRoles: string[] = [],
   ): Promise<void> {
     if (!this.anthropic) {
       emit('error', { message: 'Assistente IA não configurado' });
@@ -668,7 +670,7 @@ export class ChatIAService {
     // Stream response
     let result: MessageResult;
     try {
-      result = await this.streamClaude(messages, contextPrefix, db, emit);
+      result = await this.streamClaude(messages, contextPrefix, db, emit, userRoles);
     } catch (err: any) {
       this.logger.error('Stream error', err?.message);
       emit('error', { message: 'Erro ao processar mensagem. Tente novamente.' });
@@ -715,6 +717,7 @@ export class ChatIAService {
     contextPrefix: string,
     db: any,
     emit: (event: string, data: any) => void,
+    userRoles: string[] = [],
   ): Promise<MessageResult> {
     const model = process.env.CHAT_IA_MODEL || 'claude-haiku-4-5-20251001';
     const maxTokens = parseInt(process.env.CHAT_IA_MAX_TOKENS || '2048', 10);
@@ -798,7 +801,7 @@ export class ChatIAService {
       for (const block of toolUseBlocks) {
         this.logger.log(`Tool call: ${block.name}`);
         allToolCalls.push({ name: block.name, input: block.input });
-        const result = await executeTool(db, block.name, block.input);
+        const result = await executeTool(db, block.name, block.input, userRoles);
         toolResults.push({
           type: 'tool_result',
           tool_use_id: block.id,
@@ -861,6 +864,7 @@ export class ChatIAService {
     messages: Anthropic.MessageParam[],
     contextPrefix: string,
     db: any,
+    userRoles: string[] = [],
   ): Promise<MessageResult> {
     const model = process.env.CHAT_IA_MODEL || 'claude-haiku-4-5-20251001';
     const maxTokens = parseInt(process.env.CHAT_IA_MAX_TOKENS || '2048', 10);
@@ -889,7 +893,7 @@ export class ChatIAService {
         this.logger.log(`Tool call: ${block.name} — ${JSON.stringify(block.input).substring(0, 100)}`);
         allToolCalls.push({ name: block.name, input: block.input });
 
-        const result = await executeTool(db, block.name, block.input as Record<string, any>);
+        const result = await executeTool(db, block.name, block.input as Record<string, any>, userRoles);
         (toolResults.content as any[]).push({
           type: 'tool_result',
           tool_use_id: block.id,
