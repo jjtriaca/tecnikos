@@ -18,6 +18,7 @@ export interface DispatchState {
   osId: string;
   osCode?: string;
   osTitle?: string;
+  osDescription?: string;
   // Technician
   technicianName: string;
   technicianPhone: string;
@@ -27,13 +28,25 @@ export interface DispatchState {
   notificationChannel: string; // WHATSAPP, MOCK
   whatsappStatus?: string; // sent, delivered, read, failed
   errorDetail?: string;
-  // OS status
+  // OS status & timestamps
   osStatus?: string;
   acceptedAt?: string;
   enRouteAt?: string;
   arrivedAt?: string;
   startedAt?: string;
   completedAt?: string;
+  createdAt?: string;
+  // OS details (rich info)
+  valueCents?: number;
+  deadlineAt?: string;
+  scheduledStartAt?: string;
+  addressText?: string;
+  city?: string;
+  state?: string;
+  neighborhood?: string;
+  isUrgent?: boolean;
+  isReturn?: boolean;
+  clientName?: string;
   // UI state
   resending?: boolean;
 }
@@ -109,19 +122,32 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
       for (const d of activeDispatches) {
         try {
           const result = await api.get<any>(`/service-orders/${d.osId}/dispatch-status`);
+          const so = result.serviceOrder;
           setDispatches((prev) =>
             prev.map((p) =>
               p.osId === d.osId
                 ? {
                     ...p,
-                    osCode: result.serviceOrder?.code || p.osCode,
-                    osTitle: result.serviceOrder?.title || p.osTitle,
-                    osStatus: result.serviceOrder?.status,
-                    acceptedAt: result.serviceOrder?.acceptedAt,
-                    enRouteAt: result.serviceOrder?.enRouteAt,
-                    arrivedAt: result.serviceOrder?.arrivedAt,
-                    startedAt: result.serviceOrder?.startedAt,
-                    completedAt: result.serviceOrder?.completedAt,
+                    osCode: so?.code || p.osCode,
+                    osTitle: so?.title || p.osTitle,
+                    osDescription: so?.description || p.osDescription,
+                    osStatus: so?.status,
+                    acceptedAt: so?.acceptedAt,
+                    enRouteAt: so?.enRouteAt,
+                    arrivedAt: so?.arrivedAt,
+                    startedAt: so?.startedAt,
+                    completedAt: so?.completedAt,
+                    createdAt: so?.createdAt || p.createdAt,
+                    valueCents: so?.valueCents ?? p.valueCents,
+                    deadlineAt: so?.deadlineAt || p.deadlineAt,
+                    scheduledStartAt: so?.scheduledStartAt || p.scheduledStartAt,
+                    addressText: so?.addressText || p.addressText,
+                    city: so?.city || p.city,
+                    state: so?.state || p.state,
+                    neighborhood: so?.neighborhood || p.neighborhood,
+                    isUrgent: so?.isUrgent ?? p.isUrgent,
+                    isReturn: so?.isReturn ?? p.isReturn,
+                    clientName: so?.clientName || p.clientName,
                     technicianName: result.technician?.name || p.technicianName,
                     technicianPhone: result.technician?.phone || p.technicianPhone,
                     notificationId: result.notification?.id || p.notificationId,

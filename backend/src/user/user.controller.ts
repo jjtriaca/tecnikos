@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Put,
+  Patch,
   Delete,
   HttpCode,
   HttpStatus,
@@ -29,6 +30,21 @@ export class UserController {
   @Get()
   findAll(@CurrentUser() user: AuthenticatedUser) {
     return this.service.findAll(user.companyId);
+  }
+
+  // ── User preferences (self-service, any role) — MUST be before :id routes ──
+
+  @Get('me/preferences')
+  getMyPreferences(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getPreferences(user.id);
+  }
+
+  @Patch('me/preferences')
+  updateMyPreferences(
+    @Body() body: Record<string, any>,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updatePreferences(user.id, body);
   }
 
   @Roles(UserRole.ADMIN)
@@ -97,4 +113,5 @@ export class UserController {
   ) {
     return this.service.remove(id, user.companyId, user);
   }
+
 }

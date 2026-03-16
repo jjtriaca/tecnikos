@@ -254,4 +254,24 @@ export class UserService {
 
     return result;
   }
+
+  // ── User preferences (self-service) ──
+
+  async getPreferences(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { preferences: true },
+    });
+    return (user?.preferences as Record<string, any>) || {};
+  }
+
+  async updatePreferences(userId: string, patch: Record<string, any>) {
+    const current = await this.getPreferences(userId);
+    const merged = { ...current, ...patch };
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { preferences: merged },
+    });
+    return merged;
+  }
 }

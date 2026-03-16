@@ -225,6 +225,9 @@ model User {
   deactivationCount      Int       @default(0)
   lastDeactivatedAt      DateTime?
 
+  // UI preferences (dispatch panel position, etc.)
+  preferences            Json?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   deletedAt    DateTime?

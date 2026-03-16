@@ -202,48 +202,62 @@ export class ServiceOrderService {
     }
 
     // Execute workflow stage notifications (NOTIFY blocks for the initial status)
-    if (resolvedWorkflowId && this.workflowEngine) {
-      this.workflowEngine.executeStageNotifications(
-        result.id,
-        data.companyId,
-        result.status,
-        resolvedWorkflowId,
-      ).catch(err => {
-        console.error('executeStageNotifications failed:', err?.message || err);
-      });
-    }
-
-    // WhatsApp notification for auto-assigned OS (DIRECTED or BY_AGENDA)
-    // The assign() method is NOT called in these flows, so we must notify here
+    // For DIRECTED/BY_AGENDA (auto-assigned), we AWAIT the result to populate _dispatch for the panel
     let _dispatch: any = undefined;
     const autoAssignedTechId = result.assignedPartnerId;
-    if (autoAssignedTechId && this.notifications) {
-      const tech = await this.prisma.partner.findUnique({
-        where: { id: autoAssignedTechId },
-        select: { name: true, phone: true },
-      });
-      if (tech?.phone) {
+
+    if (resolvedWorkflowId && this.workflowEngine) {
+      if (autoAssignedTechId) {
+        // Await workflow notifications to get dispatch data for the floating panel
         try {
-          const notification = await this.notifications.notifyStatusChange(
-            data.companyId, result.id, result.title, 'ATRIBUIDA', tech.phone,
+          const notifResult = await this.workflowEngine.executeStageNotifications(
+            result.id,
+            data.companyId,
+            result.status,
+            resolvedWorkflowId,
           );
-          _dispatch = {
-            technicianName: tech.name,
-            technicianPhone: tech.phone,
-            notificationId: notification.id,
-            notificationStatus: notification.status,
-            notificationChannel: notification.channel,
-            errorDetail: notification.errorDetail,
-          };
+
+          // Load tech info for dispatch panel
+          const tech = await this.prisma.partner.findUnique({
+            where: { id: autoAssignedTechId },
+            select: { name: true, phone: true },
+          });
+
+          if (tech) {
+            _dispatch = {
+              technicianName: tech.name,
+              technicianPhone: tech.phone || '',
+              notificationId: notifResult?.notificationId,
+              notificationStatus: notifResult?.notificationStatus || 'PENDING',
+              notificationChannel: notifResult?.notificationChannel || 'WHATSAPP',
+              errorDetail: notifResult?.errorDetail,
+            };
+          }
         } catch (err) {
-          console.error('Auto-assign notification failed:', err?.message || err);
-          _dispatch = {
-            technicianName: tech.name,
-            technicianPhone: tech.phone,
-            notificationStatus: 'FAILED',
-            errorDetail: err?.message || 'Erro desconhecido',
-          };
+          console.error('executeStageNotifications failed:', err?.message || err);
+          const tech = await this.prisma.partner.findUnique({
+            where: { id: autoAssignedTechId },
+            select: { name: true, phone: true },
+          });
+          if (tech) {
+            _dispatch = {
+              technicianName: tech.name,
+              technicianPhone: tech.phone || '',
+              notificationStatus: 'FAILED',
+              errorDetail: err?.message || 'Erro desconhecido',
+            };
+          }
         }
+      } else {
+        // Non-auto-assigned: fire-and-forget workflow notifications
+        this.workflowEngine.executeStageNotifications(
+          result.id,
+          data.companyId,
+          result.status,
+          resolvedWorkflowId,
+        ).catch(err => {
+          console.error('executeStageNotifications failed:', err?.message || err);
+        });
       }
     }
 
@@ -435,9 +449,13 @@ export class ServiceOrderService {
     const so = await this.prisma.serviceOrder.findFirst({
       where: { id, companyId, deletedAt: null },
       select: {
-        id: true, code: true, title: true, status: true,
+        id: true, code: true, title: true, description: true, status: true,
         assignedPartnerId: true, acceptedAt: true,
         enRouteAt: true, arrivedAt: true, startedAt: true, completedAt: true,
+        valueCents: true, deadlineAt: true, scheduledStartAt: true,
+        addressText: true, city: true, state: true, neighborhood: true,
+        isUrgent: true, isReturn: true, createdAt: true,
+        clientPartner: { select: { name: true } },
         assignedPartner: { select: { name: true, phone: true } },
       },
     });
@@ -450,11 +468,16 @@ export class ServiceOrderService {
 
     return {
       serviceOrder: {
-        id: so.id, code: so.code, title: so.title, status: so.status,
-        assignedPartnerId: so.assignedPartnerId,
+        id: so.id, code: so.code, title: so.title, description: so.description,
+        status: so.status, assignedPartnerId: so.assignedPartnerId,
         acceptedAt: so.acceptedAt, enRouteAt: so.enRouteAt,
-        arrivedAt: so.arrivedAt, startedAt: so.startedAt,
-        completedAt: so.completedAt,
+        arrivedAt: so.arrivedAt, startedAt: so.startedAt, completedAt: so.completedAt,
+        valueCents: so.valueCents, deadlineAt: so.deadlineAt,
+        scheduledStartAt: so.scheduledStartAt, createdAt: so.createdAt,
+        addressText: so.addressText, city: so.city, state: so.state,
+        neighborhood: so.neighborhood,
+        isUrgent: so.isUrgent, isReturn: so.isReturn,
+        clientName: so.clientPartner?.name || null,
       },
       technician: so.assignedPartner
         ? { name: so.assignedPartner.name, phone: so.assignedPartner.phone }

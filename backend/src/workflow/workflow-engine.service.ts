@@ -1480,17 +1480,16 @@ export class WorkflowEngineService {
               continue;
             }
 
-            // Se a OS já está ATRIBUÍDA (ex: respectDirectedTechnician auto-atribuiu),
-            // envia notificação informativa sem criar oferta/link
-            const osAlreadyAssigned = notifySO.status === 'ATRIBUIDA' && !!notifySO.assignedPartnerId;
-            this.logger.log(`💬 Sending TECNICO notification to ${techTargets.length} technician(s), includeLink=${r.includeLink}, osAlreadyAssigned=${osAlreadyAssigned}`);
+            this.logger.log(`💬 Sending TECNICO notification to ${techTargets.length} technician(s), includeLink=${r.includeLink}`);
 
-            // Generate public link if includeLink is enabled AND OS is NOT already assigned
+            // Generate public link if includeLink is enabled in the workflow NOTIFY block
+            // The link is generated regardless of assignment status — DIRECTED/BY_AGENDA
+            // auto-assign the tech at creation time, but the tech still needs the link.
             let publicLinkUrl = '';
             const recipientConfig = Array.isArray(config.recipients)
               ? config.recipients.find((rc: any) => rc.type === 'TECNICO')
               : null;
-            if (r.includeLink && this.publicOffer && !osAlreadyAssigned) {
+            if (r.includeLink && this.publicOffer) {
               try {
                 const validityHours = recipientConfig?.linkConfig?.validityHours || 24;
                 const offer = await this.publicOffer.createOffer(serviceOrderId, companyId, validityHours);
@@ -1819,7 +1818,7 @@ export class WorkflowEngineService {
     companyId: string,
     targetStatus: string,
     workflowTemplateId?: string | null,
-  ): Promise<void> {
+  ): Promise<{ notificationId?: string; notificationStatus?: string; notificationChannel?: string; errorDetail?: string } | void> {
     this.logger.log(`📨 executeStageNotifications called: OS=${serviceOrderId}, status=${targetStatus}, templateId=${workflowTemplateId || 'auto'}`);
 
     if (!this.notifications) {
@@ -1889,6 +1888,7 @@ export class WorkflowEngineService {
       let currentBlock = blocks[statusBlockIdx];
       const visited = new Set<string>();
       let executedCount = 0;
+      let firstNotifyResult: { notificationId?: string; notificationStatus?: string; notificationChannel?: string; errorDetail?: string } | undefined;
 
       this.logger.log(`📨 Starting from block "${currentBlock.name}" (${currentBlock.id}), next=${currentBlock.next}`);
 
@@ -1910,8 +1910,26 @@ export class WorkflowEngineService {
         if (nextBlock.type === 'NOTIFY' || nextBlock.type === 'FINANCIAL_ENTRY' || nextBlock.type === 'ALERT') {
           this.logger.log(`📨 Executing ${nextBlock.type} block "${nextBlock.name}" (${nextBlock.id})`);
           try {
-            await this.executeSystemBlock(nextBlock, serviceOrderId, companyId, undefined);
+            const blockResult = await this.executeSystemBlock(nextBlock, serviceOrderId, companyId, undefined);
             executedCount++;
+
+            // Capture first NOTIFY result for dispatch panel tracking
+            if (nextBlock.type === 'NOTIFY' && !firstNotifyResult && blockResult?.recipients) {
+              // Try to find the notification just created for this OS
+              const latestNotif = await this.prisma.notification.findFirst({
+                where: { serviceOrderId, companyId },
+                orderBy: { createdAt: 'desc' },
+                select: { id: true, status: true, channel: true, errorDetail: true },
+              });
+              if (latestNotif) {
+                firstNotifyResult = {
+                  notificationId: latestNotif.id,
+                  notificationStatus: latestNotif.status,
+                  notificationChannel: latestNotif.channel,
+                  errorDetail: latestNotif.errorDetail || undefined,
+                };
+              }
+            }
           } catch (err) {
             this.logger.error(
               `Stage notification ${nextBlock.type} failed for OS ${serviceOrderId}: ${(err as Error).message}`,
@@ -1927,6 +1945,8 @@ export class WorkflowEngineService {
       this.logger.log(
         `📨 Done: executed ${executedCount} notification(s) for OS ${serviceOrderId} → ${targetStatus}`,
       );
+
+      return firstNotifyResult;
     } catch (err) {
       this.logger.error(
         `executeStageNotifications error: ${(err as Error).message}`,
