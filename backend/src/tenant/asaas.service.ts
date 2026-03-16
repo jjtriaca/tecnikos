@@ -438,7 +438,7 @@ export class AsaasService {
       );
     }
 
-    // ── Calculate pro-rata credit ──
+    // ── Calculate pro-rata credit (preview only, applied on payment confirmation) ──
     const now = new Date();
     const periodStart = currentSub.currentPeriodStart;
     const periodEnd = currentSub.currentPeriodEnd;
@@ -454,13 +454,96 @@ export class AsaasService {
     const existingCredit = currentSub.creditBalanceCents || 0;
     const totalCredit = existingCredit + creditCents;
 
+    const newValueCents = isYearly && newPlan.priceYearlyCents
+      ? newPlan.priceYearlyCents
+      : newPlan.priceCents;
+
+    const firstInvoiceDiscount = Math.min(totalCredit, newValueCents);
+
     this.logger.log(
-      `Upgrade pro-rata: ${remainingDays}/${totalDays} days remaining, ` +
+      `Upgrade checkout: ${currentPlan?.name} → ${newPlan.name}, ` +
+      `${remainingDays}/${totalDays} days remaining, ` +
       `credit R$${(creditCents / 100).toFixed(2)} + existing R$${(existingCredit / 100).toFixed(2)} ` +
-      `= total R$${(totalCredit / 100).toFixed(2)}`,
+      `= total R$${(totalCredit / 100).toFixed(2)}, discount R$${(firstInvoiceDiscount / 100).toFixed(2)}`,
     );
 
-    // ── Cancel current Asaas subscription ──
+    // ── ONLY create Asaas payment — do NOT change plan/subscription/limits yet ──
+    // Everything is applied in applyUpgrade() when PAYMENT_CONFIRMED webhook fires.
+
+    // Save upgrade intent on the current subscription (pendingPlanId)
+    await this.prisma.subscription.update({
+      where: { id: currentSub.id },
+      data: {
+        pendingPlanId: newPlan.id,
+        pendingPlanAt: now, // Marks when upgrade was requested
+      },
+    });
+
+    // Create a one-time payment (NOT a subscription) for the upgrade
+    const customerId = await this.ensureCustomer(tenantId);
+    const chargeValue = (newValueCents - firstInvoiceDiscount) / 100;
+
+    let checkoutUrl: string | null = null;
+
+    if (chargeValue > 0 && this.asaas.isConfigured) {
+      // Create a single payment with externalReference linking to the upgrade
+      const payment = await this.asaas.createPayment({
+        customer: customerId,
+        billingType: 'UNDEFINED',
+        value: chargeValue,
+        dueDate: this.formatDate(now),
+        description: `Upgrade: ${currentPlan?.name} → ${newPlan.name} - Tecnikos`,
+        externalReference: `upgrade_${currentSub.id}_${newPlan.id}`,
+      });
+
+      checkoutUrl = payment.invoiceUrl || payment.bankSlipUrl || null;
+
+      // Fallback URL
+      if (!checkoutUrl && payment.id) {
+        const isSandbox = (this.asaas as any).baseUrl?.includes('sandbox');
+        const host = isSandbox ? 'https://sandbox.asaas.com' : 'https://www.asaas.com';
+        checkoutUrl = `${host}/i/${payment.id}`;
+      }
+    } else if (chargeValue <= 0) {
+      // Credit covers the entire upgrade — apply immediately
+      await this.applyUpgrade(currentSub.id, newPlan.id, tenantId, totalCredit, newValueCents);
+      return { checkoutUrl: null, creditApplied: firstInvoiceDiscount / 100 };
+    }
+
+    this.logger.log(
+      `Upgrade checkout created: ${currentPlan?.name} → ${newPlan.name} for tenant ${tenantId}. ` +
+      `Charge: R$${chargeValue.toFixed(2)}, checkout: ${checkoutUrl}`,
+    );
+    return { checkoutUrl, creditApplied: firstInvoiceDiscount / 100 };
+  }
+
+  /**
+   * Apply an upgrade after payment confirmation.
+   * Called from webhook handler when payment with upgrade_ reference is confirmed.
+   */
+  async applyUpgrade(
+    currentSubId: string,
+    newPlanId: string,
+    tenantId: string,
+    totalCreditCents: number,
+    newValueCents: number,
+  ) {
+    const [tenant, newPlan, currentSub] = await Promise.all([
+      this.prisma.tenant.findUnique({ where: { id: tenantId } }),
+      this.prisma.plan.findUnique({ where: { id: newPlanId } }),
+      this.prisma.subscription.findUnique({ where: { id: currentSubId } }),
+    ]);
+
+    if (!tenant || !newPlan || !currentSub) {
+      this.logger.error(`applyUpgrade: missing data — tenant=${!!tenant}, plan=${!!newPlan}, sub=${!!currentSub}`);
+      return;
+    }
+
+    const now = new Date();
+    const billingCycle = currentSub.billingCycle || 'MONTHLY';
+    const isYearly = billingCycle === 'ANNUAL';
+
+    // Cancel old Asaas subscription
     if (currentSub.asaasSubscriptionId && this.asaas.isConfigured) {
       try {
         await this.asaas.cancelSubscription(currentSub.asaasSubscriptionId);
@@ -472,10 +555,10 @@ export class AsaasService {
     // Mark old subscription as cancelled
     await this.prisma.subscription.update({
       where: { id: currentSub.id },
-      data: { status: 'CANCELLED', cancelledAt: now },
+      data: { status: 'CANCELLED', cancelledAt: now, pendingPlanId: null, pendingPlanAt: null },
     });
 
-    // ── Create new subscription (preserving billing cycle) ──
+    // Create new subscription
     const newPeriodEnd = new Date(now);
     if (isYearly) {
       newPeriodEnd.setFullYear(newPeriodEnd.getFullYear() + 1);
@@ -483,13 +566,7 @@ export class AsaasService {
       newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
     }
 
-    const newValueCents = isYearly && newPlan.priceYearlyCents
-      ? newPlan.priceYearlyCents
-      : newPlan.priceCents;
-
-    // Apply credit as discount on first invoice
-    const firstInvoiceDiscount = Math.min(totalCredit, newValueCents);
-    const remainingCredit = totalCredit - firstInvoiceDiscount;
+    const remainingCredit = Math.max(0, totalCreditCents - newValueCents);
 
     const newSub = await this.prisma.subscription.create({
       data: {
@@ -501,11 +578,34 @@ export class AsaasService {
         nextBillingDate: newPeriodEnd,
         osResetDate: now,
         billingCycle,
-        creditBalanceCents: remainingCredit, // Any leftover credit after first invoice
+        creditBalanceCents: remainingCredit,
       },
     });
 
-    // Update tenant plan + limits (snapshot all features — grandfather)
+    // Create new Asaas subscription for recurring billing going forward
+    if (this.asaas.isConfigured) {
+      try {
+        const customerId = await this.ensureCustomer(tenantId);
+        const recurringValue = (isYearly && newPlan.priceYearlyCents ? newPlan.priceYearlyCents : newPlan.priceCents) / 100;
+        const asaasSub = await this.asaas.createSubscription({
+          customer: customerId,
+          billingType: 'UNDEFINED',
+          value: recurringValue,
+          nextDueDate: this.formatDate(newPeriodEnd),
+          cycle: isYearly ? 'ANNUAL' : 'MONTHLY',
+          description: `${newPlan.name} - Tecnikos`,
+          externalReference: tenantId,
+        });
+        await this.prisma.subscription.update({
+          where: { id: newSub.id },
+          data: { asaasSubscriptionId: asaasSub.id },
+        });
+      } catch (err) {
+        this.logger.error(`Failed to create recurring Asaas subscription after upgrade: ${(err as Error).message}`);
+      }
+    }
+
+    // Update tenant plan + limits (snapshot — grandfather)
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
@@ -535,63 +635,10 @@ export class AsaasService {
         });
       }
     } catch (err) {
-      this.logger.warn(`Failed to update Company limits: ${(err as Error).message}`);
+      this.logger.warn(`Failed to update Company limits on upgrade: ${(err as Error).message}`);
     }
 
-    // ── Create Asaas subscription with discount on first invoice ──
-    const customerId = await this.ensureCustomer(tenantId);
-    const asaasValue = newValueCents / 100;
-    const nextDueDate = this.formatDate(now);
-
-    const asaasData: any = {
-      customer: customerId,
-      billingType: 'UNDEFINED',
-      value: asaasValue,
-      nextDueDate,
-      cycle: isYearly ? 'ANNUAL' : 'MONTHLY',
-      description: `${newPlan.name} - Tecnikos`,
-      externalReference: tenantId,
-    };
-
-    // Apply pro-rata credit as discount on first invoice only
-    if (firstInvoiceDiscount > 0) {
-      asaasData.discount = {
-        value: firstInvoiceDiscount / 100,
-        type: 'FIXED',
-        dueDateLimitDays: 0, // Only on first invoice
-      };
-      this.logger.log(`Applying R$${(firstInvoiceDiscount / 100).toFixed(2)} discount on first invoice`);
-    }
-
-    const asaasSub = await this.asaas.createSubscription(asaasData);
-
-    // Link asaasSubscriptionId
-    await this.prisma.subscription.update({
-      where: { id: newSub.id },
-      data: { asaasSubscriptionId: asaasSub.id },
-    });
-
-    // Get the first payment's invoiceUrl
-    let checkoutUrl: string | null = null;
-    try {
-      const paymentInfo = await this.getFirstPaymentInfo(asaasSub.id, 'UNDEFINED');
-      checkoutUrl = paymentInfo?.invoiceUrl || null;
-    } catch (err) {
-      this.logger.warn(`Failed to get upgrade invoiceUrl: ${(err as Error).message}`);
-    }
-
-    // Fallback URL
-    if (!checkoutUrl) {
-      const isSandbox = (this.asaas as any).baseUrl?.includes('sandbox');
-      const host = isSandbox ? 'https://sandbox.asaas.com' : 'https://www.asaas.com';
-      checkoutUrl = `${host}/i/${asaasSub.id}`;
-    }
-
-    this.logger.log(
-      `Upgrade: ${currentPlan?.name} → ${newPlan.name} for tenant ${tenantId}. ` +
-      `Credit: R$${(totalCredit / 100).toFixed(2)}, checkout: ${checkoutUrl}`,
-    );
-    return { checkoutUrl, creditApplied: firstInvoiceDiscount / 100 };
+    this.logger.log(`Upgrade applied: tenant ${tenantId} → plan ${newPlan.name}`);
   }
 
   /**
@@ -756,10 +803,39 @@ export class AsaasService {
   async handlePaymentWebhook(event: string, payment: any) {
     const subscriptionId = payment.subscription;
 
-    // Handle standalone payments (add-on purchases)
+    // Handle standalone payments (add-on purchases + upgrades)
     if (!subscriptionId) {
       if ((event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') && payment.id) {
         let confirmed = false;
+
+        // 0. Check for upgrade payment (externalReference = upgrade_{subId}_{planId})
+        if (payment.externalReference && String(payment.externalReference).startsWith('upgrade_')) {
+          const parts = String(payment.externalReference).split('_');
+          // Format: upgrade_{subscriptionId}_{planId}
+          const currentSubId = parts[1];
+          const newPlanId = parts[2];
+          if (currentSubId && newPlanId) {
+            const sub = await this.prisma.subscription.findUnique({ where: { id: currentSubId } });
+            if (sub) {
+              // Calculate credit at time of payment
+              const now = new Date();
+              const totalDays = Math.max(1, Math.round((sub.currentPeriodEnd.getTime() - sub.currentPeriodStart.getTime()) / (1000 * 60 * 60 * 24)));
+              const remainingDays = Math.max(0, Math.round((sub.currentPeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+              const billingCycle = sub.billingCycle || 'MONTHLY';
+              const isYearly = billingCycle === 'ANNUAL';
+              const currentPlan = await this.prisma.plan.findUnique({ where: { id: sub.planId } });
+              const currentValueCents = isYearly && currentPlan?.priceYearlyCents ? currentPlan.priceYearlyCents : (currentPlan?.priceCents || 0);
+              const creditCents = Math.round((remainingDays / totalDays) * currentValueCents);
+              const totalCredit = (sub.creditBalanceCents || 0) + creditCents;
+              const newPlan = await this.prisma.plan.findUnique({ where: { id: newPlanId } });
+              const newValueCents = isYearly && newPlan?.priceYearlyCents ? newPlan.priceYearlyCents : (newPlan?.priceCents || 0);
+
+              await this.applyUpgrade(currentSubId, newPlanId, sub.tenantId, totalCredit, newValueCents);
+              this.logger.log(`Upgrade payment confirmed: sub ${currentSubId} → plan ${newPlanId}`);
+            }
+          }
+          return;
+        }
 
         // 1. Try by externalReference (checkout flow — most reliable)
         if (payment.externalReference && String(payment.externalReference).startsWith('addon_')) {
