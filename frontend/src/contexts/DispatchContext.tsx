@@ -48,6 +48,16 @@ export interface DispatchState {
   isUrgent?: boolean;
   isReturn?: boolean;
   clientName?: string;
+  // GPS tracking (Fase 2)
+  destLat?: number;
+  destLng?: number;
+  techLat?: number;
+  techLng?: number;
+  techAccuracy?: number;
+  techSpeed?: number;
+  techHeading?: number;
+  distanceMeters?: number;
+  locationUpdatedAt?: string;
   // UI state
   resending?: boolean;
 }
@@ -95,6 +105,15 @@ function mapApiToDispatch(item: any): DispatchState {
     isUrgent: so.isUrgent,
     isReturn: so.isReturn,
     clientName: so.clientName,
+    destLat: so.lat,
+    destLng: so.lng,
+    techLat: item.location?.lat,
+    techLng: item.location?.lng,
+    techAccuracy: item.location?.accuracy,
+    techSpeed: item.location?.speed,
+    techHeading: item.location?.heading,
+    distanceMeters: item.location?.distanceMeters,
+    locationUpdatedAt: item.location?.updatedAt,
     technicianName: item.technician?.name || "",
     technicianPhone: item.technician?.phone || "",
     notificationId: item.notification?.id,
@@ -179,6 +198,15 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
                     isUrgent: so?.isUrgent ?? p.isUrgent,
                     isReturn: so?.isReturn ?? p.isReturn,
                     clientName: so?.clientName || p.clientName,
+                    destLat: so?.lat ?? p.destLat,
+                    destLng: so?.lng ?? p.destLng,
+                    techLat: result.location?.lat ?? undefined,
+                    techLng: result.location?.lng ?? undefined,
+                    techAccuracy: result.location?.accuracy ?? undefined,
+                    techSpeed: result.location?.speed ?? undefined,
+                    techHeading: result.location?.heading ?? undefined,
+                    distanceMeters: result.location?.distanceMeters ?? undefined,
+                    locationUpdatedAt: result.location?.updatedAt ?? undefined,
                     technicianName: result.technician?.name || p.technicianName,
                     technicianPhone: result.technician?.phone || p.technicianPhone,
                     notificationId: result.notification?.id || p.notificationId,

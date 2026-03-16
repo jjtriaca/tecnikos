@@ -1,23 +1,46 @@
 "use client";
 
 import { useDispatch, DispatchState } from "@/contexts/DispatchContext";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { api } from "@/lib/api";
+import dynamic from "next/dynamic";
+
+const MiniMap = dynamic(() => import("./MiniMap"), { ssr: false });
 
 // ── Card dimensions ──
 const CARD_W = 454; // ~12cm
 const CASCADE_OFFSET = 40;
+const GRID_GAP = 16;
+const CARD_H_ESTIMATE = 380; // approximate card height with GPS section
+const AUTO_GRID_THRESHOLD = 4; // auto-grid when >= this many cards
 
 // ── Helpers ──
 
-function getCenterStart(index: number) {
+function getCenterStart(index: number, total?: number) {
   if (typeof window === "undefined") return { x: 200, y: 100 };
+  // Auto-grid for many cards
+  if (total != null && total >= AUTO_GRID_THRESHOLD) {
+    return calculateGridPositions(total)[index] || { x: 200, y: 100 };
+  }
   const centerX = Math.round(window.innerWidth / 2 - CARD_W / 2);
   const centerY = Math.max(40, Math.round(window.innerHeight * 0.1));
   return {
     x: centerX + index * CASCADE_OFFSET,
     y: centerY + index * CASCADE_OFFSET,
   };
+}
+
+function calculateGridPositions(count: number): { x: number; y: number }[] {
+  if (typeof window === "undefined") return Array.from({ length: count }, () => ({ x: 200, y: 100 }));
+  const maxCols = Math.max(1, Math.floor((window.innerWidth - 40) / (CARD_W + GRID_GAP)));
+  const cols = Math.min(maxCols, count);
+  const totalW = cols * CARD_W + (cols - 1) * GRID_GAP;
+  const startX = Math.max(20, Math.round((window.innerWidth - totalW) / 2));
+  const startY = 60;
+  return Array.from({ length: count }, (_, i) => ({
+    x: startX + (i % cols) * (CARD_W + GRID_GAP),
+    y: startY + Math.floor(i / cols) * (CARD_H_ESTIMATE + GRID_GAP),
+  }));
 }
 
 function clampPosition(x: number, y: number) {
@@ -178,11 +201,12 @@ interface FloatingCardProps {
   d: DispatchState;
   position: { x: number; y: number };
   zIndex: number;
+  organizing: boolean;
   onFocus: () => void;
   onMove: (x: number, y: number) => void;
 }
 
-function FloatingCard({ d, position, zIndex, onFocus, onMove }: FloatingCardProps) {
+function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: FloatingCardProps) {
   const { resendNotification, toggleMinimize } = useDispatch();
   const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
   const dragAreaRef = useRef<HTMLDivElement>(null);
@@ -221,7 +245,10 @@ function FloatingCard({ d, position, zIndex, onFocus, onMove }: FloatingCardProp
 
   return (
     <div
-      style={{ position: "fixed", left: position.x, top: position.y, width: CARD_W, zIndex }}
+      style={{
+        position: "fixed", left: position.x, top: position.y, width: CARD_W, zIndex,
+        transition: organizing ? "left 0.3s ease, top 0.3s ease" : undefined,
+      }}
       className="flex flex-col rounded-xl shadow-2xl select-none transition-shadow hover:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.35)]"
       onPointerDown={() => onFocus()}
     >
@@ -347,11 +374,117 @@ function FloatingCard({ d, position, zIndex, onFocus, onMove }: FloatingCardProp
           )}
         </div>
 
-        {/* Horizontal timeline + GPS placeholder */}
+        {/* GPS Tracking section (Fase 2) */}
+        <GpsSection d={d} />
+
+        {/* Horizontal timeline */}
         <div className="px-3 py-2">
           <HorizontalTimeline d={d} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── GPS Tracking Section ──
+
+function formatDistance(meters?: number) {
+  if (meters == null) return null;
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+function formatTimeAgo(isoDate?: string) {
+  if (!isoDate) return null;
+  const diff = Math.max(0, Date.now() - new Date(isoDate).getTime());
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}min`;
+  return `${Math.floor(mins / 60)}h${mins % 60}min`;
+}
+
+function estimateEta(distanceMeters?: number, speedMs?: number) {
+  if (distanceMeters == null) return null;
+  // Use actual speed if available and > 1 m/s, otherwise assume ~30 km/h (~8.3 m/s) urban avg
+  const speed = (speedMs && speedMs > 1) ? speedMs : 8.3;
+  const seconds = distanceMeters / speed;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `~${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `~${h}h${m > 0 ? `${m}min` : ""}`;
+}
+
+function GpsSection({ d }: { d: DispatchState }) {
+  // Only show GPS section when technician is en route or later (but not completed)
+  const showGps = d.enRouteAt && !d.completedAt;
+  if (!showGps) return null;
+
+  const hasDestCoords = d.destLat != null && d.destLng != null;
+  const hasTechCoords = d.techLat != null && d.techLng != null;
+
+  if (!hasDestCoords) {
+    return (
+      <div className="px-3 py-2 border-b border-slate-100">
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Endereco sem coordenadas
+        </div>
+      </div>
+    );
+  }
+
+  const dist = formatDistance(d.distanceMeters);
+  const eta = estimateEta(d.distanceMeters, d.techSpeed);
+  const ago = formatTimeAgo(d.locationUpdatedAt);
+
+  return (
+    <div className="px-3 py-2 border-b border-slate-100">
+      {/* Mini map */}
+      <MiniMap
+        destLat={d.destLat!}
+        destLng={d.destLng!}
+        techLat={d.techLat}
+        techLng={d.techLng}
+        techHeading={d.techHeading}
+      />
+
+      {/* Info bar below map */}
+      {hasTechCoords ? (
+        <div className="mt-1.5 flex items-center justify-between text-[10px]">
+          {dist && (
+            <span className="flex items-center gap-0.5 text-slate-600 font-medium">
+              <svg className="h-3 w-3 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {dist}
+            </span>
+          )}
+          {eta && (
+            <span className="flex items-center gap-0.5 text-slate-500">
+              <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {eta}
+            </span>
+          )}
+          {ago && (
+            <span className="text-slate-400">
+              {ago} atras
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="mt-1.5 text-center text-[10px] text-slate-400">
+          Aguardando rastreamento...
+        </div>
+      )}
     </div>
   );
 }
@@ -468,6 +601,7 @@ export default function DispatchPanel() {
   const { dispatches, minimized, toggleMinimize } = useDispatch();
   const [positions, setPositions] = useState<PositionMap>({});
   const [focusOrder, setFocusOrder] = useState<string[]>([]);
+  const [organizing, setOrganizing] = useState(false);
   const prefsLoadedRef = useRef(false);
 
   // Load saved positions from backend
@@ -486,15 +620,29 @@ export default function DispatchPanel() {
     }).catch(() => {});
   }, []);
 
-  // Auto-cascade for new dispatches
+  // Auto-cascade (or auto-grid for 4+) for new dispatches
   useEffect(() => {
     setPositions((prev) => {
       const updated = { ...prev };
       let changed = false;
+      const newIds: string[] = [];
       for (const d of dispatches) {
         if (!updated[d.osId]) {
-          updated[d.osId] = getCenterStart(Object.keys(updated).length);
+          newIds.push(d.osId);
           changed = true;
+        }
+      }
+      // If adding new cards and total >= threshold, auto-grid all cards
+      if (newIds.length > 0 && dispatches.length >= AUTO_GRID_THRESHOLD) {
+        const gridPos = calculateGridPositions(dispatches.length);
+        dispatches.forEach((d, i) => {
+          updated[d.osId] = gridPos[i];
+          saveCardPosition(d.osId, gridPos[i].x, gridPos[i].y);
+        });
+      } else {
+        // Cascade new cards
+        for (const id of newIds) {
+          updated[id] = getCenterStart(Object.keys(updated).length);
         }
       }
       for (const key of Object.keys(updated)) {
@@ -531,6 +679,20 @@ export default function DispatchPanel() {
     setPositions((prev) => ({ ...prev, [osId]: { x, y } }));
   }, []);
 
+  // "Organizar" — redistribute all cards into grid with animation
+  const handleOrganize = useCallback(() => {
+    const gridPos = calculateGridPositions(dispatches.length);
+    const newPositions: PositionMap = {};
+    dispatches.forEach((d, i) => {
+      newPositions[d.osId] = gridPos[i];
+      saveCardPosition(d.osId, gridPos[i].x, gridPos[i].y);
+    });
+    setOrganizing(true);
+    setPositions(newPositions);
+    // Remove transition after animation completes so drag is instant
+    setTimeout(() => setOrganizing(false), 350);
+  }, [dispatches]);
+
   if (dispatches.length === 0) return null;
 
   if (minimized) {
@@ -541,11 +703,25 @@ export default function DispatchPanel() {
 
   return (
     <>
+      {/* "Organizar" button — top-right, visible when 2+ cards */}
+      {dispatches.length >= 2 && (
+        <button
+          onClick={handleOrganize}
+          style={{ zIndex: BASE_Z + dispatches.length + 10 }}
+          className="fixed top-4 right-4 flex items-center gap-1.5 rounded-lg bg-indigo-600/90 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white shadow-lg hover:bg-indigo-700 transition-colors"
+          title="Organizar cards lado a lado"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          </svg>
+          Organizar
+        </button>
+      )}
       {dispatches.map((d) => {
         const pos = positions[d.osId] || getCenterStart(0);
         const z = BASE_Z + Math.max(0, focusOrder.indexOf(d.osId));
         return (
-          <FloatingCard key={d.osId} d={d} position={pos} zIndex={z}
+          <FloatingCard key={d.osId} d={d} position={pos} zIndex={z} organizing={organizing}
             onFocus={() => bringToFront(d.osId)} onMove={(x, y) => moveCard(d.osId, x, y)} />
         );
       })}

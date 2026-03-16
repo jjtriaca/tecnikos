@@ -470,12 +470,15 @@ export class ServiceOrderService {
       take: 50, // Limit to avoid overloading
     });
 
-    // Fetch notification status for each OS in parallel
+    // Fetch notification status + last GPS location for each OS in parallel
     const results = await Promise.all(
       orders.map(async (so) => {
-        const notification = this.notifications
-          ? await this.notifications.getDispatchStatus(so.id, companyId)
-          : null;
+        const [notification, location] = await Promise.all([
+          this.notifications
+            ? this.notifications.getDispatchStatus(so.id, companyId)
+            : null,
+          this.getLastTechnicianLocation(so.id),
+        ]);
         return {
           serviceOrder: {
             id: so.id, code: so.code, title: so.title, description: so.description,
@@ -488,11 +491,13 @@ export class ServiceOrderService {
             neighborhood: so.neighborhood,
             isUrgent: so.isUrgent, isReturn: so.isReturn,
             clientName: so.clientPartner?.name || null,
+            lat: so.lat, lng: so.lng,
           },
           technician: so.assignedPartner
             ? { name: so.assignedPartner.name, phone: so.assignedPartner.phone }
             : null,
           notification,
+          location,
         };
       }),
     );
@@ -513,6 +518,7 @@ export class ServiceOrderService {
         valueCents: true, deadlineAt: true, scheduledStartAt: true,
         addressText: true, city: true, state: true, neighborhood: true,
         isUrgent: true, isReturn: true, createdAt: true,
+        lat: true, lng: true,
         clientPartner: { select: { name: true } },
         assignedPartner: { select: { name: true, phone: true } },
       },
@@ -523,6 +529,9 @@ export class ServiceOrderService {
     const notification = this.notifications
       ? await this.notifications.getDispatchStatus(id, companyId)
       : null;
+
+    // Get last technician GPS location for this OS
+    const location = await this.getLastTechnicianLocation(id);
 
     return {
       serviceOrder: {
@@ -536,12 +545,42 @@ export class ServiceOrderService {
         neighborhood: so.neighborhood,
         isUrgent: so.isUrgent, isReturn: so.isReturn,
         clientName: so.clientPartner?.name || null,
+        lat: so.lat, lng: so.lng,
       },
       technician: so.assignedPartner
         ? { name: so.assignedPartner.name, phone: so.assignedPartner.phone }
         : null,
       notification,
+      location,
     };
+  }
+
+  /**
+   * Returns the last known GPS position of the technician for a given service order.
+   */
+  private async getLastTechnicianLocation(serviceOrderId: string) {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT lat, lng, accuracy, speed, heading, "distanceToTarget", "createdAt"
+        FROM "TechnicianLocationLog"
+        WHERE "serviceOrderId" = $1
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `, serviceOrderId);
+      if (!rows || rows.length === 0) return null;
+      const r = rows[0];
+      return {
+        lat: r.lat,
+        lng: r.lng,
+        accuracy: r.accuracy,
+        speed: r.speed,
+        heading: r.heading,
+        distanceMeters: r.distanceToTarget,
+        updatedAt: r.createdAt,
+      };
+    } catch {
+      return null;
+    }
   }
 
   async findOne(id: string, companyId: string) {
