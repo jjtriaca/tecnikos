@@ -1867,15 +1867,31 @@ export class WorkflowEngineService {
         b => b.type === 'STATUS' && b.config?.targetStatus === targetStatus,
       );
 
-      // BY_AGENDA fallback: OS created as ATRIBUIDA but workflow has no STATUS:ATRIBUIDA block.
-      // Fall back to STATUS:ABERTA since that's where the user configured notifications.
-      if (statusBlockIdx === -1 && targetStatus === 'ATRIBUIDA') {
-        this.logger.log(`📨 No STATUS:ATRIBUIDA block — trying fallback to STATUS:ABERTA (BY_AGENDA mode)`);
-        statusBlockIdx = blocks.findIndex(
-          b => b.type === 'STATUS' && b.config?.targetStatus === 'ABERTA',
-        );
-        if (statusBlockIdx !== -1) {
-          this.logger.log(`📨 Fallback: using STATUS:ABERTA block to trigger notifications`);
+      // DIRECTED/BY_AGENDA fallback: OS created as ATRIBUIDA.
+      // If no STATUS:ATRIBUIDA block exists, OR it exists but has no NOTIFY chained after it,
+      // fall back to STATUS:ABERTA since that's where the user configured notifications.
+      if (targetStatus === 'ATRIBUIDA') {
+        const needsFallback = statusBlockIdx === -1 || (() => {
+          // Check if STATUS:ATRIBUIDA has any NOTIFY block chained after it
+          let blk = blocks[statusBlockIdx];
+          while (blk?.next) {
+            const nb = blocks.find(b => b.id === blk!.next);
+            if (!nb || nb.type === 'STATUS' || nb.type === 'END') break;
+            if (nb.type === 'NOTIFY') return false; // Has a NOTIFY — no fallback needed
+            blk = nb;
+          }
+          return true; // No NOTIFY found in chain
+        })();
+
+        if (needsFallback) {
+          this.logger.log(`📨 STATUS:ATRIBUIDA has no NOTIFY — falling back to STATUS:ABERTA`);
+          const abertaIdx = blocks.findIndex(
+            b => b.type === 'STATUS' && b.config?.targetStatus === 'ABERTA',
+          );
+          if (abertaIdx !== -1) {
+            statusBlockIdx = abertaIdx;
+            this.logger.log(`📨 Fallback: using STATUS:ABERTA block to trigger notifications`);
+          }
         }
       }
 
