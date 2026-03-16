@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth, UserRole, isAdminHost } from "@/contexts/AuthContext";
 import { useFiscalModule } from "@/contexts/FiscalModuleContext";
 import { api } from "@/lib/api";
-import UsageBar from "./UsageBar";
+// UsageBar moved to HeaderBilling (header)
 
 interface NavChild {
   label: string;
@@ -421,7 +421,7 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
       {/* Usage bar + User info + version at bottom */}
       {user && (
         <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 p-3">
-          <UsageBar collapsed={collapsed} />
+          {/* UsageBar moved to header */}
           {!collapsed ? (
             <div>
               <div className="flex items-center gap-3">

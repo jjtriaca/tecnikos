@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import Link from "next/link";
+import HeaderBilling from "./HeaderBilling";
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -44,14 +45,17 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
         sidebarCollapsed ? "left-[68px]" : "left-64"
       }`}
     >
-      {/* Left side */}
+      {/* Left side — Company name */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-slate-800">
           {user?.companyName || "Empresa"}
         </span>
       </div>
 
-      {/* Right side */}
+      {/* Center — Billing indicators (OS bar + add-on + status) */}
+      <HeaderBilling />
+
+      {/* Right side — Notifications + user */}
       <div className="flex items-center gap-2">
         {/* Notifications */}
         <Link
