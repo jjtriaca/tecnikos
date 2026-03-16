@@ -227,28 +227,7 @@ export default function PlansPage() {
         </div>
       )}
 
-      {/* Add-ons */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">Pacotes Add-on</h2>
-            <p className="text-xs text-slate-500">Pacotes avulsos que o cliente pode adicionar ao plano</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "+100 OS/mês", price: "R$ 127/mês" },
-            { label: "+200 OS/mês", price: "R$ 227/mês" },
-            { label: "+300 OS/mês", price: "R$ 297/mês" },
-            { label: "+1 usuário gestor", price: "R$ 47/mês" },
-          ].map((addon) => (
-            <div key={addon.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-              <span className="block text-sm font-semibold text-slate-700">{addon.label}</span>
-              <span className="block text-lg font-bold text-blue-600 mt-1">{addon.price}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Add-ons gerenciados em /ctrl-zr8k2x/addons */}
 
       {/* Create/Edit Modal */}
       {showForm && (

@@ -1861,4 +1861,27 @@ Solucao:
   - `billing/page.tsx`: reescrita completa — PlanCard com todas features, preco anual com %, "Apos promocao" indicator, filtra plano atual
 - **Deploy v1.03.89** — CONCLUIDO
 
-### Versoes deployadas nesta sessao: v1.03.87, v1.03.88, v1.03.89
+### Auditoria landing page x admin — divergencias de dados (v1.03.90-91)
+- **Relato Juliano**: planos na pagina publica com dados diferentes do admin
+- **Causa**: landing usava array `features[]` (dados antigos) em vez de campos estruturados
+- **Correcoes**:
+  - LandingContent.tsx: feature list agora usa maxTechnicians, maxAiMessages, supportLevel, allModulesIncluded
+  - Add-ons na landing agora vem da API (antes hardcoded)
+  - Badge "Tecnicos ilimitados em todos os planos" corrigido para "Cadastre tecnicos sem custo adicional"
+- **Deploy v1.03.90, v1.03.91** — CONCLUIDO
+
+### Landing page simplificada (v1.03.92)
+- **Decisao Juliano**: pagina muito carregada, resumir
+- **Removido**: secoes Segmentos, Funcionalidades, banner Beta, badges, CTA redundante, add-ons, footer 3 colunas
+- **Resultado**: Hero → Pioneiro → Planos → Footer minimo (-476 linhas)
+- **Deploy v1.03.92** — CONCLUIDO
+
+### Mecanismo Add-on multi-tipo (v1.03.93)
+- **Decisao Juliano**: add-ons para OS + usuarios + tecnicos + msgs IA. Compra avulsa, vale 1 ciclo
+- **Schema**: AddOn e AddOnPurchase ganharam userQuantity, technicianQuantity, aiMessageQuantity, periodMonth, expiresAt
+- **Backend**: CRUD atualizado, confirmAddOnPayment e checkout lidam com todos os tipos
+- **Frontend admin**: form com 4 tipos de quantidade + preco em R$ (nao centavos)
+- **creditAddOnToTenantCompany**: incrementa maxOsPerMonth, maxUsers, maxTechnicians, maxAiMessages conforme add-on
+- **Deploy v1.03.93** — CONCLUIDO
+
+### Versoes deployadas nesta sessao: v1.03.87 a v1.03.93
