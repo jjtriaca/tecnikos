@@ -50,8 +50,6 @@ export interface DispatchState {
   clientName?: string;
   // UI state
   resending?: boolean;
-  // Track manually dismissed OS (user closed card)
-  _dismissed?: boolean;
 }
 
 interface DispatchContextValue {
@@ -65,11 +63,13 @@ interface DispatchContextValue {
 
 const DispatchContext = createContext<DispatchContextValue | null>(null);
 
-const DISMISSED_KEY = "teknikos_dispatch_dismissed";
 const POLL_INTERVAL_MS = 5000;
 
 // Terminal OS statuses — stop polling when reached
 const TERMINAL_STATUSES = ["CONCLUIDA", "APROVADA", "CANCELADA"];
+
+// Clear legacy dismissed IDs from sessionStorage (no longer used)
+try { sessionStorage.removeItem("teknikos_dispatch_dismissed"); } catch { /* noop */ }
 
 function mapApiToDispatch(item: any): DispatchState {
   const so = item.serviceOrder;
@@ -105,26 +105,12 @@ function mapApiToDispatch(item: any): DispatchState {
   };
 }
 
-function getDismissedIds(): Set<string> {
-  try {
-    const stored = sessionStorage.getItem(DISMISSED_KEY);
-    return stored ? new Set(JSON.parse(stored)) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function saveDismissedIds(ids: Set<string>) {
-  sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids]));
-}
-
 export function DispatchProvider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const [dispatches, setDispatches] = useState<DispatchState[]>([]);
   const [minimized, setMinimized] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initialLoadRef = useRef(false);
-  const dismissedRef = useRef<Set<string>>(new Set());
 
   // Load all active OS once auth is ready
   useEffect(() => {
@@ -133,15 +119,10 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
     if (initialLoadRef.current) return;
     initialLoadRef.current = true;
 
-    dismissedRef.current = getDismissedIds();
-
     api.get<any[]>("/service-orders/active-dispatches")
       .then((items) => {
         if (!items || !Array.isArray(items)) return;
-        const dismissed = dismissedRef.current;
-        const loaded = items
-          .filter((item) => !dismissed.has(item.serviceOrder?.id))
-          .map(mapApiToDispatch);
+        const loaded = items.map(mapApiToDispatch);
         if (loaded.length > 0) {
           setDispatches((prev) => {
             // Merge: keep existing (from addDispatch during create), add new from API
@@ -225,10 +206,6 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
 
   const addDispatch = useCallback(
     (osId: string, data: DispatchInitData, osCode?: string, osTitle?: string) => {
-      // Remove from dismissed if re-added
-      dismissedRef.current.delete(osId);
-      saveDismissedIds(dismissedRef.current);
-
       setDispatches((prev) => {
         if (prev.some((d) => d.osId === osId)) return prev; // already tracked
         return [
@@ -252,9 +229,6 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
   );
 
   const removeDispatch = useCallback((osId: string) => {
-    // Track dismissed so it doesn't reappear on next poll/load
-    dismissedRef.current.add(osId);
-    saveDismissedIds(dismissedRef.current);
     setDispatches((prev) => prev.filter((d) => d.osId !== osId));
   }, []);
 
