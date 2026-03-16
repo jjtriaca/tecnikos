@@ -349,22 +349,103 @@ function FloatingCard({ d, position, zIndex, onFocus, onMove }: FloatingCardProp
   );
 }
 
-// ── Global minimize icon ──
+// ── Minimized tray (draggable mini-panel with OS chips) ──
 
-function GlobalMinimizeIcon({ count, failedCount, onClick }: { count: number; failedCount: number; onClick: () => void }) {
+const MINIMIZED_PREF_KEY = "dispatchMinimizedPos";
+
+function MinimizedTray({ dispatches, onClick }: { dispatches: DispatchState[]; onClick: () => void }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
+  const loadedRef = useRef(false);
+
+  // Load saved position
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    api.get<Record<string, any>>("/users/me/preferences").then((prefs) => {
+      if (prefs?.[MINIMIZED_PREF_KEY]?.x != null) {
+        setPos(clampPosition(prefs[MINIMIZED_PREF_KEY].x, prefs[MINIMIZED_PREF_KEY].y));
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Default bottom-right
+  const position = pos || (typeof window !== "undefined"
+    ? { x: window.innerWidth - 220, y: window.innerHeight - 80 }
+    : { x: 600, y: 600 });
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: position.x, originY: position.y, moved: false };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }, [position]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragRef.current.moved = true;
+    if (dragRef.current.moved) {
+      setPos(clampPosition(dragRef.current.originX + dx, dragRef.current.originY + dy));
+    }
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    if (dragRef.current?.moved && pos) {
+      saveCardPosition(MINIMIZED_PREF_KEY, pos.x, pos.y);
+    }
+    const wasDrag = dragRef.current?.moved;
+    dragRef.current = null;
+    if (!wasDrag) onClick();
+  }, [pos, onClick]);
+
+  const failedCount = dispatches.filter((d) => d.notificationStatus === "FAILED").length;
+
+  // Status color for each OS chip
+  const getChipColor = (d: DispatchState) => {
+    if (d.notificationStatus === "FAILED") return "bg-red-500 text-white";
+    if (d.completedAt) return "bg-green-500 text-white";
+    if (d.startedAt || d.arrivedAt) return "bg-blue-500 text-white";
+    if (d.acceptedAt || d.enRouteAt) return "bg-emerald-500 text-white";
+    return "bg-slate-200 text-slate-700";
+  };
+
   return (
-    <button
-      onClick={onClick}
-      className="fixed bottom-4 right-4 z-[9999] flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition-transform hover:scale-110 hover:bg-indigo-700"
-      title="Expandir painel de despacho"
+    <div
+      style={{ position: "fixed", left: position.x, top: position.y, zIndex: 9999 }}
+      className="select-none touch-none"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
     >
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-      </svg>
-      <span className={`absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${failedCount > 0 ? "bg-red-500 animate-pulse" : "bg-green-500"}`}>
-        {count}
-      </span>
-    </button>
+      <div className="flex items-center gap-1.5 rounded-xl bg-indigo-600/90 backdrop-blur-sm px-2.5 py-1.5 shadow-lg cursor-grab active:cursor-grabbing">
+        {/* Drag grip */}
+        <svg className="h-3 w-3 text-white/40 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <circle cx="4" cy="4" r="1.5" /><circle cx="4" cy="8" r="1.5" /><circle cx="4" cy="12" r="1.5" />
+          <circle cx="10" cy="4" r="1.5" /><circle cx="10" cy="8" r="1.5" /><circle cx="10" cy="12" r="1.5" />
+        </svg>
+        {/* OS chips */}
+        <div className="flex items-center gap-1 flex-wrap max-w-[300px]">
+          {dispatches.map((d) => (
+            <div
+              key={d.osId}
+              className={`rounded px-1.5 py-0.5 text-[9px] font-bold leading-none whitespace-nowrap ${getChipColor(d)}`}
+              title={`${d.osCode || "OS"} — ${d.osTitle || ""} (${STATUS_LABELS[d.osStatus || ""] || d.osStatus || ""})`}
+            >
+              {d.osCode || "OS"}
+            </div>
+          ))}
+        </div>
+        {/* Badge */}
+        <span className={`shrink-0 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold text-white ${failedCount > 0 ? "bg-red-500 animate-pulse" : "bg-green-500"}`}>
+          {dispatches.length}
+        </span>
+        {/* Expand arrow */}
+        <svg className="h-3 w-3 text-white/60 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -444,7 +525,7 @@ export default function DispatchPanel() {
   const failedCount = dispatches.filter((d) => d.notificationStatus === "FAILED").length;
 
   if (minimized) {
-    return <GlobalMinimizeIcon count={dispatches.length} failedCount={failedCount} onClick={toggleMinimize} />;
+    return <MinimizedTray dispatches={dispatches} onClick={toggleMinimize} />;
   }
 
   const BASE_Z = 1000;
