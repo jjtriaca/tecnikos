@@ -25,6 +25,7 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     'SignupAttempt',
     'SaasEvent',
     'SaasInvoice',
+    'SaasInvoiceConfig',
     'AddOn',
     'AddOnPurchase',
     'VerificationSession',
@@ -65,13 +66,25 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     // Get public schema column definitions (our reference)
     const publicColumns = await this.getSchemaColumns('public');
 
+    // Get public schema enum types (reference for sync)
+    const publicEnums = await this.getSchemaEnums('public');
+
     let totalAdded = 0;
+    let totalEnums = 0;
 
     for (const tenant of tenants) {
       try {
+        // 1. Sync enum types FIRST (tables/columns depend on them)
+        const enumsAdded = await this.syncEnums(tenant.schemaName, publicEnums);
+        if (enumsAdded > 0) {
+          this.logger.log(`Schema "${tenant.schemaName}" (${tenant.slug}): added ${enumsAdded} missing enum(s)`);
+          totalEnums += enumsAdded;
+        }
+
+        // 2. Then sync tables and columns
         const added = await this.syncSchema(tenant.schemaName, publicColumns);
         if (added > 0) {
-          this.logger.log(`Schema "${tenant.schemaName}" (${tenant.slug}): added ${added} missing column(s)`);
+          this.logger.log(`Schema "${tenant.schemaName}" (${tenant.slug}): added ${added} missing column(s)/table(s)`);
           totalAdded += added;
         }
       } catch (err) {
@@ -79,8 +92,12 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
       }
     }
 
-    if (totalAdded > 0) {
-      this.logger.log(`Tenant sync complete: ${totalAdded} column(s) added across ${tenants.length} schema(s)`);
+    const parts: string[] = [];
+    if (totalEnums > 0) parts.push(`${totalEnums} enum(s)`);
+    if (totalAdded > 0) parts.push(`${totalAdded} column(s)/table(s)`);
+
+    if (parts.length > 0) {
+      this.logger.log(`Tenant sync complete: added ${parts.join(' + ')} across ${tenants.length} schema(s)`);
     } else {
       this.logger.log(`Tenant sync complete: all ${tenants.length} schema(s) are up-to-date`);
     }
@@ -286,9 +303,141 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     }
   }
 
+  /**
+   * Get all enum types and their labels for a given schema.
+   */
+  private async getSchemaEnums(schemaName: string): Promise<EnumInfo[]> {
+    return this.rawPrisma.$queryRawUnsafe<EnumInfo[]>(`
+      SELECT t.typname AS "typeName",
+             array_agg(e.enumlabel ORDER BY e.enumsortorder) AS labels
+      FROM pg_type t
+      JOIN pg_enum e ON t.oid = e.enumtypid
+      JOIN pg_namespace n ON t.typnamespace = n.oid
+      WHERE n.nspname = '${schemaName}'
+      GROUP BY t.typname
+      ORDER BY t.typname
+    `);
+  }
+
+  /**
+   * Sync enum types from public schema to a tenant schema.
+   * Creates missing enums and adds missing labels to existing enums.
+   * Returns count of enums added/updated.
+   */
+  private async syncEnums(schemaName: string, publicEnums: EnumInfo[]): Promise<number> {
+    if (!/^[a-z0-9_]+$/.test(schemaName)) return 0;
+
+    const tenantEnums = await this.getSchemaEnums(schemaName);
+    const tenantEnumMap = new Map(tenantEnums.map(e => [e.typeName, new Set(e.labels)]));
+
+    let changes = 0;
+
+    for (const pubEnum of publicEnums) {
+      const existing = tenantEnumMap.get(pubEnum.typeName);
+
+      if (!existing) {
+        // Enum doesn't exist in tenant — create it
+        try {
+          const labelsSql = pubEnum.labels.map(l => `'${l}'`).join(', ');
+          await this.rawPrisma.$executeRawUnsafe(
+            `CREATE TYPE "${schemaName}"."${pubEnum.typeName}" AS ENUM (${labelsSql})`,
+          );
+          this.logger.log(`Created enum "${pubEnum.typeName}" in "${schemaName}" with ${pubEnum.labels.length} labels`);
+          changes++;
+        } catch (err) {
+          this.logger.warn(`Failed to create enum "${pubEnum.typeName}" in "${schemaName}": ${(err as Error).message}`);
+        }
+      } else {
+        // Enum exists — check for missing labels (new values added to enum)
+        for (const label of pubEnum.labels) {
+          if (!existing.has(label)) {
+            try {
+              await this.rawPrisma.$executeRawUnsafe(
+                `ALTER TYPE "${schemaName}"."${pubEnum.typeName}" ADD VALUE IF NOT EXISTS '${label}'`,
+              );
+              this.logger.log(`Added label "${label}" to enum "${pubEnum.typeName}" in "${schemaName}"`);
+              changes++;
+            } catch (err) {
+              this.logger.warn(`Failed to add label "${label}" to "${pubEnum.typeName}" in "${schemaName}": ${(err as Error).message}`);
+            }
+          }
+        }
+      }
+    }
+
+    // Also fix columns that reference public enums instead of tenant enums
+    if (changes > 0) {
+      await this.remapOrphanedEnumColumns(schemaName);
+    }
+
+    return changes;
+  }
+
+  /**
+   * Fix columns in tenant schema that still reference public enum types.
+   * This happens when TenantMigratorService creates a table before the enum exists.
+   */
+  private async remapOrphanedEnumColumns(schemaName: string): Promise<void> {
+    const orphanedCols = await this.rawPrisma.$queryRawUnsafe<{
+      table_name: string;
+      column_name: string;
+      data_type: string;
+      udt_name: string;
+      column_default: string | null;
+    }[]>(`
+      SELECT table_name, column_name, data_type, udt_name, column_default
+      FROM information_schema.columns
+      WHERE table_schema = '${schemaName}'
+        AND udt_schema = 'public'
+        AND (data_type = 'USER-DEFINED' OR data_type = 'ARRAY')
+    `);
+
+    for (const col of orphanedCols) {
+      try {
+        const isArray = col.data_type === 'ARRAY';
+        const enumName = isArray ? col.udt_name.substring(1) : col.udt_name;
+        const targetType = isArray
+          ? `"${schemaName}"."${enumName}"[]`
+          : `"${schemaName}"."${enumName}"`;
+
+        if (col.column_default) {
+          await this.rawPrisma.$executeRawUnsafe(
+            `ALTER TABLE "${schemaName}"."${col.table_name}" ALTER COLUMN "${col.column_name}" DROP DEFAULT`,
+          );
+        }
+
+        await this.rawPrisma.$executeRawUnsafe(
+          `ALTER TABLE "${schemaName}"."${col.table_name}"
+           ALTER COLUMN "${col.column_name}"
+           TYPE ${targetType}
+           USING "${col.column_name}"::text${isArray ? '[]' : ''}::"${schemaName}"."${enumName}"${isArray ? '[]' : ''}`,
+        );
+
+        if (col.column_default) {
+          const newDefault = col.column_default.replace(
+            /::"([A-Za-z]+)"(\[\])?/g,
+            `::"${schemaName}"."$1"$2`,
+          );
+          await this.rawPrisma.$executeRawUnsafe(
+            `ALTER TABLE "${schemaName}"."${col.table_name}" ALTER COLUMN "${col.column_name}" SET DEFAULT ${newDefault}`,
+          );
+        }
+
+        this.logger.log(`Remapped "${col.table_name}"."${col.column_name}" from public to "${schemaName}" enum`);
+      } catch (err) {
+        this.logger.warn(`Failed to remap "${col.table_name}"."${col.column_name}": ${(err as Error).message}`);
+      }
+    }
+  }
+
   async onModuleDestroy() {
     await this.rawPrisma.$disconnect();
   }
+}
+
+interface EnumInfo {
+  typeName: string;
+  labels: string[];
 }
 
 interface ColumnInfo {

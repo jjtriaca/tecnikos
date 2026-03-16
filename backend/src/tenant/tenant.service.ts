@@ -177,7 +177,7 @@ export class TenantService {
     const tables: { tablename: string }[] = await this.prisma.$queryRawUnsafe(`
       SELECT tablename FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename NOT IN ('_prisma_migrations', 'Tenant', 'Plan', 'Subscription', 'Promotion', 'SignupAttempt', 'SaasEvent', 'SaasInvoice', 'AddOn', 'AddOnPurchase', 'VerificationSession')
+        AND tablename NOT IN ('_prisma_migrations', 'Tenant', 'Plan', 'Subscription', 'Promotion', 'SignupAttempt', 'SaasEvent', 'SaasInvoice', 'SaasInvoiceConfig', 'AddOn', 'AddOnPurchase', 'VerificationSession')
         AND tablename NOT LIKE '\\_%'
     `);
 
