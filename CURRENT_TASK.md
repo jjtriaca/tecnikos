@@ -93,7 +93,15 @@
 - [x] Estudo completo em memory/whatsapp-audit-2026-03.md
 - [x] Deploy v1.04.00
 
-## Versao atual: v1.04.00
+## OS Limit Counter Fix (v1.04.03):
+- [x] Reauditoria 3 fases: 22 fixes verificados OK
+- [x] Bug: monthlyUsage() excluia deletadas (deletedAt: null) mas enforcement contava todas
+- [x] Fix: removido deletedAt: null de monthlyUsage() — counter agora inclui deletadas
+- [x] Fix: removido deletedAt: null de duplicate() enforcement — consistente com create()
+- [x] Regra de negocio: OS deletadas CONTAM no limite mensal (evita burla por create+delete)
+- [ ] Deploy v1.04.03
+
+## Versao atual: v1.04.03
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

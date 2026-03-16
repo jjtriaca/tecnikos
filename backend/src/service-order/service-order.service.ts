@@ -60,8 +60,8 @@ export class ServiceOrderService {
       const osCount = await this.prisma.serviceOrder.count({
         where: {
           companyId: data.companyId,
-          deletedAt: null, // Don't count soft-deleted OS
           createdAt: { gte: startOfMonth },
+          // Deletadas CONTAM no limite — evita burlar criando e apagando
         },
       });
       if (osCount >= maxOs) {
@@ -298,7 +298,8 @@ export class ServiceOrderService {
 
     const [usedThisMonth, company] = await Promise.all([
       this.prisma.serviceOrder.count({
-        where: { companyId, deletedAt: null, createdAt: { gte: monthStart, lte: monthEnd } },
+        where: { companyId, createdAt: { gte: monthStart, lte: monthEnd } },
+        // Deletadas CONTAM no limite — evita burlar criando e apagando
       }),
       this.prisma.company.findUnique({
         where: { id: companyId },
@@ -692,7 +693,8 @@ export class ServiceOrderService {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const osCount = await this.prisma.serviceOrder.count({
-        where: { companyId, deletedAt: null, createdAt: { gte: startOfMonth } },
+        where: { companyId, createdAt: { gte: startOfMonth } },
+        // Deletadas CONTAM no limite — evita burlar criando e apagando
       });
       if (osCount >= maxOs) {
         throw new ForbiddenException(
