@@ -15,6 +15,18 @@ interface PublicPlan {
   priceYearlyCents: number | null;
   description: string | null;
   features: string[];
+  maxTechnicians: number | null;
+  maxAiMessages: number | null;
+  supportLevel: string | null;
+  allModulesIncluded: boolean | null;
+}
+
+interface PublicAddOn {
+  id: string;
+  name: string;
+  description: string | null;
+  osQuantity: number;
+  priceCents: number;
 }
 
 interface PioneerSlot {
@@ -185,6 +197,7 @@ function formatBRL(cents: number) {
 
 export default function LandingContent() {
   const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [addOns, setAddOns] = useState<PublicAddOn[]>([]);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [pioneerSlots, setPioneerSlots] = useState<PioneerSlot[]>([]);
   const [pioneerModal, setPioneerModal] = useState<PioneerSlot | null>(null);
@@ -195,6 +208,10 @@ export default function LandingContent() {
     fetch("/api/public/saas/plans")
       .then((r) => (r.ok ? r.json() : []))
       .then(setPlans)
+      .catch(() => {});
+    fetch("/api/public/saas/addons")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setAddOns)
       .catch(() => {});
     fetch("/api/public/saas/pioneer-slots")
       .then((r) => (r.ok ? r.json() : { slots: [] }))
@@ -592,12 +609,20 @@ export default function LandingContent() {
                 const showYearly = billingCycle === "yearly" && yearlyCents;
                 const displayPrice = showYearly ? yearlyCents / 12 : monthlyCents;
                 const savings = yearlyCents ? Math.round(((monthlyCents * 12 - yearlyCents) / (monthlyCents * 12)) * 100) : 0;
-                const autoFeatures = [
+                const featureList: string[] = [
                   plan.maxUsers >= 999 ? "Usuarios ilimitados" : `Ate ${plan.maxUsers} usuario${plan.maxUsers !== 1 ? "s" : ""} gestores`,
                   plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mes`,
-                ];
-                const extraFeatures = plan.features.length > 0 ? plan.features : ["Todos os modulos", "Suporte por chat"];
-                const featureList = [...autoFeatures, ...extraFeatures];
+                  plan.maxTechnicians === 0 || plan.maxTechnicians == null
+                    ? "Tecnicos ilimitados"
+                    : `${plan.maxTechnicians} tecnico${plan.maxTechnicians !== 1 ? "s" : ""}`,
+                  plan.maxAiMessages != null && plan.maxAiMessages > 0
+                    ? `Assistente IA (${plan.maxAiMessages} msgs/mes)`
+                    : "Assistente IA",
+                  plan.allModulesIncluded !== false ? "Todos os modulos inclusos" : "",
+                  plan.supportLevel === "PRIORITY" ? "Suporte prioritario"
+                    : plan.supportLevel === "EMAIL_CHAT" ? "Suporte por e-mail e chat"
+                    : "Suporte por e-mail",
+                ].filter(Boolean);
 
                 return (
                   <div
@@ -656,26 +681,23 @@ export default function LandingContent() {
             </div>
 
             {/* Add-ons */}
-            <div className="mt-14 max-w-3xl mx-auto">
-              <div className="text-center mb-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-1">Precisa de mais?</h3>
-                <p className="text-sm text-slate-500">Adicione pacotes extras ao seu plano a qualquer momento</p>
+            {addOns.length > 0 && (
+              <div className="mt-14 max-w-3xl mx-auto">
+                <div className="text-center mb-6">
+                  <h3 className="text-lg font-bold text-slate-900 mb-1">Precisa de mais?</h3>
+                  <p className="text-sm text-slate-500">Adicione pacotes extras ao seu plano a qualquer momento</p>
+                </div>
+                <div className={`grid grid-cols-2 ${addOns.length >= 4 ? "sm:grid-cols-4" : addOns.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
+                  {addOns.map((addon) => (
+                    <div key={addon.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center hover:border-blue-200 hover:bg-blue-50/50 transition-all">
+                      <span className="block text-sm font-semibold text-slate-700 mb-1">{addon.name}</span>
+                      <span className="block text-lg font-bold text-blue-600">{formatBRL(addon.priceCents)}</span>
+                      <span className="block text-[10px] text-slate-400">/mes</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: "+100 OS/mes", price: "R$ 127" },
-                  { label: "+200 OS/mes", price: "R$ 227" },
-                  { label: "+300 OS/mes", price: "R$ 297" },
-                  { label: "+1 usuario", price: "R$ 47" },
-                ].map((addon) => (
-                  <div key={addon.label} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center hover:border-blue-200 hover:bg-blue-50/50 transition-all">
-                    <span className="block text-sm font-semibold text-slate-700 mb-1">{addon.label}</span>
-                    <span className="block text-lg font-bold text-blue-600">{addon.price}</span>
-                    <span className="block text-[10px] text-slate-400">/mes</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            )}
 
             {/* Voucher hint */}
             <div className="text-center mt-8">

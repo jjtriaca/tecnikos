@@ -1,16 +1,16 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 125 — Immediate Session Invalidation (v1.03.87)
+## Status: SESSAO 125 — Immediate Session Invalidation + Billing Audit (v1.03.89)
 
 ## Ultima sessao: 125 (16/03/2026)
 - Sessao 122: Header billing indicators (v1.03.79)
 - Sessao 123: Billing cycle + pro-rata + grandfather + structured plan features (v1.03.81-82)
 - Sessao 124: Plan Limits Enforcement + Audit + Single Session (v1.03.83-86)
-- Sessao 125: Immediate Session Invalidation (v1.03.87)
+- Sessao 125: Immediate Session Invalidation + Billing Audit (v1.03.87-89)
 
 ## O que foi feito na sessao 125:
 
-### Immediate Session Invalidation (v1.03.87)
+### Immediate Session Invalidation (v1.03.87-88)
 - [x] auth.types.ts: +sessionId em JwtPayload e AuthenticatedUser
 - [x] auth.service.ts: issueAccessToken() aceita sessionId
 - [x] auth.service.ts: login() cria session PRIMEIRO, depois gera JWT com sessionId
@@ -19,13 +19,18 @@
 - [x] jwt.strategy.ts: session revogada → UnauthorizedException imediato
 - [x] Frontend api.ts: 401 apos falha de refresh → redirect para /login?expired=1
 - [x] Frontend login/page.tsx: banner "Sessao encerrada" quando ?expired=1
-- [x] Build OK (backend + frontend tsc limpo)
-- [ ] Deploy v1.03.87
+- [x] Deploy v1.03.87 e v1.03.88 — CONCLUIDO, testado bidirecional OK
+
+### Billing Page Audit (v1.03.89)
+- [x] asaas.service.ts: getBillingStatus() corrigido — busca Promotion, calcula desconto real
+- [x] asaas.service.ts: retorna planId + planPriceCents para comparacao upgrade/downgrade
+- [x] tenant-public.controller.ts: +maxTechnicians, maxAiMessages, supportLevel, allModulesIncluded no select
+- [x] billing/page.tsx: PlanCard com todas features, preco anual, "Apos promocao" indicator
+- [x] billing/page.tsx: filtra plano atual das listas de upgrade/downgrade
+- [x] Deploy v1.03.89 — CONCLUIDO
 
 ### Investigacao chatIAEnabled toggle
 - [x] Codigo verificado — toggle existe e funciona corretamente no form de usuarios
-- [x] Oculto quando role = ADMIN (correto, admin sempre tem acesso)
-- [x] TenantMigratorService sincroniza coluna para schemas de tenant automaticamente
 - [x] Provavel causa do relato: deploy ainda nao tinha sido feito no momento
 
 ## Pendente:
@@ -43,7 +48,7 @@
 7. **Contrato do cliente com a Tecnikos**
 8. **Frontend: mensagens de limite atingido + botoes de compra add-on** (para cada tela: users, OS, partners, chat)
 
-## Versao atual: v1.03.87
+## Versao atual: v1.03.89
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

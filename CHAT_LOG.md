@@ -1840,3 +1840,25 @@ Solucao:
 - **Investigacao**: codigo esta correto, toggle visivel para non-ADMIN no form de usuarios
 - **Causa provavel**: deploy nao tinha sido feito quando usuario reportou
 - **TenantMigratorService**: sincroniza coluna chatIAEnabled automaticamente para schemas de tenant no boot
+
+### Teste de sessao — uma direcao nao funcionou (v1.03.87 → v1.03.88)
+- **Relato Juliano**: "Fiz login em outra maquina, sim cancelou na primeira, voltei fazer login na primeira nao cancelou na segunda"
+- **Causa**: v1.03.87 ainda nao tinha sido deployado. Codigo antigo so pegava no refresh (15min)
+- **Solucao**: Deploy v1.03.88 com codigo completo de session invalidation
+- **Resultado**: ambas as direcoes funcionam — login em qualquer maquina revoga as demais imediatamente
+
+### Auditoria billing page (v1.03.89)
+- **Relato Juliano**: "Editei os planos de compra no sistema porem nao ficou 100% certo na pagina, faca auditoria!"
+- **Bugs encontrados**:
+  1. **valueBrl errado**: formula `(originalValueCents - (originalValueCents - plan.priceCents)) / 100` simplifica para `plan.priceCents/100`, ignorando promo. SLS pagava R$15/mes mas mostrava R$197.
+  2. **Plan cards incompletos**: faltavam maxTechnicians, maxAiMessages, supportLevel, allModulesIncluded
+  3. **Plano atual aparecia nas listas de upgrade/downgrade**
+  4. **API nao retornava campos suficientes dos planos**
+- **Correcoes**:
+  - `asaas.service.ts getBillingStatus()`: busca Promotion por subscription.promotionId, calcula desconto correto
+  - `asaas.service.ts getBillingStatus()`: retorna `planId` e `planPriceCents` para comparacao
+  - `tenant-public.controller.ts`: adiciona maxTechnicians, maxAiMessages, supportLevel, allModulesIncluded no select dos planos
+  - `billing/page.tsx`: reescrita completa — PlanCard com todas features, preco anual com %, "Apos promocao" indicator, filtra plano atual
+- **Deploy v1.03.89** — CONCLUIDO
+
+### Versoes deployadas nesta sessao: v1.03.87, v1.03.88, v1.03.89
