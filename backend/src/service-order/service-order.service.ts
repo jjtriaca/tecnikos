@@ -62,28 +62,10 @@ export class ServiceOrderService {
       if (matched) resolvedWorkflowId = matched.id;
     }
 
-    // Respeitar técnico direcionado: se DIRECTED + workflow config ativa, auto-atribui
-    let autoAssignDirected = false;
-    if (
+    // Respeitar técnico direcionado: DIRECTED + técnicos escolhidos → auto-atribui o primeiro
+    const autoAssignDirected =
       data.techAssignmentMode === 'DIRECTED' &&
-      data.directedTechnicianIds?.length &&
-      resolvedWorkflowId
-    ) {
-      try {
-        const wfTemplate = await this.prisma.workflowTemplate.findFirst({
-          where: { id: resolvedWorkflowId, deletedAt: null },
-          select: { steps: true },
-        });
-        if (wfTemplate?.steps) {
-          const steps = wfTemplate.steps as any;
-          const blocks = steps?.blocks || [];
-          const assignBlock = blocks.find((b: any) => b.type === 'ASSIGN_TECH');
-          if (assignBlock?.config?.respectDirectedTechnician) {
-            autoAssignDirected = true;
-          }
-        }
-      } catch { /* ignore — fallback to normal flow */ }
-    }
+      (data.directedTechnicianIds?.length ?? 0) > 0;
 
     const result = await this.prisma.serviceOrder.create({
       data: {
