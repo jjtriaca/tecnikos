@@ -87,6 +87,10 @@ function MessageStatus({ d }: { d: DispatchState }) {
   if (wa === "READ") return <span className="text-[11px] text-blue-600 font-medium">✓✓ Lida</span>;
   if (wa === "DELIVERED") return <span className="text-[11px] text-slate-500">✓✓ Entregue</span>;
   if (d.notificationStatus === "SENT" || wa === "SENT") return <span className="text-[11px] text-slate-500">✓ Enviada</span>;
+  // No notification exists at all
+  if (!d.notificationId && d.notificationStatus === "PENDING") {
+    return <span className="text-[11px] text-slate-400">Sem notificação</span>;
+  }
   return (
     <span className="flex items-center gap-1 text-[11px] text-amber-600">
       <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">

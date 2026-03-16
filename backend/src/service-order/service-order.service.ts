@@ -206,16 +206,19 @@ export class ServiceOrderService {
     let _dispatch: any = undefined;
     const autoAssignedTechId = result.assignedPartnerId;
 
+    console.log(`🚀 [CREATE] resolvedWorkflowId=${resolvedWorkflowId}, workflowEngine=${!!this.workflowEngine}, autoAssignedTechId=${autoAssignedTechId}, status=${result.status}`);
     if (resolvedWorkflowId && this.workflowEngine) {
       if (autoAssignedTechId) {
         // Await workflow notifications to get dispatch data for the floating panel
         try {
+          console.log(`🚀 [CREATE] Calling executeStageNotifications: OS=${result.id}, status=${result.status}, template=${resolvedWorkflowId}`);
           const notifResult = await this.workflowEngine.executeStageNotifications(
             result.id,
             data.companyId,
             result.status,
             resolvedWorkflowId,
           );
+          console.log(`🚀 [CREATE] executeStageNotifications returned:`, JSON.stringify(notifResult));
 
           // Load tech info for dispatch panel
           const tech = await this.prisma.partner.findUnique({
@@ -234,7 +237,7 @@ export class ServiceOrderService {
             };
           }
         } catch (err) {
-          console.error('executeStageNotifications failed:', err?.message || err);
+          console.error('🚀 [CREATE] executeStageNotifications FAILED:', err?.message || err, err?.stack);
           const tech = await this.prisma.partner.findUnique({
             where: { id: autoAssignedTechId },
             select: { name: true, phone: true },
