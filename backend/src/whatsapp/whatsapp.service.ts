@@ -276,9 +276,20 @@ export class WhatsAppService {
   }
 
   /**
-   * Send text with fallback to template if outside 24h window.
-   * Strategy: template first to open 24h window, then text with full message.
-   * Returns true if sent, false if all attempts failed.
+   * Send a message via WhatsApp Business Cloud API.
+   *
+   * RULES (per Meta documentation):
+   * - Outside 24h window: ONLY template messages are accepted (text is silently dropped or error 131047)
+   * - Template opens a conversation but does NOT allow free-form text until user RESPONDS
+   * - ALL content must be self-contained in the template — no template+text combos
+   * - Template parameters: no \t \n \r, no 4+ consecutive spaces, max 1024 chars body
+   * - URLs in parameters must be valid HTTPS (since Jan 2026)
+   * - Error #135000: anti-spam, invalid params, paused template, or user-side issues
+   *
+   * Strategy:
+   * 1. If forceTemplate=false: try text first (works within 24h user-initiated window)
+   * 2. If text fails or forceTemplate=true: send via "aviso_os" template (has {{1}} param)
+   * 3. If aviso_os fails: log error with full details for debugging (no unsafe fallback)
    */
   async sendTextWithTemplateFallback(
     companyId: string,
@@ -296,7 +307,7 @@ export class WhatsAppService {
 
     const formattedPhone = this.formatPhone(phone);
 
-    // 1. If NOT forceTemplate, try sending as regular text first (within 24h window)
+    // 1. Try text first if not forced to template (only works within 24h user-initiated window)
     if (!forceTemplate) {
       try {
         await this.metaRequest(token, phoneNumberId, {
@@ -309,20 +320,27 @@ export class WhatsAppService {
         this.logger.log(`📱 WhatsApp text sent to ${formattedPhone}`);
         return true;
       } catch (textErr: any) {
-        this.logger.warn(`📱 WhatsApp text failed (outside 24h window), using template strategy: ${textErr.message}`);
+        this.logger.warn(`📱 Text failed (likely outside 24h window): ${textErr.message}`);
+        // Fall through to template
       }
     }
 
-    // 2. Template strategy: send template to open 24h window, then follow up with text
-    //    Try "aviso_os" first (has {{1}} param for message), then "teste_conexao" (no params)
-    let templateSent = false;
+    // 2. Send via template — template must contain ALL the content (self-sufficient)
+    //    Sanitize: Meta rejects \n \r \t and 4+ consecutive spaces in parameters
+    const sanitizedMsg = message
+      .replace(/[\r\n\t]+/g, ' | ')
+      .replace(/ {4,}/g, '   ')
+      .trim();
 
-    // 2a. Try aviso_os with message content
+    // Truncate for template body param (max 1024 chars)
+    const truncatedMsg = sanitizedMsg.length > 1000
+      ? sanitizedMsg.substring(0, 997) + '...'
+      : sanitizedMsg;
+
+    this.logger.log(`📱 Sending template "aviso_os" to ${formattedPhone} (${truncatedMsg.length} chars)`);
+    this.logger.debug(`📱 Template body param: ${truncatedMsg}`);
+
     try {
-      let sanitizedMsg = message.replace(/[\r\n\t]+/g, ' | ').replace(/ {4,}/g, '   ').trim();
-      const truncatedMsg = sanitizedMsg.length > 1000 ? sanitizedMsg.substring(0, 997) + '...' : sanitizedMsg;
-      this.logger.log(`📱 Trying template "aviso_os" (${truncatedMsg.length} chars) to ${formattedPhone}`);
-
       await this.metaRequest(token, phoneNumberId, {
         messaging_product: 'whatsapp',
         to: formattedPhone,
@@ -341,58 +359,35 @@ export class WhatsAppService {
         },
       });
 
-      this.logger.log(`📱 Template "aviso_os" sent to ${formattedPhone}`);
-      templateSent = true;
-      // aviso_os already contains the full message, no need to follow up
+      this.logger.log(`📱 Template "aviso_os" delivered to ${formattedPhone}`);
       return true;
     } catch (templateErr: any) {
-      const errDetail = templateErr.response?.data ? JSON.stringify(templateErr.response.data) : templateErr.message;
-      this.logger.warn(`📱 Template "aviso_os" failed: ${errDetail}`);
+      // Extract full error details from Meta response
+      const errData = templateErr.response?.data;
+      const errCode = errData?.error?.code || 'unknown';
+      const errSubcode = errData?.error?.error_subcode || '';
+      const errMsg = errData?.error?.message || templateErr.message;
+      const errDetail = errData?.error?.error_data?.details || '';
+
+      this.logger.error(
+        `📱 Template "aviso_os" FAILED for ${formattedPhone}: ` +
+        `code=${errCode}, subcode=${errSubcode}, msg="${errMsg}", detail="${errDetail}"` +
+        ` | Full response: ${JSON.stringify(errData || {})}`,
+      );
+
+      // Common error codes reference:
+      // 131047 = Re-engagement required (need template, not text)
+      // 131056 = Rate limit per-user (1 msg/6s)
+      // 132000 = Template param count mismatch
+      // 132001 = Template does not exist
+      // 132005 = Template hydrated text too long
+      // 132007 = Template format mismatch
+      // 132012 = Template paused
+      // 132015 = Template blocked
+      // 135000 = Generic user error (anti-spam, invalid params, user-side)
+
+      return false;
     }
-
-    // 2b. Fallback: teste_conexao (no params) → opens window → then send text with full message
-    if (!templateSent) {
-      try {
-        await this.metaRequest(token, phoneNumberId, {
-          messaging_product: 'whatsapp',
-          to: formattedPhone,
-          type: 'template',
-          template: {
-            name: 'teste_conexao',
-            language: { code: 'pt_BR' },
-          },
-        });
-
-        this.logger.log(`📱 Template "teste_conexao" sent to ${formattedPhone}, now sending text follow-up`);
-        templateSent = true;
-      } catch (fallbackErr: any) {
-        this.logger.error(`📱 All template attempts failed for ${formattedPhone}: ${fallbackErr.message}`);
-        return false;
-      }
-    }
-
-    // 3. Template opened the 24h window — now send the actual message as text
-    if (templateSent) {
-      // Small delay to ensure Meta processes the template before the text
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      try {
-        await this.metaRequest(token, phoneNumberId, {
-          messaging_product: 'whatsapp',
-          to: formattedPhone,
-          type: 'text',
-          text: { body: message },
-        });
-
-        this.logger.log(`📱 WhatsApp text follow-up sent to ${formattedPhone}`);
-        return true;
-      } catch (textErr: any) {
-        this.logger.warn(`📱 Text follow-up failed after template: ${textErr.message}`);
-        // Template was sent at least, so partial success
-        return true;
-      }
-    }
-
-    return false;
   }
 
   /**
@@ -1009,11 +1004,60 @@ export class WhatsAppService {
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
+      const errorCode = error?.error?.code || '';
       const errorMsg = error?.error?.message || `HTTP ${res.status}`;
-      throw new Error(`Meta API: ${errorMsg}`);
+      // Attach full response data to error for detailed logging upstream
+      const err: any = new Error(`Meta API: (${errorCode ? '#' + errorCode : res.status}) ${errorMsg}`);
+      err.response = { data: error };
+      throw err;
     }
 
     return res.json();
+  }
+
+  // ── Template Management ──────────────────────────────────────
+
+  /**
+   * List all message templates from Meta Business API.
+   * Uses WABA ID to query templates with their status, category, and quality.
+   * Endpoint: GET /{waba_id}/message_templates
+   */
+  async getTemplates(companyId: string): Promise<any[]> {
+    const token = await this.getAccessToken(companyId);
+    const config = await this.prisma.whatsAppConfig.findFirst({ where: { companyId } });
+
+    if (!token || !config?.metaWabaId) {
+      this.logger.warn(`Cannot fetch templates: missing token or WABA ID for company ${companyId}`);
+      return [];
+    }
+
+    const url = `${this.metaApiUrl}/${config.metaWabaId}/message_templates?limit=100`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        this.logger.error(`Failed to fetch templates: ${JSON.stringify(error)}`);
+        return [];
+      }
+
+      const data = await res.json();
+      return (data.data || []).map((t: any) => ({
+        name: t.name,
+        status: t.status,              // APPROVED, PENDING, REJECTED, PAUSED, DISABLED
+        category: t.category,          // UTILITY, MARKETING, AUTHENTICATION
+        language: t.language,
+        quality_score: t.quality_score, // quality rating if available
+        components: t.components,
+      }));
+    } catch (err: any) {
+      this.logger.error(`Error fetching templates: ${err.message}`);
+      return [];
+    }
   }
 
   // ── Phone Formatting ──────────────────────────────────────

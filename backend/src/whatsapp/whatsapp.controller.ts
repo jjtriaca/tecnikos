@@ -147,6 +147,18 @@ export class WhatsAppController {
     return { ok: true };
   }
 
+  // ── Template Management ──────────────────────────────────
+
+  /**
+   * GET /whatsapp/templates — List all message templates and their status
+   * Useful for diagnosing template issues (paused, disabled, rejected)
+   */
+  @Get('templates')
+  @Roles('ADMIN')
+  async getTemplates(@Req() req: any) {
+    return this.whatsAppService.getTemplates(req.user.companyId);
+  }
+
   // ── Messaging ─────────────────────────────────────────────
 
   /**
