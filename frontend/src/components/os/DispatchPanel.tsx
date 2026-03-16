@@ -358,10 +358,11 @@ const MINIMIZED_PREF_KEY = "dispatchMinimizedPos";
 
 function MinimizedTray({ dispatches, onClick }: { dispatches: DispatchState[]; onClick: () => void }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [ready, setReady] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
   const loadedRef = useRef(false);
 
-  // Load saved position
+  // Load saved position — hide until loaded to avoid flash
   useEffect(() => {
     if (loadedRef.current) return;
     loadedRef.current = true;
@@ -370,7 +371,7 @@ function MinimizedTray({ dispatches, onClick }: { dispatches: DispatchState[]; o
       if (prefs?.[prefKey]?.x != null) {
         setPos(clampPosition(prefs[prefKey].x, prefs[prefKey].y));
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setReady(true));
   }, []);
 
   // Default bottom-right
@@ -413,6 +414,8 @@ function MinimizedTray({ dispatches, onClick }: { dispatches: DispatchState[]; o
     if (d.acceptedAt || d.enRouteAt) return "bg-emerald-500 text-white";
     return "bg-slate-200 text-slate-700";
   };
+
+  if (!ready) return null; // Wait for saved position to load
 
   return (
     <div
