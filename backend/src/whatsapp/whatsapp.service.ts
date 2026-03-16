@@ -326,6 +326,7 @@ export class WhatsAppService {
       let sanitizedMsg = message.replace(/[\r\n\t]+/g, ' | ').replace(/ {4,}/g, '   ').trim();
       // Truncate for template (max 1024 chars in body parameter)
       const truncatedMsg = sanitizedMsg.length > 1000 ? sanitizedMsg.substring(0, 997) + '...' : sanitizedMsg;
+      this.logger.log(`📱 Template param (${truncatedMsg.length} chars): ${truncatedMsg.substring(0, 100)}...`);
 
       await this.metaRequest(token, phoneNumberId, {
         messaging_product: 'whatsapp',
@@ -348,7 +349,8 @@ export class WhatsAppService {
       this.logger.log(`📱 WhatsApp template "aviso_os" sent to ${formattedPhone}`);
       return true;
     } catch (templateErr: any) {
-      this.logger.warn(`📱 Template "aviso_os" failed: ${templateErr.message}, trying teste_conexao`);
+      const errDetail = templateErr.response?.data ? JSON.stringify(templateErr.response.data) : templateErr.message;
+      this.logger.warn(`📱 Template "aviso_os" failed: ${errDetail}, trying teste_conexao`);
     }
 
     // 3. Last resort: generic template without parameters
