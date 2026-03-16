@@ -43,6 +43,13 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
       this.logger.error(`Tenant schema sync failed: ${(err as Error).message}`);
     }
 
+    // Sync tenant limits (maxOsPerMonth, maxUsers) to Company table in each schema
+    try {
+      await this.syncTenantLimits();
+    } catch (err) {
+      this.logger.error(`Tenant limits sync failed: ${(err as Error).message}`);
+    }
+
     // Cleanup expired/inactive sessions across all schemas
     try {
       await this.cleanupExpiredSessions();
@@ -434,6 +441,42 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
       } catch (err) {
         this.logger.warn(`Failed to remap "${col.table_name}"."${col.column_name}": ${(err as Error).message}`);
       }
+    }
+  }
+
+  /**
+   * Sync Tenant limits (maxOsPerMonth, maxUsers) to Company table in each tenant schema.
+   * This ensures the Company table always reflects the current plan limits.
+   */
+  private async syncTenantLimits(): Promise<void> {
+    const tenants = await this.rawPrisma.$queryRawUnsafe<
+      { schemaName: string; slug: string; maxOsPerMonth: number; maxUsers: number }[]
+    >(`
+      SELECT "schemaName", slug, "maxOsPerMonth", "maxUsers"
+      FROM public."Tenant"
+      WHERE "deletedAt" IS NULL AND status NOT IN ('CANCELLED') AND "schemaName" IS NOT NULL
+    `);
+
+    let updated = 0;
+    for (const t of tenants) {
+      if (!/^[a-z0-9_]+$/.test(t.schemaName)) continue;
+      try {
+        const result = await this.rawPrisma.$executeRawUnsafe(`
+          UPDATE "${t.schemaName}"."Company"
+          SET "maxOsPerMonth" = ${t.maxOsPerMonth}, "maxUsers" = ${t.maxUsers}
+          WHERE "maxOsPerMonth" != ${t.maxOsPerMonth} OR "maxUsers" != ${t.maxUsers}
+        `);
+        if (result > 0) {
+          updated++;
+          this.logger.log(`Synced limits for tenant "${t.slug}": maxOS=${t.maxOsPerMonth}, maxUsers=${t.maxUsers}`);
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to sync limits for "${t.slug}": ${(err as Error).message}`);
+      }
+    }
+
+    if (updated > 0) {
+      this.logger.log(`Tenant limits synced: ${updated} company(ies) updated`);
     }
   }
 
