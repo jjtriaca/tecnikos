@@ -340,13 +340,31 @@ export class AsaasService {
       throw new BadRequestException('Tenant não encontrado');
     }
 
+    // Compute period (current month) and expiry (end of current billing cycle or end of month)
+    const now = new Date();
+    const periodMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const expiresAt = subscription.currentPeriodEnd || new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    // Build description for checkout
+    const descParts: string[] = [];
+    if (addOn.osQuantity > 0) descParts.push(`+${addOn.osQuantity} OS`);
+    if (addOn.userQuantity > 0) descParts.push(`+${addOn.userQuantity} usuário(s)`);
+    if (addOn.technicianQuantity > 0) descParts.push(`+${addOn.technicianQuantity} técnico(s)`);
+    if (addOn.aiMessageQuantity > 0) descParts.push(`+${addOn.aiMessageQuantity} msgs IA`);
+    const descStr = descParts.join(', ') || addOn.name;
+
     // Create local purchase record (PENDING)
     const purchase = await this.prisma.addOnPurchase.create({
       data: {
         subscriptionId: subscription.id,
         addOnId: addOn.id,
         osQuantity: addOn.osQuantity,
+        userQuantity: addOn.userQuantity,
+        technicianQuantity: addOn.technicianQuantity,
+        aiMessageQuantity: addOn.aiMessageQuantity,
         priceCents: addOn.priceCents,
+        periodMonth,
+        expiresAt,
         status: 'PENDING',
       },
     });
@@ -357,11 +375,13 @@ export class AsaasService {
         where: { id: purchase.id },
         data: { status: 'PAID' },
       });
-      await this.prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { extraOsPurchased: { increment: addOn.osQuantity } },
-      });
-      await this.creditOsToTenantCompany(tenant, addOn.osQuantity);
+      if (addOn.osQuantity > 0) {
+        await this.prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { extraOsPurchased: { increment: addOn.osQuantity } },
+        });
+      }
+      await this.creditAddOnToTenantCompany(tenant, addOn);
       return { checkoutUrl: null, purchase };
     }
 
@@ -374,7 +394,7 @@ export class AsaasService {
       chargeTypes: ['DETACHED'],
       items: [{
         name: `Add-on: ${addOn.name}`,
-        description: `+${addOn.osQuantity} ordens de serviço`,
+        description: descStr,
         quantity: 1,
         value: addOn.priceCents / 100,
       }],
@@ -383,7 +403,7 @@ export class AsaasService {
       },
     });
 
-    this.logger.log(`Add-on checkout created: ${addOn.name} for tenant ${tenantId}`);
+    this.logger.log(`Add-on checkout created: ${addOn.name} (${descStr}) for tenant ${tenantId}`);
     return { checkoutUrl: checkout.url, purchase };
   }
 
@@ -1027,7 +1047,7 @@ export class AsaasService {
   }
 
   /**
-   * Purchase an add-on package (extra OS) for a tenant.
+   * Purchase an add-on package for a tenant (direct payment, not checkout).
    */
   async purchaseAddOn(tenantId: string, addOnId: string, billingType: 'PIX' | 'BOLETO' | 'CREDIT_CARD' = 'PIX') {
     const [addOn, subscription] = await Promise.all([
@@ -1044,12 +1064,21 @@ export class AsaasService {
       throw new BadRequestException('Nenhuma assinatura ativa');
     }
 
+    const now = new Date();
+    const periodMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const expiresAt = subscription.currentPeriodEnd || new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
     const purchase = await this.prisma.addOnPurchase.create({
       data: {
         subscriptionId: subscription.id,
         addOnId: addOn.id,
         osQuantity: addOn.osQuantity,
+        userQuantity: addOn.userQuantity,
+        technicianQuantity: addOn.technicianQuantity,
+        aiMessageQuantity: addOn.aiMessageQuantity,
         priceCents: addOn.priceCents,
+        periodMonth,
+        expiresAt,
         status: 'PENDING',
       },
     });
@@ -1076,17 +1105,18 @@ export class AsaasService {
         where: { id: purchase.id },
         data: { status: 'PAID' },
       });
-      await this.prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { extraOsPurchased: { increment: addOn.osQuantity } },
-      });
+      if (addOn.osQuantity > 0) {
+        await this.prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { extraOsPurchased: { increment: addOn.osQuantity } },
+        });
+      }
 
-      // Credit OS to tenant's Company
       const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
-      if (tenant) await this.creditOsToTenantCompany(tenant, addOn.osQuantity);
+      if (tenant) await this.creditAddOnToTenantCompany(tenant, addOn);
     }
 
-    this.logger.log(`Add-on purchased: ${addOn.name} (+${addOn.osQuantity} OS) for tenant ${tenantId}`);
+    this.logger.log(`Add-on purchased: ${addOn.name} for tenant ${tenantId}`);
     return { purchase, asaasPayment };
   }
 
@@ -1097,7 +1127,7 @@ export class AsaasService {
   async confirmAddOnPayment(asaasPaymentId: string): Promise<boolean> {
     const purchase = await this.prisma.addOnPurchase.findFirst({
       where: { asaasPaymentId, status: 'PENDING' },
-      include: { subscription: { include: { tenant: true } } },
+      include: { subscription: { include: { tenant: true } }, addOn: true },
     });
     if (!purchase) return false;
 
@@ -1105,15 +1135,16 @@ export class AsaasService {
       where: { id: purchase.id },
       data: { status: 'PAID' },
     });
-    await this.prisma.subscription.update({
-      where: { id: purchase.subscriptionId },
-      data: { extraOsPurchased: { increment: purchase.osQuantity } },
-    });
+    if (purchase.osQuantity > 0) {
+      await this.prisma.subscription.update({
+        where: { id: purchase.subscriptionId },
+        data: { extraOsPurchased: { increment: purchase.osQuantity } },
+      });
+    }
 
-    // Also increment maxOsPerMonth in tenant's Company for UsageBar
-    await this.creditOsToTenantCompany(purchase.subscription.tenant, purchase.osQuantity);
+    await this.creditAddOnToTenantCompany(purchase.subscription.tenant, purchase);
 
-    this.logger.log(`Add-on payment confirmed: ${purchase.id} (+${purchase.osQuantity} OS)`);
+    this.logger.log(`Add-on payment confirmed: ${purchase.id} (OS:${purchase.osQuantity} Users:${purchase.userQuantity} Tech:${purchase.technicianQuantity} AI:${purchase.aiMessageQuantity})`);
     return true;
   }
 
@@ -1142,30 +1173,40 @@ export class AsaasService {
       where: { id: purchase.id },
       data: { status: 'PAID' },
     });
-    await this.prisma.subscription.update({
-      where: { id: subscription.id },
-      data: { extraOsPurchased: { increment: purchase.osQuantity } },
-    });
+    if (purchase.osQuantity > 0) {
+      await this.prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { extraOsPurchased: { increment: purchase.osQuantity } },
+      });
+    }
 
-    await this.creditOsToTenantCompany(tenant, purchase.osQuantity);
+    await this.creditAddOnToTenantCompany(tenant, purchase);
 
-    this.logger.log(`Add-on checkout payment confirmed by customer: ${purchase.id} (+${purchase.osQuantity} OS) for tenant ${tenant.slug}`);
+    this.logger.log(`Add-on checkout confirmed by customer: ${purchase.id} for tenant ${tenant.slug}`);
     return true;
   }
 
-  /** Increment maxOsPerMonth in the tenant's Company record */
-  private async creditOsToTenantCompany(tenant: { schemaName: string }, osQuantity: number) {
+  /** Credit add-on quantities to the tenant's Company record */
+  private async creditAddOnToTenantCompany(
+    tenant: { schemaName: string },
+    addon: { osQuantity: number; userQuantity: number; technicianQuantity: number; aiMessageQuantity: number },
+  ) {
     try {
       const client = this.tenantConn.getClient(tenant.schemaName);
       const company = await client.company.findFirst();
-      if (company) {
-        await client.company.update({
-          where: { id: company.id },
-          data: { maxOsPerMonth: { increment: osQuantity } },
-        });
+      if (!company) return;
+
+      const data: Record<string, any> = {};
+      if (addon.osQuantity > 0) data.maxOsPerMonth = { increment: addon.osQuantity };
+      if (addon.userQuantity > 0) data.maxUsers = { increment: addon.userQuantity };
+      if (addon.technicianQuantity > 0) data.maxTechnicians = { increment: addon.technicianQuantity };
+      if (addon.aiMessageQuantity > 0) data.maxAiMessages = { increment: addon.aiMessageQuantity };
+
+      if (Object.keys(data).length > 0) {
+        await client.company.update({ where: { id: company.id }, data });
       }
     } catch (err) {
-      this.logger.warn(`Failed to credit OS to tenant company: ${(err as Error).message}`);
+      this.logger.warn(`Failed to credit add-on to tenant company: ${(err as Error).message}`);
     }
   }
 

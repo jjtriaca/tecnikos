@@ -214,12 +214,18 @@ export class TenantController {
   }
 
   @Post('/addons')
-  createAddOn(@Body() dto: { name: string; description?: string; osQuantity: number; priceCents: number; sortOrder?: number }) {
+  createAddOn(@Body() dto: {
+    name: string; description?: string; priceCents: number; sortOrder?: number;
+    osQuantity?: number; userQuantity?: number; technicianQuantity?: number; aiMessageQuantity?: number;
+  }) {
     return this.prisma.addOn.create({
       data: {
         name: dto.name,
         description: dto.description,
-        osQuantity: dto.osQuantity,
+        osQuantity: dto.osQuantity ?? 0,
+        userQuantity: dto.userQuantity ?? 0,
+        technicianQuantity: dto.technicianQuantity ?? 0,
+        aiMessageQuantity: dto.aiMessageQuantity ?? 0,
         priceCents: dto.priceCents,
         sortOrder: dto.sortOrder ?? 0,
       },
@@ -227,7 +233,10 @@ export class TenantController {
   }
 
   @Put('/addons/:id')
-  updateAddOn(@Param('id') id: string, @Body() dto: Partial<{ name: string; description: string; osQuantity: number; priceCents: number; isActive: boolean; sortOrder: number }>) {
+  updateAddOn(@Param('id') id: string, @Body() dto: Partial<{
+    name: string; description: string; priceCents: number; isActive: boolean; sortOrder: number;
+    osQuantity: number; userQuantity: number; technicianQuantity: number; aiMessageQuantity: number;
+  }>) {
     return this.prisma.addOn.update({ where: { id }, data: dto });
   }
 

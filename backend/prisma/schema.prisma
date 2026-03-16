@@ -2080,13 +2080,16 @@ model Promotion {
 
 // Add-on packages (extra OS, extra users, etc.)
 model AddOn {
-  id          String    @id @default(uuid())
-  name        String    // "Pacote 50 OS", "Pacote 200 OS"
-  description String?
-  osQuantity  Int       // Extra OS included (0 if not OS add-on)
-  priceCents  Int       // One-time price in cents
-  isActive    Boolean   @default(true)
-  sortOrder   Int       @default(0)
+  id                  String    @id @default(uuid())
+  name                String    // "Pacote 100 OS", "+1 Usuario Gestor"
+  description         String?
+  osQuantity          Int       @default(0)  // Extra OS (0 if not OS add-on)
+  userQuantity        Int       @default(0)  // Extra users (0 if not user add-on)
+  technicianQuantity  Int       @default(0)  // Extra technicians (0 if not tech add-on)
+  aiMessageQuantity   Int       @default(0)  // Extra AI msgs (0 if not AI add-on)
+  priceCents          Int       // One-time price in cents (valid for 1 billing cycle)
+  isActive            Boolean   @default(true)
+  sortOrder           Int       @default(0)
 
   purchases   AddOnPurchase[]
 
@@ -2095,21 +2098,27 @@ model AddOn {
 }
 
 model AddOnPurchase {
-  id              String   @id @default(uuid())
-  subscriptionId  String
-  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
-  addOnId         String
-  addOn           AddOn    @relation(fields: [addOnId], references: [id])
-  osQuantity      Int      // OS granted
-  priceCents      Int      // Price paid
-  asaasPaymentId  String?  // Asaas payment ID
-  status          String   @default("PENDING") // PENDING | PAID | CANCELLED
+  id                  String   @id @default(uuid())
+  subscriptionId      String
+  subscription        Subscription @relation(fields: [subscriptionId], references: [id])
+  addOnId             String
+  addOn               AddOn    @relation(fields: [addOnId], references: [id])
+  osQuantity          Int      @default(0)  // OS granted
+  userQuantity        Int      @default(0)  // Users granted
+  technicianQuantity  Int      @default(0)  // Technicians granted
+  aiMessageQuantity   Int      @default(0)  // AI messages granted
+  priceCents          Int      // Price paid
+  asaasPaymentId      String?  // Asaas payment ID
+  status              String   @default("PENDING") // PENDING | PAID | CANCELLED
+  periodMonth         String?  // "2026-03" — month this add-on is valid for
+  expiresAt           DateTime? // End of billing cycle when add-on expires
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@index([subscriptionId])
   @@index([status])
+  @@index([periodMonth])
 }
 
 // Nota fiscal (NFS-e) emitida via Asaas para licenças SaaS
