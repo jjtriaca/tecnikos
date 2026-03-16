@@ -164,11 +164,12 @@ export class AsaasService {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
     }
 
+    // Subscription starts as PENDING — only becomes ACTIVE on PAYMENT_CONFIRMED webhook
     const subscription = await this.prisma.subscription.create({
       data: {
         tenantId: params.tenantId,
         planId: plan.id,
-        status: 'ACTIVE',
+        status: 'PENDING',
         currentPeriodStart: now,
         currentPeriodEnd: periodEnd,
         nextBillingDate: periodEnd,
@@ -275,11 +276,12 @@ export class AsaasService {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
     }
 
+    // Subscription starts as PENDING — only becomes ACTIVE on PAYMENT_CONFIRMED webhook
     await this.prisma.subscription.create({
       data: {
         tenantId: params.tenantId,
         planId: plan.id,
-        status: 'ACTIVE',
+        status: 'PENDING',
         currentPeriodStart: now,
         currentPeriodEnd: periodEnd,
         nextBillingDate: periodEnd,

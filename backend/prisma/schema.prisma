@@ -1881,6 +1881,7 @@ enum TenantStatus {
 }
 
 enum SubscriptionStatus {
+  PENDING
   ACTIVE
   PAST_DUE
   CANCELLED

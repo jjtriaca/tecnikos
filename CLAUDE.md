@@ -105,6 +105,17 @@ Colunas mapeadas: Nome Parceiro, CNPJ/CPF, Tipo de pessoa, Cliente, Fornecedor, 
 8. **Dashboard** - KPIs e resumos
 9. **Specializations** - Especializacoes de tecnicos
 
+## REGRA ABSOLUTA: Pagamento Asaas (NUNCA VIOLAR)
+**NADA muda no sistema ate o webhook PAYMENT_CONFIRMED do Asaas retornar.**
+Isso vale para TODOS os fluxos de compra/upgrade/add-on:
+1. **Signup**: Subscription criada como `PENDING`. Tenant fica `PENDING_PAYMENT`. So ativa no webhook.
+2. **Upgrade**: Salva `pendingPlanId` na subscription. Cria pagamento avulso no Asaas. Plano/limites so mudam no webhook.
+3. **Add-on**: Cria `AddOnPurchase` como `PENDING`. Limites da Company so creditados no webhook.
+4. **Downgrade**: Nao precisa de pagamento (e reducao). Agenda para proximo ciclo via `pendingPlanId`.
+5. **NUNCA** mudar: `Tenant.status`, `Subscription.status`, `Tenant.planId`, `Company.maxOsPerMonth/maxUsers/maxTechnicians/maxAiMessages` antes do pagamento confirmado.
+6. **Excecao unica**: Credito pro-rata cobre 100% do valor → aplicar imediatamente (ja foi pago antes).
+7. **Teste obrigatorio**: Ao implementar qualquer fluxo de pagamento, verificar que o fluxo NÃO altera dados antes do webhook.
+
 ## ALERTA: APIs Externas com Risco de Ban (Meta, Focus NFe, etc.)
 Quando o contexto envolver QUALQUER API da Meta (WhatsApp Business, Facebook, Instagram) ou Focus NFe:
 1. **ACENDER ALERTA** — essas APIs tem regras rigidas e consequencias graves (ban, desativacao permanente)

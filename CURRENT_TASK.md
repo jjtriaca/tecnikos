@@ -101,7 +101,15 @@
 - [x] Regra de negocio: OS deletadas CONTAM no limite mensal (evita burla por create+delete)
 - [x] Deploy v1.04.03
 
-## Versao atual: v1.04.03
+## Tenant Suspend + Upgrade + Add-on Fixes (v1.04.04-05):
+- [x] Bug CRITICO: upgrade aplicava plano/limites ANTES do pagamento — reescrito para so aplicar no webhook PAYMENT_CONFIRMED
+- [x] Bug CRITICO: webhook SUBSCRIPTION_DELETED suspendia tenant sem checar se tinha outra subscription ACTIVE (causou bloqueio da SLS)
+- [x] SLS revertida para Essencial (plano correto, nao pagou upgrade)
+- [x] Add-on cards: mostravam "+0 ordens" para todos — agora mostra quantidade correta por tipo (users, techs, msgs IA)
+- [x] Mensagem de erro/sucesso: scroll automatico para ficar visivel
+- [x] Deploy v1.04.04, v1.04.05
+
+## Versao atual: v1.04.05
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127
