@@ -125,8 +125,12 @@ async function request<T>(
     if (refreshed) {
       return request<T>(path, { ...options, _skipRefresh: true });
     }
+    // Session revoked (e.g. login on another device) — redirect to login
     setAccessToken(null);
-    throw new ApiError(401, "Sessão expirada");
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login?expired=1";
+    }
+    throw new ApiError(401, "Sessão encerrada. Você foi desconectado porque fez login em outro dispositivo.");
   }
 
   const contentType = res.headers.get("content-type") || "";

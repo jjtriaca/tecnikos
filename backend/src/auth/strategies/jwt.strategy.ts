@@ -1,11 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { JwtPayload, AuthenticatedUser } from '../auth.types';
+import { PrismaService } from '../../prisma/prisma.service';
+import { AuthenticatedUser } from '../auth.types';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -13,7 +14,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: any): AuthenticatedUser {
+  async validate(payload: any): Promise<AuthenticatedUser> {
+    // If JWT contains sessionId, verify it's still active (not revoked)
+    // This enables immediate session invalidation when user logs in on another device
+    if (payload.sessionId) {
+      const session = await this.prisma.session.findUnique({
+        where: { id: payload.sessionId },
+        select: { revokedAt: true, expiresAt: true },
+      });
+      if (!session || session.revokedAt || session.expiresAt < new Date()) {
+        throw new UnauthorizedException('Sessão encerrada. Faça login novamente.');
+      }
+    }
+
     return {
       id: payload.sub,
       email: payload.email,
@@ -23,6 +36,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       companyId: payload.companyId,
       technicianId: payload.technicianId,
       partnerId: payload.partnerId,
+      sessionId: payload.sessionId,
     };
   }
 }

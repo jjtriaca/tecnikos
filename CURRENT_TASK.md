@@ -1,32 +1,32 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 124 — Plan Limits Enforcement (v1.03.83)
+## Status: SESSAO 125 — Immediate Session Invalidation (v1.03.87)
 
-## Ultima sessao: 124 (16/03/2026)
-- Sessao 121: Respeitar tecnico direcionado (v1.03.76-78)
+## Ultima sessao: 125 (16/03/2026)
 - Sessao 122: Header billing indicators (v1.03.79)
 - Sessao 123: Billing cycle + pro-rata + grandfather + structured plan features (v1.03.81-82)
-- Sessao 124: Plan Limits Enforcement (v1.03.83)
+- Sessao 124: Plan Limits Enforcement + Audit + Single Session (v1.03.83-86)
+- Sessao 125: Immediate Session Invalidation (v1.03.87)
 
-## O que foi feito na sessao 124:
+## O que foi feito na sessao 125:
 
-### Plan Limits Enforcement (v1.03.83)
-- [x] Schema: Company +maxTechnicians, +maxAiMessages
-- [x] Schema: User +chatIAEnabled, +deactivationCount, +lastDeactivatedAt
-- [x] Schema: Partner +deactivationCount, +lastDeactivatedAt
-- [x] Migration: 20260316090000_plan_limits_enforcement
-- [x] user.service.ts: maxUsers check + chatIAEnabled + deactivation tracking
-- [x] user.controller.ts: chatIAEnabled in POST/PUT
-- [x] service-order.service.ts: maxOsPerMonth enforcement
-- [x] partner.service.ts: maxTechnicians enforcement + deactivation tracking
-- [x] chat-ia.service.ts: real maxAiMessages + chatIAEnabled check
-- [x] auth.service.ts: me() retorna chatIAEnabled
-- [x] tenant-migrator: syncTenantLimits inclui maxTechnicians/maxAiMessages
-- [x] tenant.service.ts + asaas.service.ts: propagam novos campos para Company
-- [x] Frontend: toggle chatIAEnabled no form de usuario
-- [x] Frontend: ChatIA botao escondido para usuarios sem acesso
+### Immediate Session Invalidation (v1.03.87)
+- [x] auth.types.ts: +sessionId em JwtPayload e AuthenticatedUser
+- [x] auth.service.ts: issueAccessToken() aceita sessionId
+- [x] auth.service.ts: login() cria session PRIMEIRO, depois gera JWT com sessionId
+- [x] auth.service.ts: refresh() idem — session antes, JWT depois
+- [x] jwt.strategy.ts: validate() verifica session ativa no DB a cada request
+- [x] jwt.strategy.ts: session revogada → UnauthorizedException imediato
+- [x] Frontend api.ts: 401 apos falha de refresh → redirect para /login?expired=1
+- [x] Frontend login/page.tsx: banner "Sessao encerrada" quando ?expired=1
 - [x] Build OK (backend + frontend tsc limpo)
-- [ ] Deploy v1.03.83
+- [ ] Deploy v1.03.87
+
+### Investigacao chatIAEnabled toggle
+- [x] Codigo verificado — toggle existe e funciona corretamente no form de usuarios
+- [x] Oculto quando role = ADMIN (correto, admin sempre tem acesso)
+- [x] TenantMigratorService sincroniza coluna para schemas de tenant automaticamente
+- [x] Provavel causa do relato: deploy ainda nao tinha sido feito no momento
 
 ## Pendente:
 
@@ -34,15 +34,16 @@
 - **WhatsApp Business** — Conta desativada pelo Meta, recurso enviado. Apos reativacao: template aviso_os com CTA
 
 ### A FAZER
-1. **Avaliacao/Feedback do servico** — Fluxo ponta a ponta (gerar token, enviar link ao cliente, UI gestor avaliar). Estudo salvo em memory/avaliacao-feedback-estudo.md
-2. **Sistema de sugestoes** — Botao "Solicitar melhoria" no chat IA → sugestoes para Juliano
-3. **Configuracoes empresa readonly** — Campos vem do onboarding/licenca, so "Buscar na Receita" atualiza. Responsavel Legal so troca via solicitacao (botao "Solicitar troca")
-4. **Enforcement pendente**: supportLevel e allModulesIncluded (implementar quando sistema de suporte existir)
-5. **Verificacao visual do workflow editor** — Revisao completa da UI
-6. **Contrato do cliente com a Tecnikos**
-7. **Frontend: mensagens de limite atingido + botoes de compra add-on** (para cada tela: users, OS, partners, chat)
+1. **Mecanismo de Add-on** — Planejar compra de add-ons (usuarios, OS, msgs IA, tecnicos)
+2. **Avaliacao/Feedback do servico** — Fluxo ponta a ponta (gerar token, enviar link ao cliente, UI gestor avaliar). Estudo salvo em memory/avaliacao-feedback-estudo.md
+3. **Sistema de sugestoes** — Botao "Solicitar melhoria" no chat IA → sugestoes para Juliano
+4. **Configuracoes empresa readonly** — Campos vem do onboarding/licenca, so "Buscar na Receita" atualiza. Responsavel Legal so troca via solicitacao (botao "Solicitar troca")
+5. **Enforcement pendente**: supportLevel e allModulesIncluded (implementar quando sistema de suporte existir)
+6. **Verificacao visual do workflow editor** — Revisao completa da UI
+7. **Contrato do cliente com a Tecnikos**
+8. **Frontend: mensagens de limite atingido + botoes de compra add-on** (para cada tela: users, OS, partners, chat)
 
-## Versao atual: v1.03.83
+## Versao atual: v1.03.87
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

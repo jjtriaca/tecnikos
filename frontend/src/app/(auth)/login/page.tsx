@@ -23,11 +23,13 @@ function LoginPageInner() {
   const { login } = useAuth();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || undefined;
+  const expired = searchParams.get("expired") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberEmail, setRememberEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sessionExpiredMsg, setSessionExpiredMsg] = useState(expired);
 
   // CAPTCHA state
   const [captchaSiteKey, setCaptchaSiteKey] = useState<string | null>(null);
@@ -143,6 +145,24 @@ function LoginPageInner() {
                 <div className="text-[11px] text-slate-400">Gestao de Servicos Tecnicos</div>
               </div>
             </div>
+
+            {/* Session expired notice */}
+            {sessionExpiredMsg && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800">Sessao encerrada</p>
+                  <p className="text-xs text-amber-600">Voce foi desconectado porque fez login em outro dispositivo.</p>
+                </div>
+                <button onClick={() => setSessionExpiredMsg(false)} className="text-amber-400 hover:text-amber-600">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
 
             {/* Welcome */}
             <div className="mb-6">

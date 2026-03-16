@@ -8,6 +8,7 @@ export interface JwtPayload {
   companyId: string;
   technicianId?: string; // backwards compat — same as partnerId
   partnerId?: string;    // present when isTecnico is true
+  sessionId?: string;    // for immediate session invalidation
 }
 
 /** Classe (não interface) para funcionar com emitDecoratorMetadata + isolatedModules */
@@ -19,4 +20,5 @@ export class AuthenticatedUser {
   companyId: string;
   technicianId?: string;
   partnerId?: string;
+  sessionId?: string;
 }

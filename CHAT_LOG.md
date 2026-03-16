@@ -1807,3 +1807,36 @@ Solucao:
 4. **partner update() permitia adicionar TECNICO sem check** — Editar tipo para TECNICO bypassava limite. CORRIGIDO.
 5. **provisionTenant() nao fazia snapshot de maxTechnicians/maxAiMessages** — Novos tenants ficavam com 0 (ilimitado). CORRIGIDO.
 6. **findFirst sem where** — Comentarios explicativos adicionados.
+
+### Sessao unica — usuario so pode estar logado em 1 dispositivo (v1.03.86)
+- **Decisao do Juliano**: Opcao A — sessao estrita, login revoga TODAS as sessoes anteriores
+- **auth.service.ts createSession()**: MAX_SESSIONS=5 substituido por revogacao total
+- **Tecnico**: manteve MAX_SESSIONS=5 (usam link, acessam de celular + tablet)
+- **Mecanismo**: Login → revoga sessoes → cria nova. Maquina antiga expira no proximo refresh (max 15min)
+
+### Decisoes Juliano (16/03/2026):
+- **15min e muito** — logout deve ser imediato. Ao logar na nova, a outra cai no proximo clique.
+- **Add-ons**: planejar mecanismo completo (usuario, OS, msgs IA, tecnicos)
+- **Toggle Chat IA**: nao apareceu no frontend — investigar e corrigir
+
+---
+
+## 2026-03-16 — Sessao 125: Immediate Session Invalidation (v1.03.87)
+
+### Invalidacao imediata de sessao (v1.03.87)
+- **Problema**: login em outra maquina revogava sessao, mas JWT existente ainda era valido por ate 15 minutos
+- **Solucao**: sessionId embutido no JWT, validado contra DB a cada request
+- **Arquivos alterados**:
+  - `auth.types.ts`: +sessionId em JwtPayload e AuthenticatedUser
+  - `auth.service.ts`: issueAccessToken aceita sessionId; login/refresh criam session PRIMEIRO, depois geram JWT
+  - `jwt.strategy.ts`: validate() injeta PrismaService, consulta session por ID, throw 401 se revogada
+  - `frontend/src/lib/api.ts`: 401 apos falha de refresh → redirect /login?expired=1
+  - `frontend/src/app/(auth)/login/page.tsx`: banner amber "Sessao encerrada, voce foi desconectado..."
+- **Fluxo**: Login maquina B → revoga sessions → maquina A faz request → JWT tem sessionId → DB mostra revogada → 401 → redirect login
+- **Tecnicos**: continuam com MAX_SESSIONS=5, sem sessionId no JWT (graceful fallback)
+- **Backward compat**: JWTs antigos sem sessionId continuam funcionando (if payload.sessionId check)
+
+### Toggle chatIAEnabled
+- **Investigacao**: codigo esta correto, toggle visivel para non-ADMIN no form de usuarios
+- **Causa provavel**: deploy nao tinha sido feito quando usuario reportou
+- **TenantMigratorService**: sincroniza coluna chatIAEnabled automaticamente para schemas de tenant no boot

@@ -87,13 +87,14 @@ export class AuthService {
     if (!passwordOk) throw new UnauthorizedException('Credenciais inválidas');
 
     const ttl = SESSION_TTL_SECONDS;
-    const accessToken = this.issueAccessToken(user);
+    // Create session FIRST so we can embed sessionId in the JWT
     const { refreshToken, session } = await this.createSession(
       user.id,
       ip,
       userAgent,
       ttl,
     );
+    const accessToken = this.issueAccessToken(user, session.id);
 
     return {
       accessToken,
@@ -144,12 +145,13 @@ export class AuthService {
     });
 
     // Issue new pair (preserve original device name)
-    const accessToken = this.issueAccessToken(matchedSession.user);
-    const { refreshToken } = await this.createSession(
+    // Create session FIRST so we can embed sessionId in the JWT
+    const { refreshToken, session: newSession } = await this.createSession(
       matchedSession.userId,
       ip,
       userAgent || matchedSession.userAgent || undefined,
     );
+    const accessToken = this.issueAccessToken(matchedSession.user, newSession.id);
 
     return {
       accessToken,
@@ -484,12 +486,13 @@ export class AuthService {
     email: string;
     roles: any[];
     companyId: string;
-  }): string {
+  }, sessionId?: string): string {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       roles: user.roles,
       companyId: user.companyId,
+      ...(sessionId ? { sessionId } : {}),
     };
     return this.jwt.sign(payload);
   }
