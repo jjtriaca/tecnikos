@@ -49,6 +49,8 @@ export interface DispatchState {
   clientName?: string;
   // UI state
   resending?: boolean;
+  // Track manually dismissed OS (user closed card)
+  _dismissed?: boolean;
 }
 
 interface DispatchContextValue {
@@ -62,49 +64,93 @@ interface DispatchContextValue {
 
 const DispatchContext = createContext<DispatchContextValue | null>(null);
 
-const STORAGE_KEY = "teknikos_dispatch_ids";
+const DISMISSED_KEY = "teknikos_dispatch_dismissed";
 const POLL_INTERVAL_MS = 5000;
 
 // Terminal OS statuses — stop polling when reached
 const TERMINAL_STATUSES = ["CONCLUIDA", "APROVADA", "CANCELADA"];
 
+function mapApiToDispatch(item: any): DispatchState {
+  const so = item.serviceOrder;
+  return {
+    osId: so.id,
+    osCode: so.code,
+    osTitle: so.title,
+    osDescription: so.description,
+    osStatus: so.status,
+    acceptedAt: so.acceptedAt,
+    enRouteAt: so.enRouteAt,
+    arrivedAt: so.arrivedAt,
+    startedAt: so.startedAt,
+    completedAt: so.completedAt,
+    createdAt: so.createdAt,
+    valueCents: so.valueCents,
+    deadlineAt: so.deadlineAt,
+    scheduledStartAt: so.scheduledStartAt,
+    addressText: so.addressText,
+    city: so.city,
+    state: so.state,
+    neighborhood: so.neighborhood,
+    isUrgent: so.isUrgent,
+    isReturn: so.isReturn,
+    clientName: so.clientName,
+    technicianName: item.technician?.name || "",
+    technicianPhone: item.technician?.phone || "",
+    notificationId: item.notification?.id,
+    notificationStatus: item.notification?.status || "PENDING",
+    notificationChannel: item.notification?.channel || "WHATSAPP",
+    whatsappStatus: item.notification?.whatsappStatus,
+    errorDetail: item.notification?.errorDetail,
+  };
+}
+
+function getDismissedIds(): Set<string> {
+  try {
+    const stored = sessionStorage.getItem(DISMISSED_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissedIds(ids: Set<string>) {
+  sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids]));
+}
+
 export function DispatchProvider({ children }: { children: ReactNode }) {
   const [dispatches, setDispatches] = useState<DispatchState[]>([]);
   const [minimized, setMinimized] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const initialLoadRef = useRef(false);
+  const dismissedRef = useRef<Set<string>>(new Set());
 
-  // Restore from sessionStorage on mount
+  // Load all active OS on mount
   useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const ids: string[] = JSON.parse(stored);
-        if (ids.length > 0) {
-          // Restore with minimal data — polling will fill in details
-          const restored: DispatchState[] = ids.map((osId) => ({
-            osId,
-            technicianName: "",
-            technicianPhone: "",
-            notificationStatus: "PENDING",
-            notificationChannel: "WHATSAPP",
-          }));
-          setDispatches(restored);
+    if (initialLoadRef.current) return;
+    initialLoadRef.current = true;
+
+    dismissedRef.current = getDismissedIds();
+
+    api.get<any[]>("/service-orders/active-dispatches")
+      .then((items) => {
+        if (!items || !Array.isArray(items)) return;
+        const dismissed = dismissedRef.current;
+        const loaded = items
+          .filter((item) => !dismissed.has(item.serviceOrder?.id))
+          .map(mapApiToDispatch);
+        if (loaded.length > 0) {
+          setDispatches((prev) => {
+            // Merge: keep existing (from addDispatch during create), add new from API
+            const existingIds = new Set(prev.map((d) => d.osId));
+            const newItems = loaded.filter((d) => !existingIds.has(d.osId));
+            return newItems.length > 0 ? [...prev, ...newItems] : prev;
+          });
         }
-      }
-    } catch {
-      // ignore
-    }
+      })
+      .catch(() => {
+        // Not logged in or error — ignore
+      });
   }, []);
-
-  // Persist IDs to sessionStorage
-  useEffect(() => {
-    const ids = dispatches.map((d) => d.osId);
-    if (ids.length > 0) {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
-    } else {
-      sessionStorage.removeItem(STORAGE_KEY);
-    }
-  }, [dispatches]);
 
   // Polling
   useEffect(() => {
@@ -175,6 +221,10 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
 
   const addDispatch = useCallback(
     (osId: string, data: DispatchInitData, osCode?: string, osTitle?: string) => {
+      // Remove from dismissed if re-added
+      dismissedRef.current.delete(osId);
+      saveDismissedIds(dismissedRef.current);
+
       setDispatches((prev) => {
         if (prev.some((d) => d.osId === osId)) return prev; // already tracked
         return [
@@ -198,6 +248,9 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
   );
 
   const removeDispatch = useCallback((osId: string) => {
+    // Track dismissed so it doesn't reappear on next poll/load
+    dismissedRef.current.add(osId);
+    saveDismissedIds(dismissedRef.current);
     setDispatches((prev) => prev.filter((d) => d.osId !== osId));
   }, []);
 

@@ -126,7 +126,25 @@
 - [x] OS creation: toast feedback + addDispatch automatico
 - [x] Notificacoes page: botao Reenviar para FAILED
 
-## Versao atual: v1.04.10
+## Painel de Despacho — Rewrite + WhatsApp Fix (v1.04.11):
+- [x] Fix: link publico /p/{token} nao aparecia no WhatsApp para DIRECTED/BY_AGENDA (removido guard !osAlreadyAssigned)
+- [x] Fix: duplicidade de notificacao (removido notifyStatusChange duplicado no create)
+- [x] Fix: create() agora await executeStageNotifications e retorna _dispatch corretamente
+- [x] DispatchPanel reescrito: cada OS = card flutuante individual
+- [x] Cards arrastaveis com posicao salva no backend (User.preferences JSONB)
+- [x] Click-to-focus com z-index management
+- [x] Cascade from center para novos cards
+- [x] Timeline horizontal compacta (emojis 6px, labels 8px)
+- [x] Icones TechStatus reduzidos (7px emoji + 10px text)
+- [x] Info rica: descricao, cliente, valor, datas, endereco, badges URGENTE/RETORNO
+- [x] Global minimize button (icon + badge count)
+- [x] Semi-transparente (93% opacity + backdrop-blur)
+- [x] SessionStorage persistence para IDs de dispatch
+- [x] Migration: User.preferences JSONB
+- [x] Endpoints: GET/PATCH /users/me/preferences
+- [x] Deploy v1.04.11
+
+## Versao atual: v1.04.11
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

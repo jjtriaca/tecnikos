@@ -443,6 +443,61 @@ export class ServiceOrderService {
   }
 
   /**
+   * Returns all active (non-terminal) OS for the dispatch panel.
+   * Called once on login/mount to populate the floating cards.
+   */
+  async getActiveDispatches(companyId: string) {
+    const terminalStatuses: ServiceOrderStatus[] = [
+      ServiceOrderStatus.CONCLUIDA,
+      ServiceOrderStatus.APROVADA,
+      ServiceOrderStatus.CANCELADA,
+    ];
+    const orders = await this.prisma.serviceOrder.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        status: { notIn: terminalStatuses },
+        assignedPartnerId: { not: null },
+      },
+      include: {
+        clientPartner: { select: { name: true } },
+        assignedPartner: { select: { name: true, phone: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50, // Limit to avoid overloading
+    });
+
+    // Fetch notification status for each OS in parallel
+    const results = await Promise.all(
+      orders.map(async (so) => {
+        const notification = this.notifications
+          ? await this.notifications.getDispatchStatus(so.id, companyId)
+          : null;
+        return {
+          serviceOrder: {
+            id: so.id, code: so.code, title: so.title, description: so.description,
+            status: so.status, assignedPartnerId: so.assignedPartnerId,
+            acceptedAt: so.acceptedAt, enRouteAt: so.enRouteAt,
+            arrivedAt: so.arrivedAt, startedAt: so.startedAt, completedAt: so.completedAt,
+            valueCents: so.valueCents, deadlineAt: so.deadlineAt,
+            scheduledStartAt: so.scheduledStartAt, createdAt: so.createdAt,
+            addressText: so.addressText, city: so.city, state: so.state,
+            neighborhood: so.neighborhood,
+            isUrgent: so.isUrgent, isReturn: so.isReturn,
+            clientName: so.clientPartner?.name || null,
+          },
+          technician: so.assignedPartner
+            ? { name: so.assignedPartner.name, phone: so.assignedPartner.phone }
+            : null,
+          notification,
+        };
+      }),
+    );
+
+    return results;
+  }
+
+  /**
    * Lightweight dispatch status for polling (used by DispatchPanel).
    */
   async getDispatchStatus(id: string, companyId: string) {
