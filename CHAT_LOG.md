@@ -1923,3 +1923,19 @@ Solucao:
 - **Corrigidos**: add-on expiration cron, purchase-addon autenticado, onboarding maxTech/maxAI, syncTenantLimits GREATEST, validate-code throttle, webhook logging
 - **Pendentes (altos/medios)**: anti-fraude cooldown, credito pro-rata, FIFO add-on checkout, downgrade preso, promo anual
 - Deploy v1.03.95 — CONCLUIDO
+
+### Remocao endpoint publico purchase-addon (v1.03.96)
+- Endpoint POST /public/saas/purchase-addon removido (superficie exposta desnecessaria)
+- Deploy v1.03.96 — CONCLUIDO
+
+### Correcoes ALTOS da auditoria (v1.03.97)
+1. **Anti-fraude cooldown**: users e tecnicos verificam deactivationCount/lastDeactivatedAt antes de criar
+   - 1a desativacao: sem cooldown, 2a: 24h, 3a: 48h, 4a: 96h (cap 768h)
+   - Busca por email (users) ou document (technicos)
+2. **Credito pro-rata consumido**: webhook aplica creditBalanceCents como desconto na proxima fatura via Asaas API
+3. **FIFO add-on checkout corrigido**: checkout envia externalReference=addon_{purchaseId}, webhook busca por ID antes de FIFO
+   - Novo metodo confirmAddOnById() — mais confiavel que lookup por customer
+4. **Downgrade pendente**: cron @Cron('30 0 * * *') applyPendingDowngrades() aplica na data agendada
+   - Nao depende mais do webhook de pagamento
+5. **Promocao anual**: decrementa monthsPerPayment (12 se ANNUAL, 1 se MONTHLY)
+- Deploy v1.03.97 — CONCLUIDO

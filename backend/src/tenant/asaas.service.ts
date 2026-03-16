@@ -801,17 +801,26 @@ export class AsaasService {
       case 'PAYMENT_CONFIRMED':
       case 'PAYMENT_RECEIVED': {
         // Activate tenant if not already active (or reactivate if BLOCKED)
+        // Use atomic update to prevent race condition on concurrent webhooks
         const tenant = subscription.tenant;
         if (tenant.status !== 'ACTIVE') {
-          await this.tenantService.activate(tenantId);
-          // Pass stored passwordHash from signup (if available)
-          await this.onboarding.onboard(tenantId, tenant.passwordHash || undefined);
-          this.logger.log(`Tenant ${tenant.slug} activated + onboarded via payment`);
-
-          // Send welcome email now that payment is confirmed
-          this.onboarding.sendWelcomeEmailForTenant(tenantId).catch((err) => {
-            this.logger.error(`Failed to send welcome email: ${(err as Error).message}`);
+          const activated = await this.prisma.tenant.updateMany({
+            where: { id: tenantId, status: { not: 'ACTIVE' } },
+            data: { status: 'ACTIVE' },
           });
+          if (activated.count > 0) {
+            // Only the first concurrent webhook proceeds here
+            await this.tenantService.activate(tenantId);
+            await this.onboarding.onboard(tenantId, tenant.passwordHash || undefined);
+            this.logger.log(`Tenant ${tenant.slug} activated + onboarded via payment`);
+
+            // Send welcome email now that payment is confirmed
+            this.onboarding.sendWelcomeEmailForTenant(tenantId).catch((err) => {
+              this.logger.error(`Failed to send welcome email: ${(err as Error).message}`);
+            });
+          } else {
+            this.logger.log(`Tenant ${tenant.slug} already activated by concurrent webhook — skipping`);
+          }
         }
 
         // Update subscription period + clear overdue
@@ -946,12 +955,22 @@ export class AsaasService {
           data: updateData,
         });
 
-        // Auto-emit invoice if configured
+        // Auto-emit invoice if configured (with deduplication: skip if invoice already emitted this month)
         try {
           const config = await this.prisma.saasInvoiceConfig.findFirst();
           if (config?.autoEmitOnPayment) {
-            await this.issueInvoice({ tenantId });
-            this.logger.log(`Auto-emitted invoice for tenant ${tenantId} on payment confirmation`);
+            const monthStart = new Date();
+            monthStart.setDate(1);
+            monthStart.setHours(0, 0, 0, 0);
+            const existing = await this.prisma.saasInvoice.findFirst({
+              where: { tenantId, createdAt: { gte: monthStart } },
+            });
+            if (!existing) {
+              await this.issueInvoice({ tenantId });
+              this.logger.log(`Auto-emitted invoice for tenant ${tenantId} on payment confirmation`);
+            } else {
+              this.logger.log(`Skipping auto-emit for tenant ${tenantId} — invoice already exists this month`);
+            }
           }
         } catch (err) {
           this.logger.warn(`Auto-emit invoice failed for tenant ${tenantId}: ${(err as Error).message}`);
@@ -1342,8 +1361,9 @@ export class AsaasService {
     const value = params.value ?? (tenant.plan ? tenant.plan.priceCents / 100 : 0);
     if (value <= 0) throw new BadRequestException('Valor da nota fiscal deve ser maior que zero');
 
-    // Build service description from template
-    const serviceDescription = params.serviceDescription || config.serviceDescriptionTemplate
+    // Build service description from template (null-safe)
+    const template = config.serviceDescriptionTemplate || 'Serviço de gestão de campo - {empresa} - Plano {plano} - {periodo}';
+    const serviceDescription = params.serviceDescription || template
       .replace('{empresa}', tenant.name)
       .replace('{plano}', tenant.plan?.name || 'N/A')
       .replace('{periodo}', this.formatDate(new Date()));
@@ -1689,6 +1709,11 @@ export class AsaasService {
           sub.tenantId,
           `Pagamento não efetuado há mais de ${OVERDUE_GRACE_DAYS} dias`,
         );
+        // Mark subscription as SUSPENDED — prevents re-processing by this cron
+        await this.prisma.subscription.update({
+          where: { id: sub.id },
+          data: { status: 'SUSPENDED' },
+        });
         this.logger.warn(
           `Tenant ${sub.tenant.slug} BLOCKED — overdue since ${sub.overdueAt?.toISOString()}`,
         );

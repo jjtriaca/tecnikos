@@ -51,48 +51,50 @@ export class TenantOnboardingService {
     const tempPassword = providedPasswordHash ? null : this.generatePassword();
     const passwordHash = providedPasswordHash || await bcrypt.hash(tempPassword!, 10);
 
-    // Create Company in tenant schema (copy plan limits)
-    const company = await client.company.create({
-      data: {
-        name: tenant.name,
-        cnpj: tenant.cnpj || undefined,
-        email: tenant.responsibleEmail || undefined,
-        phone: tenant.responsiblePhone || undefined,
-        ownerName: tenant.responsibleName || undefined,
-        ownerEmail: tenant.responsibleEmail || undefined,
-        ownerPhone: tenant.responsiblePhone || undefined,
-        maxOsPerMonth: tenant.maxOsPerMonth || 0,
-        maxUsers: tenant.maxUsers || 0,
-        maxTechnicians: tenant.maxTechnicians || 0,
-        maxAiMessages: tenant.maxAiMessages || 0,
-        status: 'ATIVA',
-      },
-    });
+    // Create Company + CodeCounter + User in a transaction (atomicity)
+    const result = await client.$transaction(async (tx: any) => {
+      const company = await tx.company.create({
+        data: {
+          name: tenant.name,
+          cnpj: tenant.cnpj || undefined,
+          email: tenant.responsibleEmail || undefined,
+          phone: tenant.responsiblePhone || undefined,
+          ownerName: tenant.responsibleName || undefined,
+          ownerEmail: tenant.responsibleEmail || undefined,
+          ownerPhone: tenant.responsiblePhone || undefined,
+          maxOsPerMonth: tenant.maxOsPerMonth || 0,
+          maxUsers: tenant.maxUsers || 0,
+          maxTechnicians: tenant.maxTechnicians || 0,
+          maxAiMessages: tenant.maxAiMessages || 0,
+          status: 'ATIVA',
+        },
+      });
 
-    // Initialize CodeCounter for USER entity
-    await client.codeCounter.create({
-      data: {
-        companyId: company.id,
-        entity: 'USER',
-        prefix: 'USR',
-        nextNumber: 2, // First user gets USR-00001
-      },
-    });
+      await tx.codeCounter.create({
+        data: {
+          companyId: company.id,
+          entity: 'USER',
+          prefix: 'USR',
+          nextNumber: 2, // First user gets USR-00001
+        },
+      });
 
-    // Create admin User in tenant schema
-    const user = await client.user.create({
-      data: {
-        companyId: company.id,
-        code: 'USR-00001',
-        name: tenant.responsibleName || 'Administrador',
-        email: (tenant.responsibleEmail || '').toLowerCase().trim(),
-        passwordHash,
-        roles: ['ADMIN'],
-      },
+      const user = await tx.user.create({
+        data: {
+          companyId: company.id,
+          code: 'USR-00001',
+          name: tenant.responsibleName || 'Administrador',
+          email: (tenant.responsibleEmail || '').toLowerCase().trim(),
+          passwordHash,
+          roles: ['ADMIN'],
+        },
+      });
+
+      return { company, user };
     });
 
     this.logger.log(
-      `Onboarded tenant "${tenant.slug}" — Company: ${company.id}, User: ${user.id} (${user.email})`,
+      `Onboarded tenant "${tenant.slug}" — Company: ${result.company.id}, User: ${result.user.id} (${result.user.email})`,
     );
 
     return { password: tempPassword || undefined };

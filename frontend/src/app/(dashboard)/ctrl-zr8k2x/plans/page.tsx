@@ -20,6 +20,7 @@ interface Plan {
   maxAiMessages: number;
   supportLevel: string;
   allModulesIncluded: boolean;
+  tenantCount?: number;
 }
 
 const SUPPORT_LEVELS = [
@@ -140,6 +141,11 @@ export default function PlansPage() {
     await loadPlans();
   }
 
+  async function handleReactivate(id: string) {
+    await api.put(`/admin/tenants/plans/${id}`, { isActive: true });
+    await loadPlans();
+  }
+
   return (
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
@@ -179,6 +185,9 @@ export default function PlansPage() {
                 <div>
                   <h3 className="font-bold text-slate-900">{plan.name}</h3>
                   {plan.description && <p className="mt-0.5 text-xs text-slate-500">{plan.description}</p>}
+                  {(plan.tenantCount ?? 0) > 0 && (
+                    <p className="mt-0.5 text-[10px] text-blue-600 font-medium">{plan.tenantCount} tenant{plan.tenantCount !== 1 ? "s" : ""} usando</p>
+                  )}
                 </div>
                 {!plan.isActive && (
                   <span className="rounded bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-500">INATIVO</span>
@@ -213,12 +222,19 @@ export default function PlansPage() {
                 >
                   Editar
                 </button>
-                {plan.isActive && (
+                {plan.isActive ? (
                   <button
                     onClick={() => handleDeactivate(plan.id)}
                     className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100"
                   >
                     Desativar
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleReactivate(plan.id)}
+                    className="rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-600 hover:bg-green-100"
+                  >
+                    Reativar
                   </button>
                 )}
               </div>

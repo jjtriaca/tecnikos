@@ -43,13 +43,14 @@ export default function LandingContent() {
   const [pioneerSlots, setPioneerSlots] = useState<PioneerSlot[]>([]);
   const [pioneerModal, setPioneerModal] = useState<PioneerSlot | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     track("landing_view");
     fetch("/api/public/saas/plans")
-      .then((r) => (r.ok ? r.json() : []))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("API error"))))
       .then(setPlans)
-      .catch(() => {});
+      .catch(() => setLoadError(true));
     fetch("/api/public/saas/pioneer-slots")
       .then((r) => (r.ok ? r.json() : { slots: [] }))
       .then((d) => setPioneerSlots(d.slots || []))
@@ -264,16 +265,22 @@ export default function LandingContent() {
       )}
 
       {/* ── Pricing Section ─────────────────────────────────── */}
-      {plans.length > 0 && (
+      {(plans.length > 0 || loadError) && (
         <section id="precos" className="py-20 sm:py-28 bg-white">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-12">
               <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
                 Planos
               </h2>
+              {loadError && plans.length === 0 ? (
+                <p className="text-red-500 max-w-xl mx-auto mb-6">
+                  Não foi possível carregar os planos. Tente novamente em alguns instantes.
+                </p>
+              ) : (
               <p className="text-slate-500 max-w-xl mx-auto mb-6">
                 Sem taxa de adesao. Cancele quando quiser.
               </p>
+              )}
 
               {/* Billing Toggle */}
               {plans.some((p) => p.priceYearlyCents) && (

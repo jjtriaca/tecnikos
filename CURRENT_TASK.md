@@ -65,14 +65,29 @@
 - [x] Index expiresAt no AddOnPurchase
 - [x] Deploy v1.03.95
 
-### Pendentes (altos/medios da auditoria):
-- [ ] Anti-fraude cooldown usuarios/tecnicos (deactivationCount existe mas nao verifica)
-- [ ] Credito pro-rata do upgrade nunca consumido (creditBalanceCents)
-- [ ] FIFO add-on checkout pode creditar errado (multiplas compras pendentes)
-- [ ] Downgrade pendente preso se pagamento atrasa
-- [ ] Promocao anual decrementa meses errado
+### Correcoes ALTOS (v1.03.96-97):
+- [x] Endpoint publico purchase-addon removido (v1.03.96)
+- [x] Anti-fraude cooldown users/technicos (24h dobra a cada vez)
+- [x] Credito pro-rata aplicado via Asaas discount no webhook
+- [x] Add-on checkout com externalReference + confirmAddOnById
+- [x] Cron applyPendingDowngrades (00:30 daily)
+- [x] Promocao anual: decrementa 12 meses por pagamento ANNUAL
+- [x] Deploy v1.03.97
 
-## Versao atual: v1.03.95
+## Correcoes MEDIOS (v1.03.98):
+- [x] Race condition webhook: atomic updateMany(status != ACTIVE) impede ativacao duplicada
+- [x] Invoice template null-safe: fallback para template padrao se config.serviceDescriptionTemplate null
+- [x] Auto-emit deduplication: verifica se ja existe invoice no mes antes de emitir
+- [x] Overdue cron idempotency: subscription marcada SUSPENDED apos block (nao reprocessa)
+- [x] Onboarding transaction: Company + CodeCounter + User em $transaction atomico
+- [x] CreatePlanDto: priceCents @Min(1), priceYearlyCents @Min(1)
+- [x] Planos admin: tenant count visivel, botao Reativar para planos inativos
+- [x] Add-ons admin: botao Reativar para pacotes inativos
+- [x] Landing page: erro visivel se API falhar (em vez de falha silenciosa)
+- [x] Dead fields (osUsedThisMonth, osResetDate, extraOsPurchased): mantidos (write-only, inofensivos)
+- [x] Deploy v1.03.98
+
+## Versao atual: v1.03.98
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

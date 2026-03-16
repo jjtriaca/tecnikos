@@ -13,12 +13,12 @@ export class CreatePlanDto {
   maxOsPerMonth: number;
 
   @IsInt()
-  @Min(0)
+  @Min(1, { message: 'Preço mensal deve ser maior que zero' })
   priceCents: number;
 
   @IsOptional()
   @IsInt()
-  @Min(0)
+  @Min(1, { message: 'Preço anual deve ser maior que zero' })
   priceYearlyCents?: number;
 
   @IsOptional()

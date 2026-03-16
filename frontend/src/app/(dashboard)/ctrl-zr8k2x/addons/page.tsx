@@ -142,6 +142,11 @@ export default function AddOnsAdminPage() {
     loadAddOns();
   }
 
+  async function handleReactivate(id: string) {
+    await api.put(`/admin/tenants/addons/${id}`, { isActive: true });
+    loadAddOns();
+  }
+
   if (loading) return <div className="animate-pulse h-40 bg-slate-200 rounded-xl" />;
 
   return (
@@ -190,9 +195,13 @@ export default function AddOnsAdminPage() {
                 <button onClick={() => openEdit(a)} className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
                   Editar
                 </button>
-                {a.isActive && (
+                {a.isActive ? (
                   <button onClick={() => handleDeactivate(a.id)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">
                     Desativar
+                  </button>
+                ) : (
+                  <button onClick={() => handleReactivate(a.id)} className="rounded-lg border border-green-200 px-3 py-1.5 text-xs font-medium text-green-600 hover:bg-green-50">
+                    Reativar
                   </button>
                 )}
               </div>

@@ -100,8 +100,16 @@ export class TenantController {
   // ─── PLANS ────────────────────────────────────────────
 
   @Get('/plans/list')
-  findAllPlans() {
-    return this.prisma.plan.findMany({ orderBy: { sortOrder: 'asc' } });
+  async findAllPlans() {
+    const plans = await this.prisma.plan.findMany({
+      orderBy: { sortOrder: 'asc' },
+      include: { _count: { select: { tenants: true } } },
+    });
+    return plans.map((p) => ({
+      ...p,
+      tenantCount: p._count?.tenants ?? 0,
+      _count: undefined,
+    }));
   }
 
   @Post('/plans')
