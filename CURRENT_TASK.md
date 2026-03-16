@@ -109,7 +109,12 @@
 - [x] Mensagem de erro/sucesso: scroll automatico para ficar visivel
 - [x] Deploy v1.04.04, v1.04.05
 
-## Versao atual: v1.04.05
+## WhatsApp Notification Fix (v1.04.07):
+- [x] Bug: OS com DIRECTED/BY_AGENDA nao enviava WhatsApp (assign() nunca chamado)
+- [x] Fix: notificacao adicionada no create() quando auto-assign acontece
+- [x] Exclamacao na OS = "Atrasada!" (deadlineAt no passado, nao e bug)
+
+## Versao atual: v1.04.07
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

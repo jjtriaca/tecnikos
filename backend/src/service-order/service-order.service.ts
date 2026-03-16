@@ -213,6 +213,23 @@ export class ServiceOrderService {
       });
     }
 
+    // WhatsApp notification for auto-assigned OS (DIRECTED or BY_AGENDA)
+    // The assign() method is NOT called in these flows, so we must notify here
+    const autoAssignedTechId = result.assignedPartnerId;
+    if (autoAssignedTechId && this.notifications) {
+      const tech = await this.prisma.partner.findUnique({
+        where: { id: autoAssignedTechId },
+        select: { phone: true },
+      });
+      if (tech?.phone) {
+        this.notifications.notifyStatusChange(
+          data.companyId, result.id, result.title, 'ATRIBUIDA', tech.phone,
+        ).catch(err => {
+          console.error('Auto-assign notification failed:', err?.message || err);
+        });
+      }
+    }
+
     return result;
   }
 

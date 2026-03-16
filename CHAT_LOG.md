@@ -1939,3 +1939,36 @@ Solucao:
    - Nao depende mais do webhook de pagamento
 5. **Promocao anual**: decrementa monthsPerPayment (12 se ANNUAL, 1 se MONTHLY)
 - Deploy v1.03.97 — CONCLUIDO
+
+---
+
+## 2026-03-16 — Sessao 127: Audit Fixes + Payment Rule + WhatsApp Notification Fix
+
+### REGRA ABSOLUTA DE PAGAMENTO (Pedido enfatico do Juliano):
+- **NADA muda (plano, limites, subscription, tenant) antes de PAYMENT_CONFIRMED do Asaas**
+- Repetido 5 vezes pelo usuario — regra permanente
+
+### v1.04.04-05: Upgrade critico + Suspend fix
+- Bug CRITICO: upgrade aplicava plano/limites ANTES do pagamento — reescrito
+- Bug CRITICO: SUBSCRIPTION_DELETED suspendia tenant sem checar outra ACTIVE
+- SLS revertida para Essencial (nunca pagou upgrade)
+- Add-on cards corrigidos (mostrava +0 para todos)
+- Subscription agora comeca como PENDING, so vira ACTIVE no webhook
+
+### v1.04.06: Correcoes medias audit
+- Race condition webhook: atomic updateMany
+- Invoice template null-safe
+- Auto-emit deduplication
+- Overdue cron idempotency
+- Onboarding transaction atomico
+- Deploy v1.04.06
+
+### WhatsApp notification fix (v1.04.07):
+- **Bug**: OS criada com modo DIRECTED (direcionado) nao enviava WhatsApp ao tecnico
+- **Causa**: create() com DIRECTED/BY_AGENDA seta status=ATRIBUIDA inline, mas nunca chama assign()
+- **Consequencia**: assign() tem o notifyStatusChange(), mas nunca e chamado nesse fluxo
+- **Fix**: Adicionado bloco de notificacao apos criacao quando autoAssignedTechId existe
+- **Exclamacao na OS**: e indicador de "Atrasada!" (deadlineAt no passado) — nao e bug
+
+### Relato do Juliano:
+- "Veja que lancei uma OS, atribuiu eu como técnico, usei direcionado, porem ficou com a exclamação e não disparou a mensagem"
