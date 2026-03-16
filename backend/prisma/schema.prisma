@@ -1906,8 +1906,12 @@ model Tenant {
 
   // Controle
   isMaster          Boolean   @default(false)  // true = SLS Obras (tenant do dono)
-  maxUsers          Int       @default(5)       // Limite de usuários (do plano)
-  maxOsPerMonth     Int       @default(100)     // Limite de OS/mês (do plano)
+  maxUsers          Int       @default(5)       // Snapshot do plano (grandfather)
+  maxOsPerMonth     Int       @default(100)     // Snapshot do plano (grandfather)
+  maxTechnicians    Int       @default(0)       // Snapshot: 0 = ilimitado
+  maxAiMessages     Int       @default(0)       // Snapshot: msgs IA/mês (0 = ilimitado)
+  supportLevel      String    @default("EMAIL") // Snapshot: EMAIL, EMAIL_CHAT, PRIORITY
+  allModulesIncluded Boolean  @default(true)    // Snapshot: todos os módulos
 
   // Bloqueio
   blockedAt     DateTime?
@@ -1965,14 +1969,20 @@ model VerificationSession {
 model Plan {
   id               String   @id @default(uuid())
   name             String   @unique  // "Básico", "Profissional", "Enterprise"
-  maxUsers         Int               // Limite de usuários
+  maxUsers         Int               // Limite de usuários gestores
   maxOsPerMonth    Int               // Limite de OS/mês (0 = ilimitado)
   priceCents       Int               // Preço mensal em centavos
   priceYearlyCents Int?              // Preço anual total em centavos (null = sem opção anual)
   isActive         Boolean  @default(true)
   sortOrder        Int      @default(0)
   description      String?           // Descrição para landing page
-  features         String[]          // Lista de funcionalidades para landing page
+  features         String[]          // Lista de funcionalidades para landing page (auto-gerado)
+
+  // Campos estruturados de features
+  maxTechnicians       Int      @default(0)         // 0 = ilimitado
+  maxAiMessages        Int      @default(0)         // Msgs IA/mês (0 = ilimitado)
+  supportLevel         String   @default("EMAIL")   // EMAIL, EMAIL_CHAT, PRIORITY
+  allModulesIncluded   Boolean  @default(true)       // Todos os módulos inclusos
 
   tenants       Tenant[]
   subscriptions Subscription[]
@@ -2010,6 +2020,16 @@ model Subscription {
   promotionId           String?
   promotionMonthsLeft   Int?      // Meses restantes de promoção
   originalValueCents    Int?      // Valor cheio do plano (para restaurar após promo)
+
+  // Ciclo de cobrança
+  billingCycle          String    @default("MONTHLY") // "MONTHLY" | "ANNUAL"
+
+  // Saldo de crédito pro-rata (centavos) — abatido em faturas futuras
+  creditBalanceCents    Int       @default(0)
+
+  // Downgrade pendente (aplicado no próximo ciclo)
+  pendingPlanId         String?
+  pendingPlanAt         DateTime?
 
   // Inadimplência
   overdueAt             DateTime? // Data em que ficou inadimplente (PAST_DUE)

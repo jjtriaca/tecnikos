@@ -1721,3 +1721,37 @@ Solucao:
 - **Frontend**: toggle "Respeitar técnico direcionado" na seção Seleção de Técnicos (ABERTA)
 - Default: true (ativado por padrão em novos workflows)
 - Build OK (backend + frontend)
+
+## 2026-03-16 — Sessao 123: Billing Cycle + Pro-rata + Grandfather (v1.03.81)
+
+### Regras de negocio definidas pelo Juliano:
+- **Upgrade**: imediato, gera saldo pro-rata (credito em centavos) abatido na 1a fatura do novo plano
+- **Downgrade**: permitido, aplica no proximo ciclo, NAO gera credito
+- **Grandfather**: features do plano (maxUsers, maxOS, maxTechnicians, maxAiMessages, supportLevel, allModulesIncluded) ficam como snapshot no Tenant. Admin pode mudar o Plan mas NAO afeta tenants existentes
+- **Preco do plano**: propaga para TODOS os assinantes via Asaas (updatePendingPayments: false = so futuras faturas)
+- **Promocao + upgrade**: perde meses restantes (comportamento desejado)
+
+### Schema (Migration 20260316080000_billing_cycle_credit)
+- **Subscription**: +billingCycle, +creditBalanceCents, +pendingPlanId, +pendingPlanAt
+- **Plan**: +maxTechnicians, +maxAiMessages, +supportLevel, +allModulesIncluded (campos estruturados)
+- **Tenant**: +maxTechnicians, +maxAiMessages, +supportLevel, +allModulesIncluded (snapshot grandfather)
+- Migration popula plans existentes com defaults sensiveis e snapshot para tenants
+
+### Backend
+- **asaas.service.ts**: createUpgradeCheckout reescrito com pro-rata + preserva billingCycle + credito como desconto 1a fatura
+- **asaas.service.ts**: novo schedulePlanDowngrade() e cancelPendingDowngrade()
+- **asaas.service.ts**: webhook PAYMENT_CONFIRMED aplica downgrade pendente + snapshot todas features
+- **asaas.service.ts**: getBillingStatus() retorna billingCycle, creditBalanceCents, pendingPlanName, pendingPlanAt
+- **auth.controller.ts**: novos endpoints POST /auth/downgrade-plan e POST /auth/cancel-downgrade
+- **tenant.controller.ts**: updatePlan agora faz grandfather (features NAO propagam) + propaga preco para Asaas
+- **tenant.service.ts**: changePlan faz snapshot de TODAS as features estruturadas
+- **CreatePlanDto**: +maxTechnicians, +maxAiMessages, +supportLevel, +allModulesIncluded
+- **syncTenantLimits**: ja estava correto (Tenant→Company, nunca Plan→Tenant)
+
+### Frontend
+- **billing/page.tsx**: mostra saldo credito, downgrade pendente com botao cancelar, separa upgrade vs downgrade
+- **HeaderBilling.tsx**: badge "Downgrade Xd" quando tem pendingPlanAt
+- **Admin Plans page**: campos estruturados editaveis (max tecnicos, msgs IA, suporte, modulos) + secao visual nos cards
+- Build frontend + backend OK (tsc --noEmit limpo)
+
+### Deploy v1.03.81

@@ -174,6 +174,7 @@ export class AsaasService {
         nextBillingDate: periodEnd,
         asaasSubscriptionId: asaasSub.id,
         osResetDate: now,
+        billingCycle: isYearly ? 'ANNUAL' : 'MONTHLY',
         promotionId: promoId,
         promotionMonthsLeft: promoDuration || null,
         originalValueCents: promoDuration > 0 ? fullValueCents : null,
@@ -284,6 +285,7 @@ export class AsaasService {
         nextBillingDate: periodEnd,
         asaasSubscriptionId: asaasSub.id,
         osResetDate: now,
+        billingCycle: isYearly ? 'ANNUAL' : 'MONTHLY',
         promotionId: promoId,
         promotionMonthsLeft: promoDuration || null,
         originalValueCents: promoDuration > 0 ? fullValueCents : null,
@@ -386,7 +388,8 @@ export class AsaasService {
   }
 
   /**
-   * Create an Asaas Checkout session for upgrading to a new plan.
+   * Upgrade to a more expensive plan (immediate, with pro-rata credit).
+   * Credit from remaining days is stored as balance for future invoices.
    */
   async createUpgradeCheckout(tenantId: string, newPlanId: string) {
     const [tenant, newPlan, currentSub] = await Promise.all([
@@ -406,7 +409,37 @@ export class AsaasService {
       throw new BadRequestException('Você já está neste plano');
     }
 
-    // Cancel current Asaas subscription
+    // Validate upgrade (new plan must be more expensive)
+    const currentPlan = currentSub.plan;
+    if (newPlan.priceCents <= (currentPlan?.priceCents || 0)) {
+      throw new BadRequestException(
+        'Para trocar para um plano mais barato, use o endpoint de downgrade',
+      );
+    }
+
+    // ── Calculate pro-rata credit ──
+    const now = new Date();
+    const periodStart = currentSub.currentPeriodStart;
+    const periodEnd = currentSub.currentPeriodEnd;
+    const totalDays = Math.max(1, Math.round((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)));
+    const remainingDays = Math.max(0, Math.round((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+
+    const billingCycle = currentSub.billingCycle || 'MONTHLY';
+    const isYearly = billingCycle === 'ANNUAL';
+    const currentValueCents = isYearly && currentPlan?.priceYearlyCents
+      ? currentPlan.priceYearlyCents
+      : (currentPlan?.priceCents || 0);
+    const creditCents = Math.round((remainingDays / totalDays) * currentValueCents);
+    const existingCredit = currentSub.creditBalanceCents || 0;
+    const totalCredit = existingCredit + creditCents;
+
+    this.logger.log(
+      `Upgrade pro-rata: ${remainingDays}/${totalDays} days remaining, ` +
+      `credit R$${(creditCents / 100).toFixed(2)} + existing R$${(existingCredit / 100).toFixed(2)} ` +
+      `= total R$${(totalCredit / 100).toFixed(2)}`,
+    );
+
+    // ── Cancel current Asaas subscription ──
     if (currentSub.asaasSubscriptionId && this.asaas.isConfigured) {
       try {
         await this.asaas.cancelSubscription(currentSub.asaasSubscriptionId);
@@ -418,32 +451,51 @@ export class AsaasService {
     // Mark old subscription as cancelled
     await this.prisma.subscription.update({
       where: { id: currentSub.id },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
+      data: { status: 'CANCELLED', cancelledAt: now },
     });
 
-    // Create new local subscription (asaasSubscriptionId linked via webhook)
-    const now = new Date();
-    const periodEnd = new Date(now);
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-    const nextDueDate = this.formatDate(now);
-    const value = newPlan.priceCents / 100;
+    // ── Create new subscription (preserving billing cycle) ──
+    const newPeriodEnd = new Date(now);
+    if (isYearly) {
+      newPeriodEnd.setFullYear(newPeriodEnd.getFullYear() + 1);
+    } else {
+      newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+    }
 
-    await this.prisma.subscription.create({
+    const newValueCents = isYearly && newPlan.priceYearlyCents
+      ? newPlan.priceYearlyCents
+      : newPlan.priceCents;
+
+    // Apply credit as discount on first invoice
+    const firstInvoiceDiscount = Math.min(totalCredit, newValueCents);
+    const remainingCredit = totalCredit - firstInvoiceDiscount;
+
+    const newSub = await this.prisma.subscription.create({
       data: {
         tenantId,
         planId: newPlan.id,
         status: 'ACTIVE',
         currentPeriodStart: now,
-        currentPeriodEnd: periodEnd,
-        nextBillingDate: periodEnd,
+        currentPeriodEnd: newPeriodEnd,
+        nextBillingDate: newPeriodEnd,
         osResetDate: now,
+        billingCycle,
+        creditBalanceCents: remainingCredit, // Any leftover credit after first invoice
       },
     });
 
-    // Update tenant plan
+    // Update tenant plan + limits (snapshot all features — grandfather)
     await this.prisma.tenant.update({
       where: { id: tenantId },
-      data: { planId: newPlan.id },
+      data: {
+        planId: newPlan.id,
+        maxUsers: newPlan.maxUsers,
+        maxOsPerMonth: newPlan.maxOsPerMonth,
+        maxTechnicians: newPlan.maxTechnicians,
+        maxAiMessages: newPlan.maxAiMessages,
+        supportLevel: newPlan.supportLevel,
+        allModulesIncluded: newPlan.allModulesIncluded,
+      },
     });
 
     // Update Company limits in tenant schema
@@ -463,32 +515,40 @@ export class AsaasService {
       this.logger.warn(`Failed to update Company limits: ${(err as Error).message}`);
     }
 
-    // Create Asaas subscription for new plan (billingType UNDEFINED → customer chooses on invoice page)
+    // ── Create Asaas subscription with discount on first invoice ──
     const customerId = await this.ensureCustomer(tenantId);
+    const asaasValue = newValueCents / 100;
+    const nextDueDate = this.formatDate(now);
 
-    const asaasSub = await this.asaas.createSubscription({
+    const asaasData: any = {
       customer: customerId,
       billingType: 'UNDEFINED',
-      value,
+      value: asaasValue,
       nextDueDate,
-      cycle: 'MONTHLY',
+      cycle: isYearly ? 'ANNUAL' : 'MONTHLY',
       description: `${newPlan.name} - Tecnikos`,
       externalReference: tenantId,
-    });
+    };
 
-    // Link asaasSubscriptionId to the new local subscription
-    const newSub = await this.prisma.subscription.findFirst({
-      where: { tenantId, asaasSubscriptionId: null },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (newSub) {
-      await this.prisma.subscription.update({
-        where: { id: newSub.id },
-        data: { asaasSubscriptionId: asaasSub.id },
-      });
+    // Apply pro-rata credit as discount on first invoice only
+    if (firstInvoiceDiscount > 0) {
+      asaasData.discount = {
+        value: firstInvoiceDiscount / 100,
+        type: 'FIXED',
+        dueDateLimitDays: 0, // Only on first invoice
+      };
+      this.logger.log(`Applying R$${(firstInvoiceDiscount / 100).toFixed(2)} discount on first invoice`);
     }
 
-    // Get the first payment's invoiceUrl (Asaas hosted page with all payment methods)
+    const asaasSub = await this.asaas.createSubscription(asaasData);
+
+    // Link asaasSubscriptionId
+    await this.prisma.subscription.update({
+      where: { id: newSub.id },
+      data: { asaasSubscriptionId: asaasSub.id },
+    });
+
+    // Get the first payment's invoiceUrl
     let checkoutUrl: string | null = null;
     try {
       const paymentInfo = await this.getFirstPaymentInfo(asaasSub.id, 'UNDEFINED');
@@ -504,8 +564,79 @@ export class AsaasService {
       checkoutUrl = `${host}/i/${asaasSub.id}`;
     }
 
-    this.logger.log(`Upgrade subscription created: ${currentSub.plan?.name} → ${newPlan.name} for tenant ${tenantId}: ${checkoutUrl}`);
-    return { checkoutUrl };
+    this.logger.log(
+      `Upgrade: ${currentPlan?.name} → ${newPlan.name} for tenant ${tenantId}. ` +
+      `Credit: R$${(totalCredit / 100).toFixed(2)}, checkout: ${checkoutUrl}`,
+    );
+    return { checkoutUrl, creditApplied: firstInvoiceDiscount / 100 };
+  }
+
+  /**
+   * Schedule a downgrade to a cheaper plan (applied at next billing cycle).
+   * No credit is generated — client uses current plan until period end.
+   */
+  async schedulePlanDowngrade(tenantId: string, newPlanId: string) {
+    const [currentSub, newPlan] = await Promise.all([
+      this.prisma.subscription.findFirst({
+        where: { tenantId, status: { in: ['ACTIVE', 'PAST_DUE'] } },
+        include: { plan: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.plan.findFirst({ where: { id: newPlanId, isActive: true } }),
+    ]);
+
+    if (!currentSub) throw new BadRequestException('Nenhuma assinatura ativa');
+    if (!newPlan) throw new BadRequestException('Plano não encontrado ou inativo');
+    if (newPlan.id === currentSub.planId) {
+      throw new BadRequestException('Você já está neste plano');
+    }
+
+    // Validate downgrade (new plan must be cheaper)
+    if (newPlan.priceCents >= (currentSub.plan?.priceCents || 0)) {
+      throw new BadRequestException(
+        'Para trocar para um plano mais caro, use o endpoint de upgrade',
+      );
+    }
+
+    // Schedule the change for end of current period
+    await this.prisma.subscription.update({
+      where: { id: currentSub.id },
+      data: {
+        pendingPlanId: newPlan.id,
+        pendingPlanAt: currentSub.currentPeriodEnd,
+      },
+    });
+
+    this.logger.log(
+      `Downgrade scheduled: ${currentSub.plan?.name} → ${newPlan.name} ` +
+      `for tenant ${tenantId}, effective ${currentSub.currentPeriodEnd.toISOString().split('T')[0]}`,
+    );
+
+    return {
+      pendingPlan: newPlan.name,
+      effectiveDate: currentSub.currentPeriodEnd,
+    };
+  }
+
+  /**
+   * Cancel a pending downgrade.
+   */
+  async cancelPendingDowngrade(tenantId: string) {
+    const currentSub = await this.prisma.subscription.findFirst({
+      where: { tenantId, status: { in: ['ACTIVE', 'PAST_DUE'] }, pendingPlanId: { not: null } },
+    });
+
+    if (!currentSub) {
+      throw new BadRequestException('Nenhum downgrade pendente');
+    }
+
+    await this.prisma.subscription.update({
+      where: { id: currentSub.id },
+      data: { pendingPlanId: null, pendingPlanAt: null },
+    });
+
+    this.logger.log(`Pending downgrade cancelled for tenant ${tenantId}`);
+    return { success: true };
   }
 
   /**
@@ -683,6 +814,69 @@ export class AsaasService {
           } else if (newMonthsLeft > 0) {
             this.logger.log(
               `Promo: ${newMonthsLeft} months left for subscription ${subscription.id}`,
+            );
+          }
+        }
+
+        // Apply pending downgrade if scheduled
+        if (subscription.pendingPlanId) {
+          const pendingPlan = await this.prisma.plan.findUnique({
+            where: { id: subscription.pendingPlanId },
+          });
+          if (pendingPlan) {
+            updateData.planId = pendingPlan.id;
+            updateData.pendingPlanId = null;
+            updateData.pendingPlanAt = null;
+
+            // Update tenant limits to new (downgraded) plan — snapshot all features
+            await this.prisma.tenant.update({
+              where: { id: tenantId },
+              data: {
+                planId: pendingPlan.id,
+                maxUsers: pendingPlan.maxUsers,
+                maxOsPerMonth: pendingPlan.maxOsPerMonth,
+                maxTechnicians: pendingPlan.maxTechnicians,
+                maxAiMessages: pendingPlan.maxAiMessages,
+                supportLevel: pendingPlan.supportLevel,
+                allModulesIncluded: pendingPlan.allModulesIncluded,
+              },
+            });
+
+            // Update Company limits in tenant schema
+            try {
+              const client = this.tenantConn.getClient(subscription.tenant.schemaName);
+              const company = await client.company.findFirst();
+              if (company) {
+                await client.company.update({
+                  where: { id: company.id },
+                  data: {
+                    maxUsers: pendingPlan.maxUsers,
+                    maxOsPerMonth: pendingPlan.maxOsPerMonth,
+                  },
+                });
+              }
+            } catch (err) {
+              this.logger.warn(`Failed to update Company limits on downgrade: ${(err as Error).message}`);
+            }
+
+            // Update Asaas subscription value to new plan price
+            const billingCycle = subscription.billingCycle || 'MONTHLY';
+            const newValue = billingCycle === 'ANNUAL' && pendingPlan.priceYearlyCents
+              ? pendingPlan.priceYearlyCents / 100
+              : pendingPlan.priceCents / 100;
+            if (subscription.asaasSubscriptionId && this.asaas.isConfigured) {
+              try {
+                await this.asaas.updateSubscription(subscription.asaasSubscriptionId, {
+                  value: newValue,
+                  updatePendingPayments: false,
+                });
+              } catch (err) {
+                this.logger.warn(`Failed to update Asaas value on downgrade: ${(err as Error).message}`);
+              }
+            }
+
+            this.logger.log(
+              `Downgrade applied: → ${pendingPlan.name} for tenant ${tenantId} (R$${newValue.toFixed(2)})`,
             );
           }
         }
@@ -1309,6 +1503,15 @@ export class AsaasService {
       }
     }
 
+    // Pending downgrade info
+    let pendingPlanName: string | null = null;
+    if (subscription.pendingPlanId) {
+      const pendingPlan = await this.prisma.plan.findUnique({
+        where: { id: subscription.pendingPlanId },
+      });
+      pendingPlanName = pendingPlan?.name || null;
+    }
+
     return {
       hasSubscription: true,
       status: subscription.status,
@@ -1324,6 +1527,11 @@ export class AsaasService {
         ? (subscription.originalValueCents - (subscription.originalValueCents - (subscription.plan?.priceCents || 0))) / 100
         : (subscription.plan?.priceCents || 0) / 100,
       overduePaymentUrl,
+      // New billing cycle fields
+      billingCycle: subscription.billingCycle || 'MONTHLY',
+      creditBalanceCents: subscription.creditBalanceCents || 0,
+      pendingPlanName,
+      pendingPlanAt: subscription.pendingPlanAt,
     };
   }
 

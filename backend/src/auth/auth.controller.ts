@@ -182,6 +182,33 @@ export class AuthController {
     };
   }
 
+  @Post('downgrade-plan')
+  @HttpCode(HttpStatus.OK)
+  async downgradePlan(
+    @Req() req: Request,
+    @Body() body: { newPlanId: string },
+  ) {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) throw new BadRequestException('Não autenticado ou sem tenant');
+    if (!body.newPlanId) throw new BadRequestException('newPlanId é obrigatório');
+
+    const result = await this.asaasService.schedulePlanDowngrade(tenantId, body.newPlanId);
+    return {
+      success: true,
+      pendingPlan: result.pendingPlan,
+      effectiveDate: result.effectiveDate,
+      message: `Plano será alterado para ${result.pendingPlan} em ${new Date(result.effectiveDate).toLocaleDateString('pt-BR')}`,
+    };
+  }
+
+  @Post('cancel-downgrade')
+  @HttpCode(HttpStatus.OK)
+  async cancelDowngrade(@Req() req: Request) {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) throw new BadRequestException('Não autenticado ou sem tenant');
+    return this.asaasService.cancelPendingDowngrade(tenantId);
+  }
+
   /* ── Device / Session management ────────────────────────── */
 
   @Get('sessions')

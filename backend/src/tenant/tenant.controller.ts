@@ -110,8 +110,44 @@ export class TenantController {
   }
 
   @Put('/plans/:id')
-  updatePlan(@Param('id') id: string, @Body() dto: Partial<CreatePlanDto>) {
-    return this.prisma.plan.update({ where: { id }, data: dto });
+  async updatePlan(@Param('id') id: string, @Body() dto: Partial<CreatePlanDto>) {
+    const oldPlan = await this.prisma.plan.findUnique({ where: { id } });
+    if (!oldPlan) throw new NotFoundException('Plano não encontrado');
+
+    const updated = await this.prisma.plan.update({ where: { id }, data: dto });
+
+    // Price changed? Propagate to ALL active Asaas subscriptions on this plan
+    const priceChanged =
+      (dto.priceCents !== undefined && dto.priceCents !== oldPlan.priceCents) ||
+      (dto.priceYearlyCents !== undefined && dto.priceYearlyCents !== oldPlan.priceYearlyCents);
+
+    if (priceChanged) {
+      const subs = await this.prisma.subscription.findMany({
+        where: { planId: id, status: { in: ['ACTIVE', 'PAST_DUE'] } },
+      });
+      for (const sub of subs) {
+        if (!sub.asaasSubscriptionId) continue;
+        const isYearly = sub.billingCycle === 'ANNUAL';
+        const newValue = isYearly && updated.priceYearlyCents
+          ? updated.priceYearlyCents / 100
+          : updated.priceCents / 100;
+        try {
+          await this.asaasProvider.updateSubscription(sub.asaasSubscriptionId, {
+            value: newValue,
+            updatePendingPayments: false, // Only future invoices
+          });
+        } catch (err) {
+          // Log but don't fail the update
+          console.warn(`Failed to update Asaas subscription ${sub.asaasSubscriptionId}: ${(err as Error).message}`);
+        }
+      }
+    }
+
+    // GRANDFATHER: Feature changes (maxUsers, maxOsPerMonth, maxTechnicians, maxAiMessages,
+    // supportLevel, allModulesIncluded) do NOT propagate to existing tenants.
+    // Only new subscribers get the updated features.
+
+    return updated;
   }
 
   @Delete('/plans/:id')

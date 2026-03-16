@@ -39,6 +39,10 @@ type BillingStatus = {
   valueBrl?: number;
   isPromo?: boolean;
   promoMonthsLeft?: number;
+  billingCycle?: string;
+  creditBalanceCents?: number;
+  pendingPlanName?: string | null;
+  pendingPlanAt?: string | null;
 };
 
 function formatCurrency(cents: number) {
@@ -62,6 +66,8 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState<string | null>(null);
+  const [downgrading, setDowngrading] = useState<string | null>(null);
+  const [cancellingDowngrade, setCancellingDowngrade] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Show success message from checkout redirect
@@ -75,7 +81,7 @@ export default function BillingPage() {
     }
   }, [searchParams]);
 
-  useEffect(() => {
+  const loadData = () => {
     Promise.allSettled([
       api.get<AddOn[]>("/public/saas/addons"),
       api.get<UsageData>("/service-orders/usage"),
@@ -88,7 +94,9 @@ export default function BillingPage() {
       if (billingRes.status === "fulfilled") setBilling(billingRes.value);
       setLoading(false);
     });
-  }, []);
+  };
+
+  useEffect(() => { loadData(); }, []);
 
   async function handlePurchase(addOnId: string) {
     setPurchasing(addOnId);
@@ -104,7 +112,6 @@ export default function BillingPage() {
         setMessage({ type: "success", text: "Pagina de pagamento aberta! Finalize o pagamento para receber as OS extras." });
       } else {
         setMessage({ type: "success", text: result.message });
-        // Refresh usage
         const newUsage = await api.get<UsageData>("/service-orders/usage");
         setUsage(newUsage);
       }
@@ -119,18 +126,51 @@ export default function BillingPage() {
     setUpgrading(planId);
     setMessage(null);
     try {
-      const result = await api.post<{ success: boolean; checkoutUrl: string }>("/auth/upgrade-plan", {
+      const result = await api.post<{ success: boolean; checkoutUrl: string; creditApplied?: number }>("/auth/upgrade-plan", {
         newPlanId: planId,
       });
 
       if (result.checkoutUrl) {
         window.open(result.checkoutUrl, "_blank");
-        setMessage({ type: "success", text: "Pagina de pagamento do upgrade aberta! Finalize para ativar o novo plano." });
+        const creditMsg = result.creditApplied
+          ? ` Credito de R$ ${result.creditApplied.toFixed(2).replace(".", ",")} aplicado na primeira fatura.`
+          : "";
+        setMessage({ type: "success", text: `Pagina de pagamento do upgrade aberta!${creditMsg}` });
       }
     } catch (err: any) {
       setMessage({ type: "error", text: err?.message || "Erro ao fazer upgrade" });
     } finally {
       setUpgrading(null);
+    }
+  }
+
+  async function handleDowngrade(planId: string) {
+    setDowngrading(planId);
+    setMessage(null);
+    try {
+      const result = await api.post<{ success: boolean; message: string }>("/auth/downgrade-plan", {
+        newPlanId: planId,
+      });
+      setMessage({ type: "success", text: result.message });
+      loadData(); // Refresh to show pending downgrade
+    } catch (err: any) {
+      setMessage({ type: "error", text: err?.message || "Erro ao agendar downgrade" });
+    } finally {
+      setDowngrading(null);
+    }
+  }
+
+  async function handleCancelDowngrade() {
+    setCancellingDowngrade(true);
+    setMessage(null);
+    try {
+      await api.post("/auth/cancel-downgrade", {});
+      setMessage({ type: "success", text: "Downgrade cancelado. Seu plano atual sera mantido." });
+      loadData();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err?.message || "Erro ao cancelar downgrade" });
+    } finally {
+      setCancellingDowngrade(false);
     }
   }
 
@@ -147,9 +187,10 @@ export default function BillingPage() {
     );
   }
 
-  // Filter plans for upgrade: only plans more expensive than current
+  // Split plans into upgrade and downgrade
   const currentPlanValue = billing?.valueBrl ? billing.valueBrl * 100 : 0;
   const upgradePlans = plans.filter((p) => p.priceCents > currentPlanValue);
+  const downgradePlans = plans.filter((p) => p.priceCents < currentPlanValue && p.priceCents > 0);
 
   return (
     <div className="space-y-6">
@@ -170,14 +211,49 @@ export default function BillingPage() {
                   Promocao ativa — {billing.promoMonthsLeft} {billing.promoMonthsLeft === 1 ? "mes" : "meses"} restante{billing.promoMonthsLeft > 1 ? "s" : ""}
                 </p>
               ) : null}
+              {billing.billingCycle && (
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Ciclo: {billing.billingCycle === "ANNUAL" ? "Anual" : "Mensal"}
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-blue-600">
                 {billing.valueBrl ? `R$ ${billing.valueBrl.toFixed(2).replace(".", ",")}` : "—"}
               </p>
-              <p className="text-xs text-slate-400">/mes</p>
+              <p className="text-xs text-slate-400">/{billing.billingCycle === "ANNUAL" ? "ano" : "mes"}</p>
             </div>
           </div>
+
+          {/* Credit balance */}
+          {(billing.creditBalanceCents ?? 0) > 0 && (
+            <div className="mt-3 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-xs text-green-700 flex items-center gap-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+              </svg>
+              Saldo: {formatCurrency(billing.creditBalanceCents!)} (sera abatido na proxima fatura)
+            </div>
+          )}
+
+          {/* Pending downgrade */}
+          {billing.pendingPlanName && billing.pendingPlanAt && (
+            <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                Mudanca para <strong className="mx-1">{billing.pendingPlanName}</strong> agendada para {new Date(billing.pendingPlanAt).toLocaleDateString("pt-BR")}
+              </div>
+              <button
+                onClick={handleCancelDowngrade}
+                disabled={cancellingDowngrade}
+                className="shrink-0 rounded-md bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-800 hover:bg-amber-200 disabled:opacity-50"
+              >
+                {cancellingDowngrade ? "..." : "Cancelar"}
+              </button>
+            </div>
+          )}
+
           {billing.status === "PAST_DUE" && (
             <div className="mt-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
               Pagamento atrasado. Regularize para manter o acesso.
@@ -226,6 +302,7 @@ export default function BillingPage() {
       {upgradePlans.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-slate-800 mb-3">Fazer Upgrade</h2>
+          <p className="text-xs text-slate-500 mb-3">O upgrade e imediato. O saldo do plano atual sera creditado como desconto na primeira fatura do novo plano.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {upgradePlans.map((plan) => (
               <div
@@ -256,7 +333,7 @@ export default function BillingPage() {
                     <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                     </svg>
-                    {plan.maxOsPerMonth === -1 ? "OS ilimitadas" : `Ate ${plan.maxOsPerMonth} OS/mes`}
+                    {plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `Ate ${plan.maxOsPerMonth} OS/mes`}
                   </div>
                 </div>
                 <div className="flex items-end justify-between mb-4">
@@ -271,6 +348,49 @@ export default function BillingPage() {
                   className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {upgrading === plan.id ? "Processando..." : "Fazer Upgrade"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Downgrade Plans */}
+      {downgradePlans.length > 0 && !billing?.pendingPlanName && (
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800 mb-3">Trocar para plano menor</h2>
+          <p className="text-xs text-slate-500 mb-3">A troca sera aplicada no proximo ciclo de cobranca. Voce continua com o plano atual ate o final do periodo pago.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {downgradePlans.map((plan) => (
+              <div
+                key={plan.id}
+                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
+                    <svg className="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800">{plan.name}</h3>
+                    {plan.description && (
+                      <p className="text-xs text-slate-500">{plan.description}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-end justify-between mb-4">
+                  <div className="text-right w-full">
+                    <p className="text-2xl font-bold text-slate-700">{formatCurrency(plan.priceCents)}</p>
+                    <p className="text-[10px] text-slate-400">/mes</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDowngrade(plan.id)}
+                  disabled={downgrading === plan.id}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {downgrading === plan.id ? "Processando..." : "Trocar Plano"}
                 </button>
               </div>
             ))}
@@ -324,9 +444,9 @@ export default function BillingPage() {
         </div>
       )}
 
-      {addOns.length === 0 && upgradePlans.length === 0 && (
+      {addOns.length === 0 && upgradePlans.length === 0 && downgradePlans.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-500">Nenhum pacote adicional ou upgrade disponivel no momento.</p>
+          <p className="text-sm text-slate-500">Nenhum pacote adicional ou opcao de plano disponivel no momento.</p>
         </div>
       )}
     </div>

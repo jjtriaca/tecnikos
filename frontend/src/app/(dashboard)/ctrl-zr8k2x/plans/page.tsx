@@ -16,7 +16,17 @@ interface Plan {
   isActive: boolean;
   sortOrder: number;
   description: string | null;
+  maxTechnicians: number;
+  maxAiMessages: number;
+  supportLevel: string;
+  allModulesIncluded: boolean;
 }
+
+const SUPPORT_LEVELS = [
+  { value: "EMAIL", label: "E-mail" },
+  { value: "EMAIL_CHAT", label: "E-mail + Chat" },
+  { value: "PRIORITY", label: "Prioritário" },
+];
 
 function formatBRL(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -33,6 +43,10 @@ function displayToCents(display: string): number {
   return Math.round(parseFloat(clean || "0") * 100);
 }
 
+function supportLabel(level: string) {
+  return SUPPORT_LEVELS.find(s => s.value === level)?.label || level;
+}
+
 export default function PlansPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -40,7 +54,13 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceDisplay: "", priceYearlyDisplay: "", features: "", description: "", sortOrder: 0 });
+  const [form, setForm] = useState({
+    name: "", maxUsers: 5, maxOsPerMonth: 100,
+    priceDisplay: "", priceYearlyDisplay: "",
+    features: "", description: "", sortOrder: 0,
+    maxTechnicians: 0, maxAiMessages: 0,
+    supportLevel: "EMAIL", allModulesIncluded: true,
+  });
   const [error, setError] = useState<string | null>(null);
 
   const loadPlans = useCallback(async () => {
@@ -58,7 +78,13 @@ export default function PlansPage() {
 
   function openCreate() {
     setEditingId(null);
-    setForm({ name: "", maxUsers: 5, maxOsPerMonth: 100, priceDisplay: "", priceYearlyDisplay: "", features: "", description: "", sortOrder: 0 });
+    setForm({
+      name: "", maxUsers: 5, maxOsPerMonth: 100,
+      priceDisplay: "", priceYearlyDisplay: "",
+      features: "", description: "", sortOrder: 0,
+      maxTechnicians: 0, maxAiMessages: 0,
+      supportLevel: "EMAIL", allModulesIncluded: true,
+    });
     setError(null);
     setShowForm(true);
   }
@@ -74,6 +100,10 @@ export default function PlansPage() {
       features: (plan.features || []).join("\n"),
       description: plan.description || "",
       sortOrder: plan.sortOrder,
+      maxTechnicians: plan.maxTechnicians ?? 0,
+      maxAiMessages: plan.maxAiMessages ?? 0,
+      supportLevel: plan.supportLevel || "EMAIL",
+      allModulesIncluded: plan.allModulesIncluded ?? true,
     });
     setError(null);
     setShowForm(true);
@@ -168,25 +198,12 @@ export default function PlansPage() {
               </div>
 
               <div className="mt-4 space-y-2 text-sm text-slate-600">
-                <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                  Até {plan.maxUsers} usuário{plan.maxUsers !== 1 ? "s" : ""}
-                </div>
-                <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                  {plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mês`}
-                </div>
-                {plan.features && plan.features.length > 0 ? plan.features.map((f, fi) => (
-                  <div key={fi} className="flex items-center gap-2">
-                    <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                    {f}
-                  </div>
-                )) : (
-                  <div className="flex items-center gap-2">
-                    <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                    Todos os módulos inclusos
-                  </div>
-                )}
+                <FeatureRow label={`Até ${plan.maxUsers} usuário${plan.maxUsers !== 1 ? "s" : ""}`} />
+                <FeatureRow label={plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mês`} />
+                <FeatureRow label={plan.maxTechnicians === 0 ? "Técnicos ilimitados" : `${plan.maxTechnicians} técnico${plan.maxTechnicians !== 1 ? "s" : ""}`} />
+                <FeatureRow label={plan.maxAiMessages === 0 ? "Mensagens IA ilimitadas" : `${plan.maxAiMessages} msgs IA/mês`} />
+                <FeatureRow label={`Suporte: ${supportLabel(plan.supportLevel)}`} />
+                <FeatureRow label={plan.allModulesIncluded ? "Todos os módulos" : "Módulos básicos"} />
               </div>
 
               <div className="mt-4 flex gap-2 border-t border-slate-100 pt-3">
@@ -236,7 +253,7 @@ export default function PlansPage() {
       {/* Create/Edit Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
             <h2 className="text-lg font-bold text-slate-900">{editingId ? "Editar Plano" : "Novo Plano"}</h2>
 
             <form onSubmit={handleSubmit} className="mt-4 space-y-3">
@@ -250,6 +267,8 @@ export default function PlansPage() {
                   required
                 />
               </div>
+
+              {/* Preços */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">Preço mensal (R$) *</label>
@@ -275,29 +294,82 @@ export default function PlansPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Máx. Usuários *</label>
-                  <input
-                    type="number"
-                    className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                    value={form.maxUsers}
-                    onChange={(e) => setForm({ ...form, maxUsers: parseInt(e.target.value) || 1 })}
-                    min="1"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Máx. OS/mês (0=ilimitado)</label>
-                  <input
-                    type="number"
-                    className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                    value={form.maxOsPerMonth}
-                    onChange={(e) => setForm({ ...form, maxOsPerMonth: parseInt(e.target.value) || 0 })}
-                    min="0"
-                  />
+
+              {/* Limites */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+                <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Limites do Plano</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Máx. Usuários *</label>
+                    <input
+                      type="number"
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                      value={form.maxUsers}
+                      onChange={(e) => setForm({ ...form, maxUsers: parseInt(e.target.value) || 1 })}
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Máx. OS/mês (0=ilimitado)</label>
+                    <input
+                      type="number"
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                      value={form.maxOsPerMonth}
+                      onChange={(e) => setForm({ ...form, maxOsPerMonth: parseInt(e.target.value) || 0 })}
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Máx. Técnicos (0=ilimitado)</label>
+                    <input
+                      type="number"
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                      value={form.maxTechnicians}
+                      onChange={(e) => setForm({ ...form, maxTechnicians: parseInt(e.target.value) || 0 })}
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Msgs IA/mês (0=ilimitado)</label>
+                    <input
+                      type="number"
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                      value={form.maxAiMessages}
+                      onChange={(e) => setForm({ ...form, maxAiMessages: parseInt(e.target.value) || 0 })}
+                      min="0"
+                    />
+                  </div>
                 </div>
               </div>
+
+              {/* Features do plano */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+                <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Features</h3>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Nível de Suporte</label>
+                  <select
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                    value={form.supportLevel}
+                    onChange={(e) => setForm({ ...form, supportLevel: e.target.value })}
+                  >
+                    {SUPPORT_LEVELS.map(sl => (
+                      <option key={sl.value} value={sl.value}>{sl.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.allModulesIncluded}
+                    onChange={(e) => setForm({ ...form, allModulesIncluded: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-700">Todos os módulos inclusos</span>
+                </label>
+              </div>
+
+              {/* Descrição e features texto livre (landing page) */}
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Descrição</label>
                 <input
@@ -308,13 +380,13 @@ export default function PlansPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Features (uma por linha, exibidas na landing page)</label>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Features extras (landing page, uma por linha)</label>
                 <textarea
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
-                  rows={3}
+                  rows={2}
                   value={form.features}
                   onChange={(e) => setForm({ ...form, features: e.target.value })}
-                  placeholder={"Até 5 usuários\nOS ilimitadas\nSuporte prioritário"}
+                  placeholder={"Relatórios avançados\nIntegração WhatsApp"}
                 />
               </div>
               <div>
@@ -341,6 +413,17 @@ export default function PlansPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function FeatureRow({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <svg className="h-4 w-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+      </svg>
+      {label}
     </div>
   );
 }

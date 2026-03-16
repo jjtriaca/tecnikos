@@ -21,6 +21,8 @@ interface BillingStatus {
   promoMonthsLeft?: number;
   daysOverdue?: number;
   overduePaymentUrl?: string;
+  pendingPlanName?: string | null;
+  pendingPlanAt?: string | null;
 }
 
 function getBarColor(pct: number): string {
@@ -136,6 +138,20 @@ export default function HeaderBilling() {
               Em dia
             </Link>
           ) : null}
+
+          {/* Downgrade pending badge */}
+          {billing.pendingPlanName && billing.pendingPlanAt && (
+            <Link
+              href="/settings/billing"
+              className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+              title={`Mudanca para ${billing.pendingPlanName} em ${new Date(billing.pendingPlanAt).toLocaleDateString("pt-BR")}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+              Downgrade {Math.max(0, Math.ceil((new Date(billing.pendingPlanAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))}d
+            </Link>
+          )}
         </>
       )}
     </div>

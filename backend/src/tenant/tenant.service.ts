@@ -336,12 +336,17 @@ export class TenantService {
     const plan = await this.prisma.plan.findUnique({ where: { id: newPlanId } });
     if (!plan) throw new NotFoundException('Plano não encontrado');
 
+    // Snapshot ALL plan features to tenant (grandfather pattern)
     const updated = await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
         planId: newPlanId,
         maxUsers: plan.maxUsers,
         maxOsPerMonth: plan.maxOsPerMonth,
+        maxTechnicians: plan.maxTechnicians,
+        maxAiMessages: plan.maxAiMessages,
+        supportLevel: plan.supportLevel,
+        allModulesIncluded: plan.allModulesIncluded,
       },
     });
 

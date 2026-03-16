@@ -37,4 +37,23 @@ export class CreatePlanDto {
   @IsArray()
   @IsString({ each: true })
   features?: string[];
+
+  // Structured feature fields
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxTechnicians?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxAiMessages?: number;
+
+  @IsOptional()
+  @IsString()
+  supportLevel?: string; // EMAIL, EMAIL_CHAT, PRIORITY
+
+  @IsOptional()
+  @IsBoolean()
+  allModulesIncluded?: boolean;
 }
