@@ -461,12 +461,16 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     for (const t of tenants) {
       if (!/^[a-z0-9_]+$/.test(t.schemaName)) continue;
       try {
+        // Use GREATEST to never DECREASE Company limits below Tenant baseline
+        // (Company may have higher limits due to purchased add-ons)
         const result = await this.rawPrisma.$executeRawUnsafe(`
           UPDATE "${t.schemaName}"."Company"
-          SET "maxOsPerMonth" = ${t.maxOsPerMonth}, "maxUsers" = ${t.maxUsers},
-              "maxTechnicians" = ${t.maxTechnicians}, "maxAiMessages" = ${t.maxAiMessages}
-          WHERE "maxOsPerMonth" != ${t.maxOsPerMonth} OR "maxUsers" != ${t.maxUsers}
-             OR "maxTechnicians" != ${t.maxTechnicians} OR "maxAiMessages" != ${t.maxAiMessages}
+          SET "maxOsPerMonth" = GREATEST("maxOsPerMonth", ${t.maxOsPerMonth}),
+              "maxUsers" = GREATEST("maxUsers", ${t.maxUsers}),
+              "maxTechnicians" = GREATEST("maxTechnicians", ${t.maxTechnicians}),
+              "maxAiMessages" = GREATEST("maxAiMessages", ${t.maxAiMessages})
+          WHERE "maxOsPerMonth" < ${t.maxOsPerMonth} OR "maxUsers" < ${t.maxUsers}
+             OR "maxTechnicians" < ${t.maxTechnicians} OR "maxAiMessages" < ${t.maxAiMessages}
         `);
         if (result > 0) {
           updated++;

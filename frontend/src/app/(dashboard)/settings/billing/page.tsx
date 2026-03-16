@@ -116,8 +116,7 @@ export default function BillingPage() {
     setPurchasing(addOnId);
     setMessage(null);
     try {
-      const result = await api.post<{ success: boolean; message: string; checkoutUrl?: string }>("/public/saas/purchase-addon", {
-        tenantId: "self",
+      const result = await api.post<{ success: boolean; message: string; checkoutUrl?: string }>("/auth/purchase-addon", {
         addOnId,
       });
 

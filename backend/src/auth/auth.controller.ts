@@ -209,6 +209,28 @@ export class AuthController {
     return this.asaasService.cancelPendingDowngrade(tenantId);
   }
 
+  @Post('purchase-addon')
+  @HttpCode(HttpStatus.OK)
+  async purchaseAddOn(
+    @Req() req: Request,
+    @Body() body: { addOnId: string },
+  ) {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) throw new BadRequestException('Não autenticado ou sem tenant');
+    if (!body.addOnId) throw new BadRequestException('addOnId é obrigatório');
+
+    const result = await this.asaasService.createAddOnCheckout(tenantId, body.addOnId);
+
+    if (!result.checkoutUrl) {
+      return { success: true, message: 'Recursos adicionais creditados com sucesso!' };
+    }
+    return {
+      success: true,
+      checkoutUrl: result.checkoutUrl,
+      message: 'Checkout criado! Finalize o pagamento.',
+    };
+  }
+
   /* ── Device / Session management ────────────────────────── */
 
   @Get('sessions')

@@ -63,6 +63,8 @@ export class TenantOnboardingService {
         ownerPhone: tenant.responsiblePhone || undefined,
         maxOsPerMonth: tenant.maxOsPerMonth || 0,
         maxUsers: tenant.maxUsers || 0,
+        maxTechnicians: tenant.maxTechnicians || 0,
+        maxAiMessages: tenant.maxAiMessages || 0,
         status: 'ATIVA',
       },
     });

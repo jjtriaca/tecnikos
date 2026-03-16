@@ -175,6 +175,7 @@ export class TenantPublicController {
    * Availability is based on ACTIVE tenants using that code, not currentUses counter.
    */
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // Protect against brute-force voucher discovery
   @Get('validate-code')
   async validateCode(@QueryParam('code') code: string) {
     if (!code) return { valid: false, reason: 'Código é obrigatório' };
@@ -201,7 +202,7 @@ export class TenantPublicController {
       discountPercent: promo.discountPercent,
       discountCents: promo.discountCents,
       durationMonths: promo.durationMonths,
-      skipPayment: promo.skipPayment,
+      skipPayment: promo.skipPayment, // Frontend needs this for UX flow (rate-limited by Throttle)
       applicablePlans: promo.applicablePlans,
     };
   }

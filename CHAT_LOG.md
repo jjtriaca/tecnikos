@@ -1885,3 +1885,34 @@ Solucao:
 - **Deploy v1.03.93** — CONCLUIDO
 
 ### Versoes deployadas nesta sessao: v1.03.87 a v1.03.93
+
+---
+
+## 2026-03-16 — Sessao 126 (continuacao): Add-on Pricing + Banners Cleanup (v1.03.94)
+
+### Decisoes do Juliano:
+1. **Banners hardcoded de add-on na pagina de planos**: remover — sao apenas banners estaticos, nao o sistema real
+2. **Precos dos add-ons**: calcular logicamente baseado nos valores dos planos
+3. **Pacote menor de OS**: incluir +25 OS para clientes com pouca demanda extra
+4. **Add-on comprado perto do fim do ciclo**: NAO faz rollover — vale pro ciclo vigente, ponto
+
+### Calculo logico dos precos:
+- Custo unitario de OS estimado entre planos: R$0,76 a R$1,59/OS
+- Add-ons com premium de 20-40% sobre custo medio (incentiva upgrade)
+- Desconto progressivo por volume nos pacotes maiores
+
+### 9 pacotes cadastrados (local + producao):
+1. +25 OS/mes — R$37 (R$1,48/OS)
+2. +50 OS/mes — R$67 (R$1,34/OS)
+3. +100 OS/mes — R$127 (R$1,27/OS)
+4. +200 OS/mes — R$237 (R$1,19/OS)
+5. +1 Usuario Gestor — R$57
+6. +2 Usuarios Gestores — R$97 (R$48,50/user)
+7. +5 Tecnicos — R$79 (R$15,80/tech)
+8. +100 Msgs IA — R$47 (R$0,47/msg)
+9. +500 Msgs IA — R$197 (R$0,39/msg)
+
+### Mudancas tecnicas:
+- plans/page.tsx: removido bloco hardcoded de add-ons (4 cards estaticos)
+- Banco local + producao: 9 registros AddOn criados com isActive=true
+- Deploy v1.03.94 — CONCLUIDO

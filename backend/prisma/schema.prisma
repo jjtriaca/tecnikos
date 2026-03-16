@@ -2109,7 +2109,7 @@ model AddOnPurchase {
   aiMessageQuantity   Int      @default(0)  // AI messages granted
   priceCents          Int      // Price paid
   asaasPaymentId      String?  // Asaas payment ID
-  status              String   @default("PENDING") // PENDING | PAID | CANCELLED
+  status              String   @default("PENDING") // PENDING | PAID | CANCELLED | EXPIRED
   periodMonth         String?  // "2026-03" — month this add-on is valid for
   expiresAt           DateTime? // End of billing cycle when add-on expires
 
@@ -2119,6 +2119,7 @@ model AddOnPurchase {
   @@index([subscriptionId])
   @@index([status])
   @@index([periodMonth])
+  @@index([expiresAt])
 }
 
 // Nota fiscal (NFS-e) emitida via Asaas para licenças SaaS

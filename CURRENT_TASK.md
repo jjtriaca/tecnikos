@@ -48,7 +48,14 @@
 7. **Verificacao visual do workflow editor** — Revisao completa da UI
 8. **Contrato do cliente com a Tecnikos**
 
-## Versao atual: v1.03.93
+## Sessao 126 (continuacao) — Add-on Pricing + Cleanup (v1.03.94)
+- [x] Banners hardcoded removidos da pagina de planos
+- [x] 9 pacotes add-on cadastrados com precos calculados logicamente
+- [x] Pacote menor +25 OS adicionado a pedido do Juliano
+- [x] Decisao: add-on NAO faz rollover (vale pro ciclo vigente)
+- [x] Deploy v1.03.94
+
+## Versao atual: v1.03.94
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

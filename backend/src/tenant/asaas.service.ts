@@ -762,7 +762,10 @@ export class AsaasService {
         const confirmed = await this.confirmAddOnPayment(payment.id);
         if (!confirmed && payment.customer) {
           // Checkout flow: find by customer → tenant → latest PENDING AddOnPurchase
-          await this.confirmAddOnByCustomer(payment.customer);
+          const confirmedByCustomer = await this.confirmAddOnByCustomer(payment.customer);
+          if (!confirmedByCustomer) {
+            this.logger.warn(`Add-on payment webhook: could not confirm payment ${payment.id} for customer ${payment.customer} — no PENDING purchase found`);
+          }
         }
       }
       return;
@@ -1639,6 +1642,93 @@ export class AsaasService {
       this.logger.log(
         `Overdue check complete: ${overdueSubscriptions.length} tenant(s) processed`,
       );
+    }
+  }
+
+  // ─── CRON: EXPIRE ADD-ON PURCHASES ──────────────────────
+
+  /**
+   * Daily at 00:15 — find PAID AddOnPurchases that have expired, revert their
+   * quantities from the tenant Company limits, and mark them EXPIRED.
+   */
+  @Cron('15 0 * * *')
+  async expireAddOnPurchases() {
+    this.logger.log('Running daily add-on expiration check...');
+
+    const now = new Date();
+    const expiredPurchases = await this.prisma.addOnPurchase.findMany({
+      where: {
+        status: 'PAID',
+        expiresAt: { not: null, lte: now },
+      },
+      include: {
+        subscription: { include: { tenant: true } },
+      },
+    });
+
+    if (expiredPurchases.length === 0) return;
+
+    let reverted = 0;
+    for (const purchase of expiredPurchases) {
+      try {
+        // Revert quantities from tenant Company
+        const tenant = purchase.subscription?.tenant;
+        if (tenant?.schemaName) {
+          await this.revertAddOnFromTenantCompany(tenant, purchase);
+        }
+
+        // Mark as EXPIRED
+        await this.prisma.addOnPurchase.update({
+          where: { id: purchase.id },
+          data: { status: 'EXPIRED' },
+        });
+
+        reverted++;
+        this.logger.log(
+          `Add-on expired: ${purchase.id} (OS:${purchase.osQuantity} Users:${purchase.userQuantity} Tech:${purchase.technicianQuantity} AI:${purchase.aiMessageQuantity}) for tenant ${tenant?.slug}`,
+        );
+      } catch (err) {
+        this.logger.error(`Failed to expire add-on ${purchase.id}: ${(err as Error).message}`);
+      }
+    }
+
+    this.logger.log(`Add-on expiration check complete: ${reverted}/${expiredPurchases.length} reverted`);
+  }
+
+  /** Revert add-on quantities from the tenant's Company record (opposite of creditAddOnToTenantCompany) */
+  private async revertAddOnFromTenantCompany(
+    tenant: { schemaName: string },
+    addon: { osQuantity: number; userQuantity: number; technicianQuantity: number; aiMessageQuantity: number },
+  ) {
+    try {
+      const client = this.tenantConn.getClient(tenant.schemaName);
+      const company = await client.company.findFirst();
+      if (!company) return;
+
+      const data: Record<string, any> = {};
+      if (addon.osQuantity > 0) data.maxOsPerMonth = { decrement: addon.osQuantity };
+      if (addon.userQuantity > 0) data.maxUsers = { decrement: addon.userQuantity };
+      if (addon.technicianQuantity > 0) data.maxTechnicians = { decrement: addon.technicianQuantity };
+      if (addon.aiMessageQuantity > 0) data.maxAiMessages = { decrement: addon.aiMessageQuantity };
+
+      if (Object.keys(data).length > 0) {
+        await client.company.update({ where: { id: company.id }, data });
+
+        // Safety: ensure limits never go below plan baseline (could happen if admin changed plan)
+        const updated = await client.company.findFirst();
+        if (updated) {
+          const fixes: Record<string, number> = {};
+          if ((updated.maxOsPerMonth || 0) < 0) fixes.maxOsPerMonth = 0;
+          if ((updated.maxUsers || 0) < 0) fixes.maxUsers = 0;
+          if ((updated.maxTechnicians || 0) < 0) fixes.maxTechnicians = 0;
+          if ((updated.maxAiMessages || 0) < 0) fixes.maxAiMessages = 0;
+          if (Object.keys(fixes).length > 0) {
+            await client.company.update({ where: { id: updated.id }, data: fixes });
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to revert add-on from tenant company: ${(err as Error).message}`);
     }
   }
 
