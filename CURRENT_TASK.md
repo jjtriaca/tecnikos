@@ -87,7 +87,13 @@
 - [x] Dead fields (osUsedThisMonth, osResetDate, extraOsPurchased): mantidos (write-only, inofensivos)
 - [x] Deploy v1.03.98
 
-## Versao atual: v1.03.98
+## WhatsApp Safety Fixes (v1.04.00):
+- [x] NFS-e: sendText → sendTextWithTemplateFallback(forceTemplate:true)
+- [x] Quote (envio/aprovacao/recusa): +forceTemplate:true
+- [x] Estudo completo em memory/whatsapp-audit-2026-03.md
+- [x] Deploy v1.04.00
+
+## Versao atual: v1.04.00
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

@@ -695,7 +695,8 @@ export class NfseEmissionService {
       emission.pdfUrl ? `PDF: ${emission.pdfUrl}` : '',
     ].filter(Boolean).join('\n');
 
-    await this.whatsApp.sendText(companyId, phone, message);
+    // Use template fallback — sendText silently fails outside 24h window
+    await this.whatsApp.sendTextWithTemplateFallback(companyId, phone, message, true);
 
     // Try to send PDF as document if available
     if (emission.pdfUrl) {

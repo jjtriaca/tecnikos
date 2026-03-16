@@ -391,6 +391,7 @@ export class QuoteService {
           recipientPhone: quote.clientPartner.phone || undefined,
           message,
           type: 'QUOTE_SENT',
+          forceTemplate: true, // Business-initiated — skip text attempt
         });
       } catch (err) {
         this.logger.warn(`Failed to send WhatsApp for quote ${id}: ${err.message}`);
@@ -717,6 +718,7 @@ export class QuoteService {
         recipientPhone: quote.company.phone || undefined,
         message: `✅ Orçamento *${quote.code}* aprovado pelo cliente ${approverName}!\nValor: R$ ${(quote.totalCents / 100).toFixed(2).replace('.', ',')}`,
         type: 'QUOTE_APPROVED',
+        forceTemplate: true,
       });
     } catch (err) {
       this.logger.warn(`Failed to notify company about quote approval: ${err.message}`);
@@ -754,6 +756,7 @@ export class QuoteService {
         recipientPhone: quote.company.phone || undefined,
         message: `❌ Orçamento *${quote.code}* recusado pelo cliente ${quote.clientPartner.name}.${reason ? `\nMotivo: ${reason}` : ''}`,
         type: 'QUOTE_REJECTED',
+        forceTemplate: true,
       });
     } catch (err) {
       this.logger.warn(`Failed to notify company about quote rejection: ${err.message}`);
