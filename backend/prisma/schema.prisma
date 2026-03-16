@@ -377,6 +377,10 @@ model ServiceOrder {
   cancelledReason  String?   // Motivo do cancelamento
   cancelledByName  String?   // Nome do usuario que cancelou
 
+  // Recusa do técnico
+  declinedReason   String?   // Motivo da recusa pelo técnico
+  declinedAt       DateTime? // Data/hora da recusa
+
   // Obra vinculada (v1.00.88)
   obraId           String?
 

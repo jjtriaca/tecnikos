@@ -38,6 +38,12 @@ type PageLayoutBlock = {
 
 type LinkConfig = {
   acceptOS: boolean;
+  acceptLabel?: string;
+  declineButton?: boolean;
+  declineRequireReason?: boolean;
+  declineReasonMinLen?: number;
+  declineReasonMaxLen?: number;
+  autoAdvanceSeconds?: number;
   gpsNavigation: boolean;
   enRoute: boolean;
   validityHours: number;
@@ -139,6 +145,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
   const { token } = use(params);
 
   const [step, setStep] = useState<PageStep>("loading");
+  const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
   const [data, setData] = useState<PublicViewData | null>(null);
   const [phone, setPhone] = useState("");
   const maskPhone = (v: string) => {
@@ -151,6 +158,9 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [acceptLoading, setAcceptLoading] = useState(false);
+  const [showDeclineForm, setShowDeclineForm] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+  const [declineLoading, setDeclineLoading] = useState(false);
   const [arrivalConfig, setArrivalConfig] = useState<ArrivalQuestionConfig | null>(null);
   const [selectedMinutes, setSelectedMinutes] = useState<number | null>(null);
   const [arrivalLoading, setArrivalLoading] = useState(false);
@@ -348,6 +358,28 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     })();
   }, [token]);
 
+  // Auto-advance: when acceptOS=OFF and autoAdvanceSeconds>0, countdown then jump to post-accept
+  useEffect(() => {
+    if (step !== "offer" || !data) return;
+    const lc = data.linkConfig;
+    if (lc?.acceptOS !== false) return; // only when accept is disabled
+    const seconds = lc?.autoAdvanceSeconds;
+    if (!seconds || seconds <= 0) return;
+
+    setAutoAdvanceCountdown(seconds);
+    const interval = setInterval(() => {
+      setAutoAdvanceCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(interval);
+          setStep("post-accept");
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [step, data]);
+
   // Pre-load tracking config when entering "post-accept" state (for GPS button)
   useEffect(() => {
     if (step !== "post-accept" || !data?.linkConfig?.gpsNavigation) return;
@@ -437,7 +469,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     }
   };
 
-  // Decline
+  // Decline (post-accept / arrival question)
   const handleDecline = async () => {
     setArrivalLoading(true);
     try {
@@ -446,6 +478,24 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     } catch (e: any) {
       setArrivalError(e?.message || "Erro ao recusar.");
       setArrivalLoading(false);
+    }
+  };
+
+  // Decline from offer page (pre-accept)
+  const handleOfferDecline = async () => {
+    const lc = data?.linkConfig;
+    const requireReason = lc?.declineRequireReason !== false;
+    const trimmed = declineReason.trim();
+    const minLen = lc?.declineReasonMinLen ?? 10;
+    const maxLen = lc?.declineReasonMaxLen ?? 50;
+    if (requireReason && (trimmed.length < minLen || trimmed.length > maxLen)) return;
+    setDeclineLoading(true);
+    try {
+      await api.post(`/p/${token}/decline`, { reason: trimmed || undefined });
+      setStep("declined");
+    } catch (e: any) {
+      setErrorMsg(e?.message || "Erro ao recusar.");
+      setDeclineLoading(false);
     }
   };
 
@@ -1321,17 +1371,88 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
           </div>
         )}
 
-        {/* Accept button — only if acceptOS is enabled */}
-        {(data?.linkConfig?.acceptOS !== false) && (
+        {/* Accept + Decline buttons */}
+        {(data?.linkConfig?.acceptOS !== false || data?.linkConfig?.declineButton) && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
-            <button
-              type="button"
-              onClick={handleAccept}
-              disabled={acceptLoading}
-              className="w-full py-3 rounded-xl bg-green-600 text-white font-semibold text-base disabled:bg-slate-300 hover:bg-green-700 transition-colors"
-            >
-              {acceptLoading ? "Aceitando..." : "✅ Aceitar OS"}
-            </button>
+            {/* Buttons side by side */}
+            <div className={`flex gap-3 ${data?.linkConfig?.acceptOS !== false && data?.linkConfig?.declineButton ? '' : ''}`}>
+              {data?.linkConfig?.acceptOS !== false && (
+                <button
+                  type="button"
+                  onClick={handleAccept}
+                  disabled={acceptLoading || declineLoading}
+                  className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold text-base disabled:bg-slate-300 hover:bg-green-700 transition-colors"
+                >
+                  {acceptLoading ? "Aceitando..." : `✅ ${data?.linkConfig?.acceptLabel || "Aceitar OS"}`}
+                </button>
+              )}
+              {data?.linkConfig?.declineButton && !showDeclineForm && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeclineForm(true)}
+                  disabled={acceptLoading || declineLoading}
+                  className={`${data?.linkConfig?.acceptOS !== false ? 'w-auto px-4' : 'flex-1'} py-3 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-base hover:bg-red-50 transition-colors disabled:opacity-50`}
+                >
+                  ❌ Recusar
+                </button>
+              )}
+            </div>
+
+            {/* Decline form with reason */}
+            {showDeclineForm && (() => {
+              const lc = data?.linkConfig;
+              const requireReason = lc?.declineRequireReason !== false;
+              const minLen = lc?.declineReasonMinLen ?? 10;
+              const maxLen = lc?.declineReasonMaxLen ?? 50;
+              const trimmed = declineReason.trim();
+              const isValid = !requireReason || (trimmed.length >= minLen && trimmed.length <= maxLen);
+              return (
+                <div className="border-t border-red-100 pt-3 space-y-2">
+                  <p className="text-sm font-medium text-red-700">Tem certeza que deseja recusar?</p>
+                  {requireReason && (
+                    <>
+                      <textarea
+                        value={declineReason}
+                        onChange={e => setDeclineReason(e.target.value.slice(0, maxLen))}
+                        placeholder="Informe o motivo da recusa..."
+                        rows={2}
+                        className="w-full px-3 py-2 text-sm border border-red-200 rounded-lg focus:border-red-400 focus:outline-none resize-none"
+                      />
+                      <p className={`text-[10px] ${trimmed.length < minLen ? 'text-red-400' : 'text-slate-400'}`}>
+                        {trimmed.length}/{maxLen} caracteres (mín. {minLen})
+                      </p>
+                    </>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleOfferDecline}
+                      disabled={declineLoading || (requireReason && !isValid)}
+                      className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:bg-slate-300"
+                    >
+                      {declineLoading ? "Recusando..." : "Confirmar recusa"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowDeclineForm(false); setDeclineReason(""); }}
+                      disabled={declineLoading}
+                      className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Auto-advance countdown indicator */}
+        {autoAdvanceCountdown !== null && autoAdvanceCountdown > 0 && (
+          <div className="bg-blue-50 rounded-2xl border border-blue-200 p-3 text-center">
+            <p className="text-xs text-blue-600">
+              ⏱ Avançando em <span className="font-bold">{autoAdvanceCountdown}s</span>...
+            </p>
           </div>
         )}
 

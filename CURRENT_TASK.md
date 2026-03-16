@@ -155,7 +155,32 @@
 - [x] Fix bug: dismissed IDs em sessionStorage impediam OS de reaparecer — mecanismo removido
 - [x] Deploy v1.04.18
 
-## Versao atual: v1.04.18
+## Painel de Despacho — GPS Tracking Fase 2 (v1.04.22):
+- [x] Backend: getLastTechnicianLocation() — query TechnicianLocationLog
+- [x] getDispatchStatus() e getActiveDispatches() incluem lat/lng + location
+- [x] DispatchContext: 9 campos GPS no DispatchState
+- [x] MiniMap.tsx: Leaflet com marcadores SVG (destino + técnico), polyline, auto-zoom
+- [x] DispatchPanel: GpsSection com distância, ETA, last update
+
+## Painel de Despacho — Multi-OS Layout Fase 3 (v1.04.23):
+- [x] calculateGridPositions(): grid responsivo para múltiplos cards
+- [x] Botão "Organizar" (top-right, visível com 2+ cards)
+- [x] Auto-grid para 4+ cards
+- [x] Animação suave (transition 300ms)
+
+## Auditoria do Ciclo OS (v1.04.23+):
+- [x] P0 #1: debug logs removidos do service-order.service.ts
+- [x] P0 #2: acceptedAt — não é bug, é decisão de negócio válida por modo
+
+## Melhorias Link Público:
+- [x] Botão "Aceitar OS": label editável no fluxo (acceptLabel)
+- [x] Botão "Recusar": opcional no fluxo (declineButton), com motivo configurável
+- [x] Motivo recusa: min/max caracteres configuráveis (declineReasonMinLen/declineReasonMaxLen)
+- [x] Auto-advance: timer configurável para pular da pág 1 → pág 2 quando aceitar OFF
+- [x] Schema: +declinedReason, +declinedAt no ServiceOrder
+- [x] Layout: aceitar + recusar lado a lado, ou centralizado se só um
+
+## Versao atual: v1.04.18 (pendente deploy)
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

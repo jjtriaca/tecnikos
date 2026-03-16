@@ -63,6 +63,12 @@ const DEFAULT_ACTION_NOTIFY: ActionNotifyConfig = {
 /** Extract linkConfig (acceptOS, gpsNavigation, enRoute, pageLayout, page2Layout, etc.) from workflow template's NOTIFY block */
 function extractLinkConfig(workflowTemplate: any): {
   acceptOS: boolean;
+  acceptLabel: string;
+  declineButton: boolean;
+  declineRequireReason: boolean;
+  declineReasonMinLen: number;
+  declineReasonMaxLen: number;
+  autoAdvanceSeconds: number;
   gpsNavigation: boolean;
   enRoute: boolean;
   validityHours: number;
@@ -85,6 +91,12 @@ function extractLinkConfig(workflowTemplate: any): {
       const lc = techRecipient.linkConfig;
       return {
         acceptOS: lc.acceptOS ?? true,
+        acceptLabel: lc.acceptLabel || '',
+        declineButton: lc.declineButton ?? false,
+        declineRequireReason: lc.declineRequireReason ?? true,
+        declineReasonMinLen: lc.declineReasonMinLen ?? 10,
+        declineReasonMaxLen: lc.declineReasonMaxLen ?? 50,
+        autoAdvanceSeconds: lc.autoAdvanceSeconds ?? 0,
         gpsNavigation: lc.gpsNavigation ?? false,
         enRoute: lc.enRoute ?? false,
         validityHours: lc.validityHours || 24,
@@ -416,7 +428,7 @@ export class PublicOfferService {
         requestOtpUrl,
         acceptUrl,
       },
-      linkConfig: linkConfig || { acceptOS: true, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24, pageLayout: [], page2Layout: [], onAccept: DEFAULT_ACTION_NOTIFY, onGps: DEFAULT_ACTION_NOTIFY, onEnRoute: DEFAULT_ACTION_NOTIFY },
+      linkConfig: linkConfig || { acceptOS: true, acceptLabel: '', declineButton: false, declineRequireReason: true, declineReasonMinLen: 10, declineReasonMaxLen: 50, autoAdvanceSeconds: 0, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24, pageLayout: [], page2Layout: [], onAccept: DEFAULT_ACTION_NOTIFY, onGps: DEFAULT_ACTION_NOTIFY, onEnRoute: DEFAULT_ACTION_NOTIFY },
       // State flags for returning visitors
       enRouteAt: so?.enRouteAt?.toISOString() || null,
       trackingStartedAt: so?.trackingStartedAt?.toISOString() || null,
@@ -804,8 +816,8 @@ export class PublicOfferService {
     return { success: true, estimatedArrivalMinutes: selectedMinutes };
   }
 
-  /** Tech declines after acceptance (can't meet deadline) */
-  async declineAfterAccept(token: string, _phone?: string) {
+  /** Tech declines (before or after acceptance) */
+  async declineAfterAccept(token: string, _phone?: string, reason?: string) {
     const { offer } = await this.resolveAssignedTech(token);
 
     // Get onDecline action from workflow
@@ -818,6 +830,12 @@ export class PublicOfferService {
         onDecline = arrivalBlock.config.onDecline;
       }
     }
+
+    // Save decline reason and timestamp
+    await this.prisma.serviceOrder.update({
+      where: { id: offer.serviceOrderId },
+      data: { declinedReason: reason || null, declinedAt: new Date() },
+    });
 
     // Execute decline action
     switch (onDecline) {
@@ -845,7 +863,7 @@ export class PublicOfferService {
         break;
     }
 
-    return { success: true, action: onDecline };
+    return { success: true, action: onDecline, reason: reason || null };
   }
 
   /** Start GPS tracking for a service order */

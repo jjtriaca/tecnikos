@@ -110,6 +110,12 @@ export interface StageConfig {
           validityHours: number;
           agendaMarginHours: number;
           acceptOS: boolean;
+          acceptLabel: string;               // Label customizável do botão (default "Aceitar OS")
+          declineButton: boolean;            // Mostrar botão "Recusar" na oferta
+          declineRequireReason: boolean;     // Exigir motivo ao recusar
+          declineReasonMinLen: number;       // Mínimo de caracteres do motivo (default 10)
+          declineReasonMaxLen: number;       // Máximo de caracteres do motivo (default 50)
+          autoAdvanceSeconds: number;        // Segundos para pular auto da pág 1 → pág 2 (0 = desabilitado)
           gpsNavigation: boolean;
           enRoute: boolean;
           pageLayout: LinkPageBlock[];       // Página 1 — Oferta
@@ -1103,6 +1109,12 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
             validityHours: 24,
             agendaMarginHours: 24,
             acceptOS: true,
+            acceptLabel: '',
+            declineButton: false,
+            declineRequireReason: true,
+            declineReasonMinLen: 10,
+            declineReasonMaxLen: 50,
+            autoAdvanceSeconds: 0,
             gpsNavigation: false,
             enRoute: false,
             pageLayout: [

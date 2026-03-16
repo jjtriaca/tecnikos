@@ -854,12 +854,69 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     {/* Botão aceitar */}
                                     <div className="space-y-1">
                                       <SubToggle checked={lnk.acceptOS} onChange={v => updateLink({ acceptOS: v })}
-                                        label="✅ Botão &quot;Aceitar OS&quot;" />
+                                        label={`✅ Botão "${lnk.acceptLabel || 'Aceitar OS'}"`} />
                                       <p className="text-[10px] text-slate-400 ml-5">
                                         {lnk.acceptOS
                                           ? 'Técnico clica para aceitar. Primeiro clique trava o link para este dispositivo.'
                                           : 'Desativado — a página é informativa. GPS ou "Estou a caminho" serão mostrados aqui.'}
                                       </p>
+                                      {!lnk.acceptOS && (
+                                        <div className="ml-5 mt-1 flex items-center gap-2">
+                                          <label className="text-[10px] text-slate-500 whitespace-nowrap">⏱ Avançar para pág. 2 após</label>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            max={300}
+                                            value={lnk.autoAdvanceSeconds ?? 0}
+                                            onChange={e => updateLink({ autoAdvanceSeconds: Math.max(0, parseInt(e.target.value) || 0) })}
+                                            className="w-16 px-2 py-1 text-xs border border-slate-200 rounded text-center focus:border-blue-400 focus:outline-none"
+                                          />
+                                          <span className="text-[10px] text-slate-400">segundos (0 = não avança)</span>
+                                        </div>
+                                      )}
+                                      {lnk.acceptOS && (
+                                        <div className="ml-5 mt-1">
+                                          <label className="text-[10px] text-slate-500 block mb-0.5">Nome do botão aceitar</label>
+                                          <input
+                                            type="text"
+                                            value={lnk.acceptLabel || ''}
+                                            onChange={e => updateLink({ acceptLabel: e.target.value })}
+                                            placeholder="Aceitar OS"
+                                            className="w-48 px-2 py-1 text-xs border border-slate-200 rounded focus:border-blue-400 focus:outline-none"
+                                          />
+                                        </div>
+                                      )}
+
+                                      {/* Botão Recusar */}
+                                      <SubToggle checked={lnk.declineButton ?? false} onChange={v => updateLink({ declineButton: v })}
+                                        label="❌ Botão &quot;Recusar&quot;" />
+                                      <p className="text-[10px] text-slate-400 ml-5">
+                                        {lnk.declineButton
+                                          ? 'Técnico pode recusar a OS. Aparece ao lado do botão aceitar.'
+                                          : 'Desativado — técnico não terá opção de recusar.'}
+                                      </p>
+                                      {lnk.declineButton && (
+                                        <div className="ml-5 mt-1 space-y-1.5">
+                                          <SubToggle checked={lnk.declineRequireReason ?? true} onChange={v => updateLink({ declineRequireReason: v })}
+                                            label="📝 Exigir motivo da recusa" />
+                                          {(lnk.declineRequireReason ?? true) && (
+                                            <div className="ml-5 flex items-center gap-2">
+                                              <label className="text-[10px] text-slate-500 whitespace-nowrap">Caracteres:</label>
+                                              <span className="text-[10px] text-slate-400">min</span>
+                                              <input type="number" min={0} max={200}
+                                                value={lnk.declineReasonMinLen ?? 10}
+                                                onChange={e => updateLink({ declineReasonMinLen: Math.max(0, parseInt(e.target.value) || 0) })}
+                                                className="w-14 px-1.5 py-0.5 text-xs border border-slate-200 rounded text-center focus:border-blue-400 focus:outline-none" />
+                                              <span className="text-[10px] text-slate-400">máx</span>
+                                              <input type="number" min={1} max={500}
+                                                value={lnk.declineReasonMaxLen ?? 50}
+                                                onChange={e => updateLink({ declineReasonMaxLen: Math.max(1, parseInt(e.target.value) || 50) })}
+                                                className="w-14 px-1.5 py-0.5 text-xs border border-slate-200 rounded text-center focus:border-blue-400 focus:outline-none" />
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
                                       {lnk.acceptOS && (
                                         <div className="ml-5 mt-1 space-y-1.5 pl-3 border-l-2 border-green-200">
                                           <SubToggle checked={lnk.onAccept.notifyGestor.enabled}

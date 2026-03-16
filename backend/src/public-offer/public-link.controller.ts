@@ -61,8 +61,9 @@ export class PublicLinkController {
   declineAfterAccept(
     @Param('token') token: string,
     @Body('phone') phone: string,
+    @Body('reason') reason?: string,
   ) {
-    return this.service.declineAfterAccept(token, phone);
+    return this.service.declineAfterAccept(token, phone, reason);
   }
 
   @Post(':token/en-route')
