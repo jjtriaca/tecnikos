@@ -365,9 +365,10 @@ function MinimizedTray({ dispatches, onClick }: { dispatches: DispatchState[]; o
   useEffect(() => {
     if (loadedRef.current) return;
     loadedRef.current = true;
+    const prefKey = `dispatchPos_${MINIMIZED_PREF_KEY}`;
     api.get<Record<string, any>>("/users/me/preferences").then((prefs) => {
-      if (prefs?.[MINIMIZED_PREF_KEY]?.x != null) {
-        setPos(clampPosition(prefs[MINIMIZED_PREF_KEY].x, prefs[MINIMIZED_PREF_KEY].y));
+      if (prefs?.[prefKey]?.x != null) {
+        setPos(clampPosition(prefs[prefKey].x, prefs[prefKey].y));
       }
     }).catch(() => {});
   }, []);

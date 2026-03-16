@@ -144,7 +144,18 @@
 - [x] Endpoints: GET/PATCH /users/me/preferences
 - [x] Deploy v1.04.11
 
-## Versao atual: v1.04.11
+## Painel de Despacho — UX Fixes (v1.04.12-18):
+- [x] Icones tecnico 75% menores (7px emoji + 10px text)
+- [x] Timeline compacta (6px emojis, 8px labels)
+- [x] Auto-load: todas OS ativas aparecem ao logar (novo endpoint GET /active-dispatches)
+- [x] Auth timing fix: espera useAuth() antes de chamar API
+- [x] MinimizedTray: chips compactos arrastáveis com posicao salva
+- [x] Removido botao global minimize (competia com IA chat)
+- [x] Removido botao X (cards so fecham em status terminal)
+- [x] Fix bug: dismissed IDs em sessionStorage impediam OS de reaparecer — mecanismo removido
+- [x] Deploy v1.04.18
+
+## Versao atual: v1.04.18
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127
