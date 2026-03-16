@@ -40,6 +40,7 @@ type LinkConfig = {
   acceptOS: boolean;
   acceptLabel?: string;
   declineButton?: boolean;
+  declineLabel?: string;
   declineRequireReason?: boolean;
   declineReasonMinLen?: number;
   declineReasonMaxLen?: number;
@@ -1393,7 +1394,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                   disabled={acceptLoading || declineLoading}
                   className={`${data?.linkConfig?.acceptOS !== false ? 'w-auto px-4' : 'flex-1'} py-3 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-base hover:bg-red-50 transition-colors disabled:opacity-50`}
                 >
-                  ❌ Recusar
+                  ❌ {data?.linkConfig?.declineLabel || "Recusar"}
                 </button>
               )}
             </div>

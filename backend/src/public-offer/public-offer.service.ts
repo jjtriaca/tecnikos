@@ -65,6 +65,7 @@ function extractLinkConfig(workflowTemplate: any): {
   acceptOS: boolean;
   acceptLabel: string;
   declineButton: boolean;
+  declineLabel: string;
   declineRequireReason: boolean;
   declineReasonMinLen: number;
   declineReasonMaxLen: number;
@@ -93,6 +94,7 @@ function extractLinkConfig(workflowTemplate: any): {
         acceptOS: lc.acceptOS ?? true,
         acceptLabel: lc.acceptLabel || '',
         declineButton: lc.declineButton ?? false,
+        declineLabel: lc.declineLabel || '',
         declineRequireReason: lc.declineRequireReason ?? true,
         declineReasonMinLen: lc.declineReasonMinLen ?? 10,
         declineReasonMaxLen: lc.declineReasonMaxLen ?? 50,
@@ -428,7 +430,7 @@ export class PublicOfferService {
         requestOtpUrl,
         acceptUrl,
       },
-      linkConfig: linkConfig || { acceptOS: true, acceptLabel: '', declineButton: false, declineRequireReason: true, declineReasonMinLen: 10, declineReasonMaxLen: 50, autoAdvanceSeconds: 0, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24, pageLayout: [], page2Layout: [], onAccept: DEFAULT_ACTION_NOTIFY, onGps: DEFAULT_ACTION_NOTIFY, onEnRoute: DEFAULT_ACTION_NOTIFY },
+      linkConfig: linkConfig || { acceptOS: true, acceptLabel: '', declineButton: false, declineLabel: '', declineRequireReason: true, declineReasonMinLen: 10, declineReasonMaxLen: 50, autoAdvanceSeconds: 0, gpsNavigation: false, enRoute: false, validityHours: 24, agendaMarginHours: 24, pageLayout: [], page2Layout: [], onAccept: DEFAULT_ACTION_NOTIFY, onGps: DEFAULT_ACTION_NOTIFY, onEnRoute: DEFAULT_ACTION_NOTIFY },
       // State flags for returning visitors
       enRouteAt: so?.enRouteAt?.toISOString() || null,
       trackingStartedAt: so?.trackingStartedAt?.toISOString() || null,

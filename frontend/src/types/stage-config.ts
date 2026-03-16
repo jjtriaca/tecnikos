@@ -112,6 +112,7 @@ export interface StageConfig {
           acceptOS: boolean;
           acceptLabel: string;               // Label customizável do botão (default "Aceitar OS")
           declineButton: boolean;            // Mostrar botão "Recusar" na oferta
+          declineLabel: string;              // Label customizável do botão recusar (default "Recusar")
           declineRequireReason: boolean;     // Exigir motivo ao recusar
           declineReasonMinLen: number;       // Mínimo de caracteres do motivo (default 10)
           declineReasonMaxLen: number;       // Máximo de caracteres do motivo (default 50)
@@ -1111,6 +1112,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
             acceptOS: true,
             acceptLabel: '',
             declineButton: false,
+            declineLabel: '',
             declineRequireReason: true,
             declineReasonMinLen: 10,
             declineReasonMaxLen: 50,
