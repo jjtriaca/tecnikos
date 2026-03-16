@@ -1682,3 +1682,14 @@ Solucao:
 - extractChecklistConfig: extrai config de blocos CHECKLIST do workflow template por etapa
 
 **Builds:** Backend OK (sem erros), Frontend OK (compilacao limpa)
+
+## 2026-03-16 — Sessao 120: Session Cleanup Automatico (v1.03.74)
+
+### Limpeza automatica de sessoes
+- **Boot cleanup** (TenantMigratorService): ao iniciar app, deleta sessoes revogadas, expiradas ou inativas > 3 dias
+  - Roda em TODOS os schemas (public + tenants)
+  - Usa query direta no pg_tables para encontrar schemas com tabela Session
+- **Limite por usuario** (AuthService + TechAuthService): max 5 sessoes ativas por usuario
+  - Ao criar nova sessao, se ja tem 5+, revoga as mais antigas
+  - Aplica para gestores (AuthService) e tecnicos (TechAuthService)
+- Build OK (tsc --noEmit limpo)

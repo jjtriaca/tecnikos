@@ -169,6 +169,22 @@ export class TechAuthService {
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     const expiresAt = new Date(Date.now() + ttl * 1000);
 
+    // Enforce max 5 active sessions per technician — revoke oldest if over limit
+    const MAX_SESSIONS = 5;
+    const activeSessions = await this.prisma.session.findMany({
+      where: { userId: technicianId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+
+    if (activeSessions.length >= MAX_SESSIONS) {
+      const toRevoke = activeSessions.slice(0, activeSessions.length - MAX_SESSIONS + 1);
+      await this.prisma.session.updateMany({
+        where: { id: { in: toRevoke.map(s => s.id) } },
+        data: { revokedAt: new Date() },
+      });
+    }
+
     await this.prisma.session.create({
       data: {
         userId: technicianId, // Reusing session table (userId stores technicianId for tech sessions)

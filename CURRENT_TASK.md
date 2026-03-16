@@ -1,29 +1,29 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 119 — Security audit fixes
+## Status: SESSAO 120 — Session cleanup + Schema audit fixes
 
-## Ultima sessao: 118 (16/03/2026)
-- Sessao 117: WhatsApp notification fix + API research (v1.03.68-70)
+## Ultima sessao: 119 (16/03/2026)
 - Sessao 118: IA tools WhatsApp + Focus NFe + knowledge base + deploy v1.03.71 + audit
-- Sessao 119: Security audit fixes
+- Sessao 119: Security audit fixes + Schema audit (enums, SaasInvoiceConfig, Marilise cleanup)
+- Sessao 120: Session cleanup automatico
 
-## O que foi feito na sessao 118-119:
-
-### IA Tools para WhatsApp + Focus NFe (v1.03.71)
-- [x] 4 novas tools: configurar_whatsapp, testar_conexao_whatsapp, configurar_focus_nfe, testar_focus_nfe
-- [x] Wizard do chat IA atualizado com guia completo de 6 passos WhatsApp
-- [x] System prompt da IA com conhecimento WhatsApp Business API
-- [x] Knowledge base: memory/whatsapp-lessons-learned.md
-- [x] Deploy v1.03.71
+## O que foi feito na sessao 119-120:
 
 ### Auditoria de Seguranca (v1.03.72)
-- [x] CRITICO: Role check — config tools (configurar_whatsapp, testar_conexao_whatsapp, configurar_focus_nfe, testar_focus_nfe) agora requerem ADMIN
-  - userRoles propagados: controller → service → streamClaude/callClaude → executeTool
-  - ADMIN_ONLY_TOOLS set no chat-ia.tools.ts bloqueia não-admins
-- [x] CRITICO: IV size fix — crypto.randomBytes(16) → randomBytes(12) para compatibilidade com EncryptionService
-  - Refatorado: funções encryptToken() e decryptToken() centralizadas (DRY)
-  - 4 duplicações de código crypto eliminadas
-- [x] CRITICO: Removido chat-ia.guard.ts (dead code, sempre retornava true)
+- [x] CRITICO: Role check — config tools requerem ADMIN
+- [x] CRITICO: IV size fix — crypto.randomBytes(12) compatibilidade
+- [x] CRITICO: Removido chat-ia.guard.ts (dead code)
+
+### Auditoria de Schema público vs tenant_sls (v1.03.73)
+- [x] Enum sync automatico: TenantMigratorService sincroniza enums no boot (ChecklistClass, ChecklistMode criados)
+- [x] SaasInvoiceConfig removida de tenant schemas (adicionada a PUBLIC_ONLY_TABLES)
+- [x] Marilise removida do public schema (só existe em tenant_sls)
+- [x] Orphaned enum columns remapeados automaticamente (udt_schema public → tenant)
+
+### Session cleanup automatico (v1.03.74)
+- [x] Boot cleanup: deleta sessões revogadas, expiradas ou inativas > 3 dias (todos os schemas)
+- [x] Limite por usuario: max 5 sessões ativas (revoga as mais antigas ao criar 6ª)
+- [x] Aplica para gestores (AuthService) e técnicos (TechAuthService)
 
 ## Pendente:
 - **BLOQUEADO: Resolver desativação da conta WhatsApp no Meta Business Support**
@@ -36,7 +36,7 @@
 - FUTURO: Discutir/remover commissionBps global da empresa
 - FUTURO: Workflow config "Respeitar tecnico direcionado"
 
-## Versao atual: v1.03.72 (deploying)
+## Versao atual: v1.03.74
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

@@ -504,6 +504,24 @@ export class AuthService {
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     const expiresAt = new Date(Date.now() + ttl * 1000);
 
+    // Enforce max 5 active sessions per user — delete oldest if over limit
+    const MAX_SESSIONS = 5;
+    const activeSessions = await this.prisma.session.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+
+    if (activeSessions.length >= MAX_SESSIONS) {
+      // Revoke the oldest sessions to make room
+      const toRevoke = activeSessions.slice(0, activeSessions.length - MAX_SESSIONS + 1);
+      await this.prisma.session.updateMany({
+        where: { id: { in: toRevoke.map(s => s.id) } },
+        data: { revokedAt: new Date() },
+      });
+      this.logger.debug(`Revoked ${toRevoke.length} oldest session(s) for user ${userId} (limit: ${MAX_SESSIONS})`);
+    }
+
     const session = await this.prisma.session.create({
       data: {
         userId,

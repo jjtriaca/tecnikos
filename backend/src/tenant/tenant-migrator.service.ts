@@ -42,6 +42,13 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     } catch (err) {
       this.logger.error(`Tenant schema sync failed: ${(err as Error).message}`);
     }
+
+    // Cleanup expired/inactive sessions across all schemas
+    try {
+      await this.cleanupExpiredSessions();
+    } catch (err) {
+      this.logger.error(`Session cleanup failed: ${(err as Error).message}`);
+    }
   }
 
   /**
@@ -427,6 +434,56 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
       } catch (err) {
         this.logger.warn(`Failed to remap "${col.table_name}"."${col.column_name}": ${(err as Error).message}`);
       }
+    }
+  }
+
+  /**
+   * Delete sessions that are expired or inactive for more than 3 days.
+   * Runs on boot across public + all tenant schemas.
+   */
+  private async cleanupExpiredSessions(): Promise<void> {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Get all schemas that have a Session table (public + tenants)
+    const schemas = await this.rawPrisma.$queryRawUnsafe<{ schemaname: string }[]>(`
+      SELECT DISTINCT schemaname FROM pg_tables WHERE tablename = 'Session'
+    `);
+
+    let totalDeleted = 0;
+
+    for (const { schemaname } of schemas) {
+      if (!/^[a-z0-9_]+$/.test(schemaname)) continue;
+
+      try {
+        // Delete sessions that are:
+        // 1. Revoked (already logged out)
+        // 2. Expired (expiresAt in the past)
+        // 3. Inactive for > 3 days (no activity and old)
+        const result = await this.rawPrisma.$executeRawUnsafe(`
+          DELETE FROM "${schemaname}"."Session"
+          WHERE "revokedAt" IS NOT NULL
+             OR "expiresAt" < NOW()
+             OR (
+               "lastActivityAt" IS NOT NULL AND "lastActivityAt" < '${threeDaysAgo}'::timestamptz
+             )
+             OR (
+               "lastActivityAt" IS NULL AND "createdAt" < '${threeDaysAgo}'::timestamptz
+             )
+        `);
+
+        if (result > 0) {
+          totalDeleted += result;
+          this.logger.log(`Cleaned ${result} expired session(s) from "${schemaname}"`);
+        }
+      } catch (err) {
+        this.logger.warn(`Session cleanup failed for "${schemaname}": ${(err as Error).message}`);
+      }
+    }
+
+    if (totalDeleted > 0) {
+      this.logger.log(`Session cleanup complete: deleted ${totalDeleted} session(s) across ${schemas.length} schema(s)`);
+    } else {
+      this.logger.log(`Session cleanup: no expired sessions found`);
     }
   }
 
