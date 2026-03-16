@@ -1515,6 +1515,7 @@ export class WorkflowEngineService {
                   type: 'WORKFLOW_AUTO',
                   recipientPhone: target.phone,
                   recipientEmail: target.email,
+                  forceTemplate: true,
                 });
                 results.push({ recipient: `TECNICO:${target.name}`, status: 'sent' });
               } catch {
@@ -1546,6 +1547,7 @@ export class WorkflowEngineService {
                 type: 'WORKFLOW_AUTO',
                 recipientPhone,
                 recipientEmail,
+                forceTemplate: true,
               });
               results.push({ recipient: r.type, status: 'sent' });
             } catch {

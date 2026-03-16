@@ -277,7 +277,7 @@ export class WhatsAppService {
 
   /**
    * Send text with fallback to template if outside 24h window.
-   * Unlike sendText, this ALWAYS delivers: text if window open, template if not.
+   * Strategy: template first to open 24h window, then text with full message.
    * Returns true if sent, false if all attempts failed.
    */
   async sendTextWithTemplateFallback(
@@ -296,9 +296,7 @@ export class WhatsAppService {
 
     const formattedPhone = this.formatPhone(phone);
 
-    // 1. Try sending regular text (works within 24h conversation window)
-    //    SKIP if forceTemplate — business-initiated messages (welcome, contract)
-    //    must use templates because Meta silently drops text outside 24h window
+    // 1. If NOT forceTemplate, try sending as regular text first (within 24h window)
     if (!forceTemplate) {
       try {
         await this.metaRequest(token, phoneNumberId, {
@@ -311,22 +309,19 @@ export class WhatsAppService {
         this.logger.log(`📱 WhatsApp text sent to ${formattedPhone}`);
         return true;
       } catch (textErr: any) {
-        this.logger.warn(`📱 WhatsApp text failed (likely outside 24h window), trying template: ${textErr.message}`);
+        this.logger.warn(`📱 WhatsApp text failed (outside 24h window), using template strategy: ${textErr.message}`);
       }
-    } else {
-      this.logger.log(`📱 forceTemplate=true — skipping text, sending via template to ${formattedPhone}`);
     }
 
-    // 2. Fallback: send via template "aviso_os" with the message as body
-    //    Template must accept {{1}} parameter (the message content)
-    //    If no such template, try the generic "hello_world" just to notify the user
+    // 2. Template strategy: send template to open 24h window, then follow up with text
+    //    Try "aviso_os" first (has {{1}} param for message), then "teste_conexao" (no params)
+    let templateSent = false;
+
+    // 2a. Try aviso_os with message content
     try {
-      // Meta rejects template parameters with newlines/tabs or 4+ consecutive spaces
-      // Replace newlines with " | " separator and collapse multiple spaces
       let sanitizedMsg = message.replace(/[\r\n\t]+/g, ' | ').replace(/ {4,}/g, '   ').trim();
-      // Truncate for template (max 1024 chars in body parameter)
       const truncatedMsg = sanitizedMsg.length > 1000 ? sanitizedMsg.substring(0, 997) + '...' : sanitizedMsg;
-      this.logger.log(`📱 Template param (${truncatedMsg.length} chars): ${truncatedMsg.substring(0, 100)}...`);
+      this.logger.log(`📱 Trying template "aviso_os" (${truncatedMsg.length} chars) to ${formattedPhone}`);
 
       await this.metaRequest(token, phoneNumberId, {
         messaging_product: 'whatsapp',
@@ -346,31 +341,58 @@ export class WhatsAppService {
         },
       });
 
-      this.logger.log(`📱 WhatsApp template "aviso_os" sent to ${formattedPhone}`);
+      this.logger.log(`📱 Template "aviso_os" sent to ${formattedPhone}`);
+      templateSent = true;
+      // aviso_os already contains the full message, no need to follow up
       return true;
     } catch (templateErr: any) {
       const errDetail = templateErr.response?.data ? JSON.stringify(templateErr.response.data) : templateErr.message;
-      this.logger.warn(`📱 Template "aviso_os" failed: ${errDetail}, trying teste_conexao`);
+      this.logger.warn(`📱 Template "aviso_os" failed: ${errDetail}`);
     }
 
-    // 3. Last resort: generic template without parameters
-    try {
-      await this.metaRequest(token, phoneNumberId, {
-        messaging_product: 'whatsapp',
-        to: formattedPhone,
-        type: 'template',
-        template: {
-          name: 'teste_conexao',
-          language: { code: 'pt_BR' },
-        },
-      });
+    // 2b. Fallback: teste_conexao (no params) → opens window → then send text with full message
+    if (!templateSent) {
+      try {
+        await this.metaRequest(token, phoneNumberId, {
+          messaging_product: 'whatsapp',
+          to: formattedPhone,
+          type: 'template',
+          template: {
+            name: 'teste_conexao',
+            language: { code: 'pt_BR' },
+          },
+        });
 
-      this.logger.log(`📱 WhatsApp fallback template "teste_conexao" sent to ${formattedPhone}`);
-      return true;
-    } catch (fallbackErr: any) {
-      this.logger.error(`📱 All WhatsApp send attempts failed for ${formattedPhone}: ${fallbackErr.message}`);
-      return false;
+        this.logger.log(`📱 Template "teste_conexao" sent to ${formattedPhone}, now sending text follow-up`);
+        templateSent = true;
+      } catch (fallbackErr: any) {
+        this.logger.error(`📱 All template attempts failed for ${formattedPhone}: ${fallbackErr.message}`);
+        return false;
+      }
     }
+
+    // 3. Template opened the 24h window — now send the actual message as text
+    if (templateSent) {
+      // Small delay to ensure Meta processes the template before the text
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      try {
+        await this.metaRequest(token, phoneNumberId, {
+          messaging_product: 'whatsapp',
+          to: formattedPhone,
+          type: 'text',
+          text: { body: message },
+        });
+
+        this.logger.log(`📱 WhatsApp text follow-up sent to ${formattedPhone}`);
+        return true;
+      } catch (textErr: any) {
+        this.logger.warn(`📱 Text follow-up failed after template: ${textErr.message}`);
+        // Template was sent at least, so partial success
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
