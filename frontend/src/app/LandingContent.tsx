@@ -609,7 +609,8 @@ export default function LandingContent() {
                 const showYearly = billingCycle === "yearly" && yearlyCents;
                 const displayPrice = showYearly ? yearlyCents / 12 : monthlyCents;
                 const savings = yearlyCents ? Math.round(((monthlyCents * 12 - yearlyCents) / (monthlyCents * 12)) * 100) : 0;
-                const featureList: string[] = [
+                // Structured features from dedicated DB fields
+                const structuredFeatures: string[] = [
                   plan.maxUsers >= 999 ? "Usuarios ilimitados" : `Ate ${plan.maxUsers} usuario${plan.maxUsers !== 1 ? "s" : ""} gestores`,
                   plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mes`,
                   plan.maxTechnicians === 0 || plan.maxTechnicians == null
@@ -623,6 +624,10 @@ export default function LandingContent() {
                     : plan.supportLevel === "EMAIL_CHAT" ? "Suporte por e-mail e chat"
                     : "Suporte por e-mail",
                 ].filter(Boolean);
+                // Extra features from free-text field (filter out redundant ones already covered by structured fields)
+                const skipPatterns = /tecnico|suporte|modulo|usuario|assistente|msgs? ia|\bos\b/i;
+                const extraFeatures = (plan.features || []).filter((f: string) => !skipPatterns.test(f));
+                const featureList = [...structuredFeatures, ...extraFeatures];
 
                 return (
                   <div
