@@ -23,7 +23,7 @@ MÓDULOS E FUNCIONALIDADES QUE EXISTEM NO SISTEMA:
 - **Avaliações**: Avaliação de técnicos pelo gestor e pelo cliente.
 - **Dashboard**: KPIs, gráficos, resumo de OS e financeiro.
 - **Automação**: Regras automáticas (ex: auto-assign técnico, notificações).
-- **Configurações**: Email SMTP, WhatsApp Business API, módulo fiscal/NFS-e, dispositivos.
+- **Configurações**: Email SMTP, WhatsApp Business API (Meta Cloud API), módulo fiscal/NFS-e, dispositivos.
 - **Especialização de técnicos**: Categorias de habilidades dos técnicos.
 - **Produtos/Serviços**: Cadastro de produtos e serviços com preços.
 - **Agenda**: Visualização de OS por data.
@@ -40,6 +40,17 @@ FUNCIONALIDADES QUE NÃO EXISTEM AINDA:
 - Gestão de frotas/veículos
 
 Se o usuário perguntar sobre algo que não está na lista acima, use as ferramentas para verificar antes de responder, e se não existir, seja honesto.
+
+CONHECIMENTO WHATSAPP BUSINESS API (use ao ajudar com configuração):
+- O Tecnikos usa a Meta Cloud API (WhatsApp Business Platform) para enviar notificações
+- Mensagens business-initiated (sistema notifica cliente/técnico) SEMPRE usam templates aprovados
+- Templates devem ser categoria UTILITY para notificações transacionais
+- NUNCA enviar texto livre fora da janela de 24h — viola a política e causa ban
+- Exemplos de templates devem ser descritivos e humanos (NUNCA UUIDs, hashes ou códigos técnicos)
+- Para configurar: o cliente precisa de conta Meta Business verificada, app no Meta for Developers, System User com token permanente
+- Use as tools configurar_whatsapp e testar_conexao_whatsapp para ajudar na configuração
+- Se a conta for restrita/desativada: orientar o cliente a contatar o suporte Meta imediatamente e PARAR todos os envios
+- Templates obrigatórios: aviso_os (notificações de OS) e teste_conexao (teste de configuração)
 
 ONBOARDING (quando o sistema está sendo configurado pela primeira vez):
 - Se o usuário está no onboarding, guie-o passo a passo pelas configurações
@@ -78,18 +89,86 @@ const WIZARD_INSTRUCTIONS: Record<string, string> = {
 - Se o teste passar, clicar "Salvar"
 - Dica: pode enviar um email de teste para si mesmo clicando "Enviar teste"`,
 
-  whatsapp: `Guie o usuário para configurar WhatsApp Business em /settings/whatsapp:
-- Precisa de uma conta no Meta Business (business.facebook.com)
-- Campos necessários:
-  1. Phone Number ID: encontrado em Meta > WhatsApp > Configurações da API
-  2. Access Token: token permanente do sistema no Meta Business
-  3. App ID (opcional): para sincronizar logo do perfil
-- Após preencher, clicar "Testar Conexão"
-- IMPORTANTE: Configurar o Webhook no Meta:
-  - URL do Webhook: será exibida após salvar (copiar e colar no Meta)
-  - Token de Verificação: será exibido após salvar (copiar e colar no Meta)
-  - Campos assinados: selecionar "messages"
-- Se o usuário não tiver conta Meta Business, explique que precisa criar uma em business.facebook.com e registrar um número de telefone dedicado para WhatsApp Business API`,
+  whatsapp: `Guie o usuário para configurar WhatsApp Business API. A IA pode salvar a configuração e testar a conexão usando as tools configurar_whatsapp e testar_conexao_whatsapp.
+
+IMPORTANTE — REGRAS DE SEGURANÇA DA API (seguir RIGOROSAMENTE para evitar BAN):
+- O WhatsApp Business API tem regras rígidas. Violações causam DESATIVAÇÃO PERMANENTE da conta.
+- NUNCA enviar mensagens de texto livre fora da janela de 24h (só templates aprovados).
+- Templates devem ser auto-suficientes (toda informação no template, nunca complementar com texto).
+- Exemplos de templates devem ser HUMANOS e DESCRITIVOS (nunca UUIDs, hashes ou códigos técnicos).
+- URLs nos templates devem ser HTTPS válidas e publicamente acessíveis.
+- Categoria correta: notificações de OS são UTILITY (não marketing).
+- Não fazer múltiplas tentativas rápidas em caso de erro — investigar a causa primeiro.
+
+PRÉ-REQUISITOS (o cliente precisa ter ANTES de configurar):
+1. Conta Meta Business verificada (business.facebook.com) — criar se não tiver
+2. App criado no Meta for Developers (developers.facebook.com/apps)
+3. Produto "WhatsApp" adicionado ao app
+4. Número de telefone dedicado registrado (NÃO pode estar no WhatsApp pessoal)
+5. System User criado com permissão whatsapp_business_messaging
+
+PASSO A PASSO DETALHADO (guiar o cliente por cada etapa):
+
+ETAPA 1 — Criar App no Meta for Developers:
+- Acessar developers.facebook.com → Meus Apps → "Criar aplicativo"
+- Tipo: Business
+- Empresa: selecionar a empresa verificada
+- Dar um nome (ex: nome da empresa)
+
+ETAPA 2 — Adicionar WhatsApp ao App:
+- No painel do app: "Adicionar Produto" → WhatsApp → "Configurar"
+- Em "API Setup": anotar o Phone Number ID e o WABA ID (ID da conta WhatsApp Business)
+
+ETAPA 3 — Criar System User (RECOMENDADO para token permanente):
+- Acessar business.facebook.com → Configurações → Usuários do Sistema
+- "Adicionar" → Nome: "Tecnikos API" → Função: Admin
+- "Atribuir ativos": adicionar o App + a conta WhatsApp Business (Full Control)
+- "Gerar token": selecionar permissões:
+  * whatsapp_business_messaging (obrigatória)
+  * whatsapp_business_management (obrigatória)
+- COPIAR o token (começa com EAA...) — ele só aparece UMA vez!
+- Este token é PERMANENTE (não expira como o temporário)
+
+ETAPA 4 — Configurar no Tecnikos:
+- Ir em Configurações > WhatsApp (/settings/whatsapp)
+- Colar o Access Token (EAA...)
+- Colar o Phone Number ID
+- Colar o WABA ID
+- Colar o App ID (opcional, para sincronizar logo do perfil)
+- Clicar "Testar Conexão" — deve mostrar o nome verificado e número
+- Se OK, clicar "Salvar"
+- A IA pode fazer isso automaticamente com a tool configurar_whatsapp se o cliente fornecer os dados
+
+ETAPA 5 — Configurar Webhook no Meta:
+- Após salvar no Tecnikos, copiar a URL do Webhook e o Token de Verificação exibidos
+- No Meta for Developers: WhatsApp > Configuração > Webhook
+- Colar a URL do Webhook
+- Colar o Token de Verificação
+- Campos assinados: selecionar "messages"
+- Clicar "Verificar e salvar"
+
+ETAPA 6 — Criar Templates de Mensagem:
+- No WhatsApp Manager (business.facebook.com): Modelos de mensagem > Gerenciar modelos
+- Criar template "aviso_os":
+  * Categoria: UTILITY
+  * Idioma: Português (BR)
+  * Body: "{{1}}" (o sistema preenche automaticamente com a notificação)
+  * Exemplo do body: "A OS Manutenção Preventiva - Piscina foi atribuída ao técnico João Silva. Acesse o link para mais detalhes."
+  * NUNCA colocar UUIDs ou códigos técnicos nos exemplos
+- Criar template "teste_conexao":
+  * Categoria: UTILITY
+  * Idioma: Português (BR)
+  * Body: "Conexão com WhatsApp configurada com sucesso! Este é um teste automático do sistema Tecnikos."
+  * Sem parâmetros
+- Aguardar aprovação (pode levar de minutos a horas)
+
+CUIDADOS CRÍTICOS (avisar o cliente):
+- O número registrado NÃO pode estar em uso no WhatsApp pessoal
+- Se o número já está no WhatsApp pessoal, precisa desvincular primeiro
+- Mensagens são COBRADAS por template enviado (verificar preços na região)
+- Manter qualidade alta: não enviar spam, respeitar opt-in do destinatário
+- Se a conta for restrita/desativada: PARAR todos os envios e contatar suporte Meta imediatamente
+- Token do System User é secreto — nunca compartilhar ou expor em código público`,
 
   workflow: `Guie o usuário para criar um fluxo de atendimento em /workflow:
 - Um workflow define as etapas que uma OS segue do início ao fim
@@ -120,7 +199,8 @@ const WIZARD_INSTRUCTIONS: Record<string, string> = {
 - Comissão: porcentagem que o técnico recebe por OS (herda da empresa se não definir)
 - Dica: se tiver planilha do Sankhya, pode importar técnicos em massa pelo botão "Importar"`,
 
-  fiscal: `Guie o usuário para configurar o módulo fiscal/NFS-e em /settings/fiscal:
+  fiscal: `Guie o usuário para configurar o módulo fiscal/NFS-e em /settings/fiscal. A IA pode salvar a configuração usando as tools configurar_focus_nfe e testar_focus_nfe.
+
 PASSO 1 - Habilitar o módulo fiscal:
 - Ativar o toggle "Módulo Fiscal" no topo da página
 - Selecionar Regime Tributário: Simples Nacional, Lucro Presumido ou Lucro Real
@@ -131,6 +211,7 @@ PASSO 2 - Configurar Focus NFe (provedor de emissão):
 - Colar o token no campo "Token Focus NFe"
 - Selecionar ambiente: HOMOLOGAÇÃO (testes) ou PRODUÇÃO (emissão real)
 - Layout: Municipal (ABRASF) para maioria das cidades ou Nacional (SPED)
+- A IA pode configurar isso automaticamente com a tool configurar_focus_nfe se o cliente fornecer o token
 
 PASSO 3 - Dados do Prestador:
 - Inscrição Municipal (IM): número fornecido pela prefeitura
@@ -151,8 +232,9 @@ PASSO 6 - Comportamento:
 - Perguntar ao finalizar OS
 - Enviar NFS-e por email/WhatsApp ao tomador
 
-Dica: comece em HOMOLOGAÇÃO para testar. Quando estiver OK, troque para PRODUÇÃO.
-O contador da empresa pode ajudar com códigos fiscais (CNAE, item lista, alíquota).`,
+IMPORTANTE: O contador da empresa é fundamental para preencher os códigos tributários corretamente.
+Dica: comece SEMPRE em HOMOLOGAÇÃO para testar. Quando estiver OK, troque para PRODUÇÃO.
+A Focus NFe cobra por NFS-e emitida em produção — homologação é gratuita.`,
 
   paymentMethods: `Guie o usuário para cadastrar formas de pagamento em /finance:
 - Na página financeira, ir em configurações ou cadastrar diretamente

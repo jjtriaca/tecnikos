@@ -105,6 +105,19 @@ Colunas mapeadas: Nome Parceiro, CNPJ/CPF, Tipo de pessoa, Cliente, Fornecedor, 
 8. **Dashboard** - KPIs e resumos
 9. **Specializations** - Especializacoes de tecnicos
 
+## ALERTA: APIs Externas com Risco de Ban (Meta, Focus NFe, etc.)
+Quando o contexto envolver QUALQUER API da Meta (WhatsApp Business, Facebook, Instagram) ou Focus NFe:
+1. **ACENDER ALERTA** — essas APIs tem regras rigidas e consequencias graves (ban, desativacao permanente)
+2. **CONSULTAR** os arquivos de memoria ANTES de qualquer alteracao:
+   - `memory/whatsapp-business-api-research.md` — documentacao completa da API
+   - `memory/whatsapp-lessons-learned.md` — erros cometidos e regras de ouro
+3. **NUNCA** implementar baseado em suposicoes — estudar documentacao oficial primeiro
+4. **NUNCA** fazer multiplos deploys rapidos com mudancas de comportamento na integracao
+5. **TESTAR** com 1 numero/caso primeiro, nunca em producao direto
+6. **ATUALIZAR** todos os arquivos de memoria se houver novo aprendizado ou mudanca de entendimento
+7. **IA Embarcada**: as tools da IA (configurar_whatsapp, testar_conexao_whatsapp, configurar_focus_nfe, testar_focus_nfe) permitem configuracao pelo gestor, mas NUNCA devem ser uma janela de entrada no sistema — apenas configuracoes liberadas para o perfil ADMIN
+8. **Sincronismo obrigatorio**: Sempre que houver melhorias/mudancas sobre API WhatsApp ou Focus NFe, ATUALIZAR AUTOMATICAMENTE: (a) arquivos de memoria, (b) tools da IA embarcada, (c) wizard instructions, (d) system prompt da IA. Manter TUDO sincronizado e atualizado.
+
 ## Convencoes
 - Commits: conventional commits (feat:, fix:, release:, etc.)
 - Idioma do codigo: ingles (nomes de variaveis, funcoes)

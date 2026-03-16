@@ -109,6 +109,62 @@ export const CHAT_IA_TOOLS: ToolDefinition[] = [
       required: ['configuracao'],
     },
   },
+  {
+    name: 'configurar_whatsapp',
+    description:
+      'Configura o WhatsApp Business API no sistema. Salva as credenciais, testa a conexão e retorna a URL do webhook para o cliente configurar no Meta. IMPORTANTE: o Access Token deve começar com EAA.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        accessToken: { type: 'string', description: 'Access Token do System User (começa com EAA...)' },
+        phoneNumberId: { type: 'string', description: 'Phone Number ID do Meta (número do endpoint, NÃO é o telefone)' },
+        wabaId: { type: 'string', description: 'WhatsApp Business Account ID (WABA ID)' },
+        appId: { type: 'string', description: 'App ID do Meta for Developers (opcional, para sincronizar logo)' },
+      },
+      required: ['accessToken', 'phoneNumberId'],
+    },
+  },
+  {
+    name: 'testar_conexao_whatsapp',
+    description:
+      'Testa a conexão do WhatsApp já configurado. Verifica se o token ainda é válido, mostra o número conectado, qualidade da conta e lista os templates existentes.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'configurar_focus_nfe',
+    description:
+      'Configura o módulo fiscal Focus NFe no sistema. Salva token, ambiente (HOMOLOGATION/PRODUCTION), dados fiscais do prestador e códigos tributários. Requer que o módulo fiscal esteja habilitado na empresa.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        focusNfeToken: { type: 'string', description: 'Token da API Focus NFe (obtido em app.focusnfe.com.br)' },
+        focusNfeEnvironment: { type: 'string', description: 'Ambiente: HOMOLOGATION (testes) ou PRODUCTION (real)', enum: ['HOMOLOGATION', 'PRODUCTION'] },
+        inscricaoMunicipal: { type: 'string', description: 'Inscrição Municipal do prestador' },
+        codigoMunicipio: { type: 'string', description: 'Código IBGE do município (7 dígitos)' },
+        naturezaOperacao: { type: 'string', description: 'Natureza da operação (1 a 6). 1=Tributação no município' },
+        optanteSimplesNacional: { type: 'boolean', description: 'Se a empresa é optante pelo Simples Nacional' },
+        itemListaServico: { type: 'string', description: 'Código do item na Lista de Serviços LC 116 (ex: 1401)' },
+        codigoCnae: { type: 'string', description: 'Código CNAE do serviço (7 dígitos)' },
+        codigoTributarioMunicipio: { type: 'string', description: 'Código tributário municipal do serviço' },
+        aliquotaIss: { type: 'number', description: 'Alíquota ISS em percentual (ex: 2, 3, 5)' },
+        nfseLayout: { type: 'string', description: 'Layout: MUNICIPAL (ABRASF) ou NACIONAL (SPED)', enum: ['MUNICIPAL', 'NACIONAL'] },
+        autoEmitOnEntry: { type: 'boolean', description: 'Auto-emitir NFS-e ao criar lançamento a receber' },
+      },
+      required: ['focusNfeToken'],
+    },
+  },
+  {
+    name: 'testar_focus_nfe',
+    description:
+      'Testa a conexão do Focus NFe já configurado. Verifica se o token é válido, mostra o ambiente (homologação/produção) e o status da configuração fiscal.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 /**
@@ -135,6 +191,14 @@ export async function executeTool(
         return await getCompanyInfo(db);
       case 'verificar_configuracao':
         return await checkConfiguration(db, input);
+      case 'configurar_whatsapp':
+        return await configureWhatsApp(db, input);
+      case 'testar_conexao_whatsapp':
+        return await testWhatsAppConnection(db);
+      case 'configurar_focus_nfe':
+        return await configureFocusNfe(db, input);
+      case 'testar_focus_nfe':
+        return await testFocusNfe(db);
       default:
         return JSON.stringify({ error: `Tool "${toolName}" não encontrada` });
     }
@@ -478,5 +542,400 @@ async function checkConfiguration(db: any, input: Record<string, any>): Promise<
     }
     default:
       return JSON.stringify({ error: `Configuração "${config}" não reconhecida` });
+  }
+}
+
+// ── WhatsApp Configuration Tools ────────────────────────
+
+async function configureWhatsApp(db: any, input: Record<string, any>): Promise<string> {
+  const { accessToken, phoneNumberId, wabaId, appId } = input;
+
+  if (!accessToken || !phoneNumberId) {
+    return JSON.stringify({ error: 'Access Token e Phone Number ID são obrigatórios' });
+  }
+
+  if (!accessToken.startsWith('EAA')) {
+    return JSON.stringify({ error: 'O Access Token deve começar com "EAA". Verifique se copiou o token completo do System User.' });
+  }
+
+  // Test connection first
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      const msg = error?.error?.message || `HTTP ${res.status}`;
+      return JSON.stringify({
+        success: false,
+        error: `Teste de conexão falhou: ${msg}. Verifique se o Phone Number ID e o Access Token estão corretos.`,
+      });
+    }
+
+    const data = await res.json();
+    const displayName = data.verified_name || data.display_phone_number || 'Desconhecido';
+    const phoneNumber = data.display_phone_number || '';
+
+    // Encrypt token using same logic as EncryptionService
+    const crypto = require('crypto');
+    const envKey = process.env.ENCRYPTION_KEY;
+    let key: Buffer;
+    if (envKey) {
+      key = Buffer.from(envKey, 'hex');
+    } else {
+      const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
+      key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
+    }
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    let encrypted = cipher.update(accessToken, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    const authTag = cipher.getAuthTag().toString('base64');
+    const encryptedToken = `${iv.toString('base64')}:${authTag}:${encrypted}`;
+
+    const verifyToken = crypto.randomBytes(16).toString('hex');
+
+    // Save config
+    const company = await db.company.findFirst({ select: { id: true } });
+    if (!company) {
+      return JSON.stringify({ error: 'Empresa não encontrada' });
+    }
+
+    await db.whatsAppConfig.upsert({
+      where: { companyId: company.id },
+      create: {
+        companyId: company.id,
+        metaAccessToken: encryptedToken,
+        metaPhoneNumberId: phoneNumberId,
+        metaWabaId: wabaId || null,
+        metaAppId: appId || null,
+        metaVerifyToken: verifyToken,
+        isConnected: true,
+        connectedAt: new Date(),
+      },
+      update: {
+        metaAccessToken: encryptedToken,
+        metaPhoneNumberId: phoneNumberId,
+        metaWabaId: wabaId || null,
+        metaAppId: appId || null,
+        isConnected: true,
+        connectedAt: new Date(),
+      },
+    });
+
+    const domain = process.env.DOMAIN || 'tecnikos.com.br';
+    const webhookUrl = `https://${domain}/api/whatsapp/webhook/meta/${company.id}`;
+
+    return JSON.stringify({
+      success: true,
+      message: `WhatsApp conectado com sucesso! Número: ${phoneNumber}, Nome: ${displayName}`,
+      webhookUrl,
+      verifyToken,
+      proximosPasso: 'Agora configure o Webhook no Meta for Developers com a URL e Token acima, e crie os templates de mensagem (aviso_os e teste_conexao).',
+    });
+  } catch (err: any) {
+    return JSON.stringify({
+      success: false,
+      error: `Erro ao conectar: ${err.message}. Verifique sua conexão e tente novamente.`,
+    });
+  }
+}
+
+async function testWhatsAppConnection(db: any): Promise<string> {
+  const config = await db.whatsAppConfig.findFirst({
+    select: { metaAccessToken: true, metaPhoneNumberId: true, metaWabaId: true, isConnected: true, metaVerifyToken: true },
+  });
+
+  if (!config) {
+    return JSON.stringify({ status: 'Não configurado', message: 'WhatsApp ainda não foi configurado. Use a tool configurar_whatsapp ou acesse /settings/whatsapp.' });
+  }
+
+  if (!config.isConnected) {
+    return JSON.stringify({ status: 'Desconectado', message: 'WhatsApp foi desconectado. Reconfigure em /settings/whatsapp.' });
+  }
+
+  try {
+    const crypto = require('crypto');
+    const envKey = process.env.ENCRYPTION_KEY;
+    let key: Buffer;
+    if (envKey) {
+      key = Buffer.from(envKey, 'hex');
+    } else {
+      const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
+      key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
+    }
+
+    const parts = config.metaAccessToken.split(':');
+    if (parts.length !== 3) {
+      return JSON.stringify({ status: 'Erro', message: 'Token armazenado está corrompido. Reconfigure em /settings/whatsapp.' });
+    }
+
+    const iv = Buffer.from(parts[0], 'base64');
+    const authTag = Buffer.from(parts[1], 'base64');
+    const encData = parts[2];
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    let token = decipher.update(encData, 'base64', 'utf8');
+    token += decipher.final('utf8');
+
+    const res = await fetch(`https://graph.facebook.com/v21.0/${config.metaPhoneNumberId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      const msg = error?.error?.message || `HTTP ${res.status}`;
+      return JSON.stringify({
+        status: 'Erro',
+        message: `Conexão falhou: ${msg}. O token pode ter expirado ou as permissões foram revogadas. Reconfigure em /settings/whatsapp.`,
+      });
+    }
+
+    const data = await res.json();
+
+    let templates: any[] = [];
+    if (config.metaWabaId) {
+      try {
+        const tplRes = await fetch(`https://graph.facebook.com/v21.0/${config.metaWabaId}/message_templates?limit=20`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const tplData = await tplRes.json();
+        templates = (tplData.data || []).map((t: any) => ({
+          nome: t.name,
+          status: t.status,
+          categoria: t.category,
+          idioma: t.language,
+        }));
+      } catch { /* ignore */ }
+    }
+
+    const domain = process.env.DOMAIN || 'tecnikos.com.br';
+    const company = await db.company.findFirst({ select: { id: true } });
+
+    return JSON.stringify({
+      status: 'Conectado',
+      numero: data.display_phone_number,
+      nomeVerificado: data.verified_name,
+      qualidade: data.quality_rating || 'N/A',
+      templates: templates.length > 0 ? templates : 'Nenhum template encontrado. Crie os templates aviso_os e teste_conexao no WhatsApp Manager.',
+      webhookUrl: company ? `https://${domain}/api/whatsapp/webhook/meta/${company.id}` : null,
+      verifyToken: config.metaVerifyToken,
+    });
+  } catch (err: any) {
+    return JSON.stringify({
+      status: 'Erro',
+      message: `Erro ao testar: ${err.message}`,
+    });
+  }
+}
+
+// ── Focus NFe Configuration Tools ───────────────────────
+
+async function configureFocusNfe(db: any, input: Record<string, any>): Promise<string> {
+  const { focusNfeToken, ...restInput } = input;
+
+  if (!focusNfeToken) {
+    return JSON.stringify({ error: 'Token da Focus NFe é obrigatório. Obtenha em app.focusnfe.com.br' });
+  }
+
+  // Check if fiscal module is enabled
+  const company = await db.company.findFirst({ select: { id: true, fiscalEnabled: true } });
+  if (!company) {
+    return JSON.stringify({ error: 'Empresa não encontrada' });
+  }
+
+  if (!company.fiscalEnabled) {
+    return JSON.stringify({
+      error: 'O módulo fiscal não está habilitado. Ative-o primeiro em Configurações > Fiscal (/settings/fiscal) usando o toggle "Módulo Fiscal".',
+      href: '/settings/fiscal',
+    });
+  }
+
+  // Test token by calling Focus NFe API
+  const env = input.focusNfeEnvironment || 'HOMOLOGATION';
+  const baseUrl = env === 'PRODUCTION'
+    ? 'https://api.focusnfe.com.br'
+    : 'https://homologacao.focusnfe.com.br';
+
+  try {
+    const authHeader = 'Basic ' + Buffer.from(focusNfeToken + ':').toString('base64');
+    const res = await fetch(`${baseUrl}/v2/nfse?limit=1`, {
+      headers: { Authorization: authHeader },
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      return JSON.stringify({
+        success: false,
+        error: `Token inválido para o ambiente ${env === 'PRODUCTION' ? 'Produção' : 'Homologação'}. Verifique o token em app.focusnfe.com.br.`,
+      });
+    }
+
+    // Encrypt token
+    const crypto = require('crypto');
+    const envKey = process.env.ENCRYPTION_KEY;
+    let key: Buffer;
+    if (envKey) {
+      key = Buffer.from(envKey, 'hex');
+    } else {
+      const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
+      key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
+    }
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    let encrypted = cipher.update(focusNfeToken, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    const authTag = cipher.getAuthTag().toString('base64');
+    const encryptedToken = `${iv.toString('base64')}:${authTag}:${encrypted}`;
+
+    // Build update data - only include provided fields
+    const configData: any = {
+      focusNfeToken: encryptedToken,
+      focusNfeEnvironment: env,
+    };
+
+    if (restInput.inscricaoMunicipal !== undefined) configData.inscricaoMunicipal = restInput.inscricaoMunicipal;
+    if (restInput.codigoMunicipio !== undefined) configData.codigoMunicipio = restInput.codigoMunicipio;
+    if (restInput.naturezaOperacao !== undefined) configData.naturezaOperacao = restInput.naturezaOperacao;
+    if (restInput.optanteSimplesNacional !== undefined) configData.optanteSimplesNacional = restInput.optanteSimplesNacional;
+    if (restInput.itemListaServico !== undefined) configData.itemListaServico = restInput.itemListaServico;
+    if (restInput.codigoCnae !== undefined) configData.codigoCnae = restInput.codigoCnae;
+    if (restInput.codigoTributarioMunicipio !== undefined) configData.codigoTributarioMunicipio = restInput.codigoTributarioMunicipio;
+    if (restInput.aliquotaIss !== undefined) configData.aliquotaIss = restInput.aliquotaIss;
+    if (restInput.nfseLayout !== undefined) configData.nfseLayout = restInput.nfseLayout;
+    if (restInput.autoEmitOnEntry !== undefined) configData.autoEmitOnEntry = restInput.autoEmitOnEntry;
+
+    await db.nfseConfig.upsert({
+      where: { companyId: company.id },
+      create: { companyId: company.id, ...configData },
+      update: configData,
+    });
+
+    const pendingFields: string[] = [];
+    if (!restInput.inscricaoMunicipal) pendingFields.push('Inscrição Municipal');
+    if (!restInput.codigoMunicipio) pendingFields.push('Código do Município (IBGE)');
+    if (!restInput.itemListaServico) pendingFields.push('Item Lista de Serviço');
+    if (!restInput.aliquotaIss) pendingFields.push('Alíquota ISS');
+
+    return JSON.stringify({
+      success: true,
+      message: `Focus NFe configurado com sucesso! Ambiente: ${env === 'PRODUCTION' ? 'Produção' : 'Homologação'}.`,
+      camposPendentes: pendingFields.length > 0
+        ? `Campos ainda não preenchidos (necessários para emissão): ${pendingFields.join(', ')}. Complete em /settings/fiscal.`
+        : 'Todos os campos principais estão preenchidos.',
+      dica: env === 'HOMOLOGATION'
+        ? 'Você está em Homologação (testes). Quando estiver pronto, troque para Produção.'
+        : 'Você está em Produção. NFS-e emitidas serão REAIS.',
+    });
+  } catch (err: any) {
+    return JSON.stringify({
+      success: false,
+      error: `Erro ao configurar: ${err.message}`,
+    });
+  }
+}
+
+async function testFocusNfe(db: any): Promise<string> {
+  const company = await db.company.findFirst({ select: { id: true, fiscalEnabled: true, taxRegime: true } });
+  if (!company) {
+    return JSON.stringify({ status: 'Erro', message: 'Empresa não encontrada' });
+  }
+
+  if (!company.fiscalEnabled) {
+    return JSON.stringify({
+      status: 'Desabilitado',
+      message: 'O módulo fiscal não está habilitado. Ative em Configurações > Fiscal.',
+      href: '/settings/fiscal',
+    });
+  }
+
+  const config = await db.nfseConfig.findFirst().catch(() => null);
+  if (!config) {
+    return JSON.stringify({
+      status: 'Não configurado',
+      message: 'Configuração fiscal não encontrada. Configure em /settings/fiscal.',
+      href: '/settings/fiscal',
+    });
+  }
+
+  if (!config.focusNfeToken) {
+    return JSON.stringify({
+      status: 'Sem token',
+      message: 'Token da Focus NFe não configurado. Obtenha em app.focusnfe.com.br e configure em /settings/fiscal.',
+      href: '/settings/fiscal',
+    });
+  }
+
+  // Decrypt and test token
+  try {
+    const crypto = require('crypto');
+    const envKey = process.env.ENCRYPTION_KEY;
+    let key: Buffer;
+    if (envKey) {
+      key = Buffer.from(envKey, 'hex');
+    } else {
+      const secret = process.env.JWT_SECRET || 'tecnikos-default-secret';
+      key = crypto.scryptSync(secret, 'tecnikos-salt', 32);
+    }
+
+    const parts = config.focusNfeToken.split(':');
+    if (parts.length !== 3) {
+      return JSON.stringify({ status: 'Erro', message: 'Token armazenado está corrompido. Reconfigure em /settings/fiscal.' });
+    }
+
+    const iv = Buffer.from(parts[0], 'base64');
+    const authTag = Buffer.from(parts[1], 'base64');
+    const encData = parts[2];
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    let token = decipher.update(encData, 'base64', 'utf8');
+    token += decipher.final('utf8');
+
+    const baseUrl = config.focusNfeEnvironment === 'PRODUCTION'
+      ? 'https://api.focusnfe.com.br'
+      : 'https://homologacao.focusnfe.com.br';
+
+    const authHeader = 'Basic ' + Buffer.from(token + ':').toString('base64');
+    const res = await fetch(`${baseUrl}/v2/nfse?limit=1`, {
+      headers: { Authorization: authHeader },
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      return JSON.stringify({
+        status: 'Token inválido',
+        message: 'O token da Focus NFe foi recusado. Pode ter expirado ou estar incorreto. Reconfigure em /settings/fiscal.',
+      });
+    }
+
+    // Check completeness
+    const missing: string[] = [];
+    if (!config.inscricaoMunicipal) missing.push('Inscrição Municipal');
+    if (!config.codigoMunicipio) missing.push('Código do Município');
+    if (!config.itemListaServico) missing.push('Item Lista de Serviço');
+    if (!config.aliquotaIss) missing.push('Alíquota ISS');
+    if (!config.codigoCnae) missing.push('CNAE');
+
+    return JSON.stringify({
+      status: 'Conectado',
+      ambiente: config.focusNfeEnvironment === 'PRODUCTION' ? 'Produção' : 'Homologação',
+      layout: config.nfseLayout || 'MUNICIPAL',
+      regimeTributario: company.taxRegime || 'Não definido',
+      inscricaoMunicipal: config.inscricaoMunicipal || 'Não preenchido',
+      codigoMunicipio: config.codigoMunicipio || 'Não preenchido',
+      simplesNacional: config.optanteSimplesNacional ? 'Sim' : 'Não',
+      aliquotaIss: config.aliquotaIss ? `${config.aliquotaIss}%` : 'Não definida',
+      autoEmissao: config.autoEmitOnEntry ? 'Ativada' : 'Desativada',
+      camposFaltando: missing.length > 0 ? missing : 'Nenhum — configuração completa!',
+      dica: missing.length > 0
+        ? `Complete os campos faltantes em /settings/fiscal para poder emitir NFS-e. O contador da empresa pode ajudar com os códigos tributários.`
+        : config.focusNfeEnvironment === 'HOMOLOGATION'
+          ? 'Tudo configurado! Faça um teste de emissão em Homologação antes de trocar para Produção.'
+          : 'Tudo configurado e em Produção! Pronto para emitir NFS-e.',
+    });
+  } catch (err: any) {
+    return JSON.stringify({
+      status: 'Erro',
+      message: `Erro ao testar: ${err.message}`,
+    });
   }
 }

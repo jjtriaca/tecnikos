@@ -1,39 +1,49 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 115 — Unificar Create/Edit OS + Fixes (CONCLUIDO)
+## Status: SESSAO 118 — Continuacao pos-compactacao
 
-## Ultima sessao: 115 (16/03/2026)
-- Sessao 113: Revisao Workflow vs Spec + Fixes (v1.03.61)
-- Sessao 114: Fix link mobile vs pageLayout config + DIRECTED fix + checklist UX (v1.03.65)
+## Ultima sessao: 117 (16/03/2026)
 - Sessao 115: Unificar create/edit OS form (v1.03.66)
+- Sessao 116: Field restrictions by status + deploy (v1.03.67)
+- Sessao 117: WhatsApp notification fix + API research (v1.03.68-70)
 
-## O que foi feito nesta sessao:
+## O que foi feito nas sessoes 116-117 (compactadas):
 
-### Unificacao Create/Edit OS (v1.03.66)
-- [x] Backend: `items` adicionado ao `UpdateServiceOrderDto` (replace strategy: delete all + recreate)
-- [x] Backend: `service-order.service.ts` processa items no update com recalculo de valueCents
-- [x] Frontend: `NewOrderPage` aceita `editId` prop para modo dual
-- [x] Frontend: `OrderForm` named export com Suspense wrapper
-- [x] Frontend: useEffect carrega OS existente (client, items, address, city, tech assignment, timeouts, return, scheduling)
-- [x] Frontend: handleSubmit usa PUT quando editId presente, POST quando criando
-- [x] Frontend: Breadcrumb contextual (Nova OS vs Editar > OS Title)
-- [x] Frontend: Status badge no header quando editando
-- [x] Frontend: Terminal status warning + disabled submit
-- [x] Frontend: Description textarea (edit mode only)
-- [x] Frontend: Tempos Limite section (accept/en-route timeouts) em CollapsibleSection (edit mode only)
-- [x] Frontend: Cancel link vai para detalhe da OS no edit mode
-- [x] Frontend: Loading skeleton enquanto carrega OS para editar
-- [x] Frontend: `orders/[id]/edit/page.tsx` reduzido de ~1250 linhas para 14 linhas (wrapper)
-- [x] TypeScript clean (backend + frontend)
+### Restricao de campos por status da OS (v1.03.67)
+- [x] ABERTA: todos os campos editaveis
+- [x] OFERTADA: tipo atendimento bloqueado
+- [x] ATRIBUIDA: cliente/endereco/servicos/tipo bloqueados
+- [x] EM_EXECUCAO: so descricao/prazo/contato/timeouts editaveis
+- [x] AJUSTE: descricao/prazo/contato/servicos/timeouts editaveis
+- [x] Terminal: tudo bloqueado
 
-## Arquivos modificados:
-- `backend/src/service-order/dto/update-service-order.dto.ts` — items field
-- `backend/src/service-order/service-order.service.ts` — items processing no update
-- `frontend/src/app/(dashboard)/orders/new/page.tsx` — dual mode create/edit
-- `frontend/src/app/(dashboard)/orders/[id]/edit/page.tsx` — wrapper simples
+### WhatsApp notification fix (v1.03.68-70)
+- [x] Investigacao: OS criada mas notificacao via WhatsApp falhava (#135000)
+- [x] v1.03.68: Removido forceTemplate (errado - revertido)
+- [x] v1.03.69: Template+text strategy (errado - revertido)
+- [x] v1.03.70: Rewrite completo sendTextWithTemplateFallback seguindo docs oficiais
+- [x] Template self-contained (toda info no template, sem fallback text)
+- [x] Melhor error logging com codigos e mensagens completas
+- [x] Novo endpoint GET /whatsapp/templates para diagnostico
+- [x] Pesquisa completa da WhatsApp Business Cloud API salva em memory/
+
+### ROOT CAUSE DESCOBERTO:
+**Conta WhatsApp Business (SLS Sol e Lazer Solucoes) RESTRITA pelo Meta**
+- Causa erro #135000 em envios de template
+- Bloqueia edicao de templates tambem
+- PRECISA ser resolvido pelo Juliano no Meta Business Support
+- Nao e problema de codigo
+
+### Template aviso_os — edicao planejada (BLOQUEADA pela restricao):
+- Adicionar botao CTA URL: "Acessar OS"
+- URL dinamica: `https://sls.tecnikos.com.br/p/{{1}}`
+- Exemplo descriptivo (nao UUID)
+- Apos desbloqueio: atualizar codigo para enviar parametro do botao
 
 ## Pendente:
-- Deploy v1.03.66
+- **BLOQUEADO: Resolver restricao da conta WhatsApp no Meta Business Support**
+- Apos desbloqueio: editar template aviso_os com botao CTA
+- Apos template aprovado: atualizar codigo para enviar parametro do botao CTA
 - FUTURO: Verificacao visual completa do workflow editor
 - FUTURO: Mecanismo para clientes solicitarem melhorias
 - FUTURO: Contrato do cliente com a Tecnikos
@@ -41,7 +51,7 @@
 - FUTURO: Discutir/remover commissionBps global da empresa
 - FUTURO: Workflow config "Respeitar tecnico direcionado"
 
-## Versao atual: v1.03.66 (pronto para deploy)
+## Versao atual: v1.03.70 (deployed)
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar
