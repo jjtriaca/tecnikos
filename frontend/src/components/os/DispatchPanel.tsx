@@ -179,7 +179,7 @@ interface FloatingCardProps {
 }
 
 function FloatingCard({ d, position, zIndex, onFocus, onMove }: FloatingCardProps) {
-  const { removeDispatch, resendNotification, toggleMinimize } = useDispatch();
+  const { resendNotification, toggleMinimize } = useDispatch();
   const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
   const dragAreaRef = useRef<HTMLDivElement>(null);
 
@@ -238,26 +238,15 @@ function FloatingCard({ d, position, zIndex, onFocus, onMove }: FloatingCardProp
           {d.isUrgent && <span className="ml-1 rounded bg-red-500 px-1 py-0.5 text-[9px] font-bold">URGENTE</span>}
           {d.isReturn && <span className="ml-1 rounded bg-amber-500 px-1 py-0.5 text-[9px] font-bold">RETORNO</span>}
         </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleMinimize(); }}
-            className="rounded p-0.5 hover:bg-white/20"
-            title="Minimizar todas"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); removeDispatch(d.osId); }}
-            className="rounded p-0.5 hover:bg-white/20"
-            title="Fechar"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleMinimize(); }}
+          className="shrink-0 rounded p-0.5 hover:bg-white/20"
+          title="Minimizar todas"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
       </div>
 
       {/* Card body */}
