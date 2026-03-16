@@ -515,7 +515,6 @@ async function getCompanyInfo(db: any): Promise<string> {
     limiteOS: company.maxOsPerMonth === 0 ? 'Ilimitado' : `${company.maxOsPerMonth}/mês`,
     limiteUsuarios: company.maxUsers === 0 ? 'Ilimitado' : company.maxUsers,
     moduloFiscal: company.fiscalEnabled ? 'Habilitado' : 'Desabilitado',
-    comissaoPadrao: `${(company.commissionBps / 100).toFixed(1)}%`,
   });
 }
 

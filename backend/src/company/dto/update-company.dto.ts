@@ -89,31 +89,6 @@ export class UpdateCompanyDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  @Max(10000)
-  commissionBps?: number;
-
-  @IsOptional()
-  @IsBoolean()
-  commissionOverrideEnabled?: boolean;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  @Max(10000)
-  commissionMinBps?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  @Max(10000)
-  commissionMaxBps?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
   @Max(100)
   evalGestorWeight?: number;
 

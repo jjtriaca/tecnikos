@@ -1314,7 +1314,7 @@ export class WorkflowEngineService {
           include: {
             assignedPartner: { select: { id: true, name: true, phone: true, email: true } },
             clientPartner: { select: { id: true, name: true, phone: true, email: true } },
-            company: { select: { name: true, phone: true, email: true, commissionBps: true } },
+            company: { select: { name: true, phone: true, email: true } },
             items: { select: { serviceName: true, service: { select: { description: true } } } },
           },
         });
@@ -1340,7 +1340,7 @@ export class WorkflowEngineService {
         }
 
         // Build variable map for substitution
-        const commissionBps = notifySO.company?.commissionBps ?? 1000;
+        const commissionBps = notifySO.commissionBps ?? 0;
         const grossCents = notifySO.valueCents;
         const commissionCents = Math.round(grossCents * commissionBps / 10000);
         const netCents = grossCents - commissionCents;

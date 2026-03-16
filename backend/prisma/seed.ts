@@ -18,7 +18,6 @@ async function main() {
     create: {
       id: COMPANY_ID,
       name: 'Empresa Demo',
-      commissionBps: 1000,
     },
   });
   console.log(`✅ Company: ${company.name} (${company.id})`);

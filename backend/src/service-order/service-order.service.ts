@@ -744,8 +744,8 @@ export class ServiceOrderService {
 
     // Calculate financial entries preview
     const grossCents = so.valueCents;
-    const effectiveBps = (so as any).commissionBps ?? so.company.commissionBps;
-    const effectiveTechCents = (so as any).techCommissionCents ?? Math.round((grossCents * effectiveBps) / 10000);
+    const effectiveBps = so.commissionBps ?? 0;
+    const effectiveTechCents = so.techCommissionCents ?? Math.round((grossCents * effectiveBps) / 10000);
     const companyKeeps = grossCents - effectiveTechCents;
 
     const entries: Array<{
@@ -817,8 +817,8 @@ export class ServiceOrderService {
     }
 
     const grossCents = so.valueCents;
-    const effectiveBps = (so as any).commissionBps ?? so.company.commissionBps;
-    const effectiveTechCents = (so as any).techCommissionCents ?? Math.round((grossCents * effectiveBps) / 10000);
+    const effectiveBps = so.commissionBps ?? 0;
+    const effectiveTechCents = so.techCommissionCents ?? Math.round((grossCents * effectiveBps) / 10000);
     const companyKeeps = grossCents - effectiveTechCents;
 
     const isReturn = (so as any).isReturn ?? false;

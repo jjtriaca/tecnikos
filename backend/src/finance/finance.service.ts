@@ -116,14 +116,14 @@ export class FinanceService {
   async simulate(serviceOrderId: string, companyId: string) {
     const so = await this.prisma.serviceOrder.findUnique({
       where: { id: serviceOrderId },
-      include: { company: true, ledger: true },
+      include: { ledger: true },
     });
     if (!so) throw new NotFoundException('OS não encontrada');
     if (so.companyId !== companyId) throw new ForbiddenException('Acesso negado');
     if (so.ledger) throw new BadRequestException('Repasse já calculado');
 
     const gross = so.valueCents;
-    const bps = so.company.commissionBps;
+    const bps = so.commissionBps ?? 0;
     const commission = Math.round((gross * bps) / 10000);
     const net = gross - commission;
 
@@ -133,14 +133,14 @@ export class FinanceService {
   async confirm(serviceOrderId: string, companyId: string) {
     const so = await this.prisma.serviceOrder.findUnique({
       where: { id: serviceOrderId },
-      include: { company: true, ledger: true },
+      include: { ledger: true },
     });
     if (!so) throw new NotFoundException('OS não encontrada');
     if (so.companyId !== companyId) throw new ForbiddenException('Acesso negado');
     if (so.ledger) throw new BadRequestException('Repasse já confirmado');
 
     const gross = so.valueCents;
-    const bps = so.company.commissionBps;
+    const bps = so.commissionBps ?? 0;
     const commission = Math.round((gross * bps) / 10000);
     const net = gross - commission;
 

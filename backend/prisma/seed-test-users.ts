@@ -17,7 +17,6 @@ async function main() {
     create: {
       id: '00000000-0000-0000-0000-000000000002',
       name: 'Company B (Teste)',
-      commissionBps: 800,
     },
   });
   console.log(`Company B: ${companyB.name} (${companyB.id})`);
