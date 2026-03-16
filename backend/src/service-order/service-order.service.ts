@@ -62,6 +62,29 @@ export class ServiceOrderService {
       if (matched) resolvedWorkflowId = matched.id;
     }
 
+    // Respeitar técnico direcionado: se DIRECTED + workflow config ativa, auto-atribui
+    let autoAssignDirected = false;
+    if (
+      data.techAssignmentMode === 'DIRECTED' &&
+      data.directedTechnicianIds?.length &&
+      resolvedWorkflowId
+    ) {
+      try {
+        const wfTemplate = await this.prisma.workflowTemplate.findFirst({
+          where: { id: resolvedWorkflowId, deletedAt: null },
+          select: { steps: true },
+        });
+        if (wfTemplate?.steps) {
+          const steps = wfTemplate.steps as any;
+          const blocks = steps?.blocks || [];
+          const assignBlock = blocks.find((b: any) => b.type === 'ASSIGN_TECH');
+          if (assignBlock?.config?.respectDirectedTechnician) {
+            autoAssignDirected = true;
+          }
+        }
+      } catch { /* ignore — fallback to normal flow */ }
+    }
+
     const result = await this.prisma.serviceOrder.create({
       data: {
         companyId: data.companyId,
@@ -104,6 +127,12 @@ export class ServiceOrderService {
         ...(data.techAssignmentMode === 'BY_AGENDA' && data.assignedPartnerId ? {
           assignedPartnerId: data.assignedPartnerId,
           status: 'ATRIBUIDA' as any,
+        } : {}),
+        // Respeitar técnico direcionado: auto-atribui primeiro da lista
+        ...(autoAssignDirected ? {
+          assignedPartnerId: data.directedTechnicianIds![0],
+          status: 'ATRIBUIDA' as any,
+          acceptedAt: new Date(),
         } : {}),
       },
     });

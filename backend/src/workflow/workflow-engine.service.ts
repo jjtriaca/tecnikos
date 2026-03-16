@@ -1480,14 +1480,17 @@ export class WorkflowEngineService {
               continue;
             }
 
-            this.logger.log(`💬 Sending TECNICO notification to ${techTargets.length} technician(s), includeLink=${r.includeLink}`);
+            // Se a OS já está ATRIBUÍDA (ex: respectDirectedTechnician auto-atribuiu),
+            // envia notificação informativa sem criar oferta/link
+            const osAlreadyAssigned = notifySO.status === 'ATRIBUIDA' && !!notifySO.assignedPartnerId;
+            this.logger.log(`💬 Sending TECNICO notification to ${techTargets.length} technician(s), includeLink=${r.includeLink}, osAlreadyAssigned=${osAlreadyAssigned}`);
 
-            // Generate public link if includeLink is enabled
+            // Generate public link if includeLink is enabled AND OS is NOT already assigned
             let publicLinkUrl = '';
             const recipientConfig = Array.isArray(config.recipients)
               ? config.recipients.find((rc: any) => rc.type === 'TECNICO')
               : null;
-            if (r.includeLink && this.publicOffer) {
+            if (r.includeLink && this.publicOffer && !osAlreadyAssigned) {
               try {
                 const validityHours = recipientConfig?.linkConfig?.validityHours || 24;
                 const offer = await this.publicOffer.createOffer(serviceOrderId, companyId, validityHours);

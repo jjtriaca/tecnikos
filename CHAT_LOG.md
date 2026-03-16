@@ -1693,3 +1693,31 @@ Solucao:
   - Ao criar nova sessao, se ja tem 5+, revoga as mais antigas
   - Aplica para gestores (AuthService) e tecnicos (TechAuthService)
 - Build OK (tsc --noEmit limpo)
+
+### Fix logradouro Sankhya (data fix)
+- Cruzado Endereco.xlsx do Sankhya (1405 logradouros) com 2801 parceiros
+- **2495 endereços** atualizados com tipo de logradouro (RUA, AV, TRAV, etc.)
+- **52** `<SEM ENDERECO>` limpos (→ NULL)
+- **233** abreviações normalizadas (R → RUA, AL → ALAMEDA, V → VIELA)
+- Resultado: 96% dos endereços com tipo correto (era 13%)
+
+### Remover commissionBps global da Company (v1.03.75)
+- Removidos 4 campos da Company: commissionBps, commissionOverrideEnabled, commissionMinBps, commissionMaxBps
+- Comissão agora é definida APENAS no cadastro de cada Serviço
+- Backend: service-order, finance, workflow-engine atualizados para usar SO.commissionBps (dos itens)
+- Frontend: removida seção de comissão das Configurações
+- Migration: 20260316030000_remove_company_commission
+- Seeds atualizados
+- Deploy v1.03.75 OK
+
+### Respeitar técnico direcionado (v1.03.76)
+- **Config no workflow**: `respectDirectedTechnician` no bloco ASSIGN_TECH (stage-config.ts)
+- **Comportamento**: quando OS tem técnico direcionado (DIRECTED) e config ativa:
+  - Auto-atribui primeiro técnico da lista sem enviar oferta
+  - OS criada diretamente como ATRIBUÍDA (igual BY_AGENDA)
+  - Notificações enviadas como informativas (sem link de oferta)
+- **Backend**: service-order.service.ts lê o workflow template e auto-atribui
+- **Backend**: workflow-engine.service.ts pula criação de oferta quando OS já está ATRIBUÍDA
+- **Frontend**: toggle "Respeitar técnico direcionado" na seção Seleção de Técnicos (ABERTA)
+- Default: true (ativado por padrão em novos workflows)
+- Build OK (backend + frontend)

@@ -1,29 +1,22 @@
 # TAREFA ATUAL — Leia este arquivo ao reconectar
 
-## Status: SESSAO 120 — Session cleanup + Schema audit fixes
+## Status: SESSAO 121 — Respeitar técnico direcionado + Commission cleanup
 
-## Ultima sessao: 119 (16/03/2026)
-- Sessao 118: IA tools WhatsApp + Focus NFe + knowledge base + deploy v1.03.71 + audit
+## Ultima sessao: 120 (16/03/2026)
 - Sessao 119: Security audit fixes + Schema audit (enums, SaasInvoiceConfig, Marilise cleanup)
-- Sessao 120: Session cleanup automatico
+- Sessao 120: Session cleanup automatico + Logradouro fix + Commission removal
+- Sessao 121: Respeitar técnico direcionado (v1.03.76)
 
-## O que foi feito na sessao 119-120:
+## O que foi feito na sessao 121:
 
-### Auditoria de Seguranca (v1.03.72)
-- [x] CRITICO: Role check — config tools requerem ADMIN
-- [x] CRITICO: IV size fix — crypto.randomBytes(12) compatibilidade
-- [x] CRITICO: Removido chat-ia.guard.ts (dead code)
-
-### Auditoria de Schema público vs tenant_sls (v1.03.73)
-- [x] Enum sync automatico: TenantMigratorService sincroniza enums no boot (ChecklistClass, ChecklistMode criados)
-- [x] SaasInvoiceConfig removida de tenant schemas (adicionada a PUBLIC_ONLY_TABLES)
-- [x] Marilise removida do public schema (só existe em tenant_sls)
-- [x] Orphaned enum columns remapeados automaticamente (udt_schema public → tenant)
-
-### Session cleanup automatico (v1.03.74)
-- [x] Boot cleanup: deleta sessões revogadas, expiradas ou inativas > 3 dias (todos os schemas)
-- [x] Limite por usuario: max 5 sessões ativas (revoga as mais antigas ao criar 6ª)
-- [x] Aplica para gestores (AuthService) e técnicos (TechAuthService)
+### Respeitar técnico direcionado (v1.03.76)
+- [x] Config `respectDirectedTechnician` no tipo `techSelection` (stage-config.ts)
+- [x] Compilador V2 inclui config no bloco ASSIGN_TECH
+- [x] Toggle na UI do workflow editor (StageSection.tsx, etapa ABERTA)
+- [x] Backend: service-order.service.ts lê workflow template e auto-atribui 1º técnico direcionado
+- [x] Backend: workflow-engine.service.ts pula criação de oferta quando OS já está ATRIBUÍDA
+- [x] Default: true (ativado por padrão)
+- [x] Build OK (backend + frontend limpos)
 
 ## Pendente:
 - **BLOQUEADO: Resolver desativação da conta WhatsApp no Meta Business Support**
@@ -32,11 +25,8 @@
 - FUTURO: Verificação visual completa do workflow editor
 - FUTURO: Mecanismo para clientes solicitarem melhorias
 - FUTURO: Contrato do cliente com a Tecnikos
-- FUTURO: Fix logradouro em dados importados do Sankhya
-- FUTURO: Discutir/remover commissionBps global da empresa
-- FUTURO: Workflow config "Respeitar tecnico direcionado"
 
-## Versao atual: v1.03.74
+## Versao atual: v1.03.76
 
 ## Regras permanentes (decididas pelo Juliano):
 - Claude decide toda a parte tecnica sozinho e executa sem perguntar

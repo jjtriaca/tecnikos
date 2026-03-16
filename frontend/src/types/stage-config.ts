@@ -95,6 +95,7 @@ export interface StageConfig {
       onTimeout: string;       // notify_gestor | reassign | cancel
       filterBySpecialization: boolean;
       discardBusyTechnicians: boolean;  // descartar técnicos que estão em atendimento no prazo de aceitar
+      respectDirectedTechnician: boolean;  // quando OS tem técnico direcionado, atribui direto sem oferta
     };
     techReviewScreen: {
       enabled: boolean;              // Exibir tela de revisão dos técnicos selecionados antes do disparo
@@ -1086,6 +1087,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
         enRouteTimeout: { mode: 'fixed', value: 30, unit: 'minutes' },
         onTimeout: 'notify_gestor', filterBySpecialization: true,
         discardBusyTechnicians: true,
+        respectDirectedTechnician: true,
       },
       techReviewScreen: {
         enabled: false,
@@ -1625,6 +1627,8 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
           filterBySpecialization: stage.autoActions.techSelection.filterBySpecialization,
           // discardBusy = critério de seleção, fica na ABERTA
           discardBusyTechnicians: stage.autoActions.techSelection.discardBusyTechnicians,
+          // respeitar técnico direcionado — pula oferta e atribui direto
+          respectDirectedTechnician: stage.autoActions.techSelection.respectDirectedTechnician,
         },
         next: null,
       });
@@ -2384,6 +2388,7 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
           onTimeout: stage.autoActions.techSelection.onTimeout,           // keep ABERTA defaults
           filterBySpecialization: cfg.filterBySpecialization ?? true,
           discardBusyTechnicians: cfg.discardBusyTechnicians ?? true,     // critério de seleção
+          respectDirectedTechnician: cfg.respectDirectedTechnician ?? true,
         };
 
         // OFERTADA: acceptTimeout, onTimeout, discardBusyTechnicians

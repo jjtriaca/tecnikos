@@ -577,6 +577,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                           onChange={v => updateAuto('techSelection', { discardBusyTechnicians: v })}
                           label="Descartar técnicos que estão em atendimento" />
                         <p className="text-[10px] text-slate-400 ml-5 -mt-1">Técnicos ocupados dentro do prazo de aceitar não receberão a oferta.</p>
+                        <SubToggle checked={stage.autoActions.techSelection.respectDirectedTechnician}
+                          onChange={v => updateAuto('techSelection', { respectDirectedTechnician: v })}
+                          label="Respeitar técnico direcionado" />
+                        <p className="text-[10px] text-slate-400 ml-5 -mt-1">Quando a OS tem técnico direcionado, atribui automaticamente sem enviar oferta.</p>
                       </div>
                       <p className="text-[10px] text-slate-400 italic mt-1">
                         💡 O tempo para aceitar e o comportamento ao expirar são configurados na etapa &quot;Ofertada&quot;.
