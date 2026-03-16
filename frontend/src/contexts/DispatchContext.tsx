@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { api } from "@/lib/api";
+import { useAuth, hasRole } from "@/contexts/AuthContext";
 
 // ── Types ──
 
@@ -118,14 +119,17 @@ function saveDismissedIds(ids: Set<string>) {
 }
 
 export function DispatchProvider({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
   const [dispatches, setDispatches] = useState<DispatchState[]>([]);
   const [minimized, setMinimized] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initialLoadRef = useRef(false);
   const dismissedRef = useRef<Set<string>>(new Set());
 
-  // Load all active OS on mount
+  // Load all active OS once auth is ready
   useEffect(() => {
+    if (loading || !user) return; // Wait for auth
+    if (!hasRole(user, "ADMIN", "DESPACHO")) return; // Only dispatch roles
     if (initialLoadRef.current) return;
     initialLoadRef.current = true;
 
@@ -150,7 +154,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         // Not logged in or error — ignore
       });
-  }, []);
+  }, [loading, user]);
 
   // Polling
   useEffect(() => {
