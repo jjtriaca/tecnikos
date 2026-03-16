@@ -60,6 +60,7 @@ export class ServiceOrderService {
       const osCount = await this.prisma.serviceOrder.count({
         where: {
           companyId: data.companyId,
+          deletedAt: null, // Don't count soft-deleted OS
           createdAt: { gte: startOfMonth },
         },
       });
@@ -691,7 +692,7 @@ export class ServiceOrderService {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const osCount = await this.prisma.serviceOrder.count({
-        where: { companyId, createdAt: { gte: startOfMonth } },
+        where: { companyId, deletedAt: null, createdAt: { gte: startOfMonth } },
       });
       if (osCount >= maxOs) {
         throw new ForbiddenException(
