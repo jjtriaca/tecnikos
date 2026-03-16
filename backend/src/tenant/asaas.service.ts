@@ -1063,12 +1063,27 @@ export class AsaasService {
           },
         });
 
-        // Suspend tenant
-        await this.tenantService.suspend(
-          subscription.tenantId,
-          event === 'SUBSCRIPTION_DELETED' ? 'Assinatura cancelada' : 'Assinatura inativada',
-        );
-        this.logger.log(`Subscription ${event} → tenant ${subscription.tenant.slug} suspended`);
+        // Only suspend tenant if there is NO other ACTIVE subscription
+        // (upgrade flow cancels old subscription but creates a new ACTIVE one)
+        const otherActive = await this.prisma.subscription.findFirst({
+          where: {
+            tenantId: subscription.tenantId,
+            status: 'ACTIVE',
+            id: { not: subscription.id },
+          },
+        });
+
+        if (otherActive) {
+          this.logger.log(
+            `Subscription ${event} for ${subscription.tenant.slug}, but another ACTIVE subscription exists (${otherActive.id}) — NOT suspending`,
+          );
+        } else {
+          await this.tenantService.suspend(
+            subscription.tenantId,
+            event === 'SUBSCRIPTION_DELETED' ? 'Assinatura cancelada' : 'Assinatura inativada',
+          );
+          this.logger.log(`Subscription ${event} → tenant ${subscription.tenant.slug} suspended`);
+        }
         break;
       }
 

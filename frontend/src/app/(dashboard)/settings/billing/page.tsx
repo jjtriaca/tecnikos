@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 
@@ -24,6 +24,9 @@ type AddOn = {
   name: string;
   description: string | null;
   osQuantity: number;
+  userQuantity: number;
+  technicianQuantity: number;
+  aiMessageQuantity: number;
   priceCents: number;
 };
 
@@ -89,9 +92,9 @@ export default function BillingPage() {
     const addon = searchParams.get("addon");
     const upgrade = searchParams.get("upgrade");
     if (addon === "success") {
-      setMessage({ type: "success", text: "Pacote de OS adquirido com sucesso! As OS serao creditadas apos confirmacao do pagamento." });
+      showMessage({ type: "success", text: "Pacote de OS adquirido com sucesso! As OS serao creditadas apos confirmacao do pagamento." });
     } else if (upgrade === "success") {
-      setMessage({ type: "success", text: "Upgrade realizado com sucesso! Seu plano sera atualizado apos confirmacao do pagamento." });
+      showMessage({ type: "success", text: "Upgrade realizado com sucesso! Seu plano sera atualizado apos confirmacao do pagamento." });
     }
   }, [searchParams]);
 
@@ -112,6 +115,13 @@ export default function BillingPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  const messageRef = React.useRef<HTMLDivElement>(null);
+
+  function showMessage(msg: { type: "success" | "error"; text: string }) {
+    setMessage(msg);
+    setTimeout(() => messageRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
+  }
+
   async function handlePurchase(addOnId: string) {
     setPurchasing(addOnId);
     setMessage(null);
@@ -122,14 +132,14 @@ export default function BillingPage() {
 
       if (result.checkoutUrl) {
         window.open(result.checkoutUrl, "_blank");
-        setMessage({ type: "success", text: "Pagina de pagamento aberta! Finalize o pagamento para receber as OS extras." });
+        showMessage({ type: "success", text: "Pagina de pagamento aberta! Finalize o pagamento para receber as OS extras." });
       } else {
-        setMessage({ type: "success", text: result.message });
+        showMessage({ type: "success", text: result.message });
         const newUsage = await api.get<UsageData>("/service-orders/usage");
         setUsage(newUsage);
       }
     } catch (err: any) {
-      setMessage({ type: "error", text: err?.message || "Erro ao comprar pacote" });
+      showMessage({ type: "error", text: err?.message || "Erro ao comprar pacote" });
     } finally {
       setPurchasing(null);
     }
@@ -148,10 +158,10 @@ export default function BillingPage() {
         const creditMsg = result.creditApplied
           ? ` Credito de R$ ${result.creditApplied.toFixed(2).replace(".", ",")} aplicado na primeira fatura.`
           : "";
-        setMessage({ type: "success", text: `Pagina de pagamento do upgrade aberta!${creditMsg}` });
+        showMessage({ type: "success", text: `Pagina de pagamento do upgrade aberta!${creditMsg}` });
       }
     } catch (err: any) {
-      setMessage({ type: "error", text: err?.message || "Erro ao fazer upgrade" });
+      showMessage({ type: "error", text: err?.message || "Erro ao fazer upgrade" });
     } finally {
       setUpgrading(null);
     }
@@ -164,10 +174,10 @@ export default function BillingPage() {
       const result = await api.post<{ success: boolean; message: string }>("/auth/downgrade-plan", {
         newPlanId: planId,
       });
-      setMessage({ type: "success", text: result.message });
+      showMessage({ type: "success", text: result.message });
       loadData();
     } catch (err: any) {
-      setMessage({ type: "error", text: err?.message || "Erro ao agendar downgrade" });
+      showMessage({ type: "error", text: err?.message || "Erro ao agendar downgrade" });
     } finally {
       setDowngrading(null);
     }
@@ -178,10 +188,10 @@ export default function BillingPage() {
     setMessage(null);
     try {
       await api.post("/auth/cancel-downgrade", {});
-      setMessage({ type: "success", text: "Downgrade cancelado. Seu plano atual sera mantido." });
+      showMessage({ type: "success", text: "Downgrade cancelado. Seu plano atual sera mantido." });
       loadData();
     } catch (err: any) {
-      setMessage({ type: "error", text: err?.message || "Erro ao cancelar downgrade" });
+      showMessage({ type: "error", text: err?.message || "Erro ao cancelar downgrade" });
     } finally {
       setCancellingDowngrade(false);
     }
@@ -313,7 +323,7 @@ export default function BillingPage() {
 
       {/* Message */}
       {message && (
-        <div className={`rounded-xl border px-4 py-3 text-sm ${
+        <div ref={messageRef} className={`rounded-xl border px-4 py-3 text-sm ${
           message.type === "success"
             ? "border-green-200 bg-green-50 text-green-700"
             : "border-red-200 bg-red-50 text-red-700"
@@ -387,8 +397,18 @@ export default function BillingPage() {
                 </div>
                 <div className="flex items-end justify-between mt-4">
                   <div>
-                    <p className="text-2xl font-bold text-slate-900">+{addOn.osQuantity}</p>
-                    <p className="text-xs text-slate-500">ordens de servico</p>
+                    {addOn.osQuantity > 0 && (
+                      <><p className="text-2xl font-bold text-slate-900">+{addOn.osQuantity}</p><p className="text-xs text-slate-500">ordens de servico</p></>
+                    )}
+                    {addOn.userQuantity > 0 && (
+                      <><p className="text-2xl font-bold text-slate-900">+{addOn.userQuantity}</p><p className="text-xs text-slate-500">{addOn.userQuantity === 1 ? "usuario gestor" : "usuarios gestores"}</p></>
+                    )}
+                    {addOn.technicianQuantity > 0 && (
+                      <><p className="text-2xl font-bold text-slate-900">+{addOn.technicianQuantity}</p><p className="text-xs text-slate-500">{addOn.technicianQuantity === 1 ? "tecnico" : "tecnicos"}</p></>
+                    )}
+                    {addOn.aiMessageQuantity > 0 && (
+                      <><p className="text-2xl font-bold text-slate-900">+{addOn.aiMessageQuantity}</p><p className="text-xs text-slate-500">msgs IA/mes</p></>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold text-blue-600">{formatCurrency(addOn.priceCents)}</p>

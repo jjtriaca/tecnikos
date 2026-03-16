@@ -99,7 +99,7 @@
 - [x] Fix: removido deletedAt: null de monthlyUsage() — counter agora inclui deletadas
 - [x] Fix: removido deletedAt: null de duplicate() enforcement — consistente com create()
 - [x] Regra de negocio: OS deletadas CONTAM no limite mensal (evita burla por create+delete)
-- [ ] Deploy v1.04.03
+- [x] Deploy v1.04.03
 
 ## Versao atual: v1.04.03
 
