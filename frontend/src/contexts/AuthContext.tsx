@@ -72,6 +72,7 @@ type MeResponse = {
   name: string;
   email: string;
   roles: UserRole[];
+  chatIAEnabled?: boolean;
   companyId: string;
   company?: { id: string; name: string };
   tenantSlug?: string | null;
@@ -96,6 +97,7 @@ function mapUser(d: MeResponse): AuthUser {
     name: d.name,
     email: d.email,
     roles: d.roles,
+    chatIAEnabled: d.chatIAEnabled ?? false,
     companyId: d.companyId,
     companyName: d.company?.name,
     tenantSlug: d.tenantSlug || null,

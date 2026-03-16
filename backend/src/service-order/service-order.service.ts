@@ -49,6 +49,7 @@ export class ServiceOrderService {
 
   async create(data: CreateServiceOrderDto & { companyId: string }, actor?: AuthenticatedUser) {
     // ── Enforce maxOsPerMonth limit ──
+    // Multi-tenant: each schema has exactly one Company record
     const company = await this.prisma.company.findFirst({
       select: { maxOsPerMonth: true },
     });
@@ -682,6 +683,23 @@ export class ServiceOrderService {
   }
 
   async duplicate(id: string, companyId: string, actor: AuthenticatedUser) {
+    // ── Enforce maxOsPerMonth limit (same check as create) ──
+    // Multi-tenant: each schema has exactly one Company
+    const company = await this.prisma.company.findFirst({ select: { maxOsPerMonth: true } });
+    const maxOs = company?.maxOsPerMonth || 0;
+    if (maxOs > 0) {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const osCount = await this.prisma.serviceOrder.count({
+        where: { companyId, createdAt: { gte: startOfMonth } },
+      });
+      if (osCount >= maxOs) {
+        throw new ForbiddenException(
+          `Limite de ${maxOs} OS por mês atingido. Não é possível duplicar. Faça upgrade do plano ou adquira OS adicionais.`,
+        );
+      }
+    }
+
     const so = await this.findOne(id, companyId);
 
     const result = await this.prisma.serviceOrder.create({

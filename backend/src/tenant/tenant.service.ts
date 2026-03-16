@@ -95,14 +95,22 @@ export class TenantService {
 
     const schemaName = `tenant_${data.slug.replace(/-/g, '_')}`;
 
-    // Get plan limits
+    // Get plan limits (snapshot all features for grandfather pattern)
     let maxUsers = 5;
     let maxOsPerMonth = 100;
+    let maxTechnicians = 0;
+    let maxAiMessages = 0;
+    let supportLevel = 'EMAIL';
+    let allModulesIncluded = true;
     if (data.planId) {
       const plan = await this.prisma.plan.findUnique({ where: { id: data.planId } });
       if (plan) {
         maxUsers = plan.maxUsers;
         maxOsPerMonth = plan.maxOsPerMonth;
+        maxTechnicians = plan.maxTechnicians;
+        maxAiMessages = plan.maxAiMessages;
+        supportLevel = plan.supportLevel;
+        allModulesIncluded = plan.allModulesIncluded;
       }
     }
 
@@ -122,6 +130,10 @@ export class TenantService {
         isMaster: data.isMaster || false,
         maxUsers,
         maxOsPerMonth,
+        maxTechnicians,
+        maxAiMessages,
+        supportLevel,
+        allModulesIncluded,
         status: data.isMaster ? TenantStatus.ACTIVE : TenantStatus.PENDING_VERIFICATION,
       },
     });

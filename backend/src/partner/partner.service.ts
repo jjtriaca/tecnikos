@@ -350,6 +350,26 @@ export class PartnerService {
 
   async update(id: string, companyId: string, data: UpdatePartnerDto, actor?: AuthenticatedUser) {
     const existing = await this.findOne(id, companyId);
+
+    // ── Enforce maxTechnicians when adding TECNICO type to existing partner ──
+    const wasTecnico = (existing as any).partnerTypes?.includes('TECNICO');
+    const willBeTecnico = data.partnerTypes?.includes('TECNICO');
+    if (!wasTecnico && willBeTecnico) {
+      // Multi-tenant: each schema has exactly one Company
+      const company = await this.prisma.company.findFirst({ select: { maxTechnicians: true } });
+      const maxTechnicians = company?.maxTechnicians || 0;
+      if (maxTechnicians > 0) {
+        const activeCount = await this.prisma.partner.count({
+          where: { companyId, partnerTypes: { has: 'TECNICO' }, deletedAt: null, status: { not: 'INATIVO' } },
+        });
+        if (activeCount >= maxTechnicians) {
+          throw new ForbiddenException(
+            `Limite de ${maxTechnicians} técnico(s) atingido. Faça upgrade do plano para adicionar mais técnicos.`,
+          );
+        }
+      }
+    }
+
     const { specializationIds, password, ...rest } = data;
     // Sanitize phone before saving
     if (rest.phone !== undefined) rest.phone = this.sanitizePhone(rest.phone) as any;
@@ -496,6 +516,30 @@ export class PartnerService {
     partners: CreatePartnerDto[],
     actor?: AuthenticatedUser,
   ): Promise<{ created: number; skipped: number; errors: { row: number; name: string; message: string }[] }> {
+    // ── Enforce maxTechnicians for bulk import ──
+    const incomingTecnicos = partners.filter(p => p.partnerTypes?.includes('TECNICO')).length;
+    if (incomingTecnicos > 0) {
+      // Multi-tenant: each schema has exactly one Company
+      const company = await this.prisma.company.findFirst({ select: { maxTechnicians: true } });
+      const maxTechnicians = company?.maxTechnicians || 0;
+      if (maxTechnicians > 0) {
+        const activeCount = await this.prisma.partner.count({
+          where: { companyId, partnerTypes: { has: 'TECNICO' }, deletedAt: null, status: { not: 'INATIVO' } },
+        });
+        const remaining = maxTechnicians - activeCount;
+        if (remaining <= 0) {
+          throw new ForbiddenException(
+            `Limite de ${maxTechnicians} técnico(s) atingido. Não é possível importar técnicos. Faça upgrade do plano.`,
+          );
+        }
+        if (incomingTecnicos > remaining) {
+          throw new ForbiddenException(
+            `Limite de ${maxTechnicians} técnico(s) permite mais ${remaining}, mas a importação contém ${incomingTecnicos}. Reduza a quantidade ou faça upgrade.`,
+          );
+        }
+      }
+    }
+
     let created = 0;
     let skipped = 0;
     const errors: { row: number; name: string; message: string }[] = [];
