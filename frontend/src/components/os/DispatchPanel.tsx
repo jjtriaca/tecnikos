@@ -179,10 +179,13 @@ interface FloatingCardProps {
 }
 
 function FloatingCard({ d, position, zIndex, onFocus, onMove }: FloatingCardProps) {
-  const { removeDispatch, resendNotification } = useDispatch();
+  const { removeDispatch, resendNotification, toggleMinimize } = useDispatch();
   const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
+  const dragAreaRef = useRef<HTMLDivElement>(null);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Don't start drag if clicking a button
+    if ((e.target as HTMLElement).closest("button")) return;
     onFocus();
     dragRef.current = { startX: e.clientX, startY: e.clientY, originX: position.x, originY: position.y, moved: false };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -235,15 +238,26 @@ function FloatingCard({ d, position, zIndex, onFocus, onMove }: FloatingCardProp
           {d.isUrgent && <span className="ml-1 rounded bg-red-500 px-1 py-0.5 text-[9px] font-bold">URGENTE</span>}
           {d.isReturn && <span className="ml-1 rounded bg-amber-500 px-1 py-0.5 text-[9px] font-bold">RETORNO</span>}
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); removeDispatch(d.osId); }}
-          className="shrink-0 rounded p-0.5 hover:bg-white/20"
-          title="Fechar"
-        >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleMinimize(); }}
+            className="rounded p-0.5 hover:bg-white/20"
+            title="Minimizar todas"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); removeDispatch(d.osId); }}
+            className="rounded p-0.5 hover:bg-white/20"
+            title="Fechar"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Card body */}
@@ -522,8 +536,6 @@ export default function DispatchPanel() {
 
   if (dispatches.length === 0) return null;
 
-  const failedCount = dispatches.filter((d) => d.notificationStatus === "FAILED").length;
-
   if (minimized) {
     return <MinimizedTray dispatches={dispatches} onClick={toggleMinimize} />;
   }
@@ -532,20 +544,6 @@ export default function DispatchPanel() {
 
   return (
     <>
-      {/* Global minimize */}
-      <button
-        onClick={toggleMinimize}
-        className="fixed bottom-4 right-4 z-[9999] flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600/80 text-white shadow-md transition-all hover:scale-110 hover:bg-indigo-700 backdrop-blur-sm"
-        title="Minimizar todas"
-      >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-        <span className={`absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold text-white ${failedCount > 0 ? "bg-red-500" : "bg-green-500"}`}>
-          {dispatches.length}
-        </span>
-      </button>
-
       {dispatches.map((d) => {
         const pos = positions[d.osId] || getCenterStart(0);
         const z = BASE_Z + Math.max(0, focusOrder.indexOf(d.osId));
