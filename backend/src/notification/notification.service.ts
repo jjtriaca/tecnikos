@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
@@ -30,23 +30,29 @@ export class NotificationService {
   async send(dto: SendNotificationDto) {
     const channel = (dto.channel || 'MOCK').toUpperCase();
     let status = 'SENT';
+    let whatsappMessageId: string | undefined;
+    let errorDetail: string | undefined;
 
     // ── WhatsApp channel — send via Meta Cloud API ──
     if (channel === 'WHATSAPP' && dto.recipientPhone && this.whatsApp) {
       try {
         const connected = await this.whatsApp.isConnected(dto.companyId);
         if (connected) {
-          // Use sendTextWithTemplateFallback to handle 24h window rule:
-          // tries text first, falls back to template if outside conversation window
-          const success = await this.whatsApp.sendTextWithTemplateFallback(dto.companyId, dto.recipientPhone, dto.message, dto.forceTemplate);
-          status = success ? 'SENT' : 'FAILED';
-          this.logger.log(`📱 [WHATSAPP] ${dto.type} → ${dto.recipientPhone}: ${status}`);
+          const result = await this.whatsApp.sendTextWithTemplateFallback(
+            dto.companyId, dto.recipientPhone, dto.message, dto.forceTemplate,
+          );
+          status = result.success ? 'SENT' : 'FAILED';
+          whatsappMessageId = result.messageId;
+          errorDetail = result.error;
+          this.logger.log(`📱 [WHATSAPP] ${dto.type} → ${dto.recipientPhone}: ${status}${whatsappMessageId ? ` (msgId: ${whatsappMessageId})` : ''}`);
         } else {
           status = 'FAILED';
+          errorDetail = 'WhatsApp não conectado';
           this.logger.warn(`📱 [WHATSAPP] Not connected — notification saved as FAILED`);
         }
       } catch (err) {
         status = 'FAILED';
+        errorDetail = err.message;
         this.logger.error(`📱 [WHATSAPP] Error: ${err.message}`);
       }
     } else {
@@ -67,6 +73,8 @@ export class NotificationService {
         message: dto.message,
         type: dto.type,
         status,
+        whatsappMessageId: whatsappMessageId || null,
+        errorDetail: errorDetail || null,
         sentAt: new Date(),
       },
     });
@@ -88,13 +96,105 @@ export class NotificationService {
 
     const message = statusMessages[newStatus] || `Status da OS "${title}" alterado para ${newStatus}.`;
 
+    // Auto-detect channel: use WhatsApp when phone is available, otherwise MOCK
+    const channel = recipientPhone && this.whatsApp ? 'WHATSAPP' : 'MOCK';
+
     return this.send({
       companyId,
       serviceOrderId,
+      channel,
       message,
       type: 'STATUS_CHANGE',
       recipientPhone,
+      forceTemplate: true, // Business-initiated: always use template
     });
+  }
+
+  /**
+   * Resend a failed notification.
+   */
+  async resend(notificationId: string, companyId: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: { id: notificationId, companyId },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('Notificação não encontrada');
+    }
+
+    // Re-send via the same channel
+    let status = 'SENT';
+    let whatsappMessageId: string | undefined;
+    let errorDetail: string | undefined;
+
+    if (notification.channel === 'WHATSAPP' && notification.recipientPhone && this.whatsApp) {
+      try {
+        const connected = await this.whatsApp.isConnected(companyId);
+        if (connected) {
+          const result = await this.whatsApp.sendTextWithTemplateFallback(
+            companyId, notification.recipientPhone, notification.message, true,
+          );
+          status = result.success ? 'SENT' : 'FAILED';
+          whatsappMessageId = result.messageId;
+          errorDetail = result.error;
+        } else {
+          status = 'FAILED';
+          errorDetail = 'WhatsApp não conectado';
+        }
+      } catch (err) {
+        status = 'FAILED';
+        errorDetail = err.message;
+      }
+    } else {
+      // Non-WhatsApp: just mark as sent (mock)
+      status = 'SENT';
+    }
+
+    // Update the existing notification record
+    const updated = await this.prisma.notification.update({
+      where: { id: notificationId },
+      data: {
+        status,
+        whatsappMessageId: whatsappMessageId || notification.whatsappMessageId,
+        errorDetail: errorDetail || null,
+        sentAt: new Date(),
+      },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Get dispatch status for a service order (notification + WhatsApp delivery status).
+   */
+  async getDispatchStatus(serviceOrderId: string, companyId: string) {
+    // Get the latest notification for this OS
+    const notification = await this.prisma.notification.findFirst({
+      where: { serviceOrderId, companyId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!notification) return null;
+
+    // If WhatsApp, check delivery status from WhatsAppMessage table
+    let whatsappStatus: string | null = null;
+    if (notification.whatsappMessageId) {
+      const waMsg = await this.prisma.whatsAppMessage.findFirst({
+        where: { whatsappMsgId: notification.whatsappMessageId },
+        select: { status: true },
+      });
+      whatsappStatus = waMsg?.status || null;
+    }
+
+    return {
+      id: notification.id,
+      channel: notification.channel,
+      status: notification.status,
+      whatsappStatus, // SENT, DELIVERED, READ, FAILED
+      errorDetail: notification.errorDetail,
+      sentAt: notification.sentAt,
+      recipientPhone: notification.recipientPhone,
+    };
   }
 
   /**

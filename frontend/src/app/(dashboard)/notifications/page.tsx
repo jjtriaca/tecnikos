@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
 
 interface Notification {
   id: string;
@@ -9,6 +10,7 @@ interface Notification {
   type: string;
   message: string;
   status: string;
+  errorDetail?: string;
   recipientPhone?: string;
   recipientEmail?: string;
   sentAt: string;
@@ -20,11 +22,14 @@ const TYPE_LABELS: Record<string, string> = {
   STATUS_CHANGE: "Mudança de Status",
   ASSIGNMENT: "Atribuição",
   REMINDER: "Lembrete",
+  AUTOMATION: "Automação",
   CONTRACT_SENT: "Contrato Enviado",
   CONTRACT_ACCEPTED: "Contrato Aceito",
   OS_ATRIBUIDA: "OS Atribuída",
   OS_CONCLUIDA: "OS Concluída",
   PROXIMIDADE: "Proximidade",
+  WELCOME_SENT: "Boas-vindas",
+  WELCOME_ACCEPTED: "Aceite Boas-vindas",
 };
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -38,6 +43,8 @@ const CHANNEL_COLORS: Record<string, string> = {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resending, setResending] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const load = useCallback(async () => {
     try {
@@ -53,6 +60,25 @@ export default function NotificationsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleResend = async (id: string) => {
+    setResending(id);
+    try {
+      const result = await api.post<Notification>(`/notifications/${id}/resend`);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, status: result.status, errorDetail: result.errorDetail } : n)),
+      );
+      if (result.status === "SENT") {
+        toast("Notificação reenviada com sucesso!", "success");
+      } else {
+        toast(`Reenvio falhou: ${result.errorDetail || "erro desconhecido"}`, "error");
+      }
+    } catch {
+      toast("Erro ao reenviar notificação", "error");
+    } finally {
+      setResending(null);
+    }
+  };
 
   const formatDate = (d: string) => {
     const date = new Date(d);
@@ -117,24 +143,53 @@ export default function NotificationsPage() {
                       </span>
                     )}
                   </div>
+                  {/* Error detail for failed notifications */}
+                  {n.status === "FAILED" && n.errorDetail && (
+                    <p className="mt-1 text-xs text-red-500">
+                      Erro: {n.errorDetail}
+                    </p>
+                  )}
                 </div>
-                <div className="text-right shrink-0">
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
                   <span className="text-xs text-slate-400">
                     {formatDate(n.sentAt || n.createdAt)}
                   </span>
-                  <div className="mt-1">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        n.status === "SENT"
-                          ? "bg-green-100 text-green-700"
-                          : n.status === "FAILED"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-slate-100 text-slate-600"
-                      }`}
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                      n.status === "SENT"
+                        ? "bg-green-100 text-green-700"
+                        : n.status === "FAILED"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {n.status === "SENT" ? "Enviada" : n.status === "FAILED" ? "Falhou" : n.status}
+                  </span>
+                  {/* Resend button for failed WhatsApp notifications */}
+                  {n.status === "FAILED" && n.channel === "WHATSAPP" && (
+                    <button
+                      onClick={() => handleResend(n.id)}
+                      disabled={resending === n.id}
+                      className="mt-1 flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
                     >
-                      {n.status === "SENT" ? "Enviada" : n.status === "FAILED" ? "Falhou" : n.status}
-                    </span>
-                  </div>
+                      {resending === n.id ? (
+                        <>
+                          <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Reenviando...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Reenviar
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

@@ -296,13 +296,13 @@ export class WhatsAppService {
     phone: string,
     message: string,
     forceTemplate = false,
-  ): Promise<boolean> {
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     const token = await this.getAccessToken(companyId);
     const phoneNumberId = await this.getPhoneNumberId(companyId);
 
     if (!token || !phoneNumberId) {
       this.logger.warn(`WhatsApp not configured for company ${companyId}`);
-      return false;
+      return { success: false, error: 'WhatsApp não configurado' };
     }
 
     const formattedPhone = this.formatPhone(phone);
@@ -310,15 +310,16 @@ export class WhatsAppService {
     // 1. Try text first if not forced to template (only works within 24h user-initiated window)
     if (!forceTemplate) {
       try {
-        await this.metaRequest(token, phoneNumberId, {
+        const res = await this.metaRequest(token, phoneNumberId, {
           messaging_product: 'whatsapp',
           to: formattedPhone,
           type: 'text',
           text: { body: message },
         });
 
+        const msgId = res?.messages?.[0]?.id;
         this.logger.log(`📱 WhatsApp text sent to ${formattedPhone}`);
-        return true;
+        return { success: true, messageId: msgId };
       } catch (textErr: any) {
         this.logger.warn(`📱 Text failed (likely outside 24h window): ${textErr.message}`);
         // Fall through to template
@@ -341,7 +342,7 @@ export class WhatsAppService {
     this.logger.debug(`📱 Template body param: ${truncatedMsg}`);
 
     try {
-      await this.metaRequest(token, phoneNumberId, {
+      const res = await this.metaRequest(token, phoneNumberId, {
         messaging_product: 'whatsapp',
         to: formattedPhone,
         type: 'template',
@@ -359,8 +360,9 @@ export class WhatsAppService {
         },
       });
 
+      const msgId = res?.messages?.[0]?.id;
       this.logger.log(`📱 Template "aviso_os" delivered to ${formattedPhone}`);
-      return true;
+      return { success: true, messageId: msgId };
     } catch (templateErr: any) {
       // Extract full error details from Meta response
       const errData = templateErr.response?.data;
@@ -375,18 +377,7 @@ export class WhatsAppService {
         ` | Full response: ${JSON.stringify(errData || {})}`,
       );
 
-      // Common error codes reference:
-      // 131047 = Re-engagement required (need template, not text)
-      // 131056 = Rate limit per-user (1 msg/6s)
-      // 132000 = Template param count mismatch
-      // 132001 = Template does not exist
-      // 132005 = Template hydrated text too long
-      // 132007 = Template format mismatch
-      // 132012 = Template paused
-      // 132015 = Template blocked
-      // 135000 = Generic user error (anti-spam, invalid params, user-side)
-
-      return false;
+      return { success: false, error: `${errMsg} (code=${errCode})` };
     }
   }
 

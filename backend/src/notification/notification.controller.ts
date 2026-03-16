@@ -1,4 +1,4 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Post, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -22,5 +22,10 @@ export class NotificationController {
   @Post('mark-read')
   markAllRead(@CurrentUser() user: AuthenticatedUser) {
     return this.service.markAllRead(user.companyId);
+  }
+
+  @Post(':id/resend')
+  resend(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.resend(id, user.companyId);
   }
 }

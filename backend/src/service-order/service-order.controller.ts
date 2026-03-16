@@ -11,11 +11,15 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RequireVerification } from '../auth/decorators/require-verification.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
+import { NotificationService } from '../notification/notification.service';
 
 @ApiTags('Service Orders')
 @Controller('service-orders')
 export class ServiceOrderController {
-  constructor(private readonly service: ServiceOrderService) {}
+  constructor(
+    private readonly service: ServiceOrderService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
@@ -115,6 +119,15 @@ export class ServiceOrderController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.duplicate(id, user.companyId, user);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Get(':id/dispatch-status')
+  async dispatchStatus(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.getDispatchStatus(id, user.companyId);
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)

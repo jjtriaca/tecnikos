@@ -3,6 +3,8 @@
 import { useState, useCallback, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
+import { useDispatch } from "@/contexts/DispatchContext";
+import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import LookupField from "@/components/ui/LookupField";
 import type { LookupFetcher, LookupFetcherResult } from "@/components/ui/SearchLookupModal";
@@ -97,6 +99,8 @@ export function OrderForm({ editId }: { editId?: string }) {
 function NewOrderPage({ editId }: { editId?: string } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { addDispatch } = useDispatch();
+  const { toast } = useToast();
   const returnFromId = searchParams.get("returnFrom");
   const [returnLoading, setReturnLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -706,7 +710,31 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
         await api.put(`/service-orders/${editId}`, payload);
         router.push(`/orders/${editId}`);
       } else {
-        await api.post("/service-orders", payload);
+        const result = await api.post<any>("/service-orders", payload);
+
+        // Dispatch panel: track notification status for auto-assigned OS
+        if (result?._dispatch) {
+          const d = result._dispatch;
+          addDispatch(result.id, {
+            technicianName: d.technicianName,
+            technicianPhone: d.technicianPhone,
+            notificationId: d.notificationId,
+            notificationStatus: d.notificationStatus,
+            notificationChannel: d.notificationChannel,
+            errorDetail: d.errorDetail,
+          }, result.code, result.title);
+
+          if (d.notificationStatus === "FAILED") {
+            toast(`OS criada, mas notificação falhou: ${d.errorDetail || "erro desconhecido"}`, "warning");
+          } else if (d.notificationChannel === "WHATSAPP") {
+            toast("OS criada! Notificação WhatsApp enviada ao técnico ✓", "success");
+          } else {
+            toast("OS criada com sucesso!", "success");
+          }
+        } else {
+          toast("OS criada com sucesso!", "success");
+        }
+
         router.push("/orders");
       }
     } catch (err) {

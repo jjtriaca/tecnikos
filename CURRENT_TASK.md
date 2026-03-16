@@ -109,12 +109,24 @@
 - [x] Mensagem de erro/sucesso: scroll automatico para ficar visivel
 - [x] Deploy v1.04.04, v1.04.05
 
-## WhatsApp Notification Fix (v1.04.07):
+## WhatsApp Notification Fix (v1.04.08-09):
 - [x] Bug: OS com DIRECTED/BY_AGENDA nao enviava WhatsApp (assign() nunca chamado)
 - [x] Fix: notificacao adicionada no create() quando auto-assign acontece
+- [x] Fix: notifyStatusChange() usava canal MOCK — corrigido para WHATSAPP
 - [x] Exclamacao na OS = "Atrasada!" (deadlineAt no passado, nao e bug)
 
-## Versao atual: v1.04.07
+## Painel de Despacho Flutuante — Fase 1 (v1.04.10):
+- [x] Schema: +whatsappMessageId, +errorDetail no Notification
+- [x] WhatsApp: sendTextWithTemplateFallback retorna { success, messageId, error }
+- [x] NotificationService: salva whatsappMsgId, novo resend(), getDispatchStatus()
+- [x] NotificationController: POST /:id/resend
+- [x] ServiceOrderService: create() retorna _dispatch com status da notificacao
+- [x] ServiceOrderController: GET /:id/dispatch-status (lightweight polling)
+- [x] DispatchContext + DispatchPanel flutuante
+- [x] OS creation: toast feedback + addDispatch automatico
+- [x] Notificacoes page: botao Reenviar para FAILED
+
+## Versao atual: v1.04.10
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

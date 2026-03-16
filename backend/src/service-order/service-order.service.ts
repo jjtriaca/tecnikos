@@ -215,22 +215,39 @@ export class ServiceOrderService {
 
     // WhatsApp notification for auto-assigned OS (DIRECTED or BY_AGENDA)
     // The assign() method is NOT called in these flows, so we must notify here
+    let _dispatch: any = undefined;
     const autoAssignedTechId = result.assignedPartnerId;
     if (autoAssignedTechId && this.notifications) {
       const tech = await this.prisma.partner.findUnique({
         where: { id: autoAssignedTechId },
-        select: { phone: true },
+        select: { name: true, phone: true },
       });
       if (tech?.phone) {
-        this.notifications.notifyStatusChange(
-          data.companyId, result.id, result.title, 'ATRIBUIDA', tech.phone,
-        ).catch(err => {
+        try {
+          const notification = await this.notifications.notifyStatusChange(
+            data.companyId, result.id, result.title, 'ATRIBUIDA', tech.phone,
+          );
+          _dispatch = {
+            technicianName: tech.name,
+            technicianPhone: tech.phone,
+            notificationId: notification.id,
+            notificationStatus: notification.status,
+            notificationChannel: notification.channel,
+            errorDetail: notification.errorDetail,
+          };
+        } catch (err) {
           console.error('Auto-assign notification failed:', err?.message || err);
-        });
+          _dispatch = {
+            technicianName: tech.name,
+            technicianPhone: tech.phone,
+            notificationStatus: 'FAILED',
+            errorDetail: err?.message || 'Erro desconhecido',
+          };
+        }
       }
     }
 
-    return result;
+    return _dispatch ? { ...result, _dispatch } : result;
   }
 
   async findAll(
@@ -409,6 +426,41 @@ export class ServiceOrderService {
     });
 
     return { hasConflict: conflicts.length > 0, conflicts };
+  }
+
+  /**
+   * Lightweight dispatch status for polling (used by DispatchPanel).
+   */
+  async getDispatchStatus(id: string, companyId: string) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+      select: {
+        id: true, code: true, title: true, status: true,
+        assignedPartnerId: true, acceptedAt: true,
+        enRouteAt: true, arrivedAt: true, startedAt: true, completedAt: true,
+        assignedPartner: { select: { name: true, phone: true } },
+      },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+
+    // Get notification status
+    const notification = this.notifications
+      ? await this.notifications.getDispatchStatus(id, companyId)
+      : null;
+
+    return {
+      serviceOrder: {
+        id: so.id, code: so.code, title: so.title, status: so.status,
+        assignedPartnerId: so.assignedPartnerId,
+        acceptedAt: so.acceptedAt, enRouteAt: so.enRouteAt,
+        arrivedAt: so.arrivedAt, startedAt: so.startedAt,
+        completedAt: so.completedAt,
+      },
+      technician: so.assignedPartner
+        ? { name: so.assignedPartner.name, phone: so.assignedPartner.phone }
+        : null,
+      notification,
+    };
   }
 
   async findOne(id: string, companyId: string) {
