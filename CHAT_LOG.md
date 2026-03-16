@@ -1795,3 +1795,15 @@ Solucao:
 - **AuthContext.tsx**: AuthUser +chatIAEnabled
 - **ChatIAContext.tsx**: verifica chatIAEnabled antes de mostrar botao (ADMIN sempre ve)
 - Build backend + frontend OK (tsc --noEmit limpo)
+
+### Auditoria pos-implementacao — 6 bugs encontrados e corrigidos (v1.03.85)
+
+#### Criticos/Altos
+1. **chatIAEnabled nao mapeado no AuthContext** — MeResponse e mapUser() nao incluiam chatIAEnabled, toggle nao funcionava no frontend. CORRIGIDO.
+2. **importMany() bypassava maxTechnicians** — Import CSV criava tecnicos sem checar limite. CORRIGIDO.
+3. **duplicate() bypassava maxOsPerMonth** — Duplicar OS nao contava no limite mensal. CORRIGIDO.
+
+#### Medios
+4. **partner update() permitia adicionar TECNICO sem check** — Editar tipo para TECNICO bypassava limite. CORRIGIDO.
+5. **provisionTenant() nao fazia snapshot de maxTechnicians/maxAiMessages** — Novos tenants ficavam com 0 (ilimitado). CORRIGIDO.
+6. **findFirst sem where** — Comentarios explicativos adicionados.
