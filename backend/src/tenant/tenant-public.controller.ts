@@ -477,36 +477,8 @@ export class TenantPublicController {
     return this.asaasService.getPaymentStatus(tenantId);
   }
 
-  /** Purchase an add-on package via Asaas Checkout */
-  @Public()
-  @Post('purchase-addon')
-  async purchaseAddOn(
-    @Body() body: { tenantId: string; addOnId: string },
-  ) {
-    if (!body.tenantId || !body.addOnId) {
-      throw new BadRequestException('tenantId e addOnId são obrigatórios');
-    }
-
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: body.tenantId } });
-    if (!tenant || tenant.status !== 'ACTIVE') {
-      throw new BadRequestException('Empresa não encontrada ou inativa');
-    }
-
-    const result = await this.asaasService.createAddOnCheckout(body.tenantId, body.addOnId);
-
-    if (!result.checkoutUrl) {
-      return {
-        success: true,
-        message: 'OS extras creditadas com sucesso!',
-      };
-    }
-
-    return {
-      success: true,
-      checkoutUrl: result.checkoutUrl,
-      message: 'Checkout criado! Finalize o pagamento para receber as OS extras.',
-    };
-  }
+  // purchase-addon: REMOVED from public controller (security risk — tenantId from body).
+  // Use POST /auth/purchase-addon instead (authenticated, tenantId from session).
 
   /**
    * Resend welcome email — allows user to correct email and resend.

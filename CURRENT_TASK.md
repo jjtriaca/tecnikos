@@ -55,7 +55,24 @@
 - [x] Decisao: add-on NAO faz rollover (vale pro ciclo vigente)
 - [x] Deploy v1.03.94
 
-## Versao atual: v1.03.94
+## Auditoria + Correcoes Criticas (v1.03.95)
+- [x] Cron expireAddOnPurchases — reverte limites quando add-on expira
+- [x] purchase-addon movido para /auth/ (autenticado, tenantId do session)
+- [x] Onboarding: +maxTechnicians +maxAiMessages na Company
+- [x] syncTenantLimits: GREATEST (nunca diminui por add-ons)
+- [x] validate-code: rate limit 10/min
+- [x] Webhook: log de warning quando add-on nao confirma
+- [x] Index expiresAt no AddOnPurchase
+- [x] Deploy v1.03.95
+
+### Pendentes (altos/medios da auditoria):
+- [ ] Anti-fraude cooldown usuarios/tecnicos (deactivationCount existe mas nao verifica)
+- [ ] Credito pro-rata do upgrade nunca consumido (creditBalanceCents)
+- [ ] FIFO add-on checkout pode creditar errado (multiplas compras pendentes)
+- [ ] Downgrade pendente preso se pagamento atrasa
+- [ ] Promocao anual decrementa meses errado
+
+## Versao atual: v1.03.95
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

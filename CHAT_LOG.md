@@ -1916,3 +1916,10 @@ Solucao:
 - plans/page.tsx: removido bloco hardcoded de add-ons (4 cards estaticos)
 - Banco local + producao: 9 registros AddOn criados com isActive=true
 - Deploy v1.03.94 — CONCLUIDO
+
+### Auditoria completa do sistema de negocio + Correcoes criticas (v1.03.95)
+- Auditoria 4 agentes: billing, limits, public/admin, tenant schema
+- 6 criticos + 9 altos/medios encontrados
+- **Corrigidos**: add-on expiration cron, purchase-addon autenticado, onboarding maxTech/maxAI, syncTenantLimits GREATEST, validate-code throttle, webhook logging
+- **Pendentes (altos/medios)**: anti-fraude cooldown, credito pro-rata, FIFO add-on checkout, downgrade preso, promo anual
+- Deploy v1.03.95 — CONCLUIDO
