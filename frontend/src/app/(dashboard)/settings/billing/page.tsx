@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "next/navigation";
 
 type Plan = {
@@ -14,6 +13,10 @@ type Plan = {
   priceYearlyCents: number | null;
   description: string | null;
   features: string[];
+  maxTechnicians: number;
+  maxAiMessages: number;
+  supportLevel: string;
+  allModulesIncluded: boolean;
 };
 
 type AddOn = {
@@ -35,8 +38,10 @@ type UsageData = {
 type BillingStatus = {
   hasSubscription: boolean;
   status?: string;
+  planId?: string;
   planName?: string;
   valueBrl?: number;
+  planPriceCents?: number;
   isPromo?: boolean;
   promoMonthsLeft?: number;
   billingCycle?: string;
@@ -56,8 +61,17 @@ function getBarColor(pct: number): string {
   return "bg-blue-500";
 }
 
+function formatLimit(value: number, unit: string): string {
+  return value === 0 ? `${unit} ilimitados` : `Ate ${value} ${unit}`;
+}
+
+const SUPPORT_LABELS: Record<string, string> = {
+  EMAIL: "Suporte por email",
+  EMAIL_CHAT: "Suporte por email e chat",
+  PRIORITY: "Suporte prioritario",
+};
+
 export default function BillingPage() {
-  const { user } = useAuth();
   const searchParams = useSearchParams();
   const [addOns, setAddOns] = useState<AddOn[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -152,7 +166,7 @@ export default function BillingPage() {
         newPlanId: planId,
       });
       setMessage({ type: "success", text: result.message });
-      loadData(); // Refresh to show pending downgrade
+      loadData();
     } catch (err: any) {
       setMessage({ type: "error", text: err?.message || "Erro ao agendar downgrade" });
     } finally {
@@ -187,10 +201,11 @@ export default function BillingPage() {
     );
   }
 
-  // Split plans into upgrade and downgrade
-  const currentPlanValue = billing?.valueBrl ? billing.valueBrl * 100 : 0;
-  const upgradePlans = plans.filter((p) => p.priceCents > currentPlanValue);
-  const downgradePlans = plans.filter((p) => p.priceCents < currentPlanValue && p.priceCents > 0);
+  // Use planPriceCents for upgrade/downgrade comparison (not the promo-discounted value)
+  const currentPlanPriceCents = billing?.planPriceCents ?? (billing?.valueBrl ? billing.valueBrl * 100 : 0);
+  const currentPlanId = billing?.planId;
+  const upgradePlans = plans.filter((p) => p.id !== currentPlanId && p.priceCents > currentPlanPriceCents);
+  const downgradePlans = plans.filter((p) => p.id !== currentPlanId && p.priceCents < currentPlanPriceCents && p.priceCents > 0);
 
   return (
     <div className="space-y-6">
@@ -207,9 +222,14 @@ export default function BillingPage() {
             <div>
               <p className="text-xl font-bold text-slate-900">{billing.planName || "Plano atual"}</p>
               {billing.isPromo && billing.promoMonthsLeft ? (
-                <p className="text-xs text-green-600 mt-1">
-                  Promocao ativa — {billing.promoMonthsLeft} {billing.promoMonthsLeft === 1 ? "mes" : "meses"} restante{billing.promoMonthsLeft > 1 ? "s" : ""}
-                </p>
+                <div className="mt-1">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                    Promocao ativa — {billing.promoMonthsLeft} {billing.promoMonthsLeft === 1 ? "mes" : "meses"} restante{billing.promoMonthsLeft > 1 ? "s" : ""}
+                  </span>
+                </div>
               ) : null}
               {billing.billingCycle && (
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -219,9 +239,14 @@ export default function BillingPage() {
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-blue-600">
-                {billing.valueBrl ? `R$ ${billing.valueBrl.toFixed(2).replace(".", ",")}` : "—"}
+                {billing.valueBrl != null ? `R$ ${billing.valueBrl.toFixed(2).replace(".", ",")}` : "\u2014"}
               </p>
               <p className="text-xs text-slate-400">/{billing.billingCycle === "ANNUAL" ? "ano" : "mes"}</p>
+              {billing.isPromo && billing.planPriceCents && billing.planPriceCents !== Math.round((billing.valueBrl || 0) * 100) && (
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Apos promocao: {formatCurrency(billing.planPriceCents)}/mes
+                </p>
+              )}
             </div>
           </div>
 
@@ -305,51 +330,14 @@ export default function BillingPage() {
           <p className="text-xs text-slate-500 mb-3">O upgrade e imediato. O saldo do plano atual sera creditado como desconto na primeira fatura do novo plano.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {upgradePlans.map((plan) => (
-              <div
+              <PlanCard
                 key={plan.id}
-                className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                    <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-800">{plan.name}</h3>
-                    {plan.description && (
-                      <p className="text-xs text-slate-500">{plan.description}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-1 mb-4">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                    <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                    </svg>
-                    Ate {plan.maxUsers} usuarios
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                    <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                    </svg>
-                    {plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `Ate ${plan.maxOsPerMonth} OS/mes`}
-                  </div>
-                </div>
-                <div className="flex items-end justify-between mb-4">
-                  <div className="text-right w-full">
-                    <p className="text-2xl font-bold text-blue-600">{formatCurrency(plan.priceCents)}</p>
-                    <p className="text-[10px] text-slate-400">/mes</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleUpgrade(plan.id)}
-                  disabled={upgrading === plan.id}
-                  className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {upgrading === plan.id ? "Processando..." : "Fazer Upgrade"}
-                </button>
-              </div>
+                plan={plan}
+                variant="upgrade"
+                actionLabel="Fazer Upgrade"
+                loading={upgrading === plan.id}
+                onAction={() => handleUpgrade(plan.id)}
+              />
             ))}
           </div>
         </div>
@@ -362,37 +350,14 @@ export default function BillingPage() {
           <p className="text-xs text-slate-500 mb-3">A troca sera aplicada no proximo ciclo de cobranca. Voce continua com o plano atual ate o final do periodo pago.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {downgradePlans.map((plan) => (
-              <div
+              <PlanCard
                 key={plan.id}
-                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-                    <svg className="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-800">{plan.name}</h3>
-                    {plan.description && (
-                      <p className="text-xs text-slate-500">{plan.description}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-end justify-between mb-4">
-                  <div className="text-right w-full">
-                    <p className="text-2xl font-bold text-slate-700">{formatCurrency(plan.priceCents)}</p>
-                    <p className="text-[10px] text-slate-400">/mes</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleDowngrade(plan.id)}
-                  disabled={downgrading === plan.id}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {downgrading === plan.id ? "Processando..." : "Trocar Plano"}
-                </button>
-              </div>
+                plan={plan}
+                variant="downgrade"
+                actionLabel="Trocar Plano"
+                loading={downgrading === plan.id}
+                onAction={() => handleDowngrade(plan.id)}
+              />
             ))}
           </div>
         </div>
@@ -449,6 +414,100 @@ export default function BillingPage() {
           <p className="text-sm text-slate-500">Nenhum pacote adicional ou opcao de plano disponivel no momento.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Plan Card Component ──────────────────────────── */
+
+function PlanCard({
+  plan,
+  variant,
+  actionLabel,
+  loading,
+  onAction,
+}: {
+  plan: Plan;
+  variant: "upgrade" | "downgrade";
+  actionLabel: string;
+  loading: boolean;
+  onAction: () => void;
+}) {
+  const isUpgrade = variant === "upgrade";
+  const borderColor = isUpgrade ? "border-blue-200" : "border-slate-200";
+  const bgGradient = isUpgrade ? "bg-gradient-to-br from-blue-50 to-white" : "bg-white";
+  const iconBg = isUpgrade ? "bg-blue-100" : "bg-slate-100";
+  const iconColor = isUpgrade ? "text-blue-600" : "text-slate-500";
+  const priceColor = isUpgrade ? "text-blue-600" : "text-slate-700";
+  const checkColor = isUpgrade ? "text-blue-500" : "text-slate-400";
+
+  return (
+    <div className={`rounded-xl border ${borderColor} ${bgGradient} p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col`}>
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBg}`}>
+          <svg className={`h-5 w-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+            {isUpgrade ? (
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.51l-5.511-3.181" />
+            )}
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">{plan.name}</h3>
+          {plan.description && (
+            <p className="text-xs text-slate-500">{plan.description}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Features */}
+      <div className="space-y-1.5 mb-4 flex-1">
+        <FeatureLine color={checkColor} text={formatLimit(plan.maxUsers, "usuarios")} />
+        <FeatureLine color={checkColor} text={plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `Ate ${plan.maxOsPerMonth} OS/mes`} />
+        <FeatureLine color={checkColor} text={formatLimit(plan.maxTechnicians, "tecnicos")} />
+        <FeatureLine color={checkColor} text={plan.maxAiMessages === 0 ? "Msgs IA ilimitadas" : `${plan.maxAiMessages} msgs IA/mes`} />
+        <FeatureLine color={checkColor} text={SUPPORT_LABELS[plan.supportLevel] || plan.supportLevel} />
+        {plan.allModulesIncluded && (
+          <FeatureLine color={checkColor} text="Todos os modulos inclusos" />
+        )}
+      </div>
+
+      {/* Price */}
+      <div className="mb-4">
+        <p className={`text-2xl font-bold ${priceColor}`}>{formatCurrency(plan.priceCents)}</p>
+        <p className="text-[10px] text-slate-400">/mes</p>
+        {plan.priceYearlyCents != null && plan.priceYearlyCents > 0 && (
+          <p className="text-[10px] text-slate-400">
+            ou {formatCurrency(plan.priceYearlyCents)}/ano ({Math.round((1 - plan.priceYearlyCents / (plan.priceCents * 12)) * 100)}% desconto)
+          </p>
+        )}
+      </div>
+
+      {/* Action */}
+      <button
+        onClick={onAction}
+        disabled={loading}
+        className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+          isUpgrade
+            ? "bg-blue-600 text-white hover:bg-blue-700"
+            : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+        }`}
+      >
+        {loading ? "Processando..." : actionLabel}
+      </button>
+    </div>
+  );
+}
+
+function FeatureLine({ color, text }: { color: string; text: string }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-slate-600">
+      <svg className={`w-3.5 h-3.5 shrink-0 ${color}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+      </svg>
+      {text}
     </div>
   );
 }

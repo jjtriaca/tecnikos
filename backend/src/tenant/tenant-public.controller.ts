@@ -79,6 +79,10 @@ export class TenantPublicController {
         description: true,
         features: true,
         sortOrder: true,
+        maxTechnicians: true,
+        maxAiMessages: true,
+        supportLevel: true,
+        allModulesIncluded: true,
       },
     });
     return plans;

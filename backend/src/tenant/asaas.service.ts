@@ -1516,20 +1516,37 @@ export class AsaasService {
       pendingPlanName = pendingPlan?.name || null;
     }
 
+    // Calculate actual current price (including promo discount)
+    const isPromo = (subscription.promotionMonthsLeft || 0) > 0;
+    const planPriceCents = subscription.originalValueCents || subscription.plan?.priceCents || 0;
+    let currentValueCents = planPriceCents;
+    if (isPromo && subscription.promotionId) {
+      const promo = await this.prisma.promotion.findUnique({
+        where: { id: subscription.promotionId },
+      });
+      if (promo) {
+        if (promo.discountCents) {
+          currentValueCents = Math.max(0, planPriceCents - promo.discountCents);
+        } else if (promo.discountPercent) {
+          currentValueCents = Math.round(planPriceCents * (1 - promo.discountPercent / 100));
+        }
+      }
+    }
+
     return {
       hasSubscription: true,
       status: subscription.status,
+      planId: subscription.planId,
       nextBillingDate: subscription.nextBillingDate,
       daysUntilDue,
       overdueAt: subscription.overdueAt,
       daysOverdue,
       hoursUntilBlock: subscription.status === 'PAST_DUE' ? hoursUntilBlock : null,
-      isPromo: (subscription.promotionMonthsLeft || 0) > 0,
+      isPromo,
       promoMonthsLeft: subscription.promotionMonthsLeft || 0,
       planName: subscription.plan?.name || '',
-      valueBrl: subscription.originalValueCents && subscription.promotionMonthsLeft
-        ? (subscription.originalValueCents - (subscription.originalValueCents - (subscription.plan?.priceCents || 0))) / 100
-        : (subscription.plan?.priceCents || 0) / 100,
+      valueBrl: currentValueCents / 100,
+      planPriceCents, // Full plan price (for upgrade/downgrade comparison)
       overduePaymentUrl,
       // New billing cycle fields
       billingCycle: subscription.billingCycle || 'MONTHLY',
