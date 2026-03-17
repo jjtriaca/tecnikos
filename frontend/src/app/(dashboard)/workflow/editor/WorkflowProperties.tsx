@@ -203,7 +203,8 @@ export default function WorkflowProperties({ block, onChange }: Props) {
       { var: "{endereco}", label: "Endereco" },
     ];
     const TECNICO_VARS = [
-      { var: "{link_app}", label: "Link App" },
+      { var: "{link_app}", label: "Link Primeiro Acesso" },
+      { var: "{link_os}", label: "Link da OS" },
       { var: "{nome_cliente}", label: "Nome Cliente" },
     ];
     const CLIENTE_VARS = [

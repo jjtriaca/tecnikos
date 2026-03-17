@@ -1503,10 +1503,16 @@ export class WorkflowEngineService {
 
             for (const target of techTargets) {
               try {
-                // Append public link to message if generated
+                // Replace {link_os} variable or append link to message
                 let finalMessage = r.message;
                 if (publicLinkUrl) {
-                  finalMessage += ` | Acesse: ${publicLinkUrl}`;
+                  if (finalMessage.includes('{link_os}')) {
+                    finalMessage = finalMessage.replace(/\{link_os\}/gi, publicLinkUrl);
+                  } else {
+                    finalMessage += ` | Acesse: ${publicLinkUrl}`;
+                  }
+                } else {
+                  finalMessage = finalMessage.replace(/\{link_os\}/gi, '');
                 }
 
                 await this.notifications.send({
