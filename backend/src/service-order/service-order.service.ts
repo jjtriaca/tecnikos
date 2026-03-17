@@ -7,6 +7,7 @@ import { AutomationEngineService, AutomationEvent } from '../automation/automati
 import { WaitForService } from '../workflow/wait-for.service';
 import { WorkflowEngineService } from '../workflow/workflow-engine.service';
 import { AuditService } from '../common/audit/audit.service';
+import { EvaluationService } from '../evaluation/evaluation.service';
 import { CreateServiceOrderDto } from './dto/create-service-order.dto';
 import { UpdateServiceOrderDto } from './dto/update-service-order.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
@@ -45,6 +46,7 @@ export class ServiceOrderService {
     @Optional() @Inject(AutomationEngineService) private readonly automationEngine?: AutomationEngineService,
     @Optional() @Inject(WaitForService) private readonly waitForService?: WaitForService,
     @Optional() @Inject(WorkflowEngineService) private readonly workflowEngine?: WorkflowEngineService,
+    @Optional() @Inject(EvaluationService) private readonly evaluationService?: EvaluationService,
   ) {}
 
   /** Fire-and-forget automation dispatch + WAIT_FOR early trigger check */
@@ -1405,6 +1407,49 @@ export class ServiceOrderService {
       data: { status: 'CONCLUIDA', oldStatus: so.status, valueCents: so.valueCents, title: so.title },
     });
 
+    // Fire-and-forget: generate client evaluation token and send notification
+    if (so.assignedPartnerId && so.clientPartnerId && this.evaluationService) {
+      this.generateAndSendEvaluationLink(id, so.assignedPartnerId, companyId, so.title, so.clientPartnerId)
+        .catch((err) => this.audit.log({
+          companyId, entityType: 'SERVICE_ORDER', entityId: id,
+          action: 'EVAL_TOKEN_ERROR', actorType: 'SYSTEM', actorId: 'system',
+          after: { error: err.message },
+        }));
+    }
+
     return result;
+  }
+
+  private async generateAndSendEvaluationLink(
+    serviceOrderId: string,
+    technicianId: string,
+    companyId: string,
+    osTitle: string,
+    clientPartnerId: string,
+  ) {
+    const token = await this.evaluationService!.generateClientEvaluationToken(
+      serviceOrderId, technicianId, companyId,
+    );
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+    const evaluationLink = `${baseUrl}/rate/${token}`;
+
+    // Get client phone for notification
+    const client = await this.prisma.partner.findUnique({
+      where: { id: clientPartnerId },
+      select: { phone: true, name: true },
+    });
+
+    if (client?.phone && this.notifications) {
+      await this.notifications.send({
+        companyId,
+        serviceOrderId,
+        channel: 'WHATSAPP',
+        recipientPhone: client.phone,
+        message: `Olá ${client.name || ''}! O serviço "${osTitle}" foi concluído. Avalie o atendimento: ${evaluationLink}`,
+        type: 'EVALUATION_REQUEST',
+        forceTemplate: true,
+      });
+    }
   }
 }

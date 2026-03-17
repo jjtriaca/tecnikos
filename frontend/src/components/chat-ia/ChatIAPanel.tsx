@@ -5,11 +5,18 @@ import { useChatIA } from "@/contexts/ChatIAContext";
 import ChatIAMessage from "./ChatIAMessage";
 import ChatIAInput from "./ChatIAInput";
 import ChatIAButton from "./ChatIAButton";
+import { api } from "@/lib/api";
 
 export default function ChatIAPanel() {
   const { isOpen, setIsOpen, loading, sending, messages, usage, newConversation, conversations, loadConversation } = useChatIA();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSuggestion, setShowSuggestion] = useState(false);
+  const [suggCategory, setSuggCategory] = useState("MELHORIA");
+  const [suggTitle, setSuggTitle] = useState("");
+  const [suggDesc, setSuggDesc] = useState("");
+  const [suggSending, setSuggSending] = useState(false);
+  const [suggSent, setSuggSent] = useState(false);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -54,6 +61,16 @@ export default function ChatIAPanel() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
               </button>
+              {/* Suggest improvement */}
+              <button
+                onClick={() => { setShowSuggestion(true); setSuggSent(false); }}
+                className="rounded-lg p-1.5 text-blue-200 transition-colors hover:bg-blue-500/30 hover:text-white"
+                title="Solicitar melhoria"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                </svg>
+              </button>
               {/* Close */}
               <button
                 onClick={() => setIsOpen(false)}
@@ -88,6 +105,72 @@ export default function ChatIAPanel() {
                     </button>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Suggestion panel */}
+          {showSuggestion && (
+            <div className="border-b border-slate-200 bg-white p-4">
+              {suggSent ? (
+                <div className="text-center py-4">
+                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-green-50">
+                    <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">Sugestao enviada!</p>
+                  <p className="text-xs text-slate-400 mt-1">Obrigado pelo seu feedback</p>
+                  <button onClick={() => setShowSuggestion(false)} className="mt-3 text-xs text-blue-600 hover:text-blue-700">Fechar</button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold text-slate-700">Solicitar melhoria</p>
+                    <button onClick={() => setShowSuggestion(false)} className="text-slate-400 hover:text-slate-600">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <select
+                    value={suggCategory}
+                    onChange={(e) => setSuggCategory(e.target.value)}
+                    className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none"
+                  >
+                    <option value="MELHORIA">Melhoria</option>
+                    <option value="BUG">Bug / Erro</option>
+                    <option value="DUVIDA">Duvida</option>
+                  </select>
+                  <input
+                    placeholder="Titulo da sugestao..."
+                    value={suggTitle}
+                    onChange={(e) => setSuggTitle(e.target.value)}
+                    className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 placeholder-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none"
+                  />
+                  <textarea
+                    placeholder="Descreva o que gostaria de melhorar..."
+                    value={suggDesc}
+                    onChange={(e) => setSuggDesc(e.target.value)}
+                    rows={3}
+                    className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 placeholder-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none resize-none"
+                  />
+                  <button
+                    disabled={suggTitle.length < 5 || suggDesc.length < 10 || suggSending}
+                    onClick={async () => {
+                      setSuggSending(true);
+                      try {
+                        await api.post("/suggestions", { category: suggCategory, title: suggTitle, description: suggDesc });
+                        setSuggSent(true);
+                        setSuggTitle(""); setSuggDesc(""); setSuggCategory("MELHORIA");
+                      } catch { /* ignore */ }
+                      setSuggSending(false);
+                    }}
+                    className="w-full rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {suggSending ? "Enviando..." : "Enviar sugestao"}
+                  </button>
+                </>
               )}
             </div>
           )}

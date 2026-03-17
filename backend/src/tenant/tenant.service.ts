@@ -69,6 +69,7 @@ export class TenantService {
     passwordHash?: string;
     promoCode?: string;
     isMaster?: boolean;
+    agreeTermsAt?: Date;
   }) {
     // Validate slug
     const slugRegex = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
@@ -128,6 +129,7 @@ export class TenantService {
         passwordHash: data.passwordHash,
         promoCode: data.promoCode,
         isMaster: data.isMaster || false,
+        agreeTermsAt: data.agreeTermsAt,
         maxUsers,
         maxOsPerMonth,
         maxTechnicians,

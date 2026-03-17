@@ -280,6 +280,7 @@ export class TenantPublicController {
       responsiblePhone?: string;
       password: string;
       promoCode?: string;
+      agreeTerms?: boolean;
     },
   ) {
     // Validate required fields
@@ -294,6 +295,11 @@ export class TenantPublicController {
     const passwordError = validateStrongPassword(body.password);
     if (passwordError) {
       throw new BadRequestException(passwordError);
+    }
+
+    // Validate terms acceptance
+    if (!body.agreeTerms) {
+      throw new BadRequestException('Você precisa aceitar os Termos de Uso para continuar');
     }
 
     // Validate CNPJ
@@ -405,6 +411,7 @@ export class TenantPublicController {
       responsiblePhone: body.responsiblePhone,
       passwordHash,
       promoCode: body.promoCode,
+      agreeTermsAt: body.agreeTerms ? new Date() : undefined,
     });
 
     // Always run onboarding so user can login immediately

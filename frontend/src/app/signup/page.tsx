@@ -99,6 +99,9 @@ function SignupPage() {
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [slugChecking, setSlugChecking] = useState(false);
 
+  // Terms
+  const [agreeTerms, setAgreeTerms] = useState(false);
+
   // Password
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -375,6 +378,7 @@ function SignupPage() {
           planId: selectedPlanId,
           billingCycle,
           promoCode: promoValid?.valid ? promoCode.trim() : undefined,
+          agreeTerms,
         }),
       });
       const data = await r.json();
@@ -953,6 +957,27 @@ function SignupPage() {
                 )}
               </div>
 
+              {/* Termos de uso */}
+              <label className="flex items-start gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={agreeTerms}
+                  onChange={(e) => setAgreeTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-xs text-slate-500">
+                  Li e concordo com os{" "}
+                  <a href="/terms" target="_blank" className="text-blue-600 hover:text-blue-700 underline">
+                    Termos de Uso
+                  </a>{" "}
+                  e a{" "}
+                  <a href="/privacy" target="_blank" className="text-blue-600 hover:text-blue-700 underline">
+                    Politica de Privacidade
+                  </a>{" "}
+                  do Tecnikos.
+                </span>
+              </label>
+
               {renderError()}
 
               <div className="flex gap-3 pt-2">
@@ -960,6 +985,7 @@ function SignupPage() {
                   className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">Voltar</button>
                 <button type="submit" disabled={
                   submitting ||
+                  !agreeTerms ||
                   slugAvailable === false ||
                   !cnpjData?.found ||
                   !form.name ||

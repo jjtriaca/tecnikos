@@ -5,9 +5,10 @@ import { NotificationModule } from '../notification/notification.module';
 import { AuditModule } from '../common/audit/audit.module';
 import { AutomationModule } from '../automation/automation.module';
 import { WorkflowModule } from '../workflow/workflow.module';
+import { EvaluationModule } from '../evaluation/evaluation.module';
 
 @Module({
-  imports: [NotificationModule, AuditModule, AutomationModule, WorkflowModule],
+  imports: [NotificationModule, AuditModule, AutomationModule, WorkflowModule, EvaluationModule],
   controllers: [ServiceOrderController],
   providers: [ServiceOrderService],
   exports: [ServiceOrderService],

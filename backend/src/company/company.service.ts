@@ -41,9 +41,17 @@ export class CompanyService {
       throw new ForbiddenException('Acesso negado a outra empresa');
     }
 
+    // If company already has CNPJ, don't allow changing it
+    const existing = await this.prisma.company.findUnique({
+      where: { id },
+      select: { cnpj: true },
+    });
+
     const data: Record<string, unknown> = {};
     for (const key of ALLOWED_FIELDS) {
       if (body[key] !== undefined) {
+        // Block CNPJ change if already set
+        if (key === 'cnpj' && existing?.cnpj) continue;
         data[key] = body[key];
       }
     }

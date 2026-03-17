@@ -164,6 +164,7 @@ export default function SettingsPage() {
   });
 
   const isAdmin = user?.roles?.includes("ADMIN") ?? false;
+  const initialCnpj = company?.cnpj?.replace(/\D/g, "") ?? "";
   const savedFormRef = useRef<string>("");
   const isDirty = JSON.stringify(form) !== savedFormRef.current;
   const savedLogoDimsRef = useRef<string>("");
@@ -491,9 +492,10 @@ export default function SettingsPage() {
                   setField("cnpj", maskCnpj(e.target.value));
                   setCnpjStatus(null);
                 }}
-                disabled={!isAdmin}
+                disabled={!isAdmin || (initialCnpj.length > 0)}
                 placeholder="00.000.000/0000-00"
                 className={inputClass}
+                title={initialCnpj.length > 0 ? "CNPJ definido no cadastro. Para alterar, entre em contato com o suporte." : ""}
               />
             </div>
             <button

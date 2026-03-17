@@ -198,6 +198,7 @@ model Company {
   technicianContracts  TechnicianContract[]
   codeCounters         CodeCounter[]
   chatIAConversations  ChatIAConversation[]
+  suggestions          Suggestion[]
   quotes               Quote[]
   checklistResponses   ChecklistResponse[]
 }
@@ -235,6 +236,7 @@ model User {
   company  Company   @relation(fields: [companyId], references: [id])
   sessions Session[]
   chatIAConversations ChatIAConversation[]
+  suggestions         Suggestion[]
 
   @@unique([companyId, code])
 }
@@ -1937,6 +1939,9 @@ model Tenant {
   supportLevel      String    @default("EMAIL") // Snapshot: EMAIL, EMAIL_CHAT, PRIORITY
   allModulesIncluded Boolean  @default(true)    // Snapshot: todos os módulos
 
+  // Termos de uso
+  agreeTermsAt  DateTime?  // Timestamp do aceite dos termos de uso
+
   // Bloqueio
   blockedAt     DateTime?
   blockReason   String?
@@ -2301,6 +2306,27 @@ model ChatIAMessage {
 
   @@index([conversationId])
   @@index([createdAt])
+}
+
+// ========== Sugestões de Melhoria ==========
+
+model Suggestion {
+  id          String   @id @default(uuid())
+  companyId   String
+  userId      String
+  category    String   @default("MELHORIA") // MELHORIA, BUG, DUVIDA
+  title       String
+  description String
+  status      String   @default("ABERTA")   // ABERTA, EM_ANALISE, IMPLEMENTADA, DESCARTADA
+  adminNotes  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([status])
 }
 
 // ========== Orçamentos (Quotes) ==========

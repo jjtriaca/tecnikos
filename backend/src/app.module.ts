@@ -35,6 +35,7 @@ import { EmailModule } from './email/email.module';
 import { ContractModule } from './contract/contract.module';
 import { TenantModule } from './tenant/tenant.module';
 import { ChatIAModule } from './chat-ia/chat-ia.module';
+import { SuggestionModule } from './suggestion/suggestion.module';
 import { QuoteModule } from './quote/quote.module';
 import { VerificationModule } from './verification/verification.module';
 
@@ -88,6 +89,7 @@ import { VerificationGuard } from './auth/guards/verification.guard';
     ContractModule,
     TenantModule,
     ChatIAModule,
+    SuggestionModule,
     QuoteModule,
     VerificationModule,
   ],
