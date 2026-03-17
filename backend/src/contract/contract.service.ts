@@ -255,7 +255,7 @@ export class ContractService {
         message: finalMessage,
         type: 'WELCOME_SENT',
         forceTemplate: true,
-        templateName: 'boas_vindas', // Uses dedicated template, falls back to aviso_os
+        templateName: 'seja_bem_vindo', // Uses dedicated template, falls back to aviso_os
         templateParams: [partner.name, appLink], // {{1}} = name, {{2}} = app link
       });
     } else if (opts.channel === 'EMAIL' && partner.email && this.email) {

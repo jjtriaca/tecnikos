@@ -12,12 +12,22 @@
 ## Templates em Uso
 1. **aviso_os** (pt_BR) — 1 parâmetro body `{{1}}` — usado como fallback por `sendTextWithTemplateFallback()`
 2. **teste_conexao** (pt_BR) — sem parâmetros — usado pelo botão "Testar conexão"
+3. **seja_bem_vindo** (pt_BR) — 2 parâmetros: `{{1}}`=nome, `{{2}}`=link app — PENDENTE APROVAÇÃO Meta
+
+## Onde Gerenciar Templates no Meta
+**NÃO está** em Meta Business Suite → "Todas as ferramentas".
+O caminho correto é:
+1. Acesse: https://business.facebook.com/latest/whatsapp_manager/overview/
+2. Isso abre o **Gerenciador do WhatsApp** (URL contém `whatsapp_manager`)
+3. Menu lateral: **Modelos de mensagens** → **Gerenciar modelos**
+4. Lá clique em **"Criar modelo"** para criar novos templates
+Alternativa: https://developers.facebook.com → App → WhatsApp → Message Templates
 
 ## Fluxo de Envio (sendTextWithTemplateFallback)
 1. Se `forceTemplate=false`: tenta texto puro primeiro (funciona dentro janela 24h)
 2. Se texto falha ou `forceTemplate=true`: envia via template `aviso_os`
 3. Se template falha: loga erro detalhado (code, subcode, msg)
-- Sanitização: remove `\n\r\t`, limita 4+ espaços, trunca em 1000 chars
+- Sanitização: preserva `\n`, remove `\r\t`, colapsa 3+ newlines, limita 4+ espaços, trunca em 1000 chars
 
 ## Pontos de Envio Automático (SEM ação do usuário)
 | Local | Tipo | forceTemplate? | Risco |
