@@ -220,21 +220,29 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
     }).catch(() => setGpsPermission("prompt"));
   }, []);
 
-  // Auto-start GPS tracking when permission is already granted AND technician clicked "A caminho"
+  // Auto-start GPS tracking when permission is already granted and GPS block is visible
   useEffect(() => {
     if (
-      step === "post-accept" &&
-      enRouteAt &&
-      gpsPermission === "granted" &&
-      !trackingActive &&
-      !gpsAutoStarted.current &&
-      data?.linkConfig?.gpsNavigation &&
-      typeof navigator !== "undefined" &&
-      navigator.geolocation
-    ) {
-      gpsAutoStarted.current = true;
-      startTracking();
-    }
+      step !== "post-accept" ||
+      gpsPermission !== "granted" ||
+      trackingActive ||
+      gpsAutoStarted.current ||
+      !data?.linkConfig?.gpsNavigation ||
+      typeof navigator === "undefined" ||
+      !navigator.geolocation
+    ) return;
+
+    // Determine if GPS is blocked behind "A caminho" (enroute comes first in layout)
+    const blocks = data.linkConfig.page2Layout?.filter((b: any) => b.enabled) || [];
+    const enrIdx = blocks.findIndex((b: any) => b.type === 'enroute_button');
+    const gpsIdx = blocks.findIndex((b: any) => b.type === 'gps_button');
+    const enrComesFirst = enrIdx >= 0 && gpsIdx >= 0 && enrIdx < gpsIdx;
+
+    // If "A caminho" comes first, only auto-start GPS after it's done
+    if (enrComesFirst && !enRouteAt) return;
+
+    gpsAutoStarted.current = true;
+    startTracking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, enRouteAt, gpsPermission, trackingActive, data?.linkConfig?.gpsNavigation]);
 
@@ -993,87 +1001,123 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             </div>
           )}
 
-          {/* 1. "A caminho" button — shows first, before GPS */}
-          {lc?.enRoute && !enRouteAt && (
-            <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 text-center">
-              <div className="text-2xl mb-2">🚗</div>
-              <h3 className="text-sm font-semibold text-blue-800">Estou a caminho</h3>
-              <p className="text-xs text-slate-500 mt-1 mb-3">
-                Quando estiver saindo para o local, clique para informar ao gestor.
-              </p>
-              <button
-                type="button"
-                onClick={handleEnRoute}
-                disabled={enRouteLoading}
-                className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors disabled:bg-slate-300"
-              >
-                {enRouteLoading ? "Registrando..." : "🚗 Estou a caminho"}
-              </button>
-            </div>
-          )}
+          {/* Render page2Layout blocks in configured order */}
+          {(() => {
+            const blocks = lc?.page2Layout?.filter((b: any) => b.enabled) || [];
+            // Determine order: find positions of enroute and gps in the layout
+            const enrIdx = blocks.findIndex((b: any) => b.type === 'enroute_button');
+            const gpsIdx = blocks.findIndex((b: any) => b.type === 'gps_button');
+            const hasEnr = enrIdx >= 0 && lc?.enRoute;
+            const hasGps = gpsIdx >= 0 && lc?.gpsNavigation && typeof navigator !== "undefined" && navigator.geolocation;
 
-          {/* 2. After clicking "A caminho" → show GPS activation */}
-          {lc?.enRoute && enRouteAt && (
-            <>
-              {/* En Route confirmed */}
-              <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
-                <div className="text-2xl mb-1">✅</div>
-                <p className="text-sm font-medium text-green-700">Saída registrada</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              </div>
+            // The block that comes FIRST shows immediately.
+            // The block that comes SECOND only shows after the first is completed.
+            const enrFirst = hasEnr && hasGps ? enrIdx < gpsIdx : hasEnr;
+            const gpsFirst = hasEnr && hasGps ? gpsIdx < enrIdx : hasGps;
 
-              {/* GPS Section — only appears after "A caminho" */}
-              {lc?.gpsNavigation && typeof navigator !== "undefined" && navigator.geolocation && (
-                <>
-                  {/* GPS already active (auto-started or manually) */}
-                  {trackingActive && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
-                      <div className="text-2xl mb-1">📡</div>
-                      <p className="text-sm font-medium text-green-700">GPS ativo</p>
-                      <p className="text-xs text-slate-400 mt-1">Rastreando sua localização...</p>
-                    </div>
-                  )}
+            // "A caminho" completed?
+            const enrDone = !!enRouteAt;
+            // GPS completed?
+            const gpsDone = trackingActive;
 
-                  {/* GPS needs activation */}
-                  {!trackingActive && gpsPermission !== "granted" && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-4 text-center">
-                      <div className="text-2xl mb-2">📡</div>
-                      <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS</h3>
-                      <p className="text-xs text-slate-500 mt-1 mb-3">
-                        Ative o GPS para monitorar sua proximidade até o local.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={startTracking}
-                        className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
-                      >
-                        🛰️ Ativar GPS
-                      </button>
-                      {trackingError && (
-                        <p className="text-xs text-red-500 mt-2">{trackingError}</p>
-                      )}
-                    </div>
-                  )}
+            // Show "A caminho" if:
+            // - It exists AND (it's first, OR the other block is done, OR no other block)
+            const showEnr = hasEnr && (enrFirst || !hasGps || gpsDone);
+            // Show GPS if:
+            // - It exists AND (it's first, OR the other block is done, OR no other block)
+            const showGps = hasGps && (gpsFirst || !hasEnr || enrDone);
 
-                  {/* GPS permission already granted — auto-starting */}
-                  {!trackingActive && gpsPermission === "granted" && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
-                      <div className="text-2xl mb-1">📡</div>
-                      <p className="text-sm font-medium text-green-700">Conectando GPS...</p>
-                      <p className="text-xs text-slate-400 mt-1">Iniciando rastreamento automaticamente...</p>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
+            // Build ordered render list
+            const renderOrder: string[] = [];
+            for (const b of blocks) {
+              if (b.type === 'enroute_button' && showEnr) renderOrder.push('enroute');
+              if (b.type === 'gps_button' && showGps) renderOrder.push('gps');
+            }
 
-          {/* If no more actions, show done info */}
-          {(!lc?.enRoute || (enRouteAt && (!lc?.gpsNavigation || trackingActive))) && (
-            <p className="text-center text-xs text-slate-400 mt-2">Você pode fechar esta página.</p>
-          )}
+            return (
+              <>
+                {renderOrder.map((blockType) => {
+                  if (blockType === 'enroute') {
+                    return (
+                      <div key="enroute">
+                        {!enRouteAt && (
+                          <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 text-center">
+                            <div className="text-2xl mb-2">🚗</div>
+                            <h3 className="text-sm font-semibold text-blue-800">Estou a caminho</h3>
+                            <p className="text-xs text-slate-500 mt-1 mb-3">
+                              Quando estiver saindo para o local, clique para informar ao gestor.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleEnRoute}
+                              disabled={enRouteLoading}
+                              className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors disabled:bg-slate-300"
+                            >
+                              {enRouteLoading ? "Registrando..." : "🚗 Estou a caminho"}
+                            </button>
+                          </div>
+                        )}
+                        {enRouteAt && (
+                          <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+                            <div className="text-2xl mb-1">✅</div>
+                            <p className="text-sm font-medium text-green-700">Saída registrada</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  if (blockType === 'gps') {
+                    return (
+                      <div key="gps">
+                        {trackingActive && (
+                          <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+                            <div className="text-2xl mb-1">📡</div>
+                            <p className="text-sm font-medium text-green-700">GPS ativo</p>
+                            <p className="text-xs text-slate-400 mt-1">Rastreando sua localização...</p>
+                          </div>
+                        )}
+                        {!trackingActive && gpsPermission !== "granted" && (
+                          <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-4 text-center">
+                            <div className="text-2xl mb-2">📡</div>
+                            <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS</h3>
+                            <p className="text-xs text-slate-500 mt-1 mb-3">
+                              Ative o GPS para monitorar sua proximidade até o local.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={startTracking}
+                              className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
+                            >
+                              🛰️ Ativar GPS
+                            </button>
+                            {trackingError && (
+                              <p className="text-xs text-red-500 mt-2">{trackingError}</p>
+                            )}
+                          </div>
+                        )}
+                        {!trackingActive && gpsPermission === "granted" && (
+                          <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+                            <div className="text-2xl mb-1">📡</div>
+                            <p className="text-sm font-medium text-green-700">Conectando GPS...</p>
+                            <p className="text-xs text-slate-400 mt-1">Iniciando rastreamento automaticamente...</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+
+                {/* If all actions done, show done info */}
+                {(!hasEnr || enrDone) && (!hasGps || gpsDone) && (
+                  <p className="text-center text-xs text-slate-400 mt-2">Você pode fechar esta página.</p>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
     );
@@ -1517,44 +1561,59 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
           </div>
         )}
 
-        {/* When acceptOS=OFF: show enRoute first, then GPS after clicking */}
+        {/* When acceptOS=OFF: show enRoute + GPS in page2Layout order */}
         {data?.linkConfig?.acceptOS === false && (() => {
           const lc = data.linkConfig!;
+          const blocks = lc.page2Layout?.filter((b: any) => b.enabled) || [];
+          const enrIdx = blocks.findIndex((b: any) => b.type === 'enroute_button');
+          const gpsIdx = blocks.findIndex((b: any) => b.type === 'gps_button');
+          const hasEnr = enrIdx >= 0 && lc.enRoute;
+          const hasGps = gpsIdx >= 0 && lc.gpsNavigation && typeof navigator !== "undefined" && navigator.geolocation;
+          const enrFirst = hasEnr && hasGps ? enrIdx < gpsIdx : hasEnr;
+          const gpsFirst = hasEnr && hasGps ? gpsIdx < enrIdx : hasGps;
+          const enrDone = !!enRouteAt;
+          const gpsDone = trackingActive;
+          const showEnr = hasEnr && (enrFirst || !hasGps || gpsDone);
+          const showGps = hasGps && (gpsFirst || !hasEnr || enrDone);
+          const renderOrder: string[] = [];
+          for (const b of blocks) {
+            if (b.type === 'enroute_button' && showEnr) renderOrder.push('enroute');
+            if (b.type === 'gps_button' && showGps) renderOrder.push('gps');
+          }
           return (
             <>
-              {/* "A caminho" button — shows first */}
-              {lc.enRoute && !enRouteAt && (
-                <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 text-center">
-                  <div className="text-2xl mb-2">🚗</div>
-                  <h3 className="text-sm font-semibold text-blue-800">Estou a caminho</h3>
-                  <p className="text-xs text-slate-500 mt-1 mb-3">
-                    Quando estiver saindo para o local, clique para informar ao gestor.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleEnRoute}
-                    disabled={enRouteLoading}
-                    className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors disabled:bg-slate-300"
-                  >
-                    {enRouteLoading ? "Registrando..." : "🚗 Estou a caminho"}
-                  </button>
-                </div>
-              )}
-
-              {/* After clicking "A caminho" → show confirmed + GPS */}
-              {lc.enRoute && enRouteAt && (
-                <>
-                  <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
-                    <div className="text-2xl mb-1">✅</div>
-                    <p className="text-sm font-medium text-green-700">Saída registrada</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-
-                  {/* GPS — only after "A caminho" */}
-                  {lc.gpsNavigation && typeof navigator !== "undefined" && navigator.geolocation && (
-                    <>
+              {renderOrder.map((blockType) => {
+                if (blockType === 'enroute') {
+                  return (
+                    <div key="enroute">
+                      {!enRouteAt && (
+                        <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 text-center">
+                          <div className="text-2xl mb-2">🚗</div>
+                          <h3 className="text-sm font-semibold text-blue-800">Estou a caminho</h3>
+                          <p className="text-xs text-slate-500 mt-1 mb-3">
+                            Quando estiver saindo para o local, clique para informar ao gestor.
+                          </p>
+                          <button type="button" onClick={handleEnRoute} disabled={enRouteLoading}
+                            className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors disabled:bg-slate-300">
+                            {enRouteLoading ? "Registrando..." : "🚗 Estou a caminho"}
+                          </button>
+                        </div>
+                      )}
+                      {enRouteAt && (
+                        <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+                          <div className="text-2xl mb-1">✅</div>
+                          <p className="text-sm font-medium text-green-700">Saída registrada</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                if (blockType === 'gps') {
+                  return (
+                    <div key="gps">
                       {trackingActive && (
                         <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
                           <div className="text-2xl mb-1">📡</div>
@@ -1566,19 +1625,12 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                         <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-4 text-center">
                           <div className="text-2xl mb-2">📡</div>
                           <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS</h3>
-                          <p className="text-xs text-slate-500 mt-1 mb-3">
-                            Ative o GPS para monitorar sua proximidade até o local.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={startTracking}
-                            className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
-                          >
+                          <p className="text-xs text-slate-500 mt-1 mb-3">Ative o GPS para monitorar sua proximidade até o local.</p>
+                          <button type="button" onClick={startTracking}
+                            className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors">
                             🛰️ Ativar GPS
                           </button>
-                          {trackingError && (
-                            <p className="text-xs text-red-500 mt-2">{trackingError}</p>
-                          )}
+                          {trackingError && <p className="text-xs text-red-500 mt-2">{trackingError}</p>}
                         </div>
                       )}
                       {!trackingActive && gpsPermission === "granted" && (
@@ -1588,10 +1640,11 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                           <p className="text-xs text-slate-400 mt-1">Iniciando rastreamento automaticamente...</p>
                         </div>
                       )}
-                    </>
-                  )}
-                </>
-              )}
+                    </div>
+                  );
+                }
+                return null;
+              })}
             </>
           );
         })()}
