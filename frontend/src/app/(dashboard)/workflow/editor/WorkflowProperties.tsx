@@ -261,7 +261,16 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             </div>
             {r.type === "TECNICO" && (
               <div className="space-y-1.5">
-                <Checkbox checked={r.includeLink || false} onChange={(v) => { updateRecipient(i, "includeLink", v); if (!v) { updateRecipient(i, "acceptanceType", undefined); updateRecipient(i, "contractName", undefined); updateRecipient(i, "contractContent", undefined); updateRecipient(i, "requireSignature", undefined); } else if (!r.acceptanceType) { updateRecipient(i, "acceptanceType", "simple"); } }} label="Incluir link de aceite" />
+                <Checkbox checked={r.includeLink || false} onChange={(v) => {
+                  const n = [...(Array.isArray(cfg.recipients) ? cfg.recipients : [])];
+                  if (v) {
+                    n[i] = { ...n[i], includeLink: true, acceptanceType: n[i].acceptanceType || "simple" };
+                  } else {
+                    const { acceptanceType, contractName, contractContent, requireSignature, ...rest } = n[i];
+                    n[i] = { ...rest, includeLink: false };
+                  }
+                  updateConfig("recipients", n);
+                }} label="Incluir link de aceite" />
                 {r.includeLink && (
                   <div className="ml-5 space-y-1.5 border-l-2 border-blue-200 pl-3">
                     <div className="flex gap-3">
