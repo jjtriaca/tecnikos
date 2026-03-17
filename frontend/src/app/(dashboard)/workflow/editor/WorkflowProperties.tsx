@@ -159,6 +159,14 @@ export default function WorkflowProperties({ block, onChange }: Props) {
     onChange({ ...block, name });
   }
 
+  // Default messages per recipient type
+  const DEFAULT_MESSAGES: Record<string, string> = {
+    CLIENTE: "Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.",
+    TECNICO: "Ola {nome}, voce foi designado para a OS {titulo}. Cliente: {nome_cliente}. Endereco: {endereco}. Data: {data_agendamento}. Acesse o app: {link_app}",
+    FORNECEDOR: "Prezado {nome}, a {razao_social} solicita o fornecimento de materiais para a OS {titulo}. Endereco de entrega: {endereco}. Prazo: {data_agendamento}. Para duvidas, contate {empresa} pelo {telefone_empresa}.",
+    GESTOR: "{tecnico} concluiu a OS {titulo} ({nome_cliente}, {endereco}). Verifique o relatorio e fotos no sistema.",
+  };
+
   // Recipient editor for NOTIFY blocks
   function NotifyRecipients() {
     const recipients = Array.isArray(cfg.recipients) ? cfg.recipients : [];
@@ -167,11 +175,57 @@ export default function WorkflowProperties({ block, onChange }: Props) {
       n[idx] = { ...n[idx], [key]: val };
       updateConfig("recipients", n);
     };
-    const addRecipient = () => {
-      updateConfig("recipients", [...recipients, { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "" }]);
+    const changeRecipientType = (idx: number, newType: string) => {
+      const n = [...recipients];
+      const oldMsg = n[idx].message || "";
+      const oldType = n[idx].type;
+      // Auto-fill message if empty or still has the default of the previous type
+      const isDefault = !oldMsg || oldMsg === DEFAULT_MESSAGES[oldType];
+      n[idx] = { ...n[idx], type: newType, message: isDefault ? DEFAULT_MESSAGES[newType] || "" : oldMsg };
+      updateConfig("recipients", n);
+    };
+    const addRecipient = (type: string = "CLIENTE") => {
+      updateConfig("recipients", [...recipients, { type, enabled: true, channel: "WHATSAPP", message: DEFAULT_MESSAGES[type] || "" }]);
     };
     const removeRecipient = (idx: number) => {
       updateConfig("recipients", recipients.filter((_: any, i: number) => i !== idx));
+    };
+
+    // All available variables
+    const COMMON_VARS = [
+      { var: "{nome}", label: "Nome" },
+      { var: "{empresa}", label: "Empresa" },
+      { var: "{razao_social}", label: "Razao Social" },
+      { var: "{cnpj_empresa}", label: "CNPJ" },
+      { var: "{titulo}", label: "Titulo OS" },
+      { var: "{data}", label: "Data Hoje" },
+      { var: "{data_agendamento}", label: "Data Agendamento" },
+      { var: "{endereco}", label: "Endereco" },
+    ];
+    const TECNICO_VARS = [
+      { var: "{link_app}", label: "Link App" },
+      { var: "{nome_cliente}", label: "Nome Cliente" },
+    ];
+    const CLIENTE_VARS = [
+      { var: "{tecnico}", label: "Tecnico" },
+      { var: "{telefone_empresa}", label: "Tel. Empresa" },
+    ];
+    const FORNECEDOR_VARS = [
+      { var: "{tecnico}", label: "Tecnico" },
+      { var: "{telefone_empresa}", label: "Tel. Empresa" },
+      { var: "{nome_cliente}", label: "Nome Cliente" },
+    ];
+    const GESTOR_VARS = [
+      { var: "{tecnico}", label: "Tecnico" },
+      { var: "{nome_cliente}", label: "Nome Cliente" },
+    ];
+
+    const getVarsForType = (type: string) => {
+      const extra = type === "TECNICO" ? TECNICO_VARS :
+                    type === "CLIENTE" ? CLIENTE_VARS :
+                    type === "FORNECEDOR" ? FORNECEDOR_VARS :
+                    type === "GESTOR" ? GESTOR_VARS : [];
+      return [...COMMON_VARS, ...extra];
     };
 
     return (
@@ -179,7 +233,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
         {recipients.map((r: any, i: number) => (
           <div key={i} className="rounded-lg border border-slate-200 p-2 space-y-1.5">
             <div className="flex items-center justify-between">
-              <Select value={r.type} onChange={(v) => updateRecipient(i, "type", v)} options={[
+              <Select value={r.type} onChange={(v) => changeRecipientType(i, v)} options={[
                 { value: "CLIENTE", label: "Cliente" },
                 { value: "TECNICO", label: "Tecnico" },
                 { value: "FORNECEDOR", label: "Fornecedor" },
@@ -191,36 +245,10 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               { value: "WHATSAPP", label: "WhatsApp" },
               { value: "EMAIL", label: "Email" },
             ]} />
-            <TextArea value={r.message || ""} onChange={(v) => updateRecipient(i, "message", v)} placeholder={
-              r.type === "TECNICO" ? "Ola {nome}, bem-vindo a equipe {empresa}! Acesse o app: {link_app}" :
-              r.type === "FORNECEDOR" ? "Ola {nome}, informamos que a OS {titulo} requer fornecimento de materiais. Entre em contato para detalhes." :
-              r.type === "GESTOR" ? "Atendimento {titulo} concluido. Tecnico: {tecnico}. Cliente: {nome}." :
-              "Ola {nome}, informamos que o servico {titulo} foi atualizado. Obrigado pela preferencia!"
-            } rows={3} />
+            <TextArea value={r.message || ""} onChange={(v) => updateRecipient(i, "message", v)} placeholder="Digite a mensagem..." rows={4} />
             {/* Variable chips */}
             <div className="flex flex-wrap gap-1">
-              {[
-                { var: "{nome}", label: "Nome" },
-                { var: "{empresa}", label: "Empresa" },
-                { var: "{data}", label: "Data" },
-                { var: "{titulo}", label: "Titulo OS" },
-                ...(r.type === "TECNICO" ? [
-                  { var: "{link_app}", label: "Link App" },
-                  { var: "{login}", label: "Login" },
-                  { var: "{senha}", label: "Senha" },
-                  { var: "{endereco}", label: "Endereco" },
-                ] : []),
-                ...(r.type === "CLIENTE" || r.type === "FORNECEDOR" ? [
-                  { var: "{telefone}", label: "Telefone" },
-                  { var: "{email}", label: "Email" },
-                  { var: "{tecnico}", label: "Tecnico" },
-                  { var: "{endereco}", label: "Endereco" },
-                ] : []),
-                ...(r.type === "GESTOR" ? [
-                  { var: "{tecnico}", label: "Tecnico" },
-                  { var: "{endereco}", label: "Endereco" },
-                ] : []),
-              ].map(v => (
+              {getVarsForType(r.type).map(v => (
                 <button
                   key={v.var}
                   type="button"
@@ -236,7 +264,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             )}
           </div>
         ))}
-        <button onClick={addRecipient} className="text-[10px] text-blue-500 hover:text-blue-600 font-medium">+ Adicionar destinatario</button>
+        <button onClick={() => addRecipient("CLIENTE")} className="text-[10px] text-blue-500 hover:text-blue-600 font-medium">+ Adicionar destinatario</button>
       </div>
     );
   }

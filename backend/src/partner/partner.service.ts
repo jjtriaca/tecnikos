@@ -193,20 +193,23 @@ export class PartnerService {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const companyDisplay = company?.tradeName || company?.name || '';
 
-    // Template variable resolver
+    // Template variable resolver — for onboarding, {nome} = partner name
+    const baseUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+    const companyPhone = (company as any)?.phone || '';
+    const companyAddress = [company?.addressStreet, (company as any)?.addressNumber, (company as any)?.neighborhood, company?.city, company?.state].filter(Boolean).join(', ');
     const resolveVars = (msg: string): string => {
       return msg
         .replace(/\{nome\}/gi, partner.name)
         .replace(/\{empresa\}/gi, companyDisplay)
         .replace(/\{razao_social\}/gi, company?.name || '')
+        .replace(/\{cnpj_empresa\}/gi, company?.cnpj || '')
+        .replace(/\{telefone_empresa\}/gi, companyPhone)
+        .replace(/\{endereco_empresa\}/gi, companyAddress)
         .replace(/\{data\}/gi, new Date().toLocaleDateString('pt-BR'))
         .replace(/\{documento\}/gi, partner.document || '')
         .replace(/\{email\}/gi, partner.email || '')
         .replace(/\{telefone\}/gi, partner.phone || '')
-        .replace(/\{cnpj_empresa\}/gi, company?.cnpj || '')
-        .replace(/\{link_app\}/gi, `${process.env.FRONTEND_URL || 'https://tecnikos.com.br'}/tech/login`)
-        .replace(/\{login\}/gi, partner.email || partner.document || '')
-        .replace(/\{senha\}/gi, partner.document?.slice(-6) || '123456');
+        .replace(/\{link_app\}/gi, `${baseUrl}/tech/login`);
     };
 
     // Walk blocks sequentially (follow "next" pointers from START)
