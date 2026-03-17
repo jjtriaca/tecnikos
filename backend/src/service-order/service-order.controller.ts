@@ -128,6 +128,16 @@ export class ServiceOrderController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/dispatch-notifications')
+  dispatchNotifications(
+    @Param('id') id: string,
+    @Body() body: { technicianIds: string[] },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.dispatchNotifications(id, user.companyId, body.technicianIds, user.id);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Get(':id/dispatch-status')
   async dispatchStatus(
     @Param('id') id: string,

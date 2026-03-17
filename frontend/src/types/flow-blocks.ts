@@ -98,7 +98,10 @@ export interface TriggerEvent {
 }
 
 export const TRIGGER_EVENTS: TriggerEvent[] = [
-  { id: 'os_created',        label: 'OS Criada',          icon: '➕', entity: 'SERVICE_ORDER', description: 'Quando uma nova OS e criada' },
+  { id: 'os_created',        label: 'OS Criada',          icon: '➕', entity: 'SERVICE_ORDER', description: 'Quando uma nova OS e criada (qualquer tipo)' },
+  { id: 'os_specialization_created', label: 'OS Especialização', icon: '🔍', entity: 'SERVICE_ORDER', description: 'OS criada com seleção de especialização' },
+  { id: 'os_directed_created',      label: 'OS Direcionada',    icon: '🎯', entity: 'SERVICE_ORDER', description: 'OS criada com técnico direcionado' },
+  { id: 'os_agenda_created',        label: 'OS Agenda',         icon: '📅', entity: 'SERVICE_ORDER', description: 'OS criada em regime de agenda (CLT)' },
   { id: 'os_assigned',       label: 'OS Atribuida',       icon: '👤', entity: 'SERVICE_ORDER', description: 'Quando um tecnico e atribuido' },
   { id: 'os_status_changed', label: 'Status OS Alterado', icon: '🔄', entity: 'SERVICE_ORDER', description: 'Quando o status da OS muda' },
   { id: 'os_completed',      label: 'OS Finalizada',      icon: '✅', entity: 'SERVICE_ORDER', description: 'Quando a OS e concluida' },

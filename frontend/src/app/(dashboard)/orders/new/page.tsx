@@ -16,6 +16,7 @@ import TechAssignmentSection, {
   type WorkflowSummary,
 } from "@/components/os/TechAssignmentSection";
 import AgendaSelector, { type AgendaSelection } from "@/components/os/AgendaSelector";
+import TechReviewModal, { type TechCandidate } from "@/components/os/TechReviewModal";
 import ServiceItemsSection, { type ServiceItemRow } from "@/components/os/ServiceItemsSection";
 import {
   STATES,
@@ -105,6 +106,16 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
   const [returnLoading, setReturnLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Tech Review Modal
+  const [reviewModal, setReviewModal] = useState<{
+    open: boolean;
+    orderId: string;
+    orderCode: string;
+    orderTitle: string;
+    candidates: TechCandidate[];
+    allowEdit: boolean;
+  }>({ open: false, orderId: "", orderCode: "", orderTitle: "", candidates: [], allowEdit: false });
   const [selectedClient, setSelectedClient] = useState<PartnerSummary | null>(null);
   const [obras, setObras] = useState<ObraSummary[]>([]);
   const [selectedObraId, setSelectedObraId] = useState<string>("");
@@ -712,6 +723,20 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
       } else {
         const result = await api.post<any>("/service-orders", payload);
 
+        // Tech Review Modal: workflow has techReviewScreen enabled
+        if (result?._pendingReview) {
+          setReviewModal({
+            open: true,
+            orderId: result.id,
+            orderCode: result.code || "",
+            orderTitle: result.title || form.title,
+            candidates: result._candidates || [],
+            allowEdit: result._allowEdit ?? false,
+          });
+          setLoading(false);
+          return;
+        }
+
         // Dispatch panel: track notification status for auto-assigned OS
         if (result?._dispatch) {
           const d = result._dispatch;
@@ -748,6 +773,38 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
       setGeocodingMsg(null);
     }
   }
+
+  const handleReviewDispatched = (result: any) => {
+    // After tech review dispatch, open floating card and navigate
+    if (result?._dispatch) {
+      const d = result._dispatch;
+      addDispatch(reviewModal.orderId, {
+        technicianName: d.technicianName,
+        technicianPhone: d.technicianPhone,
+        notificationId: d.notificationId,
+        notificationStatus: d.notificationStatus,
+        notificationChannel: d.notificationChannel,
+        errorDetail: d.errorDetail,
+      }, reviewModal.orderCode, reviewModal.orderTitle);
+
+      if (d.notificationStatus === "FAILED") {
+        toast(`Notificações disparadas, mas houve falha: ${d.errorDetail || "erro desconhecido"}`, "warning");
+      } else {
+        toast("Notificações disparadas com sucesso! ✓", "success");
+      }
+    } else {
+      toast("Notificações disparadas com sucesso!", "success");
+    }
+    setReviewModal((prev) => ({ ...prev, open: false }));
+    router.push("/orders");
+  };
+
+  const handleReviewClose = () => {
+    // Close modal — OS already created, just not dispatched yet
+    setReviewModal((prev) => ({ ...prev, open: false }));
+    toast("OS criada. Notificações não foram disparadas.", "info");
+    router.push("/orders");
+  };
 
   if (editLoading) {
     return (
@@ -1310,6 +1367,18 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
           </div>
         </div>
       </form>
+
+      {/* Tech Review Modal */}
+      <TechReviewModal
+        open={reviewModal.open}
+        orderId={reviewModal.orderId}
+        orderCode={reviewModal.orderCode}
+        orderTitle={reviewModal.orderTitle}
+        candidates={reviewModal.candidates}
+        allowEdit={reviewModal.allowEdit}
+        onDispatched={handleReviewDispatched}
+        onClose={handleReviewClose}
+      />
     </div>
   );
 }

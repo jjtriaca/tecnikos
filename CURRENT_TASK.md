@@ -180,6 +180,22 @@
 - [x] Schema: +declinedReason, +declinedAt no ServiceOrder
 - [x] Layout: aceitar + recusar lado a lado, ou centralizado se só um
 
+## Modal de Revisao de Tecnicos (v1.04.26):
+- [x] Backend: skipNotifications flag + auto-detect TECH_REVIEW_SCREEN no workflow
+- [x] Backend: getCandidateTechnicians() retorna candidatos por modo (DIRECTED/BY_SPECIALIZATION)
+- [x] Backend: dispatchNotifications() endpoint POST /service-orders/:id/dispatch-notifications
+- [x] Frontend: TechReviewModal.tsx — modal centralizado com lista de tecnicos, checkbox, busca
+- [x] Frontend: integracao na pagina de criacao de OS (detecta _pendingReview, abre modal)
+- [x] Frontend: apos disparar → abre card flutuante + navega para /orders
+- [x] Build OK (backend + frontend)
+
+## Triggers por Tipo de Atendimento (v1.04.27):
+- [x] 3 novos triggers: os_specialization_created, os_directed_created, os_agenda_created
+- [x] Frontend: TRIGGER_OPTIONS (stage-config.ts) + TRIGGER_EVENTS (flow-blocks.ts)
+- [x] Backend: dispatch events por techAssignmentMode no create()
+- [x] Backend: prioridade findWorkflowByTrigger: urgente → retorno → modo atendimento → genérico
+- [x] Build OK
+
 ## Versao atual: v1.04.18 (pendente deploy)
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):

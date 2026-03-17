@@ -75,12 +75,18 @@ export class ServiceOrderService {
     const code = await this.codeGenerator.generateCode(data.companyId, 'SERVICE_ORDER');
 
     // Auto-attach workflow by trigger if no explicit workflowTemplateId
+    // Priority: urgent → return → assignment mode → generic
     let resolvedWorkflowId = data.workflowTemplateId || undefined;
     if (!resolvedWorkflowId && this.workflowEngine) {
       const triggerIds: string[] = [];
       if (data.isUrgent) triggerIds.push('os_urgent_created');
       if (data.isReturn) triggerIds.push('os_return_created');
-      triggerIds.push('os_created');
+      // Assignment mode triggers (more specific before generic)
+      const mode = data.techAssignmentMode || 'BY_SPECIALIZATION';
+      if (mode === 'BY_SPECIALIZATION') triggerIds.push('os_specialization_created');
+      else if (mode === 'DIRECTED') triggerIds.push('os_directed_created');
+      else if (mode === 'BY_AGENDA' || mode === 'BY_WORKFLOW') triggerIds.push('os_agenda_created');
+      triggerIds.push('os_created'); // fallback genérico
       const matched = await this.workflowEngine.findWorkflowByTrigger(data.companyId, triggerIds);
       if (matched) resolvedWorkflowId = matched.id;
     }
@@ -202,6 +208,53 @@ export class ServiceOrderService {
       });
     }
 
+    // Dispatch assignment mode triggers
+    const assignMode = data.techAssignmentMode || 'BY_SPECIALIZATION';
+    if (assignMode === 'BY_SPECIALIZATION') {
+      this.dispatchAutomation({
+        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'specialization_created',
+        data: eventData,
+      });
+    } else if (assignMode === 'DIRECTED') {
+      this.dispatchAutomation({
+        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'directed_created',
+        data: eventData,
+      });
+    } else if (assignMode === 'BY_AGENDA' || assignMode === 'BY_WORKFLOW') {
+      this.dispatchAutomation({
+        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'agenda_created',
+        data: eventData,
+      });
+    }
+
+    // ── Tech Review: skip notifications, return candidates ──
+    // Check explicit flag OR auto-detect from workflow TECH_REVIEW_SCREEN block
+    let shouldReview = !!data.skipNotifications;
+    let reviewAllowEdit = false;
+    if (!shouldReview && resolvedWorkflowId && data.techAssignmentMode !== 'BY_AGENDA') {
+      try {
+        const wf = await this.prisma.workflowTemplate.findUnique({
+          where: { id: resolvedWorkflowId },
+          select: { steps: true },
+        });
+        if (wf?.steps) {
+          const def = typeof wf.steps === 'string' ? JSON.parse(wf.steps as string) : wf.steps;
+          if (def?.version === 2 && Array.isArray(def.blocks)) {
+            const reviewBlock = def.blocks.find((b: any) => b.type === 'TECH_REVIEW_SCREEN');
+            if (reviewBlock) {
+              shouldReview = true;
+              reviewAllowEdit = !!reviewBlock.config?.allowEdit;
+            }
+          }
+        }
+      } catch { /* ignore parse errors */ }
+    }
+
+    if (shouldReview) {
+      const candidates = await this.getCandidateTechnicians(data, result);
+      return { ...result, _pendingReview: true, _candidates: candidates, _workflowId: resolvedWorkflowId, _allowEdit: reviewAllowEdit };
+    }
+
     // Execute workflow stage notifications (NOTIFY blocks for the initial status)
     // For DIRECTED/BY_AGENDA (auto-assigned), we AWAIT the result to populate _dispatch for the panel
     let _dispatch: any = undefined;
@@ -263,6 +316,144 @@ export class ServiceOrderService {
     }
 
     return _dispatch ? { ...result, _dispatch } : result;
+  }
+
+  /** Get candidate technicians for tech review modal */
+  private async getCandidateTechnicians(data: any, os: any): Promise<any[]> {
+    const companyId = data.companyId;
+
+    if (data.techAssignmentMode === 'DIRECTED' && data.directedTechnicianIds?.length > 0) {
+      // Return the directed technicians
+      const techs = await this.prisma.partner.findMany({
+        where: { id: { in: data.directedTechnicianIds }, deletedAt: null },
+        select: {
+          id: true, name: true, phone: true, rating: true,
+          specializations: { select: { specialization: { select: { id: true, name: true } } } },
+        },
+      });
+      return techs.map(t => ({
+        id: t.id,
+        name: t.name,
+        phone: t.phone || '',
+        rating: t.rating,
+        specializations: t.specializations.map(s => s.specialization.name),
+      }));
+    }
+
+    // BY_SPECIALIZATION or BY_WORKFLOW: find techs matching specializations
+    const specIds = data.requiredSpecializationIds || os.requiredSpecializationIds || [];
+    const where: any = {
+      companyId,
+      deletedAt: null,
+      partnerTypes: { has: 'TECNICO' },
+      status: 'ATIVO',
+    };
+    if (specIds.length > 0) {
+      where.AND = specIds.map((sid: string) => ({
+        specializations: { some: { specializationId: sid } },
+      }));
+    }
+
+    const techs = await this.prisma.partner.findMany({
+      where,
+      select: {
+        id: true, name: true, phone: true, rating: true,
+        specializations: { select: { specialization: { select: { id: true, name: true } } } },
+      },
+      orderBy: { rating: 'desc' },
+      take: 50,
+    });
+
+    return techs.map(t => ({
+      id: t.id,
+      name: t.name,
+      phone: t.phone || '',
+      rating: t.rating,
+      specializations: t.specializations.map(s => s.specialization.name),
+    }));
+  }
+
+  /** Dispatch notifications after tech review (manual confirmation) */
+  async dispatchNotifications(
+    osId: string,
+    companyId: string,
+    technicianIds: string[],
+    userId: string,
+  ) {
+    const os = await this.prisma.serviceOrder.findFirst({
+      where: { id: osId, companyId, deletedAt: null },
+      select: {
+        id: true, status: true, workflowTemplateId: true,
+        assignedPartnerId: true, directedTechnicianIds: true,
+      },
+    });
+    if (!os) throw new Error('OS não encontrada');
+
+    // Update directed technician IDs with confirmed list
+    await this.prisma.serviceOrder.update({
+      where: { id: osId },
+      data: { directedTechnicianIds: technicianIds },
+    });
+
+    // If single tech and not yet assigned, assign
+    if (technicianIds.length === 1 && !os.assignedPartnerId) {
+      await this.prisma.serviceOrder.update({
+        where: { id: osId },
+        data: {
+          assignedPartnerId: technicianIds[0],
+          status: 'ATRIBUIDA' as any,
+          acceptedAt: new Date(),
+        },
+      });
+    }
+
+    // Execute workflow notifications
+    let _dispatch: any = undefined;
+    const workflowId = os.workflowTemplateId;
+    const assignedTechId = technicianIds.length === 1 ? technicianIds[0] : os.assignedPartnerId;
+
+    if (workflowId && this.workflowEngine) {
+      const currentStatus = technicianIds.length === 1 && !os.assignedPartnerId ? 'ATRIBUIDA' : os.status;
+      try {
+        const notifResult = await this.workflowEngine.executeStageNotifications(
+          osId, companyId, currentStatus, workflowId,
+        );
+
+        if (assignedTechId) {
+          const tech = await this.prisma.partner.findUnique({
+            where: { id: assignedTechId },
+            select: { name: true, phone: true },
+          });
+          if (tech) {
+            _dispatch = {
+              technicianName: tech.name,
+              technicianPhone: tech.phone || '',
+              notificationId: notifResult?.notificationId,
+              notificationStatus: notifResult?.notificationStatus || 'PENDING',
+              notificationChannel: notifResult?.notificationChannel || 'WHATSAPP',
+              errorDetail: notifResult?.errorDetail,
+            };
+          }
+        }
+      } catch (err) {
+        if (assignedTechId) {
+          const tech = await this.prisma.partner.findUnique({
+            where: { id: assignedTechId },
+            select: { name: true, phone: true },
+          });
+          if (tech) {
+            _dispatch = {
+              technicianName: tech.name,
+              technicianPhone: tech.phone || '',
+              notificationStatus: 'FAILED',
+              errorDetail: err?.message || 'Erro desconhecido',
+            };
+          }
+        }
+      }
+    }
+
+    return { success: true, _dispatch };
   }
 
   async findAll(

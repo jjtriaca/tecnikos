@@ -811,13 +811,16 @@ export interface TriggerDefinition {
 }
 
 export const TRIGGER_OPTIONS: TriggerDefinition[] = [
-  { id: 'os_created',               entity: 'SERVICE_ORDER', event: 'created',          icon: '📋', label: 'Uma OS é criada',                      description: 'Quando uma nova ordem de serviço é aberta' },
-  { id: 'os_return_created',        entity: 'SERVICE_ORDER', event: 'return_created',   icon: '🔄', label: 'Uma OS de retorno é criada',             description: 'Quando uma OS de retorno/revisita é criada' },
-  { id: 'os_urgent_created',        entity: 'SERVICE_ORDER', event: 'urgent_created',   icon: '🚨', label: 'Uma OS urgente é criada',                description: 'Quando uma OS marcada como urgente é criada' },
-  { id: 'partner_client_created',   entity: 'PARTNER',       event: 'client_created',   icon: '👤', label: 'Um cliente é criado',                   description: 'Quando um parceiro tipo cliente é cadastrado' },
-  { id: 'partner_tech_created',     entity: 'PARTNER',       event: 'tech_created',     icon: '👷', label: 'Um técnico é criado',                   description: 'Quando um parceiro tipo técnico é cadastrado' },
-  { id: 'partner_spec_added',      entity: 'PARTNER',       event: 'spec_added',       icon: '🔧', label: 'Um técnico recebe nova especialização', description: 'Quando uma nova especialização é atribuída ao técnico' },
-  { id: 'partner_supplier_created', entity: 'PARTNER',       event: 'supplier_created', icon: '🏭', label: 'Um fornecedor é criado',                description: 'Quando um parceiro tipo fornecedor é cadastrado' },
+  { id: 'os_created',               entity: 'SERVICE_ORDER', event: 'created',                icon: '📋', label: 'Uma OS é criada',                      description: 'Quando uma nova ordem de serviço é aberta (qualquer tipo)' },
+  { id: 'os_return_created',        entity: 'SERVICE_ORDER', event: 'return_created',         icon: '🔄', label: 'Uma OS de retorno é criada',             description: 'Quando uma OS de retorno/revisita é criada' },
+  { id: 'os_urgent_created',        entity: 'SERVICE_ORDER', event: 'urgent_created',         icon: '🚨', label: 'Uma OS urgente é criada',                description: 'Quando uma OS marcada como urgente é criada' },
+  { id: 'os_specialization_created', entity: 'SERVICE_ORDER', event: 'specialization_created', icon: '🔍', label: 'OS c/ Seleção de especialização',        description: 'Quando uma OS é criada com tipo de atendimento "Por Especialização"' },
+  { id: 'os_directed_created',      entity: 'SERVICE_ORDER', event: 'directed_created',       icon: '🎯', label: 'OS c/ Técnico direcionado',              description: 'Quando uma OS é criada com técnico direcionado' },
+  { id: 'os_agenda_created',        entity: 'SERVICE_ORDER', event: 'agenda_created',         icon: '📅', label: 'OS c/ Agenda',                           description: 'Quando uma OS é criada em regime de agenda (CLT)' },
+  { id: 'partner_client_created',   entity: 'PARTNER',       event: 'client_created',         icon: '👤', label: 'Um cliente é criado',                   description: 'Quando um parceiro tipo cliente é cadastrado' },
+  { id: 'partner_tech_created',     entity: 'PARTNER',       event: 'tech_created',           icon: '👷', label: 'Um técnico é criado',                   description: 'Quando um parceiro tipo técnico é cadastrado' },
+  { id: 'partner_spec_added',      entity: 'PARTNER',       event: 'spec_added',             icon: '🔧', label: 'Um técnico recebe nova especialização', description: 'Quando uma nova especialização é atribuída ao técnico' },
+  { id: 'partner_supplier_created', entity: 'PARTNER',       event: 'supplier_created',       icon: '🏭', label: 'Um fornecedor é criado',                description: 'Quando um parceiro tipo fornecedor é cadastrado' },
 ];
 
 /* ── Constantes ────────────────────────────────────────────── */

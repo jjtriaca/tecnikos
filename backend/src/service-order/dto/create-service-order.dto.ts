@@ -152,4 +152,9 @@ export class CreateServiceOrderDto {
   @IsOptional()
   @IsArray()
   items?: { serviceId: string; quantity: number }[];
+
+  // Tela de revisão de técnicos — pula notificação automática (v1.04.26)
+  @IsOptional()
+  @IsBoolean()
+  skipNotifications?: boolean;
 }

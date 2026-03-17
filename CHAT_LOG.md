@@ -1972,3 +1972,38 @@ Solucao:
 
 ### Relato do Juliano:
 - "Veja que lancei uma OS, atribuiu eu como técnico, usei direcionado, porem ficou com a exclamação e não disparou a mensagem"
+
+## 2026-03-16 — Sessao 128: Modal de Revisao de Tecnicos + Link Publico Melhorias
+
+### Melhorias Link Publico (v1.04.24-25):
+- Botao "Aceitar OS": label editavel no fluxo (acceptLabel)
+- Botao "Recusar": opcional no fluxo (declineButton), com motivo configuravel
+- Motivo recusa: min/max caracteres configuraveis
+- Auto-advance: timer para pular pag 1 → pag 2 quando aceitar OFF
+- Schema: +declinedReason, +declinedAt no ServiceOrder
+- Layout: aceitar + recusar lado a lado, ou centralizado se so um
+- P0 #2: BY_AGENDA agora seta acceptedAt: new Date() (consistente com DIRECTED)
+
+### Modal de Revisao de Tecnicos (v1.04.26):
+- Backend: auto-detect TECH_REVIEW_SCREEN block no workflow resolvido
+- Backend: getCandidateTechnicians() retorna candidatos por modo
+- Backend: POST /service-orders/:id/dispatch-notifications endpoint
+- Frontend: TechReviewModal.tsx — modal centralizado simples
+- Frontend: integracao na pagina de criacao de OS
+- Fluxo: cria OS → detecta _pendingReview → abre modal → operador confere/edita → dispara → card flutuante
+- allowEdit do workflow controla se operador pode adicionar/remover tecnicos
+- BY_AGENDA nunca mostra modal (tecnico ja definido)
+
+### Decisoes do Juliano:
+- Modal deve ser basico e centralizado, NAO flutuante como os cards de dispatch
+- Modal atrelado ao toggle techReviewScreen do fluxo
+
+### Triggers por Tipo de Atendimento (v1.04.27):
+- Ideia do Juliano: criar triggers separados por tipo de atendimento no "Quando" do fluxo
+- 3 novos triggers adicionados:
+  - 🔍 OS c/ Seleção de especialização (os_specialization_created)
+  - 🎯 OS c/ Técnico direcionado (os_directed_created)
+  - 📅 OS c/ Agenda (os_agenda_created)
+- Prioridade de matching: urgente → retorno → modo de atendimento → genérico (os_created)
+- Permite criar fluxo diferente para cada tipo de atendimento
+- os_created continua como fallback genérico
