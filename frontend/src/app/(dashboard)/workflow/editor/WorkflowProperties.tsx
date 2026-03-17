@@ -423,7 +423,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
         {block.type === "NOTIFY" && (
           <>
             <Label>Destinatarios</Label>
-            <NotifyRecipients />
+            {NotifyRecipients()}
           </>
         )}
 
