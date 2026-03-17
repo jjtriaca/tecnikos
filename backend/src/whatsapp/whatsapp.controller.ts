@@ -159,6 +159,17 @@ export class WhatsAppController {
     return this.whatsAppService.getTemplates(req.user.companyId);
   }
 
+  @Post('templates')
+  @Roles('ADMIN')
+  async createTemplate(@Req() req: any, @Body() body: { name: string; bodyText: string; category?: 'UTILITY' | 'MARKETING' }) {
+    return this.whatsAppService.createTemplate(
+      req.user.companyId,
+      body.name,
+      body.bodyText,
+      body.category || 'UTILITY',
+    );
+  }
+
   // ── Messaging ─────────────────────────────────────────────
 
   /**

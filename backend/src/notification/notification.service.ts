@@ -12,6 +12,8 @@ export interface SendNotificationDto {
   type: string;
   /** Force template delivery (skip text attempt). Use for business-initiated messages. */
   forceTemplate?: boolean;
+  /** Use a specific WhatsApp template name (falls back to aviso_os if not found). */
+  templateName?: string;
 }
 
 @Injectable()
@@ -38,9 +40,9 @@ export class NotificationService {
       try {
         const connected = await this.whatsApp.isConnected(dto.companyId);
         if (connected) {
-          const result = await this.whatsApp.sendTextWithTemplateFallback(
-            dto.companyId, dto.recipientPhone, dto.message, dto.forceTemplate,
-          );
+          const result = dto.templateName
+            ? await this.whatsApp.sendWithNamedTemplate(dto.companyId, dto.recipientPhone, dto.message, dto.templateName)
+            : await this.whatsApp.sendTextWithTemplateFallback(dto.companyId, dto.recipientPhone, dto.message, dto.forceTemplate);
           status = result.success ? 'SENT' : 'FAILED';
           whatsappMessageId = result.messageId;
           errorDetail = result.error;

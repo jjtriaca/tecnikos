@@ -250,7 +250,8 @@ export class ContractService {
         recipientPhone: partner.phone,
         message: finalMessage,
         type: 'WELCOME_SENT',
-        forceTemplate: true, // Business-initiated — must use template (text is silently dropped outside 24h window)
+        forceTemplate: true,
+        templateName: 'boas_vindas', // Uses dedicated template, falls back to aviso_os
       });
     } else if (opts.channel === 'EMAIL' && partner.email && this.email) {
       try {

@@ -327,9 +327,11 @@ export class WhatsAppService {
     }
 
     // 2. Send via template — template must contain ALL the content (self-sufficient)
-    //    Sanitize: Meta rejects \n \r \t and 4+ consecutive spaces in parameters
+    //    Sanitize: remove \r \t, collapse 3+ newlines into 2, collapse 4+ spaces
     const sanitizedMsg = message
-      .replace(/[\r\n\t]+/g, ' | ')
+      .replace(/\r/g, '')
+      .replace(/\t/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
       .replace(/ {4,}/g, '   ')
       .trim();
 
@@ -378,6 +380,121 @@ export class WhatsAppService {
       );
 
       return { success: false, error: `${errMsg} (code=${errCode})` };
+    }
+  }
+
+  /**
+   * Send using a named template. Falls back to aviso_os if named template not found.
+   * Used for onboarding, welcome messages, etc. where a specific template exists.
+   */
+  async sendWithNamedTemplate(
+    companyId: string,
+    phone: string,
+    message: string,
+    templateName: string,
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const token = await this.getAccessToken(companyId);
+    const phoneNumberId = await this.getPhoneNumberId(companyId);
+
+    if (!token || !phoneNumberId) {
+      return { success: false, error: 'WhatsApp não configurado' };
+    }
+
+    const formattedPhone = this.formatPhone(phone);
+    const sanitizedMsg = message
+      .replace(/\r/g, '')
+      .replace(/\t/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/ {4,}/g, '   ')
+      .trim();
+
+    const truncatedMsg = sanitizedMsg.length > 1000
+      ? sanitizedMsg.substring(0, 997) + '...'
+      : sanitizedMsg;
+
+    // Try named template first
+    this.logger.log(`📱 Trying template "${templateName}" to ${formattedPhone}`);
+    try {
+      const res = await this.metaRequest(token, phoneNumberId, {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: 'pt_BR' },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: truncatedMsg },
+              ],
+            },
+          ],
+        },
+      });
+
+      const msgId = res?.messages?.[0]?.id;
+      this.logger.log(`📱 Template "${templateName}" delivered to ${formattedPhone}`);
+      return { success: true, messageId: msgId };
+    } catch (namedErr: any) {
+      this.logger.warn(`📱 Template "${templateName}" failed, falling back to aviso_os: ${namedErr.message}`);
+      // Fallback to aviso_os
+      return this.sendTextWithTemplateFallback(companyId, phone, message, true);
+    }
+  }
+
+  /**
+   * Create a WhatsApp message template via Meta API.
+   * Template goes to PENDING review and must be approved by Meta before use.
+   */
+  async createTemplate(
+    companyId: string,
+    name: string,
+    bodyText: string,
+    category: 'UTILITY' | 'MARKETING' = 'UTILITY',
+  ): Promise<{ success: boolean; templateId?: string; status?: string; error?: string }> {
+    const token = await this.getAccessToken(companyId);
+    const config = await this.prisma.whatsAppConfig.findFirst({ where: { companyId } });
+
+    if (!token || !config?.metaWabaId) {
+      return { success: false, error: 'WhatsApp não configurado ou WABA ID ausente' };
+    }
+
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/${config.metaWabaId}/message_templates`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name,
+            language: 'pt_BR',
+            category,
+            components: [
+              {
+                type: 'BODY',
+                text: bodyText,
+              },
+            ],
+          }),
+        },
+      );
+
+      const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data?.error?.message || `HTTP ${res.status}`;
+        this.logger.error(`📱 Template create failed: ${errMsg}`);
+        return { success: false, error: errMsg };
+      }
+
+      this.logger.log(`📱 Template "${name}" created — id=${data.id}, status=${data.status}`);
+      return { success: true, templateId: data.id, status: data.status };
+    } catch (err: any) {
+      this.logger.error(`📱 Template create error: ${err.message}`);
+      return { success: false, error: err.message };
     }
   }
 
