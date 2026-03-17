@@ -83,11 +83,11 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 ## 2. Maquina de Estados — Ordem de Servico
 
 ```
-ABERTA ──→ OFERTADA ──→ ATRIBUIDA ──→ A_CAMINHO ──→ EM_EXECUCAO ──→ CONCLUIDA ──→ APROVADA (terminal)
-  │            │            │              │              │              │
-  └→CANCELADA  └→ABERTA     └→ABERTA       └→ATRIBUIDA    └→AJUSTE       └→AJUSTE
-                └→CANCELADA  └→CANCELADA    └→CANCELADA    └→CANCELADA
-                              └→EM_EXECUCAO
+ABERTA --> OFERTADA --> ATRIBUIDA --> A_CAMINHO --> EM_EXECUCAO --> CONCLUIDA --> APROVADA (terminal)
+  |            |            |              |              |              |
+  +->CANCELADA +->ABERTA    +->ABERTA      +->ATRIBUIDA   +->AJUSTE      +->AJUSTE
+               +->CANCELADA +->CANCELADA   +->CANCELADA   +->CANCELADA
+                             +->EM_EXECUCAO
 ```
 
 **ALLOWED_TRANSITIONS** validado no `updateStatus()`. Status terminais (APROVADA, CANCELADA) bloqueiam qualquer transicao.
@@ -99,9 +99,14 @@ ABERTA ──→ OFERTADA ──→ ATRIBUIDA ──→ A_CAMINHO ──→ EM_E
 - **BY_WORKFLOW**: Disparado pelo template de workflow
 
 ### Timestamps do Ciclo
-`acceptedAt` → `enRouteAt` → `arrivedAt` → `startedAt` → `completedAt`
+`acceptedAt` -> `enRouteAt` -> `arrivedAt` -> `startedAt` -> `completedAt`
 Pause: `isPaused`, `pauseCount`, `totalPausedMs`
 Cancel: `cancelledReason`, `declinedReason`, `declinedAt`
+
+### Regras Criticas
+- OS deletadas **contam** no limite mensal (evita burla por create+delete)
+- `acceptedAt` so seta se workflow tem `acceptOS=true` no NOTIFY block
+- DIRECTED + TechReview: checa workflow ANTES de auto-assign
 
 ---
 
@@ -116,7 +121,7 @@ Armazenado em `WorkflowTemplate.steps` (Json):
 STEP, PHOTO, GPS, QUESTION, CHECKLIST, SIGNATURE, FORM, CONDITION, NOTIFY, WAIT_FOR, STATUS, ARRIVAL_QUESTION, TECH_REVIEW_SCREEN
 
 ### Triggers de Workflow
-Prioridade: `urgente` → `retorno` → `modo atendimento` (specialization/directed/agenda) → `os_created` (generico)
+Prioridade: `urgente` -> `retorno` -> `modo atendimento` (specialization/directed/agenda) -> `os_created` (generico)
 
 ---
 
@@ -135,7 +140,7 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 ## 5. Modelo de Dados (Prisma) — Modelos Principais
 
 ### Multi-tenant (schema public)
-- **Tenant**: slug, schemaName, cnpj, status (PENDING_VERIFICATION→PENDING_PAYMENT→ACTIVE→BLOCKED/SUSPENDED/CANCELLED)
+- **Tenant**: slug, schemaName, cnpj, status (PENDING_VERIFICATION->PENDING_PAYMENT->ACTIVE->BLOCKED/SUSPENDED/CANCELLED)
 - **Plan**: maxUsers, maxOsPerMonth, maxTechnicians, maxAiMessages, priceCents, priceYearlyCents
 - **Subscription**: tenantId, planId, status, billingCycle, pendingPlanId, creditBalanceCents, promotionMonthsLeft
 - **AddOn/AddOnPurchase**: 4 tipos (OS, users, technicians, AI messages), expiresAt por ciclo
@@ -167,7 +172,7 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 
 ### Fiscal
 - **NfseConfig**: Focus NFe token (encrypted), auto-emit, RPS series
-- **NfseEmission**: status PROCESSING→AUTHORIZED→ERROR→CANCELLED, XML/PDF URLs
+- **NfseEmission**: status PROCESSING->AUTHORIZED->ERROR->CANCELLED, XML/PDF URLs
 - **NfseEntrada**: NFS-e recebidas (prestador, tomador, valores, tributos)
 - **SefazConfig**: certificado PFX (encrypted), auto-fetch
 - **SefazDocument**: NFe baixadas da SEFAZ (nsu, schema, status)
@@ -177,7 +182,7 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 ### Comunicacao
 - **Notification**: multi-canal, whatsappMessageId, errorDetail, status tracking
 - **WhatsAppConfig**: metaAccessToken (encrypted), phoneNumberId, wabaId
-- **WhatsAppMessage**: INBOUND/OUTBOUND, status (SENT→DELIVERED→READ→FAILED)
+- **WhatsAppMessage**: INBOUND/OUTBOUND, status (SENT->DELIVERED->READ->FAILED)
 - **EmailConfig**: SMTP (encrypted)
 - **ChatIAConversation/Message**: historico IA, tool calls, action buttons
 
@@ -236,6 +241,7 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 | **DispatchContext** | dispatches[] | Painel flutuante OS ativas, polling 5s, GPS, resend |
 | **ChatIAContext** | messages, onboarding | Chat IA streaming (SSE), usage tracking, multi-conversation |
 | **FiscalModuleContext** | fiscalEnabled | Toggle visibilidade modulo fiscal no sidebar |
+| **TechAuthContext** | techUser, token | Login tecnico separado (Partner com passwordHash) |
 
 ### Hooks
 | Hook | Funcao |
@@ -246,8 +252,9 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 
 ### API Wrapper (`lib/api.ts`)
 - Fetch puro (sem Axios), JWT Bearer auto-inject
-- Silent refresh em 401 (retry unico)
-- Retry em 502/503/504 (resiliencia deploy)
+- Token JWT armazenado em memoria (nao localStorage — protecao XSS)
+- Silent refresh em 401 via httpOnly cookie (retry unico)
+- Retry em 502/503/504 (3 tentativas, 3s delay — resiliencia de deploy)
 - `api.get/post/put/patch/del<T>(path, body?, opts?)`
 
 ---
@@ -255,12 +262,12 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 ## 8. Frontend — Sistema de Tabelas
 
 **Obrigatorio em TODAS as tabelas:**
-1. `DraggableHeader` → colunas redimensionaveis e reordenaveis
-2. `SortableHeader` → ordenacao por coluna
-3. `FilterBar` + `FilterDefinition[]` → filtros persistidos
-4. `Pagination` → paginacao padrao
-5. `useTableParams({ persistKey })` → estado filtros/sort/page
-6. `useTableLayout(tableId, columns)` → ordem/largura colunas
+1. `DraggableHeader` -> colunas redimensionaveis e reordenaveis
+2. `SortableHeader` -> ordenacao por coluna
+3. `FilterBar` + `FilterDefinition[]` -> filtros persistidos
+4. `Pagination` -> paginacao padrao
+5. `useTableParams({ persistKey })` -> estado filtros/sort/page
+6. `useTableLayout(tableId, columns)` -> ordem/largura colunas
 7. Tipos: `ColumnDefinition<T>`, `FilterDefinition` de `@/lib/types/table`
 
 ---
@@ -276,39 +283,61 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 | Email | SMTP Zoho | EmailModule | SMTP credentials (env) |
 | IA | Claude API | ChatIAModule | ANTHROPIC_API_KEY (env) |
 | CAPTCHA | Turnstile | VerificationModule | TURNSTILE keys (env) |
+| CEP | ViaCEP | Frontend | Free (sem auth) |
 
 ---
 
-## 10. Cron Jobs
+## 10. Fluxos de Negocio Criticos
 
-| Service | Schedule | Funcao |
-|---------|----------|--------|
-| CollectionService | 6 AM diario | Executar regras de cobranca |
-| SefazDfeService | A cada 10 min | Buscar NFe novas da SEFAZ |
-| QuoteService | Meia-noite | Expirar orcamentos vencidos |
-| AsaasService | 7 AM diario | Sync status subscriptions |
-| AsaasService | 00:30 diario | Cobrar tenants inadimplentes (grace 7 dias) |
-| AsaasService | 00:15 diario | Sync pagamentos pendentes do webhook |
-| WaitForService | A cada minuto | Checar blocos WAIT_FOR pendentes |
+### Subscription/Billing (Asaas)
+1. **Signup** -> Tenant(PENDING_VERIFICATION) + Subscription(PENDING) -> webhook PAYMENT_CONFIRMED -> ACTIVE
+2. **Upgrade** -> pendingPlanId salvo -> webhook -> plano/limites atualizados
+3. **Downgrade** -> pendingPlanId para proximo ciclo (sem pagamento)
+4. **Add-on** -> AddOnPurchase(PENDING) -> webhook -> limites creditados
+5. **Overdue** -> Grace 7 dias -> Tenant BLOCKED
+6. **Crons**: sync 7AM, cobranca 00:30, webhook sync 00:15
+
+### Evaluation (Avaliacao)
+1. Gestor avalia tecnico (score 1-5, peso 40%)
+2. Gera token publico -> envia link ao cliente
+3. Cliente avalia (score 1-5, peso 60%)
+4. Rating = media ponderada -> atualiza Partner.rating
+
+### NFS-e Emission (Focus NFe)
+1. FinancialEntry RECEIVABLE + OS/Partner -> preview
+2. Discriminacao com template variaveis ({titulo_os}, {descricao_os}, {tecnico})
+3. Emit -> Focus NFe -> PROCESSING -> AUTHORIZED/ERROR
+4. XML + PDF armazenados
+
+### WhatsApp (Meta Cloud API)
+- Template fallback: tenta template primeiro, fallback texto em janela 24h
+- Tokens encrypted AES-256-GCM no banco
+- Webhook: verificacao signature + status updates
+- **RISCO DE BAN**: ver memory/whatsapp-audit-2026-03.md
 
 ---
 
 ## 11. Auth e Seguranca
 
 ### Fluxo Auth
-1. Login → JWT access token (in-memory) + refresh token (httpOnly cookie)
-2. Guard chain: Throttler → JWT → Roles → Verification → Fiscal
+1. Login -> JWT access token (in-memory) + refresh token (httpOnly cookie)
+2. Guard chain: Throttler -> JWT -> Roles -> Verification -> Fiscal
 3. Session com `revokedAt` permite logout imediato cross-device
 4. CAPTCHA Turnstile a cada 7 dias
 
 ### Roles (UserRole enum)
-ADMIN, DESPACHO, FINANCEIRO, FISCAL, LEITURA (exclusivo)
-Tecnico: nao e UserRole, e Partner com `isTecnico` flag + login proprio
+ADMIN, DESPACHO, FINANCEIRO, FISCAL, LEITURA (exclusivo — nao combina com outros)
+Tecnico: nao e UserRole, e Partner com login proprio (phone/CPF + password)
 
 ### Tenant Isolation
 - Schema PostgreSQL por tenant (`tenant_{slug}`)
 - Todas queries filtram por `companyId`
 - JWT contem `tenantSlug` para contexto
+- PrismaService + TenantConnectionService resolvem schema correto
+
+### Encriptacao
+- AES-256-GCM: WhatsApp tokens, Focus NFe tokens, SEFAZ certs, SMTP creds
+- `EncryptionService` com chave do env
 
 ---
 
@@ -332,40 +361,24 @@ Tecnico: nao e UserRole, e Partner com `isTecnico` flag + login proprio
 bash scripts/deploy-remote.sh          # patch
 bash scripts/deploy-remote.sh minor    # minor
 ```
-Fluxo: bump version → tar → SCP → backup DB → Docker build → prisma migrate → restart → health check → git commit+push+tag
+Fluxo: bump version -> tar -> SCP -> backup DB -> Docker build -> prisma migrate -> restart -> health check -> git commit+push+tag
 
 ### Versionamento
 Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patch 1-99, ao chegar em 99 incrementa minor.
 
 ---
 
-## 13. Padroes de Codigo
+## 13. Cron Jobs
 
-### Backend — Criar endpoint novo
-1. DTO com class-validator (`@IsString()`, `@Min()`, etc.)
-2. Controller com `@Roles()` guard + `@ApiOperation()`
-3. Service com `companyId` filter em toda query
-4. Paginacao: `PaginationDto` → `skip/take` + `$transaction([findMany, count])`
-5. Erros: `BadRequestException`, `NotFoundException`, `ForbiddenException`, `ConflictException`
-6. Audit: `AuditService.log()` para mudancas criticas
-
-### Frontend — Criar pagina nova
-1. Arquivo em `src/app/(dashboard)/[rota]/page.tsx`
-2. `useAuth()` para verificar roles
-3. `api.get/post()` para chamadas
-4. Tabelas: DraggableHeader + SortableHeader + FilterBar + Pagination + useTableParams + useTableLayout
-5. Forms: useState + onChange handler + api.post no submit
-6. Toast: `useToast()` para feedback
-
-### Frontend — Variaveis em campos de texto
-Botoes "chip" clicaveis que inserem `{variavel}` na posicao do cursor via `useRef` + `selectionStart/selectionEnd`
-
-### Convencoes
-- Commits: conventional commits (feat:, fix:, release:)
-- Codigo: ingles | UI: portugues brasileiro
-- Sem acentos em nomes de arquivo
-- CSS: Tailwind utility classes, design system slate/blue
-- Codigos sequenciais: OS-00001, PAR-00001, FIN-00001 (via CodeCounter)
+| Service | Schedule | Funcao |
+|---------|----------|--------|
+| CollectionService | 6 AM diario | Executar regras de cobranca |
+| SefazDfeService | A cada 10 min | Buscar NFe novas da SEFAZ |
+| QuoteService | Meia-noite | Expirar orcamentos vencidos |
+| AsaasService | 7 AM diario | Sync status subscriptions |
+| AsaasService | 00:30 diario | Cobrar tenants inadimplentes (grace 7 dias) |
+| AsaasService | 00:15 diario | Sync pagamentos pendentes do webhook |
+| WaitForService | A cada minuto | Checar blocos WAIT_FOR pendentes |
 
 ---
 
@@ -381,3 +394,38 @@ Botoes "chip" clicaveis que inserem `{variavel}` na posicao do cursor via `useRe
 8. **JWT backward compat**: fallback `payload.roles || [payload.role]` no jwt.strategy
 9. **WhatsApp template fallback**: `sendTextWithTemplateFallback(forceTemplate:true)` para evitar ban
 10. **Add-on NAO faz rollover**: vale pro ciclo vigente, expira no fim do periodo
+11. **Fire-and-forget automation**: `automationEngine?.dispatch().catch(() => {})` — falha silenciosa
+12. **Token JWT in-memory**: NAO esta em localStorage (seguranca XSS), perde no F5 -> silent refresh via cookie
+
+---
+
+## 15. Arquivos-Chave (Referencia Rapida)
+
+### Backend
+| Arquivo | Funcao |
+|---------|--------|
+| `backend/src/app.module.ts` | Composicao de todos os modulos |
+| `backend/src/service-order/service-order.service.ts` | Logica da maquina de estados OS |
+| `backend/src/workflow/workflow-engine.service.ts` | Execucao V1/V2/V3 |
+| `backend/src/automation/automation-engine.service.ts` | Regras event-driven |
+| `backend/src/tenant/tenant.service.ts` | Provisioning multi-tenant |
+| `backend/src/tenant/asaas.service.ts` | Lifecycle de pagamentos |
+| `backend/src/finance/finance.service.ts` | Lancamentos, parcelas, renegociacao |
+| `backend/prisma/schema.prisma` | Modelo de dados completo (60+ models) |
+
+### Frontend
+| Arquivo | Funcao |
+|---------|--------|
+| `frontend/src/contexts/AuthContext.tsx` | Auth state + silent refresh |
+| `frontend/src/contexts/ChatIAContext.tsx` | IA streaming + tools |
+| `frontend/src/contexts/DispatchContext.tsx` | OS polling + GPS |
+| `frontend/src/lib/api.ts` | API wrapper com retry/refresh |
+| `frontend/src/hooks/useTableParams.ts` | Filtros/sort persistidos |
+| `frontend/src/hooks/useTableLayout.ts` | Colunas persistidas |
+
+### Infra
+| Arquivo | Funcao |
+|---------|--------|
+| `docker-compose.yml` | Setup containers |
+| `nginx/nginx.conf` | Reverse proxy + rate limits |
+| `scripts/deploy-remote.sh` | Deploy automatizado |

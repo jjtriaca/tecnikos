@@ -1,16 +1,24 @@
 # TAREFA ATUAL
 
-## Versao: v1.04.33
+## Versao: v1.04.35
 ## Ultima sessao: 131 (17/03/2026)
 
 ## Pendencias
 
 ### A FAZER
-1. **Avaliacao/Feedback do servico** — Fluxo ponta a ponta (gerar token, enviar link ao cliente, UI gestor avaliar). Estudo em memory/avaliacao-feedback-estudo.md
-2. **Sistema de sugestoes** — Botao "Solicitar melhoria" no chat IA → sugestoes para Juliano
-3. **Configuracoes empresa readonly** — Campos vem do onboarding/licenca, so "Buscar na Receita" atualiza. Responsavel Legal so troca via solicitacao
+1. **Avaliacao/Feedback do servico** — Fluxo ponta a ponta (gerar token, enviar link ao cliente, UI gestor avaliar)
+2. **Sistema de sugestoes** — Botao "Solicitar melhoria" no chat IA -> sugestoes para Juliano
+3. **Configuracoes empresa readonly** — Campos vem do onboarding/licenca, so "Buscar na Receita" atualiza
 4. **Verificacao visual do workflow editor** — Revisao completa da UI
-5. **Contrato do cliente com a Tecnikos**
+5. **Contrato do cliente com a Tecnikos** — Estudo em memory/contrato-saas-estrutura.md
+6. **Criar conta Sentry** — Criar projeto em sentry.io, obter DSN, adicionar SENTRY_DSN nas envs do servidor
+
+### CONCLUIDO (sessao 131)
+- Reestruturacao documentacao (ARCHITECTURE.md + CLAUDE.md enxuto + limpeza .md redundantes)
+- Testes automatizados (70 testes: OS lifecycle + Asaas billing)
+- Sentry integrado (backend @sentry/nestjs + frontend @sentry/nextjs)
+- CI/CD atualizado (GitHub Actions com step de testes)
+- Importacao CSV de parceiros (modelo + botao download + mapeamento)
 
 ### BLOQUEADO
 - **WhatsApp Business** — Conta desativada pelo Meta, recurso enviado

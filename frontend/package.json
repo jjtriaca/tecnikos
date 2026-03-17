@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.4.2",
+    "@sentry/nextjs": "^10.43.0",
     "axios": "^1.13.5",
     "leaflet": "^1.9.4",
     "next": "16.1.6",

@@ -1,7 +1,8 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SentryModule, SentryGlobalFilter } from '@sentry/nestjs/setup';
 
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -47,6 +48,7 @@ import { VerificationGuard } from './auth/guards/verification.guard';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
@@ -90,6 +92,11 @@ import { VerificationGuard } from './auth/guards/verification.guard';
     VerificationModule,
   ],
   providers: [
+    // Sentry global exception filter — captures all unhandled errors
+    {
+      provide: APP_FILTER,
+      useClass: SentryGlobalFilter,
+    },
     // Order matters: Throttle → JWT Auth → Roles → Verification
     {
       provide: APP_GUARD,

@@ -29,9 +29,11 @@ O usuario (Juliano) autoriza TODAS as acoes sem pedir confirmacao:
 
 ## Deploy
 ```bash
-bash scripts/deploy-remote.sh          # patch (ex: 1.04.33 → 1.04.34)
-bash scripts/deploy-remote.sh minor    # minor (ex: 1.04.34 → 1.05.01)
+bash scripts/deploy-remote.sh          # patch (ex: 1.04.33 -> 1.04.34)
+bash scripts/deploy-remote.sh minor    # minor (ex: 1.04.34 -> 1.05.01)
 ```
+
+---
 
 ## REGRA ABSOLUTA: Pagamento Asaas (NUNCA VIOLAR)
 **NADA muda no sistema ate o webhook PAYMENT_CONFIRMED do Asaas retornar.**
@@ -40,21 +42,38 @@ bash scripts/deploy-remote.sh minor    # minor (ex: 1.04.34 → 1.05.01)
 3. Add-on: AddOnPurchase=PENDING. Limites creditados so no webhook.
 4. Downgrade: Sem pagamento, agenda via pendingPlanId pro proximo ciclo.
 5. NUNCA alterar Tenant.status, Subscription.status, Company.max* antes do pagamento.
-6. Excecao: credito pro-rata 100% → aplicar imediatamente.
+6. Excecao: credito pro-rata 100% -> aplicar imediatamente.
 
 ## ALERTA: APIs Externas com Risco de Ban
 Ao trabalhar com Meta (WhatsApp) ou Focus NFe:
-1. CONSULTAR `memory/whatsapp-lessons-learned.md` e `memory/whatsapp-business-api-research.md` ANTES
+1. CONSULTAR `memory/whatsapp-audit-2026-03.md` ANTES de qualquer mudanca
 2. NUNCA implementar baseado em suposicoes — estudar docs oficiais
 3. NUNCA multiplos deploys rapidos com mudancas de comportamento
 4. TESTAR com 1 caso primeiro, nunca em producao direto
-5. ATUALIZAR todos os arquivos de memoria ao aprender algo novo
+5. ATUALIZAR arquivos de memoria ao aprender algo novo
 6. IA embarcada tools: somente configs ADMIN, nunca janela de entrada
-7. Sincronismo: atualizar memory + tools + wizard + prompt ao mudar algo
+
+---
 
 ## Padroes de Codigo Obrigatorios
 
-### Tabelas (System-Wide)
+### Backend — Criar endpoint novo
+1. DTO com class-validator (`@IsString()`, `@Min()`, etc.)
+2. Controller com `@Roles()` guard + `@ApiOperation()`
+3. Service com `companyId` filter em TODA query (tenant isolation)
+4. Paginacao: `PaginationDto` -> `skip/take` + `$transaction([findMany, count])`
+5. Erros: `BadRequestException`, `NotFoundException`, `ForbiddenException`, `ConflictException`
+6. Audit: `AuditService.log()` para mudancas criticas
+
+### Frontend — Criar pagina nova
+1. Arquivo em `src/app/(dashboard)/[rota]/page.tsx`
+2. `useAuth()` para verificar roles
+3. `api.get/post()` para chamadas (lib/api.ts)
+4. Tabelas: componentes padrao obrigatorios (ver abaixo)
+5. Forms: useState + onChange handler + api.post no submit
+6. Toast: `useToast()` para feedback
+
+### Tabelas (System-Wide — OBRIGATORIO)
 - SEMPRE usar: DraggableHeader + SortableHeader + FilterBar + Pagination
 - SEMPRE usar: useTableParams({ persistKey }) + useTableLayout(tableId, columns)
 - Tipos: ColumnDefinition<T> e FilterDefinition de @/lib/types/table
@@ -66,17 +85,32 @@ Ao trabalhar com Meta (WhatsApp) ou Focus NFe:
 - Visual: text-[10px], bg-slate-100, hover:bg-green-100
 - TODOS os placeholders devem ter texto exemplo realista (NUNCA vazio)
 
+### Tenant Isolation (CRITICO)
+- Toda query Prisma DEVE filtrar por `companyId`
+- JWT contem `tenantSlug` — PrismaService resolve o schema correto
+- NUNCA acessar dados cross-tenant
+- Guards: Throttler -> JWT -> Roles -> Verification
+
 ### Convencoes Gerais
 - Commits: conventional commits (feat:, fix:, release:)
 - Codigo: ingles | UI: portugues brasileiro
 - Sem acentos em nomes de arquivo
 - CSS: Tailwind utility classes, design system slate/blue
+- Codigos sequenciais: OS-00001, PAR-00001, FIN-00001 (via CodeCounter)
 - NUNCA usar Preview Screenshot (trava o chat) — usar preview_snapshot/preview_inspect
+
+### Importacao de Dados
+- Modelo de importacao: CSV com separador `;`
+- Botao "Baixar modelo CSV" no modal de importacao com linhas de exemplo
+- Mapeamento automatico de colunas pelo cabecalho
+- Validacao de duplicatas por documento (CPF/CNPJ)
+
+---
 
 ## Organizacao de Documentacao
 | Arquivo | Funcao |
 |---------|--------|
 | CLAUDE.md | Regras e instrucoes para o Claude (este arquivo) |
 | ARCHITECTURE.md | Mapa tecnico completo do sistema |
-| CURRENT_TASK.md | Versao atual + lista de pendencias |
+| CURRENT_TASK.md | Versao atual + lista de pendencias (maximo 20 linhas) |
 | memory/ | Memorias persistentes (alertas, decisoes, estudos) |

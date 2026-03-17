@@ -31,6 +31,8 @@
     "@nestjs/swagger": "^11.2.6",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.2.1",
+    "@sentry/nestjs": "^10.43.0",
+    "@sentry/profiling-node": "^10.43.0",
     "bcrypt": "^6.0.0",
     "bwip-js": "^4.8.0",
     "class-transformer": "^0.5.1",

@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import {
   createContext,
   useCallback,
@@ -92,7 +93,7 @@ type LoginResponse = {
 };
 
 function mapUser(d: MeResponse): AuthUser {
-  return {
+  const u: AuthUser = {
     id: d.id,
     name: d.name,
     email: d.email,
@@ -104,6 +105,10 @@ function mapUser(d: MeResponse): AuthUser {
     tenantStatus: d.tenantStatus || null,
     verificationStatus: d.verificationStatus || null,
   };
+  // Set Sentry user context for error tracking
+  Sentry.setUser({ id: u.id, email: u.email });
+  if (u.tenantSlug) Sentry.setTag("tenant", u.tenantSlug);
+  return u;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

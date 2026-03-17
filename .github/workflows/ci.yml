@@ -1,4 +1,4 @@
-name: Tecnikos CI — Build & Type Check
+name: Tecnikos CI — Build, Test & Type Check
 
 on:
   push:
@@ -11,7 +11,7 @@ env:
 
 jobs:
   backend:
-    name: Backend (TypeScript + Build)
+    name: Backend (TypeScript + Tests + Build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,6 +34,9 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npx jest --no-coverage --forceExit --ci
 
       - name: Build
         run: npx nest build
