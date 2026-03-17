@@ -1494,7 +1494,7 @@ export class WorkflowEngineService {
                 const validityHours = recipientConfig?.linkConfig?.validityHours || 24;
                 const offer = await this.publicOffer.createOffer(serviceOrderId, companyId, validityHours);
                 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-                publicLinkUrl = `${frontendUrl}/p/${offer.token}`;
+                publicLinkUrl = `${frontendUrl}/tech/os/${offer.token}`;
                 this.logger.log(`📎 Public link generated: ${publicLinkUrl} (valid ${validityHours}h)`);
               } catch (linkErr: any) {
                 this.logger.warn(`📎 Failed to generate public link: ${linkErr.message}`);
