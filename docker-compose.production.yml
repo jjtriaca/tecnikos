@@ -59,6 +59,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CHAT_IA_MODEL: ${CHAT_IA_MODEL:-claude-haiku-4-5-20251001}
       CHAT_IA_MAX_TOKENS: ${CHAT_IA_MAX_TOKENS:-2048}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     volumes:
       - uploads_data:/app/uploads
     depends_on:
@@ -82,10 +83,13 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN:-}
     container_name: tecnikos_frontend
     restart: always
     environment:
       NODE_ENV: production
+      NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       - backend
     networks:

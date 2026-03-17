@@ -5,7 +5,9 @@ WORKDIR /app
 
 # API URL é variável de build-time (Next.js inline no bundle)
 ARG NEXT_PUBLIC_API_URL=http://backend:4000
+ARG NEXT_PUBLIC_SENTRY_DSN=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
 
 COPY package.json package-lock.json ./
 RUN npm ci
