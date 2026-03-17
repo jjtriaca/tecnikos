@@ -140,7 +140,9 @@ export default function TechSetupPage({ params }: { params: Promise<{ token: str
             Bem-vindo{techName ? `, ${techName}` : ""}!
           </h1>
           <p className="text-sm text-slate-500 text-center mb-6">
-            Seu acesso está configurado. Para facilitar, instale o app no seu celular.
+            {isStandalone()
+              ? "Seu acesso está configurado. Você receberá as ordens de serviço pelo WhatsApp."
+              : "Seu acesso está configurado. Para facilitar, instale o app no seu celular."}
           </p>
 
           {!isStandalone() ? (
