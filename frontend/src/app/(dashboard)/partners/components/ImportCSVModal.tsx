@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { parseCSV, parseXLSX, autoMapColumns, mapRowsToPartners, FIELD_LABELS } from "@/lib/csv-parser";
+import { parseCSV, parseXLSX, autoMapColumns, mapRowsToPartners, FIELD_LABELS, generatePartnerCSVTemplate } from "@/lib/csv-parser";
 import { api } from "@/lib/api";
 
 interface ImportCSVModalProps {
@@ -99,6 +99,17 @@ export default function ImportCSVModal({ open, onClose, onSuccess }: ImportCSVMo
     .map(([csv, field]) => ({ csv, field, label: FIELD_LABELS[field] || field }));
   const unmappedHeaders = headers.filter((h) => !mapping[h]);
 
+  function handleDownloadTemplate() {
+    const csv = generatePartnerCSVTemplate();
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "modelo_importacao_parceiros.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (!open) return null;
 
   return (
@@ -118,7 +129,7 @@ export default function ImportCSVModal({ open, onClose, onSuccess }: ImportCSVMo
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900">Importar Parceiros</h2>
-              <p className="text-xs text-slate-400">Excel (.xlsx) ou CSV exportado do Sankhya</p>
+              <p className="text-xs text-slate-400">Excel (.xlsx) ou CSV</p>
             </div>
           </div>
           <button onClick={handleClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
@@ -150,6 +161,15 @@ export default function ImportCSVModal({ open, onClose, onSuccess }: ImportCSVMo
                 className="hidden"
                 onChange={handleFileChange}
               />
+              <button
+                onClick={handleDownloadTemplate}
+                className="flex items-center gap-2 mx-auto text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Baixar modelo CSV de exemplo
+              </button>
               {error && (
                 <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{error}</div>
               )}

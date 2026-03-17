@@ -1,6 +1,6 @@
 /**
  * Parser CSV/XLSX com auto-detecção de formato, separador e mapeamento de colunas.
- * Compatível com exports do Sankhya ERP e Excel BR.
+ * Aceita o modelo CSV padrão do Tecnikos ou qualquer planilha com colunas similares.
  */
 import * as XLSX from "xlsx";
 
@@ -73,7 +73,7 @@ export function parseCSV(text: string): ParsedFile {
 
 /**
  * Parseia arquivo XLSX (ArrayBuffer).
- * Detecta automaticamente o formato Sankhya (que tem linhas de cabeçalho/metadados antes dos dados reais).
+ * Detecta automaticamente linhas de cabeçalho/metadados antes dos dados reais.
  */
 export function parseXLSX(buffer: ArrayBuffer): ParsedFile {
   const wb = XLSX.read(buffer, { type: "array" });
@@ -83,7 +83,7 @@ export function parseXLSX(buffer: ArrayBuffer): ParsedFile {
   if (rawRows.length < 2) return { headers: [], rows: [] };
 
   // Detecta onde estão os headers reais.
-  // Sankhya coloca 1-2 linhas de título/metadados antes dos headers.
+  // Algumas planilhas colocam linhas de título/metadados antes dos headers.
   // Heurística: a linha de headers é a primeira linha com 5+ colunas preenchidas com texto.
   let headerIdx = 0;
   for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
@@ -122,28 +122,32 @@ export function parseXLSX(buffer: ArrayBuffer): ParsedFile {
 /**
  * Mapeamento de colunas → campo do Partner.
  * Chave = campo do Partner, Valor = lista de aliases (lowercase) que matcham.
+ * Compatível com o modelo CSV padrão do Tecnikos e planilhas genéricas.
  */
 const COLUMN_MAP: Record<string, string[]> = {
   name: [
-    "nome parceiro", "nome", "razao social", "razão social",
-    "nomeparc", "nome/razão social", "nome/razao social",
+    "nome", "nome parceiro", "razao social", "razão social",
+    "nome/razão social", "nome/razao social",
   ],
   tradeName: [
-    "nome fantasia", "nomefantasia", "fantasia", "nome_fantasia", "razão social", "razao social",
+    "nome fantasia", "fantasia", "nome_fantasia",
   ],
   document: [
-    "cnpj / cpf", "cnpj/cpf", "cgc/cpf", "cgc_cpf", "cnpj", "cpf",
-    "cgc", "documento", "cpf/cnpj", "cnpj/cpf", "cpf_cnpj",
+    "documento", "cnpj/cpf", "cpf/cnpj", "cnpj", "cpf",
+    "cnpj / cpf", "cgc/cpf", "cgc_cpf", "cgc", "cpf_cnpj",
   ],
-  personTypeSankhya: [
-    "tipo de pessoa",
+  personType: [
+    "tipo pessoa", "tipo de pessoa", "pessoa",
   ],
   phone: [
     "telefone", "fone", "tel", "phone",
   ],
-  // phone2 removido - campo não existe no schema Partner
   email: [
     "email", "e-mail", "e_mail",
+  ],
+  addressStreet: [
+    "endereco", "endereço", "logradouro", "rua",
+    "nome (endereço)", "nome (endereco)",
   ],
   addressNumber: [
     "número", "numero", "nro", "num", "nr",
@@ -152,33 +156,33 @@ const COLUMN_MAP: Record<string, string[]> = {
     "complemento", "compl",
   ],
   neighborhood: [
-    "nome (bairro)",
-  ],
-  cityState: [
-    "nome + uf (cidade)",
+    "bairro",
   ],
   city: [
     "cidade", "municipio", "município",
   ],
   state: [
-    "uf",
+    "uf", "estado",
   ],
   cep: [
     "cep", "cep_fiscal",
   ],
   ie: [
-    "insc. estadual / identidade", "ie", "inscricao estadual",
+    "insc. estadual", "ie", "inscricao estadual",
     "inscrição estadual", "insc estadual", "inscestadual",
+    "insc. estadual / identidade",
   ],
   im: [
-    "inscricao municipal", "inscrição municipal", "insc. municipal",
+    "insc. municipal", "inscricao municipal", "inscrição municipal", "im",
   ],
-  isCliente: ["cliente"],
-  isFornecedor: ["fornecedor"],
-  isAtivo: ["ativo"],
-  addressStreet: [
-    "nome (endereço)", "nome (endereco)",  // Sankhya: nome real da rua
-    "endereco", "endereço", "logradouro", "rua",
+  partnerType: [
+    "tipo parceiro", "tipo", "tipo de parceiro",
+  ],
+  status: [
+    "status", "situacao", "situação", "ativo",
+  ],
+  regime: [
+    "regime", "regime contratacao", "regime contratação",
   ],
 };
 
@@ -252,47 +256,31 @@ export function mapRowsToPartners(
       };
 
       const rawDoc = cleanDocument(get("document"));
-      const sankhyaPersonType = get("personTypeSankhya").toLowerCase();
 
-      // Detecta PJ/PF pelo campo "Tipo de pessoa" do Sankhya ou pelo tamanho do documento
+      // Detecta PJ/PF pelo campo "Tipo Pessoa" ou pelo tamanho do documento
+      const personTypeRaw = get("personType").toUpperCase();
       let isPJ = rawDoc.length >= 14;
-      if (sankhyaPersonType.includes("juríd") || sankhyaPersonType.includes("juridic")) isPJ = true;
-      if (sankhyaPersonType.includes("físic") || sankhyaPersonType.includes("fisic")) isPJ = false;
+      if (personTypeRaw === "PJ" || personTypeRaw.includes("JURÍD") || personTypeRaw.includes("JURIDIC")) isPJ = true;
+      if (personTypeRaw === "PF" || personTypeRaw.includes("FÍSIC") || personTypeRaw.includes("FISIC")) isPJ = false;
 
-      // Detecta partnerTypes pelo "Cliente"/"Fornecedor" do Sankhya
+      // Detecta partnerTypes pelo campo "Tipo Parceiro" ou default CLIENTE
       const partnerTypes: string[] = [];
-      const isCliente = get("isCliente").toLowerCase();
-      const isFornecedor = get("isFornecedor").toLowerCase();
-      if (isCliente === "sim" || isCliente === "s" || isCliente === "true") partnerTypes.push("CLIENTE");
-      if (isFornecedor === "sim" || isFornecedor === "s" || isFornecedor === "true") partnerTypes.push("FORNECEDOR");
+      const partnerTypeRaw = get("partnerType").toUpperCase();
+      if (partnerTypeRaw.includes("CLIENTE") || partnerTypeRaw.includes("CLI")) partnerTypes.push("CLIENTE");
+      if (partnerTypeRaw.includes("FORNECEDOR") || partnerTypeRaw.includes("FORN")) partnerTypes.push("FORNECEDOR");
+      if (partnerTypeRaw.includes("TECNICO") || partnerTypeRaw.includes("TÉCNICO") || partnerTypeRaw.includes("TEC")) partnerTypes.push("TECNICO");
       if (partnerTypes.length === 0) partnerTypes.push("CLIENTE"); // default
 
-      // Status pelo "Ativo" do Sankhya
-      const ativoVal = get("isAtivo").toLowerCase();
-      const status = (ativoVal === "não" || ativoVal === "nao" || ativoVal === "n" || ativoVal === "false")
-        ? "INATIVO" : "ATIVO";
-
-      // Cidade/UF: prioriza campo combinado "Nome + UF (Cidade)" ex: "PRIMAVERA DO LESTE - MT"
-      const cityState = get("cityState");
-      let city = "";
-      let state = "";
-      if (cityState) {
-        const parts = cityState.split(" - ");
-        if (parts.length >= 2) {
-          city = parts.slice(0, -1).join(" - ").trim();
-          state = parts[parts.length - 1].trim();
-        } else {
-          city = cityState;
-        }
-      } else {
-        city = get("city");
-        state = get("state");
+      // Status
+      const statusRaw = get("status").toUpperCase();
+      let status = "ATIVO";
+      if (statusRaw === "INATIVO" || statusRaw === "NÃO" || statusRaw === "NAO" || statusRaw === "N" || statusRaw === "FALSE") {
+        status = "INATIVO";
       }
 
-      // Pega nome fantasia do campo "Razão social" se o name veio de "Nome Parceiro" (que é abreviado)
+      // Nome fantasia
       let tradeName = get("tradeName");
       const name = get("name");
-      // Se tradeName é igual ao name, limpa (redundante)
       if (tradeName && tradeName.toUpperCase() === name.toUpperCase()) tradeName = "";
 
       const partner: Record<string, unknown> = {
@@ -307,14 +295,13 @@ export function mapRowsToPartners(
         partner.document = rawDoc;
         partner.documentType = isPJ ? "CNPJ" : "CPF";
       }
-      // Phone: limpa formatação (066) 3498-1938 → 06634981938
+
       const phone = get("phone");
       if (phone) partner.phone = phone.replace(/[^\d]/g, "");
 
       const email = get("email");
-      if (email) partner.email = email.toLowerCase().split(";")[0].trim(); // pega só o primeiro se tiver vários
+      if (email) partner.email = email.toLowerCase().split(";")[0].trim();
 
-      // Endereço: no Sankhya, o campo "Endereço" pode ser um código numérico
       const addressStreet = get("addressStreet");
       if (addressStreet && !/^\d+$/.test(addressStreet)) partner.addressStreet = addressStreet;
 
@@ -327,8 +314,11 @@ export function mapRowsToPartners(
       const neighborhood = get("neighborhood");
       if (neighborhood && !/^\d+$/.test(neighborhood)) partner.neighborhood = neighborhood;
 
+      const city = get("city");
       if (city) partner.city = city;
-      if (state) partner.state = state.toUpperCase().slice(0, 2);
+
+      const stateVal = get("state");
+      if (stateVal) partner.state = stateVal.toUpperCase().slice(0, 2);
 
       const cep = get("cep");
       if (cep) partner.cep = cep.replace(/[^\d]/g, "");
@@ -338,6 +328,10 @@ export function mapRowsToPartners(
 
       const im = get("im");
       if (im) partner.im = im;
+
+      // Regime (CLT/PJ) — só para técnicos
+      const regime = get("regime").toUpperCase();
+      if (regime === "CLT" || regime === "PJ") partner.regime = regime;
 
       return partner;
     });
@@ -349,20 +343,115 @@ export const FIELD_LABELS: Record<string, string> = {
   name: "Nome",
   tradeName: "Nome Fantasia",
   document: "Documento",
-  personTypeSankhya: "Tipo Pessoa",
+  personType: "Tipo Pessoa",
   phone: "Telefone",
   email: "Email",
-  addressStreet: "Endereco",
+  addressStreet: "Endereço",
   addressNumber: "Número",
   addressComp: "Complemento",
   neighborhood: "Bairro",
   city: "Cidade",
-  cityState: "Cidade/UF",
   state: "UF",
   cep: "CEP",
   ie: "Insc. Estadual",
   im: "Insc. Municipal",
-  isCliente: "Cliente",
-  isFornecedor: "Fornecedor",
-  isAtivo: "Ativo",
+  partnerType: "Tipo Parceiro",
+  status: "Status",
+  regime: "Regime",
 };
+
+/* ───────────────── CSV Template Generator ───────────────── */
+
+/** Gera o conteúdo CSV do modelo padrão de importação de parceiros */
+export function generatePartnerCSVTemplate(): string {
+  const headers = [
+    "Nome",
+    "Nome Fantasia",
+    "Documento",
+    "Tipo Pessoa",
+    "Tipo Parceiro",
+    "Telefone",
+    "Email",
+    "Endereço",
+    "Número",
+    "Complemento",
+    "Bairro",
+    "Cidade",
+    "UF",
+    "CEP",
+    "Insc. Estadual",
+    "Insc. Municipal",
+    "Status",
+    "Regime",
+  ];
+
+  const exampleRows = [
+    [
+      "João Silva Materiais LTDA",
+      "JS Materiais",
+      "12.345.678/0001-90",
+      "PJ",
+      "CLIENTE",
+      "(11) 98765-4321",
+      "contato@jsmateriais.com.br",
+      "Rua das Flores",
+      "123",
+      "Sala 4",
+      "Centro",
+      "São Paulo",
+      "SP",
+      "01001-000",
+      "123.456.789.000",
+      "",
+      "ATIVO",
+      "",
+    ],
+    [
+      "Maria Oliveira",
+      "",
+      "123.456.789-00",
+      "PF",
+      "TECNICO",
+      "(21) 91234-5678",
+      "maria@email.com",
+      "Av. Brasil",
+      "456",
+      "",
+      "Copacabana",
+      "Rio de Janeiro",
+      "RJ",
+      "22041-080",
+      "",
+      "",
+      "ATIVO",
+      "PJ",
+    ],
+    [
+      "Empresa ABC LTDA",
+      "ABC Serviços",
+      "98.765.432/0001-10",
+      "PJ",
+      "FORNECEDOR",
+      "(31) 3333-4444",
+      "abc@empresa.com",
+      "Rua Minas Gerais",
+      "789",
+      "Bloco B",
+      "Savassi",
+      "Belo Horizonte",
+      "MG",
+      "30130-000",
+      "987.654.321.000",
+      "12345",
+      "ATIVO",
+      "",
+    ],
+  ];
+
+  const sep = ";";
+  const lines = [headers.join(sep)];
+  for (const row of exampleRows) {
+    lines.push(row.map(v => v.includes(sep) ? `"${v}"` : v).join(sep));
+  }
+  return "\uFEFF" + lines.join("\r\n"); // BOM for Excel compatibility
+}
