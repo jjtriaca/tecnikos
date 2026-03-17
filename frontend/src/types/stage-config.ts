@@ -1139,8 +1139,8 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
               { id: 'bl_cl3', type: 'checklist', checklistClass: 'CUSTOM',       label: 'Personalizado',        enabled: false },
             ],
             page2Layout: [
-              { id: 'p2_gps', type: 'gps_button',     label: 'Botão "Ativar GPS"',     enabled: true },
               { id: 'p2_enr', type: 'enroute_button',  label: 'Botão "Estou a caminho"', enabled: true },
+              { id: 'p2_gps', type: 'gps_button',     label: 'Botão "Ativar GPS"',     enabled: true },
               { id: 'p2_cl1', type: 'checklist', checklistClass: 'TOOLS_PPE',    label: 'Ferramentas e EPI',    enabled: false },
               { id: 'p2_cl2', type: 'checklist', checklistClass: 'MATERIALS',    label: 'Materiais',            enabled: false },
               { id: 'p2_cl3', type: 'checklist', checklistClass: 'CUSTOM',       label: 'Personalizado',        enabled: false },
