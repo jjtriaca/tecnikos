@@ -260,7 +260,50 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               ))}
             </div>
             {r.type === "TECNICO" && (
-              <Checkbox checked={r.includeLink || false} onChange={(v) => updateRecipient(i, "includeLink", v)} label="Incluir link de aceite" />
+              <div className="space-y-1.5">
+                <Checkbox checked={r.includeLink || false} onChange={(v) => { updateRecipient(i, "includeLink", v); if (!v) { updateRecipient(i, "acceptanceType", undefined); updateRecipient(i, "contractName", undefined); updateRecipient(i, "contractContent", undefined); updateRecipient(i, "requireSignature", undefined); } else if (!r.acceptanceType) { updateRecipient(i, "acceptanceType", "simple"); } }} label="Incluir link de aceite" />
+                {r.includeLink && (
+                  <div className="ml-5 space-y-1.5 border-l-2 border-blue-200 pl-3">
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name={`accept-type-${i}`} checked={r.acceptanceType !== "contract"} onChange={() => updateRecipient(i, "acceptanceType", "simple")} className="h-3 w-3 text-blue-600" />
+                        <span className="text-[11px] text-slate-600">Confirmacao simples</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name={`accept-type-${i}`} checked={r.acceptanceType === "contract"} onChange={() => updateRecipient(i, "acceptanceType", "contract")} className="h-3 w-3 text-blue-600" />
+                        <span className="text-[11px] text-slate-600">Contrato</span>
+                      </label>
+                    </div>
+                    {r.acceptanceType === "contract" && (
+                      <div className="space-y-1.5">
+                        <Input value={r.contractName || ""} onChange={(v) => updateRecipient(i, "contractName", v)} placeholder="Nome do contrato" />
+                        <TextArea value={r.contractContent || ""} onChange={(v) => updateRecipient(i, "contractContent", v)} placeholder="Conteudo do contrato..." rows={6} />
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            { var: "{nome}", label: "Nome" },
+                            { var: "{empresa}", label: "Empresa" },
+                            { var: "{razao_social}", label: "Razao Social" },
+                            { var: "{cnpj_empresa}", label: "CNPJ" },
+                            { var: "{documento}", label: "Documento" },
+                            { var: "{data}", label: "Data Hoje" },
+                            { var: "{endereco_empresa}", label: "End. Empresa" },
+                          ].map(v => (
+                            <button
+                              key={v.var}
+                              type="button"
+                              onClick={() => updateRecipient(i, "contractContent", (r.contractContent || "") + " " + v.var)}
+                              className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded"
+                            >
+                              {v.label}
+                            </button>
+                          ))}
+                        </div>
+                        <Checkbox checked={r.requireSignature || false} onChange={(v) => updateRecipient(i, "requireSignature", v)} label="Exigir assinatura digital" />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         ))}

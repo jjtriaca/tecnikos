@@ -177,6 +177,10 @@ export interface NotifyRecipient {
   channel: 'WHATSAPP' | 'SMS' | 'EMAIL';
   message: string;
   includeLink?: boolean;
+  acceptanceType?: 'simple' | 'contract';
+  contractName?: string;
+  contractContent?: string;
+  requireSignature?: boolean;
 }
 
 export const NOTIFY_TEMPLATE_VARS: { key: string; label: string; group: string }[] = [

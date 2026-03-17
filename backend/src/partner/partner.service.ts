@@ -209,7 +209,7 @@ export class PartnerService {
         .replace(/\{documento\}/gi, partner.document || '')
         .replace(/\{email\}/gi, partner.email || '')
         .replace(/\{telefone\}/gi, partner.phone || '')
-        .replace(/\{link_app\}/gi, `${baseUrl}/tech/login`);
+        .replace(/\{link_app\}/gi, `${baseUrl}/tech`);
     };
 
     // Walk blocks sequentially (follow "next" pointers from START)
@@ -231,25 +231,46 @@ export class PartnerService {
 
           const channel = r.channel || 'WHATSAPP';
 
-          if (channel === 'WHATSAPP' && partner.phone) {
-            this.logger.log(`💬 V2 Onboarding: Sending WhatsApp to ${partner.name} (${partner.phone})`);
-            await this.contractService.sendWelcomeMessage({
+          // Check if this notification requires contract acceptance
+          if (r.includeLink && r.acceptanceType === 'contract') {
+            // Send contract (with optional signature requirement)
+            const contractContent = resolveVars(r.contractContent || message);
+            this.logger.log(`📄 V2 Onboarding: Sending contract to ${partner.name} via ${channel}`);
+            await this.contractService.sendContract({
               companyId,
               partnerId,
-              channel: 'WHATSAPP',
-              message,
-              waitForReply: false,
-              confirmVia: 'WHATSAPP',
+              trigger: 'onNewTechnician',
+              contractName: r.contractName || 'Contrato de Prestação de Serviços',
+              contractContent,
+              blockUntilAccepted: true,
+              requireSignature: r.requireSignature ?? false,
+              requireAcceptance: true,
+              expirationDays: 36500, // ~100 years (doesn't expire)
+              channel: channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP',
             });
-          } else if (channel === 'EMAIL' && partner.email) {
-            this.logger.log(`📧 V2 Onboarding: Sending email to ${partner.name} (${partner.email})`);
-            await this.contractService.sendWelcomeMessage({
-              companyId,
-              partnerId,
-              channel: 'EMAIL',
-              message,
-              waitForReply: false,
-            });
+          } else {
+            // Send welcome message (simple confirmation or no acceptance)
+            const waitForReply = r.includeLink === true; // simple acceptance = block until confirmed
+            if (channel === 'WHATSAPP' && partner.phone) {
+              this.logger.log(`💬 V2 Onboarding: Sending WhatsApp to ${partner.name} (${partner.phone})`);
+              await this.contractService.sendWelcomeMessage({
+                companyId,
+                partnerId,
+                channel: 'WHATSAPP',
+                message,
+                waitForReply,
+                confirmVia: 'WHATSAPP',
+              });
+            } else if (channel === 'EMAIL' && partner.email) {
+              this.logger.log(`📧 V2 Onboarding: Sending email to ${partner.name} (${partner.email})`);
+              await this.contractService.sendWelcomeMessage({
+                companyId,
+                partnerId,
+                channel: 'EMAIL',
+                message,
+                waitForReply,
+              });
+            }
           }
 
           this.logger.log(`✅ V2 Onboarding notification sent to ${partner.name} via ${channel}`);

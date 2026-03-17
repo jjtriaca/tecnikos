@@ -26,7 +26,7 @@ type TechAuthState = {
   /** Verify OTP code and login */
   loginWithOtp: (phone: string, code: string) => Promise<void>;
   /** Login via token (welcome link or OS link) */
-  loginWithToken: (token: string) => Promise<{ type: string; serviceOrderId?: string }>;
+  loginWithToken: (token: string) => Promise<{ type: string; serviceOrderId?: string; contractToken?: string }>;
   logout: () => Promise<void>;
 };
 
@@ -36,7 +36,7 @@ const TechAuthContext = createContext<TechAuthState>({
   login: async () => {},
   requestOtp: async () => ({ otpId: "", expiresAt: "" }),
   loginWithOtp: async () => {},
-  loginWithToken: async () => ({ type: "welcome" }),
+  loginWithToken: async () => ({ type: "welcome" } as { type: string; serviceOrderId?: string; contractToken?: string }),
   logout: async () => {},
 });
 
@@ -203,11 +203,11 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       // If pending contract, don't login — return contract info
       if (data.type === 'pending_contract') {
-        return { type: data.type, contractToken: data.contractToken };
+        return { type: data.type, contractToken: data.contractToken } as { type: string; serviceOrderId?: string; contractToken?: string };
       }
       techAccessToken = data.accessToken;
       await fetchMe();
-      return { type: data.type, serviceOrderId: data.serviceOrderId };
+      return { type: data.type, serviceOrderId: data.serviceOrderId } as { type: string; serviceOrderId?: string; contractToken?: string };
     },
     [fetchMe]
   );
