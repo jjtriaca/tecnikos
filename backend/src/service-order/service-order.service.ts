@@ -105,9 +105,9 @@ export class ServiceOrderService {
       if (matched) resolvedWorkflowId = matched.id;
     }
 
-    // ── Pre-check: does the workflow have TECH_REVIEW_SCREEN? ──
-    // If yes, do NOT auto-assign DIRECTED — let the operator review first
+    // ── Pre-check: inspect workflow blocks for TECH_REVIEW_SCREEN and acceptOS ──
     let workflowHasReviewScreen = false;
+    let workflowHasAcceptOS = false;
     if (resolvedWorkflowId && data.techAssignmentMode !== 'BY_AGENDA') {
       try {
         const wf = await this.prisma.workflowTemplate.findUnique({
@@ -121,6 +121,18 @@ export class ServiceOrderService {
           if (def?.version === 2 && Array.isArray(def.blocks)) blocks = def.blocks;
           else if (def?.version === 3 && Array.isArray(def.blocks)) blocks = def.blocks;
           workflowHasReviewScreen = blocks.some((b: any) => b.type === 'TECH_REVIEW_SCREEN');
+          // Check if any NOTIFY block has linkConfig.acceptOS = true
+          const notifyBlocks = blocks.filter((b: any) => b.type === 'NOTIFY');
+          for (const nb of notifyBlocks) {
+            const recipients = nb.config?.recipients || [];
+            for (const r of recipients) {
+              if (r.linkConfig?.acceptOS === true) {
+                workflowHasAcceptOS = true;
+                break;
+              }
+            }
+            if (workflowHasAcceptOS) break;
+          }
         }
       } catch { /* ignore parse errors */ }
     }
@@ -180,7 +192,7 @@ export class ServiceOrderService {
         ...(autoAssignDirected ? {
           assignedPartnerId: data.directedTechnicianIds![0],
           status: 'ATRIBUIDA' as any,
-          acceptedAt: new Date(),
+          ...(workflowHasAcceptOS ? {} : { acceptedAt: new Date() }),
         } : {}),
       },
     });

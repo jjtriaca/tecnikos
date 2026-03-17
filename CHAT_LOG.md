@@ -2055,3 +2055,32 @@ Solucao:
 **P1-02: _disableOtherFinancial** — falso positivo, ja estava tratado no parent
 
 ### Builds: Backend OK, Frontend OK (tsc --noEmit limpo)
+
+---
+
+## 2026-03-17 — Sessao 130: DIRECTED acceptOS Fix + GPS UX (v1.04.29)
+
+### Bug reportado pelo Juliano:
+- Ao criar OS com modo DIRECTED, auto-aceitava sem técnico clicar em aceitar
+- O link público mostrava tela pós-aceite direto (GPS + A caminho) pulando o aceite
+
+### Fix DIRECTED + acceptOS (v1.04.29):
+- Bug: autoAssignDirected setava `acceptedAt: new Date()` INCONDICIONALMENTE
+- Fix: detecta `workflowHasAcceptOS` (inspeciona NOTIFY blocks por linkConfig.acceptOS=true)
+- Se workflow tem acceptOS=true: NÃO seta acceptedAt no create → técnico precisa aceitar pelo link
+- Código: `...(workflowHasAcceptOS ? {} : { acceptedAt: new Date() })`
+
+### GPS UX — Decisões do Juliano:
+1. GPS deve ficar ACIMA do botão "A caminho" (invertido a ordem)
+2. GPS auto-ativa se permissão já concedida (mostra "GPS já está ativo")
+3. Se GPS não tem permissão, mostra botão "Ativar GPS" com texto explicando que libera o "A caminho"
+4. Botão "A caminho" SÓ aparece quando GPS está conectado (trackingActive=true)
+5. Se GPS não está configurado no fluxo, "A caminho" aparece normalmente
+
+### Implementação GPS:
+- navigator.permissions.query('geolocation') → detecta estado da permissão
+- Auto-start tracking quando permissão='granted' + step='post-accept'
+- 3 estados visuais: "Ativar GPS" (prompt), "Conectando GPS..." (granted, aguardando), "GPS já está ativo" (tracking)
+- Mesma lógica aplicada em 2 seções: post-accept (page 2) e offer page (acceptOS=OFF)
+
+### Deploy: v1.04.29

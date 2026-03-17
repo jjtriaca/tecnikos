@@ -195,6 +195,10 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
   const [checklistSubmitting, setChecklistSubmitting] = useState<string | null>(null);
   const [checklistSubmitted, setChecklistSubmitted] = useState<Set<string>>(new Set());
 
+  // GPS permission state: 'unknown' | 'granted' | 'denied' | 'prompt'
+  const [gpsPermission, setGpsPermission] = useState<string>("unknown");
+  const gpsAutoStarted = useRef(false);
+
   // Cleanup GPS watch on unmount
   useEffect(() => {
     return () => {
@@ -203,6 +207,35 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
       }
     };
   }, []);
+
+  // Auto-detect GPS permission status
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.permissions) {
+      setGpsPermission("prompt");
+      return;
+    }
+    navigator.permissions.query({ name: "geolocation" as PermissionName }).then((result) => {
+      setGpsPermission(result.state); // 'granted' | 'denied' | 'prompt'
+      result.onchange = () => setGpsPermission(result.state);
+    }).catch(() => setGpsPermission("prompt"));
+  }, []);
+
+  // Auto-start GPS tracking when permission is already granted and on post-accept step
+  useEffect(() => {
+    if (
+      step === "post-accept" &&
+      gpsPermission === "granted" &&
+      !trackingActive &&
+      !gpsAutoStarted.current &&
+      data?.linkConfig?.gpsNavigation &&
+      typeof navigator !== "undefined" &&
+      navigator.geolocation
+    ) {
+      gpsAutoStarted.current = true;
+      startTracking();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, gpsPermission, trackingActive, data?.linkConfig?.gpsNavigation]);
 
   // Send position to backend (throttled)
   const sendPosition = useCallback(async (lat: number, lng: number, accuracy?: number, speed?: number, heading?: number) => {
@@ -959,8 +992,71 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             </div>
           )}
 
-          {/* En Route button */}
-          {lc?.enRoute && !enRouteAt && (
+          {/* GPS Section — always above "A caminho" */}
+          {lc?.gpsNavigation && typeof navigator !== "undefined" && navigator.geolocation && (
+            <>
+              {/* GPS already active */}
+              {trackingActive && (
+                <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+                  <div className="text-2xl mb-1">📡</div>
+                  <p className="text-sm font-medium text-green-700">GPS já está ativo</p>
+                  <p className="text-xs text-slate-400 mt-1">Rastreando sua localização...</p>
+                </div>
+              )}
+
+              {/* GPS needs activation (permission not granted yet) */}
+              {!trackingActive && gpsPermission !== "granted" && (
+                <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-4 text-center">
+                  <div className="text-2xl mb-2">📡</div>
+                  <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS</h3>
+                  <p className="text-xs text-slate-500 mt-1 mb-3">
+                    Ative o GPS para monitorar sua proximidade e liberar o botão &quot;A caminho&quot;.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={startTracking}
+                    className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
+                  >
+                    🛰️ Ativar GPS
+                  </button>
+                  {trackingError && (
+                    <p className="text-xs text-red-500 mt-2">{trackingError}</p>
+                  )}
+                </div>
+              )}
+
+              {/* GPS permission granted but still auto-starting */}
+              {!trackingActive && gpsPermission === "granted" && (
+                <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+                  <div className="text-2xl mb-1">📡</div>
+                  <p className="text-sm font-medium text-green-700">Conectando GPS...</p>
+                  <p className="text-xs text-slate-400 mt-1">Iniciando rastreamento automaticamente...</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* En Route button — only shows after GPS is connected */}
+          {lc?.enRoute && !enRouteAt && trackingActive && (
+            <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 text-center">
+              <div className="text-2xl mb-2">🚗</div>
+              <h3 className="text-sm font-semibold text-blue-800">Estou a caminho</h3>
+              <p className="text-xs text-slate-500 mt-1 mb-3">
+                Informe ao gestor que você está se deslocando para o local.
+              </p>
+              <button
+                type="button"
+                onClick={handleEnRoute}
+                disabled={enRouteLoading}
+                className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors disabled:bg-slate-300"
+              >
+                {enRouteLoading ? "Registrando..." : "🚗 Estou a caminho"}
+              </button>
+            </div>
+          )}
+
+          {/* En Route button — no GPS configured, show directly */}
+          {lc?.enRoute && !enRouteAt && !lc?.gpsNavigation && (
             <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 text-center">
               <div className="text-2xl mb-2">🚗</div>
               <h3 className="text-sm font-semibold text-blue-800">Estou a caminho</h3>
@@ -986,27 +1082,6 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
               <p className="text-xs text-slate-400 mt-1">
                 {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
               </p>
-            </div>
-          )}
-
-          {/* GPS Tracking */}
-          {lc?.gpsNavigation && !trackingActive && typeof navigator !== "undefined" && navigator.geolocation && (
-            <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-4 text-center">
-              <div className="text-2xl mb-2">📡</div>
-              <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS</h3>
-              <p className="text-xs text-slate-500 mt-1 mb-3">
-                Permite monitorar sua proximidade e notificar automaticamente quando você chegar ao local.
-              </p>
-              <button
-                type="button"
-                onClick={startTracking}
-                className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
-              >
-                🛰️ Ativar GPS
-              </button>
-              {trackingError && (
-                <p className="text-xs text-red-500 mt-2">{trackingError}</p>
-              )}
             </div>
           )}
 
@@ -1457,13 +1532,52 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
           </div>
         )}
 
-        {/* When acceptOS=OFF: show enRoute + GPS directly on offer page */}
+        {/* When acceptOS=OFF: show GPS + enRoute directly on offer page */}
         {data?.linkConfig?.acceptOS === false && (() => {
           const lc = data.linkConfig!;
           return (
             <>
-              {/* En Route */}
-              {lc.enRoute && !enRouteAt && (
+              {/* GPS Section — above "A caminho" */}
+              {lc.gpsNavigation && typeof navigator !== "undefined" && navigator.geolocation && (
+                <>
+                  {trackingActive && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+                      <div className="text-2xl mb-1">📡</div>
+                      <p className="text-sm font-medium text-green-700">GPS já está ativo</p>
+                      <p className="text-xs text-slate-400 mt-1">Rastreando sua localização...</p>
+                    </div>
+                  )}
+                  {!trackingActive && gpsPermission !== "granted" && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-4 text-center">
+                      <div className="text-2xl mb-2">📡</div>
+                      <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS</h3>
+                      <p className="text-xs text-slate-500 mt-1 mb-3">
+                        Ative o GPS para monitorar sua proximidade e liberar o botão &quot;A caminho&quot;.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={startTracking}
+                        className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
+                      >
+                        🛰️ Ativar GPS
+                      </button>
+                      {trackingError && (
+                        <p className="text-xs text-red-500 mt-2">{trackingError}</p>
+                      )}
+                    </div>
+                  )}
+                  {!trackingActive && gpsPermission === "granted" && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
+                      <div className="text-2xl mb-1">📡</div>
+                      <p className="text-sm font-medium text-green-700">Conectando GPS...</p>
+                      <p className="text-xs text-slate-400 mt-1">Iniciando rastreamento automaticamente...</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* En Route — only after GPS connected (or if GPS not configured) */}
+              {lc.enRoute && !enRouteAt && (trackingActive || !lc.gpsNavigation) && (
                 <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 text-center">
                   <div className="text-2xl mb-2">🚗</div>
                   <h3 className="text-sm font-semibold text-blue-800">Estou a caminho</h3>
@@ -1489,27 +1603,6 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                   <p className="text-xs text-slate-400 mt-1">
                     {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </p>
-                </div>
-              )}
-
-              {/* GPS */}
-              {lc.gpsNavigation && !trackingActive && typeof navigator !== "undefined" && navigator.geolocation && (
-                <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-4 text-center">
-                  <div className="text-2xl mb-2">📡</div>
-                  <h3 className="text-sm font-semibold text-purple-800">Ativar rastreamento GPS</h3>
-                  <p className="text-xs text-slate-500 mt-1 mb-3">
-                    Permite monitorar sua proximidade e notificar quando você chegar ao local.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={startTracking}
-                    className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
-                  >
-                    🛰️ Ativar GPS
-                  </button>
-                  {trackingError && (
-                    <p className="text-xs text-red-500 mt-2">{trackingError}</p>
-                  )}
                 </div>
               )}
             </>
