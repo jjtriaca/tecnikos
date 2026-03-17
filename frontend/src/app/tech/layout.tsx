@@ -31,13 +31,13 @@ function TechInnerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isLoginPage = pathname === "/tech/login";
+  const isPublicPage = pathname === "/tech/login" || pathname.startsWith("/tech/setup");
 
   useEffect(() => {
-    if (!loading && !user && !isLoginPage) {
+    if (!loading && !user && !isPublicPage) {
       router.push("/tech/login");
     }
-  }, [loading, user, isLoginPage, router]);
+  }, [loading, user, isPublicPage, router]);
 
   if (loading) {
     return (
@@ -50,8 +50,8 @@ function TechInnerLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Login page: no chrome
-  if (isLoginPage) {
+  // Public pages (login, setup): no chrome
+  if (isPublicPage) {
     return <>{children}</>;
   }
 

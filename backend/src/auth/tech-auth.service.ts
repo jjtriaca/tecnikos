@@ -2,9 +2,12 @@ import {
   Injectable,
   UnauthorizedException,
   ForbiddenException,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { OtpService, normalizePhone } from './otp.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { JwtPayload } from './auth.types';
@@ -20,12 +23,13 @@ export class TechAuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly otpService: OtpService,
   ) {
     this.refreshTtlSeconds =
       Number(process.env.JWT_REFRESH_TTL) || DEFAULT_REFRESH_TTL_SECONDS;
   }
 
-  /* ─── LOGIN ──────────────────────────────────────────── */
+  /* ─── LOGIN (legacy email+password — kept for backward compat) ── */
   async login(email: string, password: string, ip?: string, userAgent?: string) {
     const tech = await this.prisma.partner.findFirst({
       where: { email, deletedAt: null, partnerTypes: { has: 'TECNICO' } },
@@ -58,6 +62,186 @@ export class TechAuthService {
         companyId: tech.companyId,
       },
     };
+  }
+
+  /* ─── OTP: REQUEST CODE ─────────────────────────────── */
+  async requestOtp(phone: string) {
+    const phoneNorm = normalizePhone(phone);
+    if (!phoneNorm) throw new BadRequestException('Telefone inválido');
+
+    const tech = await this.prisma.partner.findFirst({
+      where: {
+        phone: phoneNorm,
+        deletedAt: null,
+        partnerTypes: { has: 'TECNICO' },
+      },
+      select: { id: true, companyId: true, status: true },
+    });
+
+    if (!tech) throw new NotFoundException('Técnico não encontrado com esse telefone');
+    if (tech.status !== 'ATIVO') throw new ForbiddenException('Técnico desativado');
+
+    return this.otpService.sendOtp({
+      companyId: tech.companyId,
+      partnerId: tech.id,
+      phone: phoneNorm,
+      serviceOrderId: null,
+    });
+  }
+
+  /* ─── OTP: VERIFY + LOGIN ──────────────────────────── */
+  async loginWithOtp(phone: string, code: string, ip?: string, userAgent?: string) {
+    const phoneNorm = normalizePhone(phone);
+    if (!phoneNorm) throw new BadRequestException('Telefone inválido');
+
+    const tech = await this.prisma.partner.findFirst({
+      where: {
+        phone: phoneNorm,
+        deletedAt: null,
+        partnerTypes: { has: 'TECNICO' },
+      },
+    });
+
+    if (!tech) throw new NotFoundException('Técnico não encontrado');
+    if (tech.status !== 'ATIVO') throw new ForbiddenException('Técnico desativado');
+
+    // Verify OTP (throws on failure)
+    await this.otpService.verifyCode({
+      companyId: tech.companyId,
+      partnerId: tech.id,
+      code,
+      serviceOrderId: null,
+    });
+
+    const ttl = SESSION_TTL_SECONDS;
+    const accessToken = this.issueAccessToken(tech);
+    const { refreshToken } = await this.createSession(tech.id, ip, userAgent, ttl);
+
+    return {
+      accessToken,
+      refreshToken,
+      refreshTtlSeconds: ttl,
+      technician: {
+        id: tech.id,
+        name: tech.name,
+        email: tech.email,
+        phone: tech.phone,
+        companyId: tech.companyId,
+      },
+    };
+  }
+
+  /* ─── TOKEN AUTH (link de OS ou boas-vindas) ────────── */
+  async loginWithToken(token: string, ip?: string, userAgent?: string) {
+    // Try welcome token first (TechnicianContract)
+    const contract = await this.prisma.technicianContract.findFirst({
+      where: {
+        token,
+        contractType: 'WELCOME',
+        status: { in: ['PENDING', 'VIEWED'] },
+      },
+      include: { partner: true },
+    });
+
+    if (contract) {
+      const tech = contract.partner;
+      if (!tech || tech.deletedAt || tech.status !== 'ATIVO') {
+        throw new ForbiddenException('Técnico desativado');
+      }
+      if (!tech.partnerTypes?.includes('TECNICO')) {
+        throw new BadRequestException('Parceiro não é técnico');
+      }
+
+      // Mark contract as viewed/accepted
+      await this.prisma.technicianContract.update({
+        where: { id: contract.id },
+        data: {
+          status: 'ACCEPTED',
+          viewedAt: contract.viewedAt || new Date(),
+          acceptedAt: new Date(),
+        },
+      });
+
+      const ttl = SESSION_TTL_SECONDS;
+      const accessToken = this.issueAccessToken(tech);
+      const { refreshToken } = await this.createSession(tech.id, ip, userAgent, ttl);
+
+      return {
+        accessToken,
+        refreshToken,
+        refreshTtlSeconds: ttl,
+        technician: {
+          id: tech.id,
+          name: tech.name,
+          email: tech.email,
+          phone: tech.phone,
+          companyId: tech.companyId,
+        },
+        type: 'welcome' as const,
+      };
+    }
+
+    // Try OS token (ServiceOrderOffer — valid while OS is active)
+    const offer = await this.prisma.serviceOrderOffer.findFirst({
+      where: {
+        token,
+        revokedAt: null,
+      },
+      include: {
+        serviceOrder: {
+          select: {
+            id: true,
+            status: true,
+            companyId: true,
+            assignedPartnerId: true,
+          },
+        },
+      },
+    });
+
+    if (offer) {
+      const so = offer.serviceOrder;
+      // Token is valid until OS is APROVADA or CANCELADA
+      const terminalStatuses = ['APROVADA', 'CANCELADA'];
+      if (terminalStatuses.includes(so.status)) {
+        throw new BadRequestException('Esta ordem de serviço já foi finalizada');
+      }
+
+      // Find the assigned technician (or any tech linked to this offer)
+      const techId = so.assignedPartnerId;
+      if (!techId) {
+        throw new BadRequestException('Nenhum técnico atribuído a esta OS');
+      }
+
+      const tech = await this.prisma.partner.findFirst({
+        where: { id: techId, deletedAt: null, partnerTypes: { has: 'TECNICO' } },
+      });
+
+      if (!tech || tech.status !== 'ATIVO') {
+        throw new ForbiddenException('Técnico desativado');
+      }
+
+      const ttl = SESSION_TTL_SECONDS;
+      const accessToken = this.issueAccessToken(tech);
+      const { refreshToken } = await this.createSession(tech.id, ip, userAgent, ttl);
+
+      return {
+        accessToken,
+        refreshToken,
+        refreshTtlSeconds: ttl,
+        technician: {
+          id: tech.id,
+          name: tech.name,
+          email: tech.email,
+          phone: tech.phone,
+          companyId: tech.companyId,
+        },
+        type: 'service_order' as const,
+        serviceOrderId: so.id,
+      };
+    }
+
+    throw new NotFoundException('Token inválido ou expirado');
   }
 
   /* ─── REFRESH ────────────────────────────────────────── */

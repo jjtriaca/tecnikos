@@ -244,9 +244,9 @@ export class ContractService {
 
     // Send notification
     if (opts.channel === 'WHATSAPP' && partner.phone && this.notifications) {
-      // Build app link for the technician
+      // Build app link with setup token for first-time access
       const baseUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
-      const appLink = `${baseUrl}/tech`;
+      const appLink = `${baseUrl}/tech/setup/${token}`;
 
       await this.notifications.send({
         companyId: opts.companyId,

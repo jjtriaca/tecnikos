@@ -5,9 +5,11 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { TechAuthController } from './tech-auth.controller';
 import { TechAuthService } from './tech-auth.service';
+import { OtpService } from './otp.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { EmailModule } from '../email/email.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { NotificationModule } from '../notification/notification.module';
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -23,6 +25,7 @@ function getJwtSecret(): string {
 @Module({
   imports: [
     EmailModule,
+    NotificationModule,
     forwardRef(() => TenantModule),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
@@ -33,7 +36,7 @@ function getJwtSecret(): string {
     }),
   ],
   controllers: [AuthController, TechAuthController],
-  providers: [AuthService, TechAuthService, JwtStrategy],
-  exports: [AuthService, TechAuthService, JwtModule],
+  providers: [AuthService, TechAuthService, OtpService, JwtStrategy],
+  exports: [AuthService, TechAuthService, OtpService, JwtModule],
 })
 export class AuthModule {}

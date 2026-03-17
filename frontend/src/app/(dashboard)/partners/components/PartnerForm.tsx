@@ -386,11 +386,11 @@ export default function PartnerForm({
           <input placeholder="Email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputClass + " w-full"} />
         </div>
 
-        {/* TECNICO password */}
+        {/* TECNICO access info */}
         {isTecnico && (
           <div className="border-t border-slate-200 pt-4">
             <p className="text-xs font-medium text-slate-500 mb-3 uppercase tracking-wide">Acesso do Técnico</p>
-            <PasswordInput placeholder={editingId ? "Nova senha (deixe vazio para manter)" : "Senha de acesso *"} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required={!editingId} className={inputClass + " w-full sm:w-1/2"} />
+            <p className="text-sm text-slate-600">O técnico acessa o sistema via código enviado por WhatsApp — sem necessidade de senha.</p>
           </div>
         )}
 

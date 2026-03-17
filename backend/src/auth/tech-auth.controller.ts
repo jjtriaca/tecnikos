@@ -2,13 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Req,
   Res,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { TechAuthService } from './tech-auth.service';
@@ -27,10 +28,71 @@ export class TechAuthController {
     private readonly authService: AuthService,
   ) {}
 
+  /* ─── OTP: Solicitar código ──────────────────────────── */
+  @Public()
+  @Post('otp/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Solicitar código OTP para login do técnico' })
+  @Throttle({ default: { limit: 5, ttl: 600_000 } }) // 5 requests a cada 10 min por IP
+  async requestOtp(@Body() body: { phone: string }) {
+    return this.techAuth.requestOtp(body.phone);
+  }
+
+  /* ─── OTP: Verificar código e logar ─────────────────── */
+  @Public()
+  @Post('otp/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verificar OTP e criar sessão do técnico' })
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
+  async loginWithOtp(
+    @Body() body: { phone: string; code: string },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const ip = req.ip || req.socket?.remoteAddress;
+    const ua = req.headers['user-agent'];
+
+    const result = await this.techAuth.loginWithOtp(body.phone, body.code, ip, ua);
+
+    res.cookie(TECH_REFRESH_COOKIE, result.refreshToken, this.techAuth.refreshCookieOptions());
+
+    return {
+      accessToken: result.accessToken,
+      technician: result.technician,
+    };
+  }
+
+  /* ─── TOKEN: Login via link (boas-vindas ou OS) ──────── */
+  @Public()
+  @Post('token/:token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login via token (link de boas-vindas ou OS)' })
+  @Throttle({ default: { limit: 20, ttl: 600_000 } })
+  async loginWithToken(
+    @Param('token') token: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const ip = req.ip || req.socket?.remoteAddress;
+    const ua = req.headers['user-agent'];
+
+    const result = await this.techAuth.loginWithToken(token, ip, ua);
+
+    res.cookie(TECH_REFRESH_COOKIE, result.refreshToken, this.techAuth.refreshCookieOptions());
+
+    return {
+      accessToken: result.accessToken,
+      technician: result.technician,
+      type: result.type,
+      serviceOrderId: (result as any).serviceOrderId,
+    };
+  }
+
+  /* ─── LOGIN (legacy email+password) ──────────────────── */
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 900_000 } }) // 10 tentativas a cada 15 min por IP
+  @Throttle({ default: { limit: 10, ttl: 900_000 } })
   async login(
     @Body() body: { email: string; password: string; captchaToken?: string },
     @Req() req: Request,

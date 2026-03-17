@@ -19,7 +19,14 @@ export type TechUser = {
 type TechAuthState = {
   user: TechUser | null;
   loading: boolean;
+  /** Legacy email+password login */
   login: (email: string, password: string, captchaToken?: string) => Promise<void>;
+  /** Request OTP code via WhatsApp */
+  requestOtp: (phone: string) => Promise<{ otpId: string; expiresAt: string }>;
+  /** Verify OTP code and login */
+  loginWithOtp: (phone: string, code: string) => Promise<void>;
+  /** Login via token (welcome link or OS link) */
+  loginWithToken: (token: string) => Promise<{ type: string; serviceOrderId?: string }>;
   logout: () => Promise<void>;
 };
 
@@ -27,6 +34,9 @@ const TechAuthContext = createContext<TechAuthState>({
   user: null,
   loading: true,
   login: async () => {},
+  requestOtp: async () => ({ otpId: "", expiresAt: "" }),
+  loginWithOtp: async () => {},
+  loginWithToken: async () => ({ type: "welcome" }),
   logout: async () => {},
 });
 
@@ -121,6 +131,7 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [fetchMe]);
 
+  /* ── Legacy email+password ─────────────────────────── */
   const login = useCallback(
     async (email: string, password: string, captchaToken?: string) => {
       const res = await fetch(`${API_BASE}/tech-auth/login`, {
@@ -141,6 +152,62 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
     [fetchMe, router]
   );
 
+  /* ── OTP: request code ─────────────────────────────── */
+  const requestOtp = useCallback(async (phone: string) => {
+    const res = await fetch(`${API_BASE}/tech-auth/otp/request`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "Não foi possível enviar o código");
+    }
+    return res.json();
+  }, []);
+
+  /* ── OTP: verify + login ───────────────────────────── */
+  const loginWithOtp = useCallback(
+    async (phone: string, code: string) => {
+      const res = await fetch(`${API_BASE}/tech-auth/otp/verify`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Código inválido");
+      }
+      const data = await res.json();
+      techAccessToken = data.accessToken;
+      await fetchMe();
+      router.push("/tech/orders");
+    },
+    [fetchMe, router]
+  );
+
+  /* ── Token auth (welcome link or OS link) ──────────── */
+  const loginWithToken = useCallback(
+    async (token: string) => {
+      const res = await fetch(`${API_BASE}/tech-auth/token/${token}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Link inválido ou expirado");
+      }
+      const data = await res.json();
+      techAccessToken = data.accessToken;
+      await fetchMe();
+      return { type: data.type, serviceOrderId: data.serviceOrderId };
+    },
+    [fetchMe]
+  );
+
   const logout = useCallback(async () => {
     try {
       await fetch(`${API_BASE}/tech-auth/logout`, {
@@ -156,7 +223,7 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <TechAuthContext.Provider value={{ user, loading, login, logout }}>
+    <TechAuthContext.Provider value={{ user, loading, login, requestOtp, loginWithOtp, loginWithToken, logout }}>
       {children}
     </TechAuthContext.Provider>
   );
