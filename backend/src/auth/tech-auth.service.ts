@@ -133,12 +133,12 @@ export class TechAuthService {
 
   /* ─── TOKEN AUTH (link de OS ou boas-vindas) ────────── */
   async loginWithToken(token: string, ip?: string, userAgent?: string) {
-    // Try welcome token first (TechnicianContract)
+    // Try welcome token first (TechnicianContract) — works for any non-cancelled status
     const contract = await this.prisma.technicianContract.findFirst({
       where: {
         token,
         contractType: 'WELCOME',
-        status: { in: ['PENDING', 'VIEWED'] },
+        status: { notIn: ['CANCELLED', 'EXPIRED'] },
       },
       include: { partner: true },
     });
@@ -152,15 +152,17 @@ export class TechAuthService {
         throw new BadRequestException('Parceiro não é técnico');
       }
 
-      // Mark contract as viewed/accepted
-      await this.prisma.technicianContract.update({
-        where: { id: contract.id },
-        data: {
-          status: 'ACCEPTED',
-          viewedAt: contract.viewedAt || new Date(),
-          acceptedAt: new Date(),
-        },
-      });
+      // Mark contract as accepted if not already
+      if (contract.status !== 'ACCEPTED') {
+        await this.prisma.technicianContract.update({
+          where: { id: contract.id },
+          data: {
+            status: 'ACCEPTED',
+            viewedAt: contract.viewedAt || new Date(),
+            acceptedAt: new Date(),
+          },
+        });
+      }
 
       const ttl = SESSION_TTL_SECONDS;
       const accessToken = this.issueAccessToken(tech);

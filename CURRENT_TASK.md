@@ -1,13 +1,22 @@
 # TAREFA ATUAL
 
-## Versao: v1.04.50
-## Ultima sessao: 134 (17/03/2026)
+## Versao: v1.04.52
+## Ultima sessao: 135 (17/03/2026)
 
 ## Pendencias
 
 ### A FAZER
 - **Fase 3 — Offline-first**: IndexedDB para OS locais + fila de sync (futuro)
 - **Push Notifications**: Integrar Web Push API com backend (service worker ja preparado)
+
+### CONCLUIDO (sessao 135)
+- **Auth sem senha para tecnicos**: Login por OTP via WhatsApp (telefone + codigo 6 digitos)
+- **OtpService reutilizavel**: Extraido do PublicOfferService, usado por tech-auth e public-offer
+- **Login por token**: Endpoint POST /tech-auth/token/:token (boas-vindas + OS)
+- **Token de OS valido ate APROVADA/CANCELADA**: Nao expira por tempo, expira por status
+- **Pagina /tech/setup/[token]**: Primeiro acesso com auto-login + tutorial PWA install
+- **Welcome message atualizado**: Link agora aponta para /tech/setup/{token}
+- **Senha removida do cadastro de tecnico**: Campo substituido por aviso sobre OTP
 
 ### CONCLUIDO (sessao 134)
 - **Template boas_vindas com params individuais**: sendWithNamedTemplate agora suporta templateParams[] ({{1}}=nome, {{2}}=link)
@@ -18,15 +27,9 @@
 - **Variable chips no NOTIFY**: {nome}, {empresa}, {link_app}
 - **iOS Safari install tutorial**: Modal step-by-step com 3 passos visuais
 
-### CONCLUIDO (sessao 132)
-- **PWA completo**: manifest.json, service worker, 10 icones PNG, apple-touch-icon
-- **Service Worker**: Cache shell, static assets, network-first pages, push ready
-- **Install prompt**: Banner "Instalar Tecnikos" no app do tecnico
-- **Tech order page redesenhada**: A_CAMINHO + GPS + Pause/Resume + proximidade
-- **Editor visual de workflow**: 6 componentes, 18 tipos de bloco, templates
-- Header tech renomeado para "Tecnikos"
-
 ### CONCLUIDO (sessoes anteriores)
+- PWA completo, Service Worker, Install prompt
+- Tech order page redesenhada, Editor visual de workflow
 - Sentry, CI/CD, Testes automatizados
 - Avaliacao/Feedback, Sugestoes, CNPJ readonly, Contrato SaaS
 
