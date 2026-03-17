@@ -119,7 +119,6 @@ export class AuthService {
     // find active session that matches the hash
     const sessions = await this.prisma.session.findMany({
       where: { revokedAt: null, expiresAt: { gt: new Date() } },
-      include: { user: true },
     });
 
     let matchedSession: (typeof sessions)[number] | null = null;
@@ -134,7 +133,17 @@ export class AuthService {
       throw new UnauthorizedException('Sessão inválida ou expirada');
     }
 
-    if (matchedSession.user.deletedAt) {
+    // Load user separately (session may belong to a technician, not a User)
+    const user = await this.prisma.user.findUnique({
+      where: { id: matchedSession.userId },
+    });
+
+    if (!user) {
+      // This session belongs to a technician, not a dashboard user
+      throw new UnauthorizedException('Sessão inválida');
+    }
+
+    if (user.deletedAt) {
       throw new ForbiddenException('Usuário desativado');
     }
 
@@ -151,7 +160,7 @@ export class AuthService {
       ip,
       userAgent || matchedSession.userAgent || undefined,
     );
-    const accessToken = this.issueAccessToken(matchedSession.user, newSession.id);
+    const accessToken = this.issueAccessToken(user, newSession.id);
 
     return {
       accessToken,
