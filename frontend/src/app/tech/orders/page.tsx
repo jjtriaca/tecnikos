@@ -46,8 +46,8 @@ export default function TechOrdersPage() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await techApi<ServiceOrder[]>("/service-orders");
-        setOrders(data);
+        const res = await techApi<{ data: ServiceOrder[]; total: number }>("/service-orders?limit=100");
+        setOrders(Array.isArray(res) ? res : (res.data || []));
       } catch {
         // ignore
       } finally {

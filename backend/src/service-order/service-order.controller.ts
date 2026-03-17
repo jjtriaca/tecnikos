@@ -41,7 +41,8 @@ export class ServiceOrderController {
     @Query('valueMax') valueMax: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.findAll(user.companyId, pagination, { status, dateFrom, dateTo, valueMin, valueMax });
+    const technicianId = user.isTecnico ? (user.partnerId || user.technicianId) : undefined;
+    return this.service.findAll(user.companyId, pagination, { status, dateFrom, dateTo, valueMin, valueMax, technicianId });
   }
 
   @Get('stats')

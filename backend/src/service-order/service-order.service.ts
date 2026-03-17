@@ -507,13 +507,14 @@ export class ServiceOrderService {
   async findAll(
     companyId: string,
     pagination?: PaginationDto,
-    filters?: { status?: string; dateFrom?: string; dateTo?: string; valueMin?: string; valueMax?: string },
+    filters?: { status?: string; dateFrom?: string; dateTo?: string; valueMin?: string; valueMax?: string; technicianId?: string },
   ): Promise<PaginatedResult<any>> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
     const skip = (page - 1) * limit;
 
     const where: any = { companyId, deletedAt: null };
+    if (filters?.technicianId) where.assignedPartnerId = filters.technicianId;
     if (filters?.status) where.status = filters.status;
     if (filters?.dateFrom || filters?.dateTo) {
       where.createdAt = {};
