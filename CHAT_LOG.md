@@ -2007,3 +2007,51 @@ Solucao:
 - Prioridade de matching: urgente → retorno → modo de atendimento → genérico (os_created)
 - Permite criar fluxo diferente para cada tipo de atendimento
 - os_created continua como fallback genérico
+
+## 2026-03-16 — Sessao 129: Auditoria Rigorosa Ciclo OS (v1.04.27)
+
+### Auditoria completa: criacao → fluxo → aprovada + painel flutuante
+- 5 agentes rodaram em paralelo auditando: criacao OS, workflow engine, dispatch panel, link publico, config UI
+- **36 achados** documentados em `docs/AUDITORIA-CICLO-OS-v1.04.26.md`
+- 3 P0, 8 P1, 16 P2, 9 P3
+
+### Correcoes aplicadas (10 fixes):
+
+**P0-01: Maquina de estados** — ALLOWED_TRANSITIONS no updateStatus()
+- Mapa de transicoes validas: ABERTA→OFERTADA/ATRIBUIDA/CANCELADA, etc.
+- Status terminal (APROVADA, CANCELADA, FINALIZADA) bloqueiam qualquer transicao
+- Erro claro: "Transicao X → Y nao permitida"
+
+**P0-02: 7 campos do link perdidos no compile/save**
+- acceptLabel, declineButton, declineLabel, declineRequireReason, declineReasonMinLen, declineReasonMaxLen, autoAdvanceSeconds
+- Adicionados ao compile (linkConfig) E ao decompile (restauracao)
+
+**P0-03: assign() checa status terminal**
+- ForbiddenException se OS em CONCLUIDA/APROVADA/CANCELADA
+
+**P1-01: messageDispatch.enabled condicional ao ABERTA**
+- Decompile so seta messageDispatch.enabled=true para stage ABERTA
+- Outras etapas usam toggles simples (notifyGestor/notifyCliente) como source of truth
+
+**P1-03: markArrived() validacao**
+- Verifica oferta aceita (revokedAt nao nulo)
+- Idempotente: se arrivedAt ja existe, retorna dados existentes
+
+**P1-06: DIRECTED + TechReview — checar ANTES do auto-assign**
+- Pre-check do workflow TECH_REVIEW_SCREEN antes de decidir autoAssignDirected
+- Suporta V2 e V3 formats
+- Se workflow tem review screen, NAO auto-atribui (operador revisa primeiro)
+
+**P1-08: markEnRoute() seta A_CAMINHO**
+- Status atualizado de ATRIBUIDA → A_CAMINHO ao marcar "a caminho"
+- Idempotente: se enRouteAt ja existe, retorna dados existentes
+
+**P2-11: DispatchPanel role check**
+- Componente retorna null para usuarios sem role ADMIN/DESPACHO
+
+**P2-12: Notification @Roles no resend**
+- POST /:id/resend protegido com @Roles(ADMIN, DESPACHO)
+
+**P1-02: _disableOtherFinancial** — falso positivo, ja estava tratado no parent
+
+### Builds: Backend OK, Frontend OK (tsc --noEmit limpo)

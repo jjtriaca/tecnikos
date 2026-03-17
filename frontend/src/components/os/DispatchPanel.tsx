@@ -1,6 +1,7 @@
 "use client";
 
 import { useDispatch, DispatchState } from "@/contexts/DispatchContext";
+import { useAuth, hasRole } from "@/contexts/AuthContext";
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { api } from "@/lib/api";
 import dynamic from "next/dynamic";
@@ -599,6 +600,10 @@ type PositionMap = Record<string, { x: number; y: number }>;
 
 export default function DispatchPanel() {
   const { dispatches, minimized, toggleMinimize } = useDispatch();
+  const { user } = useAuth();
+
+  // Only render for ADMIN/DESPACHO roles
+  if (!user || !hasRole(user, "ADMIN", "DESPACHO")) return null;
   const [positions, setPositions] = useState<PositionMap>({});
   const [focusOrder, setFocusOrder] = useState<string[]>([]);
   const [organizing, setOrganizing] = useState(false);

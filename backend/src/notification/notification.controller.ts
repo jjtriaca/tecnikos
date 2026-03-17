@@ -2,7 +2,9 @@ import { Controller, Get, Post, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
+import { UserRole } from '@prisma/client';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -24,6 +26,7 @@ export class NotificationController {
     return this.service.markAllRead(user.companyId);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/resend')
   resend(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.resend(id, user.companyId);

@@ -21,6 +21,20 @@ const TERMINAL_STATUSES: ServiceOrderStatus[] = [
   ServiceOrderStatus.CANCELADA,
 ];
 
+// State machine: allowed status transitions
+const ALLOWED_TRANSITIONS: Record<string, ServiceOrderStatus[]> = {
+  ABERTA: [ServiceOrderStatus.OFERTADA, ServiceOrderStatus.ATRIBUIDA, ServiceOrderStatus.CANCELADA],
+  OFERTADA: [ServiceOrderStatus.ATRIBUIDA, ServiceOrderStatus.ABERTA, ServiceOrderStatus.CANCELADA],
+  ATRIBUIDA: [ServiceOrderStatus.A_CAMINHO, ServiceOrderStatus.EM_EXECUCAO, ServiceOrderStatus.ABERTA, ServiceOrderStatus.CANCELADA],
+  A_CAMINHO: [ServiceOrderStatus.EM_EXECUCAO, ServiceOrderStatus.ATRIBUIDA, ServiceOrderStatus.CANCELADA],
+  EM_EXECUCAO: [ServiceOrderStatus.CONCLUIDA, ServiceOrderStatus.AJUSTE, ServiceOrderStatus.CANCELADA],
+  AJUSTE: [ServiceOrderStatus.EM_EXECUCAO, ServiceOrderStatus.CANCELADA],
+  CONCLUIDA: [ServiceOrderStatus.APROVADA, ServiceOrderStatus.AJUSTE],
+  APROVADA: [], // terminal
+  CANCELADA: [], // terminal
+  FINALIZADA: [], // terminal
+};
+
 @Injectable()
 export class ServiceOrderService {
   constructor(
@@ -91,10 +105,32 @@ export class ServiceOrderService {
       if (matched) resolvedWorkflowId = matched.id;
     }
 
+    // ── Pre-check: does the workflow have TECH_REVIEW_SCREEN? ──
+    // If yes, do NOT auto-assign DIRECTED — let the operator review first
+    let workflowHasReviewScreen = false;
+    if (resolvedWorkflowId && data.techAssignmentMode !== 'BY_AGENDA') {
+      try {
+        const wf = await this.prisma.workflowTemplate.findUnique({
+          where: { id: resolvedWorkflowId },
+          select: { steps: true },
+        });
+        if (wf?.steps) {
+          const def = typeof wf.steps === 'string' ? JSON.parse(wf.steps as string) : wf.steps;
+          // Support V2 and V3 formats
+          let blocks: any[] = [];
+          if (def?.version === 2 && Array.isArray(def.blocks)) blocks = def.blocks;
+          else if (def?.version === 3 && Array.isArray(def.blocks)) blocks = def.blocks;
+          workflowHasReviewScreen = blocks.some((b: any) => b.type === 'TECH_REVIEW_SCREEN');
+        }
+      } catch { /* ignore parse errors */ }
+    }
+
     // Respeitar técnico direcionado: DIRECTED + técnicos escolhidos → auto-atribui o primeiro
+    // BUT: skip auto-assign if workflow has tech review screen (operator reviews first)
     const autoAssignDirected =
       data.techAssignmentMode === 'DIRECTED' &&
-      (data.directedTechnicianIds?.length ?? 0) > 0;
+      (data.directedTechnicianIds?.length ?? 0) > 0 &&
+      !workflowHasReviewScreen;
 
     const result = await this.prisma.serviceOrder.create({
       data: {
@@ -228,10 +264,10 @@ export class ServiceOrderService {
     }
 
     // ── Tech Review: skip notifications, return candidates ──
-    // Check explicit flag OR auto-detect from workflow TECH_REVIEW_SCREEN block
-    let shouldReview = !!data.skipNotifications;
+    // Already detected from pre-check above (workflowHasReviewScreen) or explicit flag
+    const shouldReview = !!data.skipNotifications || workflowHasReviewScreen;
     let reviewAllowEdit = false;
-    if (!shouldReview && resolvedWorkflowId && data.techAssignmentMode !== 'BY_AGENDA') {
+    if (workflowHasReviewScreen && resolvedWorkflowId) {
       try {
         const wf = await this.prisma.workflowTemplate.findUnique({
           where: { id: resolvedWorkflowId },
@@ -239,13 +275,11 @@ export class ServiceOrderService {
         });
         if (wf?.steps) {
           const def = typeof wf.steps === 'string' ? JSON.parse(wf.steps as string) : wf.steps;
-          if (def?.version === 2 && Array.isArray(def.blocks)) {
-            const reviewBlock = def.blocks.find((b: any) => b.type === 'TECH_REVIEW_SCREEN');
-            if (reviewBlock) {
-              shouldReview = true;
-              reviewAllowEdit = !!reviewBlock.config?.allowEdit;
-            }
-          }
+          let blocks: any[] = [];
+          if (def?.version === 2 && Array.isArray(def.blocks)) blocks = def.blocks;
+          else if (def?.version === 3 && Array.isArray(def.blocks)) blocks = def.blocks;
+          const reviewBlock = blocks.find((b: any) => b.type === 'TECH_REVIEW_SCREEN');
+          if (reviewBlock) reviewAllowEdit = !!reviewBlock.config?.allowEdit;
         }
       } catch { /* ignore parse errors */ }
     }
@@ -792,6 +826,11 @@ export class ServiceOrderService {
   async assign(id: string, technicianId: string, companyId: string, actor?: AuthenticatedUser) {
     const so = await this.findOne(id, companyId);
 
+    // Block assignment on terminal statuses
+    if (TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)) {
+      throw new ForbiddenException('Não é possível atribuir técnico a uma OS neste status.');
+    }
+
     let result;
     if (!so.workflowTemplateId && this.workflowEngine) {
       // Auto-attach workflow by trigger (priority: urgent > return > normal)
@@ -842,6 +881,16 @@ export class ServiceOrderService {
   async updateStatus(id: string, status: ServiceOrderStatus, companyId: string, actor?: AuthenticatedUser) {
     const so = await this.findOne(id, companyId);
     const oldStatus = so.status;
+
+    // ── State machine validation ──
+    const allowed = ALLOWED_TRANSITIONS[oldStatus];
+    if (!allowed || allowed.length === 0) {
+      throw new ForbiddenException(`OS em status ${oldStatus} não pode ser alterada.`);
+    }
+    if (!allowed.includes(status)) {
+      throw new ForbiddenException(`Transição ${oldStatus} → ${status} não permitida.`);
+    }
+
     const data: any = { status };
     if (status === ServiceOrderStatus.EM_EXECUCAO && !so.startedAt) data.startedAt = new Date();
     if ((status === ServiceOrderStatus.CONCLUIDA || status === ServiceOrderStatus.APROVADA) && !so.completedAt) data.completedAt = new Date();

@@ -196,7 +196,21 @@
 - [x] Backend: prioridade findWorkflowByTrigger: urgente → retorno → modo atendimento → genérico
 - [x] Build OK
 
-## Versao atual: v1.04.18 (pendente deploy)
+## Auditoria Rigorosa Ciclo OS (v1.04.27):
+- [x] P0-01: Maquina de estados — ALLOWED_TRANSITIONS no updateStatus()
+- [x] P0-02: 7 campos link perdidos no compile/save (acceptLabel, decline*, autoAdvance)
+- [x] P0-03: assign() checa status terminal
+- [x] P1-01: messageDispatch.enabled condicional ao ABERTA no decompile
+- [x] P1-02: _disableOtherFinancial — falso positivo, ja tratado
+- [x] P1-03: markArrived() validacao de oferta aceita + idempotencia
+- [x] P1-06: DIRECTED + TechReview — checar ANTES do auto-assign (V2+V3)
+- [x] P1-08: markEnRoute() seta status A_CAMINHO + idempotencia
+- [x] P2-11: DispatchPanel role check (ADMIN/DESPACHO)
+- [x] P2-12: Notification controller @Roles no resend
+- [x] Build OK (backend + frontend)
+- 36 achados documentados em docs/AUDITORIA-CICLO-OS-v1.04.26.md
+
+## Versao atual: v1.04.26 (pendente deploy v1.04.27)
 
 ## Precos antigos de referencia (hardcoded, nunca formalizados):
 - +100 OS/mes: R$127

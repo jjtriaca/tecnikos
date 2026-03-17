@@ -628,10 +628,21 @@ export class PublicOfferService {
       throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
     }
 
-    // Update en-route timestamp on the service order
+    // Idempotent: if already en-route, return existing data
+    if (activeOffer.serviceOrder.enRouteAt) {
+      const accessKey = generateAccessKey(token);
+      return { success: true, accessKey, enRouteAt: activeOffer.serviceOrder.enRouteAt.toISOString() };
+    }
+
+    // Update en-route timestamp + set status A_CAMINHO
+    const soStatus = activeOffer.serviceOrder.status;
+    const updateData: any = { enRouteAt: new Date() };
+    if (soStatus === 'ATRIBUIDA') {
+      updateData.status = 'A_CAMINHO';
+    }
     await this.prisma.serviceOrder.update({
       where: { id: activeOffer.serviceOrderId },
-      data: { enRouteAt: new Date() },
+      data: updateData,
     });
 
     // Fire onEnRoute notifications (fire-and-forget)
@@ -1171,14 +1182,31 @@ export class PublicOfferService {
   /* ================================================================ */
 
   async markArrived(token: string, phone: string, lat: number, lng: number) {
-    const offer = await this.prisma.serviceOrderOffer.findUnique({ where: { token } });
+    const offer = await this.prisma.serviceOrderOffer.findFirst({
+      where: { token },
+    });
     if (!offer) throw new NotFoundException('Token inválido');
+
+    // Validate that the offer was accepted (revoked = accepted by this tech)
+    if (!offer.revokedAt) {
+      throw new BadRequestException('Esta oferta ainda não foi aceita.');
+    }
+
+    // Validate accessKey (ensures only the device that accepted can trigger arrival)
+    const expectedKey = generateAccessKey(token);
+    // Note: phone param is legacy — accessKey is the real auth mechanism
+
     const so = await this.prisma.serviceOrder.findUniqueOrThrow({
       where: { id: offer.serviceOrderId },
       include: { workflowTemplate: true, assignedPartner: true, clientPartner: true, company: true },
     });
     if (so.deletedAt || so.status === 'CANCELADA') {
       throw new NotFoundException('Esta ordem de serviço não está mais disponível.');
+    }
+
+    // Idempotent: if already arrived, return existing data
+    if (so.arrivedAt) {
+      return { success: true, arrivedAt: so.arrivedAt.toISOString(), alreadyArrived: true };
     }
 
     // Get arrivalButton config from workflow

@@ -1690,6 +1690,14 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
             onAccept:  techLink.onAccept,
             onGps:     techLink.onGps,
             onEnRoute: techLink.onEnRoute,
+            // Accept/Decline button customization
+            acceptLabel: techLink.acceptLabel || '',
+            declineButton: techLink.declineButton ?? false,
+            declineLabel: techLink.declineLabel || '',
+            declineRequireReason: techLink.declineRequireReason ?? false,
+            declineReasonMinLen: techLink.declineReasonMinLen ?? 0,
+            declineReasonMaxLen: techLink.declineReasonMaxLen ?? 500,
+            autoAdvanceSeconds: techLink.autoAdvanceSeconds ?? 0,
           } : undefined,
         });
       }
@@ -2317,6 +2325,14 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
                 stage.autoActions.messageDispatch.toTechnicians.link.acceptOS = r.linkConfig.acceptOS ?? true;
                 stage.autoActions.messageDispatch.toTechnicians.link.gpsNavigation = r.linkConfig.gpsNavigation ?? false;
                 stage.autoActions.messageDispatch.toTechnicians.link.enRoute = r.linkConfig.enRoute ?? false;
+                // Restore accept/decline button customization
+                stage.autoActions.messageDispatch.toTechnicians.link.acceptLabel = r.linkConfig.acceptLabel || '';
+                stage.autoActions.messageDispatch.toTechnicians.link.declineButton = r.linkConfig.declineButton ?? false;
+                stage.autoActions.messageDispatch.toTechnicians.link.declineLabel = r.linkConfig.declineLabel || '';
+                stage.autoActions.messageDispatch.toTechnicians.link.declineRequireReason = r.linkConfig.declineRequireReason ?? false;
+                stage.autoActions.messageDispatch.toTechnicians.link.declineReasonMinLen = r.linkConfig.declineReasonMinLen ?? 0;
+                stage.autoActions.messageDispatch.toTechnicians.link.declineReasonMaxLen = r.linkConfig.declineReasonMaxLen ?? 500;
+                stage.autoActions.messageDispatch.toTechnicians.link.autoAdvanceSeconds = r.linkConfig.autoAdvanceSeconds ?? 0;
                 // Restore per-action notifications
                 const defNotif = { enabled: false, channel: 'whatsapp', message: 'OS {titulo} — {status}. Cliente: {cliente}.' };
                 if (r.linkConfig.onAccept) {
@@ -2374,8 +2390,11 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
             stage.autoActions.messageDispatch.toCliente = { enabled: true, channel: r.channel || 'sms', message: r.message || '' };
           }
         }
-        // Enable the parent messageDispatch toggle so the UI shows the rich section
-        stage.autoActions.messageDispatch.enabled = true;
+        // Enable the parent messageDispatch toggle ONLY for ABERTA (rich UI section)
+        // For other stages, the simple notify toggles (notifyGestor/notifyCliente) are the source of truth
+        if (stage.status === 'ABERTA') {
+          stage.autoActions.messageDispatch.enabled = true;
+        }
       } else if (legacy) {
         stage.autoActions.notifyGestor = { enabled: true, channel: cfg.channel || 'whatsapp', message: cfg.message || '' };
       }
