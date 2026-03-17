@@ -175,6 +175,8 @@ export class PartnerService {
     partnerId: string,
     workflow: any,
   ): Promise<void> {
+    if (!this.contractService) return;
+
     const steps = workflow.steps as any;
     const blocks = steps?.blocks as any[];
     if (!blocks?.length) {
