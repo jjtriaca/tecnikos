@@ -7,6 +7,20 @@ import WorkflowCanvas from "./WorkflowCanvas";
 import WorkflowProperties from "./WorkflowProperties";
 import WorkflowTemplates from "./WorkflowTemplates";
 import { api } from "@/lib/api";
+import { TRIGGER_OPTIONS, type TriggerDefinition } from "@/types/stage-config";
+
+/* ── Trigger helpers ── */
+
+function parseTriggerFromSteps(steps: any): TriggerDefinition {
+  if (!steps?.trigger) return TRIGGER_OPTIONS[0];
+  const t = steps.trigger;
+  // Match by triggerId first, then by entity+event
+  const byId = TRIGGER_OPTIONS.find(o => o.id === t.triggerId);
+  if (byId) return byId;
+  const byEntityEvent = TRIGGER_OPTIONS.find(o => o.entity === t.entity && o.event === t.event);
+  if (byEntityEvent) return byEntityEvent;
+  return TRIGGER_OPTIONS[0];
+}
 
 interface Props {
   workflowId: string | null; // null = new
@@ -26,6 +40,8 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
     }
     return createDefaultWorkflow();
   });
+  const [trigger, setTrigger] = useState<TriggerDefinition>(() => parseTriggerFromSteps(initialSteps));
+  const [showTriggerSelector, setShowTriggerSelector] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,20 +53,21 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
   const selectedBlock = selectedBlockId ? findBlock(blocks, selectedBlockId) || null : null;
   const blockCount = countUserBlocks(blocks);
 
+  // Group triggers for display
+  const osTriggers = TRIGGER_OPTIONS.filter(t => t.entity === "SERVICE_ORDER");
+  const partnerTriggers = TRIGGER_OPTIONS.filter(t => t.entity === "PARTNER");
+
   // Handle adding a block from the palette
   const handleAddBlock = useCallback((entry: CatalogEntry) => {
     const newBlock = createBlock(entry.type);
 
     if (insertAfterId) {
-      // Insert at specific position
       setBlocks((prev) => insertBlockAfter([...prev], insertAfterId, newBlock, insertVia));
       setInsertAfterId(null);
     } else {
-      // Insert before END
       const endBlock = blocks.find(b => b.type === "END");
       if (!endBlock) return;
 
-      // Find the block that points to END
       let parentBlock: Block | undefined;
       for (const b of blocks) {
         if (b.next === endBlock.id) { parentBlock = b; break; }
@@ -64,31 +81,25 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
     setSelectedBlockId(newBlock.id);
   }, [blocks, insertAfterId, insertVia]);
 
-  // Handle inserting at a specific position (from + button on canvas)
   const handleInsertAfter = useCallback((afterBlockId: string, via: "next" | "yesBranch" | "noBranch" = "next") => {
     setInsertAfterId(afterBlockId);
     setInsertVia(via);
-    // Visual feedback: palette highlights
   }, []);
 
-  // Handle block selection
   const handleSelectBlock = useCallback((id: string | null) => {
     setSelectedBlockId(id);
-    setInsertAfterId(null); // clear insert mode
+    setInsertAfterId(null);
   }, []);
 
-  // Handle block deletion
   const handleDeleteBlock = useCallback((id: string) => {
     setBlocks((prev) => removeBlock([...prev], id));
     if (selectedBlockId === id) setSelectedBlockId(null);
   }, [selectedBlockId]);
 
-  // Handle block property change
   const handleBlockChange = useCallback((updated: Block) => {
     setBlocks((prev) => prev.map(b => b.id === updated.id ? updated : b));
   }, []);
 
-  // Handle template selection
   const handleTemplateSelect = useCallback((templateBlocks: Block[]) => {
     setBlocks(templateBlocks);
     setShowTemplates(false);
@@ -100,7 +111,6 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
     if (!name.trim()) return "Informe um nome para o fluxo";
     if (blockCount === 0) return "Adicione pelo menos um bloco ao fluxo";
 
-    // Check for empty configs
     for (const b of blocks) {
       if (b.type === "CHECKLIST" && (!b.config.items || b.config.items.length === 0)) {
         return `Bloco "${b.name}" precisa de pelo menos 1 item no checklist`;
@@ -124,7 +134,7 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
     return null;
   }
 
-  // Save
+  // Save — include trigger in steps payload
   async function handleSave() {
     const validationError = validate();
     if (validationError) {
@@ -138,7 +148,15 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
     try {
       const payload = {
         name: name.trim(),
-        steps: { version: 2, blocks },
+        steps: {
+          version: 2,
+          blocks,
+          trigger: {
+            entity: trigger.entity,
+            event: trigger.event,
+            triggerId: trigger.id,
+          },
+        },
         isActive: initialIsActive ?? true,
       };
 
@@ -171,6 +189,7 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
       if (e.key === "Escape") {
         setSelectedBlockId(null);
         setInsertAfterId(null);
+        setShowTriggerSelector(false);
       }
     }
     window.addEventListener("keydown", handleKey);
@@ -234,6 +253,73 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
           </button>
         </div>
       </div>
+
+      {/* Trigger Selector Bar */}
+      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/80 px-4 py-2">
+        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Quando:</span>
+        <button
+          onClick={() => setShowTriggerSelector(!showTriggerSelector)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-blue-300 hover:bg-blue-50/50 transition-colors shadow-sm"
+        >
+          <span className="text-sm">{trigger.icon}</span>
+          <span>{trigger.label}</span>
+          <svg className={`h-3.5 w-3.5 text-slate-400 transition-transform ${showTriggerSelector ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <span className="text-[10px] text-slate-400 italic">{trigger.description}</span>
+      </div>
+
+      {/* Trigger dropdown */}
+      {showTriggerSelector && (
+        <div className="border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="max-w-2xl space-y-3">
+            {/* OS triggers */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Ordens de Servico</p>
+              <div className="flex flex-wrap gap-1.5">
+                {osTriggers.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setTrigger(t); setShowTriggerSelector(false); }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      trigger.id === t.id
+                        ? "border-blue-400 bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50/30"
+                    }`}
+                  >
+                    <span className="text-sm">{t.icon}</span>
+                    <span>{t.label}</span>
+                    {trigger.id === t.id && <span className="text-blue-500 text-[10px]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Partner triggers */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Parceiros (Onboarding)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {partnerTriggers.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setTrigger(t); setShowTriggerSelector(false); }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      trigger.id === t.id
+                        ? "border-blue-400 bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50/30"
+                    }`}
+                  >
+                    <span className="text-sm">{t.icon}</span>
+                    <span>{t.label}</span>
+                    {trigger.id === t.id && <span className="text-blue-500 text-[10px]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Insert mode indicator */}
       {insertAfterId && (
