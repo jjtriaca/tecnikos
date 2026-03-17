@@ -191,7 +191,33 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               { value: "EMAIL", label: "Email" },
               { value: "SMS", label: "SMS" },
             ]} />
-            <TextArea value={r.message || ""} onChange={(v) => updateRecipient(i, "message", v)} placeholder="Mensagem..." rows={2} />
+            <TextArea value={r.message || ""} onChange={(v) => updateRecipient(i, "message", v)} placeholder={r.type === "TECNICO" ? "Olá {nome}, bem-vindo à equipe {empresa}! Acesse: {link_app}" : "Mensagem..."} rows={3} />
+            {/* Variable chips */}
+            <div className="flex flex-wrap gap-1">
+              {[
+                { var: "{nome}", label: "Nome" },
+                { var: "{empresa}", label: "Empresa" },
+                { var: "{data}", label: "Data" },
+                ...(r.type === "TECNICO" ? [
+                  { var: "{link_app}", label: "Link App" },
+                  { var: "{login}", label: "Login" },
+                  { var: "{senha}", label: "Senha" },
+                ] : []),
+                ...(r.type === "CLIENTE" ? [
+                  { var: "{telefone}", label: "Telefone" },
+                  { var: "{email}", label: "Email" },
+                ] : []),
+              ].map(v => (
+                <button
+                  key={v.var}
+                  type="button"
+                  onClick={() => updateRecipient(i, "message", (r.message || "") + " " + v.var)}
+                  className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded"
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
             {r.type === "TECNICO" && (
               <Checkbox checked={r.includeLink || false} onChange={(v) => updateRecipient(i, "includeLink", v)} label="Incluir link de aceite" />
             )}

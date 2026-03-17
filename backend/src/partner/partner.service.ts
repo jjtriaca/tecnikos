@@ -47,7 +47,7 @@ export class PartnerService {
     this.automationEngine?.dispatch(event).catch(() => {});
   }
 
-  /** Fire-and-forget: check ANY workflow for technician onboarding config and send contract */
+  /** Fire-and-forget: check ANY workflow for technician onboarding config and send contract/notification */
   private async dispatchTechnicianContract(
     companyId: string,
     partnerId: string,
@@ -67,12 +67,25 @@ export class PartnerService {
 
       this.logger.log(`📄 Checking ${workflows.length} active workflow(s) for onboarding config (trigger: ${trigger})`);
 
+      // ── Try V2 workflows first (visual editor) ──
+      const v2Workflow = workflows.find(wf => {
+        const steps = wf.steps as any;
+        return steps?.version === 2 && steps?.trigger?.triggerId === 'partner_tech_created';
+      });
+
+      if (v2Workflow) {
+        this.logger.log(`📄 Found V2 workflow "${v2Workflow.name}" (${v2Workflow.id}) with trigger partner_tech_created`);
+        await this.executeV2OnboardingWorkflow(companyId, partnerId, v2Workflow);
+        return;
+      }
+
+      // ── Fallback: V1 technicianOnboarding format ──
       let onboarding: any = null;
       for (const wf of workflows) {
         const steps = wf.steps as any;
         if (steps?.technicianOnboarding?.enabled) {
           onboarding = steps.technicianOnboarding;
-          this.logger.log(`📄 Found onboarding config in workflow "${wf.name}" (${wf.id})`);
+          this.logger.log(`📄 Found V1 onboarding config in workflow "${wf.name}" (${wf.id})`);
           break;
         }
       }
@@ -153,6 +166,97 @@ export class PartnerService {
       this.logger.log(`📄 Contract dispatched for partner ${partnerId} (${trigger}${specializationId ? `, spec: ${specializationId}` : ''}) ✅`);
     } catch (err) {
       this.logger.error(`Failed to dispatch technician contract: ${err.message}`, err.stack);
+    }
+  }
+
+  /** Execute V2 visual-editor workflow for partner onboarding — processes NOTIFY blocks */
+  private async executeV2OnboardingWorkflow(
+    companyId: string,
+    partnerId: string,
+    workflow: any,
+  ): Promise<void> {
+    const steps = workflow.steps as any;
+    const blocks = steps?.blocks as any[];
+    if (!blocks?.length) {
+      this.logger.log(`📄 V2 workflow has no blocks — skipping`);
+      return;
+    }
+
+    const partner = await this.prisma.partner.findUnique({ where: { id: partnerId } });
+    if (!partner) {
+      this.logger.warn(`📄 Partner ${partnerId} not found — skipping V2 execution`);
+      return;
+    }
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const companyDisplay = company?.tradeName || company?.name || '';
+
+    // Template variable resolver
+    const resolveVars = (msg: string): string => {
+      return msg
+        .replace(/\{nome\}/gi, partner.name)
+        .replace(/\{empresa\}/gi, companyDisplay)
+        .replace(/\{razao_social\}/gi, company?.name || '')
+        .replace(/\{data\}/gi, new Date().toLocaleDateString('pt-BR'))
+        .replace(/\{documento\}/gi, partner.document || '')
+        .replace(/\{email\}/gi, partner.email || '')
+        .replace(/\{telefone\}/gi, partner.phone || '')
+        .replace(/\{cnpj_empresa\}/gi, company?.cnpj || '')
+        .replace(/\{link_app\}/gi, `${process.env.FRONTEND_URL || 'https://tecnikos.com.br'}/tech/login`)
+        .replace(/\{login\}/gi, partner.email || partner.document || '')
+        .replace(/\{senha\}/gi, partner.document?.slice(-6) || '123456');
+    };
+
+    // Walk blocks sequentially (follow "next" pointers from START)
+    const blockMap = new Map(blocks.map((b: any) => [b.id, b]));
+    let current = blocks.find((b: any) => b.type === 'START');
+    const visited = new Set<string>();
+
+    while (current && !visited.has(current.id)) {
+      visited.add(current.id);
+
+      if (current.type === 'NOTIFY') {
+        const recipients = current.config?.recipients || [];
+        for (const r of recipients) {
+          if (!r.enabled && r.enabled !== undefined) continue;
+          if (r.type !== 'TECNICO') continue; // Only process TECNICO recipients for onboarding
+
+          const message = resolveVars(r.message || '');
+          if (!message) continue;
+
+          const channel = r.channel || 'WHATSAPP';
+
+          if (channel === 'WHATSAPP' && partner.phone) {
+            this.logger.log(`💬 V2 Onboarding: Sending WhatsApp to ${partner.name} (${partner.phone})`);
+            await this.contractService.sendWelcomeMessage({
+              companyId,
+              partnerId,
+              channel: 'WHATSAPP',
+              message,
+              waitForReply: false,
+              confirmVia: 'WHATSAPP',
+            });
+          } else if (channel === 'EMAIL' && partner.email) {
+            this.logger.log(`📧 V2 Onboarding: Sending email to ${partner.name} (${partner.email})`);
+            await this.contractService.sendWelcomeMessage({
+              companyId,
+              partnerId,
+              channel: 'EMAIL',
+              message,
+              waitForReply: false,
+            });
+          }
+
+          this.logger.log(`✅ V2 Onboarding notification sent to ${partner.name} via ${channel}`);
+        }
+      }
+
+      // Follow next pointer
+      if (current.next) {
+        current = blockMap.get(current.next);
+      } else {
+        break;
+      }
     }
   }
 
