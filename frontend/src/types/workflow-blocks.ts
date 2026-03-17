@@ -176,7 +176,7 @@ export const BLOCK_CATALOG: CatalogEntry[] = [
   { type: 'FORM', name: 'Formulário', icon: '📋', description: 'Campos customizáveis', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
 
   // Communication
-  { type: 'NOTIFY', name: 'Notificar', icon: '💬', description: 'Enviar WhatsApp/SMS automático', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
+  { type: 'NOTIFY', name: 'Notificar', icon: '💬', description: 'Enviar WhatsApp ou Email automatico', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
   { type: 'APPROVAL', name: 'Aprovação', icon: '🔒', description: 'Trava fluxo até gestor aprovar', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
   { type: 'ALERT', name: 'Alerta', icon: '🔔', description: 'Alerta para o gestor/dashboard', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
 
@@ -233,22 +233,22 @@ export function createBlock(type: BlockType, overrides?: Partial<Block>): Block 
 
 export function getDefaultConfig(type: BlockType): Record<string, any> {
   switch (type) {
-    case 'STEP': return { requirePhoto: false, requireNote: false, requireGps: false, description: '' };
-    case 'PHOTO': return { minPhotos: 1, label: 'Foto', photoType: 'GERAL' };
-    case 'NOTE': return { placeholder: 'Digite sua observação...', required: true };
+    case 'STEP': return { requirePhoto: false, requireNote: false, requireGps: false, description: 'Executar o servico conforme especificado na ordem' };
+    case 'PHOTO': return { minPhotos: 1, label: 'Registrar foto do local ou equipamento', photoType: 'GERAL' };
+    case 'NOTE': return { placeholder: 'Descreva as condicoes encontradas, servicos realizados e observacoes relevantes...', required: true };
     case 'GPS': return { auto: true };
-    case 'QUESTION': return { question: '', options: ['Sim', 'Não'] };
-    case 'CHECKLIST': return { items: ['Item 1'] };
-    case 'SIGNATURE': return { label: 'Assinatura do cliente' };
-    case 'FORM': return { fields: [{ name: 'Campo 1', type: 'text', required: false }] };
-    case 'CONDITION': return { conditionType: 'question', question: '' };
-    case 'NOTIFY': return { channel: 'WHATSAPP', message: '', recipient: 'CLIENTE' };
-    case 'APPROVAL': return { approverRole: 'ADMIN', message: '' };
-    case 'ALERT': return { message: '', severity: 'info' };
+    case 'QUESTION': return { question: 'O equipamento esta funcionando corretamente?', options: ['Sim', 'Nao'] };
+    case 'CHECKLIST': return { items: ['Verificar condicoes do local', 'Inspecionar equipamento', 'Testar funcionamento'] };
+    case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do servico' };
+    case 'FORM': return { fields: [{ name: 'Condicao do equipamento', type: 'select', required: true, options: ['Bom', 'Regular', 'Ruim'] }, { name: 'Observacoes', type: 'text', required: false }] };
+    case 'CONDITION': return { conditionType: 'question', question: 'O servico foi concluido com sucesso?' };
+    case 'NOTIFY': return { recipients: [{ type: 'CLIENTE', enabled: true, channel: 'WHATSAPP', message: 'Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso. Obrigado pela preferencia!' }] };
+    case 'APPROVAL': return { approverRole: 'ADMIN', message: 'Servico finalizado aguardando aprovacao do gestor para encerramento da OS.' };
+    case 'ALERT': return { message: 'Atencao: verificar pendencia na ordem de servico {titulo}.', severity: 'warning' };
     case 'DELAY': return { minutes: 15 };
     case 'SLA': return { maxMinutes: 240, alertOnExceed: true };
     case 'STATUS': return { targetStatus: 'EM_EXECUCAO' };
-    case 'RESCHEDULE': return { reason: '' };
+    case 'RESCHEDULE': return { reason: 'Cliente solicitou reagendamento' };
     default: return {};
   }
 }

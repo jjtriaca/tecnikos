@@ -1,6 +1,6 @@
 # WhatsApp Business API — Auditoria Completa (Março 2026)
 
-## Status: Conta reativada após ban pelo Meta (motivo não informado)
+## Status: ✅ CONTA ATIVA — Liberada pelo Meta em 17/03/2026
 
 ## Arquitetura Atual
 - Provider: Meta Cloud API v21.0

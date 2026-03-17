@@ -182,6 +182,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               <Select value={r.type} onChange={(v) => updateRecipient(i, "type", v)} options={[
                 { value: "CLIENTE", label: "Cliente" },
                 { value: "TECNICO", label: "Tecnico" },
+                { value: "FORNECEDOR", label: "Fornecedor" },
                 { value: "GESTOR", label: "Gestor" },
               ]} />
               <button onClick={() => removeRecipient(i)} className="ml-2 px-1 text-xs text-red-400 hover:text-red-600">x</button>
@@ -189,23 +190,35 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             <Select value={r.channel || "WHATSAPP"} onChange={(v) => updateRecipient(i, "channel", v)} options={[
               { value: "WHATSAPP", label: "WhatsApp" },
               { value: "EMAIL", label: "Email" },
-              { value: "SMS", label: "SMS" },
             ]} />
-            <TextArea value={r.message || ""} onChange={(v) => updateRecipient(i, "message", v)} placeholder={r.type === "TECNICO" ? "Olá {nome}, bem-vindo à equipe {empresa}! Acesse: {link_app}" : "Mensagem..."} rows={3} />
+            <TextArea value={r.message || ""} onChange={(v) => updateRecipient(i, "message", v)} placeholder={
+              r.type === "TECNICO" ? "Ola {nome}, bem-vindo a equipe {empresa}! Acesse o app: {link_app}" :
+              r.type === "FORNECEDOR" ? "Ola {nome}, informamos que a OS {titulo} requer fornecimento de materiais. Entre em contato para detalhes." :
+              r.type === "GESTOR" ? "Atendimento {titulo} concluido. Tecnico: {tecnico}. Cliente: {nome}." :
+              "Ola {nome}, informamos que o servico {titulo} foi atualizado. Obrigado pela preferencia!"
+            } rows={3} />
             {/* Variable chips */}
             <div className="flex flex-wrap gap-1">
               {[
                 { var: "{nome}", label: "Nome" },
                 { var: "{empresa}", label: "Empresa" },
                 { var: "{data}", label: "Data" },
+                { var: "{titulo}", label: "Titulo OS" },
                 ...(r.type === "TECNICO" ? [
                   { var: "{link_app}", label: "Link App" },
                   { var: "{login}", label: "Login" },
                   { var: "{senha}", label: "Senha" },
+                  { var: "{endereco}", label: "Endereco" },
                 ] : []),
-                ...(r.type === "CLIENTE" ? [
+                ...(r.type === "CLIENTE" || r.type === "FORNECEDOR" ? [
                   { var: "{telefone}", label: "Telefone" },
                   { var: "{email}", label: "Email" },
+                  { var: "{tecnico}", label: "Tecnico" },
+                  { var: "{endereco}", label: "Endereco" },
+                ] : []),
+                ...(r.type === "GESTOR" ? [
+                  { var: "{tecnico}", label: "Tecnico" },
+                  { var: "{endereco}", label: "Endereco" },
                 ] : []),
               ].map(v => (
                 <button
