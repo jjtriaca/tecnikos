@@ -390,7 +390,7 @@ export class TechAuthService {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
-      path: '/tech-auth',
+      path: '/',
     };
   }
 
@@ -399,7 +399,7 @@ export class TechAuthService {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
-      path: '/tech-auth',
+      path: '/',
     };
   }
 }
