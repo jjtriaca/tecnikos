@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { TechAuthProvider, useTechAuth } from "@/contexts/TechAuthContext";
 import Link from "next/link";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 /* ── Bottom Nav Icons ──────────────────────────────────── */
 
@@ -72,7 +73,7 @@ function TechInnerLayout({ children }: { children: React.ReactNode }) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <span className="text-sm font-bold text-slate-800">FieldService</span>
+          <span className="text-sm font-bold text-slate-800">Tecnikos</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100">
@@ -84,6 +85,9 @@ function TechInnerLayout({ children }: { children: React.ReactNode }) {
 
       {/* Content */}
       <main className="px-4 py-4">{children}</main>
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 flex h-16 items-center justify-around border-t border-slate-200 bg-white/95 backdrop-blur-sm safe-bottom">
