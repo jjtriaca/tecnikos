@@ -145,14 +145,46 @@ export class TechAuthService {
 
     if (contract) {
       const tech = contract.partner;
-      if (!tech || tech.deletedAt || tech.status !== 'ATIVO') {
+      if (!tech || tech.deletedAt) {
+        throw new ForbiddenException('Técnico não encontrado');
+      }
+      if (!['ATIVO', 'PENDENTE_CONTRATO'].includes(tech.status || '')) {
         throw new ForbiddenException('Técnico desativado');
       }
       if (!tech.partnerTypes?.includes('TECNICO')) {
         throw new BadRequestException('Parceiro não é técnico');
       }
 
-      // Mark contract as accepted if not already
+      // Check if there's a pending contract that needs acceptance
+      const pendingContract = await this.prisma.technicianContract.findFirst({
+        where: {
+          partnerId: tech.id,
+          companyId: tech.companyId,
+          status: 'PENDING',
+          blockUntilAccepted: true,
+        },
+        select: { id: true, token: true, contractType: true, requireSignature: true },
+      });
+
+      if (pendingContract) {
+        // Don't auto-accept — redirect to contract page
+        return {
+          accessToken: null,
+          refreshToken: null,
+          refreshTtlSeconds: 0,
+          technician: {
+            id: tech.id,
+            name: tech.name,
+            email: tech.email,
+            phone: tech.phone,
+            companyId: tech.companyId,
+          },
+          type: 'pending_contract' as const,
+          contractToken: pendingContract.token,
+        };
+      }
+
+      // No pending contract — mark welcome as accepted if not already
       if (contract.status !== 'ACCEPTED') {
         await this.prisma.technicianContract.update({
           where: { id: contract.id },
@@ -161,6 +193,14 @@ export class TechAuthService {
             viewedAt: contract.viewedAt || new Date(),
             acceptedAt: new Date(),
           },
+        });
+      }
+
+      // If tech was PENDENTE_CONTRATO but no blocking contract found, activate
+      if (tech.status === 'PENDENTE_CONTRATO') {
+        await this.prisma.partner.update({
+          where: { id: tech.id },
+          data: { status: 'ATIVO' },
         });
       }
 

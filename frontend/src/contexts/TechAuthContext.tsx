@@ -201,6 +201,10 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
         throw new Error(err.message || "Link inválido ou expirado");
       }
       const data = await res.json();
+      // If pending contract, don't login — return contract info
+      if (data.type === 'pending_contract') {
+        return { type: data.type, contractToken: data.contractToken };
+      }
       techAccessToken = data.accessToken;
       await fetchMe();
       return { type: data.type, serviceOrderId: data.serviceOrderId };

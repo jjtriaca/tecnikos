@@ -48,13 +48,18 @@ export default function TechSetupPage({ params }: { params: Promise<{ token: str
     (async () => {
       try {
         const result = await loginWithToken(token);
+        if (result.type === "pending_contract" && result.contractToken) {
+          // Redirect to contract acceptance page
+          router.push(`/contract/${result.contractToken}`);
+          return;
+        }
         setStep("welcome");
       } catch (err: any) {
         setError(err.message || "Link inválido ou expirado");
         setStep("error");
       }
     })();
-  }, [token, loginWithToken]);
+  }, [token, loginWithToken, router]);
 
   // Get tech name after login
   useEffect(() => {
