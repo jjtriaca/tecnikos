@@ -244,6 +244,10 @@ export class ContractService {
 
     // Send notification
     if (opts.channel === 'WHATSAPP' && partner.phone && this.notifications) {
+      // Build app link for the technician
+      const baseUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+      const appLink = `${baseUrl}/tech`;
+
       await this.notifications.send({
         companyId: opts.companyId,
         channel: 'WHATSAPP',
@@ -252,6 +256,7 @@ export class ContractService {
         type: 'WELCOME_SENT',
         forceTemplate: true,
         templateName: 'boas_vindas', // Uses dedicated template, falls back to aviso_os
+        templateParams: [partner.name, appLink], // {{1}} = name, {{2}} = app link
       });
     } else if (opts.channel === 'EMAIL' && partner.email && this.email) {
       try {

@@ -14,6 +14,8 @@ export interface SendNotificationDto {
   forceTemplate?: boolean;
   /** Use a specific WhatsApp template name (falls back to aviso_os if not found). */
   templateName?: string;
+  /** Explicit template parameters (e.g. [name, link]) instead of sending full message as {{1}}. */
+  templateParams?: string[];
 }
 
 @Injectable()
@@ -41,7 +43,7 @@ export class NotificationService {
         const connected = await this.whatsApp.isConnected(dto.companyId);
         if (connected) {
           const result = dto.templateName
-            ? await this.whatsApp.sendWithNamedTemplate(dto.companyId, dto.recipientPhone, dto.message, dto.templateName)
+            ? await this.whatsApp.sendWithNamedTemplate(dto.companyId, dto.recipientPhone, dto.message, dto.templateName, dto.templateParams)
             : await this.whatsApp.sendTextWithTemplateFallback(dto.companyId, dto.recipientPhone, dto.message, dto.forceTemplate);
           status = result.success ? 'SENT' : 'FAILED';
           whatsappMessageId = result.messageId;

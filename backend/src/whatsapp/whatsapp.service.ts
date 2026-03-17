@@ -392,6 +392,7 @@ export class WhatsAppService {
     phone: string,
     message: string,
     templateName: string,
+    templateParams?: string[],
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     const token = await this.getAccessToken(companyId);
     const phoneNumberId = await this.getPhoneNumberId(companyId);
@@ -401,19 +402,25 @@ export class WhatsAppService {
     }
 
     const formattedPhone = this.formatPhone(phone);
-    const sanitizedMsg = message
-      .replace(/\r/g, '')
-      .replace(/\t/g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .replace(/ {4,}/g, '   ')
-      .trim();
 
-    const truncatedMsg = sanitizedMsg.length > 1000
-      ? sanitizedMsg.substring(0, 997) + '...'
-      : sanitizedMsg;
+    // Build body parameters: use explicit templateParams if provided, otherwise full message as {{1}}
+    const bodyParameters = templateParams
+      ? templateParams.map(p => ({ type: 'text' as const, text: p.substring(0, 1000) }))
+      : (() => {
+          const sanitizedMsg = message
+            .replace(/\r/g, '')
+            .replace(/\t/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .replace(/ {4,}/g, '   ')
+            .trim();
+          const truncatedMsg = sanitizedMsg.length > 1000
+            ? sanitizedMsg.substring(0, 997) + '...'
+            : sanitizedMsg;
+          return [{ type: 'text' as const, text: truncatedMsg }];
+        })();
 
     // Try named template first
-    this.logger.log(`📱 Trying template "${templateName}" to ${formattedPhone}`);
+    this.logger.log(`📱 Trying template "${templateName}" to ${formattedPhone} (${bodyParameters.length} params)`);
     try {
       const res = await this.metaRequest(token, phoneNumberId, {
         messaging_product: 'whatsapp',
@@ -425,9 +432,7 @@ export class WhatsAppService {
           components: [
             {
               type: 'body',
-              parameters: [
-                { type: 'text', text: truncatedMsg },
-              ],
+              parameters: bodyParameters,
             },
           ],
         },
