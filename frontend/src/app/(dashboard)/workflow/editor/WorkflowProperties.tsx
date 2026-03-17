@@ -162,7 +162,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
   // Default messages per recipient type
   const DEFAULT_MESSAGES: Record<string, string> = {
     CLIENTE: "Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.",
-    TECNICO: "Ola {nome}, voce foi designado para a OS {titulo}. Cliente: {nome_cliente}. Endereco: {endereco}. Data: {data_agendamento}. Acesse o app: {link_app}",
+    TECNICO: "Ola {nome}, tudo bem? A {razao_social} tem um novo servico para voce! OS: {titulo}. Cliente: {nome_cliente}. Endereco: {endereco}. Data: {data_agendamento}. Confira os detalhes no app: {link_app}",
     FORNECEDOR: "Prezado {nome}, a {razao_social} solicita o fornecimento de materiais para a OS {titulo}. Endereco de entrega: {endereco}. Prazo: {data_agendamento}. Para duvidas, contate {empresa} pelo {telefone_empresa}.",
     GESTOR: "{tecnico} concluiu a OS {titulo} ({nome_cliente}, {endereco}). Verifique o relatorio e fotos no sistema.",
   };

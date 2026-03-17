@@ -141,7 +141,7 @@ export const TEMPLATES: WorkflowTemplate[] = [
     "bg-purple-500",
     [
       { type: "NOTIFY", name: "Boas-vindas", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, bem-vindo a equipe da {razao_social}!\n\nBaixe o app para receber suas ordens de servico:\n{link_app}\n\nUse seu email cadastrado para acessar. Pelo app voce pode ver suas OS, navegar ate o cliente, registrar fotos e assinaturas.\n\nQualquer duvida, fale com seu gestor. Bom trabalho!" },
+        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, tudo bem? Seja muito bem-vindo(a) a equipe da {razao_social}! Estamos felizes em contar com voce.\n\nPreparamos um app exclusivo para facilitar seu dia a dia. Por ele voce recebe suas ordens de servico, navega ate o endereco do cliente e registra tudo pelo celular.\n\nAcesse aqui: {link_app}\n\nUse o email que voce cadastrou para entrar. Se tiver qualquer duvida, fale com seu gestor — estamos aqui para te ajudar.\n\nBom trabalho e conte com a gente!" },
         { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Novo tecnico cadastrado: {nome}. Credenciais de acesso enviadas via WhatsApp. Acompanhe o onboarding pelo sistema." },
       ] } },
     ]
