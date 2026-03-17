@@ -1,0 +1,190 @@
+"use client";
+
+import { type Block, findStartBlock, walkChain, findBlock } from "@/types/workflow-blocks";
+import WorkflowBlockNode from "./WorkflowBlockNode";
+
+interface Props {
+  blocks: Block[];
+  selectedBlockId: string | null;
+  onSelectBlock: (id: string | null) => void;
+  onDeleteBlock: (id: string) => void;
+  onInsertAfter: (afterBlockId: string, via?: "next" | "yesBranch" | "noBranch") => void;
+}
+
+/** Vertical arrow connector between blocks */
+function Connector({ onClick, label }: { onClick?: () => void; label?: string }) {
+  return (
+    <div className="flex flex-col items-center py-1">
+      <div className="w-0.5 h-4 bg-slate-300" />
+      {onClick && (
+        <button
+          onClick={onClick}
+          className="flex items-center justify-center h-6 w-6 rounded-full border-2 border-dashed border-slate-300 text-slate-400 text-xs hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all"
+          title="Inserir bloco aqui"
+        >
+          +
+        </button>
+      )}
+      {label && !onClick && (
+        <span className="text-[9px] text-slate-400 font-medium">{label}</span>
+      )}
+      <div className="w-0.5 h-4 bg-slate-300" />
+      <svg className="h-3 w-3 text-slate-300 -mt-0.5" fill="currentColor" viewBox="0 0 12 12">
+        <path d="M6 12L0 6h12L6 12z" />
+      </svg>
+    </div>
+  );
+}
+
+/** Render a branch (yesBranch or noBranch) of a CONDITION block */
+function BranchRenderer({
+  blocks,
+  startId,
+  mergeId,
+  selectedBlockId,
+  onSelectBlock,
+  onDeleteBlock,
+  onInsertAfter,
+  label,
+}: {
+  blocks: Block[];
+  startId: string | null | undefined;
+  mergeId: string | null;
+  selectedBlockId: string | null;
+  onSelectBlock: (id: string | null) => void;
+  onDeleteBlock: (id: string) => void;
+  onInsertAfter: (afterBlockId: string, via?: "next" | "yesBranch" | "noBranch") => void;
+  label: string;
+}) {
+  if (!startId || startId === mergeId) {
+    return (
+      <div className="flex flex-col items-center px-4">
+        <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 mb-1">
+          {label}
+        </span>
+        <span className="text-[10px] text-slate-300 italic">(vazio)</span>
+      </div>
+    );
+  }
+
+  const branchBlocks: Block[] = [];
+  let currentId: string | null = startId;
+  const visited = new Set<string>();
+  while (currentId && currentId !== mergeId) {
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+    const b = findBlock(blocks, currentId);
+    if (!b) break;
+    branchBlocks.push(b);
+    currentId = b.next;
+  }
+
+  return (
+    <div className="flex flex-col items-center px-4">
+      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border mb-1
+        ${label === "SIM" ? "text-green-600 bg-green-50 border-green-200" : "text-red-600 bg-red-50 border-red-200"}`}>
+        {label}
+      </span>
+      {branchBlocks.map((b, i) => (
+        <div key={b.id} className="flex flex-col items-center">
+          {i > 0 && <Connector onClick={() => onInsertAfter(branchBlocks[i - 1].id)} />}
+          <WorkflowBlockNode
+            block={b}
+            isSelected={selectedBlockId === b.id}
+            isFirst={false}
+            isLast={false}
+            onClick={() => onSelectBlock(b.id)}
+            onDelete={() => onDeleteBlock(b.id)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock, onDeleteBlock, onInsertAfter }: Props) {
+  const startBlock = findStartBlock(blocks);
+  if (!startBlock) return <div className="flex-1 flex items-center justify-center text-slate-400">Workflow vazio</div>;
+
+  // Walk the main chain
+  const chainIds = walkChain(blocks, startBlock.id);
+
+  // Click on empty area deselects
+  function handleBackgroundClick(e: React.MouseEvent) {
+    if (e.target === e.currentTarget) onSelectBlock(null);
+  }
+
+  return (
+    <div
+      className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-slate-50/50 p-6"
+      onClick={handleBackgroundClick}
+    >
+      <div className="flex flex-col items-center min-h-full">
+        {chainIds.map((blockId, idx) => {
+          const block = findBlock(blocks, blockId);
+          if (!block) return null;
+
+          const prevBlock = idx > 0 ? findBlock(blocks, chainIds[idx - 1]) : null;
+          const isFirst = block.type === "START";
+          const isLast = block.type === "END";
+
+          return (
+            <div key={blockId} className="flex flex-col items-center">
+              {/* Connector between blocks */}
+              {idx > 0 && prevBlock?.type !== "CONDITION" && (
+                <Connector onClick={() => onInsertAfter(chainIds[idx - 1])} />
+              )}
+
+              {/* The block itself */}
+              <WorkflowBlockNode
+                block={block}
+                isSelected={selectedBlockId === blockId}
+                isFirst={isFirst}
+                isLast={isLast}
+                onClick={() => onSelectBlock(isFirst || isLast ? null : blockId)}
+                onDelete={() => onDeleteBlock(blockId)}
+              />
+
+              {/* CONDITION: render branches */}
+              {block.type === "CONDITION" && (
+                <div className="flex flex-col items-center mt-1">
+                  <div className="w-0.5 h-3 bg-amber-300" />
+                  <div className="flex gap-6 items-start">
+                    {/* Branch lines */}
+                    <div className="relative">
+                      <div className="absolute left-1/2 -top-0 w-[calc(50%+3rem)] h-0.5 bg-amber-300" style={{ transform: "translateX(-100%)" }} />
+                    </div>
+                    <BranchRenderer
+                      blocks={blocks}
+                      startId={block.yesBranch}
+                      mergeId={block.next}
+                      selectedBlockId={selectedBlockId}
+                      onSelectBlock={onSelectBlock}
+                      onDeleteBlock={onDeleteBlock}
+                      onInsertAfter={onInsertAfter}
+                      label="SIM"
+                    />
+                    <BranchRenderer
+                      blocks={blocks}
+                      startId={block.noBranch}
+                      mergeId={block.next}
+                      selectedBlockId={selectedBlockId}
+                      onSelectBlock={onSelectBlock}
+                      onDeleteBlock={onDeleteBlock}
+                      onInsertAfter={onInsertAfter}
+                      label="NAO"
+                    />
+                  </div>
+                  <div className="w-0.5 h-3 bg-amber-300" />
+                  <svg className="h-3 w-3 text-amber-300 -mt-0.5" fill="currentColor" viewBox="0 0 12 12">
+                    <path d="M6 12L0 6h12L6 12z" />
+                  </svg>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
