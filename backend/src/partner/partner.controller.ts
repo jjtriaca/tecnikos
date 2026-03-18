@@ -98,4 +98,52 @@ export class PartnerController {
   ) {
     return this.service.remove(id, user.companyId, user);
   }
+
+  // ========== CONTACTS ==========
+
+  @Get(':partnerId/contacts')
+  listContacts(
+    @Param('partnerId') partnerId: string,
+    @Query('type') type: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.listContacts(partnerId, user.companyId, type);
+  }
+
+  @Post(':partnerId/contacts')
+  createContact(
+    @Param('partnerId') partnerId: string,
+    @Body() body: { type: string; value: string; label?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.createContact(partnerId, user.companyId, body);
+  }
+
+  @Put(':partnerId/contacts/:contactId')
+  updateContact(
+    @Param('partnerId') partnerId: string,
+    @Param('contactId') contactId: string,
+    @Body() body: { value?: string; label?: string; active?: boolean },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateContact(partnerId, contactId, user.companyId, body);
+  }
+
+  @Delete(':partnerId/contacts/:contactId')
+  deleteContact(
+    @Param('partnerId') partnerId: string,
+    @Param('contactId') contactId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.deleteContact(partnerId, contactId, user.companyId);
+  }
+
+  @Post(':partnerId/contacts/:contactId/mark-used')
+  markContactUsed(
+    @Param('partnerId') partnerId: string,
+    @Param('contactId') contactId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.markContactUsed(partnerId, contactId, user.companyId);
+  }
 }

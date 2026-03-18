@@ -187,6 +187,7 @@ model Company {
   nfseConfig           NfseConfig?
   nfseEmissions        NfseEmission[]
   nfseServiceCodes     NfseServiceCode[]
+  partnerContacts      PartnerContact[]
   obras                Obra[]
   serviceAddresses     ServiceAddress[]
   cardSettlements      CardSettlement[]
@@ -319,12 +320,31 @@ model Partner {
   nfseEntradasPrestador NfseEntrada[] @relation("NfseEntradaPrestador")
   technicianContracts   TechnicianContract[]
   clientQuotes          Quote[]      @relation("QuoteClient")
+  contacts              PartnerContact[]
 
   @@unique([companyId, code])
   @@index([companyId])
   @@index([email])
   @@index([companyId, status])
   @@index([document])
+}
+
+model PartnerContact {
+  id         String    @id @default(uuid())
+  companyId  String
+  partnerId  String
+  type       String    // EMAIL | WHATSAPP
+  value      String    // email ou telefone
+  label      String?   // "Financeiro", "Comercial", etc.
+  lastUsedAt DateTime? // para ordenar pelo último usado
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  partner Partner @relation(fields: [partnerId], references: [id])
+
+  @@index([companyId, partnerId, type])
 }
 
 model ServiceOrder {

@@ -195,6 +195,16 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [sendEmail, setSendEmail] = useState(true);
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [sending, setSending] = useState(false);
+  const [emailContacts, setEmailContacts] = useState<any[]>([]);
+  const [whatsappContacts, setWhatsappContacts] = useState<any[]>([]);
+  const [selectedEmailContactId, setSelectedEmailContactId] = useState<string>("");
+  const [selectedWhatsappContactId, setSelectedWhatsappContactId] = useState<string>("");
+  const [showNewEmail, setShowNewEmail] = useState(false);
+  const [showNewWhatsapp, setShowNewWhatsapp] = useState(false);
+  const [newEmailValue, setNewEmailValue] = useState("");
+  const [newEmailLabel, setNewEmailLabel] = useState("");
+  const [newWhatsappValue, setNewWhatsappValue] = useState("");
+  const [newWhatsappLabel, setNewWhatsappLabel] = useState("");
 
   // Polling refs
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -414,24 +424,59 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   }
 
   // ═══════════════════════════════════════════
+  // Load contacts when entering SEND phase
+  useEffect(() => {
+    if (phase !== "SEND" || !preview?.tomador?.partnerId) return;
+    const pid = preview.tomador.partnerId;
+    api.get<any[]>(`/partners/${pid}/contacts?type=EMAIL`).then((data) => {
+      setEmailContacts(data || []);
+      if (data?.length > 0) setSelectedEmailContactId(data[0].id);
+    }).catch(() => {});
+    api.get<any[]>(`/partners/${pid}/contacts?type=WHATSAPP`).then((data) => {
+      setWhatsappContacts(data || []);
+      if (data?.length > 0) setSelectedWhatsappContactId(data[0].id);
+    }).catch(() => {});
+  }, [phase, preview?.tomador?.partnerId]);
+
   // SEND phase: Send email and/or WhatsApp
   // ═══════════════════════════════════════════
+  async function handleSaveNewContact(type: string, value: string, label: string) {
+    if (!preview?.tomador?.partnerId || !value) return null;
+    try {
+      const contact = await api.post<any>(`/partners/${preview.tomador.partnerId}/contacts`, { type, value, label: label || null });
+      if (type === "EMAIL") {
+        setEmailContacts((prev) => [contact, ...prev]);
+        setSelectedEmailContactId(contact.id);
+        setShowNewEmail(false); setNewEmailValue(""); setNewEmailLabel("");
+      } else {
+        setWhatsappContacts((prev) => [contact, ...prev]);
+        setSelectedWhatsappContactId(contact.id);
+        setShowNewWhatsapp(false); setNewWhatsappValue(""); setNewWhatsappLabel("");
+      }
+      return contact;
+    } catch { return null; }
+  }
+
   async function handleSend() {
     if (!emissionId) return;
     setSending(true);
     try {
       const promises: Promise<any>[] = [];
+      const pid = preview?.tomador?.partnerId;
 
-      if (sendEmail && tomadorEmail) {
-        promises.push(
-          api.post(`/nfse-emission/emissions/${emissionId}/resend-email`, { emails: [tomadorEmail] })
-        );
+      if (sendEmail) {
+        const emailContact = emailContacts.find((c) => c.id === selectedEmailContactId);
+        const emailToSend = emailContact?.value || tomadorEmail;
+        if (emailToSend) {
+          promises.push(api.post(`/nfse-emission/emissions/${emissionId}/resend-email`, { emails: [emailToSend] }));
+          if (pid && emailContact) promises.push(api.post(`/partners/${pid}/contacts/${emailContact.id}/mark-used`).catch(() => {}));
+        }
       }
 
       if (sendWhatsApp) {
-        promises.push(
-          api.post(`/nfse-emission/emissions/${emissionId}/send-whatsapp`)
-        );
+        promises.push(api.post(`/nfse-emission/emissions/${emissionId}/send-whatsapp`));
+        const wpContact = whatsappContacts.find((c) => c.id === selectedWhatsappContactId);
+        if (pid && wpContact) promises.push(api.post(`/partners/${pid}/contacts/${wpContact.id}/mark-used`).catch(() => {}));
       }
 
       if (promises.length > 0) {
@@ -950,44 +995,72 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
               </div>
 
               {/* Send options */}
-              <div className="rounded-lg border border-slate-200 p-4 space-y-3">
+              <div className="rounded-lg border border-slate-200 p-4 space-y-4">
                 <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Enviar NFS-e ao Tomador</h4>
 
-                {tomadorEmail ? (
+                {/* Email */}
+                <div>
                   <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={sendEmail}
-                      onChange={(e) => setSendEmail(e.target.checked)}
-                      className="rounded border-slate-300"
-                    />
-                    <div>
-                      <span className="font-medium">Enviar por Email</span>
-                      <p className="text-xs text-slate-400">{tomadorEmail}</p>
-                    </div>
+                    <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="rounded border-slate-300" />
+                    <span className="font-medium">Enviar por Email</span>
                   </label>
-                ) : (
-                  <div className="flex items-center gap-3 text-sm text-slate-400">
-                    <input type="checkbox" disabled className="rounded border-slate-200" />
-                    <div>
-                      <span className="font-medium">Enviar por Email</span>
-                      <p className="text-xs">Email do tomador nao informado</p>
+                  {sendEmail && (
+                    <div className="ml-7 mt-2 space-y-1">
+                      {emailContacts.map((c) => (
+                        <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                          <input type="radio" name="emailContact" checked={selectedEmailContactId === c.id} onChange={() => setSelectedEmailContactId(c.id)} className="text-blue-600" />
+                          <span className="text-slate-700">{c.value}</span>
+                          {c.label && <span className="text-slate-400">({c.label})</span>}
+                        </label>
+                      ))}
+                      {emailContacts.length === 0 && !showNewEmail && (
+                        <p className="text-xs text-slate-400">Nenhum email cadastrado</p>
+                      )}
+                      {!showNewEmail ? (
+                        <button type="button" onClick={() => setShowNewEmail(true)} className="text-xs text-blue-600 hover:text-blue-800 mt-1">+ Novo email</button>
+                      ) : (
+                        <div className="flex gap-2 mt-1">
+                          <input type="email" value={newEmailValue} onChange={(e) => setNewEmailValue(e.target.value)} placeholder="email@exemplo.com" className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs" />
+                          <input type="text" value={newEmailLabel} onChange={(e) => setNewEmailLabel(e.target.value)} placeholder="Rotulo (ex: Financeiro)" className="w-32 rounded border border-slate-300 px-2 py-1 text-xs" />
+                          <button type="button" onClick={() => handleSaveNewContact("EMAIL", newEmailValue, newEmailLabel)} disabled={!newEmailValue} className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">Salvar</button>
+                          <button type="button" onClick={() => { setShowNewEmail(false); setNewEmailValue(""); setNewEmailLabel(""); }} className="px-2 py-1 text-xs text-slate-500 hover:text-slate-700">X</button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sendWhatsApp}
-                    onChange={(e) => setSendWhatsApp(e.target.checked)}
-                    className="rounded border-slate-300"
-                  />
-                  <div>
+                {/* WhatsApp */}
+                <div>
+                  <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={sendWhatsApp} onChange={(e) => setSendWhatsApp(e.target.checked)} className="rounded border-slate-300" />
                     <span className="font-medium">Enviar por WhatsApp</span>
-                    <p className="text-xs text-slate-400">Envia dados da NFS-e e PDF via WhatsApp</p>
-                  </div>
-                </label>
+                  </label>
+                  {sendWhatsApp && (
+                    <div className="ml-7 mt-2 space-y-1">
+                      {whatsappContacts.map((c) => (
+                        <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                          <input type="radio" name="whatsappContact" checked={selectedWhatsappContactId === c.id} onChange={() => setSelectedWhatsappContactId(c.id)} className="text-green-600" />
+                          <span className="text-slate-700">{c.value}</span>
+                          {c.label && <span className="text-slate-400">({c.label})</span>}
+                        </label>
+                      ))}
+                      {whatsappContacts.length === 0 && !showNewWhatsapp && (
+                        <p className="text-xs text-slate-400">Nenhum WhatsApp cadastrado</p>
+                      )}
+                      {!showNewWhatsapp ? (
+                        <button type="button" onClick={() => setShowNewWhatsapp(true)} className="text-xs text-green-600 hover:text-green-800 mt-1">+ Novo WhatsApp</button>
+                      ) : (
+                        <div className="flex gap-2 mt-1">
+                          <input type="tel" value={newWhatsappValue} onChange={(e) => setNewWhatsappValue(e.target.value)} placeholder="(66) 99999-0000" className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs" />
+                          <input type="text" value={newWhatsappLabel} onChange={(e) => setNewWhatsappLabel(e.target.value)} placeholder="Rotulo (ex: Comercial)" className="w-32 rounded border border-slate-300 px-2 py-1 text-xs" />
+                          <button type="button" onClick={() => handleSaveNewContact("WHATSAPP", newWhatsappValue, newWhatsappLabel)} disabled={!newWhatsappValue} className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50">Salvar</button>
+                          <button type="button" onClick={() => { setShowNewWhatsapp(false); setNewWhatsappValue(""); setNewWhatsappLabel(""); }} className="px-2 py-1 text-xs text-slate-500 hover:text-slate-700">X</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

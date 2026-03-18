@@ -648,7 +648,11 @@ export class NfseEmissionService {
     if (!emission) throw new NotFoundException('NFS-e não encontrada');
     if (emission.status !== 'AUTHORIZED') throw new BadRequestException('NFS-e não autorizada');
 
-    const filename = `nfse-${emission.nfseNumber || emission.rpsNumber}.pdf`;
+    const clientName = (emission.tomadorRazaoSocial || '').replace(/[^\w\s\-.,()]/g, '').trim();
+    const nfseNum = emission.nfseNumber || String(emission.rpsNumber);
+    const filename = clientName
+      ? `NFS-e ${nfseNum} ${clientName}.pdf`
+      : `NFS-e ${nfseNum}.pdf`;
 
     // Use stored pdfUrl (direct S3 link) if available
     if (emission.pdfUrl) {

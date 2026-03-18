@@ -809,4 +809,67 @@ export class PartnerService {
       orderBy: { rating: 'desc' },
     });
   }
+
+  // ========== CONTACTS ==========
+
+  async listContacts(partnerId: string, companyId: string, type?: string) {
+    return this.prisma.partnerContact.findMany({
+      where: {
+        partnerId,
+        companyId,
+        ...(type ? { type } : {}),
+        active: true,
+      },
+      orderBy: [{ lastUsedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+    });
+  }
+
+  async createContact(partnerId: string, companyId: string, data: { type: string; value: string; label?: string }) {
+    // Verify partner belongs to company
+    const partner = await this.prisma.partner.findFirst({ where: { id: partnerId, companyId, deletedAt: null } });
+    if (!partner) throw new NotFoundException('Parceiro não encontrado');
+
+    return this.prisma.partnerContact.create({
+      data: {
+        companyId,
+        partnerId,
+        type: data.type,
+        value: data.value,
+        label: data.label || null,
+        lastUsedAt: new Date(),
+      },
+    });
+  }
+
+  async updateContact(partnerId: string, contactId: string, companyId: string, data: { value?: string; label?: string; active?: boolean }) {
+    const contact = await this.prisma.partnerContact.findFirst({ where: { id: contactId, partnerId, companyId } });
+    if (!contact) throw new NotFoundException('Contato não encontrado');
+
+    return this.prisma.partnerContact.update({
+      where: { id: contactId },
+      data: {
+        ...(data.value !== undefined && { value: data.value }),
+        ...(data.label !== undefined && { label: data.label }),
+        ...(data.active !== undefined && { active: data.active }),
+      },
+    });
+  }
+
+  async deleteContact(partnerId: string, contactId: string, companyId: string) {
+    const contact = await this.prisma.partnerContact.findFirst({ where: { id: contactId, partnerId, companyId } });
+    if (!contact) throw new NotFoundException('Contato não encontrado');
+
+    await this.prisma.partnerContact.delete({ where: { id: contactId } });
+    return { deleted: true };
+  }
+
+  async markContactUsed(partnerId: string, contactId: string, companyId: string) {
+    const contact = await this.prisma.partnerContact.findFirst({ where: { id: contactId, partnerId, companyId } });
+    if (!contact) throw new NotFoundException('Contato não encontrado');
+
+    return this.prisma.partnerContact.update({
+      where: { id: contactId },
+      data: { lastUsedAt: new Date() },
+    });
+  }
 }
