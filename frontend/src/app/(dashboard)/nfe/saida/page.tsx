@@ -184,6 +184,9 @@ export default function NfseSaidaPage() {
   const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [cancelModal, setCancelModal] = useState<{ emissionId: string; nfseNumber: string } | null>(null);
+  const [cancelJustificativa, setCancelJustificativa] = useState("");
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const loadEmissions = useCallback(async () => {
@@ -259,16 +262,27 @@ export default function NfseSaidaPage() {
     }
   }
 
-  async function handleCancel(emission: NfseEmission) {
-    const justificativa = prompt("Justificativa para cancelamento:");
-    if (!justificativa) return;
-    setActionLoading(emission.id);
+  function handleCancelOpen(emission: NfseEmission) {
+    setCancelModal({ emissionId: emission.id, nfseNumber: emission.nfseNumber || String(emission.rpsNumber) });
+    setCancelJustificativa("");
+    setCancelError(null);
+  }
+
+  async function handleCancelConfirm() {
+    if (!cancelModal) return;
+    if (cancelJustificativa.trim().length < 15) {
+      setCancelError("A justificativa deve ter pelo menos 15 caracteres.");
+      return;
+    }
+    setCancelError(null);
+    setActionLoading(cancelModal.emissionId);
     try {
-      await api.post(`/nfse-emission/${emission.id}/cancel`, { justificativa });
-      toast("NFS-e cancelada com sucesso", "success");
+      await api.post(`/nfse-emission/${cancelModal.emissionId}/cancel`, { justificativa: cancelJustificativa.trim() });
+      toast("Cancelamento enviado com sucesso! Aguarde confirmacao da prefeitura.", "success");
+      setCancelModal(null);
       loadEmissions();
     } catch (err: any) {
-      toast(err?.message || "Erro ao cancelar NFS-e", "error");
+      setCancelError(err?.message || "Erro ao cancelar NFS-e");
     } finally {
       setActionLoading(null);
     }
@@ -500,7 +514,7 @@ export default function NfseSaidaPage() {
                         {/* Cancel — only AUTHORIZED */}
                         {emission.status === "AUTHORIZED" && (
                           <button
-                            onClick={() => handleCancel(emission)}
+                            onClick={() => handleCancelOpen(emission)}
                             disabled={isLoading}
                             className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
                             title="Cancelar NFS-e"
@@ -605,6 +619,45 @@ export default function NfseSaidaPage() {
 
       {/* Pagination */}
       <Pagination meta={meta} onPageChange={tp.setPage} />
+
+      {/* Cancel Modal */}
+      {cancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-red-600 mb-1">Cancelar NFS-e {cancelModal.nfseNumber}</h3>
+            <p className="text-xs text-slate-500 mb-4">O cancelamento sera enviado a prefeitura. Esta acao nao pode ser desfeita.</p>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Justificativa * <span className="text-slate-400">(minimo 15 caracteres)</span></label>
+              <textarea
+                value={cancelJustificativa}
+                onChange={(e) => setCancelJustificativa(e.target.value)}
+                rows={3}
+                placeholder="Descreva o motivo do cancelamento..."
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none resize-none"
+                autoFocus
+              />
+              <p className={`text-xs mt-1 ${cancelJustificativa.trim().length < 15 ? "text-slate-400" : "text-green-600"}`}>
+                {cancelJustificativa.trim().length}/15 caracteres
+              </p>
+            </div>
+            {cancelError && (
+              <div className="mt-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">{cancelError}</div>
+            )}
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setCancelModal(null)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Voltar
+              </button>
+              <button
+                onClick={handleCancelConfirm}
+                disabled={cancelJustificativa.trim().length < 15 || actionLoading === cancelModal.emissionId}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {actionLoading === cancelModal.emissionId ? "Cancelando..." : "Confirmar Cancelamento"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
