@@ -395,7 +395,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         tomadorUf,
         tomadorCep,
         valorServicosCents: preview.servico.valorServicosCents,
-        aliquotaIss: aliquotaIss ? parseFloat(aliquotaIss) : undefined,
+        aliquotaIss: aliquotaIss ? parseFloat(aliquotaIss.replace(",", ".")) : undefined,
         issRetido,
         itemListaServico: preview.servico.itemListaServico,
         codigoCnae: preview.servico.codigoCnae,
@@ -913,7 +913,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                     <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 flex items-center justify-between text-sm">
                       <span className="text-slate-600">ISS estimado ({aliquotaIss}%)</span>
                       <span className="font-semibold text-slate-800">
-                        {formatCurrency(Math.round(preview.servico.valorServicosCents * (parseFloat(aliquotaIss) || 0) / 100))}
+                        {formatCurrency(Math.round(preview.servico.valorServicosCents * (parseFloat((aliquotaIss || "0").replace(",", ".")) || 0) / 100))}
                       </span>
                     </div>
                   )}
