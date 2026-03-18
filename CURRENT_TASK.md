@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## Versao: v1.04.64
+## Versao: v1.04.66
 ## Ultima sessao: 136 (18/03/2026)
 
 ## Pendencias
@@ -14,6 +14,7 @@
 - **NfseServiceCode**: Modelo para servicos habilitados na prefeitura (cTribNac, NBS, LC116, CNAE, aliquota ISS)
 - **CRUD service codes**: Endpoints GET/POST/PUT/DELETE em /nfse-emission/service-codes
 - **Config fiscal**: Secao "Servicos Habilitados na Prefeitura" com tabela + form inline
+- **Seletor com busca**: 335 codigos cTribNac da tabela oficial gov.br, busca sem acentos, auto-preenche codigo/descricao/LC116/tipo
 - **Modal emissao NFS-e**: Dropdown de servico substitui campo read-only de cTribNac
 - **NBS no payload**: codigo_nbs enviado ao Focus NFe no layout NACIONAL
 - **Fallback**: Se nao houver service codes cadastrados, usa campos legados da config

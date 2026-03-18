@@ -6,6 +6,7 @@ import Link from "next/link";
 import PasswordInput from "@/components/ui/PasswordInput";
 import { useFiscalModule } from "@/contexts/FiscalModuleContext";
 import ctribnacRef from "@/lib/ctribnac-ref.json";
+import nbsRef from "@/lib/nbs-ref.json";
 
 /* ===================================================================
    FISCAL SETTINGS — Tax Regime + NFS-e Configuration
@@ -151,6 +152,9 @@ export default function FiscalSettingsPage() {
   const [codeSearch, setCodeSearch] = useState("");
   const [showCodeDropdown, setShowCodeDropdown] = useState(false);
   const codeSearchRef = useRef<HTMLDivElement>(null);
+  const [nbsSearch, setNbsSearch] = useState("");
+  const [showNbsDropdown, setShowNbsDropdown] = useState(false);
+  const nbsSearchRef = useRef<HTMLDivElement>(null);
   const successTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentSnapshot = editableSnapshot(config, token);
@@ -195,12 +199,11 @@ export default function FiscalSettingsPage() {
     }
   }, []);
 
-  // Close search dropdown when clicking outside
+  // Close search dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (codeSearchRef.current && !codeSearchRef.current.contains(e.target as Node)) {
-        setShowCodeDropdown(false);
-      }
+      if (codeSearchRef.current && !codeSearchRef.current.contains(e.target as Node)) setShowCodeDropdown(false);
+      if (nbsSearchRef.current && !nbsSearchRef.current.contains(e.target as Node)) setShowNbsDropdown(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -221,21 +224,41 @@ export default function FiscalSettingsPage() {
 
   const emptyCode = { codigo: "", codigoNbs: "", descricao: "", tipo: "SERVICO", aliquotaIss: null as number | null, itemListaServico: "", codigoCnae: "", codigoTribMunicipal: "" };
 
+  const [codeFormError, setCodeFormError] = useState<string | null>(null);
+
   async function handleSaveServiceCode() {
-    if (!editingCode?.codigo || !editingCode?.descricao) return;
+    setCodeFormError(null);
+    if (!editingCode?.codigo || !editingCode?.descricao) {
+      setCodeFormError("Codigo (cTribNac) e Descricao sao obrigatorios.");
+      return;
+    }
     setSavingCode(true);
     try {
+      // Clean payload: remove empty strings and null values for optional fields
+      const payload: any = {
+        codigo: editingCode.codigo,
+        descricao: editingCode.descricao,
+        tipo: editingCode.tipo || "SERVICO",
+      };
+      if (editingCode.codigoNbs) payload.codigoNbs = editingCode.codigoNbs;
+      if (editingCode.aliquotaIss != null && editingCode.aliquotaIss !== "") payload.aliquotaIss = Number(editingCode.aliquotaIss);
+      if (editingCode.itemListaServico) payload.itemListaServico = editingCode.itemListaServico;
+      if (editingCode.codigoCnae) payload.codigoCnae = editingCode.codigoCnae;
+      if (editingCode.codigoTribMunicipal) payload.codigoTribMunicipal = editingCode.codigoTribMunicipal;
+      if (editingCode.active !== undefined) payload.active = editingCode.active;
+
       if (editingCode.id) {
-        await api.put(`/nfse-emission/service-codes/${editingCode.id}`, editingCode);
+        await api.put(`/nfse-emission/service-codes/${editingCode.id}`, payload);
       } else {
-        await api.post("/nfse-emission/service-codes", editingCode);
+        await api.post("/nfse-emission/service-codes", payload);
       }
       await fetchServiceCodes();
       setEditingCode(null);
       setShowCodeForm(false);
+      setCodeFormError(null);
       flashSuccess("Servico salvo!");
     } catch (err: any) {
-      setErrorMsg(err?.message || "Erro ao salvar servico");
+      setCodeFormError(err?.message || "Erro ao salvar servico");
     } finally {
       setSavingCode(false);
     }
@@ -779,7 +802,7 @@ export default function FiscalSettingsPage() {
             Servicos Habilitados na Prefeitura
           </h3>
           <button
-            onClick={() => { setEditingCode({ ...emptyCode }); setShowCodeForm(true); setCodeSearch(""); }}
+            onClick={() => { setEditingCode({ ...emptyCode }); setShowCodeForm(true); setCodeSearch(""); setNbsSearch(""); }}
             className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             + Novo Servico
@@ -913,9 +936,43 @@ export default function FiscalSettingsPage() {
                 <label className={labelClass}>cTribNac *</label>
                 <input type="text" value={editingCode.codigo} onChange={(e) => setEditingCode({ ...editingCode, codigo: e.target.value })} placeholder="140601" maxLength={6} className={inputClass + " font-mono"} readOnly={!editingCode.id && !!editingCode.codigo} />
               </div>
-              <div>
+              <div ref={nbsSearchRef} className="relative">
                 <label className={labelClass}>Item NBS</label>
-                <input type="text" value={editingCode.codigoNbs || ""} onChange={(e) => setEditingCode({ ...editingCode, codigoNbs: e.target.value })} placeholder="Ex: 1.0101.00.00" className={inputClass} />
+                <input
+                  type="text"
+                  value={showNbsDropdown ? nbsSearch : (editingCode.codigoNbs || "")}
+                  onChange={(e) => { setNbsSearch(e.target.value); setShowNbsDropdown(true); }}
+                  onFocus={() => { setNbsSearch(editingCode.codigoNbs || ""); setShowNbsDropdown(true); }}
+                  placeholder="Buscar NBS..."
+                  className={inputClass + " font-mono"}
+                />
+                {showNbsDropdown && nbsSearch.length >= 2 && (
+                  <div className="absolute z-50 mt-1 w-[500px] max-h-48 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
+                    {(() => {
+                      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                      const q = norm(nbsSearch);
+                      const filtered = (nbsRef as { c: string; d: string }[]).filter(
+                        (r) => r.c.includes(q) || norm(r.d).includes(q)
+                      ).slice(0, 30);
+                      if (filtered.length === 0) return <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>;
+                      return filtered.map((r) => (
+                        <button
+                          key={r.c}
+                          type="button"
+                          onClick={() => {
+                            setEditingCode({ ...editingCode, codigoNbs: r.c });
+                            setNbsSearch("");
+                            setShowNbsDropdown(false);
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                        >
+                          <span className="font-mono font-semibold text-blue-700">{r.c}</span>
+                          <span className="text-slate-600 ml-2">{r.d}</span>
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Tipo</label>
@@ -945,11 +1002,14 @@ export default function FiscalSettingsPage() {
                 <input type="text" value={editingCode.codigoTribMunicipal || ""} onChange={(e) => setEditingCode({ ...editingCode, codigoTribMunicipal: e.target.value })} placeholder="Codigo da prefeitura" className={inputClass} />
               </div>
             </div>
+            {codeFormError && (
+              <div className="mt-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">{codeFormError}</div>
+            )}
             <div className="flex gap-2 mt-4">
               <button onClick={handleSaveServiceCode} disabled={savingCode || !editingCode.codigo || !editingCode.descricao} className="px-4 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
                 {savingCode ? "Salvando..." : "Salvar"}
               </button>
-              <button onClick={() => { setShowCodeForm(false); setEditingCode(null); setCodeSearch(""); }} className="px-4 py-2 text-xs bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors">
+              <button onClick={() => { setShowCodeForm(false); setEditingCode(null); setCodeSearch(""); setCodeFormError(null); }} className="px-4 py-2 text-xs bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors">
                 Cancelar
               </button>
             </div>
