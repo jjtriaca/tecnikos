@@ -2161,6 +2161,7 @@ model AddOn {
   userQuantity        Int       @default(0)  // Extra users (0 if not user add-on)
   technicianQuantity  Int       @default(0)  // Extra technicians (0 if not tech add-on)
   aiMessageQuantity   Int       @default(0)  // Extra AI msgs (0 if not AI add-on)
+  nfseImportQuantity  Int       @default(0)  // Extra NFS-e imports (0 if not import add-on)
   priceCents          Int       // One-time price in cents (valid for 1 billing cycle)
   isActive            Boolean   @default(true)
   sortOrder           Int       @default(0)
@@ -2181,6 +2182,7 @@ model AddOnPurchase {
   userQuantity        Int      @default(0)  // Users granted
   technicianQuantity  Int      @default(0)  // Technicians granted
   aiMessageQuantity   Int      @default(0)  // AI messages granted
+  nfseImportQuantity  Int      @default(0)  // NFS-e imports granted
   priceCents          Int      // Price paid
   asaasPaymentId      String?  // Asaas payment ID
   status              String   @default("PENDING") // PENDING | PAID | CANCELLED | EXPIRED

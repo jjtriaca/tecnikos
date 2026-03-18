@@ -13,6 +13,7 @@ type AddOn = {
   userQuantity: number;
   technicianQuantity: number;
   aiMessageQuantity: number;
+  nfseImportQuantity: number;
   priceCents: number;
   isActive: boolean;
   sortOrder: number;
@@ -25,13 +26,14 @@ type FormState = {
   userQuantity: number;
   technicianQuantity: number;
   aiMessageQuantity: number;
+  nfseImportQuantity: number;
   priceDisplay: string;
   sortOrder: number;
 };
 
 const emptyForm: FormState = {
   name: "", description: "", osQuantity: 0, userQuantity: 0,
-  technicianQuantity: 0, aiMessageQuantity: 0, priceDisplay: "", sortOrder: 0,
+  technicianQuantity: 0, aiMessageQuantity: 0, nfseImportQuantity: 0, priceDisplay: "", sortOrder: 0,
 };
 
 function formatCurrency(cents: number) {
@@ -55,6 +57,7 @@ function describeAddOn(a: AddOn): string[] {
   if (a.userQuantity > 0) parts.push(`+${a.userQuantity} usuario${a.userQuantity > 1 ? "s" : ""}`);
   if (a.technicianQuantity > 0) parts.push(`+${a.technicianQuantity} tecnico${a.technicianQuantity > 1 ? "s" : ""}`);
   if (a.aiMessageQuantity > 0) parts.push(`+${a.aiMessageQuantity} msgs IA`);
+  if (a.nfseImportQuantity > 0) parts.push(`+${a.nfseImportQuantity} import. NFS-e`);
   return parts;
 }
 
@@ -97,6 +100,7 @@ export default function AddOnsAdminPage() {
       userQuantity: a.userQuantity,
       technicianQuantity: a.technicianQuantity,
       aiMessageQuantity: a.aiMessageQuantity,
+      nfseImportQuantity: a.nfseImportQuantity,
       priceDisplay: centsToDisplay(a.priceCents),
       sortOrder: a.sortOrder,
     });
@@ -109,7 +113,7 @@ export default function AddOnsAdminPage() {
     setError(null);
     const priceCents = displayToCents(form.priceDisplay);
     if (priceCents <= 0) { setError("Preco deve ser maior que zero"); return; }
-    if (form.osQuantity <= 0 && form.userQuantity <= 0 && form.technicianQuantity <= 0 && form.aiMessageQuantity <= 0) {
+    if (form.osQuantity <= 0 && form.userQuantity <= 0 && form.technicianQuantity <= 0 && form.aiMessageQuantity <= 0 && form.nfseImportQuantity <= 0) {
       setError("Pelo menos uma quantidade deve ser maior que zero");
       return;
     }
@@ -121,6 +125,7 @@ export default function AddOnsAdminPage() {
         userQuantity: form.userQuantity,
         technicianQuantity: form.technicianQuantity,
         aiMessageQuantity: form.aiMessageQuantity,
+        nfseImportQuantity: form.nfseImportQuantity,
         priceCents,
         sortOrder: form.sortOrder,
       };
@@ -290,6 +295,16 @@ export default function AddOnsAdminPage() {
                       type="number" min={0}
                       value={form.aiMessageQuantity}
                       onChange={(e) => setForm({ ...form, aiMessageQuantity: parseInt(e.target.value) || 0 })}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Import. NFS-e extras</label>
+                    <input
+                      type="number" min={0}
+                      value={form.nfseImportQuantity}
+                      onChange={(e) => setForm({ ...form, nfseImportQuantity: parseInt(e.target.value) || 0 })}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
                       placeholder="0"
                     />

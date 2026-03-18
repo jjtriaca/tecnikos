@@ -376,6 +376,7 @@ export class AsaasService {
     if (addOn.userQuantity > 0) descParts.push(`+${addOn.userQuantity} usuário(s)`);
     if (addOn.technicianQuantity > 0) descParts.push(`+${addOn.technicianQuantity} técnico(s)`);
     if (addOn.aiMessageQuantity > 0) descParts.push(`+${addOn.aiMessageQuantity} msgs IA`);
+    if (addOn.nfseImportQuantity > 0) descParts.push(`+${addOn.nfseImportQuantity} import. NFS-e`);
     const descStr = descParts.join(', ') || addOn.name;
 
     // Create local purchase record (PENDING)
@@ -387,6 +388,7 @@ export class AsaasService {
         userQuantity: addOn.userQuantity,
         technicianQuantity: addOn.technicianQuantity,
         aiMessageQuantity: addOn.aiMessageQuantity,
+        nfseImportQuantity: addOn.nfseImportQuantity,
         priceCents: addOn.priceCents,
         periodMonth,
         expiresAt,
@@ -1255,6 +1257,7 @@ export class AsaasService {
         userQuantity: addOn.userQuantity,
         technicianQuantity: addOn.technicianQuantity,
         aiMessageQuantity: addOn.aiMessageQuantity,
+        nfseImportQuantity: addOn.nfseImportQuantity,
         priceCents: addOn.priceCents,
         periodMonth,
         expiresAt,
@@ -1396,7 +1399,7 @@ export class AsaasService {
   /** Credit add-on quantities to the tenant's Company record */
   private async creditAddOnToTenantCompany(
     tenant: { schemaName: string },
-    addon: { osQuantity: number; userQuantity: number; technicianQuantity: number; aiMessageQuantity: number },
+    addon: { osQuantity: number; userQuantity: number; technicianQuantity: number; aiMessageQuantity: number; nfseImportQuantity?: number },
   ) {
     try {
       const client = this.tenantConn.getClient(tenant.schemaName);
@@ -1404,16 +1407,11 @@ export class AsaasService {
       if (!company) return;
 
       const data: Record<string, any> = {};
-      if (addon.osQuantity > 0) {
-        data.maxOsPerMonth = { increment: addon.osQuantity };
-        // OS extras also increase NFS-e import limit (if company has it enabled)
-        if ((company.maxNfseImports || 0) > 0) {
-          data.maxNfseImports = { increment: addon.osQuantity };
-        }
-      }
+      if (addon.osQuantity > 0) data.maxOsPerMonth = { increment: addon.osQuantity };
       if (addon.userQuantity > 0) data.maxUsers = { increment: addon.userQuantity };
       if (addon.technicianQuantity > 0) data.maxTechnicians = { increment: addon.technicianQuantity };
       if (addon.aiMessageQuantity > 0) data.maxAiMessages = { increment: addon.aiMessageQuantity };
+      if (addon.nfseImportQuantity && addon.nfseImportQuantity > 0) data.maxNfseImports = { increment: addon.nfseImportQuantity };
 
       if (Object.keys(data).length > 0) {
         await client.company.update({ where: { id: company.id }, data });
@@ -2003,7 +2001,7 @@ export class AsaasService {
   /** Revert add-on quantities from the tenant's Company record (opposite of creditAddOnToTenantCompany) */
   private async revertAddOnFromTenantCompany(
     tenant: { schemaName: string },
-    addon: { osQuantity: number; userQuantity: number; technicianQuantity: number; aiMessageQuantity: number },
+    addon: { osQuantity: number; userQuantity: number; technicianQuantity: number; aiMessageQuantity: number; nfseImportQuantity?: number },
   ) {
     try {
       const client = this.tenantConn.getClient(tenant.schemaName);
@@ -2011,15 +2009,11 @@ export class AsaasService {
       if (!company) return;
 
       const data: Record<string, any> = {};
-      if (addon.osQuantity > 0) {
-        data.maxOsPerMonth = { decrement: addon.osQuantity };
-        if ((company.maxNfseImports || 0) > 0) {
-          data.maxNfseImports = { decrement: addon.osQuantity };
-        }
-      }
+      if (addon.osQuantity > 0) data.maxOsPerMonth = { decrement: addon.osQuantity };
       if (addon.userQuantity > 0) data.maxUsers = { decrement: addon.userQuantity };
       if (addon.technicianQuantity > 0) data.maxTechnicians = { decrement: addon.technicianQuantity };
       if (addon.aiMessageQuantity > 0) data.maxAiMessages = { decrement: addon.aiMessageQuantity };
+      if (addon.nfseImportQuantity && addon.nfseImportQuantity > 0) data.maxNfseImports = { decrement: addon.nfseImportQuantity };
 
       if (Object.keys(data).length > 0) {
         await client.company.update({ where: { id: company.id }, data });

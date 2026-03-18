@@ -27,6 +27,7 @@ type AddOn = {
   userQuantity: number;
   technicianQuantity: number;
   aiMessageQuantity: number;
+  nfseImportQuantity: number;
   priceCents: number;
 };
 
@@ -420,6 +421,9 @@ export default function BillingPage() {
                     )}
                     {addOn.aiMessageQuantity > 0 && (
                       <><p className="text-2xl font-bold text-slate-900">+{addOn.aiMessageQuantity}</p><p className="text-xs text-slate-500">msgs IA/mes</p></>
+                    )}
+                    {addOn.nfseImportQuantity > 0 && (
+                      <><p className="text-2xl font-bold text-slate-900">+{addOn.nfseImportQuantity}</p><p className="text-xs text-slate-500">importacoes NFS-e</p></>
                     )}
                   </div>
                   <div className="text-right">
