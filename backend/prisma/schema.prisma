@@ -1406,6 +1406,9 @@ model NfseConfig {
   rpsNextNumber           Int      @default(1)
   // Discriminação padrão (template)
   defaultDiscriminacao    String?  // Template com variáveis: {titulo_os}, {descricao_os}, {tecnico}
+  // Sync NFS-e recebidas (Focus NFe)
+  autoSyncNfseRecebida    Boolean  @default(false) // Sincronizar NFS-e recebidas automaticamente
+  lastNfseSyncVersion     Int      @default(0)     // Última versão sincronizada (paginação incremental)
   // Certificado: reutiliza do SefazConfig (mesmo companyId)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
@@ -1696,6 +1699,12 @@ model NfseEntrada {
   // XML armazenado
   xmlContent          String?
 
+  // Focus NFe (importação automática)
+  chaveNfse           String?    // Chave de acesso NFS-e (deduplicação)
+  focusSource         Boolean    @default(false) // Importada via Focus NFe
+  situacaoFocus       String?    // autorizado | cancelado | substituido
+  versaoFocus         Int?       // Versão incremental Focus NFe
+
   // Controle
   status              String   @default("ACTIVE") // ACTIVE | CANCELLED
   createdAt           DateTime @default(now())
@@ -1704,6 +1713,7 @@ model NfseEntrada {
   company   Company   @relation(fields: [companyId], references: [id])
   prestador Partner?  @relation("NfseEntradaPrestador", fields: [prestadorId], references: [id])
 
+  @@unique([companyId, chaveNfse])
   @@index([companyId])
   @@index([companyId, competencia])
   @@index([companyId, status])

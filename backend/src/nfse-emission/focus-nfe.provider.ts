@@ -154,6 +154,22 @@ export interface FocusEmpresaResponse {
   erros?: Array<{ codigo: string; mensagem: string; campo?: string }>;
 }
 
+// ========== NFS-e Recebida (Serviços Tomados) ==========
+
+export interface FocusNfseRecebida {
+  nome_prestador: string;
+  documento_prestador: string;
+  chave_nfse: string;
+  valor_total: string;
+  data_emissao: string;
+  data_geracao?: string;
+  situacao: 'autorizado' | 'cancelado' | 'substituido';
+  versao: number;
+  data_cancelamento?: string;
+  motivo_cancelamento?: string;
+  chave_nfse_substituta?: string;
+}
+
 @Injectable()
 export class FocusNfeProvider {
   private readonly logger = new Logger(FocusNfeProvider.name);
@@ -438,6 +454,78 @@ export class FocusNfeProvider {
     }
 
     return result as FocusEmpresaResponse;
+  }
+
+  // ========== NFS-e RECEBIDAS (Serviços Tomados) ==========
+
+  /** Listar NFS-e Nacional recebidas (serviços tomados) */
+  async listNfsesRecebidas(
+    token: string,
+    environment: string,
+    cnpj: string,
+    versao?: number,
+  ): Promise<{ data: FocusNfseRecebida[]; maxVersion: number; totalCount: number }> {
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    let url = `${this.getBaseUrl(environment)}/v2/nfsens_recebidas?cnpj=${cleanCnpj}`;
+    if (versao && versao > 0) url += `&versao=${versao}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getHeaders(token),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.mensagem || `Focus NFe listNfsesRecebidas error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as FocusNfseRecebida[];
+    const maxVersion = parseInt(response.headers.get('X-Max-Version') || '0', 10);
+    const totalCount = parseInt(response.headers.get('X-Total-Count') || '0', 10);
+
+    return { data, maxVersion, totalCount };
+  }
+
+  /** Consultar detalhes completos de uma NFS-e recebida */
+  async getNfseRecebidaJson(
+    token: string,
+    environment: string,
+    chave: string,
+  ): Promise<any> {
+    const url = `${this.getBaseUrl(environment)}/v2/nfsens_recebidas/${chave}.json?completa=1`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getHeaders(token),
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.mensagem || `Focus NFe getNfseRecebida error: ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  /** Download PDF DANFSe de NFS-e recebida */
+  async getNfseRecebidaPdf(
+    token: string,
+    environment: string,
+    chave: string,
+  ): Promise<Buffer> {
+    const url = `${this.getBaseUrl(environment)}/v2/nfsens_recebidas/${chave}.pdf`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: this.getHeaders(token).Authorization },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Focus NFe NFS-e recebida PDF error: ${response.status}`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
   }
 
   // ========== TEST CONNECTION ==========

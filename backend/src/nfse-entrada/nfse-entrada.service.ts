@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -7,12 +8,18 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NfseEntradaParserService, ParsedNfseEntrada } from './nfse-entrada-parser.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { CreateNfseEntradaDto } from './dto/create-nfse-entrada.dto';
+import { FocusNfeProvider, FocusNfseRecebida } from '../nfse-emission/focus-nfe.provider';
+import { EncryptionService } from '../common/encryption.service';
 
 @Injectable()
 export class NfseEntradaService {
+  private readonly logger = new Logger(NfseEntradaService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly parser: NfseEntradaParserService,
+    private readonly focusNfe: FocusNfeProvider,
+    private readonly encryption: EncryptionService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -331,5 +338,153 @@ export class NfseEntradaService {
         prestador: { select: { id: true, name: true, document: true } },
       },
     });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     syncFromFocus — Import NFS-e recebidas from Focus NFe API
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async syncFromFocus(companyId: string): Promise<{ imported: number; skipped: number; total: number }> {
+    const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    if (!config?.focusNfeToken) {
+      throw new BadRequestException('Token Focus NFe nao configurado');
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { cnpj: true },
+    });
+    if (!company?.cnpj) {
+      throw new BadRequestException('CNPJ da empresa nao cadastrado');
+    }
+
+    const token = this.getActiveToken(config);
+    if (!token) {
+      throw new BadRequestException('Token Focus NFe invalido');
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    let totalFetched = 0;
+    let currentVersion = config.lastNfseSyncVersion || 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const result = await this.focusNfe.listNfsesRecebidas(
+        token,
+        config.focusNfeEnvironment,
+        company.cnpj,
+        currentVersion,
+      );
+
+      totalFetched += result.data.length;
+
+      for (const nfse of result.data) {
+        if (!nfse.chave_nfse) {
+          skipped++;
+          continue;
+        }
+
+        // Check if already imported (deduplication by chaveNfse)
+        const existing = await this.prisma.nfseEntrada.findFirst({
+          where: { companyId, chaveNfse: nfse.chave_nfse },
+        });
+
+        if (existing) {
+          // Update situacao if changed (e.g., autorizado → cancelado)
+          if (existing.situacaoFocus !== nfse.situacao) {
+            await this.prisma.nfseEntrada.update({
+              where: { id: existing.id },
+              data: {
+                situacaoFocus: nfse.situacao,
+                status: nfse.situacao === 'cancelado' ? 'CANCELLED' : 'ACTIVE',
+              },
+            });
+          }
+          skipped++;
+          continue;
+        }
+
+        // Fetch detailed JSON for complete data
+        let detail: any = null;
+        try {
+          detail = await this.focusNfe.getNfseRecebidaJson(token, config.focusNfeEnvironment, nfse.chave_nfse);
+        } catch (err) {
+          this.logger.warn(`Failed to get detail for ${nfse.chave_nfse}: ${(err as Error).message}`);
+        }
+
+        // Parse valor from string to cents
+        const valorCents = nfse.valor_total ? Math.round(parseFloat(nfse.valor_total) * 100) : null;
+
+        // Auto-link prestador by CNPJ
+        let prestadorId: string | null = null;
+        if (nfse.documento_prestador) {
+          const prestador = await this.prisma.partner.findFirst({
+            where: { companyId, document: nfse.documento_prestador, deletedAt: null },
+          });
+          if (prestador) prestadorId = prestador.id;
+        }
+
+        // Parse competencia from data_emissao
+        const dataEmissao = nfse.data_emissao ? new Date(nfse.data_emissao) : null;
+        const competencia = dataEmissao
+          ? `${dataEmissao.getFullYear()}-${String(dataEmissao.getMonth() + 1).padStart(2, '0')}`
+          : null;
+
+        await this.prisma.nfseEntrada.create({
+          data: {
+            companyId,
+            layout: 'NACIONAL',
+            focusSource: true,
+            chaveNfse: nfse.chave_nfse,
+            situacaoFocus: nfse.situacao,
+            versaoFocus: nfse.versao,
+            numero: detail?.numero || null,
+            dataEmissao,
+            competencia,
+            prestadorId,
+            prestadorCnpjCpf: nfse.documento_prestador || null,
+            prestadorRazaoSocial: nfse.nome_prestador || null,
+            tomadorCnpj: company.cnpj.replace(/\D/g, ''),
+            discriminacao: detail?.descricao_servico || null,
+            codigoCnae: detail?.codigo_nbs || null,
+            valorServicosCents: valorCents,
+            baseCalculoCents: detail?.iss_base_calculo ? Math.round(parseFloat(detail.iss_base_calculo) * 100) : null,
+            aliquotaIss: detail?.iss_aliquota ? parseFloat(detail.iss_aliquota) : null,
+            valorIssCents: detail?.iss_valor ? Math.round(parseFloat(detail.iss_valor) * 100) : null,
+            valorLiquidoCents: detail?.valor_liquido ? Math.round(parseFloat(detail.valor_liquido) * 100) : null,
+            status: nfse.situacao === 'cancelado' ? 'CANCELLED' : 'ACTIVE',
+          },
+        });
+
+        imported++;
+      }
+
+      // Update version for incremental pagination
+      if (result.maxVersion > currentVersion) {
+        currentVersion = result.maxVersion;
+      }
+
+      // If we got fewer than 100 results, there are no more pages
+      hasMore = result.data.length >= 100;
+    }
+
+    // Save last sync version
+    await this.prisma.nfseConfig.update({
+      where: { companyId },
+      data: { lastNfseSyncVersion: currentVersion },
+    });
+
+    this.logger.log(`Focus NFe sync for company ${companyId}: imported=${imported}, skipped=${skipped}, total=${totalFetched}`);
+    return { imported, skipped, total: totalFetched };
+  }
+
+  /** Get decrypted active token from NfseConfig */
+  private getActiveToken(config: { focusNfeToken: string | null; focusNfeTokenHomolog: string | null; focusNfeEnvironment: string }): string | null {
+    const encrypted = config.focusNfeEnvironment === 'HOMOLOGATION'
+      ? (config.focusNfeTokenHomolog || config.focusNfeToken)
+      : config.focusNfeToken;
+    if (!encrypted) return null;
+    return this.encryption.decrypt(encrypted);
   }
 }

@@ -1,12 +1,9 @@
 # TAREFA ATUAL
 
-## Versao: v1.04.92
+## Versao: v1.04.94
 ## Ultima sessao: 139 (18/03/2026)
 
 ## Pendencias
-
-### A FAZER (PRIORIDADE)
-- **Bug 1 pos-deploy**: Chamar PATCH /tenants/{sls-tenant-id}/fix-subscription para corrigir status SLS
 
 ### A FAZER
 - **Token revenda no admin**: Mover FOCUS_NFE_RESELLER_TOKEN de .env para painel admin SaaS
@@ -15,6 +12,11 @@
 - **TenantMigratorService**: Corrigir copia de FKs ao criar tabelas novas em tenant schemas
 
 ### CONCLUIDO (sessao 139)
+- **Import NFS-e Focus NFe**: Importacao automatica de NFS-e recebidas via GET /v2/nfsens_recebidas
+- **FocusNfeProvider**: listNfsesRecebidas, getNfseRecebidaJson, getNfseRecebidaPdf
+- **syncFromFocus**: Paginacao incremental por versao, deduplicacao chaveNfse, auto-link prestador
+- **Frontend botao**: "Importar Focus NFe" + badge emerald "Focus NFe" na coluna Origem
+- **Schema**: chaveNfse, focusSource, situacaoFocus, versaoFocus + autoSyncNfseRecebida no NfseConfig
 - **Promo upfront**: Promocoes com duracao (PIONEIRO) agora cobram todos os meses de uma vez (6×R$15=R$90)
 - **Webhook upfront**: Primeiro pagamento marca promo como paga, atualiza Asaas para preco cheio, nextDueDate apos periodo promo
 - **Protecao SLS**: SLS mantem fluxo mensal existente (promotionMonthsLeft ja decrementado a 0 no DB)

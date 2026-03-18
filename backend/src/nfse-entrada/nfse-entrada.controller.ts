@@ -105,6 +105,14 @@ export class NfseEntradaController {
     return this.service.cancel(id, user.companyId);
   }
 
+  /* ── Sync from Focus NFe ─────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
+  @Post('sync-focus')
+  async syncFocus(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.syncFromFocus(user.companyId);
+  }
+
   /* ── Link Prestador ────────────────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FISCAL)
