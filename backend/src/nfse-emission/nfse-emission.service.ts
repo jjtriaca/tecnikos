@@ -2,7 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
 import { FocusNfeProvider, FocusNfseRequest, FocusNfsenRequest, NfseLayout } from './focus-nfe.provider';
-import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto } from './dto/nfse-emission.dto';
+import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto, UpdateNfseServiceCodeDto } from './dto/nfse-emission.dto';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { randomUUID } from 'crypto';
 
@@ -156,6 +156,11 @@ export class NfseEmissionService {
       },
       // Obra vinculada (da OS ou do lançamento)
       obra: entry.obra || entry.serviceOrder?.obra || null,
+      // Service codes cadastrados
+      serviceCodes: await this.prisma.nfseServiceCode.findMany({
+        where: { companyId, active: true },
+        orderBy: { descricao: 'asc' },
+      }),
     };
   }
 
@@ -204,10 +209,28 @@ export class NfseEmissionService {
       if (!obra) throw new NotFoundException('Obra não encontrada ou inativa');
     }
 
-    // Determine cTribNac based on tipoNota
-    const codigoTribNac = isObra
-      ? (config.codigoTributarioNacional || '')   // ex: 070202
-      : (config.codigoTributarioNacionalServico || config.codigoTributarioNacional || ''); // ex: 140100
+    // Resolve service code if selected
+    let serviceCode: any = null;
+    if (dto.serviceCodeId) {
+      serviceCode = await this.prisma.nfseServiceCode.findFirst({
+        where: { id: dto.serviceCodeId, companyId, active: true },
+      });
+      if (!serviceCode) throw new NotFoundException('Código de serviço não encontrado');
+    }
+
+    // Determine cTribNac: service code > config fallback
+    const codigoTribNac = serviceCode?.codigo
+      || (isObra
+        ? (config.codigoTributarioNacional || '')
+        : (config.codigoTributarioNacionalServico || config.codigoTributarioNacional || ''));
+
+    // Override aliquota/codes from service code if available
+    if (serviceCode) {
+      if (serviceCode.aliquotaIss != null && dto.aliquotaIss == null) dto.aliquotaIss = serviceCode.aliquotaIss;
+      if (serviceCode.itemListaServico && !dto.itemListaServico) dto.itemListaServico = serviceCode.itemListaServico;
+      if (serviceCode.codigoCnae && !dto.codigoCnae) dto.codigoCnae = serviceCode.codigoCnae;
+      if (serviceCode.codigoTribMunicipal && !dto.codigoTributarioMunicipio) dto.codigoTributarioMunicipio = serviceCode.codigoTribMunicipal;
+    }
 
     // Reuse RPS from existing error emission, or get next RPS number
     let rpsNumber: number;
@@ -272,6 +295,7 @@ export class NfseEmissionService {
         codigo_municipio_prestacao: codigoMunicipioNum,
         codigo_tributacao_nacional_iss: codigoTribNac,
         codigo_tributacao_municipal_iss: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
+        codigo_nbs: serviceCode?.codigoNbs || undefined,
         descricao_servico: dto.discriminacao || '',
         valor_servico: valorServicos,
         percentual_aliquota_relativa_municipio: aliquota || undefined,
@@ -733,5 +757,62 @@ export class NfseEmissionService {
       behavior: config.receiveWithoutNfse, // WARN | BLOCK | IGNORE
       nfseStatus: entry.nfseStatus,
     };
+  }
+
+  // ========== SERVICE CODES (CRUD) ==========
+
+  async listServiceCodes(companyId: string) {
+    return this.prisma.nfseServiceCode.findMany({
+      where: { companyId },
+      orderBy: [{ active: 'desc' }, { descricao: 'asc' }],
+    });
+  }
+
+  async createServiceCode(companyId: string, dto: CreateNfseServiceCodeDto) {
+    const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    if (!config) throw new BadRequestException('Configure a NFS-e antes de cadastrar serviços');
+
+    return this.prisma.nfseServiceCode.create({
+      data: {
+        companyId,
+        configId: config.id,
+        codigo: dto.codigo,
+        codigoNbs: dto.codigoNbs || null,
+        descricao: dto.descricao,
+        tipo: dto.tipo || 'SERVICO',
+        aliquotaIss: dto.aliquotaIss ?? null,
+        itemListaServico: dto.itemListaServico || null,
+        codigoCnae: dto.codigoCnae || null,
+        codigoTribMunicipal: dto.codigoTribMunicipal || null,
+      },
+    });
+  }
+
+  async updateServiceCode(companyId: string, id: string, dto: UpdateNfseServiceCodeDto) {
+    const existing = await this.prisma.nfseServiceCode.findFirst({ where: { id, companyId } });
+    if (!existing) throw new NotFoundException('Código de serviço não encontrado');
+
+    return this.prisma.nfseServiceCode.update({
+      where: { id },
+      data: {
+        ...(dto.codigo !== undefined && { codigo: dto.codigo }),
+        ...(dto.codigoNbs !== undefined && { codigoNbs: dto.codigoNbs || null }),
+        ...(dto.descricao !== undefined && { descricao: dto.descricao }),
+        ...(dto.tipo !== undefined && { tipo: dto.tipo }),
+        ...(dto.aliquotaIss !== undefined && { aliquotaIss: dto.aliquotaIss }),
+        ...(dto.itemListaServico !== undefined && { itemListaServico: dto.itemListaServico || null }),
+        ...(dto.codigoCnae !== undefined && { codigoCnae: dto.codigoCnae || null }),
+        ...(dto.codigoTribMunicipal !== undefined && { codigoTribMunicipal: dto.codigoTribMunicipal || null }),
+        ...(dto.active !== undefined && { active: dto.active }),
+      },
+    });
+  }
+
+  async deleteServiceCode(companyId: string, id: string) {
+    const existing = await this.prisma.nfseServiceCode.findFirst({ where: { id, companyId } });
+    if (!existing) throw new NotFoundException('Código de serviço não encontrado');
+
+    await this.prisma.nfseServiceCode.delete({ where: { id } });
+    return { deleted: true };
   }
 }

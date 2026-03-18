@@ -83,6 +83,17 @@ interface NfsePreview {
     cep: string;
     ibgeCode: string | null;
   } | null;
+  serviceCodes: {
+    id: string;
+    codigo: string;
+    codigoNbs: string | null;
+    descricao: string;
+    tipo: string;
+    aliquotaIss: number | null;
+    itemListaServico: string | null;
+    codigoCnae: string | null;
+    codigoTribMunicipal: string | null;
+  }[];
 }
 
 type TipoNota = "SERVICO" | "OBRA";
@@ -173,6 +184,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [obras, setObras] = useState<ObraOption[]>([]);
   const [selectedObraId, setSelectedObraId] = useState<string>("");
   const [loadingObras, setLoadingObras] = useState(false);
+  const [selectedServiceCodeId, setSelectedServiceCodeId] = useState<string>("");
 
   // SEND phase state
   const [sendEmail, setSendEmail] = useState(true);
@@ -192,6 +204,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       setError(null);
       setEmitting(false);
       setSending(false);
+      setSelectedServiceCodeId("");
     } else {
       // Clean up polling when modal closes
       if (pollTimerRef.current) {
@@ -341,6 +354,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         financialEntryId,
         serviceOrderId: preview.financialEntry.serviceOrderId,
         tipoNota,
+        ...(selectedServiceCodeId ? { serviceCodeId: selectedServiceCodeId } : {}),
         ...(tipoNota === "OBRA" && selectedObraId ? { obraId: selectedObraId } : {}),
         tomadorCnpjCpf,
         tomadorRazaoSocial,
@@ -617,7 +631,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                           <button
                             key={t}
                             type="button"
-                            onClick={() => setTipoNota(t)}
+                            onClick={() => { setTipoNota(t); setSelectedServiceCodeId(""); }}
                             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition ${
                               tipoNota === t
                                 ? "bg-blue-600 text-white"
@@ -628,21 +642,43 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                           </button>
                         ))}
                       </div>
-                      {/* cTribNac (read-only, changes with tipo) */}
+                      {/* Servico habilitado (cTribNac selector) */}
                       <div className="mt-3">
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Cod. Tributacao Nacional (cTribNac)</label>
-                        <input
-                          type="text"
-                          readOnly
-                          value={
-                            tipoNota === "SERVICO"
-                              ? preview.config.codigoTributarioNacionalServico || preview.config.codigoTributarioNacional || ""
-                              : preview.config.codigoTributarioNacional || ""
-                          }
-                          className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 font-medium outline-none cursor-default"
-                        />
-                        {tipoNota === "SERVICO" && !preview.config.codigoTributarioNacionalServico && (
-                          <p className="mt-1 text-xs text-amber-600">cTribNac de servico nao configurado. Configure em Configuracoes &gt; Fiscal.</p>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Servico *</label>
+                        {(preview.serviceCodes || []).filter(sc => sc.tipo === tipoNota).length > 0 ? (
+                          <select
+                            value={selectedServiceCodeId}
+                            onChange={(e) => {
+                              const id = e.target.value;
+                              setSelectedServiceCodeId(id);
+                              const sc = (preview.serviceCodes || []).find(s => s.id === id);
+                              if (sc) {
+                                if (sc.aliquotaIss != null) setAliquotaIss(String(sc.aliquotaIss));
+                              }
+                            }}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                          >
+                            <option value="">Selecione o servico...</option>
+                            {(preview.serviceCodes || []).filter(sc => sc.tipo === tipoNota).map((sc) => (
+                              <option key={sc.id} value={sc.id}>
+                                {sc.codigo} — {sc.descricao}{sc.codigoNbs ? ` (NBS: ${sc.codigoNbs})` : ""}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <>
+                            <input
+                              type="text"
+                              readOnly
+                              value={
+                                tipoNota === "SERVICO"
+                                  ? preview.config.codigoTributarioNacionalServico || preview.config.codigoTributarioNacional || ""
+                                  : preview.config.codigoTributarioNacional || ""
+                              }
+                              className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 font-medium outline-none cursor-default"
+                            />
+                            <p className="mt-1 text-xs text-amber-600">Nenhum servico cadastrado. Configure em Configuracoes &gt; Fiscal &gt; Servicos Habilitados.</p>
+                          </>
                         )}
                       </div>
                     </div>

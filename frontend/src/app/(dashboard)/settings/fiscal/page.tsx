@@ -142,6 +142,11 @@ export default function FiscalSettingsPage() {
   const [token, setToken] = useState("");
   const [savedSnapshot, setSavedSnapshot] = useState<string>("");
   const [savedFiscalSnapshot, setSavedFiscalSnapshot] = useState<string>("");
+  // Service codes
+  const [serviceCodes, setServiceCodes] = useState<any[]>([]);
+  const [editingCode, setEditingCode] = useState<any | null>(null);
+  const [showCodeForm, setShowCodeForm] = useState(false);
+  const [savingCode, setSavingCode] = useState(false);
   const successTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentSnapshot = editableSnapshot(config, token);
@@ -186,10 +191,58 @@ export default function FiscalSettingsPage() {
     }
   }, []);
 
+  const fetchServiceCodes = useCallback(async () => {
+    try {
+      const data = await api.get<any[]>("/nfse-emission/service-codes");
+      setServiceCodes(data || []);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchConfig();
     fetchFiscalConfig();
-  }, [fetchConfig, fetchFiscalConfig]);
+    fetchServiceCodes();
+  }, [fetchConfig, fetchFiscalConfig, fetchServiceCodes]);
+
+  const emptyCode = { codigo: "", codigoNbs: "", descricao: "", tipo: "SERVICO", aliquotaIss: null as number | null, itemListaServico: "", codigoCnae: "", codigoTribMunicipal: "" };
+
+  async function handleSaveServiceCode() {
+    if (!editingCode?.codigo || !editingCode?.descricao) return;
+    setSavingCode(true);
+    try {
+      if (editingCode.id) {
+        await api.put(`/nfse-emission/service-codes/${editingCode.id}`, editingCode);
+      } else {
+        await api.post("/nfse-emission/service-codes", editingCode);
+      }
+      await fetchServiceCodes();
+      setEditingCode(null);
+      setShowCodeForm(false);
+      flashSuccess("Servico salvo!");
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Erro ao salvar servico");
+    } finally {
+      setSavingCode(false);
+    }
+  }
+
+  async function handleDeleteServiceCode(id: string) {
+    if (!confirm("Excluir este servico?")) return;
+    try {
+      await api.del(`/nfse-emission/service-codes/${id}`);
+      await fetchServiceCodes();
+      flashSuccess("Servico excluido!");
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Erro ao excluir");
+    }
+  }
+
+  async function handleToggleServiceCode(sc: any) {
+    try {
+      await api.put(`/nfse-emission/service-codes/${sc.id}`, { active: !sc.active });
+      await fetchServiceCodes();
+    } catch { /* ignore */ }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -700,29 +753,136 @@ export default function FiscalSettingsPage() {
               className={inputClass}
             />
           </div>
-          <div>
-            <label className={labelClass}>Cod. Trib. Nacional (Obra)</label>
-            <input
-              type="text"
-              value={config.codigoTributarioNacional || ""}
-              onChange={(e) => setConfig({ ...config, codigoTributarioNacional: e.target.value })}
-              placeholder="6 digitos (ex: 070202)"
-              className={inputClass}
-            />
-            <p className="text-xs text-slate-400 mt-0.5">Usado para emissoes de obra/construcao (requer CNO)</p>
-          </div>
-          <div>
-            <label className={labelClass}>Cod. Trib. Nacional (Servico)</label>
-            <input
-              type="text"
-              value={config.codigoTributarioNacionalServico || ""}
-              onChange={(e) => setConfig({ ...config, codigoTributarioNacionalServico: e.target.value })}
-              placeholder="Ex: 140100"
-              className={inputClass}
-            />
-            <p className="text-xs text-slate-400 mt-0.5">Usado para emissoes de servico (manutencao, assistencia tecnica)</p>
-          </div>
         </div>
+      </div>
+
+      {/* ── Servicos Habilitados na Prefeitura ── */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+            Servicos Habilitados na Prefeitura
+          </h3>
+          <button
+            onClick={() => { setEditingCode({ ...emptyCode }); setShowCodeForm(true); }}
+            className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            + Novo Servico
+          </button>
+        </div>
+        <p className="text-xs text-slate-400 mb-4">Cadastre os servicos que sua empresa esta apta a prestar. Ao emitir NFS-e, voce selecionara o servico adequado.</p>
+
+        {serviceCodes.length === 0 && !showCodeForm && (
+          <div className="text-center py-8 text-slate-400 text-sm">
+            Nenhum servico cadastrado. Clique em &quot;+ Novo Servico&quot; para adicionar.
+          </div>
+        )}
+
+        {serviceCodes.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-slate-500">
+                  <th className="pb-2 pr-3 font-medium">cTribNac</th>
+                  <th className="pb-2 pr-3 font-medium">NBS</th>
+                  <th className="pb-2 pr-3 font-medium">Descricao</th>
+                  <th className="pb-2 pr-3 font-medium">Tipo</th>
+                  <th className="pb-2 pr-3 font-medium">ISS %</th>
+                  <th className="pb-2 pr-3 font-medium">LC 116</th>
+                  <th className="pb-2 text-right font-medium">Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {serviceCodes.map((sc) => (
+                  <tr key={sc.id} className={`border-b border-slate-100 ${!sc.active ? "opacity-40" : ""}`}>
+                    <td className="py-2 pr-3 font-mono">{sc.codigo}</td>
+                    <td className="py-2 pr-3 font-mono text-slate-500">{sc.codigoNbs || "-"}</td>
+                    <td className="py-2 pr-3">{sc.descricao}</td>
+                    <td className="py-2 pr-3">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${sc.tipo === "OBRA" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
+                        {sc.tipo}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3">{sc.aliquotaIss != null ? `${sc.aliquotaIss}%` : "-"}</td>
+                    <td className="py-2 pr-3 font-mono text-slate-500">{sc.itemListaServico || "-"}</td>
+                    <td className="py-2 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => handleToggleServiceCode(sc)}
+                        className={`mr-2 text-[10px] px-1.5 py-0.5 rounded ${sc.active ? "text-amber-600 hover:bg-amber-50" : "text-green-600 hover:bg-green-50"}`}
+                      >
+                        {sc.active ? "Desativar" : "Ativar"}
+                      </button>
+                      <button
+                        onClick={() => { setEditingCode({ ...sc }); setShowCodeForm(true); }}
+                        className="mr-2 text-blue-600 hover:text-blue-800"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDeleteServiceCode(sc.id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        Excluir
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Inline form */}
+        {showCodeForm && editingCode && (
+          <div className="mt-4 p-4 border border-slate-200 rounded-lg bg-slate-50">
+            <h4 className="text-xs font-semibold text-slate-600 mb-3">{editingCode.id ? "Editar Servico" : "Novo Servico"}</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className={labelClass}>Cod. Trib. Nacional (cTribNac) *</label>
+                <input type="text" value={editingCode.codigo} onChange={(e) => setEditingCode({ ...editingCode, codigo: e.target.value })} placeholder="Ex: 140601" maxLength={6} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Item NBS</label>
+                <input type="text" value={editingCode.codigoNbs || ""} onChange={(e) => setEditingCode({ ...editingCode, codigoNbs: e.target.value })} placeholder="Ex: 1.0101.00.00" className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Tipo</label>
+                <select value={editingCode.tipo} onChange={(e) => setEditingCode({ ...editingCode, tipo: e.target.value })} className={inputClass}>
+                  <option value="SERVICO">Servico</option>
+                  <option value="OBRA">Obra</option>
+                </select>
+              </div>
+              <div className="md:col-span-3">
+                <label className={labelClass}>Descricao do Servico *</label>
+                <input type="text" value={editingCode.descricao} onChange={(e) => setEditingCode({ ...editingCode, descricao: e.target.value })} placeholder="Ex: Instalacao de equipamentos de alta pressao" className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Aliquota ISS (%)</label>
+                <input type="number" step="0.01" value={editingCode.aliquotaIss ?? ""} onChange={(e) => setEditingCode({ ...editingCode, aliquotaIss: e.target.value ? parseFloat(e.target.value) : null })} placeholder="Ex: 5.00" className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Item LC 116</label>
+                <input type="text" value={editingCode.itemListaServico || ""} onChange={(e) => setEditingCode({ ...editingCode, itemListaServico: e.target.value })} placeholder="Ex: 14.06" className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>CNAE</label>
+                <input type="text" value={editingCode.codigoCnae || ""} onChange={(e) => setEditingCode({ ...editingCode, codigoCnae: e.target.value })} placeholder="Ex: 4322302" maxLength={7} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Cod. Trib. Municipal</label>
+                <input type="text" value={editingCode.codigoTribMunicipal || ""} onChange={(e) => setEditingCode({ ...editingCode, codigoTribMunicipal: e.target.value })} placeholder="Codigo da prefeitura" className={inputClass} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={handleSaveServiceCode} disabled={savingCode || !editingCode.codigo || !editingCode.descricao} className="px-4 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                {savingCode ? "Salvando..." : "Salvar"}
+              </button>
+              <button onClick={() => { setShowCodeForm(false); setEditingCode(null); }} className="px-4 py-2 text-xs bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── RPS e Discriminacao ── */}

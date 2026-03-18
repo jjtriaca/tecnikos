@@ -9,7 +9,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { ApiTags } from '@nestjs/swagger';
 import { FiscalGuard } from '../auth/guards/fiscal.guard';
 import { NfseEmissionService } from './nfse-emission.service';
-import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto } from './dto/nfse-emission.dto';
+import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto, UpdateNfseServiceCodeDto } from './dto/nfse-emission.dto';
 import type { Response } from 'express';
 import { TenantResolverService } from '../tenant/tenant-resolver.service';
 import { runInTenantContext } from '../tenant/tenant-context';
@@ -34,6 +34,32 @@ export class NfseEmissionController {
   @Roles('ADMIN', 'FISCAL')
   async saveConfig(@Req() req: any, @Body() dto: SaveNfseConfigDto) {
     return this.nfseService.saveConfig(req.user.companyId, dto);
+  }
+
+  // ========== SERVICE CODES ==========
+
+  @Get('service-codes')
+  @Roles('ADMIN', 'FISCAL')
+  async listServiceCodes(@Req() req: any) {
+    return this.nfseService.listServiceCodes(req.user.companyId);
+  }
+
+  @Post('service-codes')
+  @Roles('ADMIN', 'FISCAL')
+  async createServiceCode(@Req() req: any, @Body() dto: CreateNfseServiceCodeDto) {
+    return this.nfseService.createServiceCode(req.user.companyId, dto);
+  }
+
+  @Put('service-codes/:id')
+  @Roles('ADMIN', 'FISCAL')
+  async updateServiceCode(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateNfseServiceCodeDto) {
+    return this.nfseService.updateServiceCode(req.user.companyId, id, dto);
+  }
+
+  @Delete('service-codes/:id')
+  @Roles('ADMIN', 'FISCAL')
+  async deleteServiceCode(@Req() req: any, @Param('id') id: string) {
+    return this.nfseService.deleteServiceCode(req.user.companyId, id);
   }
 
   // ========== PREVIEW ==========

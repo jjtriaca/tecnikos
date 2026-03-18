@@ -186,6 +186,7 @@ model Company {
   cashAccounts         CashAccount[]
   nfseConfig           NfseConfig?
   nfseEmissions        NfseEmission[]
+  nfseServiceCodes     NfseServiceCode[]
   obras                Obra[]
   serviceAddresses     ServiceAddress[]
   cardSettlements      CardSettlement[]
@@ -1389,6 +1390,30 @@ model NfseConfig {
   updatedAt               DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id])
+  serviceCodes NfseServiceCode[]
+}
+
+model NfseServiceCode {
+  id                  String   @id @default(uuid())
+  companyId           String
+  configId            String
+  codigo              String   // cTribNac 6 dígitos (ex: "140601")
+  codigoNbs           String?  // NBS (ex: "1.0101.00.00")
+  descricao           String   // Descrição do serviço (ex: "Instalação de boiler")
+  tipo                String   @default("SERVICO") // SERVICO | OBRA
+  aliquotaIss         Float?   // Alíquota ISS padrão (%)
+  itemListaServico    String?  // Item LC 116 (ex: "14.06")
+  codigoCnae          String?  // CNAE 7 dígitos
+  codigoTribMunicipal String?  // Código tributário municipal
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id])
+  config   NfseConfig @relation(fields: [configId], references: [id])
+
+  @@index([companyId, active])
+  @@index([configId])
 }
 
 model NfseEmission {

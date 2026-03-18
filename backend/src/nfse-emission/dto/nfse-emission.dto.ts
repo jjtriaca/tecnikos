@@ -51,6 +51,31 @@ export class EmitNfseDto {
   // Tipo de NFS-e e Obra (v1.00.88)
   @IsOptional() @IsString() tipoNota?: string; // SERVICO | OBRA
   @IsOptional() @IsString() obraId?: string;
+  // Service code selecionado
+  @IsOptional() @IsString() serviceCodeId?: string;
+}
+
+export class CreateNfseServiceCodeDto {
+  @IsString() codigo: string;
+  @IsOptional() @IsString() codigoNbs?: string;
+  @IsString() descricao: string;
+  @IsOptional() @IsString() tipo?: string; // SERVICO | OBRA
+  @IsOptional() @IsNumber() aliquotaIss?: number;
+  @IsOptional() @IsString() itemListaServico?: string;
+  @IsOptional() @IsString() codigoCnae?: string;
+  @IsOptional() @IsString() codigoTribMunicipal?: string;
+}
+
+export class UpdateNfseServiceCodeDto {
+  @IsOptional() @IsString() codigo?: string;
+  @IsOptional() @IsString() codigoNbs?: string;
+  @IsOptional() @IsString() descricao?: string;
+  @IsOptional() @IsString() tipo?: string;
+  @IsOptional() @IsNumber() aliquotaIss?: number;
+  @IsOptional() @IsString() itemListaServico?: string;
+  @IsOptional() @IsString() codigoCnae?: string;
+  @IsOptional() @IsString() codigoTribMunicipal?: string;
+  @IsOptional() @IsBoolean() active?: boolean;
 }
 
 export class CancelNfseDto {
