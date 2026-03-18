@@ -344,10 +344,7 @@ export class NfseEntradaService {
      syncFromFocus — Import NFS-e recebidas from Focus NFe API
      ═══════════════════════════════════════════════════════════════════ */
 
-  private static readonly MAX_IMPORT_PER_SYNC = 50;
-
-  async syncFromFocus(companyId: string, maxImport?: number): Promise<{ imported: number; skipped: number; total: number; limitReached: boolean }> {
-    const limit = maxImport ?? NfseEntradaService.MAX_IMPORT_PER_SYNC;
+  async syncFromFocus(companyId: string): Promise<{ imported: number; skipped: number; total: number; limitReached: boolean; monthlyLimit: number; usedThisMonth: number }> {
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) {
       throw new BadRequestException('Token Focus NFe nao configurado');
@@ -355,10 +352,26 @@ export class NfseEntradaService {
 
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { cnpj: true },
+      select: { cnpj: true, maxOsPerMonth: true },
     });
     if (!company?.cnpj) {
       throw new BadRequestException('CNPJ da empresa nao cadastrado');
+    }
+
+    // Monthly limit = same as maxOsPerMonth from plan (0 = unlimited)
+    const monthlyLimit = company.maxOsPerMonth || 0;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    // Count Focus imports already done this month
+    const usedThisMonth = await this.prisma.nfseEntrada.count({
+      where: { companyId, focusSource: true, createdAt: { gte: monthStart, lte: monthEnd } },
+    });
+
+    const remaining = monthlyLimit > 0 ? Math.max(0, monthlyLimit - usedThisMonth) : Infinity;
+    if (remaining === 0) {
+      return { imported: 0, skipped: 0, total: 0, limitReached: true, monthlyLimit, usedThisMonth };
     }
 
     const token = this.getActiveToken(config);
@@ -462,8 +475,8 @@ export class NfseEntradaService {
 
         imported++;
 
-        // Stop if limit reached
-        if (imported >= limit) {
+        // Stop if monthly limit reached
+        if (imported >= remaining) {
           hasMore = false;
           break;
         }
@@ -480,7 +493,7 @@ export class NfseEntradaService {
       }
     }
 
-    const limitReached = imported >= limit;
+    const limitReached = monthlyLimit > 0 && (usedThisMonth + imported) >= monthlyLimit;
 
     // Save last sync version
     await this.prisma.nfseConfig.update({
@@ -488,8 +501,8 @@ export class NfseEntradaService {
       data: { lastNfseSyncVersion: currentVersion },
     });
 
-    this.logger.log(`Focus NFe sync for company ${companyId}: imported=${imported}, skipped=${skipped}, total=${totalFetched}, limitReached=${limitReached}`);
-    return { imported, skipped, total: totalFetched, limitReached };
+    this.logger.log(`Focus NFe sync for company ${companyId}: imported=${imported}, skipped=${skipped}, total=${totalFetched}, limitReached=${limitReached}, used=${usedThisMonth + imported}/${monthlyLimit}`);
+    return { imported, skipped, total: totalFetched, limitReached, monthlyLimit, usedThisMonth: usedThisMonth + imported };
   }
 
   /** Get decrypted active token from NfseConfig */

@@ -222,12 +222,12 @@ export default function NfseEntradaPage() {
   async function handleSyncFocus() {
     setSyncing(true);
     try {
-      const result = await api.post<{ imported: number; skipped: number; total: number; limitReached: boolean }>("/nfse-entrada/sync-focus", {});
-      if (result.imported > 0) {
-        const msg = result.limitReached
-          ? `${result.imported} NFS-e importada(s) (limite por sync atingido — clique novamente para continuar)`
-          : `${result.imported} NFS-e importada(s) do Focus NFe`;
-        toast(msg);
+      const result = await api.post<{ imported: number; skipped: number; total: number; limitReached: boolean; monthlyLimit: number; usedThisMonth: number }>("/nfse-entrada/sync-focus", {});
+      if (result.limitReached && result.imported === 0) {
+        toast(`Limite mensal atingido (${result.usedThisMonth}/${result.monthlyLimit} importacoes)`, "error");
+      } else if (result.imported > 0) {
+        const limitMsg = result.limitReached ? ` (limite: ${result.usedThisMonth}/${result.monthlyLimit})` : "";
+        toast(`${result.imported} NFS-e importada(s) do Focus NFe${limitMsg}`);
         loadData();
       } else if (result.total === 0) {
         toast("Nenhuma NFS-e nova encontrada no Focus NFe", "info");
