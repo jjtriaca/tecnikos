@@ -910,20 +910,17 @@ export class NfseEmissionService {
     const token = this.getActiveToken(config)!;
     const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
 
-    // Handle CANCELLING status — re-send cancel request (2-step municipality)
+    // Handle CANCELLING status — query status first, then retry cancel if needed
     if (emission.status === 'CANCELLING') {
-      this.logger.log(`Refresh CANCELLING: re-sending cancel for ref=${emission.focusNfeRef}`);
-      try {
-        const cancelResult = await this.focusNfe.cancel(
-          token,
-          config.focusNfeEnvironment,
-          emission.focusNfeRef,
-          emission.cancelReason || 'Cancelamento solicitado',
-          layout,
-        );
+      this.logger.log(`Refresh CANCELLING: checking status for ref=${emission.focusNfeRef}`);
+      const entryId = emission.financialEntries[0]?.id;
 
-        if (cancelResult.status === 'cancelado') {
-          const entryId = emission.financialEntries[0]?.id;
+      try {
+        // Step 1: Query current status (GET) to check if already cancelled
+        const queryResult = await this.focusNfe.query(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
+
+        if (queryResult.status === 'cancelado') {
+          this.logger.log(`Cancel confirmed via query: ref=${emission.focusNfeRef}`);
           await this.prisma.$transaction([
             this.prisma.nfseEmission.update({
               where: { id: emissionId },
@@ -934,6 +931,31 @@ export class NfseEmissionService {
               data: { nfseStatus: null, nfseEmissionId: null },
             })] : []),
           ]);
+          return this.prisma.nfseEmission.findUnique({ where: { id: emissionId } });
+        }
+
+        // Step 2: If still "autorizado", try re-sending cancel (2-step municipality)
+        this.logger.log(`Still ${queryResult.status}, retrying cancel for ref=${emission.focusNfeRef}`);
+        try {
+          const cancelResult = await this.focusNfe.cancel(
+            token, config.focusNfeEnvironment, emission.focusNfeRef,
+            emission.cancelReason || 'Cancelamento solicitado', layout,
+          );
+          if (cancelResult.status === 'cancelado') {
+            await this.prisma.$transaction([
+              this.prisma.nfseEmission.update({
+                where: { id: emissionId },
+                data: { status: 'CANCELLED', cancelledAt: new Date() },
+              }),
+              ...(entryId ? [this.prisma.financialEntry.update({
+                where: { id: entryId },
+                data: { nfseStatus: null, nfseEmissionId: null },
+              })] : []),
+            ]);
+          }
+        } catch (cancelErr: any) {
+          // "Cancelamento já solicitado" is expected — cancel is pending at prefeitura
+          this.logger.warn(`Cancel retry response: ${cancelErr.message}`);
         }
       } catch (err: any) {
         this.logger.error(`Refresh CANCELLING failed: ${err.message}`);

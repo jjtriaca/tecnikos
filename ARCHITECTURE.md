@@ -278,7 +278,7 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 |------------|----------|--------|--------|
 | Pagamento | Asaas | TenantModule | ASAAS_API_KEY (env) |
 | WhatsApp | Meta Cloud API v21.0 | WhatsAppModule | Encrypted AES-256-GCM |
-| NFS-e | Focus NFe | NfseEmissionModule | Encrypted AES-256-GCM |
+| NFS-e (revenda) | Focus NFe | NfseEmissionModule | FOCUS_NFE_RESELLER_TOKEN (env) + tokens por tenant (encrypted) |
 | NFe/SEFAZ | SEFAZ DFe | NfeModule | Certificado PFX encrypted |
 | Email | SMTP Zoho | EmailModule | SMTP credentials (env) |
 | IA | Claude API | ChatIAModule | ANTHROPIC_API_KEY (env) |
@@ -303,11 +303,20 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 3. Cliente avalia (score 1-5, peso 60%)
 4. Rating = media ponderada -> atualiza Partner.rating
 
-### NFS-e Emission (Focus NFe)
-1. FinancialEntry RECEIVABLE + OS/Partner -> preview
-2. Discriminacao com template variaveis ({titulo_os}, {descricao_os}, {tecnico})
-3. Emit -> Focus NFe -> PROCESSING -> AUTHORIZED/ERROR
-4. XML + PDF armazenados
+### NFS-e Emission (Focus NFe — Revenda Centralizada)
+1. **Modelo**: Tecnikos tem conta Start na Focus NFe, cadastra CNPJs dos clientes via API de Empresas
+2. **Token de revenda**: FOCUS_NFE_RESELLER_TOKEN (env) — usado para /v2/empresas (CRUD de clientes)
+3. **Tokens de emissao**: Cada tenant recebe token_producao e token_homologacao da Focus (encrypted no NfseConfig)
+4. **Registro**: registerOrUpdateEmpresa() cadastra CNPJ na Focus → salva focusNfeCompanyId + tokens
+5. **Certificado**: uploadCertificate() envia e-CNPJ A1 via API de Empresas
+6. **Emissao**: FinancialEntry RECEIVABLE -> preview -> Emit -> PROCESSING -> AUTHORIZED/ERROR
+7. **Cancelamento 2 etapas**: Alguns municipios exigem 2 DELETE (pedido + confirmacao) — status CANCELLING com retry automatico
+8. **Wizard IA**: ChatIA guia config fiscal em 7 steps (registro auto, certificado, IBGE, servicos, ISS, validacao, teste)
+
+### NFS-e Wizard IA (ChatIA)
+- **Trigger**: "Como configurar NFS-e?" ou deteccao proativa de fiscal incompleto
+- **Tools**: verificar_fiscal_completo, buscar_municipio_ibge, salvar_codigo_ibge, listar_servicos_nfse, registrar_empresa_focus
+- **Fluxo**: 7 steps guiados → registro automatico na Focus → coleta dados fiscais → teste emissao
 
 ### WhatsApp (Meta Cloud API)
 - Template fallback: tenta template primeiro, fallback texto em janela 24h
@@ -396,6 +405,9 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 10. **Add-on NAO faz rollover**: vale pro ciclo vigente, expira no fim do periodo
 11. **Fire-and-forget automation**: `automationEngine?.dispatch().catch(() => {})` — falha silenciosa
 12. **Token JWT in-memory**: NAO esta em localStorage (seguranca XSS), perde no F5 -> silent refresh via cookie
+13. **NFS-e cancelamento 2 etapas**: Alguns municipios (ex: Primavera do Leste/MT) exigem 2 DELETE — status CANCELLING com retry automatico 3s
+14. **Focus NFe .env.production**: Arquivo correto em `/opt/tecnikos/app/.env.production` (NAO `/opt/tecnikos/`)
+15. **Focus NFe API de Empresas**: Token de revenda (producao) funciona em /v2/empresas. Token de homologacao NAO tem permissao
 
 ---
 

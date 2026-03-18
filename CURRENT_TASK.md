@@ -1,14 +1,23 @@
 # TAREFA ATUAL
 
-## Versao: v1.04.81
-## Ultima sessao: 137 (18/03/2026)
+## Versao: v1.04.88
+## Ultima sessao: 138 (18/03/2026)
 
 ## Pendencias
 
 ### A FAZER
+- **Planos Tecnikos + limites de notas**: Definir pricing e limites NFS-e por plano
+- **Token revenda no admin**: Mover FOCUS_NFE_RESELLER_TOKEN de .env para painel admin SaaS
 - **Fase 3 — Offline-first**: IndexedDB para OS locais + fila de sync (futuro)
 - **Push Notifications**: Integrar Web Push API com backend (service worker ja preparado)
 - **TenantMigratorService**: Corrigir copia de FKs ao criar tabelas novas em tenant schemas
+
+### CONCLUIDO (sessao 138)
+- **Cancelamento 2 etapas**: Status CANCELLING + retry automatico 3s para municipios que exigem duplo DELETE
+- **Frontend CANCELLING**: Badge laranja "Cancelando" + botao refresh para confirmar cancelamento
+- **FOCUS_NFE_RESELLER_TOKEN**: Configurado no .env.production do servidor (plano Start ativo)
+- **API de Empresas testada**: GET /v2/empresas retorna SLS Obras (ID: 192027) com sucesso
+- **docker-compose.production.yml**: Adicionada variavel FOCUS_NFE_RESELLER_TOKEN
 
 ### CONCLUIDO (sessao 137)
 - **Wizard IA NFS-e**: 7 steps guiados via ChatIA (registro auto, certificado, IBGE, servicos, ISS, validacao, teste)
