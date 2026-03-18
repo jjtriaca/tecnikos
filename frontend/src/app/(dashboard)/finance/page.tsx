@@ -9,6 +9,7 @@ import { useFiscalModule } from "@/contexts/FiscalModuleContext";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Link from "next/link";
 import LookupField from "@/components/ui/LookupField";
+import { maskCurrency, parseCurrencyToCents } from "@/lib/brazil-utils";
 import type { LookupFetcher, LookupFetcherResult } from "@/components/ui/SearchLookupModal";
 import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
@@ -774,7 +775,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       toast("Selecione um parceiro.", "error");
       return;
     }
-    const gross = Math.round(Number(formData.grossCents.replace(",", ".")) * 100);
+    const gross = parseCurrencyToCents(formData.grossCents);
     if (!gross || gross <= 0) {
       toast("Informe um valor válido.", "error");
       return;
@@ -1217,14 +1218,17 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Valor (R$) *</label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={formData.grossCents}
-                  onChange={(e) => setFormData({ ...formData, grossCents: e.target.value })}
-                  placeholder="Ex: 500,00"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">R$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formData.grossCents}
+                    onChange={(e) => setFormData({ ...formData, grossCents: maskCurrency(e.target.value) })}
+                    placeholder="0,00"
+                    className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Vencimento</label>

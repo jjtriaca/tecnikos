@@ -63,6 +63,20 @@ export function maskCpf(v: string): string {
     .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
+/** Mask currency input: "150000" → "1.500,00" */
+export function maskCurrency(v: string): string {
+  const digits = v.replace(/\D/g, "");
+  if (!digits) return "";
+  const num = parseInt(digits, 10);
+  return (num / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Parse masked currency to cents: "1.500,00" → 150000 */
+export function parseCurrencyToCents(v: string): number {
+  const digits = v.replace(/\D/g, "");
+  return parseInt(digits, 10) || 0;
+}
+
 export function maskCep(v: string): string {
   const d = v.replace(/\D/g, "").slice(0, 8);
   return d.replace(/(\d{5})(\d)/, "$1-$2");
