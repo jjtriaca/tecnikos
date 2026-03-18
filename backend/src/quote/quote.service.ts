@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
@@ -571,6 +572,27 @@ export class QuoteService {
     if (!quote) throw new NotFoundException('Orçamento não encontrado');
     if (quote.status !== 'APROVADO') {
       throw new BadRequestException('Apenas orçamentos aprovados podem gerar OS');
+    }
+
+    // ── Enforce maxOsPerMonth limit (OS + NFS-e avulsas = transações) ──
+    const company = await this.prisma.company.findFirst({ select: { maxOsPerMonth: true } });
+    const maxOs = company?.maxOsPerMonth || 0;
+    if (maxOs > 0) {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const [osCount, avulsaNfseCount] = await Promise.all([
+        this.prisma.serviceOrder.count({
+          where: { companyId, createdAt: { gte: startOfMonth } },
+        }),
+        this.prisma.nfseEmission.count({
+          where: { companyId, serviceOrderId: null, status: { not: 'ERROR' }, createdAt: { gte: startOfMonth } },
+        }).catch(() => 0),
+      ]);
+      if (osCount + avulsaNfseCount >= maxOs) {
+        throw new ForbiddenException(
+          `Limite de ${maxOs} transações por mês atingido. Não é possível gerar OS a partir do orçamento. Faça upgrade do plano.`,
+        );
+      }
     }
 
     // Build description from items
