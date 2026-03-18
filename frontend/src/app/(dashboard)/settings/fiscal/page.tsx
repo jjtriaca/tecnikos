@@ -45,6 +45,7 @@ interface NfseConfig {
   id?: string;
   companyId?: string;
   focusNfeToken: string | null;
+  focusNfeTokenHomolog: string | null;
   focusNfeEnvironment: string;
   inscricaoMunicipal: string | null;
   codigoMunicipio: string | null;
@@ -69,6 +70,7 @@ interface NfseConfig {
 
 const EMPTY_CONFIG: NfseConfig = {
   focusNfeToken: null,
+  focusNfeTokenHomolog: null,
   focusNfeEnvironment: "HOMOLOGATION",
   inscricaoMunicipal: null,
   codigoMunicipio: null,
@@ -141,6 +143,7 @@ export default function FiscalSettingsPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [token, setToken] = useState("");
+  const [tokenHomolog, setTokenHomolog] = useState("");
   const [savedSnapshot, setSavedSnapshot] = useState<string>("");
   const [savedFiscalSnapshot, setSavedFiscalSnapshot] = useState<string>("");
   // Service codes
@@ -171,6 +174,8 @@ export default function FiscalSettingsPage() {
         setConfig(data);
         const t = data.focusNfeToken || "";
         if (t) setToken(t);
+        const th = data.focusNfeTokenHomolog || "";
+        if (th) setTokenHomolog(th);
         setSavedSnapshot(editableSnapshot(data, t));
       } else {
         setSavedSnapshot(editableSnapshot(EMPTY_CONFIG, ""));
@@ -306,11 +311,16 @@ export default function FiscalSettingsPage() {
       if (token && token !== "••••••••") {
         payload.focusNfeToken = token;
       }
+      if (tokenHomolog && tokenHomolog !== "••••••••") {
+        payload.focusNfeTokenHomolog = tokenHomolog;
+      }
 
       const result = await api.put<NfseConfig>("/nfse-emission/config", payload);
       setConfig(result);
-      const t = result.focusNfeToken || token; // keep current token if API returns masked
+      const t = result.focusNfeToken || token;
       setToken(t);
+      const th = result.focusNfeTokenHomolog || tokenHomolog;
+      setTokenHomolog(th);
       setSavedSnapshot(editableSnapshot(result, t));
       flashSuccess();
     } catch (err: any) {
@@ -623,16 +633,24 @@ export default function FiscalSettingsPage() {
           <svg className="w-4 h-4 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
           Conexao Focus NFe
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className={labelClass}>Token de Acesso</label>
+            <label className={labelClass}>Token Producao</label>
             <PasswordInput
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="Token da API Focus NFe"
+              placeholder="Token de producao"
               className={inputClass}
             />
-            <p className="text-xs text-slate-400 mt-1">Encontre em painel.focusnfe.com.br</p>
+          </div>
+          <div>
+            <label className={labelClass}>Token Homologacao</label>
+            <PasswordInput
+              value={tokenHomolog}
+              onChange={(e) => setTokenHomolog(e.target.value)}
+              placeholder="Token de homologacao (testes)"
+              className={inputClass}
+            />
           </div>
           <div>
             <label className={labelClass}>Ambiente</label>

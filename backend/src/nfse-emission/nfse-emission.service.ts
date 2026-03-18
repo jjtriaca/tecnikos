@@ -36,21 +36,38 @@ export class NfseEmissionService {
   async getConfig(companyId: string) {
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config) return null;
-    // Never return decrypted token
+    // Never return decrypted tokens
     return {
       ...config,
       focusNfeToken: config.focusNfeToken ? '••••••••' : null,
+      focusNfeTokenHomolog: config.focusNfeTokenHomolog ? '••••••••' : null,
     };
+  }
+
+  /** Get the active token based on environment */
+  private getActiveToken(config: { focusNfeToken: string | null; focusNfeTokenHomolog: string | null; focusNfeEnvironment: string }): string | null {
+    const encrypted = config.focusNfeEnvironment === 'HOMOLOGATION'
+      ? (config.focusNfeTokenHomolog || config.focusNfeToken)
+      : config.focusNfeToken;
+    if (!encrypted) return null;
+    return this.encryption.decrypt(encrypted);
   }
 
   async saveConfig(companyId: string, dto: SaveNfseConfigDto) {
     const data: any = { ...dto };
 
-    // Encrypt token if provided
+    // Encrypt production token if provided
     if (dto.focusNfeToken && dto.focusNfeToken !== '••••••••') {
       data.focusNfeToken = this.encryption.encrypt(dto.focusNfeToken);
     } else {
       delete data.focusNfeToken;
+    }
+
+    // Encrypt homologation token if provided
+    if (dto.focusNfeTokenHomolog && dto.focusNfeTokenHomolog !== '••••••••') {
+      data.focusNfeTokenHomolog = this.encryption.encrypt(dto.focusNfeTokenHomolog);
+    } else {
+      delete data.focusNfeTokenHomolog;
     }
 
     const config = await this.prisma.nfseConfig.upsert({
@@ -62,6 +79,7 @@ export class NfseEmissionService {
     return {
       ...config,
       focusNfeToken: config.focusNfeToken ? '••••••••' : null,
+      focusNfeTokenHomolog: config.focusNfeTokenHomolog ? '••••••••' : null,
     };
   }
 
@@ -170,7 +188,8 @@ export class NfseEmissionService {
   async emit(companyId: string, dto: EmitNfseDto) {
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config) throw new BadRequestException('Configuração fiscal não encontrada');
-    if (!config.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
+    const activeToken = config.focusNfeEnvironment === 'HOMOLOGATION' ? (config.focusNfeTokenHomolog || config.focusNfeToken) : config.focusNfeToken;
+    if (!activeToken) throw new BadRequestException(`Token Focus NFe (${config.focusNfeEnvironment === 'HOMOLOGATION' ? 'homologação' : 'produção'}) não configurado`);
 
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company?.cnpj) throw new BadRequestException('CNPJ da empresa não configurado');
@@ -184,7 +203,7 @@ export class NfseEmissionService {
     if (entry.nfseStatus === 'PROCESSING') throw new BadRequestException('NFS-e em processamento');
 
     // Decrypt token
-    const token = this.encryption.decrypt(config.focusNfeToken);
+    const token = this.getActiveToken(config)!;
 
     // Check for existing ERROR emission for this entry — reuse instead of duplicating
     const existingErrorEmission = await this.prisma.nfseEmission.findFirst({
@@ -525,7 +544,7 @@ export class NfseEmissionService {
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
 
-    const token = this.encryption.decrypt(config.focusNfeToken);
+    const token = this.getActiveToken(config)!;
 
     const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
     const result = await this.focusNfe.cancel(
@@ -631,7 +650,7 @@ export class NfseEmissionService {
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
 
-    const token = this.encryption.decrypt(config.focusNfeToken);
+    const token = this.getActiveToken(config)!;
     const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
     const result = await this.focusNfe.query(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
 
@@ -668,7 +687,7 @@ export class NfseEmissionService {
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
 
-    const token = this.encryption.decrypt(config.focusNfeToken);
+    const token = this.getActiveToken(config)!;
     const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
     const buffer = await this.focusNfe.downloadPdf(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
 
@@ -687,7 +706,7 @@ export class NfseEmissionService {
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
 
-    const token = this.encryption.decrypt(config.focusNfeToken);
+    const token = this.getActiveToken(config)!;
     const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
     const targetEmails = emails?.length ? emails : (emission.tomadorEmail ? [emission.tomadorEmail] : []);
     if (!targetEmails.length) throw new BadRequestException('Nenhum email disponível para envio');

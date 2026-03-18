@@ -1379,7 +1379,8 @@ model NfseConfig {
   id                      String   @id @default(uuid())
   companyId               String   @unique
   // Focus NFe
-  focusNfeToken           String?  // Token da API Focus NFe (encriptado AES-256-GCM)
+  focusNfeToken           String?  // Token PRODUÇÃO (encriptado AES-256-GCM)
+  focusNfeTokenHomolog    String?  // Token HOMOLOGAÇÃO (encriptado AES-256-GCM)
   focusNfeEnvironment     String   @default("HOMOLOGATION") // PRODUCTION | HOMOLOGATION
   focusNfeCompanyId       String?  // ID da empresa no Focus NFe
   // Dados fiscais do prestador

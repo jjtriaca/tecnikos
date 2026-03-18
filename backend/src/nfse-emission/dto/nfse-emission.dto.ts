@@ -2,6 +2,7 @@ import { IsString, IsOptional, IsInt, IsBoolean, IsNumber, Min, MaxLength, MinLe
 
 export class SaveNfseConfigDto {
   @IsOptional() @IsString() focusNfeToken?: string;
+  @IsOptional() @IsString() focusNfeTokenHomolog?: string;
   @IsOptional() @IsString() focusNfeEnvironment?: string;
   @IsOptional() @IsString() inscricaoMunicipal?: string;
   @IsOptional() @IsString() codigoMunicipio?: string;
