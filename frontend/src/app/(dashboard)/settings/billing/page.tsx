@@ -36,6 +36,8 @@ type UsageData = {
   isUnlimited: boolean;
   percentage: number;
   daysLeft: number;
+  osCount?: number;
+  avulsaNfseCount?: number;
 };
 
 type BillingStatus = {
@@ -315,9 +317,19 @@ export default function BillingPage() {
               style={{ width: `${Math.min(usage.percentage, 100)}%` }}
             />
           </div>
-          <p className="text-xs text-slate-400 mt-2">
-            {usage.daysLeft} dias restantes no mes
-          </p>
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex gap-3 text-[11px] text-slate-400">
+              {usage.osCount !== undefined && (
+                <span>{usage.osCount} OS</span>
+              )}
+              {(usage.avulsaNfseCount ?? 0) > 0 && (
+                <span>+ {usage.avulsaNfseCount} NFS-e avulsas</span>
+              )}
+            </div>
+            <span className="text-[11px] text-slate-400">
+              {usage.daysLeft} dias restantes
+            </span>
+          </div>
         </div>
       )}
 
