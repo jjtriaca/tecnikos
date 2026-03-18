@@ -105,9 +105,7 @@ export class AsaasService {
       fullValueCents = plan.priceCents;
     }
 
-    // Apply promotion — for multi-month promos, we set the subscription VALUE
-    // to the discounted price (not using Asaas discount system).
-    // After promo ends, we update the subscription to the full price.
+    // Apply promotion — charge ALL promo months upfront (e.g., 6 × R$15 = R$90)
     let promoId: string | undefined;
     let promoDuration = 0;
     let subscriptionValueCents = fullValueCents;
@@ -120,16 +118,24 @@ export class AsaasService {
         promoId = promo.id;
         promoDuration = promo.durationMonths;
 
-        // Calculate discounted value
+        // Calculate monthly discounted value
+        let monthlyDiscountedCents = fullValueCents;
         if (promo.discountPercent) {
-          subscriptionValueCents = Math.round(fullValueCents * (1 - promo.discountPercent / 100));
+          monthlyDiscountedCents = Math.round(fullValueCents * (1 - promo.discountPercent / 100));
         } else if (promo.discountCents) {
-          subscriptionValueCents = Math.max(0, fullValueCents - promo.discountCents);
+          monthlyDiscountedCents = Math.max(0, fullValueCents - promo.discountCents);
+        }
+
+        // Charge all promo months upfront in the first payment
+        if (promoDuration > 0) {
+          subscriptionValueCents = monthlyDiscountedCents * promoDuration;
+        } else {
+          subscriptionValueCents = monthlyDiscountedCents;
         }
 
         this.logger.log(
-          `Promo "${promo.code}" applied: R$${(subscriptionValueCents / 100).toFixed(2)} ` +
-          `for ${promoDuration} months (full: R$${(fullValueCents / 100).toFixed(2)})`,
+          `Promo "${promo.code}" applied: R$${(subscriptionValueCents / 100).toFixed(2)} upfront ` +
+          `(${promoDuration} months × R$${(monthlyDiscountedCents / 100).toFixed(2)}, full: R$${(fullValueCents / 100).toFixed(2)}/mo)`,
         );
       }
     }
@@ -158,7 +164,10 @@ export class AsaasService {
     // Create local subscription
     const now = new Date();
     const periodEnd = new Date(now);
-    if (isYearly) {
+    if (promoDuration > 0) {
+      // Upfront promo: period covers all promo months
+      periodEnd.setMonth(periodEnd.getMonth() + promoDuration);
+    } else if (isYearly) {
       periodEnd.setFullYear(periodEnd.getFullYear() + 1);
     } else {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
@@ -228,7 +237,7 @@ export class AsaasService {
       fullValueCents = plan.priceCents;
     }
 
-    // Apply promotion
+    // Apply promotion — charge ALL promo months upfront (e.g., 6 × R$15 = R$90)
     let promoId: string | undefined;
     let promoDuration = 0;
     let subscriptionValueCents = fullValueCents;
@@ -240,14 +249,25 @@ export class AsaasService {
       if (promo && promo.isActive && !promo.skipPayment) {
         promoId = promo.id;
         promoDuration = promo.durationMonths;
+
+        // Calculate monthly discounted value
+        let monthlyDiscountedCents = fullValueCents;
         if (promo.discountPercent) {
-          subscriptionValueCents = Math.round(fullValueCents * (1 - promo.discountPercent / 100));
+          monthlyDiscountedCents = Math.round(fullValueCents * (1 - promo.discountPercent / 100));
         } else if (promo.discountCents) {
-          subscriptionValueCents = Math.max(0, fullValueCents - promo.discountCents);
+          monthlyDiscountedCents = Math.max(0, fullValueCents - promo.discountCents);
         }
+
+        // Charge all promo months upfront in the first payment
+        if (promoDuration > 0) {
+          subscriptionValueCents = monthlyDiscountedCents * promoDuration;
+        } else {
+          subscriptionValueCents = monthlyDiscountedCents;
+        }
+
         this.logger.log(
-          `Promo "${promo.code}" applied: R$${(subscriptionValueCents / 100).toFixed(2)} ` +
-          `for ${promoDuration} months (full: R$${(fullValueCents / 100).toFixed(2)})`,
+          `Promo "${promo.code}" applied: R$${(subscriptionValueCents / 100).toFixed(2)} upfront ` +
+          `(${promoDuration} months × R$${(monthlyDiscountedCents / 100).toFixed(2)}, full: R$${(fullValueCents / 100).toFixed(2)}/mo)`,
         );
       }
     }
@@ -270,7 +290,10 @@ export class AsaasService {
     // Create local subscription
     const now = new Date();
     const periodEnd = new Date(now);
-    if (isYearly) {
+    if (promoDuration > 0) {
+      // Upfront promo: period covers all promo months
+      periodEnd.setMonth(periodEnd.getMonth() + promoDuration);
+    } else if (isYearly) {
       periodEnd.setFullYear(periodEnd.getFullYear() + 1);
     } else {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
@@ -932,34 +955,38 @@ export class AsaasService {
           }
         }
 
-        // Handle promotion month tracking
-        // For ANNUAL billing, each payment covers 12 months of promo
+        // Handle promotion — upfront model: all promo months paid in first payment
+        // On first payment, transition Asaas to full price and set period to cover promo duration
         if (subscription.promotionMonthsLeft && subscription.promotionMonthsLeft > 0) {
-          const monthsPerPayment = subscription.billingCycle === 'ANNUAL' ? 12 : 1;
-          const newMonthsLeft = Math.max(0, subscription.promotionMonthsLeft - monthsPerPayment);
-          updateData.promotionMonthsLeft = newMonthsLeft;
+          const promoDuration = subscription.promotionMonthsLeft;
 
-          if (newMonthsLeft === 0 && subscription.originalValueCents && subscription.asaasSubscriptionId) {
-            // Promo ended — update Asaas subscription to full plan price
+          // All promo months are paid upfront — mark as fully consumed
+          updateData.promotionMonthsLeft = 0;
+
+          // Set period to cover all promo months from payment date
+          const promoEnd = new Date(payment.paymentDate || payment.dueDate);
+          promoEnd.setMonth(promoEnd.getMonth() + promoDuration);
+          updateData.currentPeriodEnd = promoEnd;
+          updateData.nextBillingDate = promoEnd;
+
+          // Update Asaas subscription to full price + next due date after promo period
+          if (subscription.originalValueCents && subscription.asaasSubscriptionId) {
             const fullValue = subscription.originalValueCents / 100;
             try {
               await this.asaas.updateSubscription(subscription.asaasSubscriptionId, {
                 value: fullValue,
+                nextDueDate: this.formatDate(promoEnd),
                 updatePendingPayments: false,
               });
               this.logger.log(
-                `Promo ended for subscription ${subscription.id}: ` +
-                `updated to full price R$${fullValue.toFixed(2)}`,
+                `Promo upfront paid for subscription ${subscription.id}: ` +
+                `${promoDuration} months covered, next billing at R$${fullValue.toFixed(2)} on ${promoEnd.toISOString().split('T')[0]}`,
               );
             } catch (err) {
               this.logger.error(
-                `Failed to update Asaas subscription to full price: ${(err as Error).message}`,
+                `Failed to update Asaas subscription after promo upfront: ${(err as Error).message}`,
               );
             }
-          } else if (newMonthsLeft > 0) {
-            this.logger.log(
-              `Promo: ${newMonthsLeft} months left for subscription ${subscription.id}`,
-            );
           }
         }
 

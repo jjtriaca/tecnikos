@@ -15,6 +15,9 @@
 - **TenantMigratorService**: Corrigir copia de FKs ao criar tabelas novas em tenant schemas
 
 ### CONCLUIDO (sessao 139)
+- **Promo upfront**: Promocoes com duracao (PIONEIRO) agora cobram todos os meses de uma vez (6×R$15=R$90)
+- **Webhook upfront**: Primeiro pagamento marca promo como paga, atualiza Asaas para preco cheio, nextDueDate apos periodo promo
+- **Protecao SLS**: SLS mantem fluxo mensal existente (promotionMonthsLeft ja decrementado a 0 no DB)
 - **Fix billing "Pagamento atrasado"**: Endpoint admin PATCH /tenants/:id/fix-subscription para corrigir status
 - **Fix MRR real**: getMetrics() calcula MRR com valor efetivo (promocoes + ciclo anual)
 - **Fix ciclo billing**: monthlyUsage() usa currentPeriodStart/End da Subscription (nao mes calendario)
