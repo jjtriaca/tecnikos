@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.04.63
-## Ultima sessao: 135 (17/03/2026)
+## Versao: v1.04.64
+## Ultima sessao: 136 (18/03/2026)
 
 ## Pendencias
 
@@ -10,24 +10,17 @@
 - **Push Notifications**: Integrar Web Push API com backend (service worker ja preparado)
 - **Testar fluxo OS direcionada no PWA**: Configurar workflow com {link_os} e testar tecnico recebendo OS no celular
 
+### CONCLUIDO (sessao 136)
+- **NfseServiceCode**: Modelo para servicos habilitados na prefeitura (cTribNac, NBS, LC116, CNAE, aliquota ISS)
+- **CRUD service codes**: Endpoints GET/POST/PUT/DELETE em /nfse-emission/service-codes
+- **Config fiscal**: Secao "Servicos Habilitados na Prefeitura" com tabela + form inline
+- **Modal emissao NFS-e**: Dropdown de servico substitui campo read-only de cTribNac
+- **NBS no payload**: codigo_nbs enviado ao Focus NFe no layout NACIONAL
+- **Fallback**: Se nao houver service codes cadastrados, usa campos legados da config
+
 ### CONCLUIDO (sessao 135)
-- **Auth sem senha para tecnicos**: Login por OTP via WhatsApp (telefone + codigo 6 digitos)
-- **OtpService reutilizavel**: Extraido do PublicOfferService, usado por tech-auth
-- **Login por token**: POST /tech-auth/token/:token (boas-vindas + OS)
-- **Token de OS valido ate APROVADA/CANCELADA**: Nao expira por tempo, expira por status
-- **Pagina /tech/setup/[token]**: Primeiro acesso com auto-login + tutorial PWA install
-- **Pagina /tech/os/[token]**: Link de OS auto-loga e redireciona direto para a OS no PWA
-- **Welcome message atualizado**: Link aponta para /tech/setup/{token}
-- **Senha removida do cadastro de tecnico**: Campo substituido por aviso sobre OTP
-- **Cookie path fix**: tech_refresh_token com path=/ para funcionar via rewrite Next.js
-- **Auth refresh fix**: Sessoes de tecnico nao crasham o refresh do dashboard
-- **Filtro por tecnico na listagem OS**: GET /service-orders filtra por assignedPartnerId quando JWT e de tecnico
-- **Frontend orders fix**: Lida com formato paginado {data, total}
-- **Fluxo contrato pendente**: Se "incluir link de aceite" ativo, redireciona para /contract/{token}
-- **Incluir link de aceite expandido**: Confirmacao simples vs Contrato (com nome, conteudo, assinatura digital)
-- **Backend V2 onboarding com contrato**: Envia contrato PJ via sendContract() quando acceptanceType=contract
-- **Variaveis de link separadas**: {link_app}=Link Primeiro Acesso, {link_os}=Link da OS
-- **Link OS no PWA**: Notificacao de OS agora gera link /tech/os/{token} (abre no PWA)
+- Auth sem senha para tecnicos (OTP WhatsApp), Login por token, Setup PWA, Link OS
+- Contrato pendente, Aceite expandido, Variaveis de link separadas
 
 ### CONCLUIDO (sessoes anteriores)
 - Template boas_vindas, Trigger selector, V2 workflow engine, Variable chips

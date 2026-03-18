@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import Link from "next/link";
 import PasswordInput from "@/components/ui/PasswordInput";
 import { useFiscalModule } from "@/contexts/FiscalModuleContext";
+import ctribnacRef from "@/lib/ctribnac-ref.json";
 
 /* ===================================================================
    FISCAL SETTINGS — Tax Regime + NFS-e Configuration
@@ -147,6 +148,9 @@ export default function FiscalSettingsPage() {
   const [editingCode, setEditingCode] = useState<any | null>(null);
   const [showCodeForm, setShowCodeForm] = useState(false);
   const [savingCode, setSavingCode] = useState(false);
+  const [codeSearch, setCodeSearch] = useState("");
+  const [showCodeDropdown, setShowCodeDropdown] = useState(false);
+  const codeSearchRef = useRef<HTMLDivElement>(null);
   const successTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentSnapshot = editableSnapshot(config, token);
@@ -189,6 +193,17 @@ export default function FiscalSettingsPage() {
     } catch {
       // Fiscal config not available — use defaults
     }
+  }, []);
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (codeSearchRef.current && !codeSearchRef.current.contains(e.target as Node)) {
+        setShowCodeDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const fetchServiceCodes = useCallback(async () => {
@@ -764,7 +779,7 @@ export default function FiscalSettingsPage() {
             Servicos Habilitados na Prefeitura
           </h3>
           <button
-            onClick={() => { setEditingCode({ ...emptyCode }); setShowCodeForm(true); }}
+            onClick={() => { setEditingCode({ ...emptyCode }); setShowCodeForm(true); setCodeSearch(""); }}
             className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             + Novo Servico
@@ -836,10 +851,66 @@ export default function FiscalSettingsPage() {
         {showCodeForm && editingCode && (
           <div className="mt-4 p-4 border border-slate-200 rounded-lg bg-slate-50">
             <h4 className="text-xs font-semibold text-slate-600 mb-3">{editingCode.id ? "Editar Servico" : "Novo Servico"}</h4>
+
+            {/* Searchable service selector — only for new items */}
+            {!editingCode.id && (
+              <div className="mb-4" ref={codeSearchRef}>
+                <label className={labelClass}>Buscar servico na tabela nacional *</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={codeSearch}
+                    onChange={(e) => { setCodeSearch(e.target.value); setShowCodeDropdown(true); }}
+                    onFocus={() => setShowCodeDropdown(true)}
+                    placeholder="Digite o codigo, nome do servico ou item LC 116..."
+                    className={inputClass + " pr-8"}
+                  />
+                  <svg className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  {showCodeDropdown && codeSearch.length >= 2 && (
+                    <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
+                      {(() => {
+                        const q = codeSearch.toLowerCase();
+                        const filtered = (ctribnacRef as { c: string; i: string; d: string }[]).filter(
+                          (r) => r.c.includes(q) || r.d.toLowerCase().includes(q) || r.i.includes(q)
+                        ).slice(0, 30);
+                        if (filtered.length === 0) return <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>;
+                        return filtered.map((r) => (
+                          <button
+                            key={r.c}
+                            type="button"
+                            onClick={() => {
+                              setEditingCode({
+                                ...editingCode,
+                                codigo: r.c,
+                                descricao: r.d,
+                                itemListaServico: r.i,
+                                tipo: r.c.startsWith("07") ? "OBRA" : "SERVICO",
+                              });
+                              setCodeSearch(r.c + " — " + r.d);
+                              setShowCodeDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                          >
+                            <span className="font-mono font-semibold text-blue-700">{r.c}</span>
+                            <span className="text-slate-400 ml-1">(LC {r.i})</span>
+                            <span className="text-slate-600 ml-2">{r.d}</span>
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                </div>
+                {editingCode.codigo && (
+                  <p className="mt-1 text-xs text-green-600">Selecionado: <span className="font-mono font-semibold">{editingCode.codigo}</span> — {editingCode.descricao}</p>
+                )}
+              </div>
+            )}
+
+            {/* Editable fields */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className={labelClass}>Cod. Trib. Nacional (cTribNac) *</label>
-                <input type="text" value={editingCode.codigo} onChange={(e) => setEditingCode({ ...editingCode, codigo: e.target.value })} placeholder="Ex: 140601" maxLength={6} className={inputClass} />
+                <label className={labelClass}>cTribNac *</label>
+                <input type="text" value={editingCode.codigo} onChange={(e) => setEditingCode({ ...editingCode, codigo: e.target.value })} placeholder="140601" maxLength={6} className={inputClass + " font-mono"} readOnly={!editingCode.id && !!editingCode.codigo} />
               </div>
               <div>
                 <label className={labelClass}>Item NBS</label>
@@ -853,8 +924,8 @@ export default function FiscalSettingsPage() {
                 </select>
               </div>
               <div className="md:col-span-3">
-                <label className={labelClass}>Descricao do Servico *</label>
-                <input type="text" value={editingCode.descricao} onChange={(e) => setEditingCode({ ...editingCode, descricao: e.target.value })} placeholder="Ex: Instalacao de equipamentos de alta pressao" className={inputClass} />
+                <label className={labelClass}>Descricao *</label>
+                <input type="text" value={editingCode.descricao} onChange={(e) => setEditingCode({ ...editingCode, descricao: e.target.value })} placeholder="Descricao do servico" className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>Aliquota ISS (%)</label>
@@ -877,7 +948,7 @@ export default function FiscalSettingsPage() {
               <button onClick={handleSaveServiceCode} disabled={savingCode || !editingCode.codigo || !editingCode.descricao} className="px-4 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
                 {savingCode ? "Salvando..." : "Salvar"}
               </button>
-              <button onClick={() => { setShowCodeForm(false); setEditingCode(null); }} className="px-4 py-2 text-xs bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors">
+              <button onClick={() => { setShowCodeForm(false); setEditingCode(null); setCodeSearch(""); }} className="px-4 py-2 text-xs bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors">
                 Cancelar
               </button>
             </div>
