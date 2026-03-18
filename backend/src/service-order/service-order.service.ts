@@ -594,12 +594,37 @@ export class ServiceOrderService {
 
   async monthlyUsage(companyId: string) {
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    // Try to get billing cycle dates from subscription
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { companyId },
+      select: { id: true },
+    });
+
+    let periodStart: Date | null = null;
+    let periodEnd: Date | null = null;
+
+    if (tenant) {
+      const subscription = await this.prisma.subscription.findFirst({
+        where: { tenantId: tenant.id, status: { in: ['ACTIVE', 'PAST_DUE'] } },
+        select: { currentPeriodStart: true, currentPeriodEnd: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (subscription) {
+        periodStart = subscription.currentPeriodStart;
+        periodEnd = subscription.currentPeriodEnd;
+      }
+    }
+
+    // Fallback to calendar month if no subscription found
+    if (!periodStart || !periodEnd) {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
 
     const [osCount, avulsaNfseCount, company] = await Promise.all([
       this.prisma.serviceOrder.count({
-        where: { companyId, createdAt: { gte: monthStart, lte: monthEnd } },
+        where: { companyId, createdAt: { gte: periodStart, lte: periodEnd } },
         // Deletadas CONTAM no limite — evita burlar criando e apagando
       }),
       // NFS-e avulsas (sem OS) contam como transações no limite
@@ -608,7 +633,7 @@ export class ServiceOrderService {
           companyId,
           serviceOrderId: null,
           status: { not: 'ERROR' },
-          createdAt: { gte: monthStart, lte: monthEnd },
+          createdAt: { gte: periodStart, lte: periodEnd },
         },
       }).catch(() => 0),
       this.prisma.company.findUnique({
@@ -621,8 +646,7 @@ export class ServiceOrderService {
     const limit = company?.maxOsPerMonth || 0;
     const isUnlimited = limit === 0;
     const percentage = isUnlimited ? 0 : Math.round((usedThisMonth / limit) * 100);
-    const daysInMonth = monthEnd.getDate();
-    const daysLeft = daysInMonth - now.getDate();
+    const daysLeft = Math.max(0, Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
 
     return {
       usedThisMonth,

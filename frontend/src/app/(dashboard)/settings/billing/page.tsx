@@ -301,10 +301,10 @@ export default function BillingPage() {
       {/* Usage Summary */}
       {usage && !usage.isUnlimited && (
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-700 mb-3">Uso de OS neste mes</h2>
+          <h2 className="text-sm font-semibold text-slate-700 mb-3">Uso neste ciclo</h2>
           <div className="flex items-end gap-4 mb-3">
             <span className="text-3xl font-bold text-slate-900">{usage.usedThisMonth}</span>
-            <span className="text-sm text-slate-500 mb-1">/ {usage.maxOsPerMonth} OS</span>
+            <span className="text-sm text-slate-500 mb-1">/ {usage.maxOsPerMonth} transacoes</span>
             <span className={`text-sm font-semibold mb-1 ml-auto ${
               usage.percentage >= 90 ? "text-red-500" : usage.percentage >= 80 ? "text-amber-500" : "text-blue-600"
             }`}>

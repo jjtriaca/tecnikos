@@ -89,6 +89,32 @@ export class TenantController {
     return this.tenantService.changePlan(id, planId);
   }
 
+  @Patch(':id/fix-subscription')
+  async fixSubscription(@Param('id') id: string) {
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { tenantId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!subscription) return { success: false, message: 'No subscription found' };
+
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        status: 'ACTIVE',
+        overdueAt: null,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        nextBillingDate: periodEnd,
+      },
+    });
+
+    return { success: true, message: `Subscription ${subscription.id} set to ACTIVE` };
+  }
+
   @Get(':id/schema')
   getSchemaInfo(@Param('id') id: string) {
     return this.tenantService.findById(id).then(async (tenant) => {
@@ -494,6 +520,36 @@ export class TenantController {
       },
     });
 
+    // Calculate real MRR from active subscriptions (respecting promotions)
+    const activeSubscriptions = await this.prisma.subscription.findMany({
+      where: { status: 'ACTIVE' },
+      include: { plan: true },
+    });
+
+    let mrrCents = 0;
+    for (const sub of activeSubscriptions) {
+      const planPrice = sub.originalValueCents || sub.plan?.priceCents || 0;
+      let effectivePrice = planPrice;
+      if ((sub.promotionMonthsLeft || 0) > 0 && sub.promotionId) {
+        const promo = await this.prisma.promotion.findUnique({
+          where: { id: sub.promotionId },
+        });
+        if (promo) {
+          if (promo.discountCents) {
+            effectivePrice = Math.max(0, planPrice - promo.discountCents);
+          } else if (promo.discountPercent) {
+            effectivePrice = Math.round(planPrice * (1 - promo.discountPercent / 100));
+          }
+        }
+      }
+      // For annual billing, convert to monthly equivalent
+      if (sub.billingCycle === 'ANNUAL') {
+        mrrCents += Math.round(effectivePrice / 12);
+      } else {
+        mrrCents += effectivePrice;
+      }
+    }
+
     return {
       totalTenants,
       activeTenants,
@@ -506,7 +562,7 @@ export class TenantController {
         priceCents: p.priceCents,
         tenantCount: p._count.tenants,
       })),
-      mrrCents: plans.reduce((sum, p) => sum + p.priceCents * p._count.tenants, 0),
+      mrrCents,
     };
   }
 

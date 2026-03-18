@@ -1,23 +1,37 @@
 # TAREFA ATUAL
 
-## Versao: v1.04.88
-## Ultima sessao: 138 (18/03/2026)
+## Versao: v1.04.92
+## Ultima sessao: 139 (18/03/2026)
 
 ## Pendencias
 
+### A FAZER (PRIORIDADE)
+- **Bug 1 pos-deploy**: Chamar PATCH /tenants/{sls-tenant-id}/fix-subscription para corrigir status SLS
+
 ### A FAZER
-- **Planos Tecnikos + limites de notas**: Definir pricing e limites NFS-e por plano
 - **Token revenda no admin**: Mover FOCUS_NFE_RESELLER_TOKEN de .env para painel admin SaaS
 - **Fase 3 — Offline-first**: IndexedDB para OS locais + fila de sync (futuro)
 - **Push Notifications**: Integrar Web Push API com backend (service worker ja preparado)
 - **TenantMigratorService**: Corrigir copia de FKs ao criar tabelas novas em tenant schemas
 
+### CONCLUIDO (sessao 139)
+- **Fix billing "Pagamento atrasado"**: Endpoint admin PATCH /tenants/:id/fix-subscription para corrigir status
+- **Fix MRR real**: getMetrics() calcula MRR com valor efetivo (promocoes + ciclo anual)
+- **Fix ciclo billing**: monthlyUsage() usa currentPeriodStart/End da Subscription (nao mes calendario)
+- **Fix textos billing**: "Uso neste ciclo" + "transacoes" em vez de "Uso de OS" + "OS"
+
 ### CONCLUIDO (sessao 138)
-- **Cancelamento 2 etapas**: Status CANCELLING + retry automatico 3s para municipios que exigem duplo DELETE
+- **Cancelamento 2 etapas**: Status CANCELLING + retry (GET query + DELETE) para municipios com duplo cancelamento
 - **Frontend CANCELLING**: Badge laranja "Cancelando" + botao refresh para confirmar cancelamento
-- **FOCUS_NFE_RESELLER_TOKEN**: Configurado no .env.production do servidor (plano Start ativo)
+- **FOCUS_NFE_RESELLER_TOKEN**: Configurado no .env.production (plano Start ativo, token producao)
 - **API de Empresas testada**: GET /v2/empresas retorna SLS Obras (ID: 192027) com sucesso
-- **docker-compose.production.yml**: Adicionada variavel FOCUS_NFE_RESELLER_TOKEN
+- **Tokens atualizados**: Prod e homolog novos salvos no NfseConfig + focusNfeCompanyId=192027
+- **Enforcement NFS-e 1:1 com OS**: NFS-e avulsa conta como transacao no limite maxOsPerMonth
+- **Enforcement em todos os pontos**: create OS, duplicate OS, emit NFS-e, createOsFromQuote
+- **monthlyUsage breakdown**: Retorna osCount + avulsaNfseCount separados
+- **Billing page breakdown**: Mostra "9 OS + 4 NFS-e avulsas" abaixo da barra de progresso
+- **Bug cancelamento Focus NFe**: Ticket #216000 aberto — Focus nao sincroniza cancelamento da prefeitura (Primavera do Leste/MT)
+- **Plano Focus Start contratado**: R$113,90/mes, 3 CNPJs, 100 notas/CNPJ, primeiro boleto maio/2026
 
 ### CONCLUIDO (sessao 137)
 - **Wizard IA NFS-e**: 7 steps guiados via ChatIA (registro auto, certificado, IBGE, servicos, ISS, validacao, teste)
