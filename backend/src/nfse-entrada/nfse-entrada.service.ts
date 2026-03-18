@@ -344,7 +344,10 @@ export class NfseEntradaService {
      syncFromFocus — Import NFS-e recebidas from Focus NFe API
      ═══════════════════════════════════════════════════════════════════ */
 
-  async syncFromFocus(companyId: string): Promise<{ imported: number; skipped: number; total: number }> {
+  private static readonly MAX_IMPORT_PER_SYNC = 50;
+
+  async syncFromFocus(companyId: string, maxImport?: number): Promise<{ imported: number; skipped: number; total: number; limitReached: boolean }> {
+    const limit = maxImport ?? NfseEntradaService.MAX_IMPORT_PER_SYNC;
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) {
       throw new BadRequestException('Token Focus NFe nao configurado');
@@ -458,6 +461,12 @@ export class NfseEntradaService {
         });
 
         imported++;
+
+        // Stop if limit reached
+        if (imported >= limit) {
+          hasMore = false;
+          break;
+        }
       }
 
       // Update version for incremental pagination
@@ -466,8 +475,12 @@ export class NfseEntradaService {
       }
 
       // If we got fewer than 100 results, there are no more pages
-      hasMore = result.data.length >= 100;
+      if (hasMore) {
+        hasMore = result.data.length >= 100;
+      }
     }
+
+    const limitReached = imported >= limit;
 
     // Save last sync version
     await this.prisma.nfseConfig.update({
@@ -475,8 +488,8 @@ export class NfseEntradaService {
       data: { lastNfseSyncVersion: currentVersion },
     });
 
-    this.logger.log(`Focus NFe sync for company ${companyId}: imported=${imported}, skipped=${skipped}, total=${totalFetched}`);
-    return { imported, skipped, total: totalFetched };
+    this.logger.log(`Focus NFe sync for company ${companyId}: imported=${imported}, skipped=${skipped}, total=${totalFetched}, limitReached=${limitReached}`);
+    return { imported, skipped, total: totalFetched, limitReached };
   }
 
   /** Get decrypted active token from NfseConfig */
