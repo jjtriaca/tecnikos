@@ -883,9 +883,14 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                         <label className="block text-xs font-medium text-slate-600 mb-1">Aliquota ISS (%)</label>
                         <input
                           type="text"
+                          inputMode="decimal"
                           value={aliquotaIss}
-                          onChange={(e) => setAliquotaIss(e.target.value)}
-                          placeholder="Ex: 3.0"
+                          onChange={(e) => {
+                            // Allow only digits, comma and dot
+                            const v = e.target.value.replace(/[^\d.,]/g, "");
+                            setAliquotaIss(v);
+                          }}
+                          placeholder="Ex: 2,32"
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                         />
                       </div>
