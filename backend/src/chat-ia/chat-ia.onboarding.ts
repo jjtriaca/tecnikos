@@ -34,7 +34,7 @@ export class ChatIAOnboardingService {
       ? this.tenantConnection.getClient(tenantSchema)
       : this.prisma;
 
-    const [company, emailConfig, whatsappConfig, workflowCount, userCount, technicianCount, paymentMethodCount, automationCount] =
+    const [company, emailConfig, whatsappConfig, workflowCount, userCount, technicianCount, paymentMethodCount, automationCount, nfseConfig, serviceCodeCount] =
       await Promise.all([
         db.company.findFirst({ select: { phone: true, cep: true, logoUrl: true, cnpj: true, name: true, fiscalEnabled: true } }),
         db.emailConfig.findFirst({ select: { isConnected: true } }).catch(() => null),
@@ -44,6 +44,8 @@ export class ChatIAOnboardingService {
         db.partner.count({ where: { deletedAt: null, partnerTypes: { has: 'TECNICO' } } }).catch(() => 0),
         db.paymentMethod.count().catch(() => 0),
         db.automationRule.count({ where: { isActive: true } }).catch(() => 0),
+        db.nfseConfig.findFirst({ select: { focusNfeToken: true, focusNfeTokenHomolog: true, codigoMunicipio: true, aliquotaIss: true, inscricaoMunicipal: true } }).catch(() => null),
+        db.nfseServiceCode.count({ where: { active: true } }).catch(() => 0),
       ]);
 
     const items: OnboardingItem[] = [
@@ -98,10 +100,14 @@ export class ChatIAOnboardingService {
       {
         key: 'fiscal',
         label: 'Módulo Fiscal / NFS-e',
-        done: company?.fiscalEnabled ?? false,
-        optional: true,
+        done: company?.fiscalEnabled
+          ? !!(nfseConfig?.focusNfeToken || nfseConfig?.focusNfeTokenHomolog) && !!nfseConfig?.codigoMunicipio && serviceCodeCount > 0
+          : false,
+        optional: !company?.fiscalEnabled,
         href: '/settings/fiscal',
-        description: 'Habilitar emissão de NFS-e (requer certificado Focus NFe)',
+        description: company?.fiscalEnabled
+          ? `Configurar NFS-e: ${!nfseConfig?.focusNfeToken && !nfseConfig?.focusNfeTokenHomolog ? 'Token Focus NFe, ' : ''}${!nfseConfig?.codigoMunicipio ? 'Código IBGE, ' : ''}${serviceCodeCount === 0 ? 'Serviços habilitados, ' : ''}${!nfseConfig?.aliquotaIss ? 'Alíquota ISS' : 'OK'}`.replace(/, $/, '')
+          : 'Habilitar emissão de NFS-e (requer conta Focus NFe)',
       },
       {
         key: 'paymentMethods',

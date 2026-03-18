@@ -331,4 +331,24 @@ export class FocusNfeProvider {
       throw new Error(err.mensagem || `Focus NFe email error: ${response.status}`);
     }
   }
+
+  // ========== TEST CONNECTION ==========
+
+  async testConnection(token: string, environment: string): Promise<{ valid: boolean; message: string }> {
+    const baseUrl = this.getBaseUrl(environment);
+    try {
+      // Use the /v2/nfse endpoint to check auth (GET returns 405 but proves auth works vs 401)
+      const response = await fetch(`${baseUrl}/v2/nfse?ref=test-connection`, {
+        method: 'GET',
+        headers: this.getHeaders(token),
+      });
+      if (response.status === 401 || response.status === 403) {
+        return { valid: false, message: 'Token inválido ou sem permissão' };
+      }
+      // Any other status (200, 404, 405) means auth worked
+      return { valid: true, message: 'Conexão OK' };
+    } catch (err) {
+      return { valid: false, message: `Erro de conexão: ${(err as Error).message}` };
+    }
+  }
 }

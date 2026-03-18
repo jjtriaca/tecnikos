@@ -574,6 +574,22 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
 
               {preview && !loading && (
                 <>
+                  {/* Pre-flight validation issues */}
+                  {(preview as any).validationIssues?.length > 0 && (
+                    <div className="rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 mb-3">
+                      <p className="text-sm font-semibold text-amber-800 mb-2">Configuracao incompleta:</p>
+                      <ul className="space-y-1">
+                        {(preview as any).validationIssues.map((issue: { field: string; message: string; link?: string }, i: number) => (
+                          <li key={i} className="flex items-center gap-2 text-xs text-amber-700">
+                            <span className="text-amber-500">&#9888;</span>
+                            <span>{issue.message}</span>
+                            {issue.link && <a href={issue.link} target="_blank" rel="noopener" className="text-blue-600 underline ml-1">[Corrigir]</a>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {/* Valor */}
                   <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center justify-between">
                     <span className="text-sm font-medium text-blue-800">Valor dos Servicos</span>

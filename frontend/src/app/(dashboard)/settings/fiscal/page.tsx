@@ -151,6 +151,8 @@ export default function FiscalSettingsPage() {
   const [editingCode, setEditingCode] = useState<any | null>(null);
   const [showCodeForm, setShowCodeForm] = useState(false);
   const [savingCode, setSavingCode] = useState(false);
+  const [testingToken, setTestingToken] = useState(false);
+  const [tokenTestResult, setTokenTestResult] = useState<{ valid: boolean; message: string } | null>(null);
   const [codeSearch, setCodeSearch] = useState("");
   const [showCodeDropdown, setShowCodeDropdown] = useState(false);
   const codeSearchRef = useRef<HTMLDivElement>(null);
@@ -633,6 +635,19 @@ export default function FiscalSettingsPage() {
           <svg className="w-4 h-4 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
           Conexao Focus NFe
         </h3>
+
+        {/* Orientation block */}
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 mb-4">
+          <p className="text-xs font-semibold text-blue-800 mb-2">Como configurar a emissao de NFS-e:</p>
+          <ol className="text-xs text-blue-700 space-y-1 list-decimal ml-4">
+            <li>Crie uma conta no <a href="https://app-v2.focusnfe.com.br" target="_blank" rel="noopener" className="underline font-semibold">Focus NFe (app-v2.focusnfe.com.br)</a></li>
+            <li>Cadastre sua empresa (CNPJ) e anexe o <strong>certificado digital</strong> (e-CNPJ A1)</li>
+            <li>Habilite o documento <strong>NFSe</strong> na aba &quot;Documentos Fiscais&quot;</li>
+            <li>Copie os <strong>tokens</strong> da aba &quot;Tokens&quot; (producao e homologacao) e cole abaixo</li>
+            <li>Escolha o <strong>ambiente</strong> (Homologacao para testes, Producao para notas reais)</li>
+          </ol>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className={labelClass}>Token Producao</label>
@@ -656,7 +671,7 @@ export default function FiscalSettingsPage() {
             <label className={labelClass}>Ambiente</label>
             <select
               value={config.focusNfeEnvironment}
-              onChange={(e) => setConfig({ ...config, focusNfeEnvironment: e.target.value })}
+              onChange={(e) => { setConfig({ ...config, focusNfeEnvironment: e.target.value }); setTokenTestResult(null); }}
               className={inputClass}
             >
               <option value="HOMOLOGATION">Homologacao (testes)</option>
@@ -675,7 +690,30 @@ export default function FiscalSettingsPage() {
             </select>
             <p className="text-xs text-slate-400 mt-1">Verifique qual layout seu municipio usa em focusnfe.com.br</p>
           </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={async () => {
+                setTestingToken(true); setTokenTestResult(null);
+                try {
+                  const result = await api.post<{ valid: boolean; message: string }>("/nfse-emission/config/test-token", { environment: config.focusNfeEnvironment });
+                  setTokenTestResult(result);
+                } catch (err: any) {
+                  setTokenTestResult({ valid: false, message: err?.message || "Erro ao testar" });
+                } finally { setTestingToken(false); }
+              }}
+              disabled={testingToken}
+              className="px-4 py-2.5 text-sm font-medium bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors"
+            >
+              {testingToken ? "Testando..." : "Testar Conexao"}
+            </button>
+          </div>
         </div>
+        {tokenTestResult && (
+          <div className={`mt-3 px-3 py-2 rounded-lg text-xs font-medium ${tokenTestResult.valid ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
+            {tokenTestResult.valid ? "✓ " : "✗ "}{tokenTestResult.message} ({config.focusNfeEnvironment === "HOMOLOGATION" ? "Homologacao" : "Producao"})
+          </div>
+        )}
       </div>
 
       {/* ── Dados do Prestador ── */}

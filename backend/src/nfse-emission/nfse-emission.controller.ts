@@ -36,6 +36,12 @@ export class NfseEmissionController {
     return this.nfseService.saveConfig(req.user.companyId, dto);
   }
 
+  @Post('config/test-token')
+  @Roles('ADMIN', 'FISCAL')
+  async testToken(@Req() req: any, @Body() body: { environment?: string }) {
+    return this.nfseService.testToken(req.user.companyId, body?.environment);
+  }
+
   // ========== SERVICE CODES ==========
 
   @Get('service-codes')

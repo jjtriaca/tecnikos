@@ -31,6 +31,21 @@ export class NfseEmissionService {
     private readonly whatsApp: WhatsAppService,
   ) {}
 
+  /** Map Focus NFe technical errors to user-friendly messages */
+  private mapFocusError(raw: string): string {
+    const msg = raw || '';
+    if (/401.*access denied/i.test(msg)) return 'Token Focus NFe inválido para este ambiente. Verifique o token em Configurações > Fiscal.';
+    if (/município.*não existe|não está ativo no convênio/i.test(msg)) return 'O município informado não está ativo na NFS-e Nacional. Verifique o código IBGE em Configurações > Fiscal.';
+    if (/cTribNac.*inválido|codigo_tributacao_nacional/i.test(msg)) return 'O código tributário (cTribNac) não é válido para este município. Consulte os serviços habilitados na sua prefeitura.';
+    if (/alíquota|aliquota.*não permitida/i.test(msg)) return 'A alíquota ISS configurada não é aceita pelo município. Verifique o valor correto na prefeitura.';
+    if (/inscrição municipal|inscricao_municipal.*obrigatór/i.test(msg)) return 'Inscrição Municipal obrigatória para este município. Configure em Configurações > Fiscal > Dados do Prestador.';
+    if (/tomador.*endereço|endereco.*tomador/i.test(msg)) return 'Endereço do tomador incompleto. Edite o cadastro do parceiro e preencha o endereço.';
+    if (/CNPJ.*inválido|CPF.*inválido/i.test(msg)) return 'CPF/CNPJ do tomador inválido. Verifique o documento no cadastro do parceiro.';
+    if (/erro interno|internal.*error/i.test(msg)) return 'Erro temporário do Focus NFe. Aguarde alguns minutos e tente novamente.';
+    if (/Unsupported state|unable to authenticate/i.test(msg)) return 'Erro de autenticação interna. Re-salve o token Focus NFe em Configurações > Fiscal.';
+    return msg; // fallback: return original
+  }
+
   // ========== CONFIG ==========
 
   async getConfig(companyId: string) {
@@ -81,6 +96,24 @@ export class NfseEmissionService {
       focusNfeToken: config.focusNfeToken ? '••••••••' : null,
       focusNfeTokenHomolog: config.focusNfeTokenHomolog ? '••••••••' : null,
     };
+  }
+
+  // ========== TEST CONNECTION ==========
+
+  async testToken(companyId: string, environment?: string) {
+    const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    if (!config) throw new BadRequestException('Configuração fiscal não encontrada');
+
+    const env = environment || config.focusNfeEnvironment || 'HOMOLOGATION';
+    const encrypted = env === 'HOMOLOGATION' ? (config.focusNfeTokenHomolog || config.focusNfeToken) : config.focusNfeToken;
+    if (!encrypted) return { valid: false, message: `Token ${env === 'HOMOLOGATION' ? 'homologação' : 'produção'} não configurado` };
+
+    try {
+      const token = this.encryption.decrypt(encrypted);
+      return await this.focusNfe.testConnection(token, env);
+    } catch {
+      return { valid: false, message: 'Erro ao decriptar token. Re-salve o token nas configurações.' };
+    }
   }
 
   // ========== PREVIEW (dados para tela de confirmação) ==========
@@ -180,6 +213,17 @@ export class NfseEmissionService {
         where: { companyId, active: true },
         orderBy: { descricao: 'asc' },
       }),
+      // Pre-flight validation issues
+      validationIssues: (() => {
+        const issues: { field: string; message: string; link?: string }[] = [];
+        const activeToken = config.focusNfeEnvironment === 'HOMOLOGATION' ? (config.focusNfeTokenHomolog || config.focusNfeToken) : config.focusNfeToken;
+        if (!activeToken) issues.push({ field: 'token', message: `Token Focus NFe (${config.focusNfeEnvironment === 'HOMOLOGATION' ? 'homologação' : 'produção'}) não configurado`, link: '/settings/fiscal' });
+        if (!config.codigoMunicipio) issues.push({ field: 'codigoMunicipio', message: 'Código do município (IBGE) não configurado', link: '/settings/fiscal' });
+        if (!config.aliquotaIss && config.aliquotaIss !== 0) issues.push({ field: 'aliquotaIss', message: 'Alíquota ISS não configurada', link: '/settings/fiscal' });
+        if (!tomador?.document) issues.push({ field: 'tomadorDoc', message: 'Tomador (parceiro) sem CPF/CNPJ cadastrado', link: '/partners' });
+        if (!tomador?.addressStreet) issues.push({ field: 'tomadorEndereco', message: 'Tomador sem endereço cadastrado', link: '/partners' });
+        return issues;
+      })(),
     };
   }
 
@@ -446,10 +490,11 @@ export class NfseEmissionService {
       }
     } catch (error) {
       this.logger.error(`Focus NFe emission failed: ${error.message}`, error.stack);
+      const friendlyError = this.mapFocusError(error.message);
       await this.prisma.$transaction([
         this.prisma.nfseEmission.update({
           where: { id: emission.id },
-          data: { status: 'ERROR', errorMessage: error.message },
+          data: { status: 'ERROR', errorMessage: friendlyError },
         }),
         this.prisma.financialEntry.update({
           where: { id: dto.financialEntryId },
@@ -486,7 +531,8 @@ export class NfseEmissionService {
     if (payload.status === 'autorizado') {
       await this.handleAuthorized(emission.id, entryId, payload);
     } else if (payload.status === 'erro_autorizacao') {
-      const errorMsg = payload.erros?.map((e: any) => e.mensagem).join('; ') || 'Erro desconhecido';
+      const rawError = payload.erros?.map((e: any) => e.mensagem).join('; ') || 'Erro desconhecido';
+      const errorMsg = this.mapFocusError(rawError);
       await this.prisma.$transaction([
         this.prisma.nfseEmission.update({
           where: { id: emission.id },
