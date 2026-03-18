@@ -242,6 +242,7 @@ export const NFSE_STATUS_CONFIG: Record<string, { label: string; color: string; 
   PROCESSING:  { label: 'Processando',   color: 'text-amber-700',  bgColor: 'bg-amber-50',  borderColor: 'border-amber-200' },
   AUTHORIZED:  { label: 'Autorizada',    color: 'text-green-700',  bgColor: 'bg-green-50',  borderColor: 'border-green-200' },
   ERROR:       { label: 'Erro',          color: 'text-red-700',    bgColor: 'bg-red-50',    borderColor: 'border-red-200' },
+  CANCELLING:  { label: 'Cancelando',    color: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' },
   CANCELLED:   { label: 'Cancelada',     color: 'text-slate-500',  bgColor: 'bg-slate-50',  borderColor: 'border-slate-200' },
 };
 
