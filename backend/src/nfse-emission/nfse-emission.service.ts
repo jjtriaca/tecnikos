@@ -178,6 +178,9 @@ export class NfseEmissionService {
     if (layout === 'NACIONAL') {
       empresaData.habilita_nfsen_producao = environment === 'PRODUCTION';
       empresaData.habilita_nfsen_homologacao = environment === 'HOMOLOGATION';
+      // Enable receiving NFS-e Nacional (serviços tomados)
+      empresaData.habilita_nfsen_recebidas_producao = true;
+      empresaData.habilita_nfsen_recebidas_homologacao = true;
     } else {
       empresaData.habilita_nfse = true;
     }
