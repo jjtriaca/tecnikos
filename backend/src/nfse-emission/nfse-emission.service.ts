@@ -144,6 +144,7 @@ export class NfseEmissionService {
         afterEmissionSendWhatsApp: config.afterEmissionSendWhatsApp,
         codigoTributarioNacional: config.codigoTributarioNacional || '',
         codigoTributarioNacionalServico: config.codigoTributarioNacionalServico || '',
+        focusNfeEnvironment: config.focusNfeEnvironment || 'HOMOLOGATION',
       },
       // Entry info
       financialEntry: {

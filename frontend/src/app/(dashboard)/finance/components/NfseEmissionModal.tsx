@@ -62,6 +62,7 @@ interface NfsePreview {
     afterEmissionSendWhatsApp: boolean;
     codigoTributarioNacional: string;
     codigoTributarioNacionalServico: string;
+    focusNfeEnvironment: string;
   };
   financialEntry: {
     id: string;
@@ -526,6 +527,12 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                 <h2 className="text-lg font-bold text-slate-900">Emitir NFS-e</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Confirme os dados antes de emitir</p>
               </>
+            )}
+            {/* Homologation warning */}
+            {preview?.config?.focusNfeEnvironment === "HOMOLOGATION" && (
+              <div className="mt-2 px-3 py-2 rounded-lg bg-amber-500 text-white text-center text-sm font-bold animate-pulse">
+                AMBIENTE DE TESTE (HOMOLOGACAO) — Esta NFS-e NAO tem valor fiscal
+              </div>
             )}
             {phase === "PROCESSING" && (
               <>
