@@ -869,9 +869,10 @@ export default function FiscalSettingsPage() {
                   {showCodeDropdown && codeSearch.length >= 2 && (
                     <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
                       {(() => {
-                        const q = codeSearch.toLowerCase();
+                        const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                        const q = norm(codeSearch);
                         const filtered = (ctribnacRef as { c: string; i: string; d: string }[]).filter(
-                          (r) => r.c.includes(q) || r.d.toLowerCase().includes(q) || r.i.includes(q)
+                          (r) => r.c.includes(q) || norm(r.d).includes(q) || r.i.includes(q)
                         ).slice(0, 30);
                         if (filtered.length === 0) return <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>;
                         return filtered.map((r) => (
