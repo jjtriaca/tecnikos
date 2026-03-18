@@ -6,7 +6,6 @@ import Link from "next/link";
 import PasswordInput from "@/components/ui/PasswordInput";
 import { useFiscalModule } from "@/contexts/FiscalModuleContext";
 import ctribnacRef from "@/lib/ctribnac-ref.json";
-import nbsRef from "@/lib/nbs-ref.json";
 
 /* ===================================================================
    FISCAL SETTINGS — Tax Regime + NFS-e Configuration
@@ -152,9 +151,6 @@ export default function FiscalSettingsPage() {
   const [codeSearch, setCodeSearch] = useState("");
   const [showCodeDropdown, setShowCodeDropdown] = useState(false);
   const codeSearchRef = useRef<HTMLDivElement>(null);
-  const [nbsSearch, setNbsSearch] = useState("");
-  const [showNbsDropdown, setShowNbsDropdown] = useState(false);
-  const nbsSearchRef = useRef<HTMLDivElement>(null);
   const successTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentSnapshot = editableSnapshot(config, token);
@@ -203,7 +199,6 @@ export default function FiscalSettingsPage() {
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (codeSearchRef.current && !codeSearchRef.current.contains(e.target as Node)) setShowCodeDropdown(false);
-      if (nbsSearchRef.current && !nbsSearchRef.current.contains(e.target as Node)) setShowNbsDropdown(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -222,7 +217,7 @@ export default function FiscalSettingsPage() {
     fetchServiceCodes();
   }, [fetchConfig, fetchFiscalConfig, fetchServiceCodes]);
 
-  const emptyCode = { codigo: "", codigoNbs: "", descricao: "", tipo: "SERVICO", aliquotaIss: null as number | null, itemListaServico: "", codigoCnae: "", codigoTribMunicipal: "" };
+  const emptyCode = { codigo: "", descricao: "", tipo: "SERVICO", aliquotaIss: null as number | null, itemListaServico: "", codigoCnae: "", codigoTribMunicipal: "" };
 
   const [codeFormError, setCodeFormError] = useState<string | null>(null);
 
@@ -240,7 +235,6 @@ export default function FiscalSettingsPage() {
         descricao: editingCode.descricao,
         tipo: editingCode.tipo || "SERVICO",
       };
-      if (editingCode.codigoNbs) payload.codigoNbs = editingCode.codigoNbs;
       if (editingCode.aliquotaIss != null && editingCode.aliquotaIss !== "") payload.aliquotaIss = Number(editingCode.aliquotaIss);
       if (editingCode.itemListaServico) payload.itemListaServico = editingCode.itemListaServico;
       if (editingCode.codigoCnae) payload.codigoCnae = editingCode.codigoCnae;
@@ -802,7 +796,7 @@ export default function FiscalSettingsPage() {
             Servicos Habilitados na Prefeitura
           </h3>
           <button
-            onClick={() => { setEditingCode({ ...emptyCode }); setShowCodeForm(true); setCodeSearch(""); setNbsSearch(""); }}
+            onClick={() => { setEditingCode({ ...emptyCode }); setShowCodeForm(true); setCodeSearch(""); }}
             className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             + Novo Servico
@@ -822,7 +816,6 @@ export default function FiscalSettingsPage() {
               <thead>
                 <tr className="border-b border-slate-200 text-left text-slate-500">
                   <th className="pb-2 pr-3 font-medium">cTribNac</th>
-                  <th className="pb-2 pr-3 font-medium">NBS</th>
                   <th className="pb-2 pr-3 font-medium">Descricao</th>
                   <th className="pb-2 pr-3 font-medium">Tipo</th>
                   <th className="pb-2 pr-3 font-medium">ISS %</th>
@@ -834,7 +827,6 @@ export default function FiscalSettingsPage() {
                 {serviceCodes.map((sc) => (
                   <tr key={sc.id} className={`border-b border-slate-100 ${!sc.active ? "opacity-40" : ""}`}>
                     <td className="py-2 pr-3 font-mono">{sc.codigo}</td>
-                    <td className="py-2 pr-3 font-mono text-slate-500">{sc.codigoNbs || "-"}</td>
                     <td className="py-2 pr-3">{sc.descricao}</td>
                     <td className="py-2 pr-3">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${sc.tipo === "OBRA" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
@@ -935,44 +927,6 @@ export default function FiscalSettingsPage() {
               <div>
                 <label className={labelClass}>cTribNac *</label>
                 <input type="text" value={editingCode.codigo} onChange={(e) => setEditingCode({ ...editingCode, codigo: e.target.value })} placeholder="140601" maxLength={6} className={inputClass + " font-mono"} readOnly={!editingCode.id && !!editingCode.codigo} />
-              </div>
-              <div ref={nbsSearchRef} className="relative">
-                <label className={labelClass}>Item NBS</label>
-                <input
-                  type="text"
-                  value={showNbsDropdown ? nbsSearch : (editingCode.codigoNbs || "")}
-                  onChange={(e) => { setNbsSearch(e.target.value); setShowNbsDropdown(true); }}
-                  onFocus={() => { setNbsSearch(editingCode.codigoNbs || ""); setShowNbsDropdown(true); }}
-                  placeholder="Buscar NBS..."
-                  className={inputClass + " font-mono"}
-                />
-                {showNbsDropdown && nbsSearch.length >= 2 && (
-                  <div className="absolute z-50 mt-1 w-[500px] max-h-48 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
-                    {(() => {
-                      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                      const q = norm(nbsSearch);
-                      const filtered = (nbsRef as { c: string; d: string }[]).filter(
-                        (r) => r.c.includes(q) || norm(r.d).includes(q)
-                      ).slice(0, 30);
-                      if (filtered.length === 0) return <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>;
-                      return filtered.map((r) => (
-                        <button
-                          key={r.c}
-                          type="button"
-                          onClick={() => {
-                            setEditingCode({ ...editingCode, codigoNbs: r.c });
-                            setNbsSearch("");
-                            setShowNbsDropdown(false);
-                          }}
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 border-b border-slate-100 last:border-0"
-                        >
-                          <span className="font-mono font-semibold text-blue-700">{r.c}</span>
-                          <span className="text-slate-600 ml-2">{r.d}</span>
-                        </button>
-                      ));
-                    })()}
-                  </div>
-                )}
               </div>
               <div>
                 <label className={labelClass}>Tipo</label>

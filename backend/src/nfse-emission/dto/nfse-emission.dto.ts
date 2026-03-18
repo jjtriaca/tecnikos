@@ -53,6 +53,8 @@ export class EmitNfseDto {
   @IsOptional() @IsString() obraId?: string;
   // Service code selecionado
   @IsOptional() @IsString() serviceCodeId?: string;
+  // NBS selecionado na emissao
+  @IsOptional() @IsString() codigoNbs?: string;
 }
 
 export class CreateNfseServiceCodeDto {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { toTitleCase } from "@/lib/brazil-utils";
+import nbsRef from "@/lib/nbs-ref.json";
 
 /* ===================================================================
    NFS-e EMISSION MODAL — 3-Phase Flow
@@ -185,6 +186,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [selectedObraId, setSelectedObraId] = useState<string>("");
   const [loadingObras, setLoadingObras] = useState(false);
   const [selectedServiceCodeId, setSelectedServiceCodeId] = useState<string>("");
+  const [nbsSearch, setNbsSearch] = useState("");
+  const [selectedNbs, setSelectedNbs] = useState("");
+  const [showNbsDropdown, setShowNbsDropdown] = useState(false);
+  const nbsSearchRef = useRef<HTMLDivElement>(null);
 
   // SEND phase state
   const [sendEmail, setSendEmail] = useState(true);
@@ -205,6 +210,8 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       setEmitting(false);
       setSending(false);
       setSelectedServiceCodeId("");
+      setSelectedNbs("");
+      setNbsSearch("");
     } else {
       // Clean up polling when modal closes
       if (pollTimerRef.current) {
@@ -213,6 +220,15 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       }
     }
   }, [open]);
+
+  // Close NBS dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (nbsSearchRef.current && !nbsSearchRef.current.contains(e.target as Node)) setShowNbsDropdown(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Load preview
   const loadPreview = useCallback(async () => {
@@ -355,6 +371,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         serviceOrderId: preview.financialEntry.serviceOrderId,
         tipoNota,
         ...(selectedServiceCodeId ? { serviceCodeId: selectedServiceCodeId } : {}),
+        ...(selectedNbs ? { codigoNbs: selectedNbs } : {}),
         ...(tipoNota === "OBRA" && selectedObraId ? { obraId: selectedObraId } : {}),
         tomadorCnpjCpf,
         tomadorRazaoSocial,
@@ -651,6 +668,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                             onChange={(e) => {
                               const id = e.target.value;
                               setSelectedServiceCodeId(id);
+                              setSelectedNbs(""); setNbsSearch("");
                               const sc = (preview.serviceCodes || []).find(s => s.id === id);
                               if (sc) {
                                 if (sc.aliquotaIss != null) setAliquotaIss(String(sc.aliquotaIss));
@@ -682,6 +700,58 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                         )}
                       </div>
                     </div>
+
+                    {/* NBS selector — shown when a service code is selected */}
+                    {selectedServiceCodeId && (
+                      <div className="mb-4" ref={nbsSearchRef}>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Codigo NBS</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={showNbsDropdown ? nbsSearch : selectedNbs}
+                            onChange={(e) => { setNbsSearch(e.target.value); setShowNbsDropdown(true); }}
+                            onFocus={() => { setNbsSearch(selectedNbs || ""); setShowNbsDropdown(true); }}
+                            placeholder="Buscar por codigo ou descricao (ex: aquecimento, instalacao)..."
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none pr-8"
+                          />
+                          <svg className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                          {showNbsDropdown && nbsSearch.length >= 2 && (
+                            <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
+                              {(() => {
+                                const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                const q = norm(nbsSearch);
+                                const filtered = (nbsRef as { c: string; d: string }[]).filter(
+                                  (r) => r.c.includes(q) || norm(r.d).includes(q)
+                                ).slice(0, 30);
+                                if (filtered.length === 0) return <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>;
+                                return filtered.map((r) => (
+                                  <button
+                                    key={r.c}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedNbs(r.c);
+                                      setNbsSearch("");
+                                      setShowNbsDropdown(false);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                                  >
+                                    <span className="font-mono font-semibold text-blue-700">{r.c}</span>
+                                    <span className="text-slate-600 ml-2">{r.d}</span>
+                                  </button>
+                                ));
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                        {selectedNbs && (
+                          <p className="mt-1 text-xs text-green-600">
+                            NBS: <span className="font-mono font-semibold">{selectedNbs}</span>
+                            {" — "}
+                            {(nbsRef as { c: string; d: string }[]).find(r => r.c === selectedNbs)?.d || ""}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Obra selector (only when tipo=OBRA) */}
                     {tipoNota === "OBRA" && (

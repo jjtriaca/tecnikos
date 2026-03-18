@@ -295,7 +295,7 @@ export class NfseEmissionService {
         codigo_municipio_prestacao: codigoMunicipioNum,
         codigo_tributacao_nacional_iss: codigoTribNac,
         codigo_tributacao_municipal_iss: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
-        codigo_nbs: serviceCode?.codigoNbs || undefined,
+        codigo_nbs: dto.codigoNbs || undefined,
         descricao_servico: dto.discriminacao || '',
         valor_servico: valorServicos,
         percentual_aliquota_relativa_municipio: aliquota || undefined,
