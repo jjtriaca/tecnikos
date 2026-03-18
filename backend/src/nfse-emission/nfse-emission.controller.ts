@@ -9,7 +9,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { ApiTags } from '@nestjs/swagger';
 import { FiscalGuard } from '../auth/guards/fiscal.guard';
 import { NfseEmissionService } from './nfse-emission.service';
-import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto, UpdateNfseServiceCodeDto } from './dto/nfse-emission.dto';
+import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto, UpdateNfseServiceCodeDto, UploadCertificateDto } from './dto/nfse-emission.dto';
 import type { Response } from 'express';
 import { TenantResolverService } from '../tenant/tenant-resolver.service';
 import { runInTenantContext } from '../tenant/tenant-context';
@@ -40,6 +40,20 @@ export class NfseEmissionController {
   @Roles('ADMIN', 'FISCAL')
   async testToken(@Req() req: any, @Body() body: { environment?: string }) {
     return this.nfseService.testToken(req.user.companyId, body?.environment);
+  }
+
+  // ========== API DE EMPRESAS (REVENDA) ==========
+
+  @Post('config/register-empresa')
+  @Roles('ADMIN', 'FISCAL')
+  async registerEmpresa(@Req() req: any) {
+    return this.nfseService.registerOrUpdateEmpresa(req.user.companyId);
+  }
+
+  @Post('config/upload-certificate')
+  @Roles('ADMIN', 'FISCAL')
+  async uploadCertificate(@Req() req: any, @Body() dto: UploadCertificateDto) {
+    return this.nfseService.uploadCertificate(req.user.companyId, dto.certBase64, dto.senha);
   }
 
   // ========== SERVICE CODES ==========

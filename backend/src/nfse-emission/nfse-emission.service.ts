@@ -116,6 +116,166 @@ export class NfseEmissionService {
     }
   }
 
+  // ========== API DE EMPRESAS (REVENDA) ==========
+
+  /** Mapeia taxRegime do Tecnikos para regime_tributario da Focus NFe */
+  private mapTaxRegime(taxRegime: string, crt: number): number {
+    // Focus NFe: 1=Simples Nacional, 2=SN Excesso, 3=Normal, 4=MEI
+    if (taxRegime === 'SN') return crt === 2 ? 2 : 1;
+    return 3; // LP e LR = Normal
+  }
+
+  /** Registrar ou atualizar empresa na Focus NFe (revenda centralizada) */
+  async registerOrUpdateEmpresa(companyId: string): Promise<{
+    success: boolean;
+    message: string;
+    focusNfeCompanyId?: string;
+    tokenProducao?: boolean;
+    tokenHomologacao?: boolean;
+    certificadoValido?: string;
+  }> {
+    const resellerToken = process.env.FOCUS_NFE_RESELLER_TOKEN;
+    if (!resellerToken) {
+      throw new BadRequestException('Token de revenda Focus NFe não configurado no servidor (FOCUS_NFE_RESELLER_TOKEN)');
+    }
+
+    const company = await this.prisma.company.findFirst({
+      select: {
+        id: true, name: true, tradeName: true, cnpj: true,
+        addressStreet: true, addressNumber: true, addressComp: true,
+        neighborhood: true, city: true, state: true, cep: true,
+        phone: true, email: true, taxRegime: true, crt: true,
+      },
+    });
+
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+    if (!company.cnpj) throw new BadRequestException('CNPJ da empresa não configurado');
+
+    const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    const layout = config?.nfseLayout || 'MUNICIPAL';
+    const environment = config?.focusNfeEnvironment || 'HOMOLOGATION';
+
+    // Build empresa request
+    const empresaData: any = {
+      nome: company.name,
+      nome_fantasia: company.tradeName || undefined,
+      cnpj: company.cnpj.replace(/\D/g, ''),
+      inscricao_municipal: config?.inscricaoMunicipal || undefined,
+      regime_tributario: this.mapTaxRegime(company.taxRegime, company.crt),
+      logradouro: company.addressStreet || undefined,
+      numero: company.addressNumber || undefined,
+      complemento: company.addressComp || undefined,
+      bairro: company.neighborhood || undefined,
+      municipio: company.city || undefined,
+      cep: company.cep?.replace(/\D/g, '') || undefined,
+      uf: company.state || undefined,
+      telefone: company.phone?.replace(/\D/g, '') || undefined,
+      email: company.email || undefined,
+      enviar_email_destinatario: config?.sendEmailToTomador ?? true,
+    };
+
+    // Enable NFS-e based on layout
+    if (layout === 'NACIONAL') {
+      empresaData.habilita_nfsen_producao = environment === 'PRODUCTION';
+      empresaData.habilita_nfsen_homologacao = environment === 'HOMOLOGATION';
+    } else {
+      empresaData.habilita_nfse = true;
+    }
+
+    // Remove undefined fields
+    Object.keys(empresaData).forEach((k) => empresaData[k] === undefined && delete empresaData[k]);
+
+    try {
+      // Check if empresa already exists
+      const existing = await this.focusNfe.getEmpresa(resellerToken, environment, company.cnpj);
+      let result: any;
+
+      if (existing) {
+        // Update existing
+        result = await this.focusNfe.updateEmpresa(resellerToken, environment, company.cnpj, empresaData);
+        this.logger.log(`Empresa updated at Focus NFe: id=${result.id}`);
+      } else {
+        // Create new
+        result = await this.focusNfe.createEmpresa(resellerToken, environment, empresaData);
+        this.logger.log(`Empresa created at Focus NFe: id=${result.id}`);
+      }
+
+      // Save Focus NFe company ID and emission tokens
+      const updateData: any = {
+        focusNfeCompanyId: String(result.id),
+      };
+
+      // Save emission tokens returned by Focus NFe (encrypted)
+      if (result.token_producao) {
+        updateData.focusNfeToken = this.encryption.encrypt(result.token_producao);
+      }
+      if (result.token_homologacao) {
+        updateData.focusNfeTokenHomolog = this.encryption.encrypt(result.token_homologacao);
+      }
+
+      await this.prisma.nfseConfig.upsert({
+        where: { companyId },
+        create: { companyId, ...updateData },
+        update: updateData,
+      });
+
+      return {
+        success: true,
+        message: existing
+          ? `Empresa atualizada na Focus NFe (ID: ${result.id})`
+          : `Empresa registrada na Focus NFe (ID: ${result.id})`,
+        focusNfeCompanyId: String(result.id),
+        tokenProducao: !!result.token_producao,
+        tokenHomologacao: !!result.token_homologacao,
+        certificadoValido: result.certificado_valido_ate || undefined,
+      };
+    } catch (err: any) {
+      this.logger.error(`Focus NFe empresa registration failed: ${err.message}`);
+      return {
+        success: false,
+        message: `Erro ao registrar empresa na Focus NFe: ${err.message}`,
+      };
+    }
+  }
+
+  /** Upload certificado digital A1 para a Focus NFe */
+  async uploadCertificate(companyId: string, certBase64: string, senha: string): Promise<{
+    success: boolean;
+    message: string;
+    validoAte?: string;
+  }> {
+    const resellerToken = process.env.FOCUS_NFE_RESELLER_TOKEN;
+    if (!resellerToken) {
+      throw new BadRequestException('Token de revenda Focus NFe não configurado no servidor');
+    }
+
+    const company = await this.prisma.company.findFirst({ select: { cnpj: true } });
+    if (!company?.cnpj) throw new BadRequestException('CNPJ da empresa não configurado');
+
+    const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    const environment = config?.focusNfeEnvironment || 'HOMOLOGATION';
+
+    try {
+      const result = await this.focusNfe.updateEmpresa(
+        resellerToken,
+        environment,
+        company.cnpj,
+        { arquivo_certificado_base64: certBase64, senha_certificado: senha } as any,
+      );
+
+      return {
+        success: true,
+        message: `Certificado digital instalado com sucesso${result.certificado_valido_ate ? `. Válido até: ${result.certificado_valido_ate}` : ''}`,
+        validoAte: result.certificado_valido_ate || undefined,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `Erro ao instalar certificado: ${err.message}`,
+      };
+    }
+  }
+
   // ========== PREVIEW (dados para tela de confirmação) ==========
 
   async getEmissionPreview(companyId: string, financialEntryId: string) {
@@ -586,7 +746,11 @@ export class NfseEmissionService {
       include: { financialEntries: true },
     });
     if (!emission) throw new NotFoundException('NFS-e não encontrada');
-    if (emission.status !== 'AUTHORIZED') throw new BadRequestException('Apenas NFS-e autorizadas podem ser canceladas');
+
+    // Allow re-cancel for CANCELLING status (2-step cancellation municipalities)
+    if (emission.status !== 'AUTHORIZED' && emission.status !== 'CANCELLING') {
+      throw new BadRequestException('Apenas NFS-e autorizadas ou em cancelamento podem ser canceladas');
+    }
 
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
@@ -594,30 +758,77 @@ export class NfseEmissionService {
     const token = this.getActiveToken(config)!;
 
     const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
+    const justificativa = dto.justificativa || emission.cancelReason || 'Cancelamento solicitado';
     const result = await this.focusNfe.cancel(
       token,
       config.focusNfeEnvironment,
       emission.focusNfeRef,
-      dto.justificativa,
+      justificativa,
       layout,
     );
 
+    const entryId = emission.financialEntries[0]?.id;
+
     if (result.status === 'cancelado') {
-      const entryId = emission.financialEntries[0]?.id;
+      // Cancelamento imediato (maioria dos municípios)
       await this.prisma.$transaction([
         this.prisma.nfseEmission.update({
           where: { id: emissionId },
-          data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: dto.justificativa },
+          data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: justificativa },
         }),
-        // Liberar lançamento para reemissão
         ...(entryId ? [this.prisma.financialEntry.update({
           where: { id: entryId },
           data: { nfseStatus: null, nfseEmissionId: null },
         })] : []),
       ]);
+    } else {
+      // Cancelamento em 2 etapas (alguns municípios geram pedido de cancelamento primeiro)
+      // Marcar como CANCELLING para permitir re-tentativa
+      this.logger.warn(`Cancel 2-step: ref=${emission.focusNfeRef} status=${result.status} — requires second request`);
+      await this.prisma.nfseEmission.update({
+        where: { id: emissionId },
+        data: { status: 'CANCELLING', cancelReason: justificativa },
+      });
+
+      // Tentar segunda requisição automaticamente após 3 segundos
+      setTimeout(async () => {
+        try {
+          this.logger.log(`Cancel 2-step retry: ref=${emission.focusNfeRef}`);
+          const retryResult = await this.focusNfe.cancel(
+            token,
+            config.focusNfeEnvironment,
+            emission.focusNfeRef,
+            justificativa,
+            layout,
+          );
+
+          if (retryResult.status === 'cancelado') {
+            await this.prisma.$transaction([
+              this.prisma.nfseEmission.update({
+                where: { id: emissionId },
+                data: { status: 'CANCELLED', cancelledAt: new Date() },
+              }),
+              ...(entryId ? [this.prisma.financialEntry.update({
+                where: { id: entryId },
+                data: { nfseStatus: null, nfseEmissionId: null },
+              })] : []),
+            ]);
+            this.logger.log(`Cancel 2-step completed: ref=${emission.focusNfeRef}`);
+          } else {
+            this.logger.warn(`Cancel 2-step retry not yet resolved: status=${retryResult.status}`);
+          }
+        } catch (err: any) {
+          this.logger.error(`Cancel 2-step retry failed: ${err.message}`);
+        }
+      }, 3000);
     }
 
-    return result;
+    return {
+      ...result,
+      message: result.status === 'cancelado'
+        ? 'NFS-e cancelada com sucesso'
+        : 'Pedido de cancelamento enviado à prefeitura. O sistema tentará confirmar automaticamente.',
+    };
   }
 
   // ========== CONSULTAS ==========
@@ -693,15 +904,47 @@ export class NfseEmissionService {
       include: { financialEntries: true },
     });
     if (!emission) throw new NotFoundException('NFS-e não encontrada');
-    if (emission.status !== 'PROCESSING') return emission;
 
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
-
     const token = this.getActiveToken(config)!;
     const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
-    const result = await this.focusNfe.query(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
 
+    // Handle CANCELLING status — re-send cancel request (2-step municipality)
+    if (emission.status === 'CANCELLING') {
+      this.logger.log(`Refresh CANCELLING: re-sending cancel for ref=${emission.focusNfeRef}`);
+      try {
+        const cancelResult = await this.focusNfe.cancel(
+          token,
+          config.focusNfeEnvironment,
+          emission.focusNfeRef,
+          emission.cancelReason || 'Cancelamento solicitado',
+          layout,
+        );
+
+        if (cancelResult.status === 'cancelado') {
+          const entryId = emission.financialEntries[0]?.id;
+          await this.prisma.$transaction([
+            this.prisma.nfseEmission.update({
+              where: { id: emissionId },
+              data: { status: 'CANCELLED', cancelledAt: new Date() },
+            }),
+            ...(entryId ? [this.prisma.financialEntry.update({
+              where: { id: entryId },
+              data: { nfseStatus: null, nfseEmissionId: null },
+            })] : []),
+          ]);
+        }
+      } catch (err: any) {
+        this.logger.error(`Refresh CANCELLING failed: ${err.message}`);
+      }
+      return this.prisma.nfseEmission.findUnique({ where: { id: emissionId } });
+    }
+
+    // Handle PROCESSING status — query emission status
+    if (emission.status !== 'PROCESSING') return emission;
+
+    const result = await this.focusNfe.query(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
     await this.handleWebhook(emission.focusNfeRef, result);
 
     return this.prisma.nfseEmission.findUnique({ where: { id: emissionId } });

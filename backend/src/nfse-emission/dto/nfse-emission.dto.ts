@@ -88,3 +88,8 @@ export class CancelNfseDto {
 export class NfsePreviewDto {
   financialEntryId: string;
 }
+
+export class UploadCertificateDto {
+  @IsString() certBase64: string;
+  @IsString() senha: string;
+}

@@ -16,6 +16,8 @@ const ADMIN_ONLY_TOOLS = new Set([
   'testar_conexao_whatsapp',
   'configurar_focus_nfe',
   'testar_focus_nfe',
+  'salvar_codigo_ibge',
+  'registrar_empresa_focus',
 ]);
 
 /** Encrypt a plaintext string using AES-256-GCM (same as EncryptionService) */
@@ -216,6 +218,59 @@ export const CHAT_IA_TOOLS: ToolDefinition[] = [
       properties: {},
     },
   },
+  {
+    name: 'verificar_fiscal_completo',
+    description:
+      'Verifica o status completo da configuração fiscal NFS-e, retornando um checklist detalhado de cada item: token, código IBGE, inscrição municipal, serviços habilitados, alíquota ISS. Use ao guiar o wizard de configuração fiscal.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'buscar_municipio_ibge',
+    description:
+      'Busca o código IBGE de um município brasileiro pelo nome ou nome parcial. Retorna os municípios encontrados com código IBGE e UF. Use quando o cliente informar a cidade para auto-preencher o código IBGE.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        municipio: { type: 'string', description: 'Nome do município (ex: "São Paulo", "Curitiba")' },
+        uf: { type: 'string', description: 'Sigla do estado (ex: "SP", "PR") — opcional para filtrar' },
+      },
+      required: ['municipio'],
+    },
+  },
+  {
+    name: 'salvar_codigo_ibge',
+    description:
+      'Salva o código IBGE do município na configuração fiscal. Use após confirmar o município correto com o cliente.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        codigoMunicipio: { type: 'string', description: 'Código IBGE do município (7 dígitos)' },
+        inscricaoMunicipal: { type: 'string', description: 'Inscrição Municipal do prestador (opcional)' },
+      },
+      required: ['codigoMunicipio'],
+    },
+  },
+  {
+    name: 'listar_servicos_nfse',
+    description:
+      'Lista os serviços NFS-e (códigos tributários nacionais) já cadastrados na empresa. Use no wizard para mostrar ao cliente quais serviços já estão configurados.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'registrar_empresa_focus',
+    description:
+      'Registra ou atualiza a empresa do cliente na Focus NFe (provedor de emissão fiscal). Usa os dados já cadastrados da empresa (CNPJ, endereço, regime tributário) para registrar automaticamente. Retorna os tokens de emissão e o status do registro. Use no wizard fiscal após coletar os dados básicos.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 /**
@@ -262,6 +317,16 @@ export async function executeTool(
         return await configureFocusNfe(db, input);
       case 'testar_focus_nfe':
         return await testFocusNfe(db);
+      case 'verificar_fiscal_completo':
+        return await checkFiscalComplete(db);
+      case 'buscar_municipio_ibge':
+        return await searchMunicipioIbge(input);
+      case 'salvar_codigo_ibge':
+        return await saveCodigoIbge(db, input);
+      case 'listar_servicos_nfse':
+        return await listServicosNfse(db);
+      case 'registrar_empresa_focus':
+        return await registerEmpresaFocus(db);
       default:
         return JSON.stringify({ error: `Tool "${toolName}" não encontrada` });
     }
@@ -938,5 +1003,352 @@ async function testFocusNfe(db: any): Promise<string> {
       status: 'Erro',
       message: `Erro ao testar: ${err.message}`,
     });
+  }
+}
+
+// ── Wizard NFS-e Tools ──────────────────────────────────
+
+async function checkFiscalComplete(db: any): Promise<string> {
+  const company = await db.company.findFirst({
+    select: { id: true, fiscalEnabled: true, taxRegime: true, cnpj: true, name: true, city: true, state: true },
+  });
+
+  if (!company) return JSON.stringify({ error: 'Empresa não encontrada' });
+
+  const checklist: { item: string; status: string; valor?: string; acao?: string }[] = [];
+
+  // Step 0: Módulo fiscal habilitado
+  checklist.push({
+    item: 'Módulo Fiscal habilitado',
+    status: company.fiscalEnabled ? 'OK' : 'PENDENTE',
+    acao: company.fiscalEnabled ? undefined : 'Ativar em /settings/fiscal → toggle "Módulo Fiscal"',
+  });
+
+  if (!company.fiscalEnabled) {
+    return JSON.stringify({
+      empresa: company.name,
+      checklist,
+      resumo: 'O módulo fiscal precisa ser habilitado primeiro.',
+      proximoPasso: 'Peça ao cliente para ativar o módulo fiscal em Configurações > Fiscal.',
+    });
+  }
+
+  const nfseConfig = await db.nfseConfig.findFirst().catch(() => null);
+  const serviceCodeCount = await db.nfseServiceCode.count({ where: { active: true } }).catch(() => 0);
+
+  // Step 1: Conta Focus NFe / Token
+  const hasToken = !!(nfseConfig?.focusNfeToken || nfseConfig?.focusNfeTokenHomolog);
+  checklist.push({
+    item: 'Token Focus NFe',
+    status: hasToken ? 'OK' : 'PENDENTE',
+    valor: hasToken ? `Ambiente: ${nfseConfig?.focusNfeEnvironment === 'PRODUCTION' ? 'Produção' : 'Homologação'}` : undefined,
+    acao: hasToken ? undefined : 'Criar conta em focusnfe.com.br → copiar token → colar em /settings/fiscal',
+  });
+
+  // Step 2: Código IBGE do município
+  checklist.push({
+    item: 'Código IBGE do Município',
+    status: nfseConfig?.codigoMunicipio ? 'OK' : 'PENDENTE',
+    valor: nfseConfig?.codigoMunicipio || undefined,
+    acao: nfseConfig?.codigoMunicipio ? undefined : 'Informar a cidade da empresa para buscar o código IBGE automaticamente',
+  });
+
+  // Step 3: Inscrição Municipal
+  checklist.push({
+    item: 'Inscrição Municipal',
+    status: nfseConfig?.inscricaoMunicipal ? 'OK' : 'PENDENTE',
+    valor: nfseConfig?.inscricaoMunicipal || undefined,
+    acao: nfseConfig?.inscricaoMunicipal ? undefined : 'Informar o número da Inscrição Municipal (fornecido pela prefeitura)',
+  });
+
+  // Step 4: Serviços habilitados
+  checklist.push({
+    item: 'Serviços NFS-e cadastrados',
+    status: serviceCodeCount > 0 ? 'OK' : 'PENDENTE',
+    valor: serviceCodeCount > 0 ? `${serviceCodeCount} serviço(s)` : undefined,
+    acao: serviceCodeCount > 0 ? undefined : 'Cadastrar serviços em /settings/fiscal → aba "Serviços Habilitados"',
+  });
+
+  // Step 5: Alíquota ISS
+  checklist.push({
+    item: 'Alíquota ISS',
+    status: nfseConfig?.aliquotaIss ? 'OK' : 'PENDENTE',
+    valor: nfseConfig?.aliquotaIss ? `${nfseConfig.aliquotaIss}%` : undefined,
+    acao: nfseConfig?.aliquotaIss ? undefined : 'Definir alíquota ISS (consultar contador ou prefeitura)',
+  });
+
+  // Step 6: Regime tributário
+  checklist.push({
+    item: 'Regime Tributário',
+    status: company.taxRegime ? 'OK' : 'PENDENTE',
+    valor: company.taxRegime || undefined,
+    acao: company.taxRegime ? undefined : 'Selecionar regime em /settings/fiscal (Simples Nacional, Lucro Presumido ou Lucro Real)',
+  });
+
+  const okCount = checklist.filter((c) => c.status === 'OK').length;
+  const total = checklist.length;
+  const allOk = okCount === total;
+  const nextPending = checklist.find((c) => c.status === 'PENDENTE');
+
+  return JSON.stringify({
+    empresa: company.name,
+    cidade: company.city ? `${company.city}/${company.state}` : null,
+    cnpj: company.cnpj,
+    checklist,
+    progresso: `${okCount}/${total}`,
+    tudoConfigurado: allOk,
+    proximoPasso: allOk
+      ? 'Tudo configurado! Sugerir teste de emissão em homologação.'
+      : `Próximo: ${nextPending?.item} — ${nextPending?.acao}`,
+  });
+}
+
+async function searchMunicipioIbge(input: Record<string, any>): Promise<string> {
+  const { municipio, uf } = input;
+  if (!municipio) return JSON.stringify({ error: 'Informe o nome do município' });
+
+  try {
+    // Use IBGE API to search municipalities
+    const url = `https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      return JSON.stringify({ error: 'Erro ao consultar API do IBGE. Tente novamente.' });
+    }
+
+    const data: any[] = await res.json();
+
+    // Filter by name (case-insensitive, partial match, accent-insensitive)
+    const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const searchTerm = normalize(municipio);
+
+    let results = data.filter((m: any) => {
+      const name = normalize(m.nome);
+      return name.includes(searchTerm);
+    });
+
+    // Filter by UF if provided
+    if (uf) {
+      const ufUpper = uf.toUpperCase();
+      results = results.filter((m: any) => m.microrregiao?.mesorregiao?.UF?.sigla === ufUpper);
+    }
+
+    // Limit to 10 results
+    const mapped = results.slice(0, 10).map((m: any) => ({
+      nome: m.nome,
+      uf: m.microrregiao?.mesorregiao?.UF?.sigla || '',
+      codigoIbge: String(m.id),
+    }));
+
+    if (mapped.length === 0) {
+      return JSON.stringify({
+        resultados: [],
+        mensagem: `Nenhum município encontrado com "${municipio}"${uf ? ` no estado ${uf}` : ''}. Verifique a grafia.`,
+      });
+    }
+
+    return JSON.stringify({
+      resultados: mapped,
+      mensagem: mapped.length === 1
+        ? `Encontrado: ${mapped[0].nome}/${mapped[0].uf} — código IBGE: ${mapped[0].codigoIbge}. Confirmar com o cliente antes de salvar.`
+        : `Encontrados ${mapped.length} municípios. Pergunte ao cliente qual é o correto.`,
+    });
+  } catch (err: any) {
+    return JSON.stringify({ error: `Erro ao buscar município: ${err.message}` });
+  }
+}
+
+async function saveCodigoIbge(db: any, input: Record<string, any>): Promise<string> {
+  const { codigoMunicipio, inscricaoMunicipal } = input;
+  if (!codigoMunicipio || codigoMunicipio.length !== 7) {
+    return JSON.stringify({ error: 'Código IBGE deve ter 7 dígitos' });
+  }
+
+  const company = await db.company.findFirst({ select: { id: true } });
+  if (!company) return JSON.stringify({ error: 'Empresa não encontrada' });
+
+  const updateData: any = { codigoMunicipio };
+  if (inscricaoMunicipal) updateData.inscricaoMunicipal = inscricaoMunicipal;
+
+  await db.nfseConfig.upsert({
+    where: { companyId: company.id },
+    create: { companyId: company.id, ...updateData },
+    update: updateData,
+  });
+
+  return JSON.stringify({
+    success: true,
+    message: `Código IBGE ${codigoMunicipio} salvo com sucesso!${inscricaoMunicipal ? ` Inscrição Municipal: ${inscricaoMunicipal}` : ''}`,
+    proximoPasso: 'Verificar se serviços NFS-e estão cadastrados.',
+  });
+}
+
+async function listServicosNfse(db: any): Promise<string> {
+  const services = await db.nfseServiceCode.findMany({
+    where: { active: true },
+    orderBy: { cTribNac: 'asc' },
+    select: {
+      id: true,
+      cTribNac: true,
+      description: true,
+      aliquotaIss: true,
+    },
+    take: 20,
+  }).catch(() => []);
+
+  if (services.length === 0) {
+    return JSON.stringify({
+      total: 0,
+      servicos: [],
+      mensagem: 'Nenhum serviço NFS-e cadastrado. Cadastre em /settings/fiscal → aba "Serviços Habilitados". Use a busca para encontrar o código tributário correto.',
+      href: '/settings/fiscal',
+    });
+  }
+
+  return JSON.stringify({
+    total: services.length,
+    servicos: services.map((s: any) => ({
+      codigo: s.cTribNac,
+      descricao: s.description,
+      aliquotaIss: s.aliquotaIss ? `${s.aliquotaIss}%` : 'Usando padrão',
+    })),
+    mensagem: `${services.length} serviço(s) cadastrado(s).`,
+  });
+}
+
+async function registerEmpresaFocus(db: any): Promise<string> {
+  const resellerToken = process.env.FOCUS_NFE_RESELLER_TOKEN;
+  if (!resellerToken) {
+    return JSON.stringify({
+      success: false,
+      error: 'Token de revenda Focus NFe não configurado no servidor. Contate o suporte Tecnikos.',
+    });
+  }
+
+  const company = await db.company.findFirst({
+    select: {
+      id: true, name: true, tradeName: true, cnpj: true,
+      addressStreet: true, addressNumber: true, addressComp: true,
+      neighborhood: true, city: true, state: true, cep: true,
+      phone: true, email: true, taxRegime: true, crt: true,
+      fiscalEnabled: true,
+    },
+  });
+
+  if (!company) return JSON.stringify({ success: false, error: 'Empresa não encontrada' });
+  if (!company.cnpj) return JSON.stringify({ success: false, error: 'CNPJ da empresa não está cadastrado. Preencha em /settings.' });
+  if (!company.fiscalEnabled) {
+    return JSON.stringify({
+      success: false,
+      error: 'Módulo fiscal não habilitado. Ative em /settings/fiscal primeiro.',
+      href: '/settings/fiscal',
+    });
+  }
+
+  const config = await db.nfseConfig.findFirst().catch(() => null);
+  const layout = config?.nfseLayout || 'MUNICIPAL';
+  const environment = config?.focusNfeEnvironment || 'HOMOLOGATION';
+
+  // Map taxRegime
+  const regimeTrib = company.taxRegime === 'SN' ? (company.crt === 2 ? 2 : 1) : 3;
+
+  const empresaData: any = {
+    nome: company.name,
+    nome_fantasia: company.tradeName || undefined,
+    cnpj: company.cnpj.replace(/\D/g, ''),
+    inscricao_municipal: config?.inscricaoMunicipal || undefined,
+    regime_tributario: regimeTrib,
+    logradouro: company.addressStreet || undefined,
+    numero: company.addressNumber || undefined,
+    complemento: company.addressComp || undefined,
+    bairro: company.neighborhood || undefined,
+    municipio: company.city || undefined,
+    cep: company.cep?.replace(/\D/g, '') || undefined,
+    uf: company.state || undefined,
+    telefone: company.phone?.replace(/\D/g, '') || undefined,
+    email: company.email || undefined,
+    enviar_email_destinatario: config?.sendEmailToTomador ?? true,
+  };
+
+  if (layout === 'NACIONAL') {
+    empresaData.habilita_nfsen_producao = environment === 'PRODUCTION';
+    empresaData.habilita_nfsen_homologacao = environment === 'HOMOLOGATION';
+  } else {
+    empresaData.habilita_nfse = true;
+  }
+
+  // Remove undefined
+  Object.keys(empresaData).forEach((k) => empresaData[k] === undefined && delete empresaData[k]);
+
+  const baseUrl = environment === 'PRODUCTION'
+    ? 'https://api.focusnfe.com.br'
+    : 'https://homologacao.focusnfe.com.br';
+  const authHeader = 'Basic ' + Buffer.from(resellerToken + ':').toString('base64');
+
+  try {
+    // Check if exists
+    const cleanCnpj = company.cnpj.replace(/\D/g, '');
+    const checkRes = await fetch(`${baseUrl}/v2/empresas/${cleanCnpj}`, {
+      headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+    });
+
+    let result: any;
+    let action: string;
+
+    if (checkRes.status === 404) {
+      // Create
+      const createRes = await fetch(`${baseUrl}/v2/empresas`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify(empresaData),
+      });
+      result = await createRes.json().catch(() => null);
+      if (!createRes.ok) {
+        const msg = result?.erros?.[0]?.mensagem || result?.mensagem || `HTTP ${createRes.status}`;
+        return JSON.stringify({ success: false, error: `Erro ao registrar: ${msg}` });
+      }
+      action = 'registrada';
+    } else if (checkRes.ok) {
+      // Update
+      const updateRes = await fetch(`${baseUrl}/v2/empresas/${cleanCnpj}`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify(empresaData),
+      });
+      result = await updateRes.json().catch(() => null);
+      if (!updateRes.ok) {
+        const msg = result?.erros?.[0]?.mensagem || result?.mensagem || `HTTP ${updateRes.status}`;
+        return JSON.stringify({ success: false, error: `Erro ao atualizar: ${msg}` });
+      }
+      action = 'atualizada';
+    } else {
+      return JSON.stringify({ success: false, error: `Erro ao consultar Focus NFe: HTTP ${checkRes.status}` });
+    }
+
+    // Save tokens and companyId
+    const updateData: any = { focusNfeCompanyId: String(result.id) };
+    if (result.token_producao) updateData.focusNfeToken = encryptToken(result.token_producao);
+    if (result.token_homologacao) updateData.focusNfeTokenHomolog = encryptToken(result.token_homologacao);
+
+    await db.nfseConfig.upsert({
+      where: { companyId: company.id },
+      create: { companyId: company.id, ...updateData },
+      update: updateData,
+    });
+
+    return JSON.stringify({
+      success: true,
+      message: `Empresa ${action} na Focus NFe com sucesso! (ID: ${result.id})`,
+      focusNfeId: result.id,
+      tokenProducao: !!result.token_producao,
+      tokenHomologacao: !!result.token_homologacao,
+      certificado: result.certificado_valido_ate
+        ? `Válido até ${result.certificado_valido_ate}`
+        : 'Nenhum certificado instalado — necessário para emissão em produção',
+      proximoPasso: !result.certificado_valido_ate
+        ? 'Para emitir notas reais, será necessário instalar o certificado digital e-CNPJ A1.'
+        : 'Empresa pronta para emitir NFS-e!',
+    });
+  } catch (err: any) {
+    return JSON.stringify({ success: false, error: `Erro: ${err.message}` });
   }
 }

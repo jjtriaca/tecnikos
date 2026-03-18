@@ -111,6 +111,49 @@ export interface FocusNfseResponse {
 
 export type NfseLayout = 'MUNICIPAL' | 'NACIONAL';
 
+// ========== API de Empresas (Revenda) ==========
+
+export interface FocusEmpresaRequest {
+  nome: string;
+  nome_fantasia?: string;
+  cnpj: string;
+  inscricao_municipal?: string | number;
+  regime_tributario: number; // 1=SN, 2=SN excesso, 3=Normal, 4=MEI
+  logradouro?: string;
+  numero?: string | number;
+  complemento?: string;
+  bairro?: string;
+  municipio?: string;
+  cep?: string | number;
+  uf?: string;
+  telefone?: string;
+  email?: string;
+  habilita_nfse?: boolean;
+  habilita_nfsen_producao?: boolean;
+  habilita_nfsen_homologacao?: boolean;
+  enviar_email_destinatario?: boolean;
+  arquivo_certificado_base64?: string;
+  senha_certificado?: string;
+}
+
+export interface FocusEmpresaResponse {
+  id: number;
+  nome: string;
+  nome_fantasia?: string;
+  cnpj: string;
+  inscricao_municipal?: string;
+  regime_tributario?: string;
+  token_producao?: string;
+  token_homologacao?: string;
+  certificado_valido_ate?: string;
+  certificado_valido_de?: string;
+  certificado_cnpj?: string;
+  habilita_nfse?: boolean;
+  habilita_nfsen_producao?: boolean;
+  habilita_nfsen_homologacao?: boolean;
+  erros?: Array<{ codigo: string; mensagem: string; campo?: string }>;
+}
+
 @Injectable()
 export class FocusNfeProvider {
   private readonly logger = new Logger(FocusNfeProvider.name);
@@ -330,6 +373,71 @@ export class FocusNfeProvider {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.mensagem || `Focus NFe email error: ${response.status}`);
     }
+  }
+
+  // ========== API DE EMPRESAS (REVENDA) ==========
+
+  /** Registrar nova empresa na conta de revenda */
+  async createEmpresa(token: string, environment: string, data: FocusEmpresaRequest): Promise<FocusEmpresaResponse> {
+    const url = `${this.getBaseUrl(environment)}/v2/empresas`;
+    this.logger.log(`Creating empresa CNPJ=${data.cnpj} at Focus NFe (${environment})`);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(token),
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      const msg = result?.erros?.[0]?.mensagem || result?.mensagem || `HTTP ${response.status}`;
+      this.logger.error(`Focus NFe createEmpresa error: ${msg}`);
+      throw new Error(msg);
+    }
+
+    this.logger.log(`Empresa created: id=${result.id}, CNPJ=${data.cnpj}`);
+    return result as FocusEmpresaResponse;
+  }
+
+  /** Consultar empresa por CNPJ */
+  async getEmpresa(token: string, environment: string, cnpj: string): Promise<FocusEmpresaResponse | null> {
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    const url = `${this.getBaseUrl(environment)}/v2/empresas/${cleanCnpj}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getHeaders(token),
+    });
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result?.mensagem || `HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as FocusEmpresaResponse;
+  }
+
+  /** Atualizar empresa existente */
+  async updateEmpresa(token: string, environment: string, cnpj: string, data: Partial<FocusEmpresaRequest>): Promise<FocusEmpresaResponse> {
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    const url = `${this.getBaseUrl(environment)}/v2/empresas/${cleanCnpj}`;
+    this.logger.log(`Updating empresa CNPJ=${cleanCnpj} at Focus NFe`);
+
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: this.getHeaders(token),
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      const msg = result?.erros?.[0]?.mensagem || result?.mensagem || `HTTP ${response.status}`;
+      this.logger.error(`Focus NFe updateEmpresa error: ${msg}`);
+      throw new Error(msg);
+    }
+
+    return result as FocusEmpresaResponse;
   }
 
   // ========== TEST CONNECTION ==========

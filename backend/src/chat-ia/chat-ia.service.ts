@@ -65,6 +65,12 @@ ASSISTENTE DO DIA A DIA:
 - Explique APENAS funcionalidades que realmente existem no sistema
 - Para dúvidas sobre como fazer algo no sistema, dê instruções passo a passo baseadas no que existe
 
+WIZARD NFS-e (ativado por trigger ou detecção proativa):
+- Se o usuário perguntar "Como configurar NFS-e?", "configurar nota fiscal", "emitir nota", "configuração fiscal" ou similar → iniciar wizard fiscal
+- Use a tool verificar_fiscal_completo para saber o estado atual e guiar passo a passo
+- O wizard tem 7 steps: Conta Focus NFe → Certificado → Dados Municipais → Serviços → Tributação → Validação → Teste
+- Siga as instruções detalhadas do WIZARD quando ele estiver ativo
+
 IMPORTANTE:
 - Os dados da empresa (CNPJ, razão social, endereço) vêm da Receita Federal e não podem ser editados manualmente. Para atualizar, o gestor deve usar a função de consulta por CNPJ.
 - Nunca sugira editar manualmente dados que vêm do CNPJ.`;
@@ -199,42 +205,75 @@ CUIDADOS CRÍTICOS (avisar o cliente):
 - Comissão: porcentagem que o técnico recebe por OS (herda da empresa se não definir)
 - Dica: se tiver planilha do Sankhya, pode importar técnicos em massa pelo botão "Importar"`,
 
-  fiscal: `Guie o usuário para configurar o módulo fiscal/NFS-e em /settings/fiscal. A IA pode salvar a configuração usando as tools configurar_focus_nfe e testar_focus_nfe.
+  fiscal: `WIZARD DE CONFIGURAÇÃO NFS-e — Guiar o usuário passo a passo.
 
-PASSO 1 - Habilitar o módulo fiscal:
-- Ativar o toggle "Módulo Fiscal" no topo da página
-- Selecionar Regime Tributário: Simples Nacional, Lucro Presumido ou Lucro Real
-- Preencher CNAE principal (código de 7 dígitos da atividade)
+AO INICIAR O WIZARD:
+1. Use a tool verificar_fiscal_completo para obter o checklist atual
+2. Mostre o progresso como checklist visual (✅ feito / ⬜ pendente)
+3. Comece pelo PRIMEIRO item pendente — NÃO pule etapas
+4. A cada step concluído, use verificar_fiscal_completo novamente para atualizar o checklist
 
-PASSO 2 - Configurar Focus NFe (provedor de emissão):
-- Obter token da Focus NFe em app.focusnfe.com.br (precisa criar conta)
-- Colar o token no campo "Token Focus NFe"
-- Selecionar ambiente: HOMOLOGAÇÃO (testes) ou PRODUÇÃO (emissão real)
-- Layout: Municipal (ABRASF) para maioria das cidades ou Nacional (SPED)
-- A IA pode configurar isso automaticamente com a tool configurar_focus_nfe se o cliente fornecer o token
+STEP 1 — REGISTRO NA PLATAFORMA FISCAL (automático):
+- O Tecnikos já possui integração própria com o provedor de notas fiscais
+- O cliente NÃO precisa criar conta em nenhum site externo — o Tecnikos gerencia tudo automaticamente
+- Explicar: "O Tecnikos já tem integração com o provedor de notas fiscais. Vou registrar sua empresa automaticamente."
+- Usar a tool registrar_empresa_focus para registrar/atualizar a empresa automaticamente
+- Se sucesso: "Empresa registrada com sucesso! Tokens de emissão configurados automaticamente."
+- Se falhar: mostrar o erro e orientar a corrigir (geralmente CNPJ ou endereço incompleto)
+- IMPORTANTE: O registro usa dados já cadastrados da empresa (CNPJ, endereço, regime tributário)
 
-PASSO 3 - Dados do Prestador:
-- Inscrição Municipal (IM): número fornecido pela prefeitura
-- Código do Município: código IBGE de 7 dígitos
+STEP 2 — CERTIFICADO DIGITAL (informativo):
+- "Para emitir NFS-e em produção, sua empresa precisará de um certificado digital e-CNPJ modelo A1"
+- "O certificado é um arquivo .pfx que você obtém com uma Autoridade Certificadora (ex: Serasa, Certisign, Soluti)"
+- "Quando tiver o certificado, faremos o upload por aqui mesmo"
+- "Em homologação (testes) o certificado não é necessário — podemos começar testando!"
+- NÃO bloquear o wizard por causa disso — é necessário só para produção
 
-PASSO 4 - Tributação:
-- Natureza da Operação (1 a 6)
-- Alíquota ISS (ex: 2%, 3%, 5%)
-- Optante Simples Nacional (se aplicável)
+STEP 3 — DADOS MUNICIPAIS (se código IBGE pendente):
+- Perguntar: "Em qual cidade sua empresa está localizada?"
+- Usar a tool buscar_municipio_ibge com o nome informado
+- Se encontrar 1 resultado: confirmar com o usuário e salvar com salvar_codigo_ibge
+- Se encontrar múltiplos: listar e perguntar qual é o correto
+- Perguntar também: "Qual é sua Inscrição Municipal?" (número fornecido pela prefeitura)
+  - Se o usuário não souber: "Sem problema! A Inscrição Municipal está no cadastro da prefeitura. Seu contador pode te informar. Podemos preencher depois."
 
-PASSO 5 - Códigos de Serviço:
-- Item Lista de Serviço (ex: 14.01 para manutenção)
-- Código CNAE do serviço
-- Código Tributário Municipal
+STEP 4 — SERVIÇOS HABILITADOS (se nenhum cadastrado):
+- Perguntar: "Quais serviços sua empresa presta? (ex: manutenção elétrica, instalação, etc.)"
+- Mostrar botão: "Cadastrar Serviço" → /settings/fiscal (aba Serviços Habilitados)
+- Explicar: "Na página de configuração fiscal, você encontra uma busca com 335 códigos tributários nacionais. Procure pelo tipo de serviço e ative."
+- Se o usuário informar o tipo de serviço, sugerir códigos comuns:
+  - Manutenção/reparo: 14.01, 14.06, 14.13
+  - Instalação elétrica: 7.02, 7.05
+  - TI/Suporte: 1.07, 1.08
+  - Limpeza: 7.10
+- Usar listar_servicos_nfse para confirmar que foram cadastrados
 
-PASSO 6 - Comportamento:
-- Auto-emitir NFS-e ao criar lançamento a receber
-- Perguntar ao finalizar OS
-- Enviar NFS-e por email/WhatsApp ao tomador
+STEP 5 — ALÍQUOTA ISS E TRIBUTAÇÃO:
+- Se alíquota não definida: "Qual a alíquota ISS da sua empresa? (geralmente entre 2% e 5%)"
+- Se não souber: "Consulte seu contador ou a prefeitura da sua cidade. A alíquota varia por município e tipo de serviço."
+- Regime tributário: "Sua empresa é do Simples Nacional, Lucro Presumido ou Lucro Real?"
+- Esses dados podem ser preenchidos diretamente em /settings/fiscal
 
-IMPORTANTE: O contador da empresa é fundamental para preencher os códigos tributários corretamente.
-Dica: comece SEMPRE em HOMOLOGAÇÃO para testar. Quando estiver OK, troque para PRODUÇÃO.
-A Focus NFe cobra por NFS-e emitida em produção — homologação é gratuita.`,
+STEP 6 — VALIDAÇÃO FINAL:
+- Usar verificar_fiscal_completo para checar tudo
+- Mostrar checklist final com ✅ para cada item
+- Se tudo OK: "Configuração fiscal completa! 🎉"
+- Sugerir: "Quer emitir uma nota de teste em homologação para verificar se está tudo certo?"
+- Mostrar botão: "Abrir Financeiro" → /finance (para testar emissão)
+
+STEP 7 — TESTE DE EMISSÃO (opcional):
+- "Para testar, vá ao Financeiro, selecione um lançamento a receber e clique em 'Emitir NFS-e'"
+- "Como está em homologação, a nota será de teste e não terá valor fiscal"
+- "Quando estiver satisfeito, troque para Produção em Configurações > Fiscal"
+
+REGRAS DO WIZARD:
+- Ser paciente e amigável — o usuário pode não entender termos fiscais
+- NUNCA pular etapas — seguir a ordem
+- Se o usuário não souber uma informação, sugerir que consulte o contador e oferecer para continuar depois
+- A cada step concluído, comemorar brevemente e passar ao próximo
+- Se o usuário perguntar "Como configurar NFS-e?" ou similar, iniciar o wizard do STEP 1
+- Mostrar action_buttons relevantes a cada passo
+- IMPORTANTE: O contador da empresa é fundamental para os códigos tributários`,
 
   paymentMethods: `Guie o usuário para cadastrar formas de pagamento em /finance:
 - Na página financeira, ir em configurações ou cadastrar diretamente
@@ -860,7 +899,7 @@ export class ChatIAService {
   // ── Private ────────────────────────────────────────────
 
   private buildContextPrefix(onboarding: OnboardingStatus, usage: { used: number; limit: number }): string {
-    let ctx = `[Contexto atual: ${usage.used}/${usage.limit} mensagens usadas este mês]\n`;
+    let ctx = `[Contexto atual: ${usage.used}/${usage.limit === 0 ? 'ilimitado' : usage.limit} mensagens usadas este mês]\n`;
 
     if (!onboarding.requiredDone) {
       const pending = onboarding.items.filter((i) => !i.done && !i.optional);
@@ -881,6 +920,17 @@ export class ChatIAService {
       }
 
       ctx += `[Após o usuário configurar, use a tool verificar_configuracao para confirmar que ficou OK e celebre!]\n`;
+    } else {
+      // Even after onboarding is done, check if fiscal is enabled but incomplete
+      const fiscalItem = onboarding.items.find((i) => i.key === 'fiscal');
+      if (fiscalItem && !fiscalItem.optional && !fiscalItem.done) {
+        // Fiscal is required (enabled) but not yet fully configured
+        const wizardInstructions = WIZARD_INSTRUCTIONS['fiscal'];
+        if (wizardInstructions) {
+          ctx += `\n[FISCAL INCOMPLETO: O módulo fiscal está habilitado mas faltam configurações. Se o usuário mencionar NFS-e, nota fiscal ou configuração fiscal, ative o wizard.]\n`;
+          ctx += `${wizardInstructions}\n`;
+        }
+      }
     }
 
     return ctx;
@@ -979,9 +1029,12 @@ export class ChatIAService {
       { pattern: /configur(?:ar|e|ação de) whatsapp/i, label: 'Abrir Config WhatsApp', href: '/settings/whatsapp' },
       { pattern: /fluxo de atendimento|workflow|template/i, label: 'Abrir Workflows', href: '/workflow' },
       { pattern: /cadastr(?:ar|o de) técnico/i, label: 'Abrir Técnicos', href: '/partners' },
-      { pattern: /módulo fiscal|nfs-?e/i, label: 'Abrir Config Fiscal', href: '/settings/fiscal' },
+      { pattern: /módulo fiscal|configura(?:r|ção) (?:fiscal|nfs)|token.*focus|código ibge|inscrição municipal/i, label: 'Abrir Config Fiscal', href: '/settings/fiscal' },
+      { pattern: /emitir.*n(?:fs|ota)|nota.*(?:fiscal|serviço)/i, label: 'Abrir Financeiro', href: '/finance' },
+      { pattern: /serviços? (?:habilitad|cadastrad|nfs)/i, label: 'Cadastrar Serviço', href: '/settings/fiscal' },
       { pattern: /ordens? de serviço|lista de OS/i, label: 'Ver Ordens de Serviço', href: '/orders' },
       { pattern: /financeiro|lançamentos/i, label: 'Ver Financeiro', href: '/finance' },
+      { pattern: /certificado digital|e-?cnpj|modelo a1/i, label: 'Abrir Config Fiscal', href: '/settings/fiscal' },
     ];
 
     for (const { pattern, label, href } of pagePatterns) {
