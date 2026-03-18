@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
 import { FocusNfeProvider, FocusNfseRequest, FocusNfsenRequest, NfseLayout } from './focus-nfe.provider';
@@ -397,6 +397,34 @@ export class NfseEmissionService {
 
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company?.cnpj) throw new BadRequestException('CNPJ da empresa não configurado');
+
+    // ── Enforce transaction limit (OS + NFS-e avulsa share maxOsPerMonth) ──
+    // NFS-e linked to an OS doesn't count extra (already counted by OS creation)
+    // NFS-e without OS (avulsa) counts as 1 transaction
+    const maxTransactions = company.maxOsPerMonth || 0;
+    if (maxTransactions > 0 && !dto.serviceOrderId) {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const [osCount, avulsaNfseCount] = await Promise.all([
+        this.prisma.serviceOrder.count({
+          where: { companyId, createdAt: { gte: startOfMonth } },
+        }),
+        this.prisma.nfseEmission.count({
+          where: {
+            companyId,
+            serviceOrderId: null, // avulsa (sem OS)
+            status: { not: 'ERROR' }, // erros não contam
+            createdAt: { gte: startOfMonth },
+          },
+        }),
+      ]);
+      const totalTransactions = osCount + avulsaNfseCount;
+      if (totalTransactions >= maxTransactions) {
+        throw new ForbiddenException(
+          `Limite de ${maxTransactions} transações por mês atingido (${osCount} OS + ${avulsaNfseCount} NFS-e avulsas). Faça upgrade do plano ou adquira OS adicionais.`,
+        );
+      }
+    }
 
     // Check entry
     const entry = await this.prisma.financialEntry.findFirst({

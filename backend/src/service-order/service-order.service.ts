@@ -64,7 +64,7 @@ export class ServiceOrderService {
   }
 
   async create(data: CreateServiceOrderDto & { companyId: string }, actor?: AuthenticatedUser) {
-    // ── Enforce maxOsPerMonth limit ──
+    // ── Enforce maxOsPerMonth limit (OS + NFS-e avulsas = transações) ──
     // Multi-tenant: each schema has exactly one Company record
     const company = await this.prisma.company.findFirst({
       select: { maxOsPerMonth: true },
@@ -73,16 +73,28 @@ export class ServiceOrderService {
     if (maxOs > 0) {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const osCount = await this.prisma.serviceOrder.count({
-        where: {
-          companyId: data.companyId,
-          createdAt: { gte: startOfMonth },
-          // Deletadas CONTAM no limite — evita burlar criando e apagando
-        },
-      });
-      if (osCount >= maxOs) {
+      const [osCount, avulsaNfseCount] = await Promise.all([
+        this.prisma.serviceOrder.count({
+          where: {
+            companyId: data.companyId,
+            createdAt: { gte: startOfMonth },
+            // Deletadas CONTAM no limite — evita burlar criando e apagando
+          },
+        }),
+        // NFS-e avulsas (sem OS) contam no limite de transações
+        this.prisma.nfseEmission.count({
+          where: {
+            companyId: data.companyId,
+            serviceOrderId: null,
+            status: { not: 'ERROR' },
+            createdAt: { gte: startOfMonth },
+          },
+        }).catch(() => 0),
+      ]);
+      const totalTransactions = osCount + avulsaNfseCount;
+      if (totalTransactions >= maxOs) {
         throw new ForbiddenException(
-          `Limite de ${maxOs} OS por mês atingido. Faça upgrade do plano ou adquira OS adicionais.`,
+          `Limite de ${maxOs} transações por mês atingido (${osCount} OS + ${avulsaNfseCount} NFS-e avulsas). Faça upgrade do plano ou adquira OS adicionais.`,
         );
       }
     }
@@ -585,17 +597,27 @@ export class ServiceOrderService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    const [usedThisMonth, company] = await Promise.all([
+    const [osCount, avulsaNfseCount, company] = await Promise.all([
       this.prisma.serviceOrder.count({
         where: { companyId, createdAt: { gte: monthStart, lte: monthEnd } },
         // Deletadas CONTAM no limite — evita burlar criando e apagando
       }),
+      // NFS-e avulsas (sem OS) contam como transações no limite
+      this.prisma.nfseEmission.count({
+        where: {
+          companyId,
+          serviceOrderId: null,
+          status: { not: 'ERROR' },
+          createdAt: { gte: monthStart, lte: monthEnd },
+        },
+      }).catch(() => 0),
       this.prisma.company.findUnique({
         where: { id: companyId },
         select: { maxOsPerMonth: true, maxUsers: true },
       }),
     ]);
 
+    const usedThisMonth = osCount + avulsaNfseCount;
     const limit = company?.maxOsPerMonth || 0;
     const isUnlimited = limit === 0;
     const percentage = isUnlimited ? 0 : Math.round((usedThisMonth / limit) * 100);
@@ -609,6 +631,8 @@ export class ServiceOrderService {
       percentage: Math.min(percentage, 100),
       daysLeft,
       maxUsers: company?.maxUsers || 0,
+      osCount,
+      avulsaNfseCount,
     };
   }
 
@@ -1127,20 +1151,23 @@ export class ServiceOrderService {
   }
 
   async duplicate(id: string, companyId: string, actor: AuthenticatedUser) {
-    // ── Enforce maxOsPerMonth limit (same check as create) ──
-    // Multi-tenant: each schema has exactly one Company
+    // ── Enforce maxOsPerMonth limit (OS + NFS-e avulsas = transações) ──
     const company = await this.prisma.company.findFirst({ select: { maxOsPerMonth: true } });
     const maxOs = company?.maxOsPerMonth || 0;
     if (maxOs > 0) {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const osCount = await this.prisma.serviceOrder.count({
-        where: { companyId, createdAt: { gte: startOfMonth } },
-        // Deletadas CONTAM no limite — evita burlar criando e apagando
-      });
-      if (osCount >= maxOs) {
+      const [osCount, avulsaNfseCount] = await Promise.all([
+        this.prisma.serviceOrder.count({
+          where: { companyId, createdAt: { gte: startOfMonth } },
+        }),
+        this.prisma.nfseEmission.count({
+          where: { companyId, serviceOrderId: null, status: { not: 'ERROR' }, createdAt: { gte: startOfMonth } },
+        }).catch(() => 0),
+      ]);
+      if (osCount + avulsaNfseCount >= maxOs) {
         throw new ForbiddenException(
-          `Limite de ${maxOs} OS por mês atingido. Não é possível duplicar. Faça upgrade do plano ou adquira OS adicionais.`,
+          `Limite de ${maxOs} transações por mês atingido. Não é possível duplicar. Faça upgrade do plano ou adquira OS adicionais.`,
         );
       }
     }
