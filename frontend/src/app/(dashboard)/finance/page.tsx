@@ -1543,9 +1543,18 @@ function EntryActions({
               });
               if (!res.ok) throw new Error("Erro ao baixar PDF");
               const blob = await res.blob();
+              // Extract filename from Content-Disposition header
+              const cd = res.headers.get("content-disposition") || "";
+              const fnMatch = cd.match(/filename="?([^";\n]+)"?/);
+              const filename = fnMatch?.[1] || `NFS-e ${entry.nfseEmissionId}.pdf`;
               const url = URL.createObjectURL(blob);
-              window.open(url, "_blank");
-              setTimeout(() => URL.revokeObjectURL(url), 60000);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(() => URL.revokeObjectURL(url), 10000);
             } catch {
               toast("Erro ao baixar PDF da NFS-e.", "error");
             }
