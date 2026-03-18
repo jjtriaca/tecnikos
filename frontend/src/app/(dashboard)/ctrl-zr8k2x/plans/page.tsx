@@ -84,7 +84,7 @@ export default function PlansPage() {
       name: "", maxUsers: 5, maxOsPerMonth: 100,
       priceDisplay: "", priceYearlyDisplay: "",
       features: "", description: "", sortOrder: 0,
-      maxTechnicians: 0, maxAiMessages: 0,
+      maxTechnicians: 0, maxAiMessages: 0, maxNfseImports: 0,
       supportLevel: "EMAIL", allModulesIncluded: true,
     });
     setError(null);
