@@ -193,21 +193,26 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
       .catch(() => {});
   }, []);
 
-  // Auto-expand parent menus when a child route is active
+  // Auto-expand only the parent menu of the active route (accordion)
   useEffect(() => {
-    NAV_ITEMS.forEach((item) => {
-      if (item.children && item.children.some((c) => pathname === c.href || pathname.startsWith(c.href + "/"))) {
-        setExpandedMenus((prev) => new Set(prev).add(item.href));
-      }
-    });
+    const activeParent = NAV_ITEMS.find(
+      (item) => item.children && item.children.some((c) => pathname === c.href || pathname.startsWith(c.href + "/"))
+    );
+    if (activeParent) {
+      setExpandedMenus(new Set([activeParent.href]));
+    }
   }, [pathname]);
 
   const toggleMenu = (href: string) => {
     setExpandedMenus((prev) => {
-      const next = new Set(prev);
-      if (next.has(href)) next.delete(href);
-      else next.add(href);
-      return next;
+      if (prev.has(href)) {
+        // Close this menu
+        const next = new Set(prev);
+        next.delete(href);
+        return next;
+      }
+      // Open this menu, close all others (accordion)
+      return new Set([href]);
     });
   };
 
