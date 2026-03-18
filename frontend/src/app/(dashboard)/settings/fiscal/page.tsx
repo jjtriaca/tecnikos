@@ -826,8 +826,8 @@ export default function FiscalSettingsPage() {
               <tbody>
                 {serviceCodes.map((sc) => (
                   <tr key={sc.id} className={`border-b border-slate-100 ${!sc.active ? "opacity-40" : ""}`}>
-                    <td className="py-2 pr-3 font-mono">{sc.codigo}</td>
-                    <td className="py-2 pr-3">{sc.descricao}</td>
+                    <td className="py-2 pr-3 font-mono font-semibold text-slate-800">{sc.codigo}</td>
+                    <td className="py-2 pr-3 text-slate-700">{sc.descricao}</td>
                     <td className="py-2 pr-3">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${sc.tipo === "OBRA" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
                         {sc.tipo}
