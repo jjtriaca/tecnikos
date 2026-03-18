@@ -450,9 +450,9 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
    */
   private async syncTenantLimits(): Promise<void> {
     const tenants = await this.rawPrisma.$queryRawUnsafe<
-      { schemaName: string; slug: string; maxOsPerMonth: number; maxUsers: number; maxTechnicians: number; maxAiMessages: number }[]
+      { schemaName: string; slug: string; maxOsPerMonth: number; maxUsers: number; maxTechnicians: number; maxAiMessages: number; maxNfseImports: number }[]
     >(`
-      SELECT "schemaName", slug, "maxOsPerMonth", "maxUsers", "maxTechnicians", "maxAiMessages"
+      SELECT "schemaName", slug, "maxOsPerMonth", "maxUsers", "maxTechnicians", "maxAiMessages", "maxNfseImports"
       FROM public."Tenant"
       WHERE "deletedAt" IS NULL AND status NOT IN ('CANCELLED') AND "schemaName" IS NOT NULL
     `);
@@ -468,9 +468,11 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
           SET "maxOsPerMonth" = GREATEST("maxOsPerMonth", ${t.maxOsPerMonth}),
               "maxUsers" = GREATEST("maxUsers", ${t.maxUsers}),
               "maxTechnicians" = GREATEST("maxTechnicians", ${t.maxTechnicians}),
-              "maxAiMessages" = GREATEST("maxAiMessages", ${t.maxAiMessages})
+              "maxAiMessages" = GREATEST("maxAiMessages", ${t.maxAiMessages}),
+              "maxNfseImports" = GREATEST("maxNfseImports", ${t.maxNfseImports})
           WHERE "maxOsPerMonth" < ${t.maxOsPerMonth} OR "maxUsers" < ${t.maxUsers}
              OR "maxTechnicians" < ${t.maxTechnicians} OR "maxAiMessages" < ${t.maxAiMessages}
+             OR "maxNfseImports" < ${t.maxNfseImports}
         `);
         if (result > 0) {
           updated++;

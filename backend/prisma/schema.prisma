@@ -156,6 +156,7 @@ model Company {
   maxUsers       Int      @default(0)     // 0 = unlimited
   maxTechnicians Int      @default(0)     // 0 = unlimited
   maxAiMessages  Int      @default(0)     // 0 = unlimited
+  maxNfseImports Int      @default(0)     // 0 = unlimited (importações NFS-e/mês)
 
   // Chat IA
   chatIAMonthlyMsgs   Int       @default(0)     // Messages used this month
@@ -1992,6 +1993,7 @@ model Tenant {
   maxOsPerMonth     Int       @default(100)     // Snapshot do plano (grandfather)
   maxTechnicians    Int       @default(0)       // Snapshot: 0 = ilimitado
   maxAiMessages     Int       @default(0)       // Snapshot: msgs IA/mês (0 = ilimitado)
+  maxNfseImports    Int       @default(0)       // Snapshot: importações NFS-e/mês (0 = ilimitado)
   supportLevel      String    @default("EMAIL") // Snapshot: EMAIL, EMAIL_CHAT, PRIORITY
   allModulesIncluded Boolean  @default(true)    // Snapshot: todos os módulos
 
@@ -2066,6 +2068,7 @@ model Plan {
   // Campos estruturados de features
   maxTechnicians       Int      @default(0)         // 0 = ilimitado
   maxAiMessages        Int      @default(0)         // Msgs IA/mês (0 = ilimitado)
+  maxNfseImports       Int      @default(0)         // Limite importação NFS-e/mês (0 = mesmo que maxOsPerMonth)
   supportLevel         String   @default("EMAIL")   // EMAIL, EMAIL_CHAT, PRIORITY
   allModulesIncluded   Boolean  @default(true)       // Todos os módulos inclusos
 

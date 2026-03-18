@@ -50,6 +50,11 @@ export class CreatePlanDto {
   maxAiMessages?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxNfseImports?: number;
+
+  @IsOptional()
   @IsString()
   supportLevel?: string; // EMAIL, EMAIL_CHAT, PRIORITY
 

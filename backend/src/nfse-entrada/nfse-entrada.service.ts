@@ -352,21 +352,46 @@ export class NfseEntradaService {
 
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { cnpj: true, maxOsPerMonth: true },
+      select: { cnpj: true, maxNfseImports: true, maxOsPerMonth: true },
     });
     if (!company?.cnpj) {
       throw new BadRequestException('CNPJ da empresa nao cadastrado');
     }
 
-    // Monthly limit = same as maxOsPerMonth from plan (0 = unlimited)
-    const monthlyLimit = company.maxOsPerMonth || 0;
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    // Monthly limit from plan. 0 = feature disabled (not unlimited).
+    const monthlyLimit = company.maxNfseImports || 0;
+    if (monthlyLimit === 0) {
+      throw new BadRequestException('Importacao automatica de NFS-e nao esta inclusa no seu plano');
+    }
 
-    // Count Focus imports already done this month
+    // Use billing cycle dates (not calendar month)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { companyId },
+      select: { id: true },
+    });
+    let periodStart: Date;
+    let periodEnd: Date;
+    const now = new Date();
+
+    if (tenant) {
+      const subscription = await this.prisma.subscription.findFirst({
+        where: { tenantId: tenant.id, status: { in: ['ACTIVE', 'PAST_DUE'] } },
+        select: { currentPeriodStart: true, currentPeriodEnd: true, extraOsPurchased: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (subscription) {
+        periodStart = subscription.currentPeriodStart;
+        periodEnd = subscription.currentPeriodEnd;
+      }
+    }
+    if (!periodStart! || !periodEnd!) {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
+
+    // Count Focus imports already done this billing cycle
     const usedThisMonth = await this.prisma.nfseEntrada.count({
-      where: { companyId, focusSource: true, createdAt: { gte: monthStart, lte: monthEnd } },
+      where: { companyId, focusSource: true, createdAt: { gte: periodStart, lte: periodEnd } },
     });
 
     const remaining = monthlyLimit > 0 ? Math.max(0, monthlyLimit - usedThisMonth) : Infinity;

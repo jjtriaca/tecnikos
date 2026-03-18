@@ -101,6 +101,7 @@ export class TenantService {
     let maxOsPerMonth = 100;
     let maxTechnicians = 0;
     let maxAiMessages = 0;
+    let maxNfseImports = 0;
     let supportLevel = 'EMAIL';
     let allModulesIncluded = true;
     if (data.planId) {
@@ -110,6 +111,7 @@ export class TenantService {
         maxOsPerMonth = plan.maxOsPerMonth;
         maxTechnicians = plan.maxTechnicians;
         maxAiMessages = plan.maxAiMessages;
+        maxNfseImports = plan.maxNfseImports;
         supportLevel = plan.supportLevel;
         allModulesIncluded = plan.allModulesIncluded;
       }
@@ -134,6 +136,7 @@ export class TenantService {
         maxOsPerMonth,
         maxTechnicians,
         maxAiMessages,
+        maxNfseImports,
         supportLevel,
         allModulesIncluded,
         status: data.isMaster ? TenantStatus.ACTIVE : TenantStatus.PENDING_VERIFICATION,
@@ -359,6 +362,7 @@ export class TenantService {
         maxOsPerMonth: plan.maxOsPerMonth,
         maxTechnicians: plan.maxTechnicians,
         maxAiMessages: plan.maxAiMessages,
+        maxNfseImports: plan.maxNfseImports,
         supportLevel: plan.supportLevel,
         allModulesIncluded: plan.allModulesIncluded,
       },
@@ -373,6 +377,7 @@ export class TenantService {
           maxUsers: plan.maxUsers,
           maxTechnicians: plan.maxTechnicians,
           maxAiMessages: plan.maxAiMessages,
+          maxNfseImports: plan.maxNfseImports,
         },
       });
     } catch (err) {

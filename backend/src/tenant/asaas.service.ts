@@ -639,6 +639,7 @@ export class AsaasService {
         maxOsPerMonth: newPlan.maxOsPerMonth,
         maxTechnicians: newPlan.maxTechnicians,
         maxAiMessages: newPlan.maxAiMessages,
+        maxNfseImports: newPlan.maxNfseImports,
         supportLevel: newPlan.supportLevel,
         allModulesIncluded: newPlan.allModulesIncluded,
       },
@@ -656,6 +657,7 @@ export class AsaasService {
             maxOsPerMonth: newPlan.maxOsPerMonth,
             maxTechnicians: newPlan.maxTechnicians,
             maxAiMessages: newPlan.maxAiMessages,
+            maxNfseImports: newPlan.maxNfseImports,
           },
         });
       }
@@ -1009,6 +1011,7 @@ export class AsaasService {
                 maxOsPerMonth: pendingPlan.maxOsPerMonth,
                 maxTechnicians: pendingPlan.maxTechnicians,
                 maxAiMessages: pendingPlan.maxAiMessages,
+                maxNfseImports: pendingPlan.maxNfseImports,
                 supportLevel: pendingPlan.supportLevel,
                 allModulesIncluded: pendingPlan.allModulesIncluded,
               },
@@ -1026,6 +1029,7 @@ export class AsaasService {
                     maxOsPerMonth: pendingPlan.maxOsPerMonth,
                     maxTechnicians: pendingPlan.maxTechnicians,
                     maxAiMessages: pendingPlan.maxAiMessages,
+                    maxNfseImports: pendingPlan.maxNfseImports,
                   },
                 });
               }
@@ -1400,7 +1404,13 @@ export class AsaasService {
       if (!company) return;
 
       const data: Record<string, any> = {};
-      if (addon.osQuantity > 0) data.maxOsPerMonth = { increment: addon.osQuantity };
+      if (addon.osQuantity > 0) {
+        data.maxOsPerMonth = { increment: addon.osQuantity };
+        // OS extras also increase NFS-e import limit (if company has it enabled)
+        if ((company.maxNfseImports || 0) > 0) {
+          data.maxNfseImports = { increment: addon.osQuantity };
+        }
+      }
       if (addon.userQuantity > 0) data.maxUsers = { increment: addon.userQuantity };
       if (addon.technicianQuantity > 0) data.maxTechnicians = { increment: addon.technicianQuantity };
       if (addon.aiMessageQuantity > 0) data.maxAiMessages = { increment: addon.aiMessageQuantity };
@@ -1905,6 +1915,7 @@ export class AsaasService {
             maxOsPerMonth: pendingPlan.maxOsPerMonth,
             maxTechnicians: pendingPlan.maxTechnicians,
             maxAiMessages: pendingPlan.maxAiMessages,
+            maxNfseImports: pendingPlan.maxNfseImports,
             supportLevel: pendingPlan.supportLevel,
             allModulesIncluded: pendingPlan.allModulesIncluded,
           },
@@ -2000,7 +2011,12 @@ export class AsaasService {
       if (!company) return;
 
       const data: Record<string, any> = {};
-      if (addon.osQuantity > 0) data.maxOsPerMonth = { decrement: addon.osQuantity };
+      if (addon.osQuantity > 0) {
+        data.maxOsPerMonth = { decrement: addon.osQuantity };
+        if ((company.maxNfseImports || 0) > 0) {
+          data.maxNfseImports = { decrement: addon.osQuantity };
+        }
+      }
       if (addon.userQuantity > 0) data.maxUsers = { decrement: addon.userQuantity };
       if (addon.technicianQuantity > 0) data.maxTechnicians = { decrement: addon.technicianQuantity };
       if (addon.aiMessageQuantity > 0) data.maxAiMessages = { decrement: addon.aiMessageQuantity };
