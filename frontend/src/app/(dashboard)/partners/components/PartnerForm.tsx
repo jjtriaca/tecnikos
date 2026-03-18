@@ -18,6 +18,7 @@ import type { Partner } from "./PartnerTable";
 import type { Specialization } from "./SpecializationsTab";
 import ObrasSection from "./ObrasSection";
 import ServiceAddressesSection from "./ServiceAddressesSection";
+import ContactsSection from "./ContactsSection";
 import ContractsSection from "./ContractsSection";
 
 type PersonType = "PF" | "PJ";
@@ -425,6 +426,11 @@ export default function PartnerForm({
         {/* ENDEREÇOS DE ATENDIMENTO — só aparece ao editar um CLIENTE */}
         {editingId && form.partnerTypes.includes("CLIENTE") && (
           <ServiceAddressesSection partnerId={editingId} />
+        )}
+
+        {/* CONTATOS — emails e WhatsApp adicionais */}
+        {editingId && (
+          <ContactsSection partnerId={editingId} />
         )}
 
         {/* TECNICO Specializations */}
