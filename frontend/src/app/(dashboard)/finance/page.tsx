@@ -108,6 +108,19 @@ const ENTRY_FILTERS: FilterDefinition[] = [
   },
   { key: "dateFrom", label: "De", type: "date" },
   { key: "dateTo", label: "Até", type: "date" },
+  {
+    key: "nfseStatus",
+    label: "NFS-e",
+    type: "select",
+    placeholder: "Todas",
+    options: [
+      { value: "NOT_ISSUED", label: "Sem nota" },
+      { value: "AUTHORIZED", label: "Autorizada" },
+      { value: "PROCESSING", label: "Processando" },
+      { value: "ERROR", label: "Com erro" },
+      { value: "CANCELLED", label: "Cancelada" },
+    ],
+  },
 ];
 
 /* ── Partner lookup ────────────────────────────────────── */

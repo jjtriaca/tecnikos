@@ -474,6 +474,7 @@ export class FinanceController {
     @Query('dateFrom') dateFrom: string | undefined,
     @Query('dateTo') dateTo: string | undefined,
     @Query('partnerId') partnerId: string | undefined,
+    @Query('nfseStatus') nfseStatus: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.findEntries(user.companyId, type || 'RECEIVABLE', pagination, {
@@ -481,6 +482,7 @@ export class FinanceController {
       dateFrom,
       dateTo,
       partnerId,
+      nfseStatus,
     });
   }
 

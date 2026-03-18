@@ -329,7 +329,7 @@ export class FinanceService {
     companyId: string,
     type: 'RECEIVABLE' | 'PAYABLE',
     pagination?: PaginationDto,
-    filters?: { status?: string; dateFrom?: string; dateTo?: string; partnerId?: string },
+    filters?: { status?: string; dateFrom?: string; dateTo?: string; partnerId?: string; nfseStatus?: string },
   ): Promise<PaginatedResult<any>> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
@@ -344,6 +344,13 @@ export class FinanceService {
       where.status = { not: 'CANCELLED' };
     }
     if (filters?.partnerId) where.partnerId = filters.partnerId;
+    if (filters?.nfseStatus) {
+      if (filters.nfseStatus === 'NOT_ISSUED') {
+        where.nfseStatus = null;
+      } else {
+        where.nfseStatus = filters.nfseStatus;
+      }
+    }
     if (filters?.dateFrom || filters?.dateTo) {
       where.createdAt = {};
       if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);

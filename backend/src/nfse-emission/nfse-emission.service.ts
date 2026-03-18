@@ -549,9 +549,10 @@ export class NfseEmissionService {
           where: { id: emission.id },
           data: { status: 'CANCELLED', cancelledAt: new Date() },
         }),
+        // Liberar lançamento para reemissão (limpa vínculo)
         ...(entryId ? [this.prisma.financialEntry.update({
           where: { id: entryId },
-          data: { nfseStatus: 'CANCELLED' },
+          data: { nfseStatus: null, nfseEmissionId: null },
         })] : []),
       ]);
     }
@@ -608,9 +609,10 @@ export class NfseEmissionService {
           where: { id: emissionId },
           data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: dto.justificativa },
         }),
+        // Liberar lançamento para reemissão
         ...(entryId ? [this.prisma.financialEntry.update({
           where: { id: entryId },
-          data: { nfseStatus: 'CANCELLED' },
+          data: { nfseStatus: null, nfseEmissionId: null },
         })] : []),
       ]);
     }
