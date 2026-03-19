@@ -59,7 +59,12 @@ export default function WorkflowBlockNode({ block, isSelected, isFirst, isLast, 
   if (block.type === "FORM") subtitle = `${block.config?.fields?.length || 0} campos`;
   if (block.type === "QUESTION") subtitle = block.config?.question || "";
   if (block.type === "CONDITION") subtitle = block.config?.question || "Condicao";
-  if (block.type === "DELAY") subtitle = `${block.config?.minutes || 0} min`;
+  if (block.type === "DELAY") {
+    const dur = block.config?.duration ?? block.config?.minutes ?? 0;
+    const unit = block.config?.unit || "minutes";
+    const labels: Record<string, string> = { seconds: "s", minutes: "min", hours: "h", days: "dia(s)" };
+    subtitle = `${dur} ${labels[unit] || "min"}`;
+  }
   if (block.type === "SLA") subtitle = `Max: ${block.config?.maxMinutes || 0} min`;
   if (block.type === "STEP") subtitle = block.config?.description || "";
   if (block.type === "NOTE") subtitle = block.config?.placeholder || "";

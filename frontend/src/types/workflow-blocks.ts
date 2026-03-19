@@ -134,6 +134,8 @@ export type AlertConfig = {
 
 export type DelayConfig = {
   minutes?: number;
+  duration?: number;
+  unit?: 'seconds' | 'minutes' | 'hours' | 'days';
 };
 
 export type SlaConfig = {
@@ -249,7 +251,7 @@ export function getDefaultConfig(type: BlockType): Record<string, any> {
     case 'NOTIFY': return { recipients: [{ type: 'CLIENTE', enabled: true, channel: 'WHATSAPP', message: 'Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.' }] };
     case 'APPROVAL': return { approverRole: 'ADMIN', message: 'Servico finalizado aguardando aprovacao do gestor para encerramento da OS.' };
     case 'ALERT': return { message: 'Atencao: verificar pendencia na ordem de servico {titulo}.', severity: 'warning' };
-    case 'DELAY': return { minutes: 15 };
+    case 'DELAY': return { duration: 15, unit: 'minutes', minutes: 15 };
     case 'SLA': return { maxMinutes: 240, alertOnExceed: true };
     case 'STATUS': return { targetStatus: 'EM_EXECUCAO' };
     case 'RESCHEDULE': return { reason: 'Cliente solicitou reagendamento' };

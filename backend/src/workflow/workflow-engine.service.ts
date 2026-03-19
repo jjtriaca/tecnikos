@@ -462,15 +462,56 @@ export class WorkflowEngineService {
         this.logger.log(`🚀 Auto-executing ${block.type} "${block.name}"`);
 
         if (block.type === 'STATUS' || block.type === 'STATUS_CHANGE') {
-          // Mudar status da OS
           await this.executeSystemBlock(block, serviceOrderId, companyId);
         } else if (block.type === 'NOTIFY') {
-          // Enviar notificacao
           await this.executeSystemBlock(block, serviceOrderId, companyId);
         } else if (block.type === 'FINANCIAL_ENTRY') {
           await this.executeSystemBlock(block, serviceOrderId, companyId);
         } else if (block.type === 'ALERT') {
           await this.executeSystemBlock(block, serviceOrderId, companyId);
+        } else if (block.type === 'DELAY') {
+          // Delay: aguardar tempo configurado (minutes field, compatível com unit/duration)
+          const delayMs = (block.config?.minutes || 0) * 60 * 1000;
+          if (delayMs > 0 && delayMs <= 300000) {
+            // Delays até 5 min: sleep inline
+            this.logger.log(`⏳ DELAY: Waiting ${block.config.minutes} min (${delayMs}ms)`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          } else if (delayMs > 300000) {
+            // Delays > 5 min: agendar continuação assíncrona
+            this.logger.log(`⏳ DELAY: Scheduling ${block.config.minutes} min delay for OS ${serviceOrderId}`);
+            setTimeout(async () => {
+              try {
+                this.logger.log(`⏳ DELAY resumed for OS ${serviceOrderId}, continuing from block ${block.id}`);
+                // Continue execution from the next block after delay
+                let nextId = block.next;
+                while (nextId) {
+                  const nextBlock = blocks.find((b: any) => b.id === nextId);
+                  if (!nextBlock || nextBlock.type === 'END') break;
+                  if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
+                  if (nextBlock.type === 'STATUS' && nextBlock.config?.transitionMode === 'manual') break;
+                  try {
+                    const blockResult = await this.executeSystemBlock(nextBlock, serviceOrderId, companyId);
+                    await this.prisma.workflowStepLog.create({
+                      data: {
+                        serviceOrderId, stepOrder: stepOrder + 1,
+                        stepName: nextBlock.name || nextBlock.type,
+                        blockId: nextBlock.id, partnerId: 'SYSTEM',
+                        responseData: { autoCompleted: true, executedBy: 'delayResume' },
+                      },
+                    });
+                  } catch (err) {
+                    this.logger.error(`⏳ DELAY resume failed at ${nextBlock.type}: ${(err as Error).message}`);
+                    break;
+                  }
+                  nextId = nextBlock.next || null;
+                }
+              } catch (err) {
+                this.logger.error(`⏳ DELAY resume error: ${(err as Error).message}`);
+              }
+            }, delayMs);
+            // Return immediately — delay will continue execution asynchronously
+            return { executed, stoppedAt: `DELAY:${block.config.minutes}min` };
+          }
         } else {
           this.logger.log(`🚀 Skipping unhandled block type: ${block.type}`);
         }

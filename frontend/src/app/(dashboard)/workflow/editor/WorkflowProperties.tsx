@@ -491,8 +491,27 @@ export default function WorkflowProperties({ block, onChange }: Props) {
         {/* DELAY */}
         {block.type === "DELAY" && (
           <>
-            <Label>Tempo de espera (minutos)</Label>
-            <Input type="number" value={cfg.minutes || 15} onChange={(v) => updateConfig("minutes", parseInt(v) || 15)} />
+            <Label>Tempo de espera</Label>
+            <div className="flex gap-2">
+              <Input type="number" value={cfg.duration ?? cfg.minutes ?? 15} onChange={(v) => {
+                const val = parseInt(v) || 1;
+                const unit = cfg.unit || "minutes";
+                const mult: Record<string, number> = { seconds: 1/60, minutes: 1, hours: 60, days: 1440 };
+                updateConfig("duration", val);
+                updateConfig("minutes", Math.round(val * (mult[unit] || 1)));
+              }} />
+              <Select value={cfg.unit || "minutes"} onChange={(v) => {
+                const dur = cfg.duration ?? cfg.minutes ?? 15;
+                const mult: Record<string, number> = { seconds: 1/60, minutes: 1, hours: 60, days: 1440 };
+                updateConfig("unit", v);
+                updateConfig("minutes", Math.round(dur * (mult[v] || 1)));
+              }} options={[
+                { value: "seconds", label: "Segundos" },
+                { value: "minutes", label: "Minutos" },
+                { value: "hours", label: "Horas" },
+                { value: "days", label: "Dias" },
+              ]} />
+            </div>
           </>
         )}
 
