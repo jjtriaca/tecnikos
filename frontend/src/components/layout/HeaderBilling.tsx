@@ -76,9 +76,11 @@ export default function HeaderBilling() {
       {/* ── 1. Barra de uso de OS ── */}
       {usage && !usage.isUnlimited && (
         <Link
-          href="/settings/billing"
-          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 hover:bg-slate-100 transition-colors"
-          title={`${usage.usedThisMonth} de ${usage.maxOsPerMonth} OS usadas este mes (${usage.daysLeft} dias restantes)`}
+          href={usage.percentage >= 100 ? "/settings/billing?filter=os" : "/settings/billing"}
+          className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 hover:opacity-90 transition-colors ${
+            usage.percentage >= 100 ? "border-red-300 bg-red-50" : "border-slate-200 bg-slate-50"
+          }`}
+          title={`${usage.usedThisMonth} de ${usage.maxOsPerMonth} OS usadas este ciclo (${usage.daysLeft} dias restantes)`}
         >
           <div className="flex flex-col gap-0.5 min-w-[100px]">
             <div className="flex items-center justify-between">
@@ -103,24 +105,26 @@ export default function HeaderBilling() {
       {/* ── 1b. Barra de uso NFS-e Import ── */}
       {nfseUsage && (
         <Link
-          href="/nfe/entrada"
-          className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 hover:bg-emerald-100 transition-colors"
+          href={nfseUsage.percentage >= 100 ? "/settings/billing?filter=nfse" : "/nfe/entrada"}
+          className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 hover:opacity-90 transition-colors ${
+            nfseUsage.percentage >= 100 ? "border-red-300 bg-red-50" : nfseUsage.percentage >= 80 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"
+          }`}
           title={`${nfseUsage.used} de ${nfseUsage.limit} importacoes NFS-e usadas`}
         >
           <div className="flex flex-col gap-0.5 min-w-[100px]">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-emerald-500">Import NFS-e</span>
-              <span className={`text-[10px] ${nfseUsage.percentage >= 90 ? "text-red-600 font-semibold" : nfseUsage.percentage >= 80 ? "text-amber-600 font-semibold" : "text-emerald-500"}`}>
+              <span className={`text-[10px] ${nfseUsage.percentage >= 100 ? "text-red-600" : nfseUsage.percentage >= 80 ? "text-amber-600" : "text-emerald-500"}`}>Import NFS-e</span>
+              <span className={`text-[10px] ${getTextClass(nfseUsage.percentage)}`}>
                 {nfseUsage.percentage}%
               </span>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-emerald-100">
+            <div className={`h-1.5 w-full rounded-full ${nfseUsage.percentage >= 100 ? "bg-red-100" : "bg-emerald-100"}`}>
               <div
                 className={`h-1.5 rounded-full transition-all duration-500 ${getBarColor(nfseUsage.percentage)}`}
                 style={{ width: `${Math.min(nfseUsage.percentage, 100)}%` }}
               />
             </div>
-            <span className={`text-[10px] ${nfseUsage.percentage >= 90 ? "text-red-600" : nfseUsage.percentage >= 80 ? "text-amber-600" : "text-emerald-500"}`}>
+            <span className={`text-[10px] ${getTextClass(nfseUsage.percentage)}`}>
               {nfseUsage.used} / {nfseUsage.limit}
             </span>
           </div>
@@ -130,7 +134,7 @@ export default function HeaderBilling() {
       {/* ── 2. Comprar OS (add-on) ── */}
       {usage && !usage.isUnlimited && usage.percentage >= 80 && (
         <Link
-          href="/settings/billing"
+          href="/settings/billing?filter=os"
           className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100 transition-colors"
           title="Comprar pacote extra de OS"
         >

@@ -392,7 +392,7 @@ export default function NfseEntradaPage() {
             </span>
           </div>
         ) : (
-          <a href="/settings/billing" className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-400 flex items-center gap-2 hover:bg-slate-100 transition-colors">
+          <a href="/settings/billing?filter=nfse" className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-400 flex items-center gap-2 hover:bg-slate-100 transition-colors">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
             Importar NFS-e
             <span className="text-[10px] text-slate-400">(compre add-on)</span>

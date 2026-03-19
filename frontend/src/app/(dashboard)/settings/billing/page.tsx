@@ -89,9 +89,12 @@ export default function BillingPage() {
   const [downgrading, setDowngrading] = useState<string | null>(null);
   const [cancellingDowngrade, setCancellingDowngrade] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [filter, setFilter] = useState<string>("all");
 
-  // Show success message from checkout redirect
+  // Read filter from URL + show success message from checkout redirect
   useEffect(() => {
+    const f = searchParams.get("filter");
+    if (f && ["all", "os", "nfse", "plans"].includes(f)) setFilter(f);
     const addon = searchParams.get("addon");
     const upgrade = searchParams.get("upgrade");
     if (addon === "success") {
@@ -213,6 +216,15 @@ export default function BillingPage() {
     );
   }
 
+  // Filter add-ons by type
+  const filteredAddOns = addOns.filter((a) => {
+    if (filter === "os") return a.osQuantity > 0 || a.userQuantity > 0 || a.technicianQuantity > 0;
+    if (filter === "nfse") return a.nfseImportQuantity > 0;
+    return true; // "all" or "plans"
+  });
+  const showAddOns = filter !== "plans";
+  const showPlans = filter === "all" || filter === "plans";
+
   // Use planPriceCents for upgrade/downgrade comparison (not the promo-discounted value)
   const currentPlanPriceCents = billing?.planPriceCents ?? (billing?.valueBrl ? billing.valueBrl * 100 : 0);
   const currentPlanId = billing?.planId;
@@ -224,6 +236,29 @@ export default function BillingPage() {
       <div>
         <h1 className="text-xl font-bold text-slate-900">Assinatura e Pacotes</h1>
         <p className="text-sm text-slate-500 mt-1">Gerencie seu plano e compre pacotes adicionais de OS</p>
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-500">Filtrar:</span>
+        {[
+          { key: "all", label: "Tudo" },
+          { key: "os", label: "Pacotes OS" },
+          { key: "nfse", label: "Import. NFS-e" },
+          { key: "plans", label: "Planos" },
+        ].map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              filter === f.key
+                ? "bg-blue-600 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {/* Current Plan */}
@@ -346,7 +381,7 @@ export default function BillingPage() {
       )}
 
       {/* Upgrade Plans */}
-      {upgradePlans.length > 0 && (
+      {showPlans && upgradePlans.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-slate-800 mb-3">Fazer Upgrade</h2>
           <p className="text-xs text-slate-500 mb-3">O upgrade e imediato. O saldo do plano atual sera creditado como desconto na primeira fatura do novo plano.</p>
@@ -366,7 +401,7 @@ export default function BillingPage() {
       )}
 
       {/* Downgrade Plans */}
-      {downgradePlans.length > 0 && !billing?.pendingPlanName && (
+      {showPlans && downgradePlans.length > 0 && !billing?.pendingPlanName && (
         <div>
           <h2 className="text-lg font-semibold text-slate-800 mb-3">Trocar para plano menor</h2>
           <p className="text-xs text-slate-500 mb-3">A troca sera aplicada no proximo ciclo de cobranca. Voce continua com o plano atual ate o final do periodo pago.</p>
@@ -386,11 +421,13 @@ export default function BillingPage() {
       )}
 
       {/* Add-on Packages */}
-      {addOns.length > 0 && (
+      {showAddOns && filteredAddOns.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-slate-800 mb-3">Pacotes Extras de OS</h2>
+          <h2 className="text-lg font-semibold text-slate-800 mb-3">
+            {filter === "nfse" ? "Pacotes Import. NFS-e" : filter === "os" ? "Pacotes Extras de OS" : "Pacotes Extras"}
+          </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {addOns.map((addOn) => (
+            {filteredAddOns.map((addOn) => (
               <div
                 key={addOn.id}
                 className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
