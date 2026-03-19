@@ -153,16 +153,20 @@ export default function NfseEntradaPage() {
 
   // Focus NFe sync
   const [syncing, setSyncing] = useState(false);
+  const [importUsage, setImportUsage] = useState<{ used: number; limit: number; percentage: number; enabled: boolean } | null>(null);
 
   /* ── Load ──────────────────────────────────────── */
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const qs = tp.buildQueryString();
-      const result = await api.get<{ data: NfseEntrada[]; meta: PaginationMeta }>(`/nfse-entrada?${qs}`);
+      const [result, usage] = await Promise.all([
+        api.get<{ data: NfseEntrada[]; meta: PaginationMeta }>(`/nfse-entrada?${tp.buildQueryString()}`),
+        api.get<{ used: number; limit: number; percentage: number; enabled: boolean }>("/nfse-entrada/import-usage").catch(() => null),
+      ]);
       setEntries(result.data);
       setMeta(result.meta);
+      if (usage) setImportUsage(usage);
     } catch (err: any) {
       toast(err?.message || "Erro ao carregar NFS-e de entrada", "error");
     } finally {
@@ -377,10 +381,23 @@ export default function NfseEntradaPage() {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
           Digitacao Manual
         </button>
-        <button onClick={handleSyncFocus} disabled={syncing} className="rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-          <svg className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          {syncing ? "Sincronizando..." : "Importar Focus NFe"}
-        </button>
+        {importUsage?.enabled ? (
+          <div className="flex items-center gap-2">
+            <button onClick={handleSyncFocus} disabled={syncing || importUsage.used >= importUsage.limit} className="rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              <svg className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              {syncing ? "Importando..." : "Importar NFS-e"}
+            </button>
+            <span className={`text-[11px] font-medium ${importUsage.percentage >= 90 ? "text-red-500" : importUsage.percentage >= 80 ? "text-amber-500" : "text-slate-500"}`}>
+              {importUsage.used}/{importUsage.limit}
+            </span>
+          </div>
+        ) : (
+          <a href="/settings/billing" className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-400 flex items-center gap-2 hover:bg-slate-100 transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            Importar NFS-e
+            <span className="text-[10px] text-slate-400">(compre add-on)</span>
+          </a>
+        )}
       </div>
 
       {/* Upload Area */}

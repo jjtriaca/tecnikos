@@ -341,6 +341,50 @@ export class NfseEntradaService {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
+     getImportUsage — NFS-e import quota usage
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async getImportUsage(companyId: string): Promise<{ used: number; limit: number; percentage: number; enabled: boolean }> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { maxNfseImports: true },
+    });
+
+    const limit = company?.maxNfseImports || 0;
+    if (limit === 0) {
+      return { used: 0, limit: 0, percentage: 0, enabled: false };
+    }
+
+    // Use billing cycle for counting
+    const now = new Date();
+    let periodStart: Date = new Date(now.getFullYear(), now.getMonth(), 1);
+    let periodEnd: Date = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { companyId },
+      select: { id: true },
+    });
+    if (tenant) {
+      const sub = await this.prisma.subscription.findFirst({
+        where: { tenantId: tenant.id, status: { in: ['ACTIVE', 'PAST_DUE'] } },
+        select: { currentPeriodStart: true, currentPeriodEnd: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (sub) {
+        periodStart = sub.currentPeriodStart;
+        periodEnd = sub.currentPeriodEnd;
+      }
+    }
+
+    const used = await this.prisma.nfseEntrada.count({
+      where: { companyId, focusSource: true, createdAt: { gte: periodStart, lte: periodEnd } },
+    });
+
+    const percentage = Math.min(100, Math.round((used / limit) * 100));
+    return { used, limit, percentage, enabled: true };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
      syncFromFocus — Import NFS-e recebidas from Focus NFe API
      ═══════════════════════════════════════════════════════════════════ */
 

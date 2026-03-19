@@ -12,6 +12,13 @@ interface UsageData {
   daysLeft: number;
 }
 
+interface NfseImportUsage {
+  used: number;
+  limit: number;
+  percentage: number;
+  enabled: boolean;
+}
+
 interface BillingStatus {
   hasSubscription: boolean;
   status?: "ACTIVE" | "PAST_DUE" | "CANCELLED" | "SUSPENDED";
@@ -41,6 +48,7 @@ function getTextClass(pct: number): string {
 export default function HeaderBilling() {
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [nfseUsage, setNfseUsage] = useState<NfseImportUsage | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -50,10 +58,15 @@ export default function HeaderBilling() {
     api.get<BillingStatus>("/auth/billing-status")
       .then(d => { if (mounted) setBilling(d); })
       .catch(() => {});
-    // Refresh every 5 minutes
+    api.get<NfseImportUsage>("/nfse-entrada/import-usage")
+      .then(d => { if (mounted && d.enabled) setNfseUsage(d); })
+      .catch(() => {});
     const interval = setInterval(() => {
       api.get<UsageData>("/service-orders/usage").then(setUsage).catch(() => {});
       api.get<BillingStatus>("/auth/billing-status").then(setBilling).catch(() => {});
+      api.get<NfseImportUsage>("/nfse-entrada/import-usage")
+        .then(d => { if (d.enabled) setNfseUsage(d); })
+        .catch(() => {});
     }, 5 * 60 * 1000);
     return () => { mounted = false; clearInterval(interval); };
   }, []);
@@ -82,6 +95,33 @@ export default function HeaderBilling() {
             </div>
             <span className={`text-[10px] ${getTextClass(usage.percentage)}`}>
               {usage.usedThisMonth} / {usage.maxOsPerMonth}
+            </span>
+          </div>
+        </Link>
+      )}
+
+      {/* ── 1b. Barra de uso NFS-e Import ── */}
+      {nfseUsage && (
+        <Link
+          href="/nfe/entrada"
+          className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 hover:bg-emerald-100 transition-colors"
+          title={`${nfseUsage.used} de ${nfseUsage.limit} importacoes NFS-e usadas`}
+        >
+          <div className="flex flex-col gap-0.5 min-w-[100px]">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-emerald-500">Import NFS-e</span>
+              <span className={`text-[10px] ${nfseUsage.percentage >= 90 ? "text-red-600 font-semibold" : nfseUsage.percentage >= 80 ? "text-amber-600 font-semibold" : "text-emerald-500"}`}>
+                {nfseUsage.percentage}%
+              </span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-emerald-100">
+              <div
+                className={`h-1.5 rounded-full transition-all duration-500 ${getBarColor(nfseUsage.percentage)}`}
+                style={{ width: `${Math.min(nfseUsage.percentage, 100)}%` }}
+              />
+            </div>
+            <span className={`text-[10px] ${nfseUsage.percentage >= 90 ? "text-red-600" : nfseUsage.percentage >= 80 ? "text-amber-600" : "text-emerald-500"}`}>
+              {nfseUsage.used} / {nfseUsage.limit}
             </span>
           </div>
         </Link>
