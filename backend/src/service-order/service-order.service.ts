@@ -643,7 +643,6 @@ export class ServiceOrderService {
         companyId,
         deletedAt: null,
         status: { notIn: terminalStatuses },
-        assignedPartnerId: { not: null },
       },
       include: {
         clientPartner: { select: { name: true } },
