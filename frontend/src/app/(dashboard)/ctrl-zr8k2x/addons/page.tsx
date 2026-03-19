@@ -141,6 +141,23 @@ export default function AddOnsAdminPage() {
     }
   }
 
+  function handleDuplicate(a: AddOn) {
+    setEditing(null); // Create mode, not edit
+    setForm({
+      name: a.name + " (copia)",
+      description: a.description || "",
+      osQuantity: a.osQuantity,
+      userQuantity: a.userQuantity,
+      technicianQuantity: a.technicianQuantity,
+      aiMessageQuantity: a.aiMessageQuantity,
+      nfseImportQuantity: a.nfseImportQuantity,
+      priceDisplay: centsToDisplay(a.priceCents),
+      sortOrder: Math.max(0, ...addOns.map(x => x.sortOrder)) + 1,
+    });
+    setError(null);
+    setShowForm(true);
+  }
+
   async function handleDeactivate(id: string) {
     if (!confirm("Desativar este pacote?")) return;
     await api.del(`/admin/tenants/addons/${id}`);
@@ -199,6 +216,9 @@ export default function AddOnsAdminPage() {
               <div className="flex gap-2">
                 <button onClick={() => openEdit(a)} className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
                   Editar
+                </button>
+                <button onClick={() => handleDuplicate(a)} className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50">
+                  Duplicar
                 </button>
                 {a.isActive ? (
                   <button onClick={() => handleDeactivate(a.id)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">
