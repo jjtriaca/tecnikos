@@ -144,47 +144,8 @@ export class ServiceOrderService {
       if (matched) resolvedWorkflowId = matched.id;
     }
 
-    // ── Pre-check: inspect workflow blocks for TECH_REVIEW_SCREEN and acceptOS ──
+    // ── Pre-check: inspect workflow blocks for TECH_REVIEW_SCREEN ──
     let workflowHasReviewScreen = false;
-    let workflowHasAcceptOS = false;
-    if (resolvedWorkflowId && data.techAssignmentMode !== 'BY_AGENDA') {
-      try {
-        const wf = await this.prisma.workflowTemplate.findUnique({
-          where: { id: resolvedWorkflowId },
-          select: { steps: true },
-        });
-        if (wf?.steps) {
-          const def = typeof wf.steps === 'string' ? JSON.parse(wf.steps as string) : wf.steps;
-          // Support V2 and V3 formats
-          let blocks: any[] = [];
-          if (def?.version === 2 && Array.isArray(def.blocks)) blocks = def.blocks;
-          else if (def?.version === 3 && Array.isArray(def.blocks)) blocks = def.blocks;
-          workflowHasReviewScreen = blocks.some((b: any) => b.type === 'TECH_REVIEW_SCREEN');
-          // Check if any NOTIFY block has linkConfig.acceptOS = true
-          const notifyBlocks = blocks.filter((b: any) => b.type === 'NOTIFY');
-          for (const nb of notifyBlocks) {
-            const recipients = nb.config?.recipients || [];
-            for (const r of recipients) {
-              if (r.linkConfig?.acceptOS === true) {
-                workflowHasAcceptOS = true;
-                break;
-              }
-            }
-            if (workflowHasAcceptOS) break;
-          }
-        }
-      } catch { /* ignore parse errors */ }
-    }
-
-    // Respeitar técnico direcionado: DIRECTED + técnicos escolhidos → auto-atribui o primeiro
-    // SKIP auto-assign when:
-    // 1. Workflow has tech review screen (operator reviews first)
-    // 2. Workflow will be executed from START (V3 mode) — blocks control everything
-    //    Detected by: workflow has NOTIFY block as first actionable block after START
-    //    This means the workflow wants to handle the full flow (notify → accept → assign)
-    // V3 Detection: ANY V2/V3 workflow with blocks → blocks control everything
-    // OS starts ABERTA, no auto-assign, no auto-accept. Blocks dictate status/assignment.
-    let workflowUsesFromStart = false;
     if (resolvedWorkflowId) {
       try {
         const wf = await this.prisma.workflowTemplate.findUnique({
@@ -193,22 +154,13 @@ export class ServiceOrderService {
         });
         if (wf?.steps) {
           const def = typeof wf.steps === 'string' ? JSON.parse(wf.steps as string) : wf.steps;
-          const blocks: any[] = def?.blocks || [];
-          // Any V2/V3 workflow with a START block uses the engine from start
-          // Blocks control the ENTIRE lifecycle: status, notifications, assignments
-          const hasStart = blocks.some((b: any) => b.type === 'START');
-          if (hasStart && blocks.length >= 2) {
-            workflowUsesFromStart = true;
-          }
+          let blocks: any[] = [];
+          if (def?.version === 2 && Array.isArray(def.blocks)) blocks = def.blocks;
+          else if (def?.version === 3 && Array.isArray(def.blocks)) blocks = def.blocks;
+          workflowHasReviewScreen = blocks.some((b: any) => b.type === 'TECH_REVIEW_SCREEN');
         }
-      } catch { /* ignore */ }
+      } catch { /* ignore parse errors */ }
     }
-
-    const autoAssignDirected =
-      data.techAssignmentMode === 'DIRECTED' &&
-      (data.directedTechnicianIds?.length ?? 0) > 0 &&
-      !workflowHasReviewScreen &&
-      !workflowUsesFromStart;
 
     const result = await this.prisma.serviceOrder.create({
       data: {
@@ -249,24 +201,8 @@ export class ServiceOrderService {
         returnPaidToTech: data.returnPaidToTech ?? undefined,
         isUrgent: data.isUrgent ?? undefined,
         isEvaluation: data.isEvaluation ?? undefined,
-        // V3 workflows: OS always starts ABERTA — blocks control everything
-        // Non-V3: pre-assign technician if applicable
-        ...(workflowUsesFromStart ? {
-          status: 'ABERTA' as any,
-        } : {
-          // Pre-atribuicao (BY_AGENDA): tecnico ja definido + status ATRIBUIDA + aceito
-          ...(data.techAssignmentMode === 'BY_AGENDA' && data.assignedPartnerId ? {
-            assignedPartnerId: data.assignedPartnerId,
-            status: 'ATRIBUIDA' as any,
-            acceptedAt: new Date(),
-          } : {}),
-          // Respeitar técnico direcionado: auto-atribui primeiro da lista
-          ...(autoAssignDirected ? {
-            assignedPartnerId: data.directedTechnicianIds![0],
-            status: 'ATRIBUIDA' as any,
-            ...(workflowHasAcceptOS ? {} : { acceptedAt: new Date() }),
-          } : {}),
-        }),
+        // OS SEMPRE nasce ABERTA — blocos do workflow controlam status/atribuicao
+        status: 'ABERTA' as any,
       },
     });
 
@@ -308,51 +244,7 @@ export class ServiceOrderService {
 
     const eventData = { status: result.status, state: data.state, city: data.city, neighborhood: data.neighborhood, valueCents: data.valueCents, clientPartnerId: data.clientPartnerId, title: result.title, description: data.description, addressStreet: data.addressStreet, cep: data.cep, deadlineAt: data.deadlineAt, createdAt: result.createdAt?.toISOString(), scheduledStartAt: data.scheduledStartAt, isReturn: data.isReturn, isUrgent: data.isUrgent, isEvaluation: data.isEvaluation };
 
-    // V3 workflows: skip ALL automations — blocks control everything
-    if (!workflowUsesFromStart) {
-      this.dispatchAutomation({
-        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'created',
-        data: eventData,
-      });
-
-      // Dispatch return_created for return OS → triggers "Uma OS de retorno e criada"
-      if (data.isReturn) {
-        this.dispatchAutomation({
-          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'return_created',
-          data: eventData,
-        });
-      }
-
-      // Dispatch urgent_created for urgent OS → triggers "Uma OS urgente e criada"
-      if (data.isUrgent) {
-        this.dispatchAutomation({
-          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'urgent_created',
-          data: eventData,
-        });
-      }
-
-      // Dispatch assignment mode triggers
-      const assignMode = data.techAssignmentMode || 'BY_SPECIALIZATION';
-      if (assignMode === 'BY_SPECIALIZATION') {
-        this.dispatchAutomation({
-          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'specialization_created',
-          data: eventData,
-        });
-      } else if (assignMode === 'DIRECTED') {
-        this.dispatchAutomation({
-          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'directed_created',
-          data: eventData,
-        });
-      } else if (assignMode === 'BY_AGENDA' || assignMode === 'BY_WORKFLOW') {
-        this.dispatchAutomation({
-          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'agenda_created',
-          data: eventData,
-        });
-      }
-    }
-
     // ── Tech Review: skip notifications, return candidates ──
-    // Already detected from pre-check above (workflowHasReviewScreen) or explicit flag
     const shouldReview = !!data.skipNotifications || workflowHasReviewScreen;
     let reviewAllowEdit = false;
     if (workflowHasReviewScreen && resolvedWorkflowId) {
@@ -377,93 +269,37 @@ export class ServiceOrderService {
       return { ...result, _pendingReview: true, _candidates: candidates, _workflowId: resolvedWorkflowId, _allowEdit: reviewAllowEdit };
     }
 
-    // Execute workflow — two modes:
-    // 1. V3 (workflowUsesFromStart): execute from START block sequentially
-    // 2. Legacy: executeStageNotifications based on current status
+    // Execute workflow from START — blocks control everything (status, notifications, assignments)
     let _dispatch: any = undefined;
-    const autoAssignedTechId = result.assignedPartnerId;
 
     if (resolvedWorkflowId && this.workflowEngine) {
-      if (workflowUsesFromStart) {
-        // V3 MODE: Execute workflow from START block — blocks control everything
-        // The workflow handles: NOTIFY (send WhatsApp), STATUS changes, etc.
-        try {
-          await this.workflowEngine.executeWorkflowFromStart(
-            result.id,
-            data.companyId,
-            resolvedWorkflowId,
-          );
-
-          // Load tech info for dispatch panel (may have been assigned by a STATUS block)
-          const updatedOS = await this.prisma.serviceOrder.findUnique({
-            where: { id: result.id },
-            select: { assignedPartnerId: true },
-          });
-          if (updatedOS?.assignedPartnerId) {
-            const tech = await this.prisma.partner.findUnique({
-              where: { id: updatedOS.assignedPartnerId },
-              select: { name: true, phone: true },
-            });
-            if (tech) {
-              _dispatch = {
-                technicianName: tech.name,
-                technicianPhone: tech.phone || '',
-                notificationStatus: 'SENT',
-              };
-            }
-          }
-        } catch (err) {
-          console.error('executeWorkflowFromStart failed:', err?.message || err);
-        }
-      } else if (autoAssignedTechId) {
-        // LEGACY: Await workflow notifications to get dispatch data for the floating panel
-        try {
-          const notifResult = await this.workflowEngine.executeStageNotifications(
-            result.id,
-            data.companyId,
-            result.status,
-            resolvedWorkflowId,
-          );
-
-          const tech = await this.prisma.partner.findUnique({
-            where: { id: autoAssignedTechId },
-            select: { name: true, phone: true },
-          });
-
-          if (tech) {
-            _dispatch = {
-              technicianName: tech.name,
-              technicianPhone: tech.phone || '',
-              notificationId: notifResult?.notificationId,
-              notificationStatus: notifResult?.notificationStatus || 'PENDING',
-              notificationChannel: notifResult?.notificationChannel || 'WHATSAPP',
-              errorDetail: notifResult?.errorDetail,
-            };
-          }
-        } catch (err) {
-          const tech = await this.prisma.partner.findUnique({
-            where: { id: autoAssignedTechId },
-            select: { name: true, phone: true },
-          });
-          if (tech) {
-            _dispatch = {
-              technicianName: tech.name,
-              technicianPhone: tech.phone || '',
-              notificationStatus: 'FAILED',
-              errorDetail: err?.message || 'Erro desconhecido',
-            };
-          }
-        }
-      } else {
-        // LEGACY: Non-auto-assigned — fire-and-forget
-        this.workflowEngine.executeStageNotifications(
+      try {
+        await this.workflowEngine.executeWorkflowFromStart(
           result.id,
           data.companyId,
-          result.status,
           resolvedWorkflowId,
-        ).catch(err => {
-          console.error('executeStageNotifications failed:', err?.message || err);
+        );
+
+        // Load tech info for dispatch panel (may have been assigned by a STATUS block)
+        const updatedOS = await this.prisma.serviceOrder.findUnique({
+          where: { id: result.id },
+          select: { assignedPartnerId: true },
         });
+        if (updatedOS?.assignedPartnerId) {
+          const tech = await this.prisma.partner.findUnique({
+            where: { id: updatedOS.assignedPartnerId },
+            select: { name: true, phone: true },
+          });
+          if (tech) {
+            _dispatch = {
+              technicianName: tech.name,
+              technicianPhone: tech.phone || '',
+              notificationStatus: 'SENT',
+            };
+          }
+        }
+      } catch (err) {
+        console.error('executeWorkflowFromStart failed:', err?.message || err);
       }
     }
 
