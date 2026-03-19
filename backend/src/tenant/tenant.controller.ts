@@ -251,6 +251,7 @@ export class TenantController {
   createAddOn(@Body() dto: {
     name: string; description?: string; priceCents: number; sortOrder?: number;
     osQuantity?: number; userQuantity?: number; technicianQuantity?: number; aiMessageQuantity?: number;
+    nfseImportQuantity?: number;
   }) {
     return this.prisma.addOn.create({
       data: {
@@ -260,6 +261,7 @@ export class TenantController {
         userQuantity: dto.userQuantity ?? 0,
         technicianQuantity: dto.technicianQuantity ?? 0,
         aiMessageQuantity: dto.aiMessageQuantity ?? 0,
+        nfseImportQuantity: dto.nfseImportQuantity ?? 0,
         priceCents: dto.priceCents,
         sortOrder: dto.sortOrder ?? 0,
       },
@@ -270,6 +272,7 @@ export class TenantController {
   updateAddOn(@Param('id') id: string, @Body() dto: Partial<{
     name: string; description: string; priceCents: number; isActive: boolean; sortOrder: number;
     osQuantity: number; userQuantity: number; technicianQuantity: number; aiMessageQuantity: number;
+    nfseImportQuantity: number;
   }>) {
     return this.prisma.addOn.update({ where: { id }, data: dto });
   }
