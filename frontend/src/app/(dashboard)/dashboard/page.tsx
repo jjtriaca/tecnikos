@@ -63,6 +63,7 @@ const STATUS_LABELS: Record<string, string> = {
   APROVADA: "Aprovada",
   AJUSTE: "Ajuste",
   CANCELADA: "Cancelada",
+  RECUSADA: "Recusada",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -74,6 +75,7 @@ const STATUS_COLORS: Record<string, string> = {
   APROVADA: "bg-emerald-600",
   AJUSTE: "bg-amber-500",
   CANCELADA: "bg-slate-400",
+  RECUSADA: "bg-red-500",
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -85,6 +87,7 @@ const STATUS_BADGE: Record<string, string> = {
   APROVADA: "bg-emerald-100 text-emerald-800 border-emerald-200",
   AJUSTE: "bg-amber-100 text-amber-800 border-amber-200",
   CANCELADA: "bg-slate-100 text-slate-600 border-slate-200",
+  RECUSADA: "bg-red-100 text-red-800 border-red-200",
 };
 
 /* ── Helpers ─────────────────────────────────────────── */

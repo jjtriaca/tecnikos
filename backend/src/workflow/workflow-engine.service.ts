@@ -1500,10 +1500,14 @@ export class WorkflowEngineService {
           '{razao_social}': notifySO.company?.name || '',
           '{cnpj_empresa}': (notifySO.company as any)?.cnpj || '',
           '{telefone_empresa}': (notifySO.company as any)?.phone || '',
-          '{nome}': notifySO.assignedPartner?.name || '',
+          // {nome} is NOT in this global map — it's context-dependent:
+          //   TECNICO: replaced per-target with target.name
+          //   CLIENTE: replaced with clientPartner.name
+          //   GESTOR: replaced with 'Gestor'
           '{nome_cliente}': notifySO.clientPartner?.name || '',
+          '{data}': new Date().toLocaleDateString('pt-BR'),
           '{data_agendamento}': (notifySO as any).scheduledStartAt ? new Date((notifySO as any).scheduledStartAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
-          '{link_app}': '', // Replaced with public link in TECNICO notification handler
+          // {link_app} and {link_os} are NOT in this map — they are replaced per-technician in the TECNICO handler below
           '{link}': `${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/${serviceOrderId}`,
           '{tempo_aceitar}': (notifySO as any).acceptTimeoutMinutes
             ? ((notifySO as any).acceptTimeoutMinutes >= 60 && (notifySO as any).acceptTimeoutMinutes % 60 === 0
@@ -1554,6 +1558,15 @@ export class WorkflowEngineService {
           for (const r of config.recipients) {
             if (r.enabled !== false) {
               let msg = replaceVars(r.message || '');
+              // Per-recipient {nome} substitution based on type
+              if (r.type === 'CLIENTE') {
+                msg = msg.split('{nome}').join(notifySO.clientPartner?.name || '');
+              } else if (r.type === 'FORNECEDOR') {
+                msg = msg.split('{nome}').join(''); // Supplier name not available here
+              } else if (r.type === 'GESTOR') {
+                msg = msg.split('{nome}').join('Gestor');
+              }
+              // Note: for TECNICO, {nome} is replaced per-target in the loop below
               recipients.push({
                 type: r.type,
                 channel: r.channel || config.channel || 'WHATSAPP',
@@ -1565,6 +1578,12 @@ export class WorkflowEngineService {
         } else if (config.recipient) {
           // Legacy single recipient format
           let msg = replaceVars(config.message || `Fluxo: bloco "${block.name}" executado`);
+          // Per-recipient {nome} substitution
+          if (config.recipient === 'TECNICO') {
+            msg = msg.split('{nome}').join(notifySO.assignedPartner?.name || '');
+          } else if (config.recipient === 'CLIENTE') {
+            msg = msg.split('{nome}').join(notifySO.clientPartner?.name || '');
+          }
           recipients.push({
             type: config.recipient,
             channel: config.channel || 'MOCK',
@@ -1641,8 +1660,10 @@ export class WorkflowEngineService {
 
             for (const target of techTargets) {
               try {
+                // Per-technician variable replacement: {nome} = this tech's name
+                let finalMessage = r.message.split('{nome}').join(target.name || '');
+
                 // Replace {link_os} and {link_app} variables or append link to message
-                let finalMessage = r.message;
                 if (publicLinkUrl) {
                   if (finalMessage.includes('{link_os}')) {
                     finalMessage = finalMessage.replace(/\{link_os\}/gi, publicLinkUrl);

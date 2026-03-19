@@ -197,6 +197,7 @@ const STATUS_LABELS: Record<string, string> = {
   APROVADA: "Aprovada",
   AJUSTE: "Ajuste",
   CANCELADA: "Cancelada",
+  RECUSADA: "Recusada",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -208,6 +209,7 @@ const STATUS_COLORS: Record<string, string> = {
   APROVADA: "bg-emerald-100 text-emerald-800",
   AJUSTE: "bg-amber-100 text-amber-800",
   CANCELADA: "bg-slate-100 text-slate-600",
+  RECUSADA: "bg-red-100 text-red-800",
 };
 
 const EVENT_LABELS: Record<string, string> = {

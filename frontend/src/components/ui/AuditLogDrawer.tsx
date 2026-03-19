@@ -66,6 +66,7 @@ const STATUS_LABELS: Record<string, string> = {
   APROVADA: "Aprovada",
   AJUSTE: "Ajuste",
   CANCELADA: "Cancelada",
+  RECUSADA: "Recusada",
   ATIVO: "Ativo",
   INATIVO: "Inativo",
   EM_TREINAMENTO: "Em Treinamento",

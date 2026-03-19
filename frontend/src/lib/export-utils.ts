@@ -96,6 +96,7 @@ export function fmtStatus(status: string | null | undefined): string {
     APROVADA: "Aprovada",
     REJEITADA: "Rejeitada",
     CANCELADA: "Cancelada",
+    RECUSADA: "Recusada",
     ATIVO: "Ativo",
     INATIVO: "Inativo",
     EM_TREINAMENTO: "Em Treinamento",

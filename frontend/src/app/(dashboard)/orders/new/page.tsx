@@ -60,7 +60,7 @@ const inputClass =
 const STATUS_LABELS: Record<string, string> = {
   ABERTA: "Aberta", OFERTADA: "Ofertada", ATRIBUIDA: "Atribuída",
   EM_EXECUCAO: "Em Execução", CONCLUIDA: "Concluída", APROVADA: "Aprovada",
-  AJUSTE: "Ajuste", CANCELADA: "Cancelada",
+  AJUSTE: "Ajuste", CANCELADA: "Cancelada", RECUSADA: "Recusada",
 };
 const STATUS_COLORS: Record<string, string> = {
   ABERTA: "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -71,8 +71,9 @@ const STATUS_COLORS: Record<string, string> = {
   APROVADA: "bg-emerald-100 text-emerald-800 border-emerald-200",
   AJUSTE: "bg-amber-100 text-amber-800 border-amber-200",
   CANCELADA: "bg-slate-100 text-slate-600 border-slate-200",
+  RECUSADA: "bg-red-100 text-red-800 border-red-200",
 };
-const TERMINAL_STATUSES = ["CONCLUIDA", "APROVADA", "CANCELADA"];
+const TERMINAL_STATUSES = ["CONCLUIDA", "APROVADA", "CANCELADA", "RECUSADA"];
 
 function formatDatetimeLocal(iso: string) {
   const d = new Date(iso);

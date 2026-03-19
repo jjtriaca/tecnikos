@@ -17,6 +17,7 @@ const STATUS_COLORS: Record<string, string> = {
   APROVADA: "bg-emerald-50 border-emerald-300 text-emerald-800",
   PAUSADA: "bg-amber-50 border-amber-300 text-amber-800",
   CANCELADA: "bg-slate-100 border-slate-300 text-slate-500",
+  RECUSADA: "bg-red-50 border-red-300 text-red-800",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -29,6 +30,7 @@ const STATUS_LABELS: Record<string, string> = {
   APROVADA: "Aprovada",
   PAUSADA: "Pausada",
   CANCELADA: "Cancelada",
+  RECUSADA: "Recusada",
 };
 
 const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];

@@ -38,13 +38,13 @@ type TechData = {
 const STATUS_LABELS: Record<string, string> = {
   ABERTA: "Aberta", OFERTADA: "Ofertada", ATRIBUIDA: "Atribuída",
   EM_EXECUCAO: "Em Execução", CONCLUIDA: "Concluída", APROVADA: "Aprovada",
-  AJUSTE: "Ajuste", CANCELADA: "Cancelada",
+  AJUSTE: "Ajuste", CANCELADA: "Cancelada", RECUSADA: "Recusada",
 };
 
 const STATUS_COLORS: Record<string, string> = {
   ABERTA: "#eab308", OFERTADA: "#f97316", ATRIBUIDA: "#3b82f6",
   EM_EXECUCAO: "#6366f1", CONCLUIDA: "#22c55e", APROVADA: "#10b981",
-  AJUSTE: "#f59e0b", CANCELADA: "#94a3b8",
+  AJUSTE: "#f59e0b", CANCELADA: "#94a3b8", RECUSADA: "#ef4444",
 };
 
 function formatCurrency(cents: number) {
