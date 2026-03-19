@@ -397,8 +397,8 @@ export default function NfseEntradaPage() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
               Importar NFS-e
             </a>
-            <p className="text-[11px] text-slate-400 max-w-md leading-relaxed">
-              A importacao manual de XML e gratuita. Para importar automaticamente, adquira um pacote de importacoes clicando no botao ao lado. Diferente da NFe (disponivel na Receita Federal), a consulta de NFS-e requer integracao com cada municipio, por isso e cobrada por nota.
+            <p className="text-[11px] text-slate-400 max-w-lg leading-relaxed">
+              A importacao manual de XML e gratuita e ilimitada. A importacao automatica traz praticidade e organizacao, permitindo visualizar todas as notas de servico emitidas contra sua empresa. Para usar, adquira um pacote de importacoes. Diferente da NFe (disponivel na Receita Federal), a consulta de NFS-e depende de integracao com cada prefeitura — algumas ainda nao estao integradas, entao nem todas as notas aparecerao aqui.
             </p>
           </div>
         )}

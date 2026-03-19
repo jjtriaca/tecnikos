@@ -213,7 +213,6 @@ export default function PlansPage() {
                 <FeatureRow label={plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mês`} />
                 <FeatureRow label={plan.maxTechnicians === 0 ? "Técnicos ilimitados" : `${plan.maxTechnicians} técnico${plan.maxTechnicians !== 1 ? "s" : ""}`} />
                 <FeatureRow label={plan.maxAiMessages === 0 ? "Mensagens IA ilimitadas" : `${plan.maxAiMessages} msgs IA/mês`} />
-                <FeatureRow label={plan.maxNfseImports === 0 ? "Import. NFS-e desabilitado" : `${plan.maxNfseImports} import. NFS-e/mês`} />
                 <FeatureRow label={`Suporte: ${supportLabel(plan.supportLevel)}`} />
                 <FeatureRow label={plan.allModulesIncluded ? "Todos os módulos" : "Módulos básicos"} />
               </div>
@@ -335,16 +334,6 @@ export default function PlansPage() {
                       className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
                       value={form.maxAiMessages}
                       onChange={(e) => setForm({ ...form, maxAiMessages: parseInt(e.target.value) || 0 })}
-                      min="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Import. NFS-e/mês (0=desabilitado)</label>
-                    <input
-                      type="number"
-                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
-                      value={form.maxNfseImports}
-                      onChange={(e) => setForm({ ...form, maxNfseImports: parseInt(e.target.value) || 0 })}
                       min="0"
                     />
                   </div>
