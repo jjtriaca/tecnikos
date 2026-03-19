@@ -383,7 +383,29 @@ export default function WorkflowProperties({ block, onChange }: Props) {
 
         {/* GPS */}
         {block.type === "GPS" && (
-          <Checkbox checked={cfg.auto !== false} onChange={(v) => updateConfig("auto", v)} label="Captura automatica" />
+          <>
+            <Checkbox checked={cfg.required !== false} onChange={(v) => updateConfig("required", v)} label="Obrigatorio" />
+            <Checkbox checked={cfg.highAccuracy !== false} onChange={(v) => updateConfig("highAccuracy", v)} label="Alta precisao (GPS hardware)" />
+
+            <Label>Modo de captura</Label>
+            <Select
+              value={cfg.trackingMode || "single"}
+              onChange={(v) => updateConfig("trackingMode", v)}
+              options={[
+                { value: "single", label: "Pontual (1 captura)" },
+                { value: "continuous", label: "Rastreamento continuo" },
+              ]}
+            />
+
+            {cfg.trackingMode === "continuous" && (
+              <>
+                <Label>Intervalo entre capturas (segundos)</Label>
+                <Input type="number" value={cfg.intervalSeconds || 30} onChange={(v) => updateConfig("intervalSeconds", parseInt(v) || 30)} placeholder="30" />
+              </>
+            )}
+
+            <Checkbox checked={cfg.auto === true} onChange={(v) => updateConfig("auto", v)} label="Captura automatica (sem clique)" />
+          </>
         )}
 
         {/* QUESTION */}
