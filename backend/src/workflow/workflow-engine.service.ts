@@ -1524,6 +1524,22 @@ export class WorkflowEngineService {
         if (targetStatus === 'EM_EXECUCAO') data.startedAt = new Date();
         if (targetStatus === 'CONCLUIDA' || targetStatus === 'APROVADA')
           data.completedAt = new Date();
+
+        // ATRIBUIDA: auto-assign first directed technician if not yet assigned
+        if (targetStatus === 'ATRIBUIDA') {
+          const os = await this.prisma.serviceOrder.findUnique({
+            where: { id: serviceOrderId },
+            select: { assignedPartnerId: true, directedTechnicianIds: true },
+          });
+          if (!os?.assignedPartnerId) {
+            const directedIds: string[] = (os?.directedTechnicianIds as string[]) || [];
+            if (directedIds.length > 0) {
+              data.assignedPartnerId = directedIds[0];
+              this.logger.log(`🔄 Auto-assigning technician ${directedIds[0]} for ATRIBUIDA`);
+            }
+          }
+        }
+
         this.logger.log(
           `🔄 System block: Changing OS ${serviceOrderId} status → ${targetStatus}`,
         );
