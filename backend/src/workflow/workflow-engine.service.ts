@@ -1372,7 +1372,7 @@ export class WorkflowEngineService {
           '{nome}': notifySO.assignedPartner?.name || '',
           '{nome_cliente}': notifySO.clientPartner?.name || '',
           '{data_agendamento}': (notifySO as any).scheduledStartAt ? new Date((notifySO as any).scheduledStartAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
-          '{link_app}': `${process.env.FRONTEND_URL || 'https://tecnikos.com.br'}/tech`,
+          '{link_app}': '', // Replaced with public link in TECNICO notification handler
           '{link}': `${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/${serviceOrderId}`,
           '{tempo_aceitar}': (notifySO as any).acceptTimeoutMinutes
             ? ((notifySO as any).acceptTimeoutMinutes >= 60 && (notifySO as any).acceptTimeoutMinutes % 60 === 0
@@ -1510,16 +1510,22 @@ export class WorkflowEngineService {
 
             for (const target of techTargets) {
               try {
-                // Replace {link_os} variable or append link to message
+                // Replace {link_os} and {link_app} variables or append link to message
                 let finalMessage = r.message;
                 if (publicLinkUrl) {
                   if (finalMessage.includes('{link_os}')) {
                     finalMessage = finalMessage.replace(/\{link_os\}/gi, publicLinkUrl);
-                  } else {
+                  }
+                  if (finalMessage.includes('{link_app}')) {
+                    finalMessage = finalMessage.replace(/\{link_app\}/gi, publicLinkUrl);
+                  }
+                  // Append link if neither variable present
+                  if (!finalMessage.includes(publicLinkUrl)) {
                     finalMessage += ` | Acesse: ${publicLinkUrl}`;
                   }
                 } else {
                   finalMessage = finalMessage.replace(/\{link_os\}/gi, '');
+                  finalMessage = finalMessage.replace(/\{link_app\}/gi, '');
                 }
 
                 await this.notifications.send({
