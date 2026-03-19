@@ -182,6 +182,8 @@ export class ServiceOrderService {
     // 2. Workflow will be executed from START (V3 mode) — blocks control everything
     //    Detected by: workflow has NOTIFY block as first actionable block after START
     //    This means the workflow wants to handle the full flow (notify → accept → assign)
+    // V3 Detection: ANY V2/V3 workflow with blocks → blocks control everything
+    // OS starts ABERTA, no auto-assign, no auto-accept. Blocks dictate status/assignment.
     let workflowUsesFromStart = false;
     if (resolvedWorkflowId) {
       try {
@@ -192,14 +194,11 @@ export class ServiceOrderService {
         if (wf?.steps) {
           const def = typeof wf.steps === 'string' ? JSON.parse(wf.steps as string) : wf.steps;
           const blocks: any[] = def?.blocks || [];
-          // Check if first block after START is NOTIFY or STATUS (not directly actionable by tech)
-          // This indicates the workflow wants to control the flow from the beginning
-          const startBlock = blocks.find((b: any) => b.type === 'START');
-          if (startBlock?.next) {
-            const firstBlock = blocks.find((b: any) => b.id === startBlock.next);
-            if (firstBlock && (firstBlock.type === 'NOTIFY' || firstBlock.type === 'STATUS')) {
-              workflowUsesFromStart = true;
-            }
+          // Any V2/V3 workflow with a START block uses the engine from start
+          // Blocks control the ENTIRE lifecycle: status, notifications, assignments
+          const hasStart = blocks.some((b: any) => b.type === 'START');
+          if (hasStart && blocks.length >= 2) {
+            workflowUsesFromStart = true;
           }
         }
       } catch { /* ignore */ }
@@ -250,18 +249,24 @@ export class ServiceOrderService {
         returnPaidToTech: data.returnPaidToTech ?? undefined,
         isUrgent: data.isUrgent ?? undefined,
         isEvaluation: data.isEvaluation ?? undefined,
-        // Pre-atribuicao (BY_AGENDA): tecnico ja definido + status ATRIBUIDA + aceito
-        ...(data.techAssignmentMode === 'BY_AGENDA' && data.assignedPartnerId ? {
-          assignedPartnerId: data.assignedPartnerId,
-          status: 'ATRIBUIDA' as any,
-          acceptedAt: new Date(),
-        } : {}),
-        // Respeitar técnico direcionado: auto-atribui primeiro da lista
-        ...(autoAssignDirected ? {
-          assignedPartnerId: data.directedTechnicianIds![0],
-          status: 'ATRIBUIDA' as any,
-          ...(workflowHasAcceptOS ? {} : { acceptedAt: new Date() }),
-        } : {}),
+        // V3 workflows: OS always starts ABERTA — blocks control everything
+        // Non-V3: pre-assign technician if applicable
+        ...(workflowUsesFromStart ? {
+          status: 'ABERTA' as any,
+        } : {
+          // Pre-atribuicao (BY_AGENDA): tecnico ja definido + status ATRIBUIDA + aceito
+          ...(data.techAssignmentMode === 'BY_AGENDA' && data.assignedPartnerId ? {
+            assignedPartnerId: data.assignedPartnerId,
+            status: 'ATRIBUIDA' as any,
+            acceptedAt: new Date(),
+          } : {}),
+          // Respeitar técnico direcionado: auto-atribui primeiro da lista
+          ...(autoAssignDirected ? {
+            assignedPartnerId: data.directedTechnicianIds![0],
+            status: 'ATRIBUIDA' as any,
+            ...(workflowHasAcceptOS ? {} : { acceptedAt: new Date() }),
+          } : {}),
+        }),
       },
     });
 
@@ -303,44 +308,47 @@ export class ServiceOrderService {
 
     const eventData = { status: result.status, state: data.state, city: data.city, neighborhood: data.neighborhood, valueCents: data.valueCents, clientPartnerId: data.clientPartnerId, title: result.title, description: data.description, addressStreet: data.addressStreet, cep: data.cep, deadlineAt: data.deadlineAt, createdAt: result.createdAt?.toISOString(), scheduledStartAt: data.scheduledStartAt, isReturn: data.isReturn, isUrgent: data.isUrgent, isEvaluation: data.isEvaluation };
 
-    this.dispatchAutomation({
-      companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'created',
-      data: eventData,
-    });
+    // V3 workflows: skip ALL automations — blocks control everything
+    if (!workflowUsesFromStart) {
+      this.dispatchAutomation({
+        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'created',
+        data: eventData,
+      });
 
-    // Dispatch return_created for return OS → triggers "Uma OS de retorno e criada"
-    if (data.isReturn) {
-      this.dispatchAutomation({
-        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'return_created',
-        data: eventData,
-      });
-    }
+      // Dispatch return_created for return OS → triggers "Uma OS de retorno e criada"
+      if (data.isReturn) {
+        this.dispatchAutomation({
+          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'return_created',
+          data: eventData,
+        });
+      }
 
-    // Dispatch urgent_created for urgent OS → triggers "Uma OS urgente e criada"
-    if (data.isUrgent) {
-      this.dispatchAutomation({
-        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'urgent_created',
-        data: eventData,
-      });
-    }
+      // Dispatch urgent_created for urgent OS → triggers "Uma OS urgente e criada"
+      if (data.isUrgent) {
+        this.dispatchAutomation({
+          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'urgent_created',
+          data: eventData,
+        });
+      }
 
-    // Dispatch assignment mode triggers
-    const assignMode = data.techAssignmentMode || 'BY_SPECIALIZATION';
-    if (assignMode === 'BY_SPECIALIZATION') {
-      this.dispatchAutomation({
-        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'specialization_created',
-        data: eventData,
-      });
-    } else if (assignMode === 'DIRECTED') {
-      this.dispatchAutomation({
-        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'directed_created',
-        data: eventData,
-      });
-    } else if (assignMode === 'BY_AGENDA' || assignMode === 'BY_WORKFLOW') {
-      this.dispatchAutomation({
-        companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'agenda_created',
-        data: eventData,
-      });
+      // Dispatch assignment mode triggers
+      const assignMode = data.techAssignmentMode || 'BY_SPECIALIZATION';
+      if (assignMode === 'BY_SPECIALIZATION') {
+        this.dispatchAutomation({
+          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'specialization_created',
+          data: eventData,
+        });
+      } else if (assignMode === 'DIRECTED') {
+        this.dispatchAutomation({
+          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'directed_created',
+          data: eventData,
+        });
+      } else if (assignMode === 'BY_AGENDA' || assignMode === 'BY_WORKFLOW') {
+        this.dispatchAutomation({
+          companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'agenda_created',
+          data: eventData,
+        });
+      }
     }
 
     // ── Tech Review: skip notifications, return candidates ──

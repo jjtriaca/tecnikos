@@ -489,29 +489,71 @@ export default function WorkflowProperties({ block, onChange }: Props) {
         )}
 
         {/* DELAY */}
-        {block.type === "DELAY" && (
-          <>
-            <Label>Tempo de espera</Label>
-            <div className="flex gap-2">
-              <Input type="number" value={cfg.duration ?? cfg.minutes ?? 15} onChange={(v) => {
-                const val = parseInt(v) || 1;
-                const unit = cfg.unit || "minutes";
-                const mult: Record<string, number> = { seconds: 1/60, minutes: 1, hours: 60, days: 1440 };
-                updateConfig("duration", val, { minutes: Math.round(val * (mult[unit] || 1)) });
-              }} />
-              <Select value={cfg.unit || "minutes"} onChange={(v) => {
-                const dur = cfg.duration ?? cfg.minutes ?? 15;
-                const mult: Record<string, number> = { seconds: 1/60, minutes: 1, hours: 60, days: 1440 };
-                updateConfig("unit", v, { minutes: Math.round(dur * (mult[v] || 1)) });
-              }} options={[
-                { value: "seconds", label: "Segundos" },
-                { value: "minutes", label: "Minutos" },
-                { value: "hours", label: "Horas" },
-                { value: "days", label: "Dias" },
-              ]} />
-            </div>
-          </>
-        )}
+        {block.type === "DELAY" && (() => {
+          const currentUnit = cfg.unit || "minutes";
+          const currentDur = cfg.duration ?? cfg.minutes ?? 15;
+          const units = [
+            { value: "seconds", label: "Seg", short: "s" },
+            { value: "minutes", label: "Min", short: "m" },
+            { value: "hours", label: "Hora", short: "h" },
+            { value: "days", label: "Dia", short: "d" },
+          ];
+          const presets: Record<string, { dur: number; unit: string; label: string }[]> = {
+            seconds: [{ dur: 10, unit: "seconds", label: "10s" }, { dur: 30, unit: "seconds", label: "30s" }, { dur: 45, unit: "seconds", label: "45s" }],
+            minutes: [{ dur: 1, unit: "minutes", label: "1 min" }, { dur: 5, unit: "minutes", label: "5 min" }, { dur: 15, unit: "minutes", label: "15 min" }, { dur: 30, unit: "minutes", label: "30 min" }],
+            hours: [{ dur: 1, unit: "hours", label: "1h" }, { dur: 2, unit: "hours", label: "2h" }, { dur: 6, unit: "hours", label: "6h" }, { dur: 12, unit: "hours", label: "12h" }],
+            days: [{ dur: 1, unit: "days", label: "1 dia" }, { dur: 2, unit: "days", label: "2 dias" }, { dur: 3, unit: "days", label: "3 dias" }, { dur: 7, unit: "days", label: "7 dias" }],
+          };
+          const setDelay = (dur: number, unit: string) => {
+            onChange({ ...block, config: { ...cfg, duration: dur, unit } });
+          };
+          return (
+            <>
+              <Label>Unidade</Label>
+              <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                {units.map((u) => (
+                  <button
+                    key={u.value}
+                    type="button"
+                    onClick={() => setDelay(currentDur, u.value)}
+                    className={`flex-1 py-1.5 text-[11px] font-medium transition-colors ${
+                      currentUnit === u.value
+                        ? "bg-blue-500 text-white"
+                        : "bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    {u.label}
+                  </button>
+                ))}
+              </div>
+              <Label>Duracao</Label>
+              <input
+                type="number"
+                min={1}
+                value={currentDur}
+                onChange={(e) => setDelay(parseInt(e.target.value) || 1, currentUnit)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+              />
+              <Label>Atalhos</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {(presets[currentUnit] || []).map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => setDelay(p.dur, p.unit)}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium border transition-colors ${
+                      currentDur === p.dur && currentUnit === p.unit
+                        ? "bg-blue-50 border-blue-300 text-blue-700"
+                        : "bg-white border-slate-200 text-slate-500 hover:border-blue-200 hover:text-blue-600"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          );
+        })()}
 
         {/* SLA */}
         {block.type === "SLA" && (

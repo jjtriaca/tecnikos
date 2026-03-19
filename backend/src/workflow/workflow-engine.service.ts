@@ -470,15 +470,23 @@ export class WorkflowEngineService {
         } else if (block.type === 'ALERT') {
           await this.executeSystemBlock(block, serviceOrderId, companyId);
         } else if (block.type === 'DELAY') {
-          // Delay: aguardar tempo configurado (minutes field, compatível com unit/duration)
-          const delayMs = (block.config?.minutes || 0) * 60 * 1000;
+          // Delay: compute ms from duration+unit (new) or legacy minutes field
+          const delayMs = (() => {
+            const dur = block.config?.duration;
+            const unit = block.config?.unit;
+            if (dur && unit) {
+              const multipliers: Record<string, number> = { seconds: 1000, minutes: 60000, hours: 3600000, days: 86400000 };
+              return dur * (multipliers[unit] || 60000);
+            }
+            return (block.config?.minutes || 0) * 60 * 1000;
+          })();
           if (delayMs > 0 && delayMs <= 300000) {
             // Delays até 5 min: sleep inline
-            this.logger.log(`⏳ DELAY: Waiting ${block.config.minutes} min (${delayMs}ms)`);
+            this.logger.log(`⏳ DELAY: Waiting ${delayMs}ms (${block.config?.duration || block.config?.minutes} ${block.config?.unit || 'minutes'})`);
             await new Promise(resolve => setTimeout(resolve, delayMs));
           } else if (delayMs > 300000) {
             // Delays > 5 min: agendar continuação assíncrona
-            this.logger.log(`⏳ DELAY: Scheduling ${block.config.minutes} min delay for OS ${serviceOrderId}`);
+            this.logger.log(`⏳ DELAY: Scheduling ${delayMs}ms delay for OS ${serviceOrderId}`);
             setTimeout(async () => {
               try {
                 this.logger.log(`⏳ DELAY resumed for OS ${serviceOrderId}, continuing from block ${block.id}`);
@@ -510,7 +518,7 @@ export class WorkflowEngineService {
               }
             }, delayMs);
             // Return immediately — delay will continue execution asynchronously
-            return { executed, stoppedAt: `DELAY:${block.config.minutes}min` };
+            return { executed, stoppedAt: `DELAY:${block.config?.duration || block.config?.minutes}${block.config?.unit || 'min'}` };
           }
         } else {
           this.logger.log(`🚀 Skipping unhandled block type: ${block.type}`);
