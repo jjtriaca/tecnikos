@@ -59,13 +59,13 @@ export default function HeaderBilling() {
       .then(d => { if (mounted) setBilling(d); })
       .catch(() => {});
     api.get<NfseImportUsage>("/nfse-entrada/import-usage")
-      .then(d => { if (mounted && d.enabled) setNfseUsage(d); })
+      .then(d => { if (mounted) setNfseUsage(d); })
       .catch(() => {});
     const interval = setInterval(() => {
       api.get<UsageData>("/service-orders/usage").then(setUsage).catch(() => {});
       api.get<BillingStatus>("/auth/billing-status").then(setBilling).catch(() => {});
       api.get<NfseImportUsage>("/nfse-entrada/import-usage")
-        .then(d => { if (d.enabled) setNfseUsage(d); })
+        .then(d => setNfseUsage(d))
         .catch(() => {});
     }, 5 * 60 * 1000);
     return () => { mounted = false; clearInterval(interval); };
@@ -105,26 +105,30 @@ export default function HeaderBilling() {
       {/* ── 1b. Barra de uso NFS-e Import ── */}
       {nfseUsage && (
         <Link
-          href={nfseUsage.percentage >= 100 ? "/settings/billing?filter=nfse" : "/nfe/entrada"}
+          href={!nfseUsage.enabled || nfseUsage.percentage >= 100 ? "/settings/billing?filter=nfse" : "/nfe/entrada"}
           className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 hover:opacity-90 transition-colors ${
-            nfseUsage.percentage >= 100 ? "border-red-300 bg-red-50" : nfseUsage.percentage >= 80 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"
+            !nfseUsage.enabled || nfseUsage.percentage >= 100 ? "border-red-300 bg-red-50" : nfseUsage.percentage >= 80 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"
           }`}
-          title={`${nfseUsage.used} de ${nfseUsage.limit} importacoes NFS-e usadas`}
+          title={!nfseUsage.enabled ? "Sem cota de importacao NFS-e — compre um add-on" : `${nfseUsage.used} de ${nfseUsage.limit} importacoes NFS-e usadas`}
         >
           <div className="flex flex-col gap-0.5 min-w-[100px]">
             <div className="flex items-center justify-between">
-              <span className={`text-[10px] ${nfseUsage.percentage >= 100 ? "text-red-600" : nfseUsage.percentage >= 80 ? "text-amber-600" : "text-emerald-500"}`}>Import NFS-e</span>
-              <span className={`text-[10px] ${getTextClass(nfseUsage.percentage)}`}>
-                {nfseUsage.percentage}%
-              </span>
+              <span className={`text-[10px] ${!nfseUsage.enabled || nfseUsage.percentage >= 100 ? "text-red-600" : nfseUsage.percentage >= 80 ? "text-amber-600" : "text-emerald-500"}`}>Import NFS-e</span>
+              {nfseUsage.enabled ? (
+                <span className={`text-[10px] ${getTextClass(nfseUsage.percentage)}`}>
+                  {nfseUsage.percentage}%
+                </span>
+              ) : (
+                <span className="text-[10px] text-red-600 font-semibold">0</span>
+              )}
             </div>
-            <div className={`h-1.5 w-full rounded-full ${nfseUsage.percentage >= 100 ? "bg-red-100" : "bg-emerald-100"}`}>
+            <div className={`h-1.5 w-full rounded-full ${!nfseUsage.enabled || nfseUsage.percentage >= 100 ? "bg-red-100" : "bg-emerald-100"}`}>
               <div
-                className={`h-1.5 rounded-full transition-all duration-500 ${getBarColor(nfseUsage.percentage)}`}
-                style={{ width: `${Math.min(nfseUsage.percentage, 100)}%` }}
+                className={`h-1.5 rounded-full transition-all duration-500 ${!nfseUsage.enabled ? "bg-red-500" : getBarColor(nfseUsage.percentage)}`}
+                style={{ width: nfseUsage.enabled ? `${Math.min(nfseUsage.percentage, 100)}%` : "100%" }}
               />
             </div>
-            <span className={`text-[10px] ${getTextClass(nfseUsage.percentage)}`}>
+            <span className={`text-[10px] ${!nfseUsage.enabled ? "text-red-600 font-semibold" : getTextClass(nfseUsage.percentage)}`}>
               {nfseUsage.used} / {nfseUsage.limit}
             </span>
           </div>
@@ -161,7 +165,7 @@ export default function HeaderBilling() {
             </Link>
           ) : billing.isPromo && billing.promoMonthsLeft ? (
             <Link
-              href="/settings/billing"
+              href="/settings/billing?filter=plans"
               className="flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-medium text-blue-700 hover:bg-blue-100 transition-colors"
               title={`Promocao ativa — ${billing.promoMonthsLeft} mes(es) restante(s)`}
             >
@@ -172,7 +176,7 @@ export default function HeaderBilling() {
             </Link>
           ) : billing.status === "ACTIVE" ? (
             <Link
-              href="/settings/billing"
+              href="/settings/billing?filter=plans"
               className="flex items-center gap-1 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-[11px] font-medium text-green-700 hover:bg-green-100 transition-colors"
               title={`Assinatura em dia${billing.planName ? ` — Plano ${billing.planName}` : ""}`}
             >
@@ -186,7 +190,7 @@ export default function HeaderBilling() {
           {/* Downgrade pending badge */}
           {billing.pendingPlanName && billing.pendingPlanAt && (
             <Link
-              href="/settings/billing"
+              href="/settings/billing?filter=plans"
               className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100 transition-colors"
               title={`Mudanca para ${billing.pendingPlanName} em ${new Date(billing.pendingPlanAt).toLocaleDateString("pt-BR")}`}
             >
