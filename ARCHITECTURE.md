@@ -118,11 +118,28 @@ Armazenado em `WorkflowTemplate.steps` (Json):
 - **V2**: Grafo `{version:2, blocks:[{id, type, config, next, yesBranch, noBranch}]}`
 - **V3**: FlowDef `{version:3, blocks:[{id, type, children[], yesBranch, noBranch}]}`
 
+### REGRA V3 (ABSOLUTA): Blocos controlam tudo
+- Status inicial da OS apos gatilho: **NULL** (sem status pre-fixado)
+- Engine executa blocos sequencialmente do START ao FIM
+- NENHUMA logica pre-fixada (sem auto-assign, sem fallback)
+- Bloco Status: modo `automatico` ou `manual` (aguardar tecnico clicar com botao customizado)
+- Bloco GPS: obrigatorio, alta precisao, modo (pontual/continuo), intervalo, captura automatica
+- Bloco SE/Condicao: branches SIM/NAO com blocos independentes em cada caminho
+- Se problema transicional: criar novo BLOCO, NUNCA hard-code no engine
+- Ver `memory/project_workflow_engine_v3.md` para detalhes
+
 ### Tipos de Blocos
 STEP, PHOTO, GPS, QUESTION, CHECKLIST, SIGNATURE, FORM, CONDITION, NOTIFY, WAIT_FOR, STATUS, ARRIVAL_QUESTION, TECH_REVIEW_SCREEN
 
+### Canais de Notificacao (NOTIFY)
+WhatsApp, Email, Push
+
+### Status de OS
+ABERTA, OFERTADA, ATRIBUIDA, A_CAMINHO, EM_EXECUCAO, CONCLUIDA, APROVADA, CANCELADA, RECUSADA
+
 ### Triggers de Workflow
-Prioridade: `urgente` -> `retorno` -> `modo atendimento` (specialization/directed/agenda) -> `os_created` (generico)
+Prioridade: `urgente` -> `retorno` -> `avaliacao_orcamento` -> `modo atendimento` (specialization/directed/agenda) -> `os_created` (generico)
+- `os_evaluation_created`: OS de Avaliacao/Orcamento (isEvaluation=true)
 
 ---
 

@@ -63,8 +63,36 @@ export class NotificationService {
         errorDetail = err.message;
         this.logger.error(`📱 [WHATSAPP] Error: ${err.message}`);
       }
+    } else if (channel === 'PUSH' && this.pushService?.isConfigured) {
+      // ── Push channel — send via Web Push API ──
+      try {
+        let sent = 0;
+        if (dto.recipientUserId) {
+          sent = await this.pushService.sendToUser(dto.companyId, dto.recipientUserId, {
+            title: dto.type === 'STATUS_CHANGE' ? 'Atualização de OS' : 'Tecnikos',
+            body: dto.message.slice(0, 200),
+            url: dto.serviceOrderId ? `/os/${dto.serviceOrderId}` : '/dashboard',
+            tag: `notif-push-${Date.now()}`,
+          });
+        } else {
+          // No specific user — broadcast to all company users
+          sent = await this.pushService.sendToCompany(dto.companyId, {
+            title: 'Tecnikos',
+            body: dto.message.slice(0, 200),
+            url: dto.serviceOrderId ? `/os/${dto.serviceOrderId}` : '/dashboard',
+            tag: `notif-push-${Date.now()}`,
+          });
+        }
+        status = sent > 0 ? 'SENT' : 'FAILED';
+        if (sent === 0) errorDetail = 'Nenhuma assinatura push encontrada';
+        this.logger.log(`🔔 [PUSH] ${dto.type} → ${dto.recipientUserId || 'company'}: ${sent} device(s)`);
+      } catch (err) {
+        status = 'FAILED';
+        errorDetail = err.message;
+        this.logger.error(`🔔 [PUSH] Error: ${err.message}`);
+      }
     } else {
-      // Mock: log to console (future: EMAIL, SMS, PUSH)
+      // Mock: log to console (future: EMAIL, SMS)
       this.logger.log(
         `📨 [${channel}] ${dto.type} → ${dto.recipientPhone || dto.recipientEmail || 'N/A'}: ${dto.message}`,
       );
@@ -87,8 +115,8 @@ export class NotificationService {
       },
     });
 
-    // ── Push notification (fire-and-forget) ──
-    if (dto.recipientUserId && this.pushService?.isConfigured) {
+    // ── Push notification (fire-and-forget) — skip if already sent via PUSH channel ──
+    if (channel !== 'PUSH' && dto.recipientUserId && this.pushService?.isConfigured) {
       this.pushService.sendToUser(dto.companyId, dto.recipientUserId, {
         title: dto.type === 'STATUS_CHANGE' ? 'Atualização de OS' : 'Tecnikos',
         body: dto.message.slice(0, 200),

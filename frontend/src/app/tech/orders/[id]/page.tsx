@@ -193,10 +193,14 @@ export default function TechOrderDetailPage() {
   const [v2GpsLoading, setV2GpsLoading] = useState(false);
   const [v2FormFields, setV2FormFields] = useState<Record<string, string>>({});
 
-  // GPS tracking state
+  // GPS tracking state (status-based A_CAMINHO tracking)
   const [trackingActive, setTrackingActive] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [distanceToTarget, setDistanceToTarget] = useState<number | null>(null);
+
+  // GPS block continuous tracking state
+  const [v2GpsTracking, setV2GpsTracking] = useState(false);
+  const v2GpsWatchRef = useRef<number | null>(null);
   const watchIdRef = useRef<number | null>(null);
 
   // Pause state
@@ -234,13 +238,41 @@ export default function TechOrderDetailPage() {
   }, [loadOrder]);
 
   // Reset V2 form state when workflow changes
+  const currentBlockId = workflow && isV2(workflow) ? workflow.currentBlock?.id : null;
   useEffect(() => {
     setV2Note("");
     setV2Answer("");
     setV2CheckedItems([]);
     setV2GpsCoords(null);
     setV2FormFields({});
-  }, [workflow && isV2(workflow) ? workflow.currentBlock?.id : null]);
+    // Stop continuous GPS tracking from previous block
+    if (v2GpsWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(v2GpsWatchRef.current);
+      v2GpsWatchRef.current = null;
+      setV2GpsTracking(false);
+    }
+  }, [currentBlockId]);
+
+  // GPS block: auto-capture when config.auto is true
+  useEffect(() => {
+    if (!workflow || !isV2(workflow) || !workflow.currentBlock) return;
+    const block = workflow.currentBlock;
+    if (block.type !== "GPS") return;
+    const cfg = block.config || {};
+    if (cfg.auto && !v2GpsCoords && navigator.geolocation) {
+      setV2GpsLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setV2GpsLoading(false);
+        },
+        () => {
+          setV2GpsLoading(false);
+        },
+        { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 15000 }
+      );
+    }
+  }, [currentBlockId]);
 
   // GPS tracking: update distance calculation
   useEffect(() => {
@@ -255,6 +287,9 @@ export default function TechOrderDetailPage() {
     return () => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (v2GpsWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(v2GpsWatchRef.current);
       }
     };
   }, []);
@@ -409,24 +444,53 @@ export default function TechOrderDetailPage() {
     }
   }
 
-  /* ── GPS capture ── */
-  function handleCaptureGps() {
+  /* ── GPS capture (respects block config) ── */
+  function handleCaptureGps(gpsConfig?: Record<string, any>) {
     if (!navigator.geolocation) {
       alert("GPS nao disponivel neste dispositivo");
       return;
     }
-    setV2GpsLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setV2GpsLoading(false);
-      },
-      () => {
-        alert("Erro ao capturar localizacao. Verifique as permissoes.");
-        setV2GpsLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000 }
-    );
+    const cfg = gpsConfig || {};
+    const highAccuracy = cfg.highAccuracy !== false;
+
+    if (cfg.trackingMode === "continuous") {
+      // Start continuous tracking
+      if (v2GpsWatchRef.current !== null) return; // already tracking
+      setV2GpsTracking(true);
+      setV2GpsLoading(true);
+      v2GpsWatchRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setV2GpsLoading(false);
+        },
+        () => {
+          setV2GpsLoading(false);
+        },
+        { enableHighAccuracy: highAccuracy, timeout: 15000, maximumAge: (cfg.intervalSeconds || 30) * 1000 }
+      );
+    } else {
+      // Single capture (pontual)
+      setV2GpsLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setV2GpsLoading(false);
+        },
+        () => {
+          alert("Erro ao capturar localizacao. Verifique as permissoes.");
+          setV2GpsLoading(false);
+        },
+        { enableHighAccuracy: highAccuracy, timeout: 15000 }
+      );
+    }
+  }
+
+  function handleStopGpsTracking() {
+    if (v2GpsWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(v2GpsWatchRef.current);
+      v2GpsWatchRef.current = null;
+    }
+    setV2GpsTracking(false);
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -1126,12 +1190,50 @@ function V2BlockAction({
         {/* GPS */}
         {block.type === "GPS" && (
           <div className="space-y-2">
-            <button onClick={handleCaptureGps} disabled={v2GpsLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white py-2.5 text-sm font-medium text-blue-700 active:bg-blue-50">
-              {v2GpsLoading ? (
-                <><div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />Capturando...</>
-              ) : (<>📍 Registrar localizacao</>)}
-            </button>
+            {/* Config info badges */}
+            <div className="flex flex-wrap gap-1">
+              {c.highAccuracy !== false && (
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">Alta precisao</span>
+              )}
+              {c.trackingMode === "continuous" && (
+                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
+                  Rastreamento continuo{c.intervalSeconds ? ` (${c.intervalSeconds}s)` : ""}
+                </span>
+              )}
+              {c.auto && (
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">Captura automatica</span>
+              )}
+            </div>
+
+            {/* Tracking active banner */}
+            {v2GpsTracking && (
+              <div className="flex items-center justify-between rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-xs font-medium text-indigo-700">Rastreamento ativo</span>
+                </div>
+                <button onClick={handleStopGpsTracking} className="text-[10px] font-medium text-red-500 hover:text-red-700">Parar</button>
+              </div>
+            )}
+
+            {/* Capture/Start button */}
+            {!v2GpsTracking && !c.auto && (
+              <button onClick={() => handleCaptureGps(c)} disabled={v2GpsLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white py-2.5 text-sm font-medium text-blue-700 active:bg-blue-50">
+                {v2GpsLoading ? (
+                  <><div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />Capturando...</>
+                ) : (
+                  <>{c.trackingMode === "continuous" ? "📍 Iniciar rastreamento" : "📍 Registrar localizacao"}</>
+                )}
+              </button>
+            )}
+            {c.auto && !v2GpsCoords && v2GpsLoading && (
+              <div className="flex items-center justify-center gap-2 py-2 text-sm text-blue-600">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                Capturando automaticamente...
+              </div>
+            )}
+
             {v2GpsCoords && (
               <p className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
                 ✅ Lat: {v2GpsCoords.lat.toFixed(6)}, Lng: {v2GpsCoords.lng.toFixed(6)}

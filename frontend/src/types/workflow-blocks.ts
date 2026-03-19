@@ -82,6 +82,10 @@ export type NoteConfig = {
 
 export type GpsConfig = {
   auto?: boolean;
+  required?: boolean;
+  highAccuracy?: boolean;
+  trackingMode?: 'single' | 'continuous';
+  intervalSeconds?: number;
 };
 
 export type QuestionConfig = {
@@ -113,7 +117,7 @@ export type ConditionConfig = {
 };
 
 export type NotifyConfig = {
-  channel?: 'WHATSAPP' | 'SMS' | 'EMAIL';
+  channel?: 'WHATSAPP' | 'SMS' | 'EMAIL' | 'PUSH';
   message?: string;
   recipient?: 'CLIENTE' | 'GESTOR' | 'TECNICO';
 };
