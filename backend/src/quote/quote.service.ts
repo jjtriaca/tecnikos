@@ -167,15 +167,22 @@ export class QuoteService {
     }
 
     if (pagination.search) {
-      where.OR = [
-        { title: { contains: pagination.search, mode: 'insensitive' } },
-        { code: { contains: pagination.search, mode: 'insensitive' } },
-        {
-          clientPartner: {
-            name: { contains: pagination.search, mode: 'insensitive' },
-          },
-        },
-      ];
+      const words = pagination.search.trim().split(/\s+/).filter(Boolean);
+      if (words.length <= 1) {
+        where.OR = [
+          { title: { contains: pagination.search, mode: 'insensitive' } },
+          { code: { contains: pagination.search, mode: 'insensitive' } },
+          { clientPartner: { name: { contains: pagination.search, mode: 'insensitive' } } },
+        ];
+      } else {
+        where.AND = words.map((word) => ({
+          OR: [
+            { title: { contains: word, mode: 'insensitive' } },
+            { code: { contains: word, mode: 'insensitive' } },
+            { clientPartner: { name: { contains: word, mode: 'insensitive' } } },
+          ],
+        }));
+      }
     }
 
     // Sort

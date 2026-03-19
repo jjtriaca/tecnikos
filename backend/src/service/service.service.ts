@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
+import { buildSearchWhere } from '../common/util/build-search-where';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 
@@ -30,11 +31,12 @@ export class ServiceService {
     if (filters?.status === 'inactive') where.isActive = false;
 
     if (pagination.search) {
-      where.OR = [
-        { name: { contains: pagination.search, mode: 'insensitive' } },
-        { code: { contains: pagination.search, mode: 'insensitive' } },
-        { description: { contains: pagination.search, mode: 'insensitive' } },
-      ];
+      const searchClause = buildSearchWhere(pagination.search, [
+        { field: 'name', mode: 'insensitive' },
+        { field: 'code', mode: 'insensitive' },
+        { field: 'description', mode: 'insensitive' },
+      ]);
+      if (searchClause) Object.assign(where, searchClause);
     }
 
     const sortBy = pagination.sortBy || 'name';

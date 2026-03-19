@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
+import { buildSearchWhere } from '../common/util/build-search-where';
 
 const DEFAULT_SPECIALIZATIONS = [
   'Elétrica',
@@ -31,7 +32,10 @@ export class SpecializationService {
     const where: any = { companyId };
 
     if (pagination?.search) {
-      where.name = { contains: pagination.search, mode: 'insensitive' };
+      const searchClause = buildSearchWhere(pagination.search, [
+        { field: 'name', mode: 'insensitive' },
+      ]);
+      if (searchClause) Object.assign(where, searchClause);
     }
 
     const [data, total] = await this.prisma.$transaction([

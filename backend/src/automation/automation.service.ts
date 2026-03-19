@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAutomationDto, UpdateAutomationDto } from './dto/create-automation.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
+import { buildSearchWhere } from '../common/util/build-search-where';
 
 const SORTABLE_COLUMNS = ['name', 'isActive', 'createdAt', 'updatedAt'];
 
@@ -17,10 +18,11 @@ export class AutomationService {
 
     const where: any = { companyId, deletedAt: null };
     if (pagination?.search) {
-      where.OR = [
-        { name: { contains: pagination.search, mode: 'insensitive' } },
-        { description: { contains: pagination.search, mode: 'insensitive' } },
-      ];
+      const searchWhere = buildSearchWhere(pagination.search, [
+        { field: 'name', mode: 'insensitive' },
+        { field: 'description', mode: 'insensitive' },
+      ]);
+      if (searchWhere) Object.assign(where, searchWhere);
     }
 
     const orderBy = buildOrderBy(pagination?.sortBy, pagination?.sortOrder, SORTABLE_COLUMNS, { createdAt: 'desc' });

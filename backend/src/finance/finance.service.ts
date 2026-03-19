@@ -86,10 +86,17 @@ export class FinanceService {
       if (filters.dateTo) where.confirmedAt.lte = new Date(filters.dateTo + 'T23:59:59.999Z');
     }
     if (pagination?.search) {
-      where.serviceOrder = {
-        ...where.serviceOrder,
-        title: { contains: pagination.search, mode: 'insensitive' },
-      };
+      const words = pagination.search.trim().split(/\s+/).filter(Boolean);
+      if (words.length <= 1) {
+        where.serviceOrder = {
+          ...where.serviceOrder,
+          title: { contains: pagination.search, mode: 'insensitive' },
+        };
+      } else {
+        where.AND = words.map((word) => ({
+          serviceOrder: { title: { contains: word, mode: 'insensitive' } },
+        }));
+      }
     }
 
     const orderBy = buildOrderBy(pagination?.sortBy, pagination?.sortOrder, LEDGER_SORTABLE, { confirmedAt: 'desc' });
@@ -357,11 +364,22 @@ export class FinanceService {
       if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo + 'T23:59:59.999Z');
     }
     if (pagination?.search) {
-      where.OR = [
-        { description: { contains: pagination.search, mode: 'insensitive' } },
-        { serviceOrder: { title: { contains: pagination.search, mode: 'insensitive' } } },
-        { partner: { name: { contains: pagination.search, mode: 'insensitive' } } },
-      ];
+      const words = pagination.search.trim().split(/\s+/).filter(Boolean);
+      if (words.length <= 1) {
+        where.OR = [
+          { description: { contains: pagination.search, mode: 'insensitive' } },
+          { serviceOrder: { title: { contains: pagination.search, mode: 'insensitive' } } },
+          { partner: { name: { contains: pagination.search, mode: 'insensitive' } } },
+        ];
+      } else {
+        where.AND = words.map((word) => ({
+          OR: [
+            { description: { contains: word, mode: 'insensitive' } },
+            { serviceOrder: { title: { contains: word, mode: 'insensitive' } } },
+            { partner: { name: { contains: word, mode: 'insensitive' } } },
+          ],
+        }));
+      }
     }
 
     const orderBy = buildOrderBy(pagination?.sortBy, pagination?.sortOrder, ENTRY_SORTABLE, { createdAt: 'desc' });

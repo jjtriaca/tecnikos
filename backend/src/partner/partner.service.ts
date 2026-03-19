@@ -8,6 +8,7 @@ import { CreatePartnerDto } from './dto/create-partner.dto';
 import { UpdatePartnerDto } from './dto/update-partner.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
+import { buildSearchWhere } from '../common/util/build-search-where';
 import { AuthenticatedUser } from '../auth/auth.types';
 import * as bcrypt from 'bcrypt';
 
@@ -306,12 +307,13 @@ export class PartnerService {
       where.personType = filters.personType;
     }
     if (pagination?.search) {
-      where.OR = [
-        { name: { contains: pagination.search, mode: 'insensitive' } },
-        { document: { contains: pagination.search } },
-        { email: { contains: pagination.search, mode: 'insensitive' } },
-        { phone: { contains: pagination.search } },
-      ];
+      const searchClause = buildSearchWhere(pagination.search, [
+        { field: 'name', mode: 'insensitive' },
+        { field: 'document' },
+        { field: 'email', mode: 'insensitive' },
+        { field: 'phone' },
+      ]);
+      if (searchClause) Object.assign(where, searchClause);
     }
 
     const orderBy = buildOrderBy(pagination?.sortBy, pagination?.sortOrder, SORTABLE_COLUMNS, { name: 'asc' });

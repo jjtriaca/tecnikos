@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Optional, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { buildSearchWhere } from '../common/util/build-search-where';
 
 export interface WorkflowStep {
   order: number;
@@ -30,7 +31,10 @@ export class WorkflowService {
     }
 
     if (opts?.search) {
-      where.name = { contains: opts.search, mode: 'insensitive' };
+      const searchClause = buildSearchWhere(opts.search, [
+        { field: 'name', mode: 'insensitive' },
+      ]);
+      if (searchClause) Object.assign(where, searchClause);
     }
 
     const [data, total] = await this.prisma.$transaction([

@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { NfeParserService } from './nfe-parser.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
+import { buildSearchWhere } from '../common/util/build-search-where';
 
 /* ══════════════════════════════════════════════════════════════════════
    Types — DTO classes with class-validator decorators
@@ -266,12 +267,13 @@ export class NfeService {
     }
 
     if (pagination?.search) {
-      where.OR = [
-        { nfeNumber: { contains: pagination.search, mode: 'insensitive' } },
-        { nfeKey: { contains: pagination.search, mode: 'insensitive' } },
-        { supplierName: { contains: pagination.search, mode: 'insensitive' } },
-        { supplierCnpj: { contains: pagination.search, mode: 'insensitive' } },
-      ];
+      const searchWhere = buildSearchWhere(pagination.search, [
+        { field: 'nfeNumber', mode: 'insensitive' },
+        { field: 'nfeKey', mode: 'insensitive' },
+        { field: 'supplierName', mode: 'insensitive' },
+        { field: 'supplierCnpj', mode: 'insensitive' },
+      ]);
+      if (searchWhere) Object.assign(where, searchWhere);
     }
 
     // Dynamic sorting

@@ -105,11 +105,22 @@ export class CardSettlementService {
       where.expectedDate = { ...where.expectedDate, lte: new Date(`${filters.dateTo}T23:59:59.999Z`) };
     }
     if (pagination.search) {
-      where.OR = [
-        { financialEntry: { description: { contains: pagination.search, mode: 'insensitive' } } },
-        { financialEntry: { partner: { name: { contains: pagination.search, mode: 'insensitive' } } } },
-        { cardBrand: { contains: pagination.search, mode: 'insensitive' } },
-      ];
+      const words = pagination.search.trim().split(/\s+/).filter(Boolean);
+      if (words.length <= 1) {
+        where.OR = [
+          { financialEntry: { description: { contains: pagination.search, mode: 'insensitive' } } },
+          { financialEntry: { partner: { name: { contains: pagination.search, mode: 'insensitive' } } } },
+          { cardBrand: { contains: pagination.search, mode: 'insensitive' } },
+        ];
+      } else {
+        where.AND = words.map((word) => ({
+          OR: [
+            { financialEntry: { description: { contains: word, mode: 'insensitive' } } },
+            { financialEntry: { partner: { name: { contains: word, mode: 'insensitive' } } } },
+            { cardBrand: { contains: word, mode: 'insensitive' } },
+          ],
+        }));
+      }
     }
 
     // Sort

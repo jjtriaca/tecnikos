@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
+import { buildSearchWhere } from '../common/util/build-search-where';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -47,11 +48,12 @@ export class ProductService {
     if (filters?.brand) where.brand = { contains: filters.brand, mode: 'insensitive' };
 
     if (pagination?.search) {
-      where.OR = [
-        { description: { contains: pagination.search, mode: 'insensitive' } },
-        { code: { contains: pagination.search, mode: 'insensitive' } },
-        { barcode: { contains: pagination.search, mode: 'insensitive' } },
-      ];
+      const searchClause = buildSearchWhere(pagination.search, [
+        { field: 'description', mode: 'insensitive' },
+        { field: 'code', mode: 'insensitive' },
+        { field: 'barcode', mode: 'insensitive' },
+      ]);
+      if (searchClause) Object.assign(where, searchClause);
     }
 
     const orderBy = buildOrderBy(

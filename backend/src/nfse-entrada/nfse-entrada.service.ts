@@ -10,6 +10,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { CreateNfseEntradaDto } from './dto/create-nfse-entrada.dto';
 import { FocusNfeProvider, FocusNfseRecebida } from '../nfse-emission/focus-nfe.provider';
 import { EncryptionService } from '../common/encryption.service';
+import { buildSearchWhere } from '../common/util/build-search-where';
 
 @Injectable()
 export class NfseEntradaService {
@@ -196,12 +197,13 @@ export class NfseEntradaService {
     }
 
     if (pagination?.search) {
-      where.OR = [
-        { numero: { contains: pagination.search, mode: 'insensitive' } },
-        { prestadorRazaoSocial: { contains: pagination.search, mode: 'insensitive' } },
-        { prestadorCnpjCpf: { contains: pagination.search, mode: 'insensitive' } },
-        { discriminacao: { contains: pagination.search, mode: 'insensitive' } },
-      ];
+      const searchWhere = buildSearchWhere(pagination.search, [
+        { field: 'numero', mode: 'insensitive' },
+        { field: 'prestadorRazaoSocial', mode: 'insensitive' },
+        { field: 'prestadorCnpjCpf', mode: 'insensitive' },
+        { field: 'discriminacao', mode: 'insensitive' },
+      ]);
+      if (searchWhere) Object.assign(where, searchWhere);
     }
 
     // Dynamic sorting
