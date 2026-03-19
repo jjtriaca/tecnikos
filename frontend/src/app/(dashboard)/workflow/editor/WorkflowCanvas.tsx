@@ -160,37 +160,49 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
                 onDelete={() => onDeleteBlock(blockId)}
               />
 
-              {/* CONDITION: render branches */}
+              {/* CONDITION: render branches — symmetric layout */}
               {block.type === "CONDITION" && (
                 <div className="flex flex-col items-center mt-1">
-                  <div className="w-0.5 h-3 bg-amber-300" />
-                  <div className="flex gap-6 items-start">
-                    {/* Branch lines */}
-                    <div className="relative">
-                      <div className="absolute left-1/2 -top-0 w-[calc(50%+3rem)] h-0.5 bg-amber-300" style={{ transform: "translateX(-100%)" }} />
+                  {/* Vertical line from condition to fork */}
+                  <div className="w-0.5 h-4 bg-amber-300" />
+                  {/* Horizontal fork line */}
+                  <div className="relative w-full flex justify-center">
+                    <div className="absolute top-0 h-0.5 bg-amber-300" style={{ width: "50%", left: "25%" }} />
+                  </div>
+                  {/* Two branches side by side, equal width */}
+                  <div className="grid grid-cols-2 gap-4 w-full" style={{ minWidth: "28rem" }}>
+                    <div className="flex flex-col items-center">
+                      <div className="w-0.5 h-3 bg-amber-300" />
+                      <BranchRenderer
+                        blocks={blocks}
+                        startId={block.yesBranch}
+                        mergeId={block.next}
+                        selectedBlockId={selectedBlockId}
+                        onSelectBlock={onSelectBlock}
+                        onDeleteBlock={onDeleteBlock}
+                        onInsertAfter={onInsertAfter}
+                        label="SIM"
+                        parentBlockId={block.id}
+                      />
                     </div>
-                    <BranchRenderer
-                      blocks={blocks}
-                      startId={block.yesBranch}
-                      mergeId={block.next}
-                      selectedBlockId={selectedBlockId}
-                      onSelectBlock={onSelectBlock}
-                      onDeleteBlock={onDeleteBlock}
-                      onInsertAfter={onInsertAfter}
-                      label="SIM"
-                      parentBlockId={block.id}
-                    />
-                    <BranchRenderer
-                      blocks={blocks}
-                      startId={block.noBranch}
-                      mergeId={block.next}
-                      selectedBlockId={selectedBlockId}
+                    <div className="flex flex-col items-center">
+                      <div className="w-0.5 h-3 bg-amber-300" />
+                      <BranchRenderer
+                        blocks={blocks}
+                        startId={block.noBranch}
+                        mergeId={block.next}
+                        selectedBlockId={selectedBlockId}
                       onSelectBlock={onSelectBlock}
                       onDeleteBlock={onDeleteBlock}
                       onInsertAfter={onInsertAfter}
                       label="NAO"
                       parentBlockId={block.id}
                     />
+                    </div>
+                  </div>
+                  {/* Merge line back to center */}
+                  <div className="relative w-full flex justify-center">
+                    <div className="absolute top-0 h-0.5 bg-amber-300" style={{ width: "50%", left: "25%" }} />
                   </div>
                   <div className="w-0.5 h-3 bg-amber-300" />
                   <svg className="h-3 w-3 text-amber-300 -mt-0.5" fill="currentColor" viewBox="0 0 12 12">
