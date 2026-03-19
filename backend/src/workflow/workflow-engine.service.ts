@@ -1915,8 +1915,20 @@ export class WorkflowEngineService {
       }
 
       if (statusBlockIdx === -1) {
-        this.logger.log(`📨 No STATUS block found for ${targetStatus} — available: ${blocks.filter(b => b.type === 'STATUS').map(b => b.config?.targetStatus).join(', ')}`);
-        return;
+        // FALLBACK FINAL: Nenhum STATUS block compativel encontrado no workflow.
+        // Isso ocorre quando a OS eh criada como ATRIBUIDA (tecnico direcionado) mas o
+        // workflow nao tem um STATUS:ATRIBUIDA com NOTIFY encadeado.
+        // Nesse caso, comecamos do bloco START e percorremos a chain para encontrar
+        // e executar os NOTIFY blocks — garantindo que a notificacao sempre dispara
+        // independente da estrutura do workflow.
+        const startBlock = blocks.find(b => b.type === 'START');
+        if (startBlock) {
+          this.logger.log(`📨 No STATUS block for ${targetStatus} — starting from START block to find NOTIFY`);
+          statusBlockIdx = blocks.indexOf(startBlock);
+        } else {
+          this.logger.log(`📨 No STATUS block found for ${targetStatus} — available: ${blocks.filter(b => b.type === 'STATUS').map(b => b.config?.targetStatus).join(', ')}`);
+          return;
+        }
       }
 
       // Traverse from the status block via next pointers, executing NOTIFY and FINANCIAL_ENTRY blocks

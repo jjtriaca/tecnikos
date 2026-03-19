@@ -209,6 +209,12 @@ interface FloatingCardProps {
 
 function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: FloatingCardProps) {
   const { resendNotification, toggleMinimize } = useDispatch();
+  // Estado para o dropdown de "Trocar tecnico" na flutuante.
+  // Quando showReassign=true, carrega a lista de tecnicos ativos e exibe dropdown inline.
+  // Ao selecionar, faz PUT /service-orders/:id para reatribuir e POST dispatch-notifications para reenviar WhatsApp.
+  const [showReassign, setShowReassign] = useState(false);
+  const [technicians, setTechnicians] = useState<{ id: string; name: string; phone: string }[]>([]);
+  const [reassigning, setReassigning] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
   const dragAreaRef = useRef<HTMLDivElement>(null);
 
@@ -347,8 +353,67 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
               <span className="text-[11px] text-slate-700 font-medium">{d.technicianName || "Tecnico"}</span>
               {d.technicianPhone && <span className="text-[10px] text-slate-400">{d.technicianPhone}</span>}
             </div>
-            <TechStatus d={d} />
+            <div className="flex items-center gap-1.5">
+              <TechStatus d={d} />
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (showReassign) { setShowReassign(false); return; }
+                  try {
+                    const res = await api.get<{ data: any[] }>("/partners?type=TECNICO&status=ATIVO&limit=50");
+                    setTechnicians((res.data || []).map((p: any) => ({ id: p.id, name: p.name, phone: p.phone })));
+                  } catch { setTechnicians([]); }
+                  setShowReassign(true);
+                }}
+                className="rounded px-1.5 py-0.5 text-[9px] font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                title="Trocar tecnico"
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11l-2-2m0 0l-2 2m2-2v6" />
+                </svg>
+              </button>
+            </div>
           </div>
+
+          {/* Reassign technician dropdown */}
+          {showReassign && (
+            <div className="mt-1.5 rounded-lg border border-blue-200 bg-blue-50/50 p-2">
+              <p className="text-[10px] font-medium text-blue-700 mb-1">Trocar tecnico:</p>
+              <div className="max-h-32 overflow-y-auto space-y-0.5">
+                {technicians.filter(t => t.id !== (d as any).technicianId).map(t => (
+                  <button
+                    key={t.id}
+                    disabled={reassigning}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setReassigning(true);
+                      try {
+                        await api.put(`/service-orders/${d.osId}`, { assignedPartnerId: t.id });
+                        // Re-dispatch notifications
+                        await api.post(`/service-orders/${d.osId}/dispatch-notifications`).catch(() => {});
+                        setShowReassign(false);
+                      } catch { /* ignore */ }
+                      setReassigning(false);
+                    }}
+                    className="flex w-full items-center justify-between rounded px-2 py-1 text-[10px] text-slate-700 hover:bg-blue-100 transition-colors"
+                  >
+                    <span className="font-medium">{t.name}</span>
+                    <span className="text-slate-400">{t.phone}</span>
+                  </button>
+                ))}
+                {technicians.filter(t => t.id !== (d as any).technicianId).length === 0 && (
+                  <p className="text-[10px] text-slate-400 px-2 py-1">Nenhum outro tecnico ativo</p>
+                )}
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowReassign(false); }}
+                className="mt-1 text-[9px] text-slate-400 hover:text-slate-600"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Message status section */}
