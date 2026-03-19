@@ -59,22 +59,18 @@ export class PushNotificationService implements OnModuleInit {
     userId: string,
     dto: { endpoint: string; keys: { p256dh: string; auth: string }; deviceName?: string },
   ): Promise<void> {
-    await this.prisma.pushSubscription.upsert({
-      where: { companyId_endpoint: { companyId, endpoint: dto.endpoint } },
-      create: {
-        companyId,
-        userId,
+    // Use deleteMany + create instead of upsert to avoid Prisma relation issues
+    await this.prisma.pushSubscription.deleteMany({
+      where: { companyId, endpoint: dto.endpoint },
+    });
+    await this.prisma.pushSubscription.create({
+      data: {
+        company: { connect: { id: companyId } },
+        user: { connect: { id: userId } },
         endpoint: dto.endpoint,
         p256dh: dto.keys.p256dh,
         auth: dto.keys.auth,
         deviceName: dto.deviceName || null,
-      },
-      update: {
-        userId,
-        p256dh: dto.keys.p256dh,
-        auth: dto.keys.auth,
-        deviceName: dto.deviceName || null,
-        updatedAt: new Date(),
       },
     });
     this.logger.log(`Push subscription saved for user ${userId} (${dto.deviceName || 'unknown device'})`);
