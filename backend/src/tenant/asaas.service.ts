@@ -1770,7 +1770,21 @@ export class AsaasService {
     }
 
     // Calculate actual current price (including promo discount)
-    const isPromo = (subscription.promotionMonthsLeft || 0) > 0;
+    // Promo detection: promotionMonthsLeft > 0 (monthly mode) OR promotionId set + upfront paid (monthsLeft=0 but still in promo period)
+    const hasPromoMonths = (subscription.promotionMonthsLeft || 0) > 0;
+    const isUpfrontPromo = !hasPromoMonths && !!subscription.promotionId && !!subscription.originalValueCents;
+    const isPromo = hasPromoMonths || isUpfrontPromo;
+
+    // Calculate promo months remaining for display (upfront: use period end)
+    let promoMonthsLeft = subscription.promotionMonthsLeft || 0;
+    if (isUpfrontPromo) {
+      // Upfront promo: months left = months until next billing (when full price kicks in)
+      const monthsRemaining = Math.max(0, Math.ceil(
+        (subscription.nextBillingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30),
+      ));
+      promoMonthsLeft = monthsRemaining;
+    }
+
     const planPriceCents = subscription.originalValueCents || subscription.plan?.priceCents || 0;
     let currentValueCents = planPriceCents;
     if (isPromo && subscription.promotionId) {
@@ -1796,7 +1810,7 @@ export class AsaasService {
       daysOverdue,
       hoursUntilBlock: subscription.status === 'PAST_DUE' ? hoursUntilBlock : null,
       isPromo,
-      promoMonthsLeft: subscription.promotionMonthsLeft || 0,
+      promoMonthsLeft,
       planName: subscription.plan?.name || '',
       valueBrl: currentValueCents / 100,
       planPriceCents, // Full plan price (for upgrade/downgrade comparison)
@@ -2000,7 +2014,7 @@ export class AsaasService {
 
   /** Revert add-on quantities from the tenant's Company record (opposite of creditAddOnToTenantCompany) */
   private async revertAddOnFromTenantCompany(
-    tenant: { schemaName: string },
+    tenant: { schemaName: string; id?: string },
     addon: { osQuantity: number; userQuantity: number; technicianQuantity: number; aiMessageQuantity: number; nfseImportQuantity?: number },
   ) {
     try {
@@ -2018,16 +2032,36 @@ export class AsaasService {
       if (Object.keys(data).length > 0) {
         await client.company.update({ where: { id: company.id }, data });
 
-        // Safety: ensure limits never go below plan baseline (could happen if admin changed plan)
+        // Safety: ensure limits never go below plan baseline
+        // Get the tenant's plan to know the baseline (not just 0)
+        let planBaseline = { maxOsPerMonth: 0, maxUsers: 0, maxTechnicians: 0, maxAiMessages: 0, maxNfseImports: 0 };
+        if (tenant.id) {
+          const tenantData = await this.prisma.tenant.findUnique({
+            where: { id: tenant.id },
+            include: { plan: true },
+          });
+          if (tenantData?.plan) {
+            planBaseline = {
+              maxOsPerMonth: tenantData.plan.maxOsPerMonth,
+              maxUsers: tenantData.plan.maxUsers,
+              maxTechnicians: tenantData.plan.maxTechnicians,
+              maxAiMessages: tenantData.plan.maxAiMessages,
+              maxNfseImports: tenantData.plan.maxNfseImports,
+            };
+          }
+        }
+
         const updated = await client.company.findFirst();
         if (updated) {
           const fixes: Record<string, number> = {};
-          if ((updated.maxOsPerMonth || 0) < 0) fixes.maxOsPerMonth = 0;
-          if ((updated.maxUsers || 0) < 0) fixes.maxUsers = 0;
-          if ((updated.maxTechnicians || 0) < 0) fixes.maxTechnicians = 0;
-          if ((updated.maxAiMessages || 0) < 0) fixes.maxAiMessages = 0;
+          if ((updated.maxOsPerMonth || 0) < planBaseline.maxOsPerMonth) fixes.maxOsPerMonth = planBaseline.maxOsPerMonth;
+          if ((updated.maxUsers || 0) < planBaseline.maxUsers) fixes.maxUsers = planBaseline.maxUsers;
+          if ((updated.maxTechnicians || 0) < planBaseline.maxTechnicians) fixes.maxTechnicians = planBaseline.maxTechnicians;
+          if ((updated.maxAiMessages || 0) < planBaseline.maxAiMessages) fixes.maxAiMessages = planBaseline.maxAiMessages;
+          if ((updated.maxNfseImports || 0) < planBaseline.maxNfseImports) fixes.maxNfseImports = planBaseline.maxNfseImports;
           if (Object.keys(fixes).length > 0) {
             await client.company.update({ where: { id: updated.id }, data: fixes });
+            this.logger.log(`Fixed Company limits below plan baseline for tenant ${tenant.schemaName}: ${JSON.stringify(fixes)}`);
           }
         }
       }

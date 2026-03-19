@@ -529,14 +529,22 @@ export class TenantController {
       include: { plan: true },
     });
 
+    // Batch-fetch all promotions to avoid N+1 queries
+    const promoIds = [...new Set(activeSubscriptions.map(s => s.promotionId).filter(Boolean))] as string[];
+    const promos = promoIds.length > 0
+      ? await this.prisma.promotion.findMany({ where: { id: { in: promoIds } } })
+      : [];
+    const promoMap = new Map(promos.map(p => [p.id, p]));
+
     let mrrCents = 0;
     for (const sub of activeSubscriptions) {
       const planPrice = sub.originalValueCents || sub.plan?.priceCents || 0;
       let effectivePrice = planPrice;
-      if ((sub.promotionMonthsLeft || 0) > 0 && sub.promotionId) {
-        const promo = await this.prisma.promotion.findUnique({
-          where: { id: sub.promotionId },
-        });
+      // Detect promo: monthsLeft > 0 (monthly) OR upfront paid (monthsLeft=0 but promotionId + originalValueCents set)
+      const hasPromo = ((sub.promotionMonthsLeft || 0) > 0) ||
+        (!!sub.promotionId && !!sub.originalValueCents);
+      if (hasPromo && sub.promotionId) {
+        const promo = promoMap.get(sub.promotionId);
         if (promo) {
           if (promo.discountCents) {
             effectivePrice = Math.max(0, planPrice - promo.discountCents);

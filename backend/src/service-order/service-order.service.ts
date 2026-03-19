@@ -63,21 +63,44 @@ export class ServiceOrderService {
     }
   }
 
+  /** Get billing cycle period (subscription-based), fallback to calendar month */
+  private async getBillingPeriod(companyId: string): Promise<{ periodStart: Date; periodEnd: Date }> {
+    const now = new Date();
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { companyId },
+      select: { id: true },
+    });
+    if (tenant) {
+      const sub = await this.prisma.subscription.findFirst({
+        where: { tenantId: tenant.id, status: { in: ['ACTIVE', 'PAST_DUE'] } },
+        select: { currentPeriodStart: true, currentPeriodEnd: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (sub) {
+        return { periodStart: sub.currentPeriodStart, periodEnd: sub.currentPeriodEnd };
+      }
+    }
+    // Fallback: calendar month
+    return {
+      periodStart: new Date(now.getFullYear(), now.getMonth(), 1),
+      periodEnd: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
+    };
+  }
+
   async create(data: CreateServiceOrderDto & { companyId: string }, actor?: AuthenticatedUser) {
     // ── Enforce maxOsPerMonth limit (OS + NFS-e avulsas = transações) ──
-    // Multi-tenant: each schema has exactly one Company record
+    // Uses billing cycle period, NOT calendar month
     const company = await this.prisma.company.findFirst({
       select: { maxOsPerMonth: true },
     });
     const maxOs = company?.maxOsPerMonth || 0;
     if (maxOs > 0) {
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const { periodStart, periodEnd } = await this.getBillingPeriod(data.companyId);
       const [osCount, avulsaNfseCount] = await Promise.all([
         this.prisma.serviceOrder.count({
           where: {
             companyId: data.companyId,
-            createdAt: { gte: startOfMonth },
+            createdAt: { gte: periodStart, lte: periodEnd },
             // Deletadas CONTAM no limite — evita burlar criando e apagando
           },
         }),
@@ -87,7 +110,7 @@ export class ServiceOrderService {
             companyId: data.companyId,
             serviceOrderId: null,
             status: { not: 'ERROR' },
-            createdAt: { gte: startOfMonth },
+            createdAt: { gte: periodStart, lte: periodEnd },
           },
         }).catch(() => 0),
       ]);
@@ -594,33 +617,7 @@ export class ServiceOrderService {
 
   async monthlyUsage(companyId: string) {
     const now = new Date();
-
-    // Try to get billing cycle dates from subscription
-    const tenant = await this.prisma.tenant.findFirst({
-      where: { companyId },
-      select: { id: true },
-    });
-
-    let periodStart: Date | null = null;
-    let periodEnd: Date | null = null;
-
-    if (tenant) {
-      const subscription = await this.prisma.subscription.findFirst({
-        where: { tenantId: tenant.id, status: { in: ['ACTIVE', 'PAST_DUE'] } },
-        select: { currentPeriodStart: true, currentPeriodEnd: true },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (subscription) {
-        periodStart = subscription.currentPeriodStart;
-        periodEnd = subscription.currentPeriodEnd;
-      }
-    }
-
-    // Fallback to calendar month if no subscription found
-    if (!periodStart || !periodEnd) {
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-    }
+    const { periodStart, periodEnd } = await this.getBillingPeriod(companyId);
 
     const [osCount, avulsaNfseCount, company] = await Promise.all([
       this.prisma.serviceOrder.count({

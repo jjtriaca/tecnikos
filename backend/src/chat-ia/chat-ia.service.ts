@@ -324,6 +324,27 @@ export class ChatIAService {
 
   // ── Message Limits ─────────────────────────────────────
 
+  /** Check if chatIAMonthReset is outside current billing period and needs reset */
+  private async needsBillingReset(db: any, resetDate: Date | null): Promise<boolean> {
+    if (!resetDate) return true;
+    // Try to get billing cycle from subscription
+    const tenant = await db.tenant.findFirst({ select: { id: true } }).catch(() => null);
+    if (tenant) {
+      const sub = await db.subscription.findFirst({
+        where: { tenantId: tenant.id, status: { in: ['ACTIVE', 'PAST_DUE'] } },
+        select: { currentPeriodStart: true },
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => null);
+      if (sub) {
+        // Reset if the stored resetDate is before the current billing period start
+        return resetDate < sub.currentPeriodStart;
+      }
+    }
+    // Fallback: calendar month reset
+    const now = new Date();
+    return resetDate.getMonth() !== now.getMonth() || resetDate.getFullYear() !== now.getFullYear();
+  }
+
   async checkAndIncrementUsage(companyId: string, tenantSchema?: string): Promise<{
     allowed: boolean;
     used: number;
@@ -338,29 +359,23 @@ export class ChatIAService {
 
     // Use real maxAiMessages from plan snapshot (0 = unlimited)
     const limit = company.maxAiMessages || 0;
+    const needsReset = await this.needsBillingReset(db, company.chatIAMonthReset);
+
     if (limit === 0) {
       // Unlimited — just increment and allow
-      const now = new Date();
-      const resetDate = company.chatIAMonthReset;
-      const needsReset = !resetDate || resetDate.getMonth() !== now.getMonth() || resetDate.getFullYear() !== now.getFullYear();
       let used = company.chatIAMonthlyMsgs;
       if (needsReset) {
-        await db.company.updateMany({ data: { chatIAMonthlyMsgs: 0, chatIAMonthReset: now } });
+        await db.company.updateMany({ data: { chatIAMonthlyMsgs: 0, chatIAMonthReset: new Date() } });
         used = 0;
       }
       await db.company.updateMany({ data: { chatIAMonthlyMsgs: used + 1 } });
       return { allowed: true, used: used + 1, limit: 0 };
     }
 
-    // Reset monthly counter if needed
-    const now = new Date();
-    const resetDate = company.chatIAMonthReset;
-    const needsReset = !resetDate || resetDate.getMonth() !== now.getMonth() || resetDate.getFullYear() !== now.getFullYear();
-
     let used = company.chatIAMonthlyMsgs;
     if (needsReset) {
       await db.company.updateMany({
-        data: { chatIAMonthlyMsgs: 0, chatIAMonthReset: now },
+        data: { chatIAMonthlyMsgs: 0, chatIAMonthReset: new Date() },
       });
       used = 0;
     }
@@ -386,11 +401,7 @@ export class ChatIAService {
     if (!company) return { used: 0, limit: 0 };
 
     const limit = company.maxAiMessages || 0;
-
-    // Check if needs reset
-    const now = new Date();
-    const resetDate = company.chatIAMonthReset;
-    const needsReset = !resetDate || resetDate.getMonth() !== now.getMonth() || resetDate.getFullYear() !== now.getFullYear();
+    const needsReset = await this.needsBillingReset(db, company.chatIAMonthReset);
 
     return { used: needsReset ? 0 : company.chatIAMonthlyMsgs, limit };
   }
