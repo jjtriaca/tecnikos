@@ -105,6 +105,14 @@ Ao trabalhar com Meta (WhatsApp) ou Focus NFe:
 - Mapeamento automatico de colunas pelo cabecalho
 - Validacao de duplicatas por documento (CPF/CNPJ)
 
+### Wizards ChatIA (System-Wide)
+- A cada feature nova: AVALIAR se precisa de wizard na ChatIA
+- Se sim: adicionar triggers, steps e tools no system prompt (chat-ia.service.ts)
+- Se tiver config: adicionar ao onboarding checklist (chat-ia.onboarding.ts)
+- Se precisar de dados: criar tool em chat-ia.tools.ts
+- Wizards existentes: Setup Geral, NFS-e Config, WhatsApp, Push, NFS-e Import, Billing
+- Pendente wizard: (nenhum)
+
 ---
 
 ## Organizacao de Documentacao

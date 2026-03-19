@@ -11,7 +11,7 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 
 ---
 
-## 1. Modulos do Backend (33 NestJS Modules)
+## 1. Modulos do Backend (34 NestJS Modules)
 
 ### Core
 | Modulo | Responsabilidade | Service principal |
@@ -59,7 +59,7 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 ### Comunicacao
 | Modulo | Responsabilidade | Service principal |
 |--------|-----------------|-------------------|
-| NotificationModule | Multi-canal (WhatsApp, SMS, Email, Push) | NotificationService |
+| NotificationModule | Multi-canal (WhatsApp, SMS, Email, Push) | NotificationService, PushNotificationService |
 | WhatsAppModule | Meta Cloud API v21.0 | WhatsAppService |
 | EmailModule | SMTP (Zoho) | EmailService |
 | ChatIAModule | Assistente IA embarcado (Claude) | ChatIAService |
@@ -68,6 +68,7 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 | Modulo | Responsabilidade | Service principal |
 |--------|-----------------|-------------------|
 | TenantModule | Billing Asaas + planos + subscriptions | TenantService, AsaasService |
+| SaasConfigModule | Configuracoes globais (key-value, AES-256-GCM) | SaasConfigService |
 | VerificationModule | CAPTCHA Turnstile | VerificationService |
 | UploadModule | Storage S3-compatible | UploadService |
 | ReportsModule | Dashboard + exports | ReportsService |
@@ -143,7 +144,8 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 - **Tenant**: slug, schemaName, cnpj, status (PENDING_VERIFICATION->PENDING_PAYMENT->ACTIVE->BLOCKED/SUSPENDED/CANCELLED)
 - **Plan**: maxUsers, maxOsPerMonth, maxTechnicians, maxAiMessages, priceCents, priceYearlyCents
 - **Subscription**: tenantId, planId, status, billingCycle, pendingPlanId, creditBalanceCents, promotionMonthsLeft
-- **AddOn/AddOnPurchase**: 4 tipos (OS, users, technicians, AI messages), expiresAt por ciclo
+- **AddOn/AddOnPurchase**: 5 tipos (OS, users, technicians, AI messages, NFS-e imports), expiresAt por ciclo
+- **SaasConfig**: key-value global (FOCUS_NFE_RESELLER_TOKEN, VAPID keys), valores sensiveis AES-256-GCM
 - **Promotion**: code, discountPercent/Cents, durationMonths, skipPayment (voucher)
 
 ### Usuarios e Auth
@@ -181,6 +183,7 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 
 ### Comunicacao
 - **Notification**: multi-canal, whatsappMessageId, errorDetail, status tracking
+- **PushSubscription**: endpoint, p256dh, auth (Web Push API), userId, deviceName, expiresAt
 - **WhatsAppConfig**: metaAccessToken (encrypted), phoneNumberId, wabaId
 - **WhatsAppMessage**: INBOUND/OUTBOUND, status (SENT->DELIVERED->READ->FAILED)
 - **EmailConfig**: SMTP (encrypted)
@@ -228,7 +231,7 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 | Fiscal | `/nfe`, `/nfe/entrada`, `/nfe/saida`, `/fiscal`, `/fiscal/livro-entradas`, `/fiscal/servicos-tomados`, `/fiscal/sped` |
 | Config | `/settings`, `/settings/billing`, `/settings/devices`, `/settings/email`, `/settings/fiscal`, `/settings/whatsapp` |
 | Admin | `/users`, `/notifications`, `/whatsapp`, `/workflow`, `/automation`, `/dashboard` |
-| SaaS Admin | `/ctrl-zr8k2x/*` (tenants, plans, addons, promotions, invoices, signup-attempts) |
+| SaaS Admin | `/ctrl-zr8k2x/*` (tenants, plans, addons, promotions, invoices, signup-attempts, settings) |
 
 ---
 
@@ -249,6 +252,7 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 | `useTableParams({ persistKey })` | Estado de filtros/sort/page, persiste em localStorage |
 | `useTableLayout(tableId, columns)` | Ordem e largura de colunas, persiste em localStorage |
 | `useDebounce(value, delay)` | Debounce para search inputs |
+| `usePushNotifications()` | Web Push: subscribe/unsubscribe, permission, supported |
 
 ### API Wrapper (`lib/api.ts`)
 - Fetch puro (sem Axios), JWT Bearer auto-inject
@@ -278,7 +282,8 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 |------------|----------|--------|--------|
 | Pagamento | Asaas | TenantModule | ASAAS_API_KEY (env) |
 | WhatsApp | Meta Cloud API v21.0 | WhatsAppModule | Encrypted AES-256-GCM |
-| NFS-e (revenda) | Focus NFe | NfseEmissionModule | FOCUS_NFE_RESELLER_TOKEN (env) + tokens por tenant (encrypted) |
+| NFS-e (revenda) | Focus NFe | NfseEmissionModule | FOCUS_NFE_RESELLER_TOKEN (SaasConfig DB, fallback env) + tokens por tenant (encrypted) |
+| Push Notifications | Web Push API | NotificationModule | VAPID keys (SaasConfig DB, encrypted) |
 | NFe/SEFAZ | SEFAZ DFe | NfeModule | Certificado PFX encrypted |
 | Email | SMTP Zoho | EmailModule | SMTP credentials (env) |
 | IA | Claude API | ChatIAModule | ANTHROPIC_API_KEY (env) |
@@ -313,10 +318,13 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 7. **Cancelamento 2 etapas**: Alguns municipios exigem 2 DELETE (pedido + confirmacao) — status CANCELLING com retry automatico
 8. **Wizard IA**: ChatIA guia config fiscal em 7 steps (registro auto, certificado, IBGE, servicos, ISS, validacao, teste)
 
-### NFS-e Wizard IA (ChatIA)
-- **Trigger**: "Como configurar NFS-e?" ou deteccao proativa de fiscal incompleto
-- **Tools**: verificar_fiscal_completo, buscar_municipio_ibge, salvar_codigo_ibge, listar_servicos_nfse, registrar_empresa_focus
-- **Fluxo**: 7 steps guiados → registro automatico na Focus → coleta dados fiscais → teste emissao
+### Wizards ChatIA (Sistema de Guias Inteligentes)
+- **Setup Wizard (master)**: Triggers "como comecar", "setup inicial" → guia sequencial por todos os 10 items do onboarding
+- **NFS-e Config Wizard**: Triggers "configurar NFS-e", "nota fiscal" → 7 steps (registro Focus, certificado, IBGE, servicos, ISS, validacao, teste)
+- **Push Notifications Wizard**: Triggers "push", "notificacoes push" → ativar push no navegador
+- **NFS-e Import Wizard**: Triggers "importar nfse", "pacotes nfse" → saldo, pacotes, compra
+- **Billing/Plans Wizard**: Triggers "meu plano", "upgrade", "billing" → plano atual, limites, upgrade
+- **Tools**: verificar_configuracao, verificar_push_notifications, verificar_nfse_imports, verificar_plano_billing, verificar_fiscal_completo, buscar_municipio_ibge, salvar_codigo_ibge, listar_servicos_nfse, registrar_empresa_focus
 
 ### WhatsApp (Meta Cloud API)
 - Template fallback: tenta template primeiro, fallback texto em janela 24h
@@ -345,8 +353,9 @@ Tecnico: nao e UserRole, e Partner com login proprio (phone/CPF + password)
 - PrismaService + TenantConnectionService resolvem schema correto
 
 ### Encriptacao
-- AES-256-GCM: WhatsApp tokens, Focus NFe tokens, SEFAZ certs, SMTP creds
-- `EncryptionService` com chave do env
+- AES-256-GCM: WhatsApp tokens, Focus NFe tokens, SEFAZ certs, SMTP creds, VAPID private key, SaasConfig values
+- `EncryptionService` com chave do env (ENCRYPTION_KEY ou fallback JWT_SECRET)
+- `SaasConfigService` armazena configs globais criptografadas (DB first, env fallback)
 
 ---
 
@@ -386,7 +395,8 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 | QuoteService | Meia-noite | Expirar orcamentos vencidos |
 | AsaasService | 7 AM diario | Sync status subscriptions |
 | AsaasService | 00:30 diario | Cobrar tenants inadimplentes (grace 7 dias) |
-| AsaasService | 00:15 diario | Sync pagamentos pendentes do webhook |
+| AsaasService | 00:15 diario | Expirar add-ons vencidos (revert limites) |
+| PushNotificationService | 3 AM diario | Cleanup push subscriptions expiradas |
 | WaitForService | A cada minuto | Checar blocos WAIT_FOR pendentes |
 
 ---
@@ -403,6 +413,11 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 8. **JWT backward compat**: fallback `payload.roles || [payload.role]` no jwt.strategy
 9. **WhatsApp template fallback**: `sendTextWithTemplateFallback(forceTemplate:true)` para evitar ban
 10. **Add-on NAO faz rollover**: vale pro ciclo vigente, expira no fim do periodo
+16. **OS/AI contagem por ciclo billing**: Usa `currentPeriodStart/End` da Subscription (NAO calendario dia 1). Fallback calendario se sem subscription.
+17. **Promo upfront**: `promotionMonthsLeft` zerado no primeiro pagamento. Deteccao via `promotionId + originalValueCents` no getBillingStatus/MRR.
+18. **Add-on revert protege baseline**: Ao expirar add-on, limites nunca caem abaixo do plano base (busca Plan do Tenant).
+19. **SaasConfig fallback env**: `SaasConfigService.get(key)` busca DB primeiro, fallback `process.env[key]`.
+20. **NFS-e imports = add-on puro**: `maxNfseImports=0` em todos os planos. Compra via add-on (nfseImportQuantity).
 11. **Fire-and-forget automation**: `automationEngine?.dispatch().catch(() => {})` — falha silenciosa
 12. **Token JWT in-memory**: NAO esta em localStorage (seguranca XSS), perde no F5 -> silent refresh via cookie
 13. **NFS-e cancelamento 2 etapas**: Alguns municipios (ex: Primavera do Leste/MT) exigem 2 DELETE — status CANCELLING com retry automatico 3s
@@ -422,6 +437,8 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 | `backend/src/automation/automation-engine.service.ts` | Regras event-driven |
 | `backend/src/tenant/tenant.service.ts` | Provisioning multi-tenant |
 | `backend/src/tenant/asaas.service.ts` | Lifecycle de pagamentos |
+| `backend/src/common/saas-config.service.ts` | Config global (DB + env fallback) |
+| `backend/src/notification/push-notification.service.ts` | Web Push API |
 | `backend/src/finance/finance.service.ts` | Lancamentos, parcelas, renegociacao |
 | `backend/prisma/schema.prisma` | Modelo de dados completo (60+ models) |
 
@@ -434,6 +451,8 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 | `frontend/src/lib/api.ts` | API wrapper com retry/refresh |
 | `frontend/src/hooks/useTableParams.ts` | Filtros/sort persistidos |
 | `frontend/src/hooks/useTableLayout.ts` | Colunas persistidas |
+| `frontend/src/hooks/usePushNotifications.ts` | Web Push subscribe/unsubscribe |
+| `frontend/public/sw.js` | Service Worker (cache + push listener) |
 
 ### Infra
 | Arquivo | Funcao |

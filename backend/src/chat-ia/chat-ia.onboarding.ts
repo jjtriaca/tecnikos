@@ -34,7 +34,7 @@ export class ChatIAOnboardingService {
       ? this.tenantConnection.getClient(tenantSchema)
       : this.prisma;
 
-    const [company, emailConfig, whatsappConfig, workflowCount, userCount, technicianCount, paymentMethodCount, automationCount, nfseConfig, serviceCodeCount] =
+    const [company, emailConfig, whatsappConfig, workflowCount, userCount, technicianCount, paymentMethodCount, automationCount, nfseConfig, serviceCodeCount, pushSubscriptionCount] =
       await Promise.all([
         db.company.findFirst({ select: { phone: true, cep: true, logoUrl: true, cnpj: true, name: true, fiscalEnabled: true } }),
         db.emailConfig.findFirst({ select: { isConnected: true } }).catch(() => null),
@@ -46,6 +46,7 @@ export class ChatIAOnboardingService {
         db.automationRule.count({ where: { isActive: true } }).catch(() => 0),
         db.nfseConfig.findFirst({ select: { focusNfeToken: true, focusNfeTokenHomolog: true, codigoMunicipio: true, aliquotaIss: true, inscricaoMunicipal: true } }).catch(() => null),
         db.nfseServiceCode.count({ where: { active: true } }).catch(() => 0),
+        db.pushSubscription.count().catch(() => 0),
       ]);
 
     const items: OnboardingItem[] = [
@@ -96,6 +97,14 @@ export class ChatIAOnboardingService {
         optional: false,
         href: '/partners?tab=technicians',
         description: 'Cadastrar pelo menos um técnico com especialização definida',
+      },
+      {
+        key: 'pushNotifications',
+        label: 'Notificações Push',
+        done: pushSubscriptionCount > 0,
+        optional: true,
+        href: '/notifications',
+        description: 'Ativar notificações push para receber alertas em tempo real no navegador',
       },
       {
         key: 'fiscal',

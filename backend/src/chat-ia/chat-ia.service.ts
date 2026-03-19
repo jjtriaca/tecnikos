@@ -65,11 +65,36 @@ ASSISTENTE DO DIA A DIA:
 - Explique APENAS funcionalidades que realmente existem no sistema
 - Para dúvidas sobre como fazer algo no sistema, dê instruções passo a passo baseadas no que existe
 
-WIZARD NFS-e (ativado por trigger ou detecção proativa):
-- Se o usuário perguntar "Como configurar NFS-e?", "configurar nota fiscal", "emitir nota", "configuração fiscal" ou similar → iniciar wizard fiscal
+WIZARDS (ativados por trigger ou detecção proativa):
+
+SETUP WIZARD (wizard mestre de configuração inicial):
+- Triggers: "como começar", "configurar sistema", "setup inicial", "primeiro acesso", "o que preciso configurar", "como usar o sistema"
+- Use a tool verificar_configuracao para cada item e identifique o que falta
+- Guie sequencialmente pelos items incompletos: Perfil > Email > WhatsApp > Workflow > Usuários > Técnicos > Push > Pagamento > Automação > Fiscal
+- A cada step concluído, revalide com verificar_configuracao e passe ao próximo pendente
+- Items opcionais (Push, Pagamento, Automação): pergunte se quer configurar ou pular
+- Siga as instruções detalhadas do WIZARD para cada item
+
+WIZARD NFS-e (configuração fiscal):
+- Triggers: "Como configurar NFS-e?", "configurar nota fiscal", "emitir nota", "configuração fiscal"
 - Use a tool verificar_fiscal_completo para saber o estado atual e guiar passo a passo
-- O wizard tem 7 steps: Conta Focus NFe → Certificado → Dados Municipais → Serviços → Tributação → Validação → Teste
+- O wizard tem 7 steps: Registro Focus NFe → Certificado → Dados Municipais → Serviços → Tributação → Validação → Teste
 - Siga as instruções detalhadas do WIZARD quando ele estiver ativo
+
+WIZARD PUSH NOTIFICATIONS:
+- Triggers: "push", "notificações push", "alertas navegador", "notificação desktop", "ativar notificações"
+- Use a tool verificar_push_notifications para checar o estado atual
+- Siga as instruções do WIZARD pushNotifications
+
+WIZARD IMPORTAÇÃO NFS-e:
+- Triggers: "importar nfse", "importação automática", "pacotes nfse", "créditos importação", "notas recebidas"
+- Use a tool verificar_nfse_imports para checar saldo e pacotes
+- Siga as instruções do WIZARD nfseImports
+
+WIZARD BILLING/PLANOS:
+- Triggers: "meu plano", "upgrade", "mudar plano", "limites", "billing", "faturamento", "quanto pago", "add-on"
+- Use a tool verificar_plano_billing para obter dados atualizados
+- Siga as instruções do WIZARD billing
 
 IMPORTANTE:
 - Os dados da empresa (CNPJ, razão social, endereço) vêm da Receita Federal e não podem ser editados manualmente. Para atualizar, o gestor deve usar a função de consulta por CNPJ.
@@ -289,6 +314,99 @@ REGRAS DO WIZARD:
   - Notificar gestor quando OS está atrasada
   - Enviar avaliação ao cliente após conclusão da OS
 - Clicar "Nova Regra", definir gatilho (evento) e ação`,
+
+  pushNotifications: `Guie o usuário para ativar notificações push em /notifications:
+
+O QUE SÃO:
+- Notificações push chegam diretamente no navegador/dispositivo, mesmo com o sistema minimizado
+- Alertam sobre: novas OS atribuídas, mudanças de status, notificações do sistema
+- Funcionam no Chrome, Edge, Firefox e Safari (desktop e Android)
+
+COMO ATIVAR:
+1. Acessar a página de Notificações (botão no menu ou /notifications)
+2. Na seção "Notificações Push", clicar "Ativar Push"
+3. O navegador vai solicitar permissão — clicar "Permitir"
+4. Pronto! Um teste será enviado para confirmar
+
+VERIFICAÇÃO:
+- Usar a tool verificar_push_notifications para checar o status
+- Se o navegador bloqueou: orientar a desbloquear nas configurações do navegador (Configurações > Privacidade > Notificações > Permitir para o site)
+- Se não aparece o botão: verificar se o navegador suporta (Safari iOS não suporta em versões antigas)
+
+DICAS:
+- Cada dispositivo/navegador precisa ativar separadamente
+- A ativação é por usuário — cada membro da equipe precisa ativar no seu navegador
+- Desativar: mesma página, botão "Desativar"`,
+
+  nfseImports: `Guie o usuário sobre importação de NFS-e em /nfe/entrada:
+
+CONCEITO:
+- O Tecnikos pode importar NFS-e recebidas (notas de serviços tomados) automaticamente via provedor fiscal
+- A importação MANUAL (digitar dados) é sempre gratuita e ilimitada
+- A importação AUTOMÁTICA (buscar via API do provedor) consome créditos
+
+COMO FUNCIONA:
+- Créditos de importação são comprados como pacotes (add-ons)
+- Cada importação automática consome 1 crédito
+- Créditos valem para o ciclo de faturamento atual (não acumulam)
+
+VERIFICAÇÃO:
+- Usar a tool verificar_nfse_imports para checar saldo e pacotes disponíveis
+
+COMO COMPRAR:
+1. Ir em Configurações > Faturamento (/settings/billing)
+2. Filtrar por "NFS-e" para ver os pacotes
+3. Escolher o pacote desejado e clicar "Comprar"
+4. Após confirmação do pagamento, os créditos são liberados automaticamente
+
+COMO IMPORTAR:
+1. Ir em Fiscal > NFS-e Entrada (/nfe/entrada)
+2. Clicar "Importar NFS-e" (o botão só aparece se tiver créditos)
+3. O sistema busca automaticamente as notas do provedor fiscal
+4. Revisar as notas importadas
+
+PACOTES DISPONÍVEIS: (usar tool para listar com preços atualizados)`,
+
+  billing: `Guie o usuário sobre plano e faturamento em /settings/billing:
+
+VERIFICAÇÃO:
+- Usar a tool verificar_plano_billing para obter dados atualizados do plano, limites e uso
+
+PLANO ATUAL:
+- Mostrar: nome do plano, preço, ciclo (mensal/anual), próxima cobrança
+- Mostrar limites vs uso atual (OS, usuários, técnicos, mensagens IA)
+
+LIMITES:
+- OS/mês: total de ordens de serviço que podem ser criadas no ciclo
+- Usuários: gestores que podem acessar o sistema
+- Técnicos: técnicos cadastrados (campo)
+- Mensagens IA: interações com este assistente por mês
+- Importações NFS-e: créditos para importação automática (add-on separado)
+
+UPGRADE:
+- Se o cliente está próximo do limite, sugerir upgrade
+- "Para aumentar seus limites, acesse Configurações > Faturamento e clique em 'Alterar Plano'"
+- O upgrade gera cobrança pro-rata (paga a diferença do ciclo restante)
+- Os novos limites são aplicados IMEDIATAMENTE após confirmação do pagamento
+
+ADD-ONS:
+- Para necessidades pontuais, existem pacotes extras (add-ons)
+- Tipos: OS extras, usuários extras, técnicos extras, mensagens IA extras, importações NFS-e
+- Add-ons valem para o ciclo atual (não acumulam entre meses)
+- Comprar em /settings/billing
+
+DOWNGRADE:
+- Redução de plano é agendada para o próximo ciclo
+- Não há cobrança adicional — aplica no próximo vencimento
+
+PROMOÇÕES:
+- Se houver promoção ativa, mostrar desconto e meses restantes
+- Promoções são aplicadas automaticamente no signup ou por código
+
+DÚVIDAS COMUNS:
+- "Posso mudar de mensal para anual?": Sim, em /settings/billing
+- "O que acontece se atingir o limite?": O sistema bloqueia a criação de novos itens até o próximo ciclo ou compra de add-on
+- "Posso cancelar?": Sim, mas orientar a entrar em contato com o suporte`,
 };
 
 export interface MessageResult {
@@ -941,6 +1059,13 @@ export class ChatIAService {
           ctx += `\n[FISCAL INCOMPLETO: O módulo fiscal está habilitado mas faltam configurações. Se o usuário mencionar NFS-e, nota fiscal ou configuração fiscal, ative o wizard.]\n`;
           ctx += `${wizardInstructions}\n`;
         }
+      }
+
+      // Inject all wizard instructions so the AI can trigger them by keyword detection
+      ctx += `\n[WIZARDS DISPONÍVEIS: Se o usuário perguntar sobre configuração de push, importação NFS-e, planos/billing, ou setup geral, ative o wizard correspondente usando as instruções abaixo.]\n`;
+      for (const key of ['pushNotifications', 'nfseImports', 'billing']) {
+        const wi = WIZARD_INSTRUCTIONS[key];
+        if (wi) ctx += `\n[WIZARD ${key}]\n${wi}\n`;
       }
     }
 

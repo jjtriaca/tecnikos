@@ -18,6 +18,7 @@ const ADMIN_ONLY_TOOLS = new Set([
   'testar_focus_nfe',
   'salvar_codigo_ibge',
   'registrar_empresa_focus',
+  'verificar_push_notifications',
 ]);
 
 /** Encrypt a plaintext string using AES-256-GCM (same as EncryptionService) */
@@ -173,7 +174,7 @@ export const CHAT_IA_TOOLS: ToolDefinition[] = [
         configuracao: {
           type: 'string',
           description: 'Qual configuração verificar',
-          enum: ['email', 'whatsapp', 'fiscal', 'workflow', 'usuarios', 'tecnicos', 'pagamento', 'automacao'],
+          enum: ['email', 'whatsapp', 'fiscal', 'workflow', 'usuarios', 'tecnicos', 'pagamento', 'automacao', 'push'],
         },
       },
       required: ['configuracao'],
@@ -288,6 +289,33 @@ export const CHAT_IA_TOOLS: ToolDefinition[] = [
       properties: {},
     },
   },
+  {
+    name: 'verificar_push_notifications',
+    description:
+      'Verifica o status das notificações push na empresa. Retorna quantos dispositivos estão inscritos e se o serviço está configurado (chaves VAPID). Use no wizard de push notifications.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'verificar_nfse_imports',
+    description:
+      'Verifica o saldo de importações NFS-e automáticas da empresa: limite, uso no ciclo atual e pacotes disponíveis para compra. Use no wizard de importação NFS-e.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'verificar_plano_billing',
+    description:
+      'Retorna informações detalhadas do plano e billing da empresa: plano atual, limites, uso, ciclo de cobrança, add-ons ativos, promoções e planos disponíveis para upgrade. Use no wizard de billing/planos.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 /**
@@ -344,6 +372,12 @@ export async function executeTool(
         return await listServicosNfse(db);
       case 'registrar_empresa_focus':
         return await registerEmpresaFocus(db);
+      case 'verificar_push_notifications':
+        return await checkPushNotifications(db);
+      case 'verificar_nfse_imports':
+        return await checkNfseImports(db);
+      case 'verificar_plano_billing':
+        return await checkPlanoBilling(db);
       default:
         return JSON.stringify({ error: `Tool "${toolName}" não encontrada` });
     }
@@ -682,6 +716,15 @@ async function checkConfiguration(db: any, input: Record<string, any>): Promise<
         total: count,
         status: count > 0 ? `${count} regra(s) ativa(s)` : 'Nenhuma regra criada',
         href: '/automation',
+      });
+    }
+    case 'push': {
+      const pushCount = await db.pushSubscription.count().catch(() => 0);
+      return JSON.stringify({
+        configuracao: 'Notificações Push',
+        total: pushCount,
+        status: pushCount > 0 ? `${pushCount} dispositivo(s) inscrito(s)` : 'Nenhum dispositivo inscrito',
+        href: '/notifications',
       });
     }
     default:
@@ -1368,4 +1411,213 @@ async function registerEmpresaFocus(db: any): Promise<string> {
   } catch (err: any) {
     return JSON.stringify({ success: false, error: `Erro: ${err.message}` });
   }
+}
+
+// ─── Push Notifications ───────────────────────────────────────────────
+
+async function checkPushNotifications(db: any): Promise<string> {
+  const totalSubscriptions = await db.pushSubscription.count().catch(() => 0);
+  const users = await db.pushSubscription
+    .findMany({
+      select: { userId: true, deviceName: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    })
+    .catch(() => []);
+
+  // Check VAPID keys in SaasConfig (public schema)
+  let vapidConfigured = false;
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const publicDb = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+    const vapidRow = await publicDb.saasConfig.findUnique({ where: { key: 'VAPID_PUBLIC_KEY' } });
+    await publicDb.$disconnect();
+    vapidConfigured = !!vapidRow?.value;
+  } catch {
+    // ignore
+  }
+
+  return JSON.stringify({
+    totalDispositivos: totalSubscriptions,
+    vapidConfigurado: vapidConfigured,
+    status: totalSubscriptions > 0 ? 'Ativo' : 'Nenhum dispositivo inscrito',
+    dispositivos: users.map((u: any) => ({
+      dispositivo: u.deviceName || 'Desconhecido',
+      inscritoEm: u.createdAt,
+    })),
+    href: '/notifications',
+    dica: totalSubscriptions === 0
+      ? 'Para ativar: acesse Notificações e clique em "Ativar Push". O navegador vai solicitar permissão.'
+      : `${totalSubscriptions} dispositivo(s) recebendo notificações push.`,
+  });
+}
+
+// ─── NFS-e Imports ────────────────────────────────────────────────────
+
+async function checkNfseImports(db: any): Promise<string> {
+  const company = await db.company.findFirst({
+    select: { id: true, maxNfseImports: true },
+  });
+
+  if (!company) return JSON.stringify({ error: 'Empresa não encontrada' });
+
+  // Count imports this billing cycle
+  const now = new Date();
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const usedImports = await db.nfseEntrada
+    .count({
+      where: {
+        companyId: company.id,
+        importedAt: { not: null },
+        createdAt: { gte: firstOfMonth },
+      },
+    })
+    .catch(() => 0);
+
+  // Fetch available add-on packages from public schema
+  let availablePackages: any[] = [];
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const publicDb = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+    availablePackages = await publicDb.addOn.findMany({
+      where: { isActive: true, nfseImportQuantity: { gt: 0 } },
+      select: { id: true, name: true, nfseImportQuantity: true, priceCents: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    await publicDb.$disconnect();
+  } catch {
+    // ignore
+  }
+
+  return JSON.stringify({
+    maxImportacoes: company.maxNfseImports,
+    usadasNoCiclo: usedImports,
+    restantes: Math.max(0, company.maxNfseImports - usedImports),
+    status: company.maxNfseImports === 0
+      ? 'Sem créditos de importação automática'
+      : `${usedImports}/${company.maxNfseImports} utilizadas no ciclo`,
+    pacotesDisponiveis: availablePackages.map((p: any) => ({
+      nome: p.name,
+      quantidade: p.nfseImportQuantity,
+      preco: `R$ ${(p.priceCents / 100).toFixed(2)}`,
+    })),
+    href: '/settings/billing?filter=nfse',
+    dica: company.maxNfseImports === 0
+      ? 'A importação manual é gratuita. Para importação automática via Focus NFe, adquira um pacote de créditos.'
+      : `Você tem ${Math.max(0, company.maxNfseImports - usedImports)} importações restantes neste ciclo.`,
+  });
+}
+
+// ─── Plano & Billing ─────────────────────────────────────────────────
+
+async function checkPlanoBilling(db: any): Promise<string> {
+  const company = await db.company.findFirst({
+    select: {
+      id: true,
+      name: true,
+      maxOsPerMonth: true,
+      maxUsers: true,
+      maxTechnicians: true,
+      maxAiMessages: true,
+      maxNfseImports: true,
+    },
+  });
+
+  if (!company) return JSON.stringify({ error: 'Empresa não encontrada' });
+
+  // Count current usage
+  const now = new Date();
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [osCount, userCount, techCount] = await Promise.all([
+    db.serviceOrder.count({ where: { createdAt: { gte: firstOfMonth } } }).catch(() => 0),
+    db.user.count({ where: { deletedAt: null } }).catch(() => 0),
+    db.partner.count({ where: { deletedAt: null, partnerTypes: { has: 'TECNICO' } } }).catch(() => 0),
+  ]);
+
+  // Get plan/subscription from public schema
+  let planInfo: any = null;
+  let subscriptionInfo: any = null;
+  let availablePlans: any[] = [];
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const publicDb = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+
+    // Find tenant by company name match or by schema
+    const tenants = await publicDb.tenant.findMany({
+      where: { status: { in: ['ACTIVE', 'BLOCKED'] } },
+      select: {
+        id: true,
+        companyName: true,
+        planId: true,
+        plan: { select: { id: true, name: true, priceCents: true, priceYearlyCents: true, maxUsers: true, maxOsPerMonth: true, maxTechnicians: true, maxAiMessages: true } },
+        subscriptions: {
+          where: { status: 'ACTIVE' },
+          select: {
+            billingCycle: true,
+            currentPeriodStart: true,
+            currentPeriodEnd: true,
+            nextBillingDate: true,
+            pendingPlanId: true,
+            promotionMonthsLeft: true,
+            creditBalanceCents: true,
+            addOnPurchases: {
+              where: { status: 'ACTIVE' },
+              select: { addOn: { select: { name: true } }, quantity: true, expiresAt: true },
+            },
+          },
+          take: 1,
+        },
+      },
+    });
+
+    // Match by company name
+    const tenant = tenants.find((t: any) => t.companyName === company.name) || tenants[0];
+    if (tenant) {
+      planInfo = tenant.plan;
+      subscriptionInfo = tenant.subscriptions[0] || null;
+    }
+
+    // Available plans for upgrade
+    availablePlans = await publicDb.plan.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, priceCents: true, maxOsPerMonth: true, maxUsers: true, maxTechnicians: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    await publicDb.$disconnect();
+  } catch {
+    // ignore
+  }
+
+  return JSON.stringify({
+    planoAtual: planInfo ? {
+      nome: planInfo.name,
+      precoMensal: `R$ ${(planInfo.priceCents / 100).toFixed(2)}`,
+      precoAnual: planInfo.priceYearlyCents ? `R$ ${(planInfo.priceYearlyCents / 100).toFixed(2)}` : null,
+    } : 'Não encontrado',
+    limites: {
+      os: company.maxOsPerMonth === 0 ? 'Ilimitado' : `${osCount}/${company.maxOsPerMonth} usadas`,
+      usuarios: company.maxUsers === 0 ? 'Ilimitado' : `${userCount}/${company.maxUsers} ativos`,
+      tecnicos: company.maxTechnicians === 0 ? 'Ilimitado' : `${techCount}/${company.maxTechnicians} cadastrados`,
+      mensagensIA: company.maxAiMessages === 0 ? 'Ilimitado' : `${company.maxAiMessages}/mês`,
+      importacoesNfse: company.maxNfseImports === 0 ? 'Nenhum (compre add-on)' : `${company.maxNfseImports}`,
+    },
+    assinatura: subscriptionInfo ? {
+      ciclo: subscriptionInfo.billingCycle === 'ANNUAL' ? 'Anual' : 'Mensal',
+      periodoAtual: `${new Date(subscriptionInfo.currentPeriodStart).toLocaleDateString('pt-BR')} a ${new Date(subscriptionInfo.currentPeriodEnd).toLocaleDateString('pt-BR')}`,
+      proximaCobranca: new Date(subscriptionInfo.nextBillingDate).toLocaleDateString('pt-BR'),
+      mudancaPendente: subscriptionInfo.pendingPlanId ? 'Sim (alteração agendada)' : 'Não',
+      credito: subscriptionInfo.creditBalanceCents ? `R$ ${(subscriptionInfo.creditBalanceCents / 100).toFixed(2)}` : null,
+      addOnsAtivos: subscriptionInfo.addOnPurchases?.map((a: any) => a.addOn.name) || [],
+    } : null,
+    planosDisponiveis: availablePlans
+      .filter((p: any) => planInfo && p.id !== planInfo.id)
+      .map((p: any) => ({
+        nome: p.name,
+        preco: `R$ ${(p.priceCents / 100).toFixed(2)}/mês`,
+        limiteOS: p.maxOsPerMonth === 0 ? 'Ilimitado' : p.maxOsPerMonth,
+        limiteUsuarios: p.maxUsers === 0 ? 'Ilimitado' : p.maxUsers,
+      })),
+    href: '/settings/billing',
+  });
 }
