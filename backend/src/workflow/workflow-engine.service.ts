@@ -457,6 +457,30 @@ export class WorkflowEngineService {
         return { executed, stoppedAt: `STATUS_MANUAL:${block.config.targetStatus}` };
       }
 
+      // STATUS que depende de ação do técnico: executar o bloco MAS PARAR depois
+      // Esses status representam "o técnico precisa fazer algo" — o engine não pode avançar sozinho
+      const TECH_ACTION_STATUSES = new Set(['ATRIBUIDA', 'A_CAMINHO', 'EM_EXECUCAO']);
+      if ((block.type === 'STATUS' || block.type === 'STATUS_CHANGE') &&
+          TECH_ACTION_STATUSES.has(block.config?.targetStatus)) {
+        this.logger.log(`🚀 Executing and stopping at tech-action STATUS: "${block.config.targetStatus}"`);
+        try {
+          await this.executeSystemBlock(block, serviceOrderId, companyId);
+          stepOrder++;
+          await this.prisma.workflowStepLog.create({
+            data: {
+              serviceOrderId, stepOrder,
+              stepName: block.name || block.type,
+              blockId: block.id, partnerId: 'SYSTEM',
+              responseData: { autoCompleted: true, executedBy: 'executeWorkflowFromStart' },
+            },
+          });
+          executed++;
+        } catch (err) {
+          this.logger.error(`🚀 Failed STATUS ${block.config.targetStatus}: ${(err as Error).message}`);
+        }
+        return { executed, stoppedAt: `STATUS:${block.config.targetStatus}` };
+      }
+
       // System blocks: auto-executar
       try {
         this.logger.log(`🚀 Auto-executing ${block.type} "${block.name}"`);

@@ -18,6 +18,7 @@ import TechAssignmentSection, {
 import AgendaSelector, { type AgendaSelection } from "@/components/os/AgendaSelector";
 import TechReviewModal, { type TechCandidate } from "@/components/os/TechReviewModal";
 import ServiceItemsSection, { type ServiceItemRow } from "@/components/os/ServiceItemsSection";
+import DateTimePicker from "@/components/ui/DateTimePicker";
 import {
   STATES,
   STATE_NAMES,
@@ -1162,18 +1163,16 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
           </fieldset>
 
           {/* ─── 6. Prazo ───────────────────────────────────── */}
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-700">Prazo *</span>
             <span className="text-[10px] text-slate-400">Data limite para concluir o serviço</span>
-            <input
+            <DateTimePicker
               name="deadlineAt"
               value={form.deadlineAt}
-              onChange={onChange}
+              onChange={(v) => setForm((f) => ({ ...f, deadlineAt: v }))}
               required
-              type="datetime-local"
-              className={inputClass}
             />
-          </label>
+          </div>
 
           {/* ─── 7. Agendamento (toggle, nao colapsavel) ───── */}
           {!hasAgendaFromWorkflow && (
@@ -1198,16 +1197,14 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
               </label>
               {agendamentoEnabled && (
                 <div className="grid grid-cols-2 gap-3 pl-1">
-                  <label className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1.5">
                     <span className="text-sm font-medium text-slate-700">Data e hora do serviço</span>
-                    <input
+                    <DateTimePicker
                       name="scheduledStartAt"
                       value={form.scheduledStartAt}
-                      onChange={onChange}
-                      type="datetime-local"
-                      className={inputClass}
+                      onChange={(v) => setForm((f) => ({ ...f, scheduledStartAt: v }))}
                     />
-                  </label>
+                  </div>
                   <label className="flex flex-col gap-1.5">
                     <span className="text-sm font-medium text-slate-700">Duração estimada (min)</span>
                     <input
