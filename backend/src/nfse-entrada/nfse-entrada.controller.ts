@@ -43,6 +43,14 @@ export class NfseEntradaController {
     return this.service.createManual(user.companyId, dto);
   }
 
+  /* ── NFS-e Import Usage (must be before :id route) ── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL, UserRole.FINANCEIRO, UserRole.LEITURA)
+  @Get('import-usage')
+  async getImportUsage(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getImportUsage(user.companyId);
+  }
+
   /* ── List ──────────────────────────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FISCAL, UserRole.FINANCEIRO, UserRole.LEITURA)
@@ -103,14 +111,6 @@ export class NfseEntradaController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.cancel(id, user.companyId);
-  }
-
-  /* ── NFS-e Import Usage ─────────────────────────── */
-
-  @Roles(UserRole.ADMIN, UserRole.FISCAL, UserRole.FINANCEIRO, UserRole.LEITURA)
-  @Get('import-usage')
-  async getImportUsage(@CurrentUser() user: AuthenticatedUser) {
-    return this.service.getImportUsage(user.companyId);
   }
 
   /* ── Sync from Focus NFe ─────────────────────────── */
