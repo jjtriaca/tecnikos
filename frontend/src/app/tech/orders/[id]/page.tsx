@@ -276,6 +276,37 @@ export default function TechOrderDetailPage() {
   /* ── Status transitions ── */
   async function handleStatusChange(nextStatus: string) {
     if (!order) return;
+
+    // Check GPS permission before A_CAMINHO
+    if (nextStatus === "A_CAMINHO" && navigator.geolocation) {
+      try {
+        const permission = await navigator.permissions?.query({ name: "geolocation" as PermissionName });
+        if (permission?.state === "denied") {
+          alert("O GPS está desativado. Por favor, ative a localização nas configurações do seu dispositivo para continuar.");
+          return;
+        }
+      } catch {
+        // permissions API not supported, try geolocation directly
+      }
+
+      // Try to get position — will trigger browser permission prompt if needed
+      const gpsOk = await new Promise<boolean>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          () => resolve(true),
+          (err) => {
+            if (err.code === 1) {
+              alert("Você precisa permitir o acesso à localização para registrar que está a caminho. Ative o GPS e tente novamente.");
+            } else {
+              alert("Não foi possível obter sua localização. Verifique se o GPS está ativo e tente novamente.");
+            }
+            resolve(false);
+          },
+          { enableHighAccuracy: true, timeout: 10000 },
+        );
+      });
+      if (!gpsOk) return;
+    }
+
     setActing(true);
     try {
       await techApi(`/service-orders/${order.id}`, {
