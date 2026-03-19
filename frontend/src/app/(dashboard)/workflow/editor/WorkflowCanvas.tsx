@@ -46,6 +46,7 @@ function BranchRenderer({
   onDeleteBlock,
   onInsertAfter,
   label,
+  parentBlockId,
 }: {
   blocks: Block[];
   startId: string | null | undefined;
