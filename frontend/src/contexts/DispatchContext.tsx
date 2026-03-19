@@ -141,7 +141,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
     api.get<any[]>("/service-orders/active-dispatches")
       .then((items) => {
         if (!items || !Array.isArray(items)) return;
-        const loaded = items.map(mapApiToDispatch);
+        const loaded = items.map(mapApiToDispatch).filter((d) => d.osStatus !== "APROVADA");
         if (loaded.length > 0) {
           setDispatches((prev) => {
             // Merge: keep existing (from addDispatch during create), add new from API
@@ -173,6 +173,13 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
         try {
           const result = await api.get<any>(`/service-orders/${d.osId}/dispatch-status`);
           const so = result.serviceOrder;
+
+          // Auto-close: remove dispatch when OS is APROVADA
+          if (so?.status === "APROVADA") {
+            setDispatches((prev) => prev.filter((p) => p.osId !== d.osId));
+            continue;
+          }
+
           setDispatches((prev) =>
             prev.map((p) =>
               p.osId === d.osId

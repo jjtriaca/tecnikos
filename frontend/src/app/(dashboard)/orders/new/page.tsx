@@ -741,7 +741,8 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
           return;
         }
 
-        // Dispatch panel: track notification status for auto-assigned OS
+        // Dispatch panel: open floating card immediately
+        // Workflow runs in background — panel shows initial state and updates via polling
         if (result?._dispatch) {
           const d = result._dispatch;
           addDispatch(result.id, {
@@ -752,16 +753,17 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             notificationChannel: d.notificationChannel,
             errorDetail: d.errorDetail,
           }, result.code, result.title);
-
-          if (d.notificationStatus === "FAILED") {
-            toast(`OS criada, mas notificação falhou: ${d.errorDetail || "erro desconhecido"}`, "warning");
-          } else if (d.notificationChannel === "WHATSAPP") {
-            toast("OS criada! Notificação WhatsApp enviada ao técnico ✓", "success");
-          } else {
-            toast("OS criada com sucesso!", "success");
-          }
-        } else {
           toast("OS criada com sucesso!", "success");
+        } else {
+          // No _dispatch yet (workflow running in background) — open panel with basic info
+          const techNames = selectedTechs.map((t: any) => t.name).join(", ");
+          addDispatch(result.id, {
+            technicianName: techNames || "Aguardando fluxo...",
+            technicianPhone: "",
+            notificationStatus: "PENDING",
+            notificationChannel: "WHATSAPP",
+          }, result.code, result.title);
+          toast("OS criada! Fluxo de atendimento em execução...", "success");
         }
 
         router.push("/orders");
