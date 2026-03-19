@@ -393,6 +393,115 @@ export class WorkflowEngineService {
   }
 
   /* ──────────────────────────────────────────────────────────── */
+  /*  Execute workflow from START block (V3 mode)                 */
+  /*  Replaces executeStageNotifications for new workflows.       */
+  /*  Walks from START, auto-executing system blocks (NOTIFY,     */
+  /*  STATUS auto) and stopping at actionable blocks (GPS, PHOTO, */
+  /*  STATUS manual, etc.) — the tech portal handles the rest.    */
+  /*  Works with ANY trigger (OS, partner, quote).                */
+  /* ──────────────────────────────────────────────────────────── */
+
+  async executeWorkflowFromStart(
+    serviceOrderId: string,
+    companyId: string,
+    workflowTemplateId: string,
+  ): Promise<{ executed: number; stoppedAt?: string }> {
+    this.logger.log(`🚀 executeWorkflowFromStart: OS=${serviceOrderId}, template=${workflowTemplateId}`);
+
+    const template = await this.prisma.workflowTemplate.findFirst({
+      where: { id: workflowTemplateId, deletedAt: null },
+    });
+    if (!template) {
+      this.logger.warn(`🚀 Template ${workflowTemplateId} not found`);
+      return { executed: 0 };
+    }
+
+    const rawSteps = template.steps as any;
+    let blocks: any[] = [];
+    if (rawSteps?.version === 2 && Array.isArray(rawSteps.blocks)) blocks = rawSteps.blocks;
+    else if (rawSteps?.version === 3 && Array.isArray(rawSteps.blocks)) blocks = rawSteps.blocks;
+
+    if (blocks.length === 0) {
+      this.logger.log('🚀 No blocks in workflow — skipping');
+      return { executed: 0 };
+    }
+
+    // Find START block and traverse via next pointers
+    const startBlock = blocks.find((b: any) => b.type === 'START');
+    if (!startBlock) {
+      this.logger.warn('🚀 No START block found');
+      return { executed: 0 };
+    }
+
+    let currentId: string | null = startBlock.next;
+    const visited = new Set<string>();
+    let executed = 0;
+    let stepOrder = 0;
+
+    while (currentId) {
+      if (visited.has(currentId)) break;
+      visited.add(currentId);
+
+      const block = blocks.find((b: any) => b.id === currentId);
+      if (!block || block.type === 'END') break;
+
+      // ACTIONABLE block = parar (tecnico precisa interagir)
+      if (ACTIONABLE_TYPES.has(block.type)) {
+        this.logger.log(`🚀 Stopped at actionable block: ${block.type} "${block.name}"`);
+        return { executed, stoppedAt: `${block.type}:${block.name}` };
+      }
+
+      // STATUS manual = parar (tecnico precisa clicar o botao)
+      if (block.type === 'STATUS' && block.config?.transitionMode === 'manual') {
+        this.logger.log(`🚀 Stopped at manual STATUS: "${block.config.buttonLabel || block.config.targetStatus}"`);
+        return { executed, stoppedAt: `STATUS_MANUAL:${block.config.targetStatus}` };
+      }
+
+      // System blocks: auto-executar
+      try {
+        this.logger.log(`🚀 Auto-executing ${block.type} "${block.name}"`);
+
+        if (block.type === 'STATUS' || block.type === 'STATUS_CHANGE') {
+          // Mudar status da OS
+          await this.executeSystemBlock(block, serviceOrderId, companyId);
+        } else if (block.type === 'NOTIFY') {
+          // Enviar notificacao
+          await this.executeSystemBlock(block, serviceOrderId, companyId);
+        } else if (block.type === 'FINANCIAL_ENTRY') {
+          await this.executeSystemBlock(block, serviceOrderId, companyId);
+        } else if (block.type === 'ALERT') {
+          await this.executeSystemBlock(block, serviceOrderId, companyId);
+        } else {
+          this.logger.log(`🚀 Skipping unhandled block type: ${block.type}`);
+        }
+
+        // Registrar log de execucao automatica
+        stepOrder++;
+        await this.prisma.workflowStepLog.create({
+          data: {
+            serviceOrderId,
+            stepOrder,
+            stepName: block.name || block.type,
+            blockId: block.id,
+            partnerId: 'SYSTEM',
+            responseData: { autoCompleted: true, executedBy: 'executeWorkflowFromStart' },
+          },
+        });
+
+        executed++;
+      } catch (err) {
+        this.logger.error(`🚀 Failed to execute ${block.type} "${block.name}": ${(err as Error).message}`);
+      }
+
+      // Seguir para proximo bloco
+      currentId = block.next || null;
+    }
+
+    this.logger.log(`🚀 Workflow execution complete: ${executed} blocks auto-executed`);
+    return { executed };
+  }
+
+  /* ──────────────────────────────────────────────────────────── */
   /*  Get progress — auto-detects V1 or V2                       */
   /* ──────────────────────────────────────────────────────────── */
 
@@ -676,7 +785,9 @@ export class WorkflowEngineService {
 
       const log = logsByBlockId.get(block.id);
       const isCompleted = !!log;
-      const isActionable = ACTIONABLE_TYPES.has(block.type);
+      // STATUS com transitionMode manual eh acionavel pelo tecnico (como GPS, PHOTO, etc.)
+      const isActionable = ACTIONABLE_TYPES.has(block.type) ||
+        (block.type === 'STATUS' && block.config?.transitionMode === 'manual');
 
       // END block
       if (block.type === 'END') {
@@ -739,7 +850,7 @@ export class WorkflowEngineService {
     }
 
     const actionBlocks = executionPath.filter((b) =>
-      ACTIONABLE_TYPES.has(b.type),
+      ACTIONABLE_TYPES.has(b.type) || (b.type === 'STATUS' && b.config?.transitionMode === 'manual'),
     );
     const totalActionable = actionBlocks.length;
     const completedActionable = actionBlocks.filter(
@@ -807,8 +918,18 @@ export class WorkflowEngineService {
     let nextStepOrder = so.workflowStepLogs.length + 1;
 
     let newStatus: ServiceOrderStatus | null = null;
-    // ARRIVAL_QUESTION não transiciona status — técnico só informou ETA, não iniciou execução
-    if ((so.status === 'ATRIBUIDA' || so.status === 'AJUSTE') && block.type !== 'ARRIVAL_QUESTION') {
+
+    // STATUS manual: tech clicou no botao → executar a mudanca de status definida no bloco
+    if (block.type === 'STATUS' && block.config?.transitionMode === 'manual' && block.config?.targetStatus) {
+      newStatus = block.config.targetStatus as ServiceOrderStatus;
+    }
+    // Fallback legacy: se nao tem STATUS manual controlando, auto-transicionar para EM_EXECUCAO
+    // Mas SÓ se o workflow NAO tem blocos STATUS manual (fluxos antigos sem V3)
+    else if (
+      (so.status === 'ATRIBUIDA' || so.status === 'AJUSTE') &&
+      block.type !== 'ARRIVAL_QUESTION' &&
+      !def.blocks?.some((b: any) => b.type === 'STATUS' && b.config?.transitionMode === 'manual')
+    ) {
       newStatus = ServiceOrderStatus.EM_EXECUCAO;
     }
 
@@ -837,10 +958,16 @@ export class WorkflowEngineService {
       });
 
       if (newStatus) {
-        await tx.serviceOrder.update({
-          where: { id: so.id },
-          data: { status: newStatus },
-        });
+        const statusUpdateData: any = { status: newStatus };
+        // Timestamps automaticos conforme status
+        if (newStatus === 'ATRIBUIDA' && !so.acceptedAt) statusUpdateData.acceptedAt = new Date();
+        if (newStatus === 'EM_EXECUCAO' && !so.startedAt) statusUpdateData.startedAt = new Date();
+        if ((newStatus === 'CONCLUIDA' || newStatus === 'APROVADA') && !so.completedAt) statusUpdateData.completedAt = new Date();
+        // STATUS manual para ATRIBUIDA: atribuir tecnico direcionado se ainda nao atribuido
+        if (newStatus === 'ATRIBUIDA' && !so.assignedPartnerId && (so as any).directedTechnicianIds?.length > 0) {
+          statusUpdateData.assignedPartnerId = (so as any).directedTechnicianIds[0];
+        }
+        await tx.serviceOrder.update({ where: { id: so.id }, data: statusUpdateData });
       }
 
       await tx.serviceOrderEvent.create({
@@ -886,6 +1013,8 @@ export class WorkflowEngineService {
         const nextBlock = blocks.find((b) => b.id === nextBlockId);
         if (!nextBlock || nextBlock.type === 'END') break;
         if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
+        // STATUS com transitionMode manual = bloco acionavel pelo tecnico
+        if (nextBlock.type === 'STATUS' && nextBlock.config?.transitionMode === 'manual') break;
 
         // ── WAIT_FOR: criar PendingWorkflowWait e PARAR ──
         if (nextBlock.type === 'WAIT_FOR') {
@@ -1114,6 +1243,8 @@ export class WorkflowEngineService {
         const nextBlock = blocks.find((b) => b.id === nextBlockId);
         if (!nextBlock || nextBlock.type === 'END') break;
         if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
+        // STATUS com transitionMode manual = bloco acionavel pelo tecnico
+        if (nextBlock.type === 'STATUS' && nextBlock.config?.transitionMode === 'manual') break;
 
         // Se encontrar outro WAIT_FOR, criar novo PendingWorkflowWait
         if (nextBlock.type === 'WAIT_FOR') {
@@ -1813,6 +1944,10 @@ export class WorkflowEngineService {
             }
           }
         }
+        break;
+
+      case 'STATUS':
+        // STATUS manual: nenhuma validacao necessaria — tech confirmou clicando o botao
         break;
 
       case 'CONDITION':

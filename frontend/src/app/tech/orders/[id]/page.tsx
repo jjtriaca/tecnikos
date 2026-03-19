@@ -115,8 +115,14 @@ const STATUS_BADGE: Record<string, string> = {
 
 /* Block types hidden from step list (flow control) */
 const HIDDEN_TYPES = new Set(["START", "END"]);
-/* Block types auto-completed by the engine */
-const AUTO_TYPES = new Set(["NOTIFY", "ALERT", "STATUS"]);
+/* Block types auto-completed by the engine (STATUS manual is NOT auto) */
+const AUTO_TYPES = new Set(["NOTIFY", "ALERT"]);
+/* Check if block is auto-completed (STATUS only if transitionMode is not manual) */
+function isAutoBlock(block: any): boolean {
+  if (AUTO_TYPES.has(block.type)) return true;
+  if (block.type === "STATUS" && block.config?.transitionMode !== "manual") return true;
+  return false;
+}
 
 /* Pause reason categories */
 const PAUSE_REASONS = [
@@ -658,7 +664,7 @@ export default function TechOrderDetailPage() {
               .filter((b) => !HIDDEN_TYPES.has(b.type))
               .map((block) => {
                 const isCurrent = workflow.currentBlock?.id === block.id;
-                const isAuto = AUTO_TYPES.has(block.type);
+                const isAuto = isAutoBlock(block);
                 return (
                   <div
                     key={block.id}
@@ -1103,6 +1109,14 @@ function V2BlockAction({
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none" />
         )}
 
+        {/* STATUS manual — botao customizado para o tecnico confirmar mudanca de status */}
+        {block.type === "STATUS" && c.transitionMode === "manual" && (
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-center">
+            <p className="text-xs text-blue-600 mb-2">Confirme para mudar o status da OS</p>
+            <div className="text-sm font-bold text-blue-800">{c.targetStatus}</div>
+          </div>
+        )}
+
         {/* GPS */}
         {block.type === "GPS" && (
           <div className="space-y-2">
@@ -1220,7 +1234,7 @@ function V2BlockAction({
       <button onClick={onAdvance} disabled={isDisabled()}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all">
         <span className="text-xl">{block.icon || "▶️"}</span>
-        {acting ? "Avancando..." : `Confirmar: ${block.name}`}
+        {acting ? "Avancando..." : (block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : `Confirmar: ${block.name}`)}
       </button>
     </div>
   );
