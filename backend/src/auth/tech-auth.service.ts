@@ -424,13 +424,14 @@ export class TechAuthService {
     return { refreshToken };
   }
 
-  /** Cookie de sessao (sem maxAge = expira ao fechar browser) */
+  /** Cookie persistente — maxAge alinhado com refresh token TTL (PWA precisa sobreviver ao fechar app) */
   refreshCookieOptions() {
     return {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
       path: '/',
+      maxAge: this.refreshTtlSeconds * 1000, // ms — matches refresh token TTL (7 days)
     };
   }
 
