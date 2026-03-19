@@ -9,4 +9,8 @@ export const DEFAULT_REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 /** TTL da sessao no banco (1 dia) — cookie e de sessao (sem maxAge, expira ao fechar browser) */
 export const SESSION_TTL_SECONDS = 24 * 60 * 60; // 1 day
 
+/** TTL do refresh token do portal do tecnico — PWA precisa de sessao longa */
+// TESTE: 1 dia para validar fluxo. Apos validacao, aumentar para 90 * 24 * 60 * 60
+export const TECH_REFRESH_TTL_SECONDS = 1 * 24 * 60 * 60; // 1 day (testing)
+
 export const REFRESH_COOKIE_NAME = 'refresh_token';

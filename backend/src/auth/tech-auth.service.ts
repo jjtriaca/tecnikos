@@ -12,7 +12,7 @@ import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { JwtPayload } from './auth.types';
 import {
-  DEFAULT_REFRESH_TTL_SECONDS,
+  TECH_REFRESH_TTL_SECONDS,
   SESSION_TTL_SECONDS,
 } from './auth.constants';
 
@@ -25,8 +25,7 @@ export class TechAuthService {
     private readonly jwt: JwtService,
     private readonly otpService: OtpService,
   ) {
-    this.refreshTtlSeconds =
-      Number(process.env.JWT_REFRESH_TTL) || DEFAULT_REFRESH_TTL_SECONDS;
+    this.refreshTtlSeconds = TECH_REFRESH_TTL_SECONDS; // 90 days — PWA needs long-lived sessions
   }
 
   /* ─── LOGIN (legacy email+password — kept for backward compat) ── */
