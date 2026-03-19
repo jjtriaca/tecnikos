@@ -413,26 +413,27 @@ export class AsaasService {
     }
 
     const customerId = await this.ensureCustomer(tenantId);
-    const frontendUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
 
-    const checkout = await this.asaas.createCheckout({
+    // Create a one-time payment (UNDEFINED = customer chooses PIX/boleto/cartão)
+    const payment = await this.asaas.createPayment({
       customer: customerId,
-      billingTypes: ['PIX', 'BOLETO', 'CREDIT_CARD'],
-      chargeTypes: ['DETACHED'],
-      externalReference: `addon_${purchase.id}`, // Link checkout to specific purchase
-      items: [{
-        name: `Add-on: ${addOn.name}`,
-        description: descStr,
-        quantity: 1,
-        value: addOn.priceCents / 100,
-      }],
-      callback: {
-        successUrl: `${frontendUrl}/settings/billing?addon=success`,
-      },
+      billingType: 'UNDEFINED',
+      value: addOn.priceCents / 100,
+      dueDate: this.formatDate(new Date()),
+      description: `Add-on: ${addOn.name} — ${descStr} — Tecnikos`,
+      externalReference: `addon_${purchase.id}`,
     });
 
-    this.logger.log(`Add-on checkout created: ${addOn.name} (${descStr}) for tenant ${tenantId}, purchase ${purchase.id}`);
-    return { checkoutUrl: checkout.url, purchase };
+    // Build checkout URL from payment
+    let checkoutUrl = payment.invoiceUrl || payment.bankSlipUrl || null;
+    if (!checkoutUrl && payment.id) {
+      const isSandbox = (this.asaas as any).baseUrl?.includes('sandbox');
+      const host = isSandbox ? 'https://sandbox.asaas.com' : 'https://www.asaas.com';
+      checkoutUrl = `${host}/i/${payment.id}`;
+    }
+
+    this.logger.log(`Add-on payment created: ${addOn.name} (${descStr}) for tenant ${tenantId}, purchase ${purchase.id}`);
+    return { checkoutUrl, purchase };
   }
 
   /**
