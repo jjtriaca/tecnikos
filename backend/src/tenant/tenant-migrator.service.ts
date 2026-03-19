@@ -85,6 +85,7 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
 
     let totalAdded = 0;
     let totalEnums = 0;
+    let totalFks = 0;
 
     for (const tenant of tenants) {
       try {
@@ -101,6 +102,13 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
           this.logger.log(`Schema "${tenant.schemaName}" (${tenant.slug}): added ${added} missing column(s)/table(s)`);
           totalAdded += added;
         }
+
+        // 3. Fix any foreign keys still pointing to public schema
+        const fksRemapped = await this.remapForeignKeys(tenant.schemaName);
+        if (fksRemapped > 0) {
+          this.logger.log(`Schema "${tenant.schemaName}" (${tenant.slug}): remapped ${fksRemapped} cross-schema FK(s)`);
+          totalFks += fksRemapped;
+        }
       } catch (err) {
         this.logger.error(`Failed to sync schema "${tenant.schemaName}": ${(err as Error).message}`);
       }
@@ -109,6 +117,7 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     const parts: string[] = [];
     if (totalEnums > 0) parts.push(`${totalEnums} enum(s)`);
     if (totalAdded > 0) parts.push(`${totalAdded} column(s)/table(s)`);
+    if (totalFks > 0) parts.push(`${totalFks} FK(s) remapped`);
 
     if (parts.length > 0) {
       this.logger.log(`Tenant sync complete: added ${parts.join(' + ')} across ${tenants.length} schema(s)`);
@@ -203,6 +212,8 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
               }
             } catch (colErr) { /* enum remap failed, non-fatal */ }
           }
+          // Remap foreign keys from public to tenant schema
+          await this.remapForeignKeys(schemaName, tableName);
           this.logger.log(`Created missing table "${tableName}" in "${schemaName}"`);
           added++;
         } catch (err) {
@@ -385,6 +396,79 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     }
 
     return changes;
+  }
+
+  /**
+   * Fix foreign key constraints in a tenant schema that still reference public schema tables.
+   * This happens when CREATE TABLE ... (LIKE public."X" INCLUDING ALL) copies FKs
+   * that point to public."ReferencedTable" instead of "tenant_xxx"."ReferencedTable".
+   *
+   * @param schemaName - The tenant schema name
+   * @param tableName - If provided, only fix FKs on this specific table
+   * @returns count of FKs remapped
+   */
+  private async remapForeignKeys(schemaName: string, tableName?: string): Promise<number> {
+    const tableFilter = tableName ? `AND cl.relname = '${tableName}'` : '';
+
+    const crossSchemaFks = await this.rawPrisma.$queryRawUnsafe<{
+      constraint_name: string;
+      table_name: string;
+      ref_table: string;
+      constraint_def: string;
+    }[]>(`
+      SELECT
+        con.conname AS "constraint_name",
+        cl.relname AS "table_name",
+        ref_cl.relname AS "ref_table",
+        pg_get_constraintdef(con.oid) AS "constraint_def"
+      FROM pg_constraint con
+      JOIN pg_namespace ns ON con.connamespace = ns.oid
+      JOIN pg_class cl ON con.conrelid = cl.oid
+      JOIN pg_class ref_cl ON con.confrelid = ref_cl.oid
+      JOIN pg_namespace ref_ns ON ref_cl.relnamespace = ref_ns.oid
+      WHERE con.contype = 'f'
+        AND ns.nspname = '${schemaName}'
+        AND ref_ns.nspname = 'public'
+        ${tableFilter}
+    `);
+
+    if (crossSchemaFks.length === 0) return 0;
+
+    // Get set of tables that exist in this tenant schema
+    const tenantTables = await this.rawPrisma.$queryRawUnsafe<{ tablename: string }[]>(`
+      SELECT tablename FROM pg_tables WHERE schemaname = '${schemaName}'
+    `);
+    const tenantTableSet = new Set(tenantTables.map(t => t.tablename));
+
+    let remapped = 0;
+
+    for (const fk of crossSchemaFks) {
+      try {
+        // Drop the old FK that references public schema
+        await this.rawPrisma.$executeRawUnsafe(
+          `ALTER TABLE "${schemaName}"."${fk.table_name}" DROP CONSTRAINT "${fk.constraint_name}"`,
+        );
+
+        // Only recreate if the referenced table exists in tenant schema (not public-only)
+        if (tenantTableSet.has(fk.ref_table) && !this.PUBLIC_ONLY_TABLES.includes(fk.ref_table)) {
+          // Replace public."TableName" with "tenant_schema"."TableName" in constraint def
+          const newDef = fk.constraint_def.replace(/public\./g, `"${schemaName}".`);
+
+          await this.rawPrisma.$executeRawUnsafe(
+            `ALTER TABLE "${schemaName}"."${fk.table_name}" ADD CONSTRAINT "${fk.constraint_name}" ${newDef}`,
+          );
+          this.logger.log(`Remapped FK "${fk.constraint_name}" on "${fk.table_name}" from public to "${schemaName}"`);
+        } else {
+          this.logger.log(`Dropped cross-schema FK "${fk.constraint_name}" on "${fk.table_name}" (ref: public."${fk.ref_table}")`);
+        }
+
+        remapped++;
+      } catch (err) {
+        this.logger.warn(`Failed to remap FK "${fk.constraint_name}": ${(err as Error).message}`);
+      }
+    }
+
+    return remapped;
   }
 
   /**

@@ -262,7 +262,50 @@ export class TenantService {
       }
     }
 
-    this.logger.log(`Schema "${schemaName}" created with ${enums.length} enums + ${tables.length} tables`);
+    // 4. Fix foreign keys that still reference public schema tables
+    let fksRemapped = 0;
+    const crossSchemaFks = await this.prisma.$queryRawUnsafe<{
+      constraint_name: string;
+      table_name: string;
+      ref_table: string;
+      constraint_def: string;
+    }[]>(`
+      SELECT
+        con.conname AS "constraint_name",
+        cl.relname AS "table_name",
+        ref_cl.relname AS "ref_table",
+        pg_get_constraintdef(con.oid) AS "constraint_def"
+      FROM pg_constraint con
+      JOIN pg_namespace ns ON con.connamespace = ns.oid
+      JOIN pg_class cl ON con.conrelid = cl.oid
+      JOIN pg_class ref_cl ON con.confrelid = ref_cl.oid
+      JOIN pg_namespace ref_ns ON ref_cl.relnamespace = ref_ns.oid
+      WHERE con.contype = 'f'
+        AND ns.nspname = '${schemaName}'
+        AND ref_ns.nspname = 'public'
+    `);
+
+    const tenantTableSet = new Set(tables.map(t => t.tablename));
+    const publicOnlyTables = ['_prisma_migrations', 'Tenant', 'Plan', 'Subscription', 'Promotion', 'SignupAttempt', 'SaasEvent', 'SaasInvoice', 'SaasInvoiceConfig', 'AddOn', 'AddOnPurchase', 'VerificationSession'];
+
+    for (const fk of crossSchemaFks) {
+      try {
+        await this.prisma.$executeRawUnsafe(
+          `ALTER TABLE "${schemaName}"."${fk.table_name}" DROP CONSTRAINT "${fk.constraint_name}"`,
+        );
+        if (tenantTableSet.has(fk.ref_table) && !publicOnlyTables.includes(fk.ref_table)) {
+          const newDef = fk.constraint_def.replace(/public\./g, `"${schemaName}".`);
+          await this.prisma.$executeRawUnsafe(
+            `ALTER TABLE "${schemaName}"."${fk.table_name}" ADD CONSTRAINT "${fk.constraint_name}" ${newDef}`,
+          );
+        }
+        fksRemapped++;
+      } catch (err) {
+        this.logger.warn(`FK remap "${fk.constraint_name}": ${(err as Error).message}`);
+      }
+    }
+
+    this.logger.log(`Schema "${schemaName}" created with ${enums.length} enums + ${tables.length} tables + ${fksRemapped} FKs remapped`);
   }
 
   /**

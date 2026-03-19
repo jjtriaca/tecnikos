@@ -1,13 +1,21 @@
 # TAREFA ATUAL
 
 ## Versao: v1.05.16
-## Ultima sessao: 141 (19/03/2026)
+## Ultima sessao: 142 (19/03/2026)
 
 ## Pendencias
 
 ### A FAZER
 - **Fase 3 — Offline-first**: IndexedDB para OS locais + fila de sync (futuro)
-- **TenantMigratorService**: Corrigir copia de FKs ao criar tabelas novas em tenant schemas
+
+### CONCLUIDO (sessao 142)
+
+#### TenantMigratorService — Fix FK cross-schema
+- **remapForeignKeys()**: Novo metodo detecta FKs que referenciam public schema e remapeia para tenant schema
+- **syncAllTenantSchemas**: Step 3 adicionado — remap FKs apos sync de enums e tabelas
+- **syncSchema (new table)**: Chama remapForeignKeys(schema, table) apos criar tabela + remap enums
+- **tenant.service.ts createSchema()**: Mesmo fix aplicado na criacao inicial de schemas
+- **Logica**: Drop FK old → se tabela ref existe no tenant, recria apontando pro schema correto; se public-only, apenas remove
 
 ### CONCLUIDO (sessao 141)
 
