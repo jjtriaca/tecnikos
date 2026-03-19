@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Optional, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 
 export interface WorkflowStep {
   order: number;
@@ -11,7 +12,12 @@ export interface WorkflowStep {
 
 @Injectable()
 export class WorkflowService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(WorkflowService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
+  ) {}
 
   async findAll(companyId: string, opts?: { search?: string; page?: number; limit?: number; activeOnly?: boolean }) {
     const page = opts?.page ?? 1;
@@ -153,5 +159,82 @@ export class WorkflowService {
         throw new BadRequestException('O gatilho deve ter um evento válido');
       }
     }
+  }
+
+  /**
+   * Test workflow notification blocks with sample data.
+   * Sends a real notification to the specified phone number.
+   */
+  async testNotification(companyId: string, blocks: any[], phone: string): Promise<{ sent: number; preview: string }> {
+    if (!this.notifications) throw new BadRequestException('Serviço de notificações não disponível');
+    if (!phone || phone.replace(/\D/g, '').length < 10) throw new BadRequestException('Telefone inválido');
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const companyDisplay = company?.tradeName || company?.name || 'Empresa Teste';
+
+    // Sample data for variable substitution
+    const sampleVars: Record<string, string> = {
+      '{nome}': 'João Técnico',
+      '{empresa}': companyDisplay,
+      '{razao_social}': company?.name || 'Razão Social Teste',
+      '{cnpj}': company?.cnpj || '00.000.000/0001-00',
+      '{titulo}': 'Manutenção preventiva - Ar condicionado',
+      '{nome_cliente}': 'Maria Silva',
+      '{endereco}': 'Rua das Flores, 123 - Centro - São Paulo/SP',
+      '{data}': new Date().toLocaleDateString('pt-BR'),
+      '{data_agendamento}': new Date(Date.now() + 86400000).toLocaleDateString('pt-BR') + ' 09:00',
+      '{link_app}': '[link-teste]',
+      '{link_primeiro_acesso}': '[link-teste]',
+      '{link_os}': '[link-teste]',
+      '{codigo}': 'OS-00001',
+      '{valor}': 'R$ 350,00',
+      '{cliente}': 'Maria Silva',
+      '{link}': '[link-teste]',
+    };
+
+    const resolveVars = (msg: string): string => {
+      let result = msg;
+      for (const [key, val] of Object.entries(sampleVars)) {
+        result = result.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'gi'), val);
+      }
+      return result;
+    };
+
+    // Walk blocks and find NOTIFY blocks
+    const blockMap = new Map(blocks.map((b: any) => [b.id, b]));
+    let current = blocks.find((b: any) => b.type === 'START');
+    const visited = new Set<string>();
+    let sent = 0;
+    let preview = '';
+
+    while (current && !visited.has(current.id)) {
+      visited.add(current.id);
+
+      if (current.type === 'NOTIFY') {
+        const recipients = current.config?.recipients || [];
+        for (const r of recipients) {
+          if (r.enabled === false) continue;
+          const message = resolveVars(r.message || '');
+          if (!message) continue;
+
+          preview = message; // Last message as preview
+
+          await this.notifications.send({
+            companyId,
+            channel: 'WHATSAPP',
+            type: 'WORKFLOW_TEST',
+            recipientPhone: phone.replace(/\D/g, ''),
+            message: `[TESTE] ${message}`,
+          });
+          sent++;
+        }
+      }
+
+      current = current.next ? blockMap.get(current.next) : undefined;
+    }
+
+    if (sent === 0) throw new BadRequestException('Nenhum bloco de notificação encontrado no fluxo');
+
+    return { sent, preview };
   }
 }

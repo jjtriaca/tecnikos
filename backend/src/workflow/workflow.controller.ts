@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -61,6 +61,17 @@ export class WorkflowController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.reorder(user.companyId, body.orderedIds);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('test')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Test workflow notification with sample data' })
+  testWorkflow(
+    @Body() body: { blocks: any[]; phone: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.testNotification(user.companyId, body.blocks, body.phone);
   }
 
   @Roles(UserRole.ADMIN)
