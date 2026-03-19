@@ -30,9 +30,9 @@ MÓDULOS E FUNCIONALIDADES QUE EXISTEM NO SISTEMA:
 - **Relatórios**: Relatórios de OS, técnicos, financeiro.
 - **Contratos**: Geração de contratos com templates e variáveis.
 - **Notificações**: Sistema de notificações internas.
+- **Orçamentos**: Módulo completo de orçamentos (cotações) com itens, PDF, envio ao cliente via link público, aprovação/rejeição online, criação de OS a partir do orçamento aprovado. Gatilho "Um orçamento é criado" disponível no Fluxo de Atendimento para disparar notificações automáticas.
 
 FUNCIONALIDADES QUE NÃO EXISTEM AINDA:
-- Orçamentos (cotações separadas da OS)
 - Chat com cliente pelo sistema
 - App mobile nativo para técnicos (existe versão web responsiva)
 - Integração com marketplace de peças
