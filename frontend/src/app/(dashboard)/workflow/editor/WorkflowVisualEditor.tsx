@@ -181,6 +181,8 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
   // Keyboard shortcuts
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement)?.isContentEditable) return;
       if (e.key === "Delete" && selectedBlockId) {
         const b = findBlock(blocks, selectedBlockId);
         if (b && b.type !== "START" && b.type !== "END") {

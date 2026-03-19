@@ -246,6 +246,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             <Select value={r.channel || "WHATSAPP"} onChange={(v) => updateRecipient(i, "channel", v)} options={[
               { value: "WHATSAPP", label: "WhatsApp" },
               { value: "EMAIL", label: "Email" },
+              { value: "PUSH", label: "Push" },
             ]} />
             <TextArea value={r.message || ""} onChange={(v) => updateRecipient(i, "message", v)} placeholder="Digite a mensagem..." rows={4} />
             {/* Variable chips */}
