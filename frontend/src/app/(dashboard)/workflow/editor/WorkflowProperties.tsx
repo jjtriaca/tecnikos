@@ -152,8 +152,8 @@ export default function WorkflowProperties({ block, onChange }: Props) {
   const cat = getCatalogEntry(block.type);
   const cfg = block.config || {};
 
-  function updateConfig(key: string, value: any) {
-    onChange({ ...block, config: { ...cfg, [key]: value } });
+  function updateConfig(key: string, value: any, extra?: Record<string, any>) {
+    onChange({ ...block, config: { ...cfg, [key]: value, ...extra } });
   }
 
   function updateName(name: string) {
@@ -497,14 +497,12 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                 const val = parseInt(v) || 1;
                 const unit = cfg.unit || "minutes";
                 const mult: Record<string, number> = { seconds: 1/60, minutes: 1, hours: 60, days: 1440 };
-                updateConfig("duration", val);
-                updateConfig("minutes", Math.round(val * (mult[unit] || 1)));
+                updateConfig("duration", val, { minutes: Math.round(val * (mult[unit] || 1)) });
               }} />
               <Select value={cfg.unit || "minutes"} onChange={(v) => {
                 const dur = cfg.duration ?? cfg.minutes ?? 15;
                 const mult: Record<string, number> = { seconds: 1/60, minutes: 1, hours: 60, days: 1440 };
-                updateConfig("unit", v);
-                updateConfig("minutes", Math.round(dur * (mult[v] || 1)));
+                updateConfig("unit", v, { minutes: Math.round(dur * (mult[v] || 1)) });
               }} options={[
                 { value: "seconds", label: "Segundos" },
                 { value: "minutes", label: "Minutos" },
