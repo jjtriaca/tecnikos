@@ -15,6 +15,7 @@ const OS_STATUSES = [
   { value: "EM_EXECUCAO", label: "Em Execucao" },
   { value: "CONCLUIDA", label: "Concluida" },
   { value: "APROVADA", label: "Aprovada" },
+  { value: "RECUSADA", label: "Recusada" },
 ];
 
 function Label({ children }: { children: React.ReactNode }) {

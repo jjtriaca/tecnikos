@@ -78,9 +78,9 @@ function formatShortDate(d?: string) {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  ABERTA: "Aberta", ATRIBUIDA: "Atribuida", EM_EXECUCAO: "Em Execucao",
-  CONCLUIDA: "Concluida", APROVADA: "Aprovada", CANCELADA: "Cancelada",
-  AJUSTE: "Ajuste",
+  ABERTA: "Aberta", OFERTADA: "Ofertada", ATRIBUIDA: "Atribuida", A_CAMINHO: "A Caminho",
+  EM_EXECUCAO: "Em Execucao", CONCLUIDA: "Concluida", APROVADA: "Aprovada",
+  CANCELADA: "Cancelada", AJUSTE: "Ajuste", RECUSADA: "Recusada",
 };
 
 // ── WhatsApp status ──

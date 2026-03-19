@@ -25,6 +25,7 @@ enum ServiceOrderStatus {
   APROVADA
   AJUSTE
   CANCELADA
+  RECUSADA
 }
 
 enum ChecklistClass {

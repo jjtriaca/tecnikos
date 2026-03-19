@@ -25,7 +25,7 @@ const TERMINAL_STATUSES: ServiceOrderStatus[] = [
 // State machine: allowed status transitions
 const ALLOWED_TRANSITIONS: Record<string, ServiceOrderStatus[]> = {
   ABERTA: [ServiceOrderStatus.OFERTADA, ServiceOrderStatus.ATRIBUIDA, ServiceOrderStatus.CANCELADA],
-  OFERTADA: [ServiceOrderStatus.ATRIBUIDA, ServiceOrderStatus.ABERTA, ServiceOrderStatus.CANCELADA],
+  OFERTADA: [ServiceOrderStatus.ATRIBUIDA, ServiceOrderStatus.ABERTA, ServiceOrderStatus.RECUSADA, ServiceOrderStatus.CANCELADA],
   ATRIBUIDA: [ServiceOrderStatus.A_CAMINHO, ServiceOrderStatus.EM_EXECUCAO, ServiceOrderStatus.ABERTA, ServiceOrderStatus.CANCELADA],
   A_CAMINHO: [ServiceOrderStatus.EM_EXECUCAO, ServiceOrderStatus.ATRIBUIDA, ServiceOrderStatus.CANCELADA],
   EM_EXECUCAO: [ServiceOrderStatus.CONCLUIDA, ServiceOrderStatus.AJUSTE, ServiceOrderStatus.CANCELADA],
@@ -33,6 +33,7 @@ const ALLOWED_TRANSITIONS: Record<string, ServiceOrderStatus[]> = {
   CONCLUIDA: [ServiceOrderStatus.APROVADA, ServiceOrderStatus.AJUSTE],
   APROVADA: [], // terminal
   CANCELADA: [], // terminal
+  RECUSADA: [ServiceOrderStatus.OFERTADA, ServiceOrderStatus.ABERTA, ServiceOrderStatus.CANCELADA], // pode re-ofertar ou cancelar
   FINALIZADA: [], // terminal
 };
 

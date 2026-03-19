@@ -102,6 +102,9 @@ const STATUS_LABELS: Record<string, string> = {
   CONCLUIDA: "Concluida",
   APROVADA: "Aprovada",
   AJUSTE: "Ajuste",
+  OFERTADA: "Ofertada",
+  ABERTA: "Aberta",
+  RECUSADA: "Recusada",
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -111,6 +114,9 @@ const STATUS_BADGE: Record<string, string> = {
   CONCLUIDA: "bg-green-100 text-green-800",
   APROVADA: "bg-emerald-100 text-emerald-800",
   AJUSTE: "bg-red-100 text-red-800",
+  OFERTADA: "bg-orange-100 text-orange-800",
+  ABERTA: "bg-yellow-100 text-yellow-800",
+  RECUSADA: "bg-red-100 text-red-800",
 };
 
 /* Block types hidden from step list (flow control) */
