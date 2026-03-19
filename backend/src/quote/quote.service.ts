@@ -15,8 +15,10 @@ import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { SendQuoteDto } from './dto/send-quote.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { NotificationService } from '../notification/notification.service';
+import { WorkflowEngineService } from '../workflow/workflow-engine.service';
 import { randomUUID } from 'crypto';
 import { QuoteStatus, Prisma } from '@prisma/client';
+import { Inject, Optional } from '@nestjs/common';
 
 @Injectable()
 export class QuoteService {
@@ -27,6 +29,7 @@ export class QuoteService {
     private readonly codeGenerator: CodeGeneratorService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationService,
+    @Optional() @Inject(WorkflowEngineService) private readonly workflowEngine?: WorkflowEngineService,
   ) {}
 
   // ---- Totals computation ----
@@ -120,6 +123,11 @@ export class QuoteService {
       action: 'CREATED',
       after: { code, totalCents },
     });
+
+    // Fire workflow trigger (async, non-blocking)
+    this.executeQuoteWorkflow(companyId, quote).catch(err =>
+      this.logger.error(`Quote workflow failed: ${err.message}`),
+    );
 
     return quote;
   }
@@ -842,5 +850,100 @@ export class QuoteService {
 
     await this.prisma.quoteAttachment.delete({ where: { id: attachmentId } });
     return { success: true };
+  }
+
+  /* ── Execute workflow NOTIFY blocks for quote_created trigger ── */
+
+  private async executeQuoteWorkflow(companyId: string, quote: any): Promise<void> {
+    if (!this.workflowEngine) return;
+
+    const matched = await this.workflowEngine.findWorkflowByTrigger(companyId, ['quote_created']);
+    if (!matched) return;
+
+    const workflow = await this.prisma.workflowTemplate.findUnique({ where: { id: matched.id } });
+    if (!workflow) return;
+
+    const steps = workflow.steps as any;
+    const blocks = steps?.blocks as any[];
+    if (!blocks?.length) return;
+
+    // Load data for variable substitution
+    const client = quote.clientPartner || (quote.clientPartnerId
+      ? await this.prisma.partner.findUnique({ where: { id: quote.clientPartnerId } })
+      : null);
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const companyDisplay = company?.tradeName || company?.name || '';
+    const baseUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
+
+    const resolveVars = (msg: string): string => {
+      return msg
+        .replace(/\{codigo\}/gi, quote.code || '')
+        .replace(/\{titulo\}/gi, quote.title || '')
+        .replace(/\{descricao\}/gi, quote.description || '')
+        .replace(/\{valor\}/gi, `R$ ${((quote.totalCents || 0) / 100).toFixed(2).replace('.', ',')}`)
+        .replace(/\{cliente\}/gi, client?.name || '')
+        .replace(/\{telefone_cliente\}/gi, client?.phone || '')
+        .replace(/\{email_cliente\}/gi, client?.email || '')
+        .replace(/\{empresa\}/gi, companyDisplay)
+        .replace(/\{data\}/gi, new Date().toLocaleDateString('pt-BR'))
+        .replace(/\{link\}/gi, `${baseUrl}/q/${quote.publicToken || ''}`);
+    };
+
+    // Walk blocks sequentially
+    const blockMap = new Map(blocks.map((b: any) => [b.id, b]));
+    let current = blocks.find((b: any) => b.type === 'START');
+    const visited = new Set<string>();
+
+    while (current && !visited.has(current.id)) {
+      visited.add(current.id);
+
+      if (current.type === 'NOTIFY') {
+        const recipients = current.config?.recipients || [];
+        for (const r of recipients) {
+          if (r.enabled === false) continue;
+
+          const message = resolveVars(r.message || '');
+          if (!message) continue;
+
+          const channel = r.channel || 'WHATSAPP';
+
+          // Determine recipient target
+          if (r.type === 'CLIENTE' && client?.phone && channel === 'WHATSAPP') {
+            await this.notifications.send({
+              companyId,
+              channel: 'WHATSAPP',
+              recipientPhone: client.phone,
+              message,
+            });
+            this.logger.log(`💰 Quote workflow: sent WhatsApp to client ${client.name}`);
+          } else if (r.type === 'CLIENTE' && client?.email && channel === 'EMAIL') {
+            await this.notifications.send({
+              companyId,
+              channel: 'EMAIL',
+              recipientEmail: client.email,
+              subject: `Orçamento ${quote.code}`,
+              message,
+            });
+            this.logger.log(`💰 Quote workflow: sent email to client ${client.name}`);
+          } else if (r.type === 'GESTOR') {
+            // Notify all admin/manager users
+            const managers = await this.prisma.user.findMany({
+              where: { companyId, deletedAt: null, roles: { hasSome: ['ADMIN', 'MANAGER'] } },
+              select: { phone: true, email: true, name: true },
+            });
+            for (const m of managers) {
+              if (channel === 'WHATSAPP' && m.phone) {
+                await this.notifications.send({ companyId, channel: 'WHATSAPP', recipientPhone: m.phone, message });
+              } else if (channel === 'EMAIL' && m.email) {
+                await this.notifications.send({ companyId, channel: 'EMAIL', recipientEmail: m.email, subject: `Orçamento ${quote.code}`, message });
+              }
+            }
+            this.logger.log(`💰 Quote workflow: notified ${managers.length} manager(s)`);
+          }
+        }
+      }
+
+      current = current.next ? blockMap.get(current.next) : undefined;
+    }
   }
 }

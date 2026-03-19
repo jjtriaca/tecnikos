@@ -55,6 +55,7 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
 
   // Group triggers for display
   const osTriggers = TRIGGER_OPTIONS.filter(t => t.entity === "SERVICE_ORDER");
+  const quoteTriggers = TRIGGER_OPTIONS.filter(t => t.entity === "QUOTE");
   const partnerTriggers = TRIGGER_OPTIONS.filter(t => t.entity === "PARTNER");
 
   // Handle adding a block from the palette
@@ -279,6 +280,28 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Ordens de Servico</p>
               <div className="flex flex-wrap gap-1.5">
                 {osTriggers.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setTrigger(t); setShowTriggerSelector(false); }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      trigger.id === t.id
+                        ? "border-blue-400 bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50/30"
+                    }`}
+                  >
+                    <span className="text-sm">{t.icon}</span>
+                    <span>{t.label}</span>
+                    {trigger.id === t.id && <span className="text-blue-500 text-[10px]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quote triggers */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Orcamentos</p>
+              <div className="flex flex-wrap gap-1.5">
+                {quoteTriggers.map(t => (
                   <button
                     key={t.id}
                     onClick={() => { setTrigger(t); setShowTriggerSelector(false); }}

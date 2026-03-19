@@ -821,6 +821,7 @@ export const TRIGGER_OPTIONS: TriggerDefinition[] = [
   { id: 'partner_tech_created',     entity: 'PARTNER',       event: 'tech_created',           icon: '👷', label: 'Um técnico é criado',                   description: 'Quando um parceiro tipo técnico é cadastrado' },
   { id: 'partner_spec_added',      entity: 'PARTNER',       event: 'spec_added',             icon: '🔧', label: 'Um técnico recebe nova especialização', description: 'Quando uma nova especialização é atribuída ao técnico' },
   { id: 'partner_supplier_created', entity: 'PARTNER',       event: 'supplier_created',       icon: '🏭', label: 'Um fornecedor é criado',                description: 'Quando um parceiro tipo fornecedor é cadastrado' },
+  { id: 'quote_created',            entity: 'QUOTE',         event: 'created',                icon: '💰', label: 'Um orçamento é criado',                description: 'Quando um novo orçamento é criado' },
 ];
 
 /* ── Constantes ────────────────────────────────────────────── */
