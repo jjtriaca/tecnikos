@@ -187,6 +187,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
   // Return states
   const [isReturn, setIsReturn] = useState(false);
   const [returnPaidToTech, setReturnPaidToTech] = useState(true);
+  const [isEvaluation, setIsEvaluation] = useState(false);
 
   // Helper: parse BRL string "150,00" → 150.00
   function parseBRL(s: string): number { return parseFloat((s || "0").replace(/[^\d,]/g, "").replace(",", ".")); }
@@ -698,6 +699,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
         isReturn,
         returnPaidToTech: isReturn ? returnPaidToTech : true,
         isUrgent: false,
+        isEvaluation,
         // Service items
         items: serviceItems.map(i => ({ serviceId: i.serviceId, quantity: i.quantity })),
       };
@@ -1329,6 +1331,22 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             )}
             {isReturn && !returnPaidToTech && (
               <p className="text-xs text-amber-600 ml-1">Técnico não receberá comissão neste retorno</p>
+            )}
+          </div>
+
+          {/* ─── 9. Avaliação/Orçamento ────────────────────── */}
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isEvaluation}
+                onChange={(e) => setIsEvaluation(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-slate-700">OS de Avaliação/Orçamento</span>
+            </label>
+            {isEvaluation && (
+              <p className="text-xs text-blue-600 ml-6">O técnico fará uma visita para avaliar e orçar o serviço</p>
             )}
           </div>
 

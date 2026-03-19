@@ -148,6 +148,10 @@ export class CreateServiceOrderDto {
   @IsBoolean()
   isUrgent?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  isEvaluation?: boolean;
+
   // Itens de serviço (v1.03.31)
   @IsOptional()
   @IsArray()

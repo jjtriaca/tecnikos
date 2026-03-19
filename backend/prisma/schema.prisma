@@ -416,6 +416,7 @@ model ServiceOrder {
   isReturn            Boolean @default(false) // Retorno de atendimento anterior
   returnPaidToTech    Boolean @default(true)  // Se retorno: paga o tecnico ou obrigacao dele
   isUrgent            Boolean @default(false) // OS urgente (prioridade maxima)
+  isEvaluation        Boolean @default(false) // OS de avaliação/orçamento (visita técnica para orçar)
 
   // Agendamento CLT (v1.01.72)
   scheduledStartAt          DateTime?  // Data/hora agendada para inicio do servico

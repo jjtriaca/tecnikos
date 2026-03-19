@@ -130,6 +130,7 @@ export class ServiceOrderService {
     let resolvedWorkflowId = data.workflowTemplateId || undefined;
     if (!resolvedWorkflowId && this.workflowEngine) {
       const triggerIds: string[] = [];
+      if (data.isEvaluation) triggerIds.push('os_evaluation_created');
       if (data.isUrgent) triggerIds.push('os_urgent_created');
       if (data.isReturn) triggerIds.push('os_return_created');
       // Assignment mode triggers (more specific before generic)
@@ -219,6 +220,7 @@ export class ServiceOrderService {
         isReturn: data.isReturn ?? undefined,
         returnPaidToTech: data.returnPaidToTech ?? undefined,
         isUrgent: data.isUrgent ?? undefined,
+        isEvaluation: data.isEvaluation ?? undefined,
         // Pre-atribuicao (BY_AGENDA): tecnico ja definido + status ATRIBUIDA + aceito
         ...(data.techAssignmentMode === 'BY_AGENDA' && data.assignedPartnerId ? {
           assignedPartnerId: data.assignedPartnerId,
@@ -270,7 +272,7 @@ export class ServiceOrderService {
       after: { title: result.title, status: result.status },
     });
 
-    const eventData = { status: result.status, state: data.state, city: data.city, neighborhood: data.neighborhood, valueCents: data.valueCents, clientPartnerId: data.clientPartnerId, title: result.title, description: data.description, addressStreet: data.addressStreet, cep: data.cep, deadlineAt: data.deadlineAt, createdAt: result.createdAt?.toISOString(), scheduledStartAt: data.scheduledStartAt, isReturn: data.isReturn, isUrgent: data.isUrgent };
+    const eventData = { status: result.status, state: data.state, city: data.city, neighborhood: data.neighborhood, valueCents: data.valueCents, clientPartnerId: data.clientPartnerId, title: result.title, description: data.description, addressStreet: data.addressStreet, cep: data.cep, deadlineAt: data.deadlineAt, createdAt: result.createdAt?.toISOString(), scheduledStartAt: data.scheduledStartAt, isReturn: data.isReturn, isUrgent: data.isUrgent, isEvaluation: data.isEvaluation };
 
     this.dispatchAutomation({
       companyId: data.companyId, entity: 'SERVICE_ORDER', entityId: result.id, eventType: 'created',
