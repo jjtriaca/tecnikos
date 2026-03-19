@@ -49,10 +49,6 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
   const [showTemplates, setShowTemplates] = useState(!workflowId && !initialSteps);
   const [insertAfterId, setInsertAfterId] = useState<string | null>(null);
   const [insertVia, setInsertVia] = useState<"next" | "yesBranch" | "noBranch">("next");
-  const [showTestModal, setShowTestModal] = useState(false);
-  const [testPhone, setTestPhone] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<string | null>(null);
 
   const selectedBlock = selectedBlockId ? findBlock(blocks, selectedBlockId) || null : null;
   const blockCount = countUserBlocks(blocks);
@@ -228,13 +224,6 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
           <span className="text-[10px] text-slate-400 tabular-nums">{blockCount} blocos</span>
 
           <button
-            onClick={() => setShowTestModal(true)}
-            className="rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
-          >
-            ▶ Testar
-          </button>
-
-          <button
             onClick={() => setShowTemplates(true)}
             className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
           >
@@ -390,69 +379,6 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
         />
       )}
 
-      {/* Test modal */}
-      {showTestModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-base font-bold text-slate-900 mb-1">Testar Fluxo</h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Envia as notificações do fluxo com dados de exemplo para o número informado.
-            </p>
-
-            <label className="block text-xs font-medium text-slate-600 mb-1">Telefone para teste</label>
-            <input
-              type="tel"
-              inputMode="tel"
-              value={testPhone}
-              onChange={(e) => {
-                const d = e.target.value.replace(/\D/g, "").slice(0, 11);
-                if (d.length <= 2) setTestPhone(d);
-                else if (d.length <= 7) setTestPhone(`(${d.slice(0,2)}) ${d.slice(2)}`);
-                else setTestPhone(`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`);
-              }}
-              placeholder="(00) 00000-0000"
-              className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 mb-3"
-              autoFocus
-            />
-
-            {testResult && (
-              <div className={`rounded-lg px-3 py-2 text-xs mb-3 ${testResult.startsWith("Erro") ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"}`}>
-                {testResult}
-              </div>
-            )}
-
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => { setShowTestModal(false); setTestResult(null); }}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                Fechar
-              </button>
-              <button
-                disabled={testing || testPhone.replace(/\D/g, "").length < 10}
-                onClick={async () => {
-                  setTesting(true);
-                  setTestResult(null);
-                  try {
-                    const res = await api.post<{ sent: number; preview: string }>("/workflows/test", {
-                      blocks,
-                      phone: testPhone.replace(/\D/g, ""),
-                    });
-                    setTestResult(`Enviado! ${res.sent} notificação(ões) com dados de exemplo.`);
-                  } catch (err: any) {
-                    setTestResult(`Erro: ${err?.message || "Falha ao enviar teste"}`);
-                  } finally {
-                    setTesting(false);
-                  }
-                }}
-                className="rounded-lg bg-green-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-              >
-                {testing ? "Enviando..." : "▶ Enviar teste"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
