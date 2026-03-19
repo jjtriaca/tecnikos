@@ -235,6 +235,7 @@ export class TechAuthService {
             status: true,
             companyId: true,
             assignedPartnerId: true,
+            directedTechnicianIds: true,
           },
         },
       },
@@ -248,8 +249,9 @@ export class TechAuthService {
         throw new BadRequestException('Esta ordem de serviço já foi finalizada');
       }
 
-      // Find the assigned technician (or any tech linked to this offer)
-      const techId = so.assignedPartnerId;
+      // Identify technician: assigned first, then directed (tech needs auth BEFORE accepting)
+      const directedIds: string[] = (so.directedTechnicianIds as string[]) || [];
+      const techId = so.assignedPartnerId || directedIds[0];
       if (!techId) {
         throw new BadRequestException('Nenhum técnico atribuído a esta OS');
       }

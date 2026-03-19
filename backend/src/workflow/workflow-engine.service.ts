@@ -87,6 +87,7 @@ const ACTIONABLE_TYPES = new Set([
   'SIGNATURE',
   'FORM',
   'CONDITION',
+  'ACTION_BUTTONS',
   'ARRIVAL_QUESTION',
 ]);
 
@@ -457,31 +458,7 @@ export class WorkflowEngineService {
         return { executed, stoppedAt: `STATUS_MANUAL:${block.config.targetStatus}` };
       }
 
-      // STATUS que depende de ação do técnico: executar o bloco MAS PARAR depois
-      // Esses status representam "o técnico precisa fazer algo" — o engine não pode avançar sozinho
-      const TECH_ACTION_STATUSES = new Set(['ATRIBUIDA', 'A_CAMINHO', 'EM_EXECUCAO']);
-      if ((block.type === 'STATUS' || block.type === 'STATUS_CHANGE') &&
-          TECH_ACTION_STATUSES.has(block.config?.targetStatus)) {
-        this.logger.log(`🚀 Executing and stopping at tech-action STATUS: "${block.config.targetStatus}"`);
-        try {
-          await this.executeSystemBlock(block, serviceOrderId, companyId);
-          stepOrder++;
-          await this.prisma.workflowStepLog.create({
-            data: {
-              serviceOrderId, stepOrder,
-              stepName: block.name || block.type,
-              blockId: block.id, partnerId: 'SYSTEM',
-              responseData: { autoCompleted: true, executedBy: 'executeWorkflowFromStart' },
-            },
-          });
-          executed++;
-        } catch (err) {
-          this.logger.error(`🚀 Failed STATUS ${block.config.targetStatus}: ${(err as Error).message}`);
-        }
-        return { executed, stoppedAt: `STATUS:${block.config.targetStatus}` };
-      }
-
-      // System blocks: auto-executar
+      // System blocks: auto-executar (STATUS blocks NUNCA param o engine — blocos interativos controlam parada)
       try {
         this.logger.log(`🚀 Auto-executing ${block.type} "${block.name}"`);
 
@@ -521,25 +498,6 @@ export class WorkflowEngineService {
                   if (!nextBlock || nextBlock.type === 'END') break;
                   if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
                   if (nextBlock.type === 'STATUS' && nextBlock.config?.transitionMode === 'manual') break;
-                  // STATUS que depende de ação do técnico: executar e parar
-                  const TECH_STATUSES = new Set(['ATRIBUIDA', 'A_CAMINHO', 'EM_EXECUCAO']);
-                  if ((nextBlock.type === 'STATUS' || nextBlock.type === 'STATUS_CHANGE') &&
-                      TECH_STATUSES.has(nextBlock.config?.targetStatus)) {
-                    try {
-                      await this.executeSystemBlock(nextBlock, serviceOrderId, companyId);
-                      await this.prisma.workflowStepLog.create({
-                        data: {
-                          serviceOrderId, stepOrder: stepOrder + 1,
-                          stepName: nextBlock.name || nextBlock.type,
-                          blockId: nextBlock.id, partnerId: 'SYSTEM',
-                          responseData: { autoCompleted: true, executedBy: 'delayResume' },
-                        },
-                      });
-                    } catch (err) {
-                      this.logger.error(`⏳ DELAY resume: STATUS ${nextBlock.config.targetStatus} failed: ${(err as Error).message}`);
-                    }
-                    break; // Stop — tech action required
-                  }
                   try {
                     await this.executeSystemBlock(nextBlock, serviceOrderId, companyId);
                     await this.prisma.workflowStepLog.create({
@@ -1092,6 +1050,12 @@ export class WorkflowEngineService {
         nextBlockId = isYes
           ? condBlock?.yesBranch || condBlock?.next || null
           : condBlock?.noBranch || condBlock?.next || null;
+      } else if (block.type === 'ACTION_BUTTONS') {
+        const buttonId = dto.responseData?.buttonId;
+        const abBlock = blocks.find((b) => b.id === block.id);
+        const branches: Record<string, string | null> = (abBlock as any)?.branches || {};
+        nextBlockId = branches[buttonId] || abBlock?.next || null;
+        this.logger.log(`🎯 ACTION_BUTTONS: tech chose "${buttonId}" → next=${nextBlockId}`);
       } else {
         const currBlock = blocks.find((b) => b.id === block.id);
         nextBlockId = currBlock?.next || null;
@@ -1107,21 +1071,6 @@ export class WorkflowEngineService {
         if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
         // STATUS com transitionMode manual = bloco acionavel pelo tecnico
         if (nextBlock.type === 'STATUS' && nextBlock.config?.transitionMode === 'manual') break;
-        // STATUS que depende de ação do técnico: executar e parar
-        if ((nextBlock.type === 'STATUS' || nextBlock.type === 'STATUS_CHANGE') &&
-            (['ATRIBUIDA', 'A_CAMINHO', 'EM_EXECUCAO'].includes(nextBlock.config?.targetStatus))) {
-          try {
-            await this.executeSystemBlock(nextBlock, so.id, companyId);
-            nextStepOrder++;
-            await tx.workflowStepLog.create({
-              data: { serviceOrderId: so.id, stepOrder: nextStepOrder, stepName: nextBlock.name, blockId: nextBlock.id, partnerId: technicianId, responseData: { autoCompleted: true, executedBy: 'advanceBlockV2:techActionStatus' } },
-            });
-          } catch (err) {
-            this.logger.error(`advanceBlockV2: STATUS ${nextBlock.config.targetStatus} failed: ${(err as Error).message}`);
-          }
-          break; // Stop — tech action required
-        }
-
         // ── WAIT_FOR: criar PendingWorkflowWait e PARAR ──
         if (nextBlock.type === 'WAIT_FOR') {
           const waitConfig = nextBlock.config || {};
@@ -1351,21 +1300,6 @@ export class WorkflowEngineService {
         if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
         // STATUS com transitionMode manual = bloco acionavel pelo tecnico
         if (nextBlock.type === 'STATUS' && nextBlock.config?.transitionMode === 'manual') break;
-        // STATUS que depende de ação do técnico: executar e parar
-        if ((nextBlock.type === 'STATUS' || nextBlock.type === 'STATUS_CHANGE') &&
-            (['ATRIBUIDA', 'A_CAMINHO', 'EM_EXECUCAO'].includes(nextBlock.config?.targetStatus))) {
-          try {
-            await this.executeSystemBlock(nextBlock, serviceOrderId, companyId);
-            stepOrder++;
-            await tx.workflowStepLog.create({
-              data: { serviceOrderId, stepOrder, stepName: nextBlock.name, blockId: nextBlock.id, partnerId: 'SYSTEM', responseData: { autoCompleted: true, executedBy: 'resumeFromBlock:techActionStatus' } },
-            });
-          } catch (err) {
-            this.logger.error(`resumeFromBlock: STATUS ${nextBlock.config.targetStatus} failed: ${(err as Error).message}`);
-          }
-          break;
-        }
-
         // Se encontrar outro WAIT_FOR, criar novo PendingWorkflowWait
         if (nextBlock.type === 'WAIT_FOR') {
           const waitConfig = nextBlock.config || {};
@@ -2114,6 +2048,12 @@ export class WorkflowEngineService {
         )
           throw new BadRequestException(
             `"${block.name}" requer uma resposta (Sim/Não)`,
+          );
+        break;
+      case 'ACTION_BUTTONS':
+        if (!dto.responseData?.buttonId)
+          throw new BadRequestException(
+            `"${block.name}" requer a seleção de um botão`,
           );
         break;
     }

@@ -36,7 +36,7 @@ function Connector({ onClick, label }: { onClick?: () => void; label?: string })
   );
 }
 
-/** Render a branch (yesBranch or noBranch) of a CONDITION block */
+/** Render a branch (yesBranch, noBranch, or ACTION_BUTTONS branch) */
 function BranchRenderer({
   blocks,
   startId,
@@ -47,6 +47,8 @@ function BranchRenderer({
   onInsertAfter,
   label,
   parentBlockId,
+  branchVia,
+  labelColor,
 }: {
   blocks: Block[];
   startId: string | null | undefined;
@@ -54,21 +56,23 @@ function BranchRenderer({
   selectedBlockId: string | null;
   onSelectBlock: (id: string | null) => void;
   onDeleteBlock: (id: string) => void;
-  onInsertAfter: (afterBlockId: string, via?: "next" | "yesBranch" | "noBranch") => void;
+  onInsertAfter: (afterBlockId: string, via?: string) => void;
   label: string;
   parentBlockId?: string;
+  branchVia?: string;
+  labelColor?: string;
 }) {
   if (!startId || startId === mergeId) {
     // Branch vazia — mostrar botao + para inserir bloco na branch
-    const via = label === "SIM" ? "yesBranch" : "noBranch";
+    const via = branchVia || (label === "SIM" ? "yesBranch" : "noBranch");
     return (
       <div className="flex flex-col items-center px-4">
-        <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 mb-1">
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border mb-1 ${labelColor || "text-slate-400 bg-slate-100 border-slate-200"}`}>
           {label}
         </span>
         {parentBlockId && (
           <button
-            onClick={() => onInsertAfter(parentBlockId, via as "yesBranch" | "noBranch")}
+            onClick={() => onInsertAfter(parentBlockId, via)}
             className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-amber-400 bg-amber-50 text-amber-500 hover:bg-amber-100 hover:border-amber-500 transition-colors mt-1"
             title={`Adicionar bloco no caminho ${label}`}
           >
@@ -94,12 +98,12 @@ function BranchRenderer({
     currentId = b.next;
   }
 
-  const via = label === "SIM" ? "yesBranch" : "noBranch";
+  const via = branchVia || (label === "SIM" ? "yesBranch" : "noBranch");
+  const defaultLabelColor = label === "SIM" ? "text-green-600 bg-green-50 border-green-200" : "text-red-600 bg-red-50 border-red-200";
 
   return (
     <div className="flex flex-col items-center px-2" style={{ minWidth: "12rem" }}>
-      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border mb-1
-        ${label === "SIM" ? "text-green-600 bg-green-50 border-green-200" : "text-red-600 bg-red-50 border-red-200"}`}>
+      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border mb-1 ${labelColor || defaultLabelColor}`}>
         {label}
       </span>
       {branchBlocks.map((b, i) => (
@@ -136,6 +140,29 @@ function BranchRenderer({
               <div className="w-0.5 h-3 bg-amber-300" />
             </div>
           )}
+          {/* ACTION_BUTTONS inside branch: render N sub-branches */}
+          {b.type === "ACTION_BUTTONS" && b.branches && (() => {
+            const btns: { id: string; label: string; color: string; icon?: string }[] = b.config?.buttons || [];
+            const BC: Record<string, string> = { green: "text-green-600 bg-green-50 border-green-200", red: "text-red-600 bg-red-50 border-red-200", blue: "text-blue-600 bg-blue-50 border-blue-200", yellow: "text-yellow-700 bg-yellow-50 border-yellow-200", slate: "text-slate-600 bg-slate-100 border-slate-300" };
+            return (
+              <div className="flex flex-col items-center mt-1">
+                <div className="w-0.5 h-3 bg-amber-300" />
+                <div className="flex gap-2 w-full justify-center">
+                  {btns.map(btn => (
+                    <div key={btn.id} className="flex flex-col items-center">
+                      <div className="w-0.5 h-3 bg-amber-300" />
+                      <BranchRenderer blocks={blocks} startId={b.branches?.[btn.id]} mergeId={b.next}
+                        selectedBlockId={selectedBlockId} onSelectBlock={onSelectBlock}
+                        onDeleteBlock={onDeleteBlock} onInsertAfter={onInsertAfter}
+                        label={`${btn.icon || ""} ${btn.label}`.trim()} parentBlockId={b.id}
+                        branchVia={`branches.${btn.id}`} labelColor={BC[btn.color] || BC.slate} />
+                    </div>
+                  ))}
+                </div>
+                <div className="w-0.5 h-3 bg-amber-300" />
+              </div>
+            );
+          })()}
         </div>
       ))}
       {/* + button after last block in branch to continue adding */}
@@ -175,7 +202,7 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
           return (
             <div key={blockId} className="flex flex-col items-center">
               {/* Connector between blocks */}
-              {idx > 0 && prevBlock?.type !== "CONDITION" && (
+              {idx > 0 && prevBlock?.type !== "CONDITION" && prevBlock?.type !== "ACTION_BUTTONS" && (
                 <Connector onClick={() => onInsertAfter(chainIds[idx - 1])} />
               )}
 
@@ -188,6 +215,53 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
                 onClick={() => onSelectBlock(isFirst || isLast ? null : blockId)}
                 onDelete={() => onDeleteBlock(blockId)}
               />
+
+              {/* ACTION_BUTTONS: render N branches */}
+              {block.type === "ACTION_BUTTONS" && block.branches && (() => {
+                const buttons: { id: string; label: string; color: string; icon?: string }[] = block.config?.buttons || [];
+                const BRANCH_COLORS: Record<string, string> = {
+                  green: "text-green-600 bg-green-50 border-green-200",
+                  red: "text-red-600 bg-red-50 border-red-200",
+                  blue: "text-blue-600 bg-blue-50 border-blue-200",
+                  yellow: "text-yellow-700 bg-yellow-50 border-yellow-200",
+                  slate: "text-slate-600 bg-slate-100 border-slate-300",
+                };
+                return (
+                  <div className="flex flex-col items-center mt-1">
+                    <div className="w-0.5 h-4 bg-amber-300" />
+                    <div className="relative w-full flex justify-center">
+                      <div className="absolute top-0 h-0.5 bg-amber-300" style={{ width: `${Math.max(50, buttons.length * 25)}%`, left: `${Math.max(0, 50 - buttons.length * 12.5)}%` }} />
+                    </div>
+                    <div className="flex gap-4 w-full justify-center" style={{ minWidth: `${buttons.length * 14}rem` }}>
+                      {buttons.map(btn => (
+                        <div key={btn.id} className="flex flex-col items-center">
+                          <div className="w-0.5 h-3 bg-amber-300" />
+                          <BranchRenderer
+                            blocks={blocks}
+                            startId={block.branches?.[btn.id]}
+                            mergeId={block.next}
+                            selectedBlockId={selectedBlockId}
+                            onSelectBlock={onSelectBlock}
+                            onDeleteBlock={onDeleteBlock}
+                            onInsertAfter={onInsertAfter}
+                            label={`${btn.icon || ""} ${btn.label}`.trim()}
+                            parentBlockId={block.id}
+                            branchVia={`branches.${btn.id}`}
+                            labelColor={BRANCH_COLORS[btn.color] || BRANCH_COLORS.slate}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="relative w-full flex justify-center">
+                      <div className="absolute top-0 h-0.5 bg-amber-300" style={{ width: `${Math.max(50, buttons.length * 25)}%`, left: `${Math.max(0, 50 - buttons.length * 12.5)}%` }} />
+                    </div>
+                    <div className="w-0.5 h-3 bg-amber-300" />
+                    <svg className="h-3 w-3 text-amber-300 -mt-0.5" fill="currentColor" viewBox="0 0 12 12">
+                      <path d="M6 12L0 6h12L6 12z" />
+                    </svg>
+                  </div>
+                );
+              })()}
 
               {/* CONDITION: render branches — symmetric layout */}
               {block.type === "CONDITION" && (

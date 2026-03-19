@@ -10,6 +10,7 @@ export type BlockType =
   | 'START'
   | 'END'
   | 'CONDITION'
+  | 'ACTION_BUTTONS'
   // Actions (technician-facing)
   | 'STEP'
   | 'PHOTO'
@@ -44,6 +45,8 @@ export type Block = {
   // Only for CONDITION blocks:
   yesBranch?: string | null;
   noBranch?: string | null;
+  // Only for ACTION_BUTTONS blocks: maps buttonId → next blockId
+  branches?: Record<string, string | null>;
 };
 
 export type WorkflowDefV2 = {
@@ -151,6 +154,18 @@ export type RescheduleConfig = {
   reason?: string;
 };
 
+export type ActionButtonDef = {
+  id: string;
+  label: string;
+  color: 'green' | 'red' | 'blue' | 'yellow' | 'slate';
+  icon?: string;
+};
+
+export type ActionButtonsConfig = {
+  title?: string;
+  buttons?: ActionButtonDef[];
+};
+
 /* ── Block Catalog Definition ────────────────────────────────── */
 
 export type CatalogEntry = {
@@ -170,6 +185,7 @@ export type CatalogEntry = {
 export const BLOCK_CATALOG: CatalogEntry[] = [
   // Flow
   { type: 'CONDITION', name: 'SE / Condição', icon: '❓', description: 'Avalia condição → 2 caminhos (SIM / NÃO)', category: 'FLOW', color: 'bg-amber-50', borderColor: 'border-amber-300', iconBg: 'bg-amber-500', textColor: 'text-amber-900' },
+  { type: 'ACTION_BUTTONS', name: 'Botões de Ação', icon: '🎯', description: 'Botões para o técnico escolher (aceitar, recusar, etc.)', category: 'FLOW', color: 'bg-amber-50', borderColor: 'border-amber-300', iconBg: 'bg-amber-600', textColor: 'text-amber-900' },
 
   // Actions
   { type: 'STEP', name: 'Etapa', icon: '⚙️', description: 'Passo que o técnico confirma', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
@@ -233,6 +249,7 @@ export function createBlock(type: BlockType, overrides?: Partial<Block>): Block 
     config: getDefaultConfig(type),
     next: null,
     ...(type === 'CONDITION' ? { yesBranch: null, noBranch: null } : {}),
+    ...(type === 'ACTION_BUTTONS' ? { branches: { btn_0: null, btn_1: null } } : {}),
   };
   return { ...base, ...overrides };
 }
@@ -248,6 +265,7 @@ export function getDefaultConfig(type: BlockType): Record<string, any> {
     case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do servico' };
     case 'FORM': return { fields: [{ name: 'Condicao do equipamento', type: 'select', required: true, options: ['Bom', 'Regular', 'Ruim'] }, { name: 'Observacoes', type: 'text', required: false }] };
     case 'CONDITION': return { conditionType: 'question', question: 'O servico foi concluido com sucesso?' };
+    case 'ACTION_BUTTONS': return { title: 'O que deseja fazer?', buttons: [{ id: 'btn_0', label: 'Aceitar', color: 'green', icon: '✅' }, { id: 'btn_1', label: 'Recusar', color: 'red', icon: '❌' }] };
     case 'NOTIFY': return { recipients: [{ type: 'CLIENTE', enabled: true, channel: 'WHATSAPP', message: 'Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.' }] };
     case 'APPROVAL': return { approverRole: 'ADMIN', message: 'Servico finalizado aguardando aprovacao do gestor para encerramento da OS.' };
     case 'ALERT': return { message: 'Atencao: verificar pendencia na ordem de servico {titulo}.', severity: 'warning' };
@@ -285,12 +303,17 @@ export function findEndBlock(blocks: Block[]): Block | undefined {
   return blocks.find(b => b.type === 'END');
 }
 
-/** Find the block whose `next`, `yesBranch`, or `noBranch` points to `targetId` */
-export function findParent(blocks: Block[], targetId: string): { block: Block; via: 'next' | 'yesBranch' | 'noBranch' } | undefined {
+/** Find the block whose `next`, `yesBranch`, `noBranch`, or `branches[x]` points to `targetId` */
+export function findParent(blocks: Block[], targetId: string): { block: Block; via: string } | undefined {
   for (const b of blocks) {
     if (b.next === targetId) return { block: b, via: 'next' };
     if (b.yesBranch === targetId) return { block: b, via: 'yesBranch' };
     if (b.noBranch === targetId) return { block: b, via: 'noBranch' };
+    if (b.branches) {
+      for (const [key, val] of Object.entries(b.branches)) {
+        if (val === targetId) return { block: b, via: `branches.${key}` };
+      }
+    }
   }
   return undefined;
 }
@@ -300,13 +323,20 @@ export function insertBlockAfter(
   blocks: Block[],
   afterBlockId: string,
   newBlock: Block,
-  via: 'next' | 'yesBranch' | 'noBranch' = 'next'
+  via: string = 'next'
 ): Block[] {
   return blocks.map(b => {
     if (b.id !== afterBlockId) return b;
-    const oldTarget = via === 'yesBranch' ? b.yesBranch : via === 'noBranch' ? b.noBranch : b.next;
+    let oldTarget: string | null | undefined;
+    if (via.startsWith('branches.')) {
+      const btnId = via.split('.')[1];
+      oldTarget = b.branches?.[btnId];
+      const updated = { ...b, branches: { ...b.branches, [btnId]: newBlock.id } };
+      newBlock.next = oldTarget ?? null;
+      return updated;
+    }
+    oldTarget = via === 'yesBranch' ? b.yesBranch : via === 'noBranch' ? b.noBranch : b.next;
     const updated = { ...b, [via]: newBlock.id };
-    // Point new block to old target
     newBlock.next = oldTarget ?? null;
     return updated;
   }).concat(newBlock);
@@ -317,8 +347,8 @@ export function removeBlock(blocks: Block[], blockId: string): Block[] {
   const block = findBlock(blocks, blockId);
   if (!block || block.type === 'START' || block.type === 'END') return blocks;
 
-  // If it's a CONDITION, also remove all blocks in both branches
-  if (block.type === 'CONDITION') {
+  // If it's a CONDITION or ACTION_BUTTONS, also remove all blocks in all branches
+  if (block.type === 'CONDITION' || block.type === 'ACTION_BUTTONS') {
     const toRemove = new Set<string>([blockId]);
     const collectBranch = (startId: string | null | undefined) => {
       let id = startId;
@@ -330,11 +360,19 @@ export function removeBlock(blocks: Block[], blockId: string): Block[] {
           collectBranch(b.yesBranch);
           collectBranch(b.noBranch);
         }
+        if (b.type === 'ACTION_BUTTONS' && b.branches) {
+          Object.values(b.branches).forEach(brId => collectBranch(brId));
+        }
         id = b.next;
       }
     };
-    collectBranch(block.yesBranch);
-    collectBranch(block.noBranch);
+    if (block.type === 'CONDITION') {
+      collectBranch(block.yesBranch);
+      collectBranch(block.noBranch);
+    }
+    if (block.branches) {
+      Object.values(block.branches).forEach(brId => collectBranch(brId));
+    }
 
     // Find parent and reconnect to block.next (merge point)
     const parent = findParent(blocks, blockId);
@@ -342,6 +380,10 @@ export function removeBlock(blocks: Block[], blockId: string): Block[] {
       .filter(b => !toRemove.has(b.id))
       .map(b => {
         if (parent && b.id === parent.block.id) {
+          if (parent.via.startsWith('branches.')) {
+            const btnId = parent.via.split('.')[1];
+            return { ...b, branches: { ...b.branches, [btnId]: block.next } };
+          }
           return { ...b, [parent.via]: block.next };
         }
         return b;

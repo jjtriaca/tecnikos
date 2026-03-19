@@ -419,6 +419,9 @@ export default function TechOrderDetailPage() {
       case "CONDITION":
         body.responseData = { answer: v2Answer };
         break;
+      case "ACTION_BUTTONS":
+        body.responseData = { buttonId: v2Answer };
+        break;
       case "SIGNATURE": {
         const sigPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP");
         const lastSig = sigPhotos[sigPhotos.length - 1];
@@ -1133,6 +1136,8 @@ function V2BlockAction({
         return v2CheckedItems.length === 0;
       case "CONDITION":
         return !v2Answer;
+      case "ACTION_BUTTONS":
+        return !v2Answer;
       case "SIGNATURE":
         return !attachments.some((a) => a.type === "WORKFLOW_STEP");
       case "FORM":
@@ -1308,6 +1313,38 @@ function V2BlockAction({
             </div>
           </div>
         )}
+
+        {/* ACTION_BUTTONS */}
+        {block.type === "ACTION_BUTTONS" && (() => {
+          const buttons: { id: string; label: string; color: string; icon?: string }[] = c.buttons || [];
+          const COLOR_MAP: Record<string, { selected: string; normal: string }> = {
+            green: { selected: "border-green-400 bg-green-100 text-green-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-green-50" },
+            red: { selected: "border-red-400 bg-red-100 text-red-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-red-50" },
+            blue: { selected: "border-blue-400 bg-blue-100 text-blue-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-blue-50" },
+            yellow: { selected: "border-yellow-400 bg-yellow-100 text-yellow-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-yellow-50" },
+            slate: { selected: "border-slate-400 bg-slate-200 text-slate-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-slate-50" },
+          };
+          return (
+            <div className="space-y-2">
+              {c.title && <p className="text-sm font-medium text-slate-700">{c.title}</p>}
+              <div className={`grid gap-2 ${buttons.length <= 2 ? "grid-cols-2" : buttons.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+                {buttons.map((btn) => {
+                  const colors = COLOR_MAP[btn.color] || COLOR_MAP.slate;
+                  const isSelected = v2Answer === btn.id;
+                  return (
+                    <button
+                      key={btn.id}
+                      onClick={() => setV2Answer(btn.id)}
+                      className={`rounded-lg border py-3 text-sm font-bold transition-all ${isSelected ? colors.selected : colors.normal}`}
+                    >
+                      {btn.icon ? `${btn.icon} ` : ""}{btn.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* SIGNATURE */}
         {block.type === "SIGNATURE" && (

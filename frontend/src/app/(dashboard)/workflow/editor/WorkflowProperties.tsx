@@ -453,6 +453,89 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           </>
         )}
 
+        {/* ACTION_BUTTONS */}
+        {block.type === "ACTION_BUTTONS" && (() => {
+          const buttons: { id: string; label: string; color: string; icon?: string }[] = cfg.buttons || [];
+          const COLORS = [
+            { value: "green", label: "Verde", bg: "bg-green-500", preview: "bg-green-100 text-green-800 border-green-300" },
+            { value: "red", label: "Vermelho", bg: "bg-red-500", preview: "bg-red-100 text-red-800 border-red-300" },
+            { value: "blue", label: "Azul", bg: "bg-blue-500", preview: "bg-blue-100 text-blue-800 border-blue-300" },
+            { value: "yellow", label: "Amarelo", bg: "bg-yellow-500", preview: "bg-yellow-100 text-yellow-800 border-yellow-300" },
+            { value: "slate", label: "Cinza", bg: "bg-slate-500", preview: "bg-slate-100 text-slate-800 border-slate-300" },
+          ];
+          const updateButton = (idx: number, key: string, val: any) => {
+            const n = [...buttons];
+            n[idx] = { ...n[idx], [key]: val };
+            onChange({ ...block, config: { ...cfg, buttons: n } });
+          };
+          const addButton = () => {
+            const newId = `btn_${buttons.length}`;
+            const newButtons = [...buttons, { id: newId, label: "Novo", color: "blue", icon: "" }];
+            const newBranches = { ...block.branches, [newId]: null };
+            onChange({ ...block, config: { ...cfg, buttons: newButtons }, branches: newBranches });
+          };
+          const removeButton = (idx: number) => {
+            const btn = buttons[idx];
+            const newButtons = buttons.filter((_, i) => i !== idx);
+            const newBranches = { ...block.branches };
+            delete newBranches[btn.id];
+            onChange({ ...block, config: { ...cfg, buttons: newButtons }, branches: newBranches });
+          };
+          return (
+            <>
+              <Label>Titulo (exibido ao tecnico)</Label>
+              <Input value={cfg.title || ""} onChange={(v) => updateConfig("title", v)} placeholder="Ex: O que deseja fazer?" />
+
+              <Label>Botoes ({buttons.length})</Label>
+              <div className="space-y-2">
+                {buttons.map((btn, i) => {
+                  const colorDef = COLORS.find(c => c.value === btn.color) || COLORS[0];
+                  return (
+                    <div key={btn.id} className={`rounded-lg border p-2 space-y-1.5 ${colorDef.preview.split(" ").find(c => c.startsWith("border-")) || "border-slate-200"}`}>
+                      <div className="flex items-center gap-1">
+                        <input
+                          value={btn.icon || ""}
+                          onChange={(e) => updateButton(i, "icon", e.target.value)}
+                          placeholder="emoji"
+                          className="w-8 rounded border border-slate-200 px-1 py-0.5 text-center text-xs outline-none"
+                        />
+                        <input
+                          value={btn.label}
+                          onChange={(e) => updateButton(i, "label", e.target.value)}
+                          placeholder="Label do botao"
+                          className="flex-1 rounded border border-slate-200 px-2 py-0.5 text-xs outline-none focus:border-blue-400"
+                        />
+                        {buttons.length > 2 && (
+                          <button onClick={() => removeButton(i)} className="px-1 text-xs text-red-400 hover:text-red-600" title="Remover">x</button>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        {COLORS.map(c => (
+                          <button
+                            key={c.value}
+                            type="button"
+                            onClick={() => updateButton(i, "color", c.value)}
+                            className={`h-5 w-5 rounded-full ${c.bg} ${btn.color === c.value ? "ring-2 ring-offset-1 ring-blue-400" : "opacity-60 hover:opacity-100"}`}
+                            title={c.label}
+                          />
+                        ))}
+                      </div>
+                      {/* Preview */}
+                      <div className={`rounded-md border py-1.5 text-center text-[11px] font-bold ${colorDef.preview}`}>
+                        {btn.icon ? `${btn.icon} ` : ""}{btn.label || "..."}
+                      </div>
+                    </div>
+                  );
+                })}
+                {buttons.length < 4 && (
+                  <button onClick={addButton} className="text-[10px] text-blue-500 hover:text-blue-600 font-medium">+ Adicionar botao</button>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-2">Cada botao segue um caminho diferente no fluxo. Conecte os caminhos no canvas.</p>
+            </>
+          );
+        })()}
+
         {/* NOTIFY */}
         {block.type === "NOTIFY" && (
           <>
