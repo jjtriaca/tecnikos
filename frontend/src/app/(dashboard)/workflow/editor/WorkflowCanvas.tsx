@@ -55,14 +55,28 @@ function BranchRenderer({
   onDeleteBlock: (id: string) => void;
   onInsertAfter: (afterBlockId: string, via?: "next" | "yesBranch" | "noBranch") => void;
   label: string;
+  parentBlockId?: string;
 }) {
   if (!startId || startId === mergeId) {
+    // Branch vazia — mostrar botao + para inserir bloco na branch
+    const via = label === "SIM" ? "yesBranch" : "noBranch";
     return (
       <div className="flex flex-col items-center px-4">
         <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 mb-1">
           {label}
         </span>
-        <span className="text-[10px] text-slate-300 italic">(vazio)</span>
+        {parentBlockId && (
+          <button
+            onClick={() => onInsertAfter(parentBlockId, via as "yesBranch" | "noBranch")}
+            className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-amber-400 bg-amber-50 text-amber-500 hover:bg-amber-100 hover:border-amber-500 transition-colors mt-1"
+            title={`Adicionar bloco no caminho ${label}`}
+          >
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        )}
+        {!parentBlockId && <span className="text-[10px] text-slate-300 italic">(vazio)</span>}
       </div>
     );
   }
@@ -163,6 +177,7 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
                       onDeleteBlock={onDeleteBlock}
                       onInsertAfter={onInsertAfter}
                       label="SIM"
+                      parentBlockId={block.id}
                     />
                     <BranchRenderer
                       blocks={blocks}
@@ -173,6 +188,7 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
                       onDeleteBlock={onDeleteBlock}
                       onInsertAfter={onInsertAfter}
                       label="NAO"
+                      parentBlockId={block.id}
                     />
                   </div>
                   <div className="w-0.5 h-3 bg-amber-300" />
