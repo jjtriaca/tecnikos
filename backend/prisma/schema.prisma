@@ -204,6 +204,7 @@ model Company {
   suggestions          Suggestion[]
   quotes               Quote[]
   checklistResponses   ChecklistResponse[]
+  pushSubscriptions    PushSubscription[]
 }
 
 model User {
@@ -240,6 +241,7 @@ model User {
   sessions Session[]
   chatIAConversations ChatIAConversation[]
   suggestions         Suggestion[]
+  pushSubscriptions   PushSubscription[]
 
   @@unique([companyId, code])
 }
@@ -590,6 +592,26 @@ model Notification {
   @@index([companyId])
   @@index([companyId, readAt])
   @@index([serviceOrderId])
+}
+
+model PushSubscription {
+  id         String    @id @default(uuid())
+  companyId  String
+  userId     String
+  endpoint   String    // Push service endpoint URL
+  p256dh     String    // Client public key (base64)
+  auth       String    // Auth secret (base64)
+  deviceName String?   // "Chrome no Windows", etc.
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([companyId, endpoint])
+  @@index([companyId, userId])
+  @@index([expiresAt])
 }
 
 // ========== Especializações ==========
@@ -2268,6 +2290,18 @@ model SaasInvoiceConfig {
 
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
+}
+
+// Configuração global do sistema (key-value, criptografia para tokens)
+model SaasConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique   // ex: FOCUS_NFE_RESELLER_TOKEN, VAPID_PUBLIC_KEY
+  value     String              // Criptografado para campos sensíveis
+  encrypted Boolean  @default(true)
+  label     String?             // Label legível para o admin UI
+  group     String   @default("GENERAL") // INTEGRATION, PUSH, GENERAL
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Signup attempt tracking (failed verifications + user feedback)

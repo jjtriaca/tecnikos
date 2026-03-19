@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 interface Notification {
   id: string;
@@ -91,6 +92,8 @@ export default function NotificationsPage() {
     });
   };
 
+  const push = usePushNotifications();
+
   return (
     <div>
       <div className="mb-6">
@@ -99,6 +102,46 @@ export default function NotificationsPage() {
           Log de notificações enviadas pelo sistema.
         </p>
       </div>
+
+      {/* Push Notifications Toggle */}
+      {push.supported && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700">🔔 Notificações Push</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Receba alertas no navegador mesmo com o Tecnikos fechado
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {push.permission === "denied" ? (
+                <span className="text-xs text-red-500">Bloqueado no navegador</span>
+              ) : push.subscribed ? (
+                <button
+                  onClick={push.unsubscribe}
+                  disabled={push.loading}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {push.loading ? "..." : "Desativar"}
+                </button>
+              ) : (
+                <button
+                  onClick={push.requestAndSubscribe}
+                  disabled={push.loading}
+                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {push.loading ? "Ativando..." : "Ativar Push"}
+                </button>
+              )}
+              {push.subscribed && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500" /> Ativo
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">

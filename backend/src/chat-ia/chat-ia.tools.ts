@@ -62,6 +62,23 @@ function decryptToken(encryptedValue: string): string {
   return decrypted;
 }
 
+/** Get FOCUS_NFE_RESELLER_TOKEN from SaasConfig (DB) first, fallback to env */
+async function getResellerToken(db: any): Promise<string | null> {
+  try {
+    // Try public schema SaasConfig table
+    const { PrismaClient } = require('@prisma/client');
+    const publicDb = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+    const row = await publicDb.saasConfig.findUnique({ where: { key: 'FOCUS_NFE_RESELLER_TOKEN' } });
+    await publicDb.$disconnect();
+    if (row?.value) {
+      return row.encrypted ? decryptToken(row.value) : row.value;
+    }
+  } catch {
+    // Fallback silently
+  }
+  return process.env.FOCUS_NFE_RESELLER_TOKEN || null;
+}
+
 export const CHAT_IA_TOOLS: ToolDefinition[] = [
   {
     name: 'buscar_ordens_servico',
@@ -1216,11 +1233,11 @@ async function listServicosNfse(db: any): Promise<string> {
 }
 
 async function registerEmpresaFocus(db: any): Promise<string> {
-  const resellerToken = process.env.FOCUS_NFE_RESELLER_TOKEN;
+  const resellerToken = await getResellerToken(db);
   if (!resellerToken) {
     return JSON.stringify({
       success: false,
-      error: 'Token de revenda Focus NFe não configurado no servidor. Contate o suporte Tecnikos.',
+      error: 'Token de revenda Focus NFe não configurado. Configure em Configurações do Admin.',
     });
   }
 

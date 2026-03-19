@@ -41,6 +41,7 @@ import { VerificationModule } from './verification/verification.module';
 
 import { RequestLoggerMiddleware } from './common/logger/request-logger.middleware';
 import { AuditModule } from './common/audit/audit.module';
+import { SaasConfigModule } from './common/saas-config.module';
 import { THROTTLE_LIMIT, THROTTLE_TTL_MS } from './common/throttler';
 
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -58,6 +59,7 @@ import { VerificationGuard } from './auth/guards/verification.guard';
       },
     ]),
     PrismaModule,
+    SaasConfigModule,
     AuthModule,
     CompanyModule,
     ServiceOrderModule,

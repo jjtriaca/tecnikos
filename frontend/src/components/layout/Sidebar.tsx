@@ -243,6 +243,7 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
     { label: "Pacotes Add-on", href: "/ctrl-zr8k2x/addons", icon: icons.automation, roles: ["ADMIN"] },
     { label: "Promocoes", href: "/ctrl-zr8k2x/promotions", icon: icons.automation, roles: ["ADMIN"] },
     { label: "Tentativas", href: "/ctrl-zr8k2x/signup-attempts", icon: icons.users, roles: ["ADMIN"] },
+    { label: "Configuracoes", href: "/ctrl-zr8k2x/settings", icon: icons.settings, roles: ["ADMIN"] },
     { label: "Voltar ao sistema", href: "/dashboard", icon: icons.workflow, roles: ["ADMIN"] },
   ];
 

@@ -16,6 +16,7 @@ const PUBLIC_ONLY_MODELS = new Set([
   'addOnPurchase',
   'saasInvoice',
   'saasInvoiceConfig',
+  'saasConfig',
   'signupAttempt',
   'saasEvent',
 ]);
@@ -39,7 +40,8 @@ const TENANT_MODEL_DELEGATES = new Set([
   'obra', 'serviceAddress', 'cardSettlement', 'cardFeeRate', 'financialAccount',
   'nfseEntrada', 'service', 'fiscalPeriod', 'emailConfig', 'technicianContract',
   'codeCounter', 'chatIAConversation', 'chatIAMessage', 'quote', 'quoteItem',
-  'quoteAttachment', 'checklistResponse',
+  'quoteAttachment', 'checklistResponse', 'pushSubscription',
+  'nfseServiceCode', 'partnerContact', 'suggestion',
 ]);
 
 /**

@@ -1,15 +1,45 @@
 # TAREFA ATUAL
 
-## Versao: v1.04.94
-## Ultima sessao: 139 (18/03/2026)
+## Versao: v1.05.11
+## Ultima sessao: 140 (18/03/2026)
 
 ## Pendencias
 
 ### A FAZER
-- **Token revenda no admin**: Mover FOCUS_NFE_RESELLER_TOKEN de .env para painel admin SaaS
+- **Token revenda no admin**: Mover FOCUS_NFE_RESELLER_TOKEN de .env para painel admin SaaS (usado em 3 arquivos: nfse-emission.service.ts x2, chat-ia.tools.ts x1)
 - **Fase 3 — Offline-first**: IndexedDB para OS locais + fila de sync (futuro)
-- **Push Notifications**: Integrar Web Push API com backend (service worker ja preparado)
+- **Push Notifications**: Integrar Web Push API com backend (ServiceWorkerRegistration.tsx ja existe)
 - **TenantMigratorService**: Corrigir copia de FKs ao criar tabelas novas em tenant schemas
+
+### JA IMPLEMENTADO (removido da lista)
+- ~~Promo upfront checkout~~: JA FEITO — `createSubscriptionCheckout()` calcula `monthlyDiscountedCents * promoDuration` e cobra tudo na primeira fatura. Webhook zera `promotionMonthsLeft=0` e ajusta `currentPeriodEnd` + Asaas para preco cheio apos periodo.
+
+### CONCLUIDO (sessao 140)
+
+#### Auditoria Completa Billing (15/15 PASS)
+- **Fix #1 — OS enforcement por ciclo billing**: `create()` usa `getBillingPeriod()` com subscription dates (nao mais calendario dia 1)
+- **Fix #2 — AI msgs por ciclo billing**: `needsBillingReset()` verifica `currentPeriodStart` da subscription
+- **Fix #4 — Promo badge upfront**: Detecta promo por `promotionId + originalValueCents` mesmo com `monthsLeft=0`
+- **Fix #5 — Add-on revert baseline**: `revertAddOnFromTenantCompany()` protege limites do plano (nao apenas > 0)
+- **Fix #6 — MRR otimizado**: Batch fetch de promotions (elimina N+1) + detecta promo upfront
+- **Testes CI corrigidos**: 70/70 passando — mocks atualizados, regex error msg, teste promo upfront
+
+#### NFS-e Import Add-on System
+- **Add-on nfseImportQuantity**: Campo no modelo AddOn + AddOnPurchase + Company.maxNfseImports
+- **creditAddOnToTenantCompany**: Incrementa maxNfseImports quando add-on confirmado
+- **revertAddOnFromTenantCompany**: Decrementa maxNfseImports na expiracao com protecao baseline
+- **Frontend admin**: Campo "Import. NFS-e extras" no formulario de pacotes add-on
+- **Frontend tenant**: Botao "Importar NFS-e" desabilitado quando saldo=0, link para compra add-on
+- **HeaderBilling**: Barra Import NFS-e no topo (vermelho quando 0, cores progressivas)
+- **Billing page**: Filter=nfse mostra somente add-ons de importacao
+- **Texto explicativo**: Informa sobre importacao manual gratuita vs automatica paga
+- **Planos**: maxNfseImports removido da UI de planos (add-on puro)
+- **Admin escondido**: HeaderBilling nao aparece em rotas /ctrl-*
+
+#### Outros Fixes
+- **Bug TenantMigratorService**: Erro `Tenant limits sync failed` corrigido
+- **sortOrder add-on**: Backend create/update aceita nfseImportQuantity + sortOrder
+- **Helper sortOrder**: Mostra "Ultima posicao: X" no formulario admin
 
 ### CONCLUIDO (sessao 139)
 - **Import NFS-e Focus NFe**: Importacao automatica de NFS-e recebidas via GET /v2/nfsens_recebidas
@@ -37,45 +67,6 @@
 - **Billing page breakdown**: Mostra "9 OS + 4 NFS-e avulsas" abaixo da barra de progresso
 - **Bug cancelamento Focus NFe**: Ticket #216000 aberto — Focus nao sincroniza cancelamento da prefeitura (Primavera do Leste/MT)
 - **Plano Focus Start contratado**: R$113,90/mes, 3 CNPJs, 100 notas/CNPJ, primeiro boleto maio/2026
-
-### CONCLUIDO (sessao 137)
-- **Wizard IA NFS-e**: 7 steps guiados via ChatIA (registro auto, certificado, IBGE, servicos, ISS, validacao, teste)
-- **Tools wizard**: verificar_fiscal_completo, buscar_municipio_ibge, salvar_codigo_ibge, listar_servicos_nfse, registrar_empresa_focus
-- **Deteccao proativa**: Fiscal incompleto detectado automaticamente no buildContextPrefix
-- **Trigger manual**: "Como configurar NFS-e?" ativa wizard pelo system prompt
-- **Action buttons fiscais**: Patterns expandidos (cadastrar servico, emitir nota, certificado)
-- **API de Empresas Focus NFe (Revenda)**: FocusNfeProvider com createEmpresa/getEmpresa/updateEmpresa
-- **Registro automatico**: NfseEmissionService.registerOrUpdateEmpresa() cadastra CNPJ na Focus NFe via token de revenda
-- **Upload certificado**: NfseEmissionService.uploadCertificate() envia e-CNPJ A1 para Focus NFe
-- **Endpoints**: POST config/register-empresa, POST config/upload-certificate
-- **Modelo revenda centralizada**: Tecnikos gerencia CNPJs via FOCUS_NFE_RESELLER_TOKEN (env var)
-
-### CONCLUIDO (sessao 136)
-- **NfseServiceCode**: Servicos habilitados na prefeitura com busca em 335 codigos cTribNac
-- **NBS no modal emissao**: Busca livre em 820 codigos NBS
-- **Dropdown servico na emissao**: Substitui campo read-only de cTribNac
-- **PDF com nome legivel**: NFS-e {numero} {cliente}.pdf (download com Content-Disposition)
-- **PartnerContact**: Modelo contatos multiplos (email/WhatsApp) por parceiro, 2598 seedados
-- **Seletor contatos na emissao**: Radio buttons com contatos + "+ Novo" salva no parceiro
-- **Gestao contatos no parceiro**: Secao "Contatos" no formulario de edicao com CRUD
-- **Tokens por ambiente**: Token producao e homologacao separados, troca automatica
-- **Banner homologacao**: Aviso pulsante no modal de emissao em ambiente de teste
-- **Sidebar accordion**: Apenas 1 submenu aberto por vez
-- **LookupField inline**: Busca ao digitar sem precisar clicar na lupa
-- **Mascara moeda**: Campo valor com R$ e formatacao automatica
-- **Modal cancelamento NFS-e**: Textarea com validacao 15 chars, erro inline
-- **Fix aliquota ISS**: Virgula/ponto aceitos (2,32 → 2.32), mascara no campo
-- **Fix ENCRYPTION_KEY**: Removida key errada, fallback JWT_SECRET restaurado
-- **Fix FK tenant schema**: FKs do public removidas para novas tabelas
-- **P1.1 Orientacao Focus NFe**: Bloco instrucoes + botao Testar Conexao
-- **P1.2 Pre-flight validation**: Checklist no modal antes de emitir
-- **P1.3 Onboarding fiscal**: ChatIA verifica token, IBGE, service codes
-- **P1.4 Mapeamento erros**: 9 padroes Focus NFe → mensagens em portugues
-- **Filtro NFS-e no financeiro**: Dropdown Sem nota/Autorizada/Erro/Cancelada
-- **Cancelamento libera lancamento**: nfseStatus e nfseEmissionId limpos para reemissao
-
-### CONCLUIDO (sessao 135)
-- Auth sem senha para tecnicos (OTP WhatsApp), Login por token, Setup PWA, Link OS
 
 ### BLOQUEADO
 - (nenhum)

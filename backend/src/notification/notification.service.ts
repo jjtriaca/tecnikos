@@ -1,6 +1,7 @@
-import { Injectable, Logger, Optional, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject, NotFoundException, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { PushNotificationService } from './push-notification.service';
 
 export interface SendNotificationDto {
   companyId: string;
@@ -16,6 +17,8 @@ export interface SendNotificationDto {
   templateName?: string;
   /** Explicit template parameters (e.g. [name, link]) instead of sending full message as {{1}}. */
   templateParams?: string[];
+  /** User ID of the recipient — enables push notification delivery */
+  recipientUserId?: string;
 }
 
 @Injectable()
@@ -25,6 +28,7 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly whatsApp?: WhatsAppService,
+    @Optional() @Inject(forwardRef(() => PushNotificationService)) private readonly pushService?: PushNotificationService,
   ) {}
 
   /**
@@ -82,6 +86,18 @@ export class NotificationService {
         sentAt: new Date(),
       },
     });
+
+    // ── Push notification (fire-and-forget) ──
+    if (dto.recipientUserId && this.pushService?.isConfigured) {
+      this.pushService.sendToUser(dto.companyId, dto.recipientUserId, {
+        title: dto.type === 'STATUS_CHANGE' ? 'Atualização de OS' : 'Tecnikos',
+        body: dto.message.slice(0, 200),
+        url: dto.serviceOrderId ? `/os/${dto.serviceOrderId}` : '/dashboard',
+        tag: `notif-${notification.id}`,
+      }).catch((err) => {
+        this.logger.warn(`Push notification failed: ${err.message}`);
+      });
+    }
 
     return notification;
   }

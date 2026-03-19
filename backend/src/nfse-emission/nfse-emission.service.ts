@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
+import { SaasConfigService } from '../common/saas-config.service';
 import { FocusNfeProvider, FocusNfseRequest, FocusNfsenRequest, NfseLayout } from './focus-nfe.provider';
 import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto, UpdateNfseServiceCodeDto } from './dto/nfse-emission.dto';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
@@ -27,6 +28,7 @@ export class NfseEmissionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
+    private readonly saasConfig: SaasConfigService,
     private readonly focusNfe: FocusNfeProvider,
     private readonly whatsApp: WhatsAppService,
   ) {}
@@ -134,9 +136,9 @@ export class NfseEmissionService {
     tokenHomologacao?: boolean;
     certificadoValido?: string;
   }> {
-    const resellerToken = process.env.FOCUS_NFE_RESELLER_TOKEN;
+    const resellerToken = await this.saasConfig.get('FOCUS_NFE_RESELLER_TOKEN');
     if (!resellerToken) {
-      throw new BadRequestException('Token de revenda Focus NFe não configurado no servidor (FOCUS_NFE_RESELLER_TOKEN)');
+      throw new BadRequestException('Token de revenda Focus NFe não configurado. Configure em Configurações do Admin.');
     }
 
     const company = await this.prisma.company.findFirst({
@@ -247,9 +249,9 @@ export class NfseEmissionService {
     message: string;
     validoAte?: string;
   }> {
-    const resellerToken = process.env.FOCUS_NFE_RESELLER_TOKEN;
+    const resellerToken = await this.saasConfig.get('FOCUS_NFE_RESELLER_TOKEN');
     if (!resellerToken) {
-      throw new BadRequestException('Token de revenda Focus NFe não configurado no servidor');
+      throw new BadRequestException('Token de revenda Focus NFe não configurado. Configure em Configurações do Admin.');
     }
 
     const company = await this.prisma.company.findFirst({ select: { cnpj: true } });
