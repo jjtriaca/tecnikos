@@ -98,6 +98,7 @@ export class TenantPublicController {
       select: {
         id: true, name: true, description: true, priceCents: true,
         osQuantity: true, userQuantity: true, technicianQuantity: true, aiMessageQuantity: true,
+        nfseImportQuantity: true,
       },
     });
   }
