@@ -8,6 +8,9 @@
 ### A FAZER
 - **Fase 3 — Offline-first**: IndexedDB para OS locais + fila de sync (futuro)
 
+### PENDENTE VALIDACAO
+- **Tech refresh TTL**: Atualmente 1 dia para teste. Apos validar, mudar para 90 dias em `auth.constants.ts`
+
 ### CONCLUIDO (sessao 142)
 
 #### TenantMigratorService — Fix FK cross-schema
