@@ -269,41 +269,23 @@ export class ServiceOrderService {
       return { ...result, _pendingReview: true, _candidates: candidates, _workflowId: resolvedWorkflowId, _allowEdit: reviewAllowEdit };
     }
 
-    // Execute workflow from START — blocks control everything (status, notifications, assignments)
-    let _dispatch: any = undefined;
-
+    // Execute workflow in background — don't block the HTTP response
+    // The workflow may have DELAY blocks that take seconds/minutes
     if (resolvedWorkflowId && this.workflowEngine) {
-      try {
-        await this.workflowEngine.executeWorkflowFromStart(
-          result.id,
-          data.companyId,
-          resolvedWorkflowId,
-        );
-
-        // Load tech info for dispatch panel (may have been assigned by a STATUS block)
-        const updatedOS = await this.prisma.serviceOrder.findUnique({
-          where: { id: result.id },
-          select: { assignedPartnerId: true },
-        });
-        if (updatedOS?.assignedPartnerId) {
-          const tech = await this.prisma.partner.findUnique({
-            where: { id: updatedOS.assignedPartnerId },
-            select: { name: true, phone: true },
-          });
-          if (tech) {
-            _dispatch = {
-              technicianName: tech.name,
-              technicianPhone: tech.phone || '',
-              notificationStatus: 'SENT',
-            };
-          }
+      const wfEngine = this.workflowEngine;
+      const osId = result.id;
+      const cId = data.companyId;
+      const wfId = resolvedWorkflowId;
+      setImmediate(async () => {
+        try {
+          await wfEngine.executeWorkflowFromStart(osId, cId, wfId);
+        } catch (err) {
+          console.error('executeWorkflowFromStart failed:', (err as Error)?.message || err);
         }
-      } catch (err) {
-        console.error('executeWorkflowFromStart failed:', err?.message || err);
-      }
+      });
     }
 
-    return _dispatch ? { ...result, _dispatch } : result;
+    return result;
   }
 
   /** Get candidate technicians for tech review modal */
