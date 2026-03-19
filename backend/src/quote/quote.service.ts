@@ -912,6 +912,7 @@ export class QuoteService {
             await this.notifications.send({
               companyId,
               channel: 'WHATSAPP',
+              type: 'QUOTE_WORKFLOW',
               recipientPhone: client.phone,
               message,
             });
@@ -920,22 +921,20 @@ export class QuoteService {
             await this.notifications.send({
               companyId,
               channel: 'EMAIL',
+              type: 'QUOTE_WORKFLOW',
               recipientEmail: client.email,
-              subject: `Orçamento ${quote.code}`,
               message,
             });
             this.logger.log(`💰 Quote workflow: sent email to client ${client.name}`);
           } else if (r.type === 'GESTOR') {
             // Notify all admin/manager users
             const managers = await this.prisma.user.findMany({
-              where: { companyId, deletedAt: null, roles: { hasSome: ['ADMIN', 'MANAGER'] } },
-              select: { phone: true, email: true, name: true },
+              where: { companyId, deletedAt: null, roles: { has: 'ADMIN' } },
+              select: { email: true, name: true },
             });
             for (const m of managers) {
-              if (channel === 'WHATSAPP' && m.phone) {
-                await this.notifications.send({ companyId, channel: 'WHATSAPP', recipientPhone: m.phone, message });
-              } else if (channel === 'EMAIL' && m.email) {
-                await this.notifications.send({ companyId, channel: 'EMAIL', recipientEmail: m.email, subject: `Orçamento ${quote.code}`, message });
+              if (channel === 'EMAIL' && m.email) {
+                await this.notifications.send({ companyId, channel: 'EMAIL', type: 'QUOTE_WORKFLOW', recipientEmail: m.email, message });
               }
             }
             this.logger.log(`💰 Quote workflow: notified ${managers.length} manager(s)`);
