@@ -94,8 +94,10 @@ function BranchRenderer({
     currentId = b.next;
   }
 
+  const via = label === "SIM" ? "yesBranch" : "noBranch";
+
   return (
-    <div className="flex flex-col items-center px-4">
+    <div className="flex flex-col items-center px-2" style={{ minWidth: "12rem" }}>
       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border mb-1
         ${label === "SIM" ? "text-green-600 bg-green-50 border-green-200" : "text-red-600 bg-red-50 border-red-200"}`}>
         {label}
@@ -111,8 +113,35 @@ function BranchRenderer({
             onClick={() => onSelectBlock(b.id)}
             onDelete={() => onDeleteBlock(b.id)}
           />
+          {/* CONDITION inside branch: render sub-branches */}
+          {b.type === "CONDITION" && (
+            <div className="flex flex-col items-center mt-1">
+              <div className="w-0.5 h-3 bg-amber-300" />
+              <div className="grid grid-cols-2 gap-2 w-full">
+                <div className="flex flex-col items-center">
+                  <div className="w-0.5 h-3 bg-amber-300" />
+                  <BranchRenderer blocks={blocks} startId={b.yesBranch} mergeId={b.next}
+                    selectedBlockId={selectedBlockId} onSelectBlock={onSelectBlock}
+                    onDeleteBlock={onDeleteBlock} onInsertAfter={onInsertAfter}
+                    label="SIM" parentBlockId={b.id} />
+                </div>
+                <div className="flex flex-col items-center">
+                  <div className="w-0.5 h-3 bg-amber-300" />
+                  <BranchRenderer blocks={blocks} startId={b.noBranch} mergeId={b.next}
+                    selectedBlockId={selectedBlockId} onSelectBlock={onSelectBlock}
+                    onDeleteBlock={onDeleteBlock} onInsertAfter={onInsertAfter}
+                    label="NAO" parentBlockId={b.id} />
+                </div>
+              </div>
+              <div className="w-0.5 h-3 bg-amber-300" />
+            </div>
+          )}
         </div>
       ))}
+      {/* + button after last block in branch to continue adding */}
+      {branchBlocks.length > 0 && (
+        <Connector onClick={() => onInsertAfter(branchBlocks[branchBlocks.length - 1].id)} />
+      )}
     </div>
   );
 }
