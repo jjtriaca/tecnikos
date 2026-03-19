@@ -6,6 +6,8 @@
 ## Pendencias
 
 ### A FAZER
+- **Workflow Engine V3**: Blocos como controladores absolutos — sem logica pre-fixada. Ver memory/project_workflow_engine_v3.md
+- **Portal do tecnico**: Respeitar configs dos blocos (botao manual, GPS avancado, aceite)
 - **Fase 3 — Offline-first**: IndexedDB para OS locais + fila de sync (futuro)
 
 ### PENDENTE VALIDACAO
