@@ -794,6 +794,8 @@ export default function TechOrderDetailPage() {
               v2GpsCoords={v2GpsCoords}
               v2GpsLoading={v2GpsLoading}
               handleCaptureGps={handleCaptureGps}
+              v2GpsTracking={v2GpsTracking}
+              handleStopGpsTracking={handleStopGpsTracking}
               v2FormFields={v2FormFields}
               setV2FormFields={setV2FormFields}
               onAdvance={handleAdvanceBlockV2}
@@ -1088,6 +1090,7 @@ function V2BlockAction({
   v2Note, setV2Note, v2Answer, setV2Answer,
   v2CheckedItems, setV2CheckedItems,
   v2GpsCoords, v2GpsLoading, handleCaptureGps,
+  v2GpsTracking, handleStopGpsTracking,
   v2FormFields, setV2FormFields, onAdvance,
 }: {
   block: BlockProgress;
@@ -1103,7 +1106,9 @@ function V2BlockAction({
   setV2CheckedItems: React.Dispatch<React.SetStateAction<string[]>>;
   v2GpsCoords: { lat: number; lng: number } | null;
   v2GpsLoading: boolean;
-  handleCaptureGps: () => void;
+  handleCaptureGps: (gpsConfig?: Record<string, any>) => void;
+  v2GpsTracking: boolean;
+  handleStopGpsTracking: () => void;
   v2FormFields: Record<string, string>;
   setV2FormFields: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   onAdvance: () => void;
