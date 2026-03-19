@@ -52,8 +52,8 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
         </span>
       </div>
 
-      {/* Center — Billing indicators (OS bar + add-on + status) */}
-      <HeaderBilling />
+      {/* Center — Billing indicators (OS bar + add-on + status) — hide in admin */}
+      {!pathname.startsWith("/ctrl-") && <HeaderBilling />}
 
       {/* Right side — Notifications + user */}
       <div className="flex items-center gap-2">
