@@ -31,6 +31,15 @@ function createMockPrisma() {
     partner: {
       findUnique: jest.fn(),
     },
+    tenant: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
+    subscription: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
+    nfseEmission: {
+      count: jest.fn().mockResolvedValue(0),
+    },
     $transaction: jest.fn((fns: any[]) => Promise.all(fns.map((fn: any) => (typeof fn === 'function' ? fn() : fn)))),
   };
 }
@@ -253,7 +262,7 @@ describe('ServiceOrderService', () => {
       mockPrisma.company.findFirst.mockResolvedValue({ maxOsPerMonth: 72 });
       mockPrisma.serviceOrder.count.mockResolvedValue(72);
 
-      await expect(service.create(createDto as any)).rejects.toThrow(/Limite de 72 OS/);
+      await expect(service.create(createDto as any)).rejects.toThrow(/Limite de 72 transações/);
     });
 
     it('should ALLOW creation when under limit', async () => {

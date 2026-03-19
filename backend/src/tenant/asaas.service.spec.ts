@@ -486,12 +486,13 @@ describe('AsaasService — Webhook & Billing Logic', () => {
   // 7. PROMOTION TRACKING
   // ════════════════════════════════════════════════════════════════════
   describe('Promotion Handling', () => {
-    it('should decrement promotionMonthsLeft on payment', async () => {
+    it('should zero promotionMonthsLeft on first payment (upfront model)', async () => {
       const sub = buildSubscription({
         status: 'ACTIVE',
         promotionId: 'promo-1',
-        promotionMonthsLeft: 3,
+        promotionMonthsLeft: 6,
         originalValueCents: 19700,
+        asaasSubscriptionId: 'sub_asaas_123',
         tenant: { status: 'ACTIVE' },
       });
       const payment = buildPaymentEvent();
@@ -503,10 +504,11 @@ describe('AsaasService — Webhook & Billing Logic', () => {
 
       await service.handlePaymentWebhook('PAYMENT_CONFIRMED', payment);
 
+      // Upfront model: all promo months consumed in first payment
       expect(mockPrisma.subscription.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            promotionMonthsLeft: 2,
+            promotionMonthsLeft: 0,
           }),
         }),
       );
