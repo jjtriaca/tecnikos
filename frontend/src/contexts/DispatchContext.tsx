@@ -217,11 +217,13 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
                     techHeading: result.location?.heading ?? undefined,
                     distanceMeters: result.location?.distanceMeters ?? undefined,
                     locationUpdatedAt: result.location?.updatedAt ?? undefined,
-                    technicianName: result.technician?.name || p.technicianName,
-                    technicianPhone: result.technician?.phone || p.technicianPhone,
-                    notificationId: result.notification?.id || p.notificationId,
-                    notificationStatus: result.notification?.status || p.notificationStatus,
-                    whatsappStatus: result.notification?.whatsappStatus || p.whatsappStatus,
+                    technicianName: result.technician?.name ?? p.technicianName,
+                    technicianPhone: result.technician?.phone ?? p.technicianPhone,
+                    // Always use fresh notification data from server (don't keep stale errors)
+                    notificationId: result.notification?.id || undefined,
+                    notificationStatus: result.notification?.status || "PENDING",
+                    notificationChannel: result.notification?.channel || p.notificationChannel,
+                    whatsappStatus: result.notification?.whatsappStatus || undefined,
                     errorDetail: result.notification?.errorDetail || undefined,
                   }
                 : p,
