@@ -446,7 +446,17 @@ export class ServiceOrderService {
     const skip = (page - 1) * limit;
 
     const where: any = { companyId, deletedAt: null };
-    if (filters?.technicianId) where.assignedPartnerId = filters.technicianId;
+    const andConditions: any[] = [];
+
+    if (filters?.technicianId) {
+      // Tech can see orders assigned to them OR directed to them (OFERTADA)
+      andConditions.push({
+        OR: [
+          { assignedPartnerId: filters.technicianId },
+          { directedTechnicianIds: { has: filters.technicianId } },
+        ],
+      });
+    }
     if (filters?.status) where.status = filters.status;
     if (filters?.dateFrom || filters?.dateTo) {
       where.createdAt = {};
@@ -461,22 +471,30 @@ export class ServiceOrderService {
     if (pagination?.search) {
       const words = pagination.search.trim().split(/\s+/).filter(Boolean);
       if (words.length <= 1) {
-        where.OR = [
-          { title: { contains: pagination.search, mode: 'insensitive' } },
-          { addressText: { contains: pagination.search, mode: 'insensitive' } },
-          { code: { contains: pagination.search, mode: 'insensitive' } },
-          { clientPartner: { name: { contains: pagination.search, mode: 'insensitive' } } },
-        ];
-      } else {
-        where.AND = words.map((word) => ({
+        andConditions.push({
           OR: [
-            { title: { contains: word, mode: 'insensitive' } },
-            { addressText: { contains: word, mode: 'insensitive' } },
-            { code: { contains: word, mode: 'insensitive' } },
-            { clientPartner: { name: { contains: word, mode: 'insensitive' } } },
+            { title: { contains: pagination.search, mode: 'insensitive' } },
+            { addressText: { contains: pagination.search, mode: 'insensitive' } },
+            { code: { contains: pagination.search, mode: 'insensitive' } },
+            { clientPartner: { name: { contains: pagination.search, mode: 'insensitive' } } },
           ],
-        }));
+        });
+      } else {
+        for (const word of words) {
+          andConditions.push({
+            OR: [
+              { title: { contains: word, mode: 'insensitive' } },
+              { addressText: { contains: word, mode: 'insensitive' } },
+              { code: { contains: word, mode: 'insensitive' } },
+              { clientPartner: { name: { contains: word, mode: 'insensitive' } } },
+            ],
+          });
+        }
       }
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const orderBy = buildOrderBy(pagination?.sortBy, pagination?.sortOrder, SORTABLE_COLUMNS, { createdAt: 'desc' });
