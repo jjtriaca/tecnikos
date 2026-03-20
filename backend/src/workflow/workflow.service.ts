@@ -336,4 +336,65 @@ export class WorkflowService {
 
     return { token, serviceOrderId: os.id };
   }
+
+  /**
+   * Reset a preview OS back to OFERTADA, clearing all workflow step logs.
+   * Also processes initial system blocks (START → first actionable block).
+   */
+  async resetPreviewOs(workflowId: string, companyId: string, serviceOrderId: string) {
+    // Verify the OS belongs to this workflow and company
+    const os = await this.prisma.serviceOrder.findFirst({
+      where: { id: serviceOrderId, companyId, workflowTemplateId: workflowId, deletedAt: null },
+      include: { workflowTemplate: { select: { steps: true } } },
+    });
+    if (!os) throw new NotFoundException('OS não encontrada ou não pertence a este workflow');
+
+    await this.prisma.$transaction(async (tx) => {
+      // Delete all workflow step logs
+      await tx.workflowStepLog.deleteMany({ where: { serviceOrderId } });
+
+      // Delete any pending workflow waits
+      await (tx as any).pendingWorkflowWait?.deleteMany?.({ where: { serviceOrderId } }).catch(() => {});
+
+      // Reset OS status to OFERTADA
+      await tx.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: {
+          status: 'OFERTADA',
+          completedAt: null,
+          startedAt: null,
+        },
+      });
+
+      // Ensure there's a valid (non-revoked, non-expired) offer token
+      const validOffer = await tx.serviceOrderOffer.findFirst({
+        where: { serviceOrderId, companyId, revokedAt: null, expiresAt: { gt: new Date() } },
+        select: { token: true },
+      });
+
+      if (!validOffer) {
+        // Create a new token
+        const { randomUUID } = await import('crypto');
+        await tx.serviceOrderOffer.create({
+          data: {
+            serviceOrderId,
+            companyId,
+            channel: 'PREVIEW',
+            token: randomUUID(),
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        });
+      }
+    });
+
+    // Get the current valid token to return
+    const offer = await this.prisma.serviceOrderOffer.findFirst({
+      where: { serviceOrderId, companyId, revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { token: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    this.logger.log(`🔄 Preview OS ${serviceOrderId} reset to OFERTADA`);
+    return { token: offer?.token || '', serviceOrderId };
+  }
 }

@@ -86,6 +86,18 @@ export class WorkflowController {
     return this.service.getOrCreatePreviewOs(id, user.companyId, body.triggerLabel);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/reset-preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset preview OS to OFERTADA and clear workflow logs' })
+  resetPreview(
+    @Param('id') id: string,
+    @Body() body: { serviceOrderId: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.resetPreviewOs(id, user.companyId, body.serviceOrderId);
+  }
+
   @Roles(UserRole.ADMIN)
   @Delete(':id')
   remove(
