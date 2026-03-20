@@ -621,45 +621,38 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
 
               {/* Status below phone */}
               {previewToken && (
-                <div className="flex flex-col items-center gap-1.5 mt-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${usingRealOs ? "bg-amber-500" : "bg-green-500"}`} />
-                    <span className="text-[9px] text-slate-400">{usingRealOs ? "OS real" : "Preview"}</span>
-                    <button
-                      onClick={() => iframeRef.current?.contentWindow?.location.reload()}
-                      className="text-[9px] text-blue-500 hover:text-blue-700 underline ml-1"
-                    >
-                      Recarregar
-                    </button>
-                    <button
-                      onClick={() => { setPreviewToken(null); setUsingRealOs(false); setPreviewOsId(null); setShowOsList(false); }}
-                      className="text-[9px] text-slate-400 hover:text-slate-600 underline ml-1"
-                    >
-                      Trocar
-                    </button>
-                  </div>
-                  {/* Reset button */}
+                <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
+                  <div className={`h-2 w-2 rounded-full ${usingRealOs ? "bg-amber-500" : "bg-green-500"}`} />
+                  <span className="text-[9px] text-slate-400">{usingRealOs ? "OS real" : "Preview"}</span>
+                  <button
+                    onClick={() => iframeRef.current?.contentWindow?.location.reload()}
+                    className="text-[9px] text-blue-500 hover:text-blue-700 underline"
+                  >
+                    Recarregar
+                  </button>
                   {previewOsId && (
                     <button
                       onClick={() => resetOsAndLoad()}
                       disabled={resetting}
-                      className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 text-[10px] font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                      className="flex items-center gap-0.5 text-[9px] text-amber-600 hover:text-amber-800 underline disabled:opacity-50"
+                      title="Reiniciar fluxo (voltar para OFERTADA)"
                     >
                       {resetting ? (
-                        <>
-                          <span className="h-3 w-3 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
-                          Reiniciando...
-                        </>
+                        <span className="h-2.5 w-2.5 animate-spin rounded-full border border-amber-500 border-t-transparent" />
                       ) : (
-                        <>
-                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          Reiniciar fluxo
-                        </>
+                        <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
                       )}
+                      Reiniciar
                     </button>
                   )}
+                  <button
+                    onClick={() => { setPreviewToken(null); setUsingRealOs(false); setPreviewOsId(null); setShowOsList(false); }}
+                    className="text-[9px] text-slate-400 hover:text-slate-600 underline"
+                  >
+                    Trocar
+                  </button>
                 </div>
               )}
             </div>
