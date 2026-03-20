@@ -806,9 +806,11 @@ export default function TechOrderDetailPage() {
           )}
 
           {/* Execution path — only interactive blocks visible to the tech */}
+          {/* ACTION_BUTTONS: skip the card when it's the current block — V2BlockAction renders the buttons directly */}
           <div className="space-y-2">
             {workflow.executionPath
               .filter((b) => INTERACTIVE_TYPES.has(b.type))
+              .filter((b) => !(b.type === "ACTION_BUTTONS" && !b.completed && workflow.currentBlock?.id === b.id))
               .map((block) => {
                 const isCurrent = workflow.currentBlock?.id === block.id;
                 return (
@@ -833,6 +835,11 @@ export default function TechOrderDetailPage() {
                           block.completed ? "text-green-800" : isCurrent ? "text-blue-800" : "text-slate-500"
                         }`}>
                           {block.name}
+                          {block.completed && block.type === "ACTION_BUTTONS" && block.responseData?.answer && (
+                            <span className="ml-1 text-[11px] text-green-600">— {
+                              (block.config?.buttons || []).find((btn: any) => btn.id === block.responseData.answer)?.label || block.responseData.answer
+                            }</span>
+                          )}
                         </p>
                         {block.completed && block.completedAt && (
                           <p className="text-[11px] text-green-600">
@@ -842,7 +849,7 @@ export default function TechOrderDetailPage() {
                         {block.completed && block.note && (
                           <p className="text-[11px] text-green-700 mt-0.5 truncate">📝 {block.note}</p>
                         )}
-                        {block.completed && block.responseData?.answer && (
+                        {block.completed && block.responseData?.answer && block.type !== "ACTION_BUTTONS" && (
                           <p className="text-[11px] text-green-700 mt-0.5">💬 {block.responseData.answer}</p>
                         )}
                       </div>
