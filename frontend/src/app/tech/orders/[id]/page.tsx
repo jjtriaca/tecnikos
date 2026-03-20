@@ -239,6 +239,10 @@ export default function TechOrderDetailPage() {
   const v2GpsWatchRef = useRef<number | null>(null);
   const watchIdRef = useRef<number | null>(null);
 
+  // Post-workflow INFO display (client-side timer for INFO+DELAY combos)
+  const [postInfo, setPostInfo] = useState<{ info: any; hideAfterMs: number; blankAfterMs: number } | null>(null);
+  const [postInfoPhase, setPostInfoPhase] = useState<"info" | "blank" | "done">("done");
+
   // Pause state
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
@@ -293,6 +297,54 @@ export default function TechOrderDetailPage() {
       setV2GpsTracking(false);
     }
   }, [currentBlockId]);
+
+  // Post-workflow INFO timer: when workflow completes with INFO+DELAY pattern, show info then blank
+  useEffect(() => {
+    if (!workflow || !isV2(workflow) || !workflow.isComplete) {
+      if (postInfoPhase !== "done") { setPostInfoPhase("done"); setPostInfo(null); }
+      return;
+    }
+    const path = workflow.executionPath;
+    // Find last INFO block and subsequent DELAY blocks
+    let lastInfoIdx = -1;
+    for (let i = path.length - 1; i >= 0; i--) {
+      if (path[i].type === "INFO") { lastInfoIdx = i; break; }
+    }
+    if (lastInfoIdx < 0) return; // No INFO in path
+    // Calculate delay durations after INFO
+    const delaysAfterInfo: number[] = [];
+    for (let i = lastInfoIdx + 1; i < path.length; i++) {
+      if (path[i].type === "DELAY") {
+        const cfg = path[i].config || {};
+        const dur = cfg.duration ?? cfg.minutes ?? 0;
+        const unit = cfg.unit || "minutes";
+        const ms = unit === "seconds" ? dur * 1000 : unit === "hours" ? dur * 3600000 : unit === "days" ? dur * 86400000 : dur * 60000;
+        delaysAfterInfo.push(ms);
+      }
+    }
+    if (delaysAfterInfo.length === 0) return; // No DELAY after INFO
+
+    const infoBlock = path[lastInfoIdx];
+    const hideAfterMs = delaysAfterInfo[0] || 3000; // First delay = time to show info
+    const blankAfterMs = delaysAfterInfo.length > 1 ? delaysAfterInfo[1] : 0; // Second delay = blank time
+
+    setPostInfo({ info: infoBlock, hideAfterMs, blankAfterMs });
+    setPostInfoPhase("info");
+
+    // Timer 1: hide info after first delay
+    const t1 = setTimeout(() => {
+      if (blankAfterMs > 0) {
+        setPostInfoPhase("blank");
+        // Timer 2: after blank period, mark as done (will show link expired)
+        const t2 = setTimeout(() => setPostInfoPhase("done"), blankAfterMs);
+        return () => clearTimeout(t2);
+      } else {
+        setPostInfoPhase("done");
+      }
+    }, hideAfterMs);
+    return () => clearTimeout(t1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflow && isV2(workflow) && (workflow as any).isComplete]);
 
   // GPS block: auto-capture when config.auto is true
   useEffect(() => {
@@ -663,8 +715,8 @@ export default function TechOrderDetailPage() {
         </div>
       )}
 
-      {/* Info Card */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm mb-4">
+      {/* Info Card — hidden during post-workflow blank phase */}
+      <div className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm mb-4 ${postInfoPhase === "blank" ? "hidden" : ""}`}>
         {showOsCode && order.code && <p className="text-xs font-mono text-slate-500 mb-2">🔢 {order.code}</p>}
         {showDescription && order.description && <p className="text-sm text-slate-600 mb-3">{order.description}</p>}
         <div className="space-y-2.5">
@@ -907,13 +959,72 @@ export default function TechOrderDetailPage() {
         </div>
         ); })()}
 
-      {/* V2 workflow complete */}
-      {isV2Workflow && workflow.isComplete && (
-        <WorkflowComplete
-          name={workflow.templateName}
-          blocks={workflow.executionPath.filter((b) => INTERACTIVE_TYPES.has(b.type))}
-        />
-      )}
+      {/* V2 workflow complete — with post-info animation */}
+      {isV2Workflow && workflow.isComplete && (() => {
+        // Post-workflow INFO+DELAY: show info card with timer
+        if (postInfo && postInfoPhase === "info") {
+          const c = postInfo.info.config || {};
+          const INFO_C: Record<string, { bg: string; border: string; text: string }> = {
+            blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
+            green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
+            red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
+            yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
+            slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
+            purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
+            cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
+            orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
+          };
+          const ic = INFO_C[c.color || "blue"] || INFO_C.blue;
+          const FS: Record<string, { title: string; body: string; icon: string }> = {
+            sm: { title: "text-sm", body: "text-xs", icon: "text-lg" },
+            md: { title: "text-base", body: "text-sm", icon: "text-2xl" },
+            lg: { title: "text-lg", body: "text-base", icon: "text-3xl" },
+          };
+          const fs = FS[c.fontSize || "md"] || FS.md;
+          const BS: Record<string, string> = { compact: "p-2.5 rounded-lg", normal: "p-4 rounded-xl", large: "p-6 rounded-2xl" };
+          const bs = BS[c.boxSize || "normal"] || BS.normal;
+          const rv = (text: string) => {
+            if (!text || !order) return text;
+            const fmtCur = (cents?: number) => cents != null ? (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
+            const fmtDt = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
+            return text
+              .replace(/\{titulo\}/g, order.title || "-").replace(/\{codigo\}/g, order.code || "-")
+              .replace(/\{nome_cliente\}/g, (order as any).clientPartnerName || (order as any).clientName || "-")
+              .replace(/\{endereco\}/g, order.addressText || "-").replace(/\{status\}/g, order.status || "-")
+              .replace(/\{valor\}/g, fmtCur(order.valueCents)).replace(/\{descricao\}/g, order.description || "-")
+              .replace(/\{data_agendamento\}/g, fmtDt(order.deadlineAt || (order as any).scheduledStartAt))
+              .replace(/\{tecnico\}/g, (order as any).technicianName || "-")
+              .replace(/\{empresa\}/g, (order as any).companyName || "-")
+              .replace(/\{telefone_empresa\}/g, (order as any).companyPhone || "-")
+              .replace(/\{telefone_cliente\}/g, (order as any).clientPhone || "-")
+              .replace(/\{contato_local\}/g, (order as any).contactPersonName || "-");
+          };
+          return (
+            <div className="mb-4">
+              <div className={`border-2 ${ic.border} ${ic.bg} ${bs}`}>
+                {c.title && (
+                  <div className={`flex items-center gap-2 ${c.boxSize === "compact" ? "mb-1" : "mb-2"}`}>
+                    <span className={fs.icon}>{c.icon || "ℹ️"}</span>
+                    <span className={`${fs.title} font-bold ${ic.text}`}>{rv(c.title || postInfo.info.name)}</span>
+                  </div>
+                )}
+                {c.message && <p className={`${fs.body} ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>{rv(c.message)}</p>}
+              </div>
+            </div>
+          );
+        }
+        // Blank phase: show nothing (white screen)
+        if (postInfo && postInfoPhase === "blank") {
+          return <div className="mb-4" />;
+        }
+        // Normal complete (no INFO+DELAY pattern, or done phase)
+        return (
+          <WorkflowComplete
+            name={workflow.templateName}
+            blocks={workflow.executionPath.filter((b) => INTERACTIVE_TYPES.has(b.type))}
+          />
+        );
+      })()}
 
       {/* ═══════════════════════════════════════════
           V1 WORKFLOW (legacy)
