@@ -709,7 +709,7 @@ export default function DispatchPanel() {
           loaded[key.replace("dispatchPos_", "")] = clampPosition(val.x, val.y);
         }
       }
-      if (Object.keys(loaded).length > 0) setPositions((prev) => ({ ...loaded, ...prev }));
+      if (Object.keys(loaded).length > 0) setPositions((prev) => ({ ...prev, ...loaded }));
     }).catch(() => {});
   }, []);
 
