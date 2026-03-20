@@ -249,7 +249,7 @@ export function createBlock(type: BlockType, overrides?: Partial<Block>): Block 
     config: getDefaultConfig(type),
     next: null,
     ...(type === 'CONDITION' ? { yesBranch: null, noBranch: null } : {}),
-    ...(type === 'ACTION_BUTTONS' ? { branches: { btn_0: null, btn_1: null } } : {}),
+    ...(type === 'ACTION_BUTTONS' ? { branches: {} } : {}),
   };
   return { ...base, ...overrides };
 }
@@ -265,7 +265,7 @@ export function getDefaultConfig(type: BlockType): Record<string, any> {
     case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do servico' };
     case 'FORM': return { fields: [{ name: 'Condicao do equipamento', type: 'select', required: true, options: ['Bom', 'Regular', 'Ruim'] }, { name: 'Observacoes', type: 'text', required: false }] };
     case 'CONDITION': return { conditionType: 'question', question: 'O servico foi concluido com sucesso?' };
-    case 'ACTION_BUTTONS': return { title: 'O que deseja fazer?', buttons: [{ id: 'btn_0', label: 'Aceitar', color: 'green', icon: '✅' }, { id: 'btn_1', label: 'Recusar', color: 'red', icon: '❌' }] };
+    case 'ACTION_BUTTONS': return { title: '', buttons: [{ id: 'btn_0', label: 'Confirmar', color: 'green', icon: '✅' }] };
     case 'NOTIFY': return { recipients: [{ type: 'CLIENTE', enabled: true, channel: 'WHATSAPP', message: 'Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.' }] };
     case 'APPROVAL': return { approverRole: 'ADMIN', message: 'Servico finalizado aguardando aprovacao do gestor para encerramento da OS.' };
     case 'ALERT': return { message: 'Atencao: verificar pendencia na ordem de servico {titulo}.', severity: 'warning' };

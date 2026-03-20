@@ -140,9 +140,10 @@ function BranchRenderer({
               <div className="w-0.5 h-3 bg-amber-300" />
             </div>
           )}
-          {/* ACTION_BUTTONS inside branch: render N sub-branches */}
+          {/* ACTION_BUTTONS inside branch: render N sub-branches (only when 2+ buttons) */}
           {b.type === "ACTION_BUTTONS" && b.branches && (() => {
             const btns: { id: string; label: string; color: string; icon?: string }[] = b.config?.buttons || [];
+            if (btns.length <= 1) return null;
             const BC: Record<string, string> = { green: "text-green-600 bg-green-50 border-green-200", red: "text-red-600 bg-red-50 border-red-200", blue: "text-blue-600 bg-blue-50 border-blue-200", yellow: "text-yellow-700 bg-yellow-50 border-yellow-200", slate: "text-slate-600 bg-slate-100 border-slate-300" };
             return (
               <div className="flex flex-col items-center mt-1">
@@ -202,7 +203,7 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
           return (
             <div key={blockId} className="flex flex-col items-center">
               {/* Connector between blocks */}
-              {idx > 0 && prevBlock?.type !== "CONDITION" && prevBlock?.type !== "ACTION_BUTTONS" && (
+              {idx > 0 && prevBlock?.type !== "CONDITION" && !(prevBlock?.type === "ACTION_BUTTONS" && (prevBlock.config?.buttons?.length || 0) > 1) && (
                 <Connector onClick={() => onInsertAfter(chainIds[idx - 1])} />
               )}
 
@@ -216,8 +217,8 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
                 onDelete={() => onDeleteBlock(blockId)}
               />
 
-              {/* ACTION_BUTTONS: render N branches */}
-              {block.type === "ACTION_BUTTONS" && block.branches && (() => {
+              {/* ACTION_BUTTONS: render N branches (only when 2+ buttons) */}
+              {block.type === "ACTION_BUTTONS" && (block.config?.buttons?.length || 0) > 1 && (() => {
                 const buttons: { id: string; label: string; color: string; icon?: string }[] = block.config?.buttons || [];
                 const BRANCH_COLORS: Record<string, string> = {
                   green: "text-green-600 bg-green-50 border-green-200",

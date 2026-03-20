@@ -505,7 +505,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                           placeholder="Label do botao"
                           className="flex-1 rounded border border-slate-200 px-2 py-0.5 text-xs outline-none focus:border-blue-400"
                         />
-                        {buttons.length > 2 && (
+                        {buttons.length > 1 && (
                           <button onClick={() => removeButton(i)} className="px-1 text-xs text-red-400 hover:text-red-600" title="Remover">x</button>
                         )}
                       </div>
@@ -531,7 +531,11 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   <button onClick={addButton} className="text-[10px] text-blue-500 hover:text-blue-600 font-medium">+ Adicionar botao</button>
                 )}
               </div>
-              <p className="text-[10px] text-slate-400 mt-2">Cada botao segue um caminho diferente no fluxo. Conecte os caminhos no canvas.</p>
+              <p className="text-[10px] text-slate-400 mt-2">
+                {buttons.length === 1
+                  ? "1 botao = acao simples. O tecnico confirma e o fluxo continua."
+                  : "Cada botao segue um caminho diferente no fluxo."}
+              </p>
             </>
           );
         })()}
