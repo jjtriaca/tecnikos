@@ -132,10 +132,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // On mount: try silent refresh → fetch user
+  // Skip for /tech/* routes — they use TechAuthContext, not admin auth.
+  // Running silentRefresh in an iframe (emulator) would rotate the admin's
+  // refresh token, invalidating the parent window's session.
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
+      // Skip admin auth for tech portal routes
+      if (typeof window !== "undefined" && window.location.pathname.startsWith("/tech")) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const token = await silentRefresh();
         if (!token || cancelled) return;
