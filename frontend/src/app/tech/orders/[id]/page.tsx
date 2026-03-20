@@ -659,6 +659,37 @@ export default function TechOrderDetailPage() {
   const commissionLabel = portalCfg.commissionLabel || "Comissao";
   const customMessage = portalCfg.customMessage || "";
 
+  // When workflow is complete and status is terminal → show finished screen
+  const isTerminalComplete = isV2Workflow && workflow.isComplete && ["RECUSADA", "CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status);
+
+  if (isTerminalComplete) {
+    // Check for INFO+DELAY pattern for timed display
+    const path = workflow.executionPath || [];
+    let lastInfoIdx = -1;
+    for (let i = path.length - 1; i >= 0; i--) {
+      if (path[i].type === "INFO") { lastInfoIdx = i; break; }
+    }
+    // Find delays after INFO to calculate display time
+    let showInfoMs = 0;
+    let blankMs = 0;
+    if (lastInfoIdx >= 0) {
+      const delaysAfter: number[] = [];
+      for (let i = lastInfoIdx + 1; i < path.length; i++) {
+        if (path[i].type === "DELAY") {
+          const cfg = path[i].config || {};
+          const dur = cfg.duration ?? cfg.minutes ?? 0;
+          const unit = cfg.unit || "minutes";
+          const ms = unit === "seconds" ? dur * 1000 : unit === "hours" ? dur * 3600000 : unit === "days" ? dur * 86400000 : dur * 60000;
+          delaysAfter.push(ms);
+        }
+      }
+      showInfoMs = delaysAfter[0] || 0;
+      blankMs = delaysAfter.length > 1 ? delaysAfter[1] : 0;
+    }
+
+    return <TerminalScreen order={order} infoBlock={lastInfoIdx >= 0 ? path[lastInfoIdx] : null} showInfoMs={showInfoMs} blankMs={blankMs} />;
+  }
+
   return (
     <div className="pb-6">
       {/* Back button */}
@@ -1271,6 +1302,80 @@ function InfoRow({ icon, color, label, value, bold }: { icon: string; color: str
       <div>
         <p className="text-xs text-slate-500">{label}</p>
         <p className={`text-sm ${bold ? "font-bold" : "font-medium"} ${color === "red" ? "text-red-600" : "text-slate-800"}`}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function TerminalScreen({ order, infoBlock, showInfoMs, blankMs }: { order: ServiceOrder; infoBlock: any | null; showInfoMs: number; blankMs: number }) {
+  const [phase, setPhase] = useState<"info" | "blank" | "done">(infoBlock && showInfoMs > 0 ? "info" : "done");
+
+  useEffect(() => {
+    if (!infoBlock || showInfoMs <= 0) { setPhase("done"); return; }
+    const t1 = setTimeout(() => {
+      if (blankMs > 0) {
+        setPhase("blank");
+        const t2 = setTimeout(() => setPhase("done"), blankMs);
+        return () => clearTimeout(t2);
+      }
+      setPhase("done");
+    }, showInfoMs);
+    return () => clearTimeout(t1);
+  }, [infoBlock, showInfoMs, blankMs]);
+
+  // Phase "info": show INFO card
+  if (phase === "info" && infoBlock) {
+    const c = infoBlock.config || {};
+    const IC: Record<string, { bg: string; border: string; text: string }> = {
+      blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
+      green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
+      red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
+      yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
+      slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
+      purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
+      cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
+      orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
+    };
+    const ic = IC[c.color || "blue"] || IC.blue;
+    const FS: Record<string, { title: string; body: string; icon: string }> = {
+      sm: { title: "text-sm", body: "text-xs", icon: "text-lg" },
+      md: { title: "text-base", body: "text-sm", icon: "text-2xl" },
+      lg: { title: "text-lg", body: "text-base", icon: "text-3xl" },
+    };
+    const fs = FS[c.fontSize || "md"] || FS.md;
+    const BS: Record<string, string> = { compact: "p-2.5 rounded-lg", normal: "p-4 rounded-xl", large: "p-6 rounded-2xl" };
+    const bs = BS[c.boxSize || "normal"] || BS.normal;
+    const rv = (text: string) => {
+      if (!text) return text;
+      return text
+        .replace(/\{titulo\}/g, order.title || "-").replace(/\{codigo\}/g, order.code || "-")
+        .replace(/\{status\}/g, order.status || "-").replace(/\{endereco\}/g, order.addressText || "-")
+        .replace(/\{descricao\}/g, order.description || "-");
+    };
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className={`border-2 ${ic.border} ${ic.bg} ${bs} w-full max-w-sm`}>
+          {c.title && (
+            <div className={`flex items-center gap-2 ${c.boxSize === "compact" ? "mb-1" : "mb-2"}`}>
+              <span className={fs.icon}>{c.icon || "ℹ️"}</span>
+              <span className={`${fs.title} font-bold ${ic.text}`}>{rv(c.title || infoBlock.name)}</span>
+            </div>
+          )}
+          {c.message && <p className={`${fs.body} ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>{rv(c.message)}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  // Phase "blank" or "done": empty screen
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="text-center">
+        <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+          <span className="text-2xl">✅</span>
+        </div>
+        <p className="text-sm font-medium text-slate-600">Ordem de serviço finalizada</p>
+        <p className="text-xs text-slate-400 mt-1">Não há mais ações pendentes</p>
       </div>
     </div>
   );
