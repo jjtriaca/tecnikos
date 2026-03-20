@@ -452,12 +452,6 @@ export class WorkflowEngineService {
         return { executed, stoppedAt: `${block.type}:${block.name}` };
       }
 
-      // STATUS manual = parar (tecnico precisa clicar o botao)
-      if (block.type === 'STATUS' && block.config?.transitionMode === 'manual') {
-        this.logger.log(`🚀 Stopped at manual STATUS: "${block.config.buttonLabel || block.config.targetStatus}"`);
-        return { executed, stoppedAt: `STATUS_MANUAL:${block.config.targetStatus}` };
-      }
-
       // System blocks: auto-executar (STATUS blocks NUNCA param o engine — blocos interativos controlam parada)
       try {
         this.logger.log(`🚀 Auto-executing ${block.type} "${block.name}"`);
@@ -497,7 +491,6 @@ export class WorkflowEngineService {
                   const nextBlock = blocks.find((b: any) => b.id === nextId);
                   if (!nextBlock || nextBlock.type === 'END') break;
                   if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
-                  if (nextBlock.type === 'STATUS' && nextBlock.config?.transitionMode === 'manual') break;
                   try {
                     await this.executeSystemBlock(nextBlock, serviceOrderId, companyId);
                     await this.prisma.workflowStepLog.create({
@@ -835,9 +828,7 @@ export class WorkflowEngineService {
 
       const log = logsByBlockId.get(block.id);
       const isCompleted = !!log;
-      // STATUS com transitionMode manual eh acionavel pelo tecnico (como GPS, PHOTO, etc.)
-      const isActionable = ACTIONABLE_TYPES.has(block.type) ||
-        (block.type === 'STATUS' && block.config?.transitionMode === 'manual');
+      const isActionable = ACTIONABLE_TYPES.has(block.type);
 
       // END block
       if (block.type === 'END') {
@@ -900,7 +891,7 @@ export class WorkflowEngineService {
     }
 
     const actionBlocks = executionPath.filter((b) =>
-      ACTIONABLE_TYPES.has(b.type) || (b.type === 'STATUS' && b.config?.transitionMode === 'manual'),
+      ACTIONABLE_TYPES.has(b.type),
     );
     const totalActionable = actionBlocks.length;
     const completedActionable = actionBlocks.filter(
@@ -969,16 +960,11 @@ export class WorkflowEngineService {
 
     let newStatus: ServiceOrderStatus | null = null;
 
-    // STATUS manual: tech clicou no botao → executar a mudanca de status definida no bloco
-    if (block.type === 'STATUS' && block.config?.transitionMode === 'manual' && block.config?.targetStatus) {
-      newStatus = block.config.targetStatus as ServiceOrderStatus;
-    }
-    // Fallback legacy: se nao tem STATUS manual controlando, auto-transicionar para EM_EXECUCAO
-    // Mas SÓ se o workflow NAO tem blocos STATUS manual (fluxos antigos sem V3)
-    else if (
+    // Legacy fallback: auto-transicionar para EM_EXECUCAO se workflow antigo sem blocos STATUS
+    if (
       (so.status === 'ATRIBUIDA' || so.status === 'AJUSTE') &&
       block.type !== 'ARRIVAL_QUESTION' &&
-      !def.blocks?.some((b: any) => b.type === 'STATUS' && b.config?.transitionMode === 'manual')
+      !def.blocks?.some((b: any) => b.type === 'STATUS')
     ) {
       newStatus = ServiceOrderStatus.EM_EXECUCAO;
     }
@@ -1008,13 +994,12 @@ export class WorkflowEngineService {
       });
 
       if (newStatus) {
+        const st = newStatus as string;
         const statusUpdateData: any = { status: newStatus };
-        // Timestamps automaticos conforme status
-        if (newStatus === 'ATRIBUIDA' && !so.acceptedAt) statusUpdateData.acceptedAt = new Date();
-        if (newStatus === 'EM_EXECUCAO' && !so.startedAt) statusUpdateData.startedAt = new Date();
-        if ((newStatus === 'CONCLUIDA' || newStatus === 'APROVADA') && !so.completedAt) statusUpdateData.completedAt = new Date();
-        // STATUS manual para ATRIBUIDA: atribuir tecnico direcionado se ainda nao atribuido
-        if (newStatus === 'ATRIBUIDA' && !so.assignedPartnerId && (so as any).directedTechnicianIds?.length > 0) {
+        if (st === 'ATRIBUIDA' && !so.acceptedAt) statusUpdateData.acceptedAt = new Date();
+        if (st === 'EM_EXECUCAO' && !so.startedAt) statusUpdateData.startedAt = new Date();
+        if ((st === 'CONCLUIDA' || st === 'APROVADA') && !so.completedAt) statusUpdateData.completedAt = new Date();
+        if (st === 'ATRIBUIDA' && !so.assignedPartnerId && (so as any).directedTechnicianIds?.length > 0) {
           statusUpdateData.assignedPartnerId = (so as any).directedTechnicianIds[0];
         }
         await tx.serviceOrder.update({ where: { id: so.id }, data: statusUpdateData });
@@ -1069,8 +1054,6 @@ export class WorkflowEngineService {
         const nextBlock = blocks.find((b) => b.id === nextBlockId);
         if (!nextBlock || nextBlock.type === 'END') break;
         if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
-        // STATUS com transitionMode manual = bloco acionavel pelo tecnico
-        if (nextBlock.type === 'STATUS' && nextBlock.config?.transitionMode === 'manual') break;
         // ── WAIT_FOR: criar PendingWorkflowWait e PARAR ──
         if (nextBlock.type === 'WAIT_FOR') {
           const waitConfig = nextBlock.config || {};
@@ -1298,8 +1281,6 @@ export class WorkflowEngineService {
         const nextBlock = blocks.find((b) => b.id === nextBlockId);
         if (!nextBlock || nextBlock.type === 'END') break;
         if (ACTIONABLE_TYPES.has(nextBlock.type)) break;
-        // STATUS com transitionMode manual = bloco acionavel pelo tecnico
-        if (nextBlock.type === 'STATUS' && nextBlock.config?.transitionMode === 'manual') break;
         // Se encontrar outro WAIT_FOR, criar novo PendingWorkflowWait
         if (nextBlock.type === 'WAIT_FOR') {
           const waitConfig = nextBlock.config || {};
