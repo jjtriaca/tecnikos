@@ -304,6 +304,12 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
                 <span className="text-[10px] text-slate-700 truncate">{d.clientName}</span>
               </div>
             )}
+            {d.createdByName && (
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-slate-400">Criado por:</span>
+                <span className="text-[10px] text-slate-700 truncate">{d.createdByName}</span>
+              </div>
+            )}
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-slate-400">Valor:</span>
               <span className="text-[10px] text-slate-700 font-medium">{formatCurrency(d.valueCents)}</span>

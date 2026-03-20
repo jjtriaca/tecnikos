@@ -15,6 +15,7 @@ export interface TechPortalConfig {
   showStatus: boolean;
   showSiteContact: boolean;
   showCompanyPhone: boolean;
+  showCreator: boolean;
   customMessage: string;
 }
 
@@ -31,6 +32,7 @@ export const DEFAULT_TECH_PORTAL_CONFIG: TechPortalConfig = {
   showStatus: true,
   showSiteContact: true,
   showCompanyPhone: true,
+  showCreator: false,
   customMessage: "",
 };
 
@@ -140,6 +142,7 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
           <div className="space-y-px mt-2 pt-2 border-t border-slate-100">
             <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Empresa</p>
             <Toggle label="Telefone do escritorio" checked={config.showCompanyPhone} onChange={(v) => update("showCompanyPhone", v)} />
+            <Toggle label="Criado por (usuario)" checked={config.showCreator} onChange={(v) => update("showCreator", v)} />
           </div>
 
           <div className="space-y-px mt-2 pt-2 border-t border-slate-100">
@@ -215,6 +218,7 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                   <InfoItem icon="📞" label="Telefone" value="(66) 99999-0000" visible={config.showClientPhone} />
                   <InfoItem icon="🏠" label="Contato no local" value="Maria - (66) 98888-0000" visible={config.showSiteContact} />
                   <InfoItem icon="🏢" label="Escritorio" value="(66) 3521-0000" visible={config.showCompanyPhone} />
+                  <InfoItem icon="✍️" label="Criado por" value="Juliano Triaca" visible={config.showCreator} />
                   {config.showDescription && (
                     <p className="text-[8px] text-slate-500 leading-relaxed">Troca de filtro e bomba da piscina</p>
                   )}

@@ -48,6 +48,7 @@ export interface DispatchState {
   isUrgent?: boolean;
   isReturn?: boolean;
   clientName?: string;
+  createdByName?: string;
   // GPS tracking (Fase 2)
   destLat?: number;
   destLng?: number;
@@ -105,6 +106,7 @@ function mapApiToDispatch(item: any): DispatchState {
     isUrgent: so.isUrgent,
     isReturn: so.isReturn,
     clientName: so.clientName,
+    createdByName: so.createdByName,
     destLat: so.lat,
     destLng: so.lng,
     techLat: item.location?.lat,
@@ -205,6 +207,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
                     isUrgent: so?.isUrgent ?? p.isUrgent,
                     isReturn: so?.isReturn ?? p.isReturn,
                     clientName: so?.clientName || p.clientName,
+                    createdByName: so?.createdByName || p.createdByName,
                     destLat: so?.lat ?? p.destLat,
                     destLng: so?.lng ?? p.destLng,
                     techLat: result.location?.lat ?? undefined,

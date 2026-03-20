@@ -162,6 +162,13 @@ export class ServiceOrderService {
       } catch { /* ignore parse errors */ }
     }
 
+    // Buscar nome do criador (snapshot)
+    let createdByName: string | undefined;
+    if (actor?.id) {
+      const creator = await this.prisma.user.findUnique({ where: { id: actor.id }, select: { name: true } });
+      createdByName = creator?.name || undefined;
+    }
+
     const result = await this.prisma.serviceOrder.create({
       data: {
         companyId: data.companyId,
@@ -201,6 +208,9 @@ export class ServiceOrderService {
         returnPaidToTech: data.returnPaidToTech ?? undefined,
         isUrgent: data.isUrgent ?? undefined,
         isEvaluation: data.isEvaluation ?? undefined,
+        // Criador da OS (v1.05.63)
+        createdByUserId: actor?.id || undefined,
+        createdByName,
         // OS SEMPRE nasce ABERTA — blocos do workflow controlam status/atribuicao
         status: 'ABERTA' as any,
       },
@@ -673,6 +683,7 @@ export class ServiceOrderService {
             neighborhood: so.neighborhood,
             isUrgent: so.isUrgent, isReturn: so.isReturn,
             clientName: so.clientPartner?.name || null,
+            createdByName: so.createdByName || null,
             lat: so.lat, lng: so.lng,
           },
           technician: so.assignedPartner
@@ -700,6 +711,7 @@ export class ServiceOrderService {
         valueCents: true, deadlineAt: true, scheduledStartAt: true,
         addressText: true, city: true, state: true, neighborhood: true,
         isUrgent: true, isReturn: true, createdAt: true,
+        createdByName: true,
         lat: true, lng: true,
         clientPartner: { select: { name: true } },
         assignedPartner: { select: { name: true, phone: true } },
@@ -727,6 +739,7 @@ export class ServiceOrderService {
         neighborhood: so.neighborhood,
         isUrgent: so.isUrgent, isReturn: so.isReturn,
         clientName: so.clientPartner?.name || null,
+        createdByName: so.createdByName || null,
         lat: so.lat, lng: so.lng,
       },
       technician: so.assignedPartner

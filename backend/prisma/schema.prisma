@@ -400,6 +400,10 @@ model ServiceOrder {
   pauseCount      Int      @default(0)
   totalPausedMs   BigInt   @default(0)  // milissegundos totais pausados (acumulativo)
 
+  // Criador da OS (v1.05.63)
+  createdByUserId  String?   // ID do usuario que criou
+  createdByName    String?   // Nome do usuario que criou (snapshot)
+
   // Cancelamento (v1.00.55)
   cancelledReason  String?   // Motivo do cancelamento
   cancelledByName  String?   // Nome do usuario que cancelou
