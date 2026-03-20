@@ -196,6 +196,8 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
           <div className="space-y-px border rounded-lg border-slate-200 p-1.5">
             {orderedFields.map((field, idx) => {
               const enabled = isEnabled(field.key);
+              const labelKey = field.key === "companyPhone" ? "companyPhoneLabel" : field.key === "commission" ? "commissionLabel" : null;
+              const currentLabel = labelKey ? (config[labelKey] as string) || "" : "";
               return (
                 <div
                   key={field.key}
@@ -206,9 +208,19 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                     <MoveBtn direction="up" onClick={() => moveField(field.key, "up")} />
                     <MoveBtn direction="down" onClick={() => moveField(field.key, "down")} />
                   </div>
-                  {/* Icon + Label */}
+                  {/* Icon */}
                   <span className="text-[9px] w-3.5 text-center">{field.icon}</span>
-                  <span className="text-[10px] text-slate-700 flex-1 truncate">{field.label}</span>
+                  {/* Label — editable input or static text */}
+                  {field.editableLabel && enabled && labelKey ? (
+                    <input
+                      value={currentLabel}
+                      onChange={(e) => update(labelKey, e.target.value)}
+                      placeholder={field.label}
+                      className="flex-1 min-w-0 rounded border border-dashed border-slate-300 bg-transparent px-1 py-px text-[10px] text-slate-700 placeholder-slate-400 outline-none focus:border-blue-400 focus:bg-blue-50/50"
+                    />
+                  ) : (
+                    <span className="text-[10px] text-slate-700 flex-1 truncate">{field.label}</span>
+                  )}
                   {/* Toggle */}
                   <button
                     type="button"
@@ -220,28 +232,6 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                 </div>
               );
             })}
-          </div>
-
-          {/* Company phone label */}
-          <div className="mt-2 pt-2 border-t border-slate-100">
-            <label className="block text-[9px] text-slate-500 mb-0.5">Nome do telefone da empresa</label>
-            <input
-              value={config.companyPhoneLabel || ""}
-              onChange={(e) => update("companyPhoneLabel", e.target.value)}
-              placeholder="Ex: SLS Obras, Emergencia..."
-              className="w-full rounded border border-slate-200 px-2 py-1 text-[10px] text-slate-700 placeholder-slate-300 outline-none focus:border-blue-400"
-            />
-          </div>
-
-          {/* Commission label */}
-          <div className="mt-2 pt-2 border-t border-slate-100">
-            <label className="block text-[9px] text-slate-500 mb-0.5">Nome do campo de comissao</label>
-            <input
-              value={config.commissionLabel || ""}
-              onChange={(e) => update("commissionLabel", e.target.value)}
-              placeholder="Ex: Repasse, Valor do servico..."
-              className="w-full rounded border border-slate-200 px-2 py-1 text-[10px] text-slate-700 placeholder-slate-300 outline-none focus:border-blue-400"
-            />
           </div>
 
           {/* Custom message */}
