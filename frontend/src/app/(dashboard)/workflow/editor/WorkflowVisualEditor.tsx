@@ -404,6 +404,8 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
           config={techPortalConfig}
           onChange={setTechPortalConfig}
           onClose={() => setShowTechPortal(false)}
+          blocks={blocks}
+          workflowName={name}
         />
       )}
 

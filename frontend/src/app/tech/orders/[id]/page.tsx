@@ -80,6 +80,11 @@ type TechPortalConfig = {
   showDeadline?: boolean;
   showDescription?: boolean;
   showClient?: boolean;
+  showClientPhone?: boolean;
+  showOsCode?: boolean;
+  showCommission?: boolean;
+  showAttachments?: boolean;
+  showStatus?: boolean;
   customMessage?: string;
 };
 
@@ -543,6 +548,11 @@ export default function TechOrderDetailPage() {
   const showDeadline = portalCfg.showDeadline !== false;
   const showDescription = portalCfg.showDescription !== false;
   const showClient = portalCfg.showClient === true;
+  const showClientPhone = portalCfg.showClientPhone === true;
+  const showOsCode = portalCfg.showOsCode !== false;
+  const showCommission = portalCfg.showCommission === true;
+  const showAttachments = portalCfg.showAttachments !== false;
+  const showStatusBadge = portalCfg.showStatus !== false;
   const customMessage = portalCfg.customMessage || "";
 
   return (
@@ -557,17 +567,19 @@ export default function TechOrderDetailPage() {
 
       {/* Title + Status */}
       <div className="mb-4">
-        <div className="flex items-center gap-2 mb-1">
-          <span className={`rounded-lg px-2.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE[order.status] || "bg-slate-100 text-slate-600"}`}>
-            {STATUS_LABELS[order.status] || order.status}
-          </span>
-          {isOverdue && (
-            <span className="rounded-lg bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">Atrasada</span>
-          )}
-          {isPaused && (
-            <span className="rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 animate-pulse">Pausado</span>
-          )}
-        </div>
+        {showStatusBadge && (
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`rounded-lg px-2.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE[order.status] || "bg-slate-100 text-slate-600"}`}>
+              {STATUS_LABELS[order.status] || order.status}
+            </span>
+            {isOverdue && (
+              <span className="rounded-lg bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">Atrasada</span>
+            )}
+            {isPaused && (
+              <span className="rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 animate-pulse">Pausado</span>
+            )}
+          </div>
+        )}
         <h1 className="text-lg font-bold text-slate-900">{order.title}</h1>
       </div>
 
