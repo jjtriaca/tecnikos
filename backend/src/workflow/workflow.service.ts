@@ -271,7 +271,7 @@ export class WorkflowService {
 
     // Find or create a dummy client partner for preview
     let client = await this.prisma.partner.findFirst({
-      where: { companyId, type: 'CLIENT', deletedAt: null },
+      where: { companyId, partnerTypes: { has: 'CLIENTE' }, deletedAt: null },
       select: { id: true },
       orderBy: { createdAt: 'asc' },
     });
@@ -279,9 +279,9 @@ export class WorkflowService {
       client = await this.prisma.partner.create({
         data: {
           companyId,
-          type: 'CLIENT',
+          partnerTypes: ['CLIENTE'],
+          personType: 'PF',
           name: 'Cliente Teste (Preview)',
-          phone: '00000000000',
         },
         select: { id: true },
       });
@@ -289,7 +289,7 @@ export class WorkflowService {
 
     // Find a tech partner (needed for token auth to work)
     let tech = await this.prisma.partner.findFirst({
-      where: { companyId, type: 'TECHNICIAN', deletedAt: null },
+      where: { companyId, partnerTypes: { has: 'TECNICO' }, deletedAt: null },
       select: { id: true },
       orderBy: { createdAt: 'asc' },
     });
