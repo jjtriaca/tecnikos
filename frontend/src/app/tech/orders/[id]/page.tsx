@@ -584,7 +584,9 @@ export default function TechOrderDetailPage() {
   const isOverdue = new Date(order.deadlineAt) < new Date() && !["CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status);
   const hasWorkflow = !!workflow;
   const isV2Workflow = hasWorkflow && isV2(workflow);
-  const canAct = ["OFERTADA", "ATRIBUIDA", "A_CAMINHO", "EM_EXECUCAO", "AJUSTE"].includes(order.status);
+  // Allow action if status is interactive OR if workflow still has a pending block (e.g. INFO after RECUSADA)
+  const hasCurrentBlock = isV2Workflow && !!(workflow as any).currentBlock;
+  const canAct = ["OFERTADA", "ATRIBUIDA", "A_CAMINHO", "EM_EXECUCAO", "AJUSTE"].includes(order.status) || hasCurrentBlock;
 
   // Tech portal visibility config (defaults to show all)
   const portalCfg: TechPortalConfig = (isV2Workflow ? (workflow as WorkflowProgressV2).techPortalConfig : null) || {};
