@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { type Block, getCatalogEntry, findStartBlock, findBlock } from "@/types/workflow-blocks";
 
 /* ── Field definitions ── */
@@ -104,11 +105,10 @@ interface Props {
   workflowName: string;
 }
 
-/** Walk the main chain to get blocks the tech would see */
-function getVisibleBlocks(blocks: Block[]): { name: string; type: string; icon: string; isInteractive: boolean }[] {
-  const INTERACTIVE = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "CONDITION", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
-  const HIDDEN = new Set(["START", "END"]);
-  const result: { name: string; type: string; icon: string; isInteractive: boolean }[] = [];
+/** Walk the main chain to get interactive blocks the tech would see */
+function getInteractiveBlocks(blocks: Block[]): Block[] {
+  const INTERACTIVE = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
+  const result: Block[] = [];
   const start = findStartBlock(blocks);
   if (!start) return result;
   let currentId: string | null = start.next;
@@ -118,13 +118,143 @@ function getVisibleBlocks(blocks: Block[]): { name: string; type: string; icon: 
     visited.add(currentId);
     const b = findBlock(blocks, currentId);
     if (!b || b.type === "END") break;
-    if (!HIDDEN.has(b.type)) {
-      const entry = getCatalogEntry(b.type);
-      result.push({ name: b.name || entry?.name || b.type, type: b.type, icon: entry?.icon || "⚙️", isInteractive: INTERACTIVE.has(b.type) });
-    }
+    if (INTERACTIVE.has(b.type)) result.push(b);
     currentId = b.next;
   }
   return result;
+}
+
+/** Render a single interactive block as the tech would see it */
+function BlockPreview({ block }: { block: Block }) {
+  const c = block.config || {};
+  const entry = getCatalogEntry(block.type);
+  const icon = entry?.icon || "⚙️";
+
+  switch (block.type) {
+    case "ACTION_BUTTONS": {
+      const buttons = c.buttons || [{ id: "1", label: "Confirmar", color: "green", icon: "✅" }];
+      const colorMap: Record<string, string> = {
+        green: "from-green-500 to-emerald-600",
+        blue: "from-blue-500 to-indigo-600",
+        red: "from-red-500 to-rose-600",
+        orange: "from-orange-500 to-amber-600",
+        yellow: "from-yellow-500 to-amber-500",
+        purple: "from-purple-500 to-violet-600",
+        slate: "from-slate-500 to-slate-600",
+      };
+      return (
+        <div className="space-y-1">
+          {c.title && <p className="text-[8px] font-medium text-slate-600 text-center">{c.title}</p>}
+          {buttons.map((btn: any) => (
+            <div key={btn.id} className={`rounded-lg bg-gradient-to-r ${colorMap[btn.color] || colorMap.blue} py-1.5 text-center shadow-sm`}>
+              <span className="text-[9px] font-bold text-white">{btn.icon} {btn.label}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    case "STEP":
+      return (
+        <div className="space-y-1">
+          <p className="text-[8px] text-slate-600">{c.description || block.name}</p>
+          {c.requirePhoto && <div className="rounded border border-dashed border-slate-300 py-1.5 text-center"><span className="text-[7px] text-slate-400">📸 Tirar foto</span></div>}
+          {c.requireNote && <div className="rounded border border-slate-200 px-1.5 py-1"><span className="text-[7px] text-slate-400">Observacao...</span></div>}
+          <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 text-center shadow-sm">
+            <span className="text-[9px] font-bold text-white">✅ Confirmar</span>
+          </div>
+        </div>
+      );
+    case "PHOTO":
+      return (
+        <div className="space-y-1">
+          <p className="text-[8px] text-slate-600">{c.label || "Registrar foto"}</p>
+          <div className="rounded-lg border-2 border-dashed border-slate-300 py-4 text-center">
+            <span className="text-lg">📸</span>
+            <p className="text-[7px] text-slate-400 mt-0.5">Tirar foto{c.minPhotos > 1 ? ` (min ${c.minPhotos})` : ""}</p>
+          </div>
+        </div>
+      );
+    case "NOTE":
+      return (
+        <div className="space-y-1">
+          <div className="rounded border border-slate-200 px-2 py-2">
+            <span className="text-[7px] text-slate-400">{c.placeholder || "Escreva uma observacao..."}</span>
+          </div>
+          <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 text-center shadow-sm">
+            <span className="text-[9px] font-bold text-white">📝 Enviar</span>
+          </div>
+        </div>
+      );
+    case "GPS":
+      return (
+        <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-2 text-center shadow-sm">
+          <span className="text-[9px] font-bold text-white">📍 Registrar Localizacao</span>
+        </div>
+      );
+    case "QUESTION": {
+      const options = c.options || ["Sim", "Nao"];
+      return (
+        <div className="space-y-1">
+          <p className="text-[8px] font-medium text-slate-700">{c.question || "Pergunta?"}</p>
+          {options.map((opt: string, i: number) => (
+            <div key={i} className="rounded-lg border border-slate-200 py-1.5 text-center hover:bg-slate-50">
+              <span className="text-[8px] font-medium text-slate-600">{opt}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    case "CHECKLIST": {
+      const items = c.items || ["Item 1", "Item 2"];
+      return (
+        <div className="space-y-1">
+          {items.map((item: string, i: number) => (
+            <div key={i} className="flex items-center gap-1.5 rounded border border-slate-200 px-2 py-1">
+              <div className="h-2.5 w-2.5 rounded border border-slate-300 shrink-0" />
+              <span className="text-[8px] text-slate-600">{item}</span>
+            </div>
+          ))}
+          <div className="rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 py-1.5 text-center shadow-sm">
+            <span className="text-[9px] font-bold text-white">☑️ Confirmar</span>
+          </div>
+        </div>
+      );
+    }
+    case "SIGNATURE":
+      return (
+        <div className="space-y-1">
+          <p className="text-[8px] text-slate-600">{c.label || "Assinatura digital"}</p>
+          <div className="rounded-lg border-2 border-dashed border-slate-300 py-4 text-center">
+            <span className="text-lg">✍️</span>
+            <p className="text-[7px] text-slate-400 mt-0.5">Toque para assinar</p>
+          </div>
+        </div>
+      );
+    case "FORM": {
+      const fields = c.fields || [{ name: "Campo", type: "text" }];
+      return (
+        <div className="space-y-1">
+          {fields.map((f: any, i: number) => (
+            <div key={i}>
+              <span className="text-[7px] text-slate-500">{f.name}</span>
+              <div className="rounded border border-slate-200 px-1.5 py-1 mt-px">
+                <span className="text-[7px] text-slate-400">{f.type === "select" ? (f.options?.[0] || "Selecione...") : "Digite..."}</span>
+              </div>
+            </div>
+          ))}
+          <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 text-center shadow-sm">
+            <span className="text-[9px] font-bold text-white">📋 Enviar</span>
+          </div>
+        </div>
+      );
+    }
+    default:
+      return (
+        <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 text-center shadow-sm">
+          <span className="text-[9px] font-bold text-white">{icon} {block.name}</span>
+        </div>
+      );
+  }
 }
 
 /* ── Arrow buttons ── */
@@ -148,6 +278,8 @@ function MoveBtn({ direction, onClick }: { direction: "up" | "down"; onClick: ()
 /* ── Component ── */
 
 export default function TechPortalPreview({ config, onChange, onClose, blocks, workflowName }: Props) {
+  const [stepIdx, setStepIdx] = useState(0);
+
   const update = (key: keyof TechPortalConfig, value: any) => {
     onChange({ ...config, [key]: value });
   };
@@ -173,8 +305,9 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
   const isEnabled = (key: FieldKey) => config[TOGGLE_KEY_MAP[key]] as boolean;
   const toggleField = (key: FieldKey) => update(TOGGLE_KEY_MAP[key], !isEnabled(key));
 
-  const visibleBlocks = getVisibleBlocks(blocks);
-  const interactiveCount = visibleBlocks.filter(b => b.isInteractive).length;
+  const interactiveBlocks = getInteractiveBlocks(blocks);
+  const currentStep = interactiveBlocks[stepIdx] || null;
+  const totalSteps = interactiveBlocks.length;
 
   // Get enabled fields in order for preview
   const enabledFields = orderedFields.filter(f => isEnabled(f.key));
@@ -337,24 +470,45 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                 </div>
               )}
 
-              {/* Workflow steps */}
-              {visibleBlocks.length > 0 && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[7px] text-slate-400">Fluxo: {workflowName || "Sem nome"}</span>
-                    <span className="text-[7px] text-slate-300 ml-auto">0/{interactiveCount}</span>
+              {/* Interactive block preview */}
+              {totalSteps > 0 && currentStep && (
+                <div className="space-y-1.5">
+                  {/* Step navigator */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setStepIdx(Math.max(0, stepIdx - 1))}
+                      disabled={stepIdx === 0}
+                      className="h-4 w-4 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-blue-100 hover:text-blue-500 disabled:opacity-30 disabled:hover:bg-slate-100 disabled:hover:text-slate-400 transition-colors"
+                    >
+                      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[7px] font-medium text-slate-500">{currentStep.name || getCatalogEntry(currentStep.type)?.name}</span>
+                      <span className="text-[7px] text-slate-300">({stepIdx + 1}/{totalSteps})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStepIdx(Math.min(totalSteps - 1, stepIdx + 1))}
+                      disabled={stepIdx === totalSteps - 1}
+                      className="h-4 w-4 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-blue-100 hover:text-blue-500 disabled:opacity-30 disabled:hover:bg-slate-100 disabled:hover:text-slate-400 transition-colors"
+                    >
+                      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                    </button>
                   </div>
-                  {visibleBlocks.map((vb, i) => {
-                    const isAuto = !vb.isInteractive;
-                    const isFirst = i === visibleBlocks.findIndex(b => b.isInteractive);
-                    return (
-                      <div key={i} className={`rounded-md border px-2 py-1 flex items-center gap-1.5 ${isAuto ? "border-green-200 bg-green-50" : isFirst ? "border-orange-200 bg-orange-50" : "border-slate-200 bg-white"}`}>
-                        <span className="text-[8px]">{isAuto ? "✅" : isFirst ? "🎯" : "⬜"}</span>
-                        <span className={`text-[8px] font-medium ${isAuto ? "text-green-700" : isFirst ? "text-orange-700" : "text-slate-500"}`}>{vb.name}</span>
-                        {isAuto && <span className="text-[6px] text-green-500 ml-auto italic">auto</span>}
-                      </div>
-                    );
-                  })}
+                  {/* Step dots */}
+                  <div className="flex justify-center gap-0.5">
+                    {interactiveBlocks.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setStepIdx(i)}
+                        className={`h-1 rounded-full transition-all ${i === stepIdx ? "w-3 bg-blue-500" : "w-1 bg-slate-300 hover:bg-slate-400"}`}
+                      />
+                    ))}
+                  </div>
+                  {/* Block content */}
+                  <BlockPreview block={currentStep} />
                 </div>
               )}
             </div>

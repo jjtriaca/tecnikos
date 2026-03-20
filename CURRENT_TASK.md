@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.05.40
-## Ultima sessao: 144 (19/03/2026)
+## Versao: v1.05.66
+## Ultima sessao: 145 (20/03/2026)
 
 ## Pendencias
 
@@ -13,6 +13,31 @@
 ### PENDENTE VALIDACAO
 - **Tech refresh TTL**: Atualmente 1 dia para teste. Apos validar, mudar para 90 dias em `auth.constants.ts`
 - **Fluxo Avaliacao Orcamento**: Testar criacao de OS avaliacao com novo engine (variaveis, status OFERTADA, aceite)
+- **Tech Portal Config**: Testar reordenacao, labels editaveis (comissao/telefone empresa), toggles no portal do tecnico
+
+### CONCLUIDO (sessao 145)
+
+#### Engine V3 — transitionMode removido
+- **transitionMode manual eliminado**: Removidas 7 referencias no workflow-engine.service.ts — STATUS blocks nunca param o engine
+
+#### Portal do Tecnico — Config Global
+- **TechPortalConfig**: Config global no workflow que controla visibilidade e ordem dos campos no portal do tecnico
+- **Phone mockup preview**: Preview em tempo real no formato celular mostrando exatamente o que o tecnico vera
+- **Campos reordenaveis**: Setas up/down controlam ordem dos campos; fieldOrder salvo no config
+- **Labels editaveis inline**: Telefone da empresa e Comissao tem label editavel direto no toggle (borda tracejada)
+- **Comissao sem porcentagem**: Preview mostra apenas valor monetario, sem percentual
+- **13 campos configuraveis**: osCode, status, description, client, clientPhone, siteContact, address, value, deadline, commission, companyPhone, creator, attachments
+- **Mensagem customizada**: Banner azul com texto livre do gestor
+
+#### PWA — Fix cache com token
+- **Service Worker bypass**: Paginas com `?token=` param usam network-only (nunca cache)
+
+#### Criado por na OS
+- **createdByUserId/createdByName**: Campos snapshot no ServiceOrder, populados automaticamente na criacao
+- **Dispatch card**: "Criado por" exibido no card flutuante do despacho
+
+#### Dispatch Panel — Limpeza
+- **HorizontalTimeline removido**: Barra de evolucao de status removida do painel de despacho
 
 ### CONCLUIDO (sessao 144)
 
@@ -28,30 +53,6 @@
 
 #### Correcao Memoria V3
 - **Status ABERTA**: OS nasce ABERTA (default Prisma), blocos controlam a partir dai. Corrigido memoria que dizia NULL.
-
-### CONCLUIDO (sessao 143)
-
-#### Workflow Engine V3 — Base
-- **Gatilho OS Avaliacao/Orcamento**: Novo trigger `os_evaluation_created` com `isEvaluation` flag
-- **Bloco Status — Modo manual**: Config `transitionMode: 'manual'` + `buttonLabel` customizavel
-- **Bloco GPS — Configs avancadas**: Obrigatorio, Alta precisao, Modo (pontual/continuo), Intervalo, Captura automatica
-- **Bloco SE/Condicao — Branches**: Canvas renderiza SIM/NAO com branches independentes e + para adicionar blocos
-- **Status RECUSADA**: Adicionado em 7 arquivos frontend (labels, cores, graficos, badges)
-- **Canal Push**: Adicionado como opcao no bloco Notificar (WhatsApp, Email, Push)
-- **Fix DEL key**: Tecla Delete nao deleta mais bloco quando editando texto em input/textarea
-- **Fix variaveis NOTIFY**: {link_app}/{link_os} nao eram mais vazias; {nome} substitui por destinatario correto
-- **Fix workflowUsesFromStart**: Detecta STATUS como primeiro bloco apos START
-- **WhatsApp reconectado**: Token regenerado no Meta Business (SLS Sol e Lazer Solucoes)
-
-#### Portal do Tecnico — Sessao Persistente
-- **Tela "Acesso por link"**: Substituiu formulario telefone+OTP por pagina informativa
-- **TTL sessao tecnico**: 1 dia para teste (sera 90 dias apos validacao)
-- **Botao Testar removido**: Removido do editor de workflow (confundia usuario)
-
-### CONCLUIDO (sessao 142)
-
-#### TenantMigratorService — Fix FK cross-schema
-- **remapForeignKeys()**: Novo metodo detecta FKs que referenciam public schema e remapeia para tenant schema
 
 ### BLOQUEADO
 - (nenhum)
