@@ -777,8 +777,8 @@ export default function TechOrderDetailPage() {
           ACTION BUTTONS (Smart flow)
           ═══════════════════════════════════════════ */}
 
-      {/* ATRIBUIDA: Accept + Go */}
-      {order.status === "ATRIBUIDA" && (
+      {/* ATRIBUIDA: Accept + Go (only for V1 / no workflow) */}
+      {order.status === "ATRIBUIDA" && !isV2Workflow && (
         <div className="space-y-2 mb-4">
           <button
             onClick={() => handleStatusChange("A_CAMINHO")}
@@ -802,8 +802,8 @@ export default function TechOrderDetailPage() {
         </div>
       )}
 
-      {/* A_CAMINHO: Arrived button */}
-      {order.status === "A_CAMINHO" && (
+      {/* A_CAMINHO: Arrived button (only for V1 / no workflow) */}
+      {order.status === "A_CAMINHO" && !isV2Workflow && (
         <div className="space-y-2 mb-4">
           <button
             onClick={() => handleStatusChange("EM_EXECUCAO")}
@@ -841,8 +841,8 @@ export default function TechOrderDetailPage() {
         </div>
       )}
 
-      {/* AJUSTE: Retry */}
-      {order.status === "AJUSTE" && (
+      {/* AJUSTE: Retry (only for V1 / no workflow) */}
+      {order.status === "AJUSTE" && !isV2Workflow && (
         <div className="space-y-2 mb-4">
           <div className="rounded-2xl bg-red-50 border border-red-200 p-3 mb-2">
             <p className="text-xs font-semibold text-red-700">Ajuste solicitado pelo gestor</p>
@@ -863,7 +863,7 @@ export default function TechOrderDetailPage() {
           PAUSE / RESUME (during execution)
           ═══════════════════════════════════════════ */}
 
-      {order.status === "EM_EXECUCAO" && (
+      {order.status === "EM_EXECUCAO" && !isV2Workflow && (
         <>
           {isPaused ? (
             <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 mb-4">
@@ -1169,8 +1169,8 @@ export default function TechOrderDetailPage() {
         />
       )}
 
-      {/* ── Photos (Antes / Depois) ── */}
-      {["EM_EXECUCAO", "CONCLUIDA", "APROVADA", "AJUSTE", "ATRIBUIDA", "A_CAMINHO"].includes(order.status) && (
+      {/* ── Photos (Antes / Depois) — only for V1 / no workflow ── */}
+      {!isV2Workflow && ["EM_EXECUCAO", "CONCLUIDA", "APROVADA", "AJUSTE", "ATRIBUIDA", "A_CAMINHO"].includes(order.status) && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm mb-4">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">📷 Fotos</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -1202,8 +1202,8 @@ export default function TechOrderDetailPage() {
         </div>
       )}
 
-      {/* Completed state */}
-      {(order.status === "CONCLUIDA" || order.status === "APROVADA") && (
+      {/* Completed state (V1 only — V2 uses TerminalScreen) */}
+      {!isV2Workflow && (order.status === "CONCLUIDA" || order.status === "APROVADA") && (
         <div className="rounded-2xl bg-green-50 border border-green-200 p-4 text-center">
           <div className="text-3xl mb-2">✅</div>
           <p className="text-sm font-semibold text-green-800">
