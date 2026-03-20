@@ -1746,7 +1746,6 @@ function V2BlockAction({
                   {btn.icon ? `${btn.icon} ` : ""}{btn.label}
                 </div>
                 {ip?.enabled && ip.position === "after" && renderInfoPanel()}
-                <p className="text-[11px] text-slate-400 text-center">Clique em "Confirmar" abaixo para continuar</p>
               </div>
             );
           }
@@ -1874,7 +1873,7 @@ function V2BlockAction({
       <button onClick={onAdvance} disabled={isDisabled()}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all">
         <span className="text-xl">{block.icon || "▶️"}</span>
-        {acting ? "Avancando..." : block.type === "INFO" ? "Entendi ✓" : (block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : `Confirmar: ${block.name}`)}
+        {acting ? "Avancando..." : block.type === "INFO" ? "Entendi ✓" : block.type === "ACTION_BUTTONS" ? "Confirmar ✓" : (block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : `Confirmar: ${block.name}`)}
       </button>
       )}
     </div>
