@@ -1376,19 +1376,21 @@ function V2BlockAction({
               </div>
             );
           };
-          // Single button = simple confirm action (auto-select on render)
+          // Single button = direct action (click submits immediately, no separate confirm)
           if (buttons.length === 1) {
             const btn = buttons[0];
             const colors = COLOR_MAP[btn.color] || COLOR_MAP.green;
-            // Auto-set answer so submit is enabled
-            if (v2Answer !== btn.id) setTimeout(() => setV2Answer(btn.id), 0);
             return (
               <div className="space-y-2">
                 {c.title && <p className="text-sm font-medium text-slate-700">{c.title}</p>}
                 {ip?.enabled && ip.position === "before" && renderInfoPanel()}
-                <div className={`rounded-xl ${bs.py} text-center ${bs.text} font-bold shadow-md ${colors.full}`}>
+                <button
+                  disabled={acting}
+                  onClick={() => { setV2Answer(btn.id); setTimeout(() => onAdvance(), 50); }}
+                  className={`w-full rounded-xl ${bs.py} text-center ${bs.text} font-bold shadow-md transition-all active:scale-[0.97] disabled:opacity-50 ${colors.full}`}
+                >
                   {btn.icon ? `${btn.icon} ` : ""}{btn.label}
-                </div>
+                </button>
                 {ip?.enabled && ip.position === "after" && renderInfoPanel()}
               </div>
             );
@@ -1512,8 +1514,8 @@ function V2BlockAction({
         )}
       </div>
 
-      {/* Advance button — hidden for multi-button ACTION_BUTTONS (they submit directly) */}
-      {!(block.type === "ACTION_BUTTONS" && (c.buttons?.length || 0) > 1) && (
+      {/* Advance button — hidden for ACTION_BUTTONS (they submit directly on click) */}
+      {block.type !== "ACTION_BUTTONS" && (
       <button onClick={onAdvance} disabled={isDisabled()}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all">
         <span className="text-xl">{block.icon || "▶️"}</span>
