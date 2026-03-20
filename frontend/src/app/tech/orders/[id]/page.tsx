@@ -147,15 +147,12 @@ const STATUS_BADGE: Record<string, string> = {
   RECUSADA: "bg-red-100 text-red-800",
 };
 
-/* Block types hidden from step list (flow control) */
+/* Block types that the technician should NOT see — only interactive blocks are shown */
+const INTERACTIVE_TYPES = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
+/* Hidden from everything */
 const HIDDEN_TYPES = new Set(["START", "END"]);
-/* Block types auto-completed by the engine (STATUS manual is NOT auto) */
-const AUTO_TYPES = new Set(["NOTIFY", "ALERT"]);
-/* Check if block is auto-completed (STATUS only if transitionMode is not manual) */
 function isAutoBlock(block: any): boolean {
-  if (AUTO_TYPES.has(block.type)) return true;
-  if (block.type === "STATUS" && block.config?.transitionMode !== "manual") return true;
-  return false;
+  return !INTERACTIVE_TYPES.has(block.type);
 }
 
 /* Pause reason categories */
@@ -780,33 +777,40 @@ export default function TechOrderDetailPage() {
       {/* ═══════════════════════════════════════════
           V2 WORKFLOW
           ═══════════════════════════════════════════ */}
-      {isV2Workflow && !workflow.isComplete && (
+      {isV2Workflow && !workflow.isComplete && (() => {
+        const interactiveOnly = workflow.executionPath.filter((b) => INTERACTIVE_TYPES.has(b.type));
+        const iTotal = interactiveOnly.length;
+        const iCompleted = interactiveOnly.filter((b) => b.completed).length;
+        return (
         <div className="mb-4">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-            <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            Fluxo: {workflow.templateName}
-            <span className="ml-auto text-xs font-normal text-slate-400">
-              {workflow.completedBlocks}/{workflow.totalBlocks}
-            </span>
-          </h3>
+          {iTotal > 0 && (
+            <>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Fluxo: {workflow.templateName}
+                <span className="ml-auto text-xs font-normal text-slate-400">
+                  {iCompleted}/{iTotal}
+                </span>
+              </h3>
 
-          {/* Progress bar */}
-          <div className="h-2 rounded-full bg-slate-100 mb-4 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500"
-              style={{ width: `${workflow.totalBlocks > 0 ? (workflow.completedBlocks / workflow.totalBlocks) * 100 : 0}%` }}
-            />
-          </div>
+              {/* Progress bar */}
+              <div className="h-2 rounded-full bg-slate-100 mb-4 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500"
+                  style={{ width: `${iTotal > 0 ? (iCompleted / iTotal) * 100 : 0}%` }}
+                />
+              </div>
+            </>
+          )}
 
-          {/* Execution path (block list) */}
+          {/* Execution path — only interactive blocks visible to the tech */}
           <div className="space-y-2">
             {workflow.executionPath
-              .filter((b) => !HIDDEN_TYPES.has(b.type))
+              .filter((b) => INTERACTIVE_TYPES.has(b.type))
               .map((block) => {
                 const isCurrent = workflow.currentBlock?.id === block.id;
-                const isAuto = isAutoBlock(block);
                 return (
                   <div
                     key={block.id}
@@ -829,7 +833,6 @@ export default function TechOrderDetailPage() {
                           block.completed ? "text-green-800" : isCurrent ? "text-blue-800" : "text-slate-500"
                         }`}>
                           {block.name}
-                          {isAuto && <span className="ml-1 text-[10px] text-slate-400">(auto)</span>}
                         </p>
                         {block.completed && block.completedAt && (
                           <p className="text-[11px] text-green-600">
@@ -874,13 +877,13 @@ export default function TechOrderDetailPage() {
             />
           )}
         </div>
-      )}
+        ); })()}
 
       {/* V2 workflow complete */}
       {isV2Workflow && workflow.isComplete && (
         <WorkflowComplete
           name={workflow.templateName}
-          blocks={workflow.executionPath.filter((b) => !HIDDEN_TYPES.has(b.type))}
+          blocks={workflow.executionPath.filter((b) => INTERACTIVE_TYPES.has(b.type))}
         />
       )}
 
