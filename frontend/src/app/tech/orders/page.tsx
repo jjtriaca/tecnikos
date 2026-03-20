@@ -16,7 +16,10 @@ type ServiceOrder = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
+  ABERTA: "Aberta",
+  OFERTADA: "Aguardando Aceite",
   ATRIBUIDA: "Pendente",
+  A_CAMINHO: "A Caminho",
   EM_EXECUCAO: "Em Andamento",
   CONCLUIDA: "Concluída",
   APROVADA: "Aprovada",
@@ -24,6 +27,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
+  ABERTA: { bg: "bg-slate-50 border-slate-200", text: "text-slate-800", dot: "bg-slate-500" },
   OFERTADA: { bg: "bg-purple-50 border-purple-200", text: "text-purple-800", dot: "bg-purple-500" },
   ATRIBUIDA: { bg: "bg-amber-50 border-amber-200", text: "text-amber-800", dot: "bg-amber-500" },
   A_CAMINHO: { bg: "bg-indigo-50 border-indigo-200", text: "text-indigo-800", dot: "bg-indigo-500" },
@@ -60,6 +64,7 @@ export default function TechOrdersPage() {
 
   // Group by status
   const groups = [
+    { key: "ABERTA", label: "Abertas", orders: orders.filter((o) => o.status === "ABERTA") },
     { key: "OFERTADA", label: "Aguardando Aceite", orders: orders.filter((o) => o.status === "OFERTADA") },
     { key: "ATRIBUIDA", label: "Pendentes", orders: orders.filter((o) => o.status === "ATRIBUIDA") },
     { key: "A_CAMINHO", label: "A Caminho", orders: orders.filter((o) => o.status === "A_CAMINHO") },
