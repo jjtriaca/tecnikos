@@ -170,14 +170,13 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
 
       if (workflowId) {
         await api.put(`/workflows/${workflowId}`, payload);
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 2000);
       } else {
         await api.post("/workflows", payload);
+        setSuccess(true);
+        setTimeout(() => onSaved(), 500);
       }
-
-      setSuccess(true);
-      setTimeout(() => {
-        onSaved();
-      }, 500);
     } catch (err: any) {
       setError(err?.message || "Erro ao salvar workflow");
     } finally {
