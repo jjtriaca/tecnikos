@@ -89,6 +89,12 @@ export class ServiceOrderController {
     return this.service.getActiveDispatches(user.companyId);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Get('active-tokens')
+  activeTokens(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getActiveTokens(user.companyId);
+  }
+
   @Get(':id')
   findOne(
     @Param('id') id: string,

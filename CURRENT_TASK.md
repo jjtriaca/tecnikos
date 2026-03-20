@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.05.66
-## Ultima sessao: 145 (20/03/2026)
+## Versao: v1.05.76
+## Ultima sessao: 146 (20/03/2026)
 
 ## Pendencias
 
@@ -13,7 +13,24 @@
 ### PENDENTE VALIDACAO
 - **Tech refresh TTL**: Atualmente 1 dia para teste. Apos validar, mudar para 90 dias em `auth.constants.ts`
 - **Fluxo Avaliacao Orcamento**: Testar criacao de OS avaliacao com novo engine (variaveis, status OFERTADA, aceite)
-- **Tech Portal Config**: Testar reordenacao, labels editaveis (comissao/telefone empresa), toggles no portal do tecnico
+- **Tech Portal Emulador**: Testar criacao de OS preview, iframe carregando pagina real do tecnico, auto-save + reload
+
+### CONCLUIDO (sessao 146)
+
+#### Portal do Tecnico — Emulador Real
+- **Iframe real substituiu mockup estatico**: Celular no editor carrega pagina real `/tech/os/{token}` em iframe
+- **Endpoint POST /workflows/:id/preview-os**: Cria OS real de teste com token 7 dias (channel=PREVIEW)
+- **Auto-save + reload**: Mudanca de config salva workflow automaticamente (debounce 800ms) e recarrega iframe
+- **Botao "Criar {gatilho}"**: Dentro do celular, mostra botao com nome do gatilho selecionado para criar OS de teste
+- **Reutiliza preview existente**: Se ja existe OS preview com token valido, reutiliza sem criar nova
+- **Tech atribuido automaticamente**: OS preview atribui primeiro tecnico disponivel para token auth funcionar
+
+#### Workflow Editor — Salvar sem fechar
+- **Botao Salvar nao fecha mais**: Em edicao de workflow existente, salvar mostra feedback 2s sem navegar
+- **Criacao ainda navega**: Ao criar workflow novo, salvar navega de volta (editor nao tem ID do novo)
+
+#### Preview Page (legado)
+- **`/tech/preview` criada**: Pagina standalone com postMessage — substituida pelo iframe real mas mantida
 
 ### CONCLUIDO (sessao 145)
 
@@ -22,7 +39,6 @@
 
 #### Portal do Tecnico — Config Global
 - **TechPortalConfig**: Config global no workflow que controla visibilidade e ordem dos campos no portal do tecnico
-- **Phone mockup preview**: Preview em tempo real no formato celular mostrando exatamente o que o tecnico vera
 - **Campos reordenaveis**: Setas up/down controlam ordem dos campos; fieldOrder salvo no config
 - **Labels editaveis inline**: Telefone da empresa e Comissao tem label editavel direto no toggle (borda tracejada)
 - **Comissao sem porcentagem**: Preview mostra apenas valor monetario, sem percentual
@@ -38,21 +54,6 @@
 
 #### Dispatch Panel — Limpeza
 - **HorizontalTimeline removido**: Barra de evolucao de status removida do painel de despacho
-
-### CONCLUIDO (sessao 144)
-
-#### Engine V3 — Portal do Tecnico
-- **GPS configs avancadas**: Auto-captura, alta precisao, modo continuo/pontual, intervalo — renderizados no app do tecnico
-- **GPS rastreamento continuo**: watchPosition com banner "Rastreamento ativo" e botao parar
-- **Badges GPS config**: Mostra tags visuais (Alta precisao, Rastreamento continuo, Captura automatica)
-
-#### Canal Push — NOTIFY Block
-- **PUSH no notification.service.ts**: Canal PUSH tratado explicitamente — sendToUser ou sendToCompany
-- **Tipo NotifyConfig**: Adicionado 'PUSH' ao union type
-- **Anti-duplicacao**: Push fire-and-forget nao dispara quando canal ja e PUSH
-
-#### Correcao Memoria V3
-- **Status ABERTA**: OS nasce ABERTA (default Prisma), blocos controlam a partir dai. Corrigido memoria que dizia NULL.
 
 ### BLOQUEADO
 - (nenhum)

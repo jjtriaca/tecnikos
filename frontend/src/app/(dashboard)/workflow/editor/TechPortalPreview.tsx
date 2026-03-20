@@ -126,6 +126,15 @@ function MoveBtn({ direction, onClick }: { direction: "up" | "down"; onClick: ()
 
 /* ── Component ── */
 
+interface ActiveToken {
+  token: string;
+  code: string;
+  title: string;
+  status: string;
+  techName: string | null;
+  channel: string;
+}
+
 export default function TechPortalPreview({ config, onChange, onClose, workflowId, workflowName, triggerLabel, onSave }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [previewToken, setPreviewToken] = useState<string | null>(null);
@@ -134,6 +143,10 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
   const [saving, setSaving] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeKey = useRef(0);
+  const [activeTokens, setActiveTokens] = useState<ActiveToken[]>([]);
+  const [showTokenList, setShowTokenList] = useState(false);
+  const [loadingTokens, setLoadingTokens] = useState(false);
+  const [usingRealOs, setUsingRealOs] = useState(false);
 
   const update = (key: keyof TechPortalConfig, value: any) => {
     onChange({ ...config, [key]: value });
@@ -159,6 +172,26 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
 
   const isEnabled = (key: FieldKey) => config[TOGGLE_KEY_MAP[key]] as boolean;
   const toggleField = (key: FieldKey) => update(TOGGLE_KEY_MAP[key], !isEnabled(key));
+
+  // Load active tokens from real OS
+  const loadActiveTokens = useCallback(async () => {
+    setLoadingTokens(true);
+    try {
+      const res = await api.get<ActiveToken[]>("/service-orders/active-tokens");
+      setActiveTokens(res);
+      setShowTokenList(true);
+    } catch {
+      setError("Erro ao buscar OS ativas");
+    } finally {
+      setLoadingTokens(false);
+    }
+  }, []);
+
+  const selectRealOs = (token: string) => {
+    setPreviewToken(token);
+    setUsingRealOs(true);
+    setShowTokenList(false);
+  };
 
   // Create preview OS
   const createPreviewOs = useCallback(async () => {
@@ -321,20 +354,60 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
                   </>
                 ) : (
                   <>
-                    <div className="text-4xl">&#x1F4F1;</div>
-                    <p className="text-sm font-semibold text-slate-700 text-center">Emulador do Portal</p>
-                    <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-                      Crie uma OS de teste para visualizar exatamente o que o tecnico vera no celular.
-                    </p>
-                    <button
-                      onClick={createPreviewOs}
-                      disabled={!workflowId}
-                      className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-                    >
-                      Criar {triggerLabel}
-                    </button>
-                    {!workflowId && (
-                      <p className="text-[9px] text-amber-500">Salve o fluxo primeiro</p>
+                    {showTokenList ? (
+                      /* Token selection list */
+                      <div className="w-full h-full flex flex-col px-3 pt-8 pb-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-slate-700">Selecionar OS ativa</p>
+                          <button onClick={() => setShowTokenList(false)} className="text-[10px] text-slate-400 hover:text-slate-600">&larr; Voltar</button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto space-y-1.5">
+                          {activeTokens.length === 0 ? (
+                            <p className="text-[10px] text-slate-400 text-center mt-8">Nenhuma OS com token ativo encontrada</p>
+                          ) : (
+                            activeTokens.map((t) => (
+                              <button
+                                key={t.token}
+                                onClick={() => selectRealOs(t.token)}
+                                className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-mono font-bold text-blue-600">{t.code}</span>
+                                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{t.status}</span>
+                                </div>
+                                <p className="text-[10px] text-slate-600 truncate mt-0.5">{t.title}</p>
+                                {t.techName && <p className="text-[9px] text-slate-400 mt-0.5">{t.techName}</p>}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Default empty state */
+                      <>
+                        <div className="text-4xl">&#x1F4F1;</div>
+                        <p className="text-sm font-semibold text-slate-700 text-center">Emulador do Portal</p>
+                        <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+                          Crie uma OS de teste ou use uma OS real para visualizar o portal do tecnico.
+                        </p>
+                        <button
+                          onClick={createPreviewOs}
+                          disabled={!workflowId}
+                          className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                        >
+                          Criar {triggerLabel}
+                        </button>
+                        <button
+                          onClick={loadActiveTokens}
+                          disabled={loadingTokens}
+                          className="rounded-xl border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-all disabled:opacity-50"
+                        >
+                          {loadingTokens ? "Carregando..." : "Usar OS real"}
+                        </button>
+                        {!workflowId && (
+                          <p className="text-[9px] text-amber-500">Salve o fluxo primeiro</p>
+                        )}
+                      </>
                     )}
                   </>
                 )}
@@ -345,13 +418,19 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
           {/* Status below phone */}
           {previewToken && (
             <div className="flex items-center gap-2 mt-3">
-              <div className="h-2 w-2 rounded-full bg-green-500" />
-              <span className="text-[9px] text-slate-400">OS de preview ativa</span>
+              <div className={`h-2 w-2 rounded-full ${usingRealOs ? "bg-amber-500" : "bg-green-500"}`} />
+              <span className="text-[9px] text-slate-400">{usingRealOs ? "OS real ativa" : "OS de preview ativa"}</span>
               <button
                 onClick={() => iframeRef.current?.contentWindow?.location.reload()}
                 className="text-[9px] text-blue-500 hover:text-blue-700 underline ml-2"
               >
                 Recarregar
+              </button>
+              <button
+                onClick={() => { setPreviewToken(null); setUsingRealOs(false); }}
+                className="text-[9px] text-slate-400 hover:text-slate-600 underline ml-1"
+              >
+                Trocar
               </button>
             </div>
           )}

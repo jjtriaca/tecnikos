@@ -699,6 +699,52 @@ export class ServiceOrderService {
   }
 
   /**
+   * List active service orders with valid tokens (for emulator).
+   */
+  async getActiveTokens(companyId: string) {
+    const now = new Date();
+    const offers = await this.prisma.serviceOrderOffer.findMany({
+      where: {
+        revokedAt: null,
+        expiresAt: { gt: now },
+        channel: { not: 'PREVIEW' },
+        serviceOrder: {
+          companyId,
+          deletedAt: null,
+          status: { notIn: TERMINAL_STATUSES },
+        },
+      },
+      select: {
+        token: true,
+        channel: true,
+        expiresAt: true,
+        serviceOrder: {
+          select: {
+            id: true,
+            code: true,
+            title: true,
+            status: true,
+            assignedPartner: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+
+    return offers.map(o => ({
+      token: o.token,
+      channel: o.channel,
+      expiresAt: o.expiresAt,
+      serviceOrderId: o.serviceOrder.id,
+      code: o.serviceOrder.code,
+      title: o.serviceOrder.title,
+      status: o.serviceOrder.status,
+      techName: o.serviceOrder.assignedPartner?.name || null,
+    }));
+  }
+
+  /**
    * Lightweight dispatch status for polling (used by DispatchPanel).
    */
   async getDispatchStatus(id: string, companyId: string) {
