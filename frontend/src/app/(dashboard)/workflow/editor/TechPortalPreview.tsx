@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { type Block, getCatalogEntry, findStartBlock, findBlock } from "@/types/workflow-blocks";
 
 /* ── Field definitions ── */
@@ -343,6 +343,8 @@ function MoveBtn({ direction, onClick }: { direction: "up" | "down"; onClick: ()
 
 export default function TechPortalPreview({ config, onChange, onClose, blocks, workflowName }: Props) {
   const [stepIdx, setStepIdx] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeReady = useRef(false);
 
   const update = (key: keyof TechPortalConfig, value: any) => {
     onChange({ ...config, [key]: value });
@@ -370,13 +372,68 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
   const toggleField = (key: FieldKey) => update(TOGGLE_KEY_MAP[key], !isEnabled(key));
 
   const interactiveBlocks = getAllBlocks(blocks);
-  const currentStep = interactiveBlocks[stepIdx] || null;
   const totalSteps = interactiveBlocks.length;
+  const currentStep = interactiveBlocks[stepIdx] || null;
 
-  // Get enabled fields in order for preview
-  const enabledFields = orderedFields.filter(f => isEnabled(f.key));
+  // Serialize blocks for iframe (plain objects)
+  const serializeBlocks = useCallback(() => {
+    return blocks.map(b => ({
+      id: b.id,
+      type: b.type,
+      name: b.name,
+      icon: getCatalogEntry(b.type)?.icon || "⚙️",
+      config: b.config || {},
+      next: b.next,
+      branches: b.branches,
+    }));
+  }, [blocks]);
 
-  const companyLabel = config.companyPhoneLabel || "Escritorio";
+  // Send data to iframe
+  const postToIframe = useCallback((msg: Record<string, any>) => {
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(msg, "*");
+    }
+  }, []);
+
+  // Send full update to iframe
+  const sendFullUpdate = useCallback(() => {
+    postToIframe({
+      type: "PREVIEW_UPDATE",
+      config,
+      blocks: serializeBlocks(),
+      workflowName,
+    });
+  }, [config, serializeBlocks, workflowName, postToIframe]);
+
+  // Listen for messages from iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      const d = e.data;
+      if (!d || typeof d !== "object") return;
+      if (d.type === "PREVIEW_READY") {
+        iframeReady.current = true;
+        sendFullUpdate();
+      }
+      if (d.type === "PREVIEW_BLOCK_CLICKED") {
+        // Could handle block click feedback here
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [sendFullUpdate]);
+
+  // Send config/blocks updates when they change
+  useEffect(() => {
+    if (iframeReady.current) {
+      sendFullUpdate();
+    }
+  }, [sendFullUpdate]);
+
+  // Navigate steps via arrows — send to iframe
+  const goToStep = useCallback((idx: number) => {
+    setStepIdx(idx);
+    postToIframe({ type: "PREVIEW_STEP", stepIdx: idx });
+  }, [postToIframe]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -451,123 +508,36 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
           </button>
         </div>
 
-        {/* Right: Phone Preview with external navigation arrows */}
+        {/* Right: Phone Emulator with iframe */}
         <div className="flex-1 flex flex-col items-center pt-2">
           <div className="flex items-center gap-3">
             {/* Left arrow — outside phone */}
             <button
               type="button"
-              onClick={() => setStepIdx(Math.max(0, stepIdx - 1))}
+              onClick={() => goToStep(Math.max(0, stepIdx - 1))}
               disabled={stepIdx === 0 || totalSteps === 0}
               className="h-9 w-9 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-blue-100 hover:text-blue-600 disabled:opacity-20 disabled:hover:bg-slate-100 disabled:hover:text-slate-400 transition-colors shadow-sm shrink-0"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
             </button>
 
-            {/* Phone */}
-            <div className="w-[260px] h-[520px] rounded-[2rem] border-[5px] border-slate-800 bg-slate-50 overflow-hidden shadow-xl flex flex-col">
-              {/* Status bar */}
-              <div className="bg-slate-800 px-4 py-0.5 flex items-center justify-between">
-                <span className="text-[7px] text-white/60">20:30</span>
-                <div className="w-16 h-3 rounded-full bg-slate-700" />
-                <div className="flex gap-0.5">
-                  <svg className="h-2 w-2 text-white/40" fill="currentColor" viewBox="0 0 24 24"><path d="M12 18c3.31 0 6-2.69 6-6s-2.69-6-6-6-6 2.69-6 6 2.69 6 6 6z"/></svg>
-                  <svg className="h-2 w-2 text-white/40" fill="currentColor" viewBox="0 0 24 24"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
-                </div>
-              </div>
-
-              {/* App header */}
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-1.5 flex items-center gap-2">
-                <svg className="h-3 w-3 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
-                <span className="text-[9px] font-semibold text-white">Tecnikos</span>
-                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-green-400" />
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto px-2.5 py-2.5 space-y-2">
-                {/* Title */}
-                <h2 className="text-[11px] font-bold text-slate-800 leading-tight">Troca de Filtro</h2>
-
-                {/* Custom message */}
-                {config.customMessage && (
-                  <div className="rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
-                    <p className="text-[8px] text-blue-700 leading-relaxed">{config.customMessage}</p>
-                  </div>
-                )}
-
-                {/* Fields in order */}
-                {enabledFields.length > 0 && (
-                  <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 shadow-sm space-y-1">
-                    {enabledFields.map(field => {
-                      if (field.key === "osCode") {
-                        return <div key={field.key} className="flex items-center gap-1.5"><span className="text-[7px]">🔢</span><span className="text-[8px] font-mono text-slate-600">OS-00028</span></div>;
-                      }
-                      if (field.key === "status") {
-                        return <div key={field.key}><span className="inline-block rounded-full bg-orange-100 text-orange-700 px-1.5 py-px text-[7px] font-semibold">Ofertada</span></div>;
-                      }
-                      if (field.key === "description") {
-                        return <p key={field.key} className="text-[8px] text-slate-500 leading-relaxed">{field.previewValue}</p>;
-                      }
-                      if (field.key === "commission") {
-                        const commLabel = config.commissionLabel || "Comissao";
-                        return (
-                          <div key={field.key} className="flex items-center gap-1.5 pt-0.5 border-t border-slate-100">
-                            <span className="text-[7px]">💵</span>
-                            <span className="text-[7px] text-slate-400">{commLabel}:</span>
-                            <span className="text-[8px] font-semibold text-green-600">R$ 54,00</span>
-                          </div>
-                        );
-                      }
-                      if (field.key === "attachments") {
-                        return (
-                          <div key={field.key} className="flex gap-1 pt-0.5">
-                            {[1, 2].map(i => (
-                              <div key={i} className="h-7 w-7 rounded bg-slate-100 flex items-center justify-center">
-                                <span className="text-[7px] text-slate-400">📷</span>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      }
-                      const lbl = field.key === "companyPhone" ? companyLabel : field.previewLabel;
-                      return (
-                        <div key={field.key} className="flex items-center gap-1.5">
-                          <span className="text-[7px]">{field.icon}</span>
-                          <span className="text-[7px] text-slate-400">{lbl}:</span>
-                          <span className="text-[8px] font-medium text-slate-700">{field.previewValue}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Interactive block preview */}
-                {currentStep && <BlockPreview block={currentStep} />}
-              </div>
-
-              {/* Bottom nav */}
-              <div className="bg-white border-t border-slate-200 px-4 py-1.5 flex justify-around">
-                <div className="flex flex-col items-center gap-0.5">
-                  <svg className="h-3 w-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15" />
-                  </svg>
-                  <span className="text-[6px] text-blue-600 font-medium">Minhas OS</span>
-                </div>
-                <div className="flex flex-col items-center gap-0.5">
-                  <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
-                  </svg>
-                  <span className="text-[6px] text-slate-400">Perfil</span>
-                </div>
-              </div>
+            {/* Phone frame with iframe */}
+            <div className="w-[280px] h-[560px] rounded-[2.5rem] border-[6px] border-slate-800 bg-slate-800 overflow-hidden shadow-2xl flex flex-col relative">
+              {/* Notch */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-slate-800 rounded-b-2xl z-10" />
+              {/* iframe fills entire phone */}
+              <iframe
+                ref={iframeRef}
+                src="/tech/preview"
+                className="w-full h-full border-0 bg-slate-50 rounded-[2rem]"
+                title="Preview do portal do tecnico"
+              />
             </div>
 
             {/* Right arrow — outside phone */}
             <button
               type="button"
-              onClick={() => setStepIdx(Math.min(totalSteps - 1, stepIdx + 1))}
+              onClick={() => goToStep(Math.min(totalSteps - 1, stepIdx + 1))}
               disabled={stepIdx >= totalSteps - 1 || totalSteps === 0}
               className="h-9 w-9 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-blue-100 hover:text-blue-600 disabled:opacity-20 disabled:hover:bg-slate-100 disabled:hover:text-slate-400 transition-colors shadow-sm shrink-0"
             >
@@ -587,7 +557,7 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                     <button
                       key={i}
                       type="button"
-                      onClick={() => setStepIdx(i)}
+                      onClick={() => goToStep(i)}
                       className={`h-1.5 rounded-full transition-all ${i === stepIdx ? `w-5 ${activeColor}` : `w-1.5 ${inactiveColor}`}`}
                     />
                   );

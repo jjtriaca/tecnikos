@@ -31,7 +31,7 @@ function TechInnerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isPublicPage = pathname === "/tech/login" || pathname.startsWith("/tech/setup") || pathname.startsWith("/tech/os/");
+  const isPublicPage = pathname === "/tech/login" || pathname.startsWith("/tech/setup") || pathname.startsWith("/tech/os/") || pathname === "/tech/preview";
 
   useEffect(() => {
     if (!loading && !user && !isPublicPage) {
