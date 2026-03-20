@@ -1976,6 +1976,17 @@ export class WorkflowEngineService {
           throw new BadRequestException(
             `"${block.name}" requer uma observação`,
           );
+        if (dto.note) {
+          const noteLen = dto.note.trim().length;
+          if (c.minChars && noteLen < c.minChars)
+            throw new BadRequestException(
+              `"${block.name}" requer no mínimo ${c.minChars} caracteres (atual: ${noteLen})`,
+            );
+          if (c.maxChars && noteLen > c.maxChars)
+            throw new BadRequestException(
+              `"${block.name}" permite no máximo ${c.maxChars} caracteres (atual: ${noteLen})`,
+            );
+        }
         break;
 
       case 'GPS':

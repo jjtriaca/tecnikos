@@ -1136,8 +1136,13 @@ function V2BlockAction({
       case "STEP":
         if (c.requireNote && !v2Note.trim()) return true;
         return false;
-      case "NOTE":
-        return c.required !== false && !v2Note.trim();
+      case "NOTE": {
+        const noteText = v2Note.trim();
+        if (c.required !== false && !noteText) return true;
+        if (noteText && c.minChars && noteText.length < c.minChars) return true;
+        if (noteText && c.maxChars && noteText.length > c.maxChars) return true;
+        return false;
+      }
       case "PHOTO":
         return !attachments.some((a) => a.type === "WORKFLOW_STEP");
       case "GPS":
@@ -1198,9 +1203,22 @@ function V2BlockAction({
 
         {/* NOTE */}
         {block.type === "NOTE" && (
-          <textarea placeholder={c.placeholder || "Digite sua observacao..."} value={v2Note}
-            onChange={(e) => setV2Note(e.target.value)} rows={3}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none" />
+          <div>
+            <textarea placeholder={c.placeholder || "Digite sua observacao..."} value={v2Note}
+              onChange={(e) => {
+                if (c.maxChars && e.target.value.length > c.maxChars) return;
+                setV2Note(e.target.value);
+              }} rows={3}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none" />
+            {(c.minChars || c.maxChars) && (
+              <div className={`text-right text-[10px] mt-0.5 ${
+                c.minChars && v2Note.trim().length < c.minChars ? "text-red-500" :
+                c.maxChars && v2Note.trim().length > c.maxChars * 0.9 ? "text-amber-500" : "text-slate-400"
+              }`}>
+                {v2Note.trim().length}{c.minChars ? `/${c.minChars} min` : ""}{c.maxChars ? ` · ${c.maxChars} max` : ""}
+              </div>
+            )}
+          </div>
         )}
 
         {/* STATUS manual — botao customizado para o tecnico confirmar mudanca de status */}

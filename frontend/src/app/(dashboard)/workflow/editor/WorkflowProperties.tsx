@@ -426,6 +426,16 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             <Label>Placeholder</Label>
             <Input value={cfg.placeholder || ""} onChange={(v) => updateConfig("placeholder", v)} placeholder="Texto de orientacao..." />
             <Checkbox checked={cfg.required !== false} onChange={(v) => updateConfig("required", v)} label="Obrigatorio" />
+            <div className="flex gap-2 mt-1">
+              <div className="flex-1">
+                <Label>Min. caracteres</Label>
+                <input type="number" min={0} value={cfg.minChars || ""} onChange={(e) => updateConfig("minChars", e.target.value ? parseInt(e.target.value) : null)} placeholder="0" className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400" />
+              </div>
+              <div className="flex-1">
+                <Label>Max. caracteres</Label>
+                <input type="number" min={0} value={cfg.maxChars || ""} onChange={(e) => updateConfig("maxChars", e.target.value ? parseInt(e.target.value) : null)} placeholder="Sem limite" className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400" />
+              </div>
+            </div>
           </>
         )}
 
