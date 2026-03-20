@@ -87,6 +87,16 @@ export class WorkflowController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Get(':id/emulator-os')
+  @ApiOperation({ summary: 'List OS for this workflow (emulator OS picker)' })
+  emulatorOs(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.listEmulatorOs(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/reset-preview')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset preview OS to OFERTADA and clear workflow logs' })

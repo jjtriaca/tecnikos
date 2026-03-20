@@ -165,13 +165,14 @@ function MoveBtn({ direction, onClick }: { direction: "up" | "down"; onClick: ()
 
 /* ── Component ── */
 
-interface ActiveToken {
-  token: string;
+interface EmulatorOs {
+  serviceOrderId: string;
+  token: string | null;
   code: string;
   title: string;
   status: string;
   techName: string | null;
-  channel: string;
+  channel: string | null;
 }
 
 // Dimensions
@@ -192,9 +193,9 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
   const [saving, setSaving] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeKey = useRef(0);
-  const [activeTokens, setActiveTokens] = useState<ActiveToken[]>([]);
-  const [showTokenList, setShowTokenList] = useState(false);
-  const [loadingTokens, setLoadingTokens] = useState(false);
+  const [emulatorOsList, setEmulatorOsList] = useState<EmulatorOs[]>([]);
+  const [showOsList, setShowOsList] = useState(false);
+  const [loadingOsList, setLoadingOsList] = useState(false);
   const [usingRealOs, setUsingRealOs] = useState(false);
   const [previewOsId, setPreviewOsId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
@@ -250,25 +251,50 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
   const isEnabled = (key: FieldKey) => config[TOGGLE_KEY_MAP[key]] as boolean;
   const toggleField = (key: FieldKey) => update(TOGGLE_KEY_MAP[key], !isEnabled(key));
 
-  // Load active tokens from real OS
-  const loadActiveTokens = useCallback(async () => {
-    setLoadingTokens(true);
+  // Load OS list for this workflow
+  const loadEmulatorOs = useCallback(async () => {
+    if (!workflowId) return;
+    setLoadingOsList(true);
     try {
-      const res = await api.get<ActiveToken[]>("/service-orders/active-tokens");
-      setActiveTokens(res);
-      setShowTokenList(true);
+      const res = await api.get<EmulatorOs[]>(`/workflows/${workflowId}/emulator-os`);
+      setEmulatorOsList(res);
+      setShowOsList(true);
     } catch {
-      setError("Erro ao buscar OS ativas");
+      setError("Erro ao buscar OS do workflow");
     } finally {
-      setLoadingTokens(false);
+      setLoadingOsList(false);
     }
-  }, []);
+  }, [workflowId]);
 
-  const selectRealOs = (token: string) => {
-    setPreviewToken(token);
+  const selectEmulatorOs = (os: EmulatorOs) => {
+    setPreviewOsId(os.serviceOrderId);
     setUsingRealOs(true);
-    setShowTokenList(false);
+    setShowOsList(false);
+    if (os.token) {
+      setPreviewToken(os.token);
+    } else {
+      // No valid token — need to reset first to create one
+      resetOsAndLoad(os.serviceOrderId);
+    }
   };
+
+  // Reset any OS (preview or real) back to OFERTADA and reload
+  const resetOsAndLoad = useCallback(async (osId?: string) => {
+    const targetOsId = osId || previewOsId;
+    if (!workflowId || !targetOsId) return;
+    setResetting(true);
+    try {
+      await onSave();
+      const res = await api.post<{ token: string; serviceOrderId: string }>(`/workflows/${workflowId}/reset-preview`, { serviceOrderId: targetOsId });
+      setPreviewToken(res.token);
+      setPreviewOsId(res.serviceOrderId);
+      iframeKey.current += 1;
+    } catch (err: any) {
+      setError(err?.message || "Erro ao resetar OS");
+    } finally {
+      setResetting(false);
+    }
+  }, [workflowId, previewOsId, onSave]);
 
   // Create preview OS
   const createPreviewOs = useCallback(async () => {
@@ -288,25 +314,6 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
       setLoading(false);
     }
   }, [workflowId, triggerLabel]);
-
-  // Reset preview OS to OFERTADA and reload iframe
-  const resetPreviewOs = useCallback(async () => {
-    if (!workflowId || !previewOsId) return;
-    setResetting(true);
-    try {
-      // Save current workflow config first
-      await onSave();
-      const res = await api.post<{ token: string; serviceOrderId: string }>(`/workflows/${workflowId}/reset-preview`, { serviceOrderId: previewOsId });
-      setPreviewToken(res.token);
-      setPreviewOsId(res.serviceOrderId);
-      // Force iframe reload
-      iframeKey.current += 1;
-    } catch (err: any) {
-      setError(err?.message || "Erro ao resetar OS");
-    } finally {
-      setResetting(false);
-    }
-  }, [workflowId, previewOsId, onSave]);
 
   // Auto-save + reload iframe on config change (debounced)
   const configRef = useRef(config);
@@ -546,31 +553,35 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
                       </>
                     ) : (
                       <>
-                        {showTokenList ? (
-                          /* Token selection list */
+                        {showOsList ? (
+                          /* OS selection list */
                           <div className="w-full h-full flex flex-col px-3 pt-8 pb-3">
                             <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs font-semibold text-slate-700">Selecionar OS ativa</p>
-                              <button onClick={() => setShowTokenList(false)} className="text-[10px] text-slate-400 hover:text-slate-600">&larr; Voltar</button>
+                              <p className="text-xs font-semibold text-slate-700">Selecionar OS</p>
+                              <button onClick={() => setShowOsList(false)} className="text-[10px] text-slate-400 hover:text-slate-600">&larr; Voltar</button>
                             </div>
                             <div className="flex-1 overflow-y-auto space-y-1.5">
-                              {activeTokens.length === 0 ? (
-                                <p className="text-[10px] text-slate-400 text-center mt-8">Nenhuma OS com token ativo encontrada</p>
+                              {emulatorOsList.length === 0 ? (
+                                <p className="text-[10px] text-slate-400 text-center mt-8">Nenhuma OS encontrada para este workflow</p>
                               ) : (
-                                activeTokens.map((t) => (
-                                  <button
-                                    key={t.token}
-                                    onClick={() => selectRealOs(t.token)}
-                                    className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[10px] font-mono font-bold text-blue-600">{t.code}</span>
-                                      <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{t.status}</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-600 truncate mt-0.5">{t.title}</p>
-                                    {t.techName && <p className="text-[9px] text-slate-400 mt-0.5">{t.techName}</p>}
-                                  </button>
-                                ))
+                                emulatorOsList.map((os) => {
+                                  const isTerminal = ["RECUSADA", "CANCELADA", "CONCLUIDA", "APROVADA"].includes(os.status);
+                                  return (
+                                    <button
+                                      key={os.serviceOrderId}
+                                      onClick={() => selectEmulatorOs(os)}
+                                      className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-mono font-bold text-blue-600">{os.code}</span>
+                                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${isTerminal ? "bg-red-50 text-red-500" : "bg-slate-100 text-slate-500"}`}>{os.status}</span>
+                                      </div>
+                                      <p className="text-[10px] text-slate-600 truncate mt-0.5">{os.title}</p>
+                                      {os.techName && <p className="text-[9px] text-slate-400 mt-0.5">{os.techName}</p>}
+                                      {isTerminal && <p className="text-[9px] text-amber-500 mt-0.5">Sera reiniciada ao selecionar</p>}
+                                    </button>
+                                  );
+                                })
                               )}
                             </div>
                           </div>
@@ -590,11 +601,11 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
                               Criar {triggerLabel}
                             </button>
                             <button
-                              onClick={loadActiveTokens}
-                              disabled={loadingTokens}
+                              onClick={loadEmulatorOs}
+                              disabled={loadingOsList}
                               className="rounded-xl border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-all disabled:opacity-50"
                             >
-                              {loadingTokens ? "Carregando..." : "Usar OS real"}
+                              {loadingOsList ? "Carregando..." : "Usar OS existente"}
                             </button>
                             {!workflowId && (
                               <p className="text-[9px] text-amber-500">Salve o fluxo primeiro</p>
@@ -620,7 +631,7 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
                       Recarregar
                     </button>
                     <button
-                      onClick={() => { setPreviewToken(null); setUsingRealOs(false); setPreviewOsId(null); }}
+                      onClick={() => { setPreviewToken(null); setUsingRealOs(false); setPreviewOsId(null); setShowOsList(false); }}
                       className="text-[9px] text-slate-400 hover:text-slate-600 underline ml-1"
                     >
                       Trocar
@@ -629,7 +640,7 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
                   {/* Reset button */}
                   {previewOsId && (
                     <button
-                      onClick={resetPreviewOs}
+                      onClick={() => resetOsAndLoad()}
                       disabled={resetting}
                       className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 text-[10px] font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
                     >

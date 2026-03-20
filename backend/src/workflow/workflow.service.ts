@@ -244,6 +244,45 @@ export class WorkflowService {
     return { sent, preview };
   }
 
+  /* ── Emulator OS list ── */
+
+  /**
+   * List all OS for this workflow (any status), for the emulator OS picker.
+   * Returns token if available, or null if token expired/revoked.
+   */
+  async listEmulatorOs(workflowId: string, companyId: string) {
+    await this.findOne(workflowId, companyId); // verify access
+
+    const orders = await this.prisma.serviceOrder.findMany({
+      where: { companyId, workflowTemplateId: workflowId, deletedAt: null },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        status: true,
+        assignedPartner: { select: { name: true } },
+        offers: {
+          where: { revokedAt: null, expiresAt: { gt: new Date() } },
+          select: { token: true, channel: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    return orders.map(o => ({
+      serviceOrderId: o.id,
+      code: o.code,
+      title: o.title,
+      status: o.status,
+      techName: o.assignedPartner?.name || null,
+      channel: o.offers[0]?.channel || null,
+      token: o.offers[0]?.token || null,
+    }));
+  }
+
   /* ── Preview OS for Tech Portal emulator ── */
 
   /**
