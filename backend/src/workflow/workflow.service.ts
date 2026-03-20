@@ -381,12 +381,13 @@ export class WorkflowService {
   /**
    * Reset a preview OS, clearing all workflow step logs and re-executing
    * the workflow from START so the flow begins immediately.
+   * Uses skipDelays so DELAYs are instant in preview mode.
+   * Creates a permanent PREVIEW token (10 years) that works even in terminal status.
    */
   async resetPreviewOs(workflowId: string, companyId: string, serviceOrderId: string) {
     // Verify the OS belongs to this workflow and company
     const os = await this.prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, companyId, workflowTemplateId: workflowId, deletedAt: null },
-      include: { workflowTemplate: { select: { steps: true } } },
     });
     if (!os) throw new NotFoundException('OS não encontrada ou não pertence a este workflow');
 
@@ -397,7 +398,7 @@ export class WorkflowService {
       // Delete any pending workflow waits
       await (tx as any).pendingWorkflowWait?.deleteMany?.({ where: { serviceOrderId } }).catch(() => {});
 
-      // Reset OS status to ABERTA (not OFERTADA — we want the workflow to start immediately)
+      // Reset OS status to ABERTA — workflow will set the correct status via STATUS blocks
       await tx.serviceOrder.update({
         where: { id: serviceOrderId },
         data: {
@@ -407,14 +408,14 @@ export class WorkflowService {
         },
       });
 
-      // Ensure there's a valid (non-revoked, non-expired) offer token
-      const validOffer = await tx.serviceOrderOffer.findFirst({
-        where: { serviceOrderId, companyId, revokedAt: null, expiresAt: { gt: new Date() } },
-        select: { token: true },
+      // Revoke old tokens and create a permanent PREVIEW token (10 years)
+      // PREVIEW tokens bypass terminal status check in loginWithToken
+      const existingPreview = await tx.serviceOrderOffer.findFirst({
+        where: { serviceOrderId, companyId, channel: 'PREVIEW', revokedAt: null },
+        select: { id: true, token: true },
       });
 
-      if (!validOffer) {
-        // Create a new token
+      if (!existingPreview) {
         const { randomUUID } = await import('crypto');
         await tx.serviceOrderOffer.create({
           data: {
@@ -422,26 +423,29 @@ export class WorkflowService {
             companyId,
             channel: 'PREVIEW',
             token: randomUUID(),
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            expiresAt: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 years
           },
         });
       }
     });
 
-    // Execute workflow from START — processes all auto blocks (DELAY, STATUS, NOTIFY)
-    // until it reaches the first actionable block (GPS, PHOTO, STEP, etc.)
+    // Execute workflow from START with skipDelays — all auto blocks (DELAY, STATUS, NOTIFY)
+    // are processed instantly until it reaches the first actionable block
     if (this.workflowEngine) {
       try {
-        await this.workflowEngine.executeWorkflowFromStart(serviceOrderId, companyId, workflowId);
-        this.logger.log(`🔄 Preview OS ${serviceOrderId} reset and workflow re-executed from START`);
+        await this.workflowEngine.executeWorkflowFromStart(
+          serviceOrderId, companyId, workflowId,
+          { skipDelays: true },
+        );
+        this.logger.log(`🔄 Preview OS ${serviceOrderId} reset and workflow re-executed from START (skipDelays)`);
       } catch (err) {
         this.logger.error(`🔄 Failed to execute workflow from start after reset: ${(err as Error).message}`);
       }
     }
 
-    // Get the current valid token to return
+    // Get the PREVIEW token
     const offer = await this.prisma.serviceOrderOffer.findFirst({
-      where: { serviceOrderId, companyId, revokedAt: null, expiresAt: { gt: new Date() } },
+      where: { serviceOrderId, companyId, channel: 'PREVIEW', revokedAt: null },
       select: { token: true },
       orderBy: { createdAt: 'desc' },
     });

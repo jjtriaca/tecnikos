@@ -410,6 +410,7 @@ export class WorkflowEngineService {
     serviceOrderId: string,
     companyId: string,
     workflowTemplateId: string,
+    options?: { skipDelays?: boolean },
   ): Promise<{ executed: number; stoppedAt?: string }> {
     this.logger.log(`🚀 executeWorkflowFromStart: OS=${serviceOrderId}, template=${workflowTemplateId}`);
 
@@ -479,7 +480,10 @@ export class WorkflowEngineService {
             }
             return (block.config?.minutes || 0) * 60 * 1000;
           })();
-          if (delayMs > 0 && delayMs <= 300000) {
+          if (options?.skipDelays) {
+            // Preview mode: skip all delays instantly
+            this.logger.log(`⏳ DELAY: Skipped (preview mode) — ${delayMs}ms`);
+          } else if (delayMs > 0 && delayMs <= 300000) {
             // Delays até 5 min: sleep inline
             this.logger.log(`⏳ DELAY: Waiting ${delayMs}ms (${block.config?.duration || block.config?.minutes} ${block.config?.unit || 'minutes'})`);
             await new Promise(resolve => setTimeout(resolve, delayMs));

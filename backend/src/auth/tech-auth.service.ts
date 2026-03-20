@@ -244,8 +244,9 @@ export class TechAuthService {
     if (offer) {
       const so = offer.serviceOrder;
       // Token is valid until OS reaches a terminal status
+      // Exception: PREVIEW tokens always work (for emulator testing)
       const terminalStatuses = ['APROVADA', 'CANCELADA', 'CONCLUIDA', 'RECUSADA'];
-      if (terminalStatuses.includes(so.status)) {
+      if (terminalStatuses.includes(so.status) && offer.channel !== 'PREVIEW') {
         throw new BadRequestException('Esta ordem de serviço já foi finalizada');
       }
 
