@@ -409,6 +409,9 @@ export default function TechOrderDetailPage() {
       case "FORM":
         body.responseData = { fields: v2FormFields };
         break;
+      case "ARRIVAL_QUESTION":
+        body.responseData = { selectedMinutes: parseInt(v2AnswerRef.current) || 0 };
+        break;
     }
 
     // Include pending action from deferred ACTION_BUTTONS if present
@@ -1111,6 +1114,8 @@ function V2BlockAction({
         return !v2Answer;
       case "SIGNATURE":
         return !attachments.some((a) => a.type === "WORKFLOW_STEP");
+      case "ARRIVAL_QUESTION":
+        return !v2Answer;
       case "FORM":
         if (c.fields) return c.fields.some((f: any) => f.required && !v2FormFields[f.name]?.trim());
         return false;
@@ -1283,18 +1288,20 @@ function V2BlockAction({
           </div>
         )}
 
-        {/* CONDITION */}
+        {/* CONDITION — direct action (click submits immediately, no confirm) */}
         {block.type === "CONDITION" && (
           <div className="space-y-2">
             {c.question && <p className="text-sm font-medium text-slate-700">{c.question}</p>}
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setV2Answer("SIM")}
-                className={`rounded-lg border py-3 text-sm font-bold transition-all ${v2Answer === "SIM" ? "border-green-400 bg-green-100 text-green-800" : "border-slate-200 bg-white text-slate-600"}`}>
+            <div className="grid grid-cols-2 gap-3">
+              <button disabled={acting}
+                onClick={() => { setV2Answer("SIM"); setTimeout(() => onAdvance(), 50); }}
+                className="rounded-xl py-4 text-base font-bold shadow-md transition-all active:scale-[0.97] disabled:opacity-50 bg-gradient-to-r from-green-500 to-green-600 text-white">
                 ✅ Sim
               </button>
-              <button onClick={() => setV2Answer("NAO")}
-                className={`rounded-lg border py-3 text-sm font-bold transition-all ${v2Answer === "NAO" ? "border-red-400 bg-red-100 text-red-800" : "border-slate-200 bg-white text-slate-600"}`}>
-                ❌ Nao
+              <button disabled={acting}
+                onClick={() => { setV2Answer("NAO"); setTimeout(() => onAdvance(), 50); }}
+                className="rounded-xl py-4 text-base font-bold shadow-md transition-all active:scale-[0.97] disabled:opacity-50 bg-gradient-to-r from-red-500 to-red-600 text-white">
+                ❌ Não
               </button>
             </div>
           </div>
@@ -1489,6 +1496,23 @@ function V2BlockAction({
           );
         })()}
 
+        {/* ARRIVAL_QUESTION — tempo estimado de chegada */}
+        {block.type === "ARRIVAL_QUESTION" && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-700">{c.question || "Em quantos minutos voce chega no local?"}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {(c.options || [10, 20, 30, 45, 60]).map((min: number) => (
+                <button key={min} onClick={() => setV2Answer(String(min))}
+                  className={`rounded-lg border py-3 text-sm font-bold transition-all ${
+                    v2Answer === String(min) ? "border-blue-400 bg-blue-100 text-blue-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}>
+                  {min} min
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* FORM */}
         {block.type === "FORM" && c.fields && (
           <div className="space-y-2">
@@ -1514,12 +1538,12 @@ function V2BlockAction({
         )}
       </div>
 
-      {/* Advance button — hidden for ACTION_BUTTONS (they submit directly on click) */}
-      {block.type !== "ACTION_BUTTONS" && (
+      {/* Advance button — hidden for types that submit directly on click */}
+      {!["ACTION_BUTTONS", "CONDITION"].includes(block.type) && (
       <button onClick={onAdvance} disabled={isDisabled()}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all">
         <span className="text-xl">{block.icon || "▶️"}</span>
-        {acting ? "Avancando..." : block.type === "INFO" ? "Entendi ✓" : block.type === "ACTION_BUTTONS" ? "Confirmar ✓" : (block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : `Confirmar: ${block.name}`)}
+        {acting ? "Avancando..." : block.type === "INFO" ? "Entendi ✓" : (block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : "Confirmar ✓")}
       </button>
       )}
     </div>
