@@ -212,7 +212,9 @@ export default function TechOrderDetailPage() {
 
   // V2 state
   const [v2Note, setV2Note] = useState("");
-  const [v2Answer, setV2Answer] = useState<string>("");
+  const [v2Answer, _setV2Answer] = useState<string>("");
+  const v2AnswerRef = useRef(v2Answer);
+  const setV2Answer = (val: string) => { v2AnswerRef.current = val; _setV2Answer(val); };
   const [v2CheckedItems, setV2CheckedItems] = useState<string[]>([]);
   const [v2GpsCoords, setV2GpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [v2GpsLoading, setV2GpsLoading] = useState(false);
@@ -436,16 +438,16 @@ export default function TechOrderDetailPage() {
         }
         break;
       case "QUESTION":
-        body.responseData = { answer: v2Answer };
+        body.responseData = { answer: v2AnswerRef.current };
         break;
       case "CHECKLIST":
         body.responseData = { checkedItems: v2CheckedItems };
         break;
       case "CONDITION":
-        body.responseData = { answer: v2Answer };
+        body.responseData = { answer: v2AnswerRef.current };
         break;
       case "ACTION_BUTTONS":
-        body.responseData = { buttonId: v2Answer };
+        body.responseData = { buttonId: v2AnswerRef.current };
         break;
       case "SIGNATURE": {
         const sigPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP");
