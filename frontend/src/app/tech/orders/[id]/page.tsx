@@ -21,6 +21,7 @@ type Attachment = {
 
 type ServiceOrder = {
   id: string;
+  code?: string;
   title: string;
   description?: string;
   addressText: string;
@@ -31,6 +32,12 @@ type ServiceOrder = {
   deadlineAt: string;
   createdAt: string;
   workflowTemplateId?: string | null;
+  createdByName?: string | null;
+  contactPersonName?: string | null;
+  clientPartner?: { id: string; name: string; phone?: string } | null;
+  assignedPartner?: { id: string; name: string; phone?: string } | null;
+  company?: { phone?: string } | null;
+  ledger?: { commissionCents: number; commissionBps: number } | null;
 };
 
 // V1
@@ -88,6 +95,9 @@ type TechPortalConfig = {
   showSiteContact?: boolean;
   showCompanyPhone?: boolean;
   showCreator?: boolean;
+  fieldOrder?: string[];
+  companyPhoneLabel?: string;
+  commissionLabel?: string;
   customMessage?: string;
 };
 
@@ -559,6 +569,8 @@ export default function TechOrderDetailPage() {
   const showSiteContact = portalCfg.showSiteContact !== false;
   const showCompanyPhone = portalCfg.showCompanyPhone !== false;
   const showCreator = portalCfg.showCreator === true;
+  const companyPhoneLabel = portalCfg.companyPhoneLabel || "Escritorio";
+  const commissionLabel = portalCfg.commissionLabel || "Comissao";
   const customMessage = portalCfg.customMessage || "";
 
   return (
@@ -618,21 +630,30 @@ export default function TechOrderDetailPage() {
       )}
 
       {/* Info Card */}
-      {(showAddress || showValue || showDeadline || showDescription) && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm mb-4">
-          {showDescription && order.description && <p className="text-sm text-slate-600 mb-3">{order.description}</p>}
-          <div className="space-y-2.5">
-            {showAddress && <InfoRow icon="location" color="blue" label="Endereco" value={order.addressText} />}
-            {showValue && <InfoRow icon="money" color="green" label="Valor" value={formatCurrency(order.valueCents)} bold />}
-            {showDeadline && (
-              <InfoRow icon="clock" color={isOverdue ? "red" : "slate"} label="Prazo"
-                value={new Date(order.deadlineAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
-                bold={isOverdue}
-              />
-            )}
-          </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm mb-4">
+        {showOsCode && order.code && <p className="text-xs font-mono text-slate-500 mb-2">🔢 {order.code}</p>}
+        {showDescription && order.description && <p className="text-sm text-slate-600 mb-3">{order.description}</p>}
+        <div className="space-y-2.5">
+          {showClient && order.clientPartner?.name && <InfoRow icon="user" color="blue" label="Cliente" value={order.clientPartner.name} />}
+          {showClientPhone && order.clientPartner?.phone && <InfoRow icon="phone" color="blue" label="Telefone" value={order.clientPartner.phone} />}
+          {showSiteContact && order.contactPersonName && (
+            <InfoRow icon="home" color="blue" label="Contato no local" value={order.contactPersonName} />
+          )}
+          {showAddress && <InfoRow icon="location" color="blue" label="Endereco" value={order.addressText} />}
+          {showValue && <InfoRow icon="money" color="green" label="Valor" value={formatCurrency(order.valueCents)} bold />}
+          {showDeadline && (
+            <InfoRow icon="clock" color={isOverdue ? "red" : "slate"} label="Prazo"
+              value={new Date(order.deadlineAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+              bold={isOverdue}
+            />
+          )}
+          {showCommission && order.ledger?.commissionCents != null && order.ledger.commissionCents > 0 && (
+            <InfoRow icon="money" color="green" label={commissionLabel} value={formatCurrency(order.ledger.commissionCents)} bold />
+          )}
+          {showCompanyPhone && order.company?.phone && <InfoRow icon="building" color="slate" label={companyPhoneLabel} value={order.company.phone} />}
+          {showCreator && order.createdByName && <InfoRow icon="pencil" color="slate" label="Criado por" value={order.createdByName} />}
         </div>
-      )}
+      </div>
 
       {/* ═══════════════════════════════════════════
           ACTION BUTTONS (Smart flow)
@@ -1085,6 +1106,11 @@ function InfoRow({ icon, color, label, value, bold }: { icon: string; color: str
     location: <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />,
     money: <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />,
     clock: <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />,
+    user: <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />,
+    phone: <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />,
+    building: <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />,
+    pencil: <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />,
+    home: <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />,
   };
   const colorMap: Record<string, string> = {
     blue: "bg-blue-50 text-blue-500",

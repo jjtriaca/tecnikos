@@ -783,7 +783,9 @@ export class ServiceOrderService {
       where: { id, companyId, deletedAt: null },
       include: {
         assignedPartner: { select: { id: true, name: true, phone: true } },
-        clientPartner: { select: { id: true, name: true } },
+        clientPartner: { select: { id: true, name: true, phone: true } },
+        company: { select: { phone: true } },
+        ledger: { select: { commissionCents: true, commissionBps: true } },
         workflowTemplate: { select: { id: true, name: true, steps: true } },
         workflowStepLogs: { orderBy: { stepOrder: 'asc' } },
         events: { orderBy: { createdAt: 'desc' }, take: 20 },

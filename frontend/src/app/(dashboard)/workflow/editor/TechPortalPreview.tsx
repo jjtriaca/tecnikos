@@ -2,6 +2,40 @@
 
 import { type Block, getCatalogEntry, findStartBlock, findBlock } from "@/types/workflow-blocks";
 
+/* ── Field definitions ── */
+
+type FieldKey = "osCode" | "status" | "description" | "address" | "value" | "deadline" | "attachments" | "client" | "clientPhone" | "siteContact" | "companyPhone" | "creator" | "commission";
+
+interface FieldDef {
+  key: FieldKey;
+  label: string;
+  icon: string;
+  previewLabel: string;
+  previewValue: string;
+  defaultEnabled: boolean;
+  editableLabel?: boolean; // label can be customized
+}
+
+const ALL_FIELDS: FieldDef[] = [
+  { key: "osCode", label: "Codigo da OS", icon: "🔢", previewLabel: "", previewValue: "OS-00028", defaultEnabled: true },
+  { key: "status", label: "Status", icon: "🏷️", previewLabel: "", previewValue: "Ofertada", defaultEnabled: true },
+  { key: "description", label: "Descricao", icon: "📝", previewLabel: "", previewValue: "Troca de filtro e bomba da piscina", defaultEnabled: true },
+  { key: "client", label: "Nome do cliente", icon: "👤", previewLabel: "Cliente", previewValue: "Joao da Silva", defaultEnabled: false },
+  { key: "clientPhone", label: "Telefone do cliente", icon: "📞", previewLabel: "Telefone", previewValue: "(66) 99999-0000", defaultEnabled: false },
+  { key: "siteContact", label: "Contato no local", icon: "🏠", previewLabel: "Contato", previewValue: "Maria - (66) 98888-0000", defaultEnabled: true },
+  { key: "address", label: "Endereco", icon: "📍", previewLabel: "Endereco", previewValue: "Rua Exemplo, 123 - Centro", defaultEnabled: true },
+  { key: "value", label: "Valor", icon: "💰", previewLabel: "Valor", previewValue: "R$ 360,00", defaultEnabled: true },
+  { key: "deadline", label: "Prazo", icon: "🕐", previewLabel: "Prazo", previewValue: "19/03/2026", defaultEnabled: true },
+  { key: "commission", label: "Comissao do tecnico", icon: "💵", previewLabel: "Comissao", previewValue: "R$ 54,00", defaultEnabled: false, editableLabel: true },
+  { key: "companyPhone", label: "Telefone do escritorio", icon: "🏢", previewLabel: "Escritorio", previewValue: "(66) 3521-0000", defaultEnabled: true, editableLabel: true },
+  { key: "creator", label: "Criado por", icon: "✍️", previewLabel: "Criado por", previewValue: "Juliano Triaca", defaultEnabled: false },
+  { key: "attachments", label: "Anexos / Fotos", icon: "📷", previewLabel: "", previewValue: "", defaultEnabled: true },
+];
+
+const DEFAULT_ORDER: FieldKey[] = ALL_FIELDS.map(f => f.key);
+
+/* ── Config type ── */
+
 export interface TechPortalConfig {
   showAddress: boolean;
   showValue: boolean;
@@ -16,6 +50,9 @@ export interface TechPortalConfig {
   showSiteContact: boolean;
   showCompanyPhone: boolean;
   showCreator: boolean;
+  fieldOrder: FieldKey[];
+  companyPhoneLabel: string;
+  commissionLabel: string;
   customMessage: string;
 }
 
@@ -33,8 +70,31 @@ export const DEFAULT_TECH_PORTAL_CONFIG: TechPortalConfig = {
   showSiteContact: true,
   showCompanyPhone: true,
   showCreator: false,
+  fieldOrder: DEFAULT_ORDER,
+  companyPhoneLabel: "Escritorio",
+  commissionLabel: "Comissao",
   customMessage: "",
 };
+
+/* ── Toggle key mapping ── */
+
+const TOGGLE_KEY_MAP: Record<FieldKey, keyof TechPortalConfig> = {
+  osCode: "showOsCode",
+  status: "showStatus",
+  description: "showDescription",
+  address: "showAddress",
+  value: "showValue",
+  deadline: "showDeadline",
+  attachments: "showAttachments",
+  client: "showClient",
+  clientPhone: "showClientPhone",
+  siteContact: "showSiteContact",
+  companyPhone: "showCompanyPhone",
+  creator: "showCreator",
+  commission: "showCommission",
+};
+
+/* ── Props ── */
 
 interface Props {
   config: TechPortalConfig;
@@ -44,23 +104,6 @@ interface Props {
   workflowName: string;
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center justify-between py-0.5 cursor-pointer group">
-      <span className="text-[11px] text-slate-600 group-hover:text-slate-800">{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border border-transparent transition-colors ${checked ? "bg-blue-500" : "bg-slate-200"}`}
-      >
-        <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform mt-px ${checked ? "translate-x-3" : "translate-x-0.5"}`} />
-      </button>
-    </label>
-  );
-}
-
 /** Walk the main chain to get blocks the tech would see */
 function getVisibleBlocks(blocks: Block[]): { name: string; type: string; icon: string; isInteractive: boolean }[] {
   const INTERACTIVE = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "CONDITION", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
@@ -68,7 +111,6 @@ function getVisibleBlocks(blocks: Block[]): { name: string; type: string; icon: 
   const result: { name: string; type: string; icon: string; isInteractive: boolean }[] = [];
   const start = findStartBlock(blocks);
   if (!start) return result;
-
   let currentId: string | null = start.next;
   const visited = new Set<string>();
   while (currentId) {
@@ -78,80 +120,133 @@ function getVisibleBlocks(blocks: Block[]): { name: string; type: string; icon: 
     if (!b || b.type === "END") break;
     if (!HIDDEN.has(b.type)) {
       const entry = getCatalogEntry(b.type);
-      result.push({
-        name: b.name || entry?.name || b.type,
-        type: b.type,
-        icon: entry?.icon || "⚙️",
-        isInteractive: INTERACTIVE.has(b.type),
-      });
+      result.push({ name: b.name || entry?.name || b.type, type: b.type, icon: entry?.icon || "⚙️", isInteractive: INTERACTIVE.has(b.type) });
     }
     currentId = b.next;
   }
   return result;
 }
 
-function InfoItem({ icon, label, value, visible }: { icon: string; label: string; value: string; visible: boolean }) {
-  if (!visible) return null;
+/* ── Arrow buttons ── */
+function MoveBtn({ direction, onClick }: { direction: "up" | "down"; onClick: () => void }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[7px]">{icon}</span>
-      <span className="text-[7px] text-slate-400">{label}:</span>
-      <span className="text-[8px] font-medium text-slate-700">{value}</span>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className="h-3.5 w-3.5 flex items-center justify-center rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+      title={direction === "up" ? "Mover para cima" : "Mover para baixo"}
+    >
+      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+        {direction === "up"
+          ? <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+          : <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />}
+      </svg>
+    </button>
   );
 }
 
+/* ── Component ── */
+
 export default function TechPortalPreview({ config, onChange, onClose, blocks, workflowName }: Props) {
-  const update = (key: keyof TechPortalConfig, value: boolean | string) => {
+  const update = (key: keyof TechPortalConfig, value: any) => {
     onChange({ ...config, [key]: value });
   };
 
+  // Ensure fieldOrder has all keys (migration safety)
+  const fieldOrder: FieldKey[] = config.fieldOrder?.length === ALL_FIELDS.length
+    ? config.fieldOrder
+    : DEFAULT_ORDER;
+
+  const orderedFields = fieldOrder.map(key => ALL_FIELDS.find(f => f.key === key)!).filter(Boolean);
+
+  const moveField = (key: FieldKey, direction: "up" | "down") => {
+    const arr = [...fieldOrder];
+    const idx = arr.indexOf(key);
+    if (direction === "up" && idx > 0) {
+      [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+    } else if (direction === "down" && idx < arr.length - 1) {
+      [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
+    }
+    update("fieldOrder", arr);
+  };
+
+  const isEnabled = (key: FieldKey) => config[TOGGLE_KEY_MAP[key]] as boolean;
+  const toggleField = (key: FieldKey) => update(TOGGLE_KEY_MAP[key], !isEnabled(key));
+
   const visibleBlocks = getVisibleBlocks(blocks);
   const interactiveCount = visibleBlocks.filter(b => b.isInteractive).length;
-  const hasAnyInfo = config.showAddress || config.showValue || config.showDeadline || config.showDescription || config.showClient || config.showClientPhone || config.showOsCode || config.showCommission || config.showSiteContact || config.showCompanyPhone;
+
+  // Get enabled fields in order for preview
+  const enabledFields = orderedFields.filter(f => isEnabled(f.key));
+
+  const companyLabel = config.companyPhoneLabel || "Escritorio";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex gap-5 bg-white rounded-2xl shadow-2xl p-5 max-w-[720px] w-full mx-4">
+      <div className="flex gap-5 bg-white rounded-2xl shadow-2xl p-5 max-w-[750px] w-full mx-4 max-h-[90vh]">
         {/* Left: Controls */}
-        <div className="w-56 shrink-0 flex flex-col">
+        <div className="w-60 shrink-0 flex flex-col overflow-y-auto">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-slate-800">Portal do Tecnico</h3>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm leading-none">&times;</button>
           </div>
-          <p className="text-[9px] text-slate-400 mb-3">Informacoes visiveis ao tecnico pelo link.</p>
+          <p className="text-[9px] text-slate-400 mb-2">Arraste os campos para reordenar. A ordem aqui reflete na tela do tecnico.</p>
 
-          <div className="space-y-px">
-            <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Dados da OS</p>
-            <Toggle label="Codigo da OS" checked={config.showOsCode} onChange={(v) => update("showOsCode", v)} />
-            <Toggle label="Status" checked={config.showStatus} onChange={(v) => update("showStatus", v)} />
-            <Toggle label="Descricao" checked={config.showDescription} onChange={(v) => update("showDescription", v)} />
-            <Toggle label="Endereco" checked={config.showAddress} onChange={(v) => update("showAddress", v)} />
-            <Toggle label="Valor" checked={config.showValue} onChange={(v) => update("showValue", v)} />
-            <Toggle label="Prazo" checked={config.showDeadline} onChange={(v) => update("showDeadline", v)} />
-            <Toggle label="Anexos" checked={config.showAttachments} onChange={(v) => update("showAttachments", v)} />
+          {/* Reorderable field list */}
+          <div className="space-y-px border rounded-lg border-slate-200 p-1.5">
+            {orderedFields.map((field, idx) => {
+              const enabled = isEnabled(field.key);
+              return (
+                <div
+                  key={field.key}
+                  className={`flex items-center gap-1 rounded px-1 py-0.5 transition-colors ${enabled ? "bg-white" : "bg-slate-50 opacity-60"}`}
+                >
+                  {/* Arrows */}
+                  <div className="flex flex-col">
+                    <MoveBtn direction="up" onClick={() => moveField(field.key, "up")} />
+                    <MoveBtn direction="down" onClick={() => moveField(field.key, "down")} />
+                  </div>
+                  {/* Icon + Label */}
+                  <span className="text-[9px] w-3.5 text-center">{field.icon}</span>
+                  <span className="text-[10px] text-slate-700 flex-1 truncate">{field.label}</span>
+                  {/* Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => toggleField(field.key)}
+                    className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full transition-colors ${enabled ? "bg-blue-500" : "bg-slate-200"}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-2.5 w-2.5 rounded-full bg-white shadow-sm transition-transform mt-px ${enabled ? "translate-x-2.5" : "translate-x-0.5"}`} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
-          <div className="space-y-px mt-2 pt-2 border-t border-slate-100">
-            <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Cliente / Contato</p>
-            <Toggle label="Nome do cliente" checked={config.showClient} onChange={(v) => update("showClient", v)} />
-            <Toggle label="Telefone do cliente" checked={config.showClientPhone} onChange={(v) => update("showClientPhone", v)} />
-            <Toggle label="Contato no local" checked={config.showSiteContact} onChange={(v) => update("showSiteContact", v)} />
-          </div>
-
-          <div className="space-y-px mt-2 pt-2 border-t border-slate-100">
-            <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Empresa</p>
-            <Toggle label="Telefone do escritorio" checked={config.showCompanyPhone} onChange={(v) => update("showCompanyPhone", v)} />
-            <Toggle label="Criado por (usuario)" checked={config.showCreator} onChange={(v) => update("showCreator", v)} />
-          </div>
-
-          <div className="space-y-px mt-2 pt-2 border-t border-slate-100">
-            <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Financeiro</p>
-            <Toggle label="Comissao do tecnico" checked={config.showCommission} onChange={(v) => update("showCommission", v)} />
-          </div>
-
+          {/* Company phone label */}
           <div className="mt-2 pt-2 border-t border-slate-100">
-            <label className="block text-[10px] text-slate-500 mb-1">Mensagem personalizada</label>
+            <label className="block text-[9px] text-slate-500 mb-0.5">Nome do telefone da empresa</label>
+            <input
+              value={config.companyPhoneLabel || ""}
+              onChange={(e) => update("companyPhoneLabel", e.target.value)}
+              placeholder="Ex: SLS Obras, Emergencia..."
+              className="w-full rounded border border-slate-200 px-2 py-1 text-[10px] text-slate-700 placeholder-slate-300 outline-none focus:border-blue-400"
+            />
+          </div>
+
+          {/* Commission label */}
+          <div className="mt-2 pt-2 border-t border-slate-100">
+            <label className="block text-[9px] text-slate-500 mb-0.5">Nome do campo de comissao</label>
+            <input
+              value={config.commissionLabel || ""}
+              onChange={(e) => update("commissionLabel", e.target.value)}
+              placeholder="Ex: Repasse, Valor do servico..."
+              className="w-full rounded border border-slate-200 px-2 py-1 text-[10px] text-slate-700 placeholder-slate-300 outline-none focus:border-blue-400"
+            />
+          </div>
+
+          {/* Custom message */}
+          <div className="mt-2 pt-2 border-t border-slate-100">
+            <label className="block text-[9px] text-slate-500 mb-0.5">Mensagem personalizada</label>
             <textarea
               value={config.customMessage}
               onChange={(e) => update("customMessage", e.target.value)}
@@ -163,14 +258,14 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
 
           <button
             onClick={onClose}
-            className="mt-3 w-full rounded-lg bg-blue-600 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700 transition-colors"
+            className="mt-3 w-full rounded-lg bg-blue-600 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700 transition-colors shrink-0"
           >
             Concluir
           </button>
         </div>
 
         {/* Right: Phone Preview */}
-        <div className="flex-1 flex justify-center">
+        <div className="flex-1 flex justify-center items-start pt-2">
           <div className="w-[260px] h-[520px] rounded-[2rem] border-[5px] border-slate-800 bg-slate-50 overflow-hidden shadow-xl flex flex-col">
             {/* Status bar */}
             <div className="bg-slate-800 px-4 py-0.5 flex items-center justify-between">
@@ -191,17 +286,11 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
               <div className="ml-auto h-1.5 w-1.5 rounded-full bg-green-400" />
             </div>
 
-            {/* Content */}
+            {/* Content — rendered in fieldOrder */}
             <div className="flex-1 overflow-y-auto px-2.5 py-2.5 space-y-2">
-              {/* Status badge + Title */}
+              {/* Title (always shown) */}
               <div>
-                {config.showStatus && (
-                  <span className="inline-block rounded-full bg-orange-100 text-orange-700 px-1.5 py-px text-[7px] font-semibold mb-0.5">Ofertada</span>
-                )}
-                <h2 className="text-[11px] font-bold text-slate-800 leading-tight">
-                  {config.showOsCode && <span className="text-slate-400 font-normal">OS-00028 </span>}
-                  Troca de Filtro
-                </h2>
+                <h2 className="text-[11px] font-bold text-slate-800 leading-tight">Troca de Filtro</h2>
               </div>
 
               {/* Custom message */}
@@ -211,41 +300,54 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                 </div>
               )}
 
-              {/* Info card */}
-              {hasAnyInfo && (
+              {/* Fields in order */}
+              {enabledFields.length > 0 && (
                 <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 shadow-sm space-y-1">
-                  <InfoItem icon="👤" label="Cliente" value="Joao da Silva" visible={config.showClient} />
-                  <InfoItem icon="📞" label="Telefone" value="(66) 99999-0000" visible={config.showClientPhone} />
-                  <InfoItem icon="🏠" label="Contato no local" value="Maria - (66) 98888-0000" visible={config.showSiteContact} />
-                  <InfoItem icon="🏢" label="Escritorio" value="(66) 3521-0000" visible={config.showCompanyPhone} />
-                  <InfoItem icon="✍️" label="Criado por" value="Juliano Triaca" visible={config.showCreator} />
-                  {config.showDescription && (
-                    <p className="text-[8px] text-slate-500 leading-relaxed">Troca de filtro e bomba da piscina</p>
-                  )}
-                  <InfoItem icon="📍" label="Endereco" value="Rua Exemplo, 123 - Centro" visible={config.showAddress} />
-                  <InfoItem icon="💰" label="Valor" value="R$ 360,00" visible={config.showValue} />
-                  <InfoItem icon="🕐" label="Prazo" value="19/03/2026" visible={config.showDeadline} />
-                  {config.showCommission && (
-                    <div className="flex items-center gap-1.5 pt-0.5 border-t border-slate-100">
-                      <span className="text-[7px]">💵</span>
-                      <span className="text-[7px] text-green-600 font-semibold">Comissao: R$ 54,00 (15%)</span>
-                    </div>
-                  )}
+                  {enabledFields.map(field => {
+                    if (field.key === "osCode") {
+                      return <div key={field.key} className="flex items-center gap-1.5"><span className="text-[7px]">🔢</span><span className="text-[8px] font-mono text-slate-600">OS-00028</span></div>;
+                    }
+                    if (field.key === "status") {
+                      return <div key={field.key}><span className="inline-block rounded-full bg-orange-100 text-orange-700 px-1.5 py-px text-[7px] font-semibold">Ofertada</span></div>;
+                    }
+                    if (field.key === "description") {
+                      return <p key={field.key} className="text-[8px] text-slate-500 leading-relaxed">{field.previewValue}</p>;
+                    }
+                    if (field.key === "commission") {
+                      const commLabel = config.commissionLabel || "Comissao";
+                      return (
+                        <div key={field.key} className="flex items-center gap-1.5 pt-0.5 border-t border-slate-100">
+                          <span className="text-[7px]">💵</span>
+                          <span className="text-[7px] text-slate-400">{commLabel}:</span>
+                          <span className="text-[8px] font-semibold text-green-600">R$ 54,00</span>
+                        </div>
+                      );
+                    }
+                    if (field.key === "attachments") {
+                      return (
+                        <div key={field.key} className="flex gap-1 pt-0.5">
+                          {[1, 2].map(i => (
+                            <div key={i} className="h-7 w-7 rounded bg-slate-100 flex items-center justify-center">
+                              <span className="text-[7px] text-slate-400">📷</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+                    // companyPhone uses custom label
+                    const lbl = field.key === "companyPhone" ? companyLabel : field.previewLabel;
+                    return (
+                      <div key={field.key} className="flex items-center gap-1.5">
+                        <span className="text-[7px]">{field.icon}</span>
+                        <span className="text-[7px] text-slate-400">{lbl}:</span>
+                        <span className="text-[8px] font-medium text-slate-700">{field.previewValue}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
-              {/* Attachments */}
-              {config.showAttachments && (
-                <div className="flex gap-1">
-                  {[1, 2].map(i => (
-                    <div key={i} className="h-8 w-8 rounded bg-slate-200 flex items-center justify-center">
-                      <span className="text-[7px] text-slate-400">📷</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Workflow steps - from actual blocks */}
+              {/* Workflow steps */}
               {visibleBlocks.length > 0 && (
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
@@ -254,25 +356,11 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                   </div>
                   {visibleBlocks.map((vb, i) => {
                     const isAuto = !vb.isInteractive;
+                    const isFirst = i === visibleBlocks.findIndex(b => b.isInteractive);
                     return (
-                      <div
-                        key={i}
-                        className={`rounded-md border px-2 py-1 flex items-center gap-1.5 ${
-                          isAuto
-                            ? "border-green-200 bg-green-50"
-                            : i === visibleBlocks.findIndex(b => b.isInteractive)
-                              ? "border-orange-200 bg-orange-50"
-                              : "border-slate-200 bg-white"
-                        }`}
-                      >
-                        <span className="text-[8px]">
-                          {isAuto ? "✅" : i === visibleBlocks.findIndex(b => b.isInteractive) ? "🎯" : "⬜"}
-                        </span>
-                        <span className={`text-[8px] font-medium ${
-                          isAuto ? "text-green-700" : i === visibleBlocks.findIndex(b => b.isInteractive) ? "text-orange-700" : "text-slate-500"
-                        }`}>
-                          {vb.name}
-                        </span>
+                      <div key={i} className={`rounded-md border px-2 py-1 flex items-center gap-1.5 ${isAuto ? "border-green-200 bg-green-50" : isFirst ? "border-orange-200 bg-orange-50" : "border-slate-200 bg-white"}`}>
+                        <span className="text-[8px]">{isAuto ? "✅" : isFirst ? "🎯" : "⬜"}</span>
+                        <span className={`text-[8px] font-medium ${isAuto ? "text-green-700" : isFirst ? "text-orange-700" : "text-slate-500"}`}>{vb.name}</span>
                         {isAuto && <span className="text-[6px] text-green-500 ml-auto italic">auto</span>}
                       </div>
                     );
