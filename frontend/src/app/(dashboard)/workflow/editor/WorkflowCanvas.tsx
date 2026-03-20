@@ -170,6 +170,21 @@ function BranchRenderer({
       {branchBlocks.length > 0 && (
         <Connector onClick={() => onInsertAfter(branchBlocks[branchBlocks.length - 1].id)} />
       )}
+      {/* Show "Fim" indicator when branch terminates (doesn't merge back) */}
+      {branchBlocks.length > 0 && (() => {
+        const lastBlock = branchBlocks[branchBlocks.length - 1];
+        const lastNext = lastBlock.next;
+        // Branch terminates if: next is null, or next points to END block, or next !== mergeId
+        const nextBlock = lastNext ? findBlock(blocks, lastNext) : null;
+        const terminates = !lastNext || (nextBlock?.type === "END") || (lastNext !== mergeId && !nextBlock);
+        if (!terminates) return null;
+        return (
+          <div className="flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 mt-0.5">
+            <span className="text-[10px]">⏹️</span>
+            <span className="text-[10px] font-semibold text-slate-500">Fim</span>
+          </div>
+        );
+      })()}
     </div>
   );
 }
