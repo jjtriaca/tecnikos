@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Optional, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Optional, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { PublicOfferService } from '../public-offer/public-offer.service';
+import { WorkflowEngineService } from './workflow-engine.service';
 import { buildSearchWhere } from '../common/util/build-search-where';
 
 export interface WorkflowStep {
@@ -20,6 +21,7 @@ export class WorkflowService {
     private readonly prisma: PrismaService,
     @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
     @Optional() @Inject(PublicOfferService) private readonly publicOfferService?: PublicOfferService,
+    @Optional() @Inject(forwardRef(() => WorkflowEngineService)) private readonly workflowEngine?: WorkflowEngineService,
   ) {}
 
   async findAll(companyId: string, opts?: { search?: string; page?: number; limit?: number; activeOnly?: boolean }) {
@@ -377,8 +379,8 @@ export class WorkflowService {
   }
 
   /**
-   * Reset a preview OS back to OFERTADA, clearing all workflow step logs.
-   * Also processes initial system blocks (START → first actionable block).
+   * Reset a preview OS, clearing all workflow step logs and re-executing
+   * the workflow from START so the flow begins immediately.
    */
   async resetPreviewOs(workflowId: string, companyId: string, serviceOrderId: string) {
     // Verify the OS belongs to this workflow and company
@@ -395,11 +397,11 @@ export class WorkflowService {
       // Delete any pending workflow waits
       await (tx as any).pendingWorkflowWait?.deleteMany?.({ where: { serviceOrderId } }).catch(() => {});
 
-      // Reset OS status to OFERTADA
+      // Reset OS status to ABERTA (not OFERTADA — we want the workflow to start immediately)
       await tx.serviceOrder.update({
         where: { id: serviceOrderId },
         data: {
-          status: 'OFERTADA',
+          status: 'ABERTA',
           completedAt: null,
           startedAt: null,
         },
@@ -426,6 +428,17 @@ export class WorkflowService {
       }
     });
 
+    // Execute workflow from START — processes all auto blocks (DELAY, STATUS, NOTIFY)
+    // until it reaches the first actionable block (GPS, PHOTO, STEP, etc.)
+    if (this.workflowEngine) {
+      try {
+        await this.workflowEngine.executeWorkflowFromStart(serviceOrderId, companyId, workflowId);
+        this.logger.log(`🔄 Preview OS ${serviceOrderId} reset and workflow re-executed from START`);
+      } catch (err) {
+        this.logger.error(`🔄 Failed to execute workflow from start after reset: ${(err as Error).message}`);
+      }
+    }
+
     // Get the current valid token to return
     const offer = await this.prisma.serviceOrderOffer.findFirst({
       where: { serviceOrderId, companyId, revokedAt: null, expiresAt: { gt: new Date() } },
@@ -433,7 +446,7 @@ export class WorkflowService {
       orderBy: { createdAt: 'desc' },
     });
 
-    this.logger.log(`🔄 Preview OS ${serviceOrderId} reset to OFERTADA`);
+    this.logger.log(`🔄 Preview OS ${serviceOrderId} reset complete`);
     return { token: offer?.token || '', serviceOrderId };
   }
 }

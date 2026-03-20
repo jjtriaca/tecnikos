@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.05.84
-## Ultima sessao: 147 (20/03/2026)
+## Versao: v1.06.09
+## Ultima sessao: 148 (20/03/2026)
 
 ## Pendencias
 
@@ -13,6 +13,22 @@
 ### PENDENTE VALIDACAO
 - **Tech refresh TTL**: Atualmente 1 dia para teste. Apos validar, mudar para 90 dias em `auth.constants.ts`
 - **Fluxo Avaliacao Orcamento**: Testar criacao de OS avaliacao com novo engine (variaveis, status OFERTADA, aceite)
+
+### CONCLUIDO (sessao 148)
+
+#### Portal do Tecnico — Remocao total de legados
+- **Botoes legados removidos**: ATRIBUIDA/A_CAMINHO/EM_EXECUCAO/AJUSTE/PAUSE/RESUME — tudo controlado por blocos do workflow
+- **Fotos Antes/Depois removidas**: Secao V1 de fotos eliminada (PHOTO block controla)
+- **Completed state V1 removido**: Tela verde de conclusao V1 eliminada (TerminalScreen controla)
+- **Pause modal removido**: Modal de pausa e toda logica associada eliminada
+- **GPS tracking legado removido**: Banner de distancia A_CAMINHO eliminado (GPS block controla)
+- **Dead code limpo**: handleStatusChange, handlePause, handleResume, PAUSE_REASONS, haversineDistance, formatDistance, watchIdRef, estados de pausa
+
+#### Workflow Engine — Fix terminal status
+- **Stale status fix**: advanceBlockV2 re-le status do DB apos transacao para nao sobrescrever RECUSADA→CONCLUIDA
+- **Emulador flutuante**: Componente draggavel com posicao persistente, expand/collapse, reset OS
+- **Emulador OS picker**: Endpoint emulator-os lista TODAS as OS do workflow, auto-reset para terminal
+- **ACTION_BUTTONS label**: "Confirmar ✓" ao inves de "Confirmar: Botoes de Acao"
 
 ### CONCLUIDO (sessao 147)
 
