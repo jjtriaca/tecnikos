@@ -1366,10 +1366,17 @@ export class WorkflowEngineService {
       companyId,
     )) as WorkflowProgressV2;
 
-    // If workflow complete → update OS status
+    // If workflow complete → update OS status (only if not already terminal)
+    // Re-read current status from DB because STATUS blocks may have changed it during the transaction
+    const currentSO = await this.prisma.serviceOrder.findUnique({
+      where: { id: so.id },
+      select: { status: true },
+    });
+    const currentStatus = currentSO?.status || so.status;
+    const TERMINAL_STATUSES = ['CONCLUIDA', 'APROVADA', 'RECUSADA', 'CANCELADA'];
     if (
       updatedProgress.isComplete &&
-      !['CONCLUIDA', 'APROVADA'].includes(so.status)
+      !TERMINAL_STATUSES.includes(currentStatus)
     ) {
       await this.prisma.$transaction(async (tx) => {
         await tx.serviceOrder.update({
@@ -1589,9 +1596,15 @@ export class WorkflowEngineService {
       companyId,
     )) as WorkflowProgressV2;
 
+    // Re-read current status (STATUS blocks may have changed it)
+    const resumeSO = await this.prisma.serviceOrder.findUnique({
+      where: { id: serviceOrderId },
+      select: { status: true },
+    });
+    const resumeStatus = resumeSO?.status || so.status;
     if (
       progress?.isComplete &&
-      !['CONCLUIDA', 'APROVADA'].includes(so.status)
+      !['CONCLUIDA', 'APROVADA', 'RECUSADA', 'CANCELADA'].includes(resumeStatus)
     ) {
       await this.prisma.serviceOrder.update({
         where: { id: serviceOrderId },

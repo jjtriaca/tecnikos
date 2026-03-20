@@ -262,7 +262,8 @@ export default function TechOrderDetailPage() {
           const wf = await techApi<WorkflowProgress>(`/service-orders/${id}/workflow`);
           setWorkflow(wf);
         } catch {
-          setWorkflow(null);
+          // Only clear workflow if we don't already have one (preserve advance response)
+          setWorkflow((prev) => prev);
         }
       }
       try {
