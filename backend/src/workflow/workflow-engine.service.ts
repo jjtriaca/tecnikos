@@ -603,7 +603,7 @@ export class WorkflowEngineService {
         'Esta OS não possui fluxo de atendimento',
       );
 
-    if (!['ATRIBUIDA', 'EM_EXECUCAO', 'AJUSTE'].includes(so.status)) {
+    if (!['OFERTADA', 'ATRIBUIDA', 'A_CAMINHO', 'EM_EXECUCAO', 'AJUSTE'].includes(so.status)) {
       throw new BadRequestException(
         'Não é possível avançar o fluxo neste status',
       );
