@@ -6,6 +6,7 @@ import WorkflowPalette from "./WorkflowPalette";
 import WorkflowCanvas from "./WorkflowCanvas";
 import WorkflowProperties from "./WorkflowProperties";
 import WorkflowTemplates from "./WorkflowTemplates";
+import TechPortalPreview, { type TechPortalConfig, DEFAULT_TECH_PORTAL_CONFIG } from "./TechPortalPreview";
 import { api } from "@/lib/api";
 import { TRIGGER_OPTIONS, type TriggerDefinition } from "@/types/stage-config";
 
@@ -49,6 +50,11 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
   const [showTemplates, setShowTemplates] = useState(!workflowId && !initialSteps);
   const [insertAfterId, setInsertAfterId] = useState<string | null>(null);
   const [insertVia, setInsertVia] = useState<"next" | "yesBranch" | "noBranch">("next");
+  const [techPortalConfig, setTechPortalConfig] = useState<TechPortalConfig>(() => {
+    if (initialSteps?.techPortalConfig) return { ...DEFAULT_TECH_PORTAL_CONFIG, ...initialSteps.techPortalConfig };
+    return DEFAULT_TECH_PORTAL_CONFIG;
+  });
+  const [showTechPortal, setShowTechPortal] = useState(false);
 
   const selectedBlock = selectedBlockId ? findBlock(blocks, selectedBlockId) || null : null;
   const blockCount = countUserBlocks(blocks);
@@ -157,6 +163,7 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
             event: trigger.event,
             triggerId: trigger.id,
           },
+          techPortalConfig,
         },
         isActive: initialIsActive ?? true,
       };
@@ -224,6 +231,16 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
 
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-slate-400 tabular-nums">{blockCount} blocos</span>
+
+          <button
+            onClick={() => setShowTechPortal(true)}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
+            </svg>
+            Portal
+          </button>
 
           <button
             onClick={() => setShowTemplates(true)}
@@ -378,6 +395,15 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
         <WorkflowTemplates
           onSelect={handleTemplateSelect}
           onClose={() => setShowTemplates(false)}
+        />
+      )}
+
+      {/* Tech Portal config modal */}
+      {showTechPortal && (
+        <TechPortalPreview
+          config={techPortalConfig}
+          onChange={setTechPortalConfig}
+          onClose={() => setShowTechPortal(false)}
         />
       )}
 

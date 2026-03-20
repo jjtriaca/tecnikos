@@ -74,6 +74,15 @@ type BlockProgress = {
   responseData?: any;
 };
 
+type TechPortalConfig = {
+  showAddress?: boolean;
+  showValue?: boolean;
+  showDeadline?: boolean;
+  showDescription?: boolean;
+  showClient?: boolean;
+  customMessage?: string;
+};
+
 type WorkflowProgressV2 = {
   templateId: string;
   templateName: string;
@@ -83,6 +92,7 @@ type WorkflowProgressV2 = {
   currentBlock: BlockProgress | null;
   executionPath: BlockProgress[];
   isComplete: boolean;
+  techPortalConfig?: TechPortalConfig | null;
 };
 
 type WorkflowProgress = WorkflowProgressV1 | WorkflowProgressV2;
@@ -526,6 +536,15 @@ export default function TechOrderDetailPage() {
   const isV2Workflow = hasWorkflow && isV2(workflow);
   const canAct = ["ATRIBUIDA", "A_CAMINHO", "EM_EXECUCAO", "AJUSTE"].includes(order.status);
 
+  // Tech portal visibility config (defaults to show all)
+  const portalCfg: TechPortalConfig = (isV2Workflow ? (workflow as WorkflowProgressV2).techPortalConfig : null) || {};
+  const showAddress = portalCfg.showAddress !== false;
+  const showValue = portalCfg.showValue !== false;
+  const showDeadline = portalCfg.showDeadline !== false;
+  const showDescription = portalCfg.showDescription !== false;
+  const showClient = portalCfg.showClient === true;
+  const customMessage = portalCfg.customMessage || "";
+
   return (
     <div className="pb-6">
       {/* Back button */}
@@ -573,18 +592,29 @@ export default function TechOrderDetailPage() {
         </div>
       )}
 
-      {/* Info Card */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm mb-4">
-        {order.description && <p className="text-sm text-slate-600 mb-3">{order.description}</p>}
-        <div className="space-y-2.5">
-          <InfoRow icon="location" color="blue" label="Endereco" value={order.addressText} />
-          <InfoRow icon="money" color="green" label="Valor" value={formatCurrency(order.valueCents)} bold />
-          <InfoRow icon="clock" color={isOverdue ? "red" : "slate"} label="Prazo"
-            value={new Date(order.deadlineAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
-            bold={isOverdue}
-          />
+      {/* Custom message from workflow */}
+      {customMessage && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 mb-4">
+          <p className="text-sm text-blue-700 leading-relaxed">{customMessage}</p>
         </div>
-      </div>
+      )}
+
+      {/* Info Card */}
+      {(showAddress || showValue || showDeadline || showDescription) && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm mb-4">
+          {showDescription && order.description && <p className="text-sm text-slate-600 mb-3">{order.description}</p>}
+          <div className="space-y-2.5">
+            {showAddress && <InfoRow icon="location" color="blue" label="Endereco" value={order.addressText} />}
+            {showValue && <InfoRow icon="money" color="green" label="Valor" value={formatCurrency(order.valueCents)} bold />}
+            {showDeadline && (
+              <InfoRow icon="clock" color={isOverdue ? "red" : "slate"} label="Prazo"
+                value={new Date(order.deadlineAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                bold={isOverdue}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════
           ACTION BUTTONS (Smart flow)

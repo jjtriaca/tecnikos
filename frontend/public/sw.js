@@ -92,6 +92,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Pages with token (tech public links): always network, never cache
+  if (url.searchParams.has("token")) {
+    return;
+  }
+
   // Pages: Network-first with cache fallback
   if (event.request.headers.get("accept")?.includes("text/html")) {
     event.respondWith(

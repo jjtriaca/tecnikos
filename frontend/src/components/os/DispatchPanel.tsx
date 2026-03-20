@@ -443,10 +443,6 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
         {/* GPS Tracking section (Fase 2) */}
         <GpsSection d={d} />
 
-        {/* Horizontal timeline */}
-        <div className="px-3 py-2">
-          <HorizontalTimeline d={d} />
-        </div>
       </div>
     </div>
   );

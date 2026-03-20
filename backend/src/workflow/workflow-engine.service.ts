@@ -55,6 +55,7 @@ interface BlockDef {
 interface V2Def {
   version: 2;
   blocks: BlockDef[];
+  techPortalConfig?: Record<string, any>;
 }
 
 export interface BlockProgress extends BlockDef {
@@ -74,6 +75,7 @@ export interface WorkflowProgressV2 {
   currentBlock: BlockDef | null;
   executionPath: BlockProgress[];
   isComplete: boolean;
+  techPortalConfig?: Record<string, any> | null;
 }
 
 /* Block types that require technician interaction */
@@ -907,6 +909,7 @@ export class WorkflowEngineService {
       currentBlock,
       executionPath,
       isComplete: foundEnd && !currentBlock,
+      techPortalConfig: def.techPortalConfig || null,
     };
   }
 
