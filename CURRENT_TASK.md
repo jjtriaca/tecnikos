@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.05.76
-## Ultima sessao: 146 (20/03/2026)
+## Versao: v1.05.84
+## Ultima sessao: 147 (20/03/2026)
 
 ## Pendencias
 
@@ -13,7 +13,24 @@
 ### PENDENTE VALIDACAO
 - **Tech refresh TTL**: Atualmente 1 dia para teste. Apos validar, mudar para 90 dias em `auth.constants.ts`
 - **Fluxo Avaliacao Orcamento**: Testar criacao de OS avaliacao com novo engine (variaveis, status OFERTADA, aceite)
-- **Tech Portal Emulador**: Testar criacao de OS preview, iframe carregando pagina real do tecnico, auto-save + reload
+
+### CONCLUIDO (sessao 147)
+
+#### NOTE block — min/max caracteres
+- **Config no editor**: Campos minChars/maxChars no painel de propriedades do bloco NOTE
+- **Backend enforcement**: validateBlockRequirements valida min/max no servidor (impede bypass pelo frontend)
+- **Frontend UX**: Botao Confirmar desabilitado se fora do range, contador de caracteres no textarea
+- **Limite hard**: maxChars bloqueia digitacao alem do limite
+
+#### Emulador — OS real com token
+- **Endpoint active-tokens**: Lista OS ativas com token valido para usar no emulador
+- **Selecao de OS real**: Emulador permite carregar OS real alem de preview
+
+#### Workflow Engine — Fixes criticos
+- **ACTION_BUTTONS branching**: getProgressV2 agora segue branch correto (buttonId → nextBlockId)
+- **Status OFERTADA/A_CAMINHO**: Backend aceita avancar blocos nestes status
+- **canAct inclui OFERTADA**: Frontend mostra botoes de acao para tecnico em OS ofertada
+- **Info interna escondida**: Progress bar e blocos concluidos removidos da view do tecnico
 
 ### CONCLUIDO (sessao 146)
 

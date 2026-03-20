@@ -101,6 +101,13 @@ type TechPortalConfig = {
   customMessage?: string;
 };
 
+type PendingAction = {
+  blockId: string;
+  responseData?: Record<string, any>;
+  note?: string;
+  photoUrl?: string;
+};
+
 type WorkflowProgressV2 = {
   templateId: string;
   templateName: string;
@@ -111,6 +118,7 @@ type WorkflowProgressV2 = {
   executionPath: BlockProgress[];
   isComplete: boolean;
   techPortalConfig?: TechPortalConfig | null;
+  pendingAction?: PendingAction | null;
 };
 
 type WorkflowProgress = WorkflowProgressV1 | WorkflowProgressV2;
@@ -215,6 +223,7 @@ export default function TechOrderDetailPage() {
   const [v2Answer, _setV2Answer] = useState<string>("");
   const v2AnswerRef = useRef(v2Answer);
   const setV2Answer = (val: string) => { v2AnswerRef.current = val; _setV2Answer(val); };
+  const pendingActionRef = useRef<PendingAction | null>(null);
   const [v2CheckedItems, setV2CheckedItems] = useState<string[]>([]);
   const [v2GpsCoords, setV2GpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [v2GpsLoading, setV2GpsLoading] = useState(false);
@@ -460,12 +469,31 @@ export default function TechOrderDetailPage() {
         break;
     }
 
+    // Include pending action from deferred ACTION_BUTTONS if present
+    if (pendingActionRef.current) {
+      body.pendingAction = pendingActionRef.current;
+      pendingActionRef.current = null;
+    }
+
     try {
       const wf = await techApi<WorkflowProgress>(
         `/service-orders/${order.id}/workflow/advance`,
         { method: "POST", body: JSON.stringify(body) }
       );
+
+      // If response has pendingAction, store it for the next advance
+      if (isV2(wf) && wf.pendingAction) {
+        pendingActionRef.current = wf.pendingAction;
+      }
+
       setWorkflow(wf);
+      // Reset V2 input state for the new block
+      setV2Note("");
+      _setV2Answer("");
+      v2AnswerRef.current = "";
+      setV2CheckedItems([]);
+      setV2GpsCoords(null);
+      setV2FormFields({});
       await loadOrder();
     } catch (err: any) {
       alert(err?.message || "Erro ao avancar bloco");
