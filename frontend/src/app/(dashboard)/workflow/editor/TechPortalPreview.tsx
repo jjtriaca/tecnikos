@@ -105,9 +105,10 @@ interface Props {
   workflowName: string;
 }
 
-/** Walk the main chain to get interactive blocks the tech would see */
-function getInteractiveBlocks(blocks: Block[]): Block[] {
-  const INTERACTIVE = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
+const INTERACTIVE = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
+
+/** Walk the main chain to get ALL blocks (except START/END) for the carousel */
+function getAllBlocks(blocks: Block[]): Block[] {
   const result: Block[] = [];
   const start = findStartBlock(blocks);
   if (!start) return result;
@@ -118,7 +119,7 @@ function getInteractiveBlocks(blocks: Block[]): Block[] {
     visited.add(currentId);
     const b = findBlock(blocks, currentId);
     if (!b || b.type === "END") break;
-    if (INTERACTIVE.has(b.type)) result.push(b);
+    if (b.type !== "START") result.push(b);
     currentId = b.next;
   }
   return result;
@@ -248,10 +249,73 @@ function BlockPreview({ block }: { block: Block }) {
         </div>
       );
     }
+    case "DELAY": {
+      const minutes = c.minutes || 5;
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      const timeLabel = hours > 0 ? `${hours}h${mins > 0 ? ` ${mins}min` : ""}` : `${mins} min`;
+      return (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-4 text-center space-y-2">
+          <div className="text-2xl">⏳</div>
+          <p className="text-[9px] font-semibold text-amber-700">Aguardando...</p>
+          <div className="inline-block rounded-full bg-amber-100 px-3 py-1">
+            <span className="text-[10px] font-bold text-amber-800 font-mono">{timeLabel}</span>
+          </div>
+          <p className="text-[7px] text-amber-500">Transicao automatica apos o tempo</p>
+        </div>
+      );
+    }
+    case "STATUS": {
+      const newStatus = c.status || "EM_EXECUCAO";
+      const statusLabels: Record<string, string> = { ABERTA: "Aberta", OFERTADA: "Ofertada", ATRIBUIDA: "Atribuida", A_CAMINHO: "A Caminho", EM_EXECUCAO: "Em Execucao", CONCLUIDA: "Concluida", APROVADA: "Aprovada" };
+      return (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-4 text-center space-y-2">
+          <div className="text-2xl">🔄</div>
+          <p className="text-[9px] font-semibold text-blue-700">Mudanca de status</p>
+          <div className="inline-block rounded-full bg-blue-100 px-3 py-1">
+            <span className="text-[10px] font-bold text-blue-800">{statusLabels[newStatus] || newStatus}</span>
+          </div>
+          <p className="text-[7px] text-blue-500">Automatico</p>
+        </div>
+      );
+    }
+    case "NOTIFY": {
+      const recipients = c.recipients || [];
+      const firstRecipient = recipients[0];
+      const channelLabel = firstRecipient?.channel === "WHATSAPP" ? "WhatsApp" : firstRecipient?.channel === "EMAIL" ? "E-mail" : firstRecipient?.channel === "PUSH" ? "Push" : "Notificacao";
+      return (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-4 text-center space-y-2">
+          <div className="text-2xl">📨</div>
+          <p className="text-[9px] font-semibold text-green-700">Notificacao enviada</p>
+          <div className="inline-block rounded-full bg-green-100 px-3 py-1">
+            <span className="text-[10px] font-bold text-green-800">{channelLabel}</span>
+          </div>
+          <p className="text-[7px] text-green-500">Automatico</p>
+        </div>
+      );
+    }
+    case "APPROVAL":
+      return (
+        <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-4 text-center space-y-2">
+          <div className="text-2xl">👨‍💼</div>
+          <p className="text-[9px] font-semibold text-purple-700">Aguardando aprovacao</p>
+          <p className="text-[7px] text-purple-500">O gestor precisa aprovar</p>
+        </div>
+      );
+    case "SLA":
+      return (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-4 text-center space-y-2">
+          <div className="text-2xl">⏱️</div>
+          <p className="text-[9px] font-semibold text-red-700">SLA ativo</p>
+          <p className="text-[7px] text-red-500">Prazo monitorado</p>
+        </div>
+      );
     default:
       return (
-        <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 text-center shadow-sm">
-          <span className="text-[9px] font-bold text-white">{icon} {block.name}</span>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center space-y-2">
+          <div className="text-2xl">{icon}</div>
+          <p className="text-[9px] font-semibold text-slate-700">{block.name}</p>
+          <p className="text-[7px] text-slate-500">Automatico</p>
         </div>
       );
   }
@@ -305,7 +369,7 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
   const isEnabled = (key: FieldKey) => config[TOGGLE_KEY_MAP[key]] as boolean;
   const toggleField = (key: FieldKey) => update(TOGGLE_KEY_MAP[key], !isEnabled(key));
 
-  const interactiveBlocks = getInteractiveBlocks(blocks);
+  const interactiveBlocks = getAllBlocks(blocks);
   const currentStep = interactiveBlocks[stepIdx] || null;
   const totalSteps = interactiveBlocks.length;
 
@@ -515,17 +579,24 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
           {totalSteps > 0 && (
             <div className="flex flex-col items-center gap-1 mt-2">
               <div className="flex gap-1">
-                {interactiveBlocks.map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setStepIdx(i)}
-                    className={`h-1.5 rounded-full transition-all ${i === stepIdx ? "w-5 bg-blue-500" : "w-1.5 bg-slate-300 hover:bg-slate-400"}`}
-                  />
-                ))}
+                {interactiveBlocks.map((b, i) => {
+                  const isInteract = INTERACTIVE.has(b.type);
+                  const activeColor = isInteract ? "bg-blue-500" : "bg-amber-400";
+                  const inactiveColor = isInteract ? "bg-blue-200 hover:bg-blue-300" : "bg-amber-200 hover:bg-amber-300";
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setStepIdx(i)}
+                      className={`h-1.5 rounded-full transition-all ${i === stepIdx ? `w-5 ${activeColor}` : `w-1.5 ${inactiveColor}`}`}
+                    />
+                  );
+                })}
               </div>
               <span className="text-[9px] text-slate-400">
-                {currentStep ? (currentStep.name || getCatalogEntry(currentStep.type)?.name) : ""} ({stepIdx + 1}/{totalSteps})
+                {currentStep ? (currentStep.name || getCatalogEntry(currentStep.type)?.name) : ""}
+                {currentStep && !INTERACTIVE.has(currentStep.type) && <span className="text-amber-500 ml-1">(auto)</span>}
+                <span className="ml-1">({stepIdx + 1}/{totalSteps})</span>
               </span>
             </div>
           )}
