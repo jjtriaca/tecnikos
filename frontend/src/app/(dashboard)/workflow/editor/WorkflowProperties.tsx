@@ -519,6 +519,12 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             { value: "yellow", label: "Amarelo", bg: "bg-yellow-500", preview: "bg-yellow-100 text-yellow-800 border-yellow-300" },
             { value: "slate", label: "Cinza", bg: "bg-slate-500", preview: "bg-slate-100 text-slate-800 border-slate-300" },
           ];
+          const BTN_SIZES = [
+            { value: "sm", label: "Pequeno" },
+            { value: "md", label: "Médio" },
+            { value: "lg", label: "Grande" },
+          ];
+          const buttonSize = cfg.buttonSize || "md";
           const updateButton = (idx: number, key: string, val: any) => {
             const n = [...buttons];
             n[idx] = { ...n[idx], [key]: val };
@@ -537,10 +543,69 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             delete newBranches[btn.id];
             onChange({ ...block, config: { ...cfg, buttons: newButtons }, branches: newBranches });
           };
+          // Info panel config
+          const infoPanel = cfg.infoPanel || null;
+          const INFO_COLORS_BTN = [
+            { value: "blue", bg: "bg-blue-100", border: "border-blue-300", text: "text-blue-800" },
+            { value: "green", bg: "bg-green-100", border: "border-green-300", text: "text-green-800" },
+            { value: "red", bg: "bg-red-100", border: "border-red-300", text: "text-red-800" },
+            { value: "yellow", bg: "bg-yellow-100", border: "border-yellow-300", text: "text-yellow-800" },
+            { value: "slate", bg: "bg-slate-100", border: "border-slate-300", text: "text-slate-800" },
+            { value: "purple", bg: "bg-purple-100", border: "border-purple-300", text: "text-purple-800" },
+            { value: "cyan", bg: "bg-cyan-100", border: "border-cyan-300", text: "text-cyan-800" },
+            { value: "orange", bg: "bg-orange-100", border: "border-orange-300", text: "text-orange-800" },
+          ];
+          const INFO_VARS_BTN = [
+            { var: "{titulo}", label: "Título OS", icon: "📄" },
+            { var: "{codigo}", label: "Código", icon: "🔢" },
+            { var: "{nome_cliente}", label: "Cliente", icon: "👤" },
+            { var: "{telefone_cliente}", label: "Tel. Cliente", icon: "📱" },
+            { var: "{contato_local}", label: "Contato Local", icon: "🏠" },
+            { var: "{endereco}", label: "Endereço", icon: "📍" },
+            { var: "{tecnico}", label: "Técnico", icon: "🔧" },
+            { var: "{valor}", label: "Valor", icon: "💰" },
+            { var: "{data_agendamento}", label: "Prazo", icon: "📅" },
+            { var: "{empresa}", label: "Empresa", icon: "🏢" },
+            { var: "{telefone_empresa}", label: "Tel. Empresa", icon: "☎️" },
+            { var: "{status}", label: "Status", icon: "🔄" },
+            { var: "{descricao}", label: "Descrição", icon: "📝" },
+          ];
+          const updateInfoPanel = (key: string, val: any) => {
+            const current = cfg.infoPanel || { enabled: true, position: "before", color: "blue", fontSize: "sm", boxSize: "compact", icon: "ℹ️", title: "", message: "" };
+            updateConfig("infoPanel", { ...current, [key]: val });
+          };
+          const infoMsgRef = { current: null as HTMLTextAreaElement | null };
+          const insertInfoVar = (v: string) => {
+            const ta = infoMsgRef.current;
+            const panel = cfg.infoPanel || {};
+            if (ta) {
+              const start = ta.selectionStart;
+              const end = ta.selectionEnd;
+              const text = panel.message || "";
+              const newText = text.substring(0, start) + v + text.substring(end);
+              updateInfoPanel("message", newText);
+              setTimeout(() => { ta.focus(); ta.setSelectionRange(start + v.length, start + v.length); }, 50);
+            } else {
+              updateInfoPanel("message", (panel.message || "") + v);
+            }
+          };
+          const btnSizePreview = buttonSize === "sm" ? "py-2 text-[10px]" : buttonSize === "lg" ? "py-5 text-base" : "py-3 text-xs";
           return (
             <>
               <Label>Titulo (exibido ao tecnico)</Label>
               <Input value={cfg.title || ""} onChange={(v) => updateConfig("title", v)} placeholder="Ex: O que deseja fazer?" />
+
+              <Label>Tamanho dos botões</Label>
+              <div className="flex gap-1 mb-2">
+                {BTN_SIZES.map(s => (
+                  <button key={s.value} type="button"
+                    onClick={() => updateConfig("buttonSize", s.value)}
+                    className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
+                      buttonSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >{s.label}</button>
+                ))}
+              </div>
 
               <Label>Botoes ({buttons.length})</Label>
               <div className="space-y-2">
@@ -577,7 +642,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                         />
                       </div>
                       {/* Preview */}
-                      <div className={`rounded-md border py-1.5 text-center text-[11px] font-bold ${colorDef.preview}`}>
+                      <div className={`rounded-md border text-center font-bold ${btnSizePreview} ${colorDef.preview}`}>
                         {btn.icon ? `${btn.icon} ` : ""}{btn.label || "..."}
                       </div>
                     </div>
@@ -592,6 +657,99 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   ? "1 botao = acao simples. O tecnico confirma e o fluxo continua."
                   : "Cada botao segue um caminho diferente no fluxo."}
               </p>
+
+              {/* Embedded Info Panel */}
+              <div className="mt-3 border-t border-slate-200 pt-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!infoPanel?.enabled} onChange={(e) => {
+                    if (e.target.checked) {
+                      updateConfig("infoPanel", { enabled: true, position: "before", color: "blue", fontSize: "sm", boxSize: "compact", icon: "ℹ️", title: "", message: "" });
+                    } else {
+                      updateConfig("infoPanel", { ...cfg.infoPanel, enabled: false });
+                    }
+                  }} className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600" />
+                  <span className="text-xs font-medium text-slate-700">Incluir painel informativo</span>
+                </label>
+                <p className="text-[10px] text-slate-400 mt-0.5">Exibe informações da OS junto com os botões</p>
+
+                {infoPanel?.enabled && (
+                  <div className="mt-2 rounded-lg border border-dashed border-blue-300 bg-blue-50/30 p-2 space-y-2">
+                    <Label>Posição</Label>
+                    <div className="flex gap-1">
+                      {[{ value: "before", label: "Antes dos botões" }, { value: "after", label: "Depois dos botões" }].map(p => (
+                        <button key={p.value} type="button"
+                          onClick={() => updateInfoPanel("position", p.value)}
+                          className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
+                            (infoPanel.position || "before") === p.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                          }`}
+                        >{p.label}</button>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Label>Emoji</Label>
+                        <EmojiPicker value={infoPanel.icon || "ℹ️"} onChange={(v) => updateInfoPanel("icon", v)} />
+                      </div>
+                      <div className="flex-1">
+                        <Label>Fonte</Label>
+                        <div className="flex gap-0.5">
+                          {[{ v: "sm", l: "P" }, { v: "md", l: "M" }, { v: "lg", l: "G" }].map(s => (
+                            <button key={s.v} type="button"
+                              onClick={() => updateInfoPanel("fontSize", s.v)}
+                              className={`flex-1 rounded border px-1 py-0.5 text-[9px] font-bold ${
+                                (infoPanel.fontSize || "sm") === s.v ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500"
+                              }`}
+                            >{s.l}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <Label>Card</Label>
+                        <div className="flex gap-0.5">
+                          {[{ v: "compact", l: "P" }, { v: "normal", l: "M" }, { v: "large", l: "G" }].map(s => (
+                            <button key={s.v} type="button"
+                              onClick={() => updateInfoPanel("boxSize", s.v)}
+                              className={`flex-1 rounded border px-1 py-0.5 text-[9px] font-bold ${
+                                (infoPanel.boxSize || "compact") === s.v ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500"
+                              }`}
+                            >{s.l}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Label>Cor</Label>
+                    <div className="flex gap-1">
+                      {INFO_COLORS_BTN.map(c => (
+                        <button key={c.value} type="button"
+                          onClick={() => updateInfoPanel("color", c.value)}
+                          className={`w-5 h-5 rounded-full ${c.bg} border ${(infoPanel.color || "blue") === c.value ? "border-slate-800 scale-110 shadow" : c.border}`}
+                        />
+                      ))}
+                    </div>
+
+                    <Label>Título</Label>
+                    <input type="text" value={infoPanel.title || ""} onChange={(e) => updateInfoPanel("title", e.target.value)}
+                      placeholder="Ex: Detalhes da OS" className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400" />
+
+                    <Label>Mensagem</Label>
+                    <textarea ref={(el) => { infoMsgRef.current = el; }} value={infoPanel.message || ""} onChange={(e) => updateInfoPanel("message", e.target.value)}
+                      rows={3} placeholder="Texto com variáveis da OS..."
+                      className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400 resize-none" />
+
+                    <p className="text-[10px] text-slate-400">Clique para inserir variável:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {INFO_VARS_BTN.map(v => (
+                        <button key={v.var} type="button"
+                          onClick={() => insertInfoVar(v.var)}
+                          className="flex items-center gap-0.5 rounded bg-slate-100 border border-slate-200 px-1 py-0.5 text-[9px] font-medium text-slate-600 hover:bg-green-100 hover:border-green-300 hover:text-green-700 transition-colors"
+                        ><span className="text-[8px]">{v.icon}</span> {v.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           );
         })()}
@@ -629,66 +787,102 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             { value: "cyan", label: "Ciano", bg: "bg-cyan-100", border: "border-cyan-300", text: "text-cyan-800" },
             { value: "orange", label: "Laranja", bg: "bg-orange-100", border: "border-orange-300", text: "text-orange-800" },
           ];
-          const INFO_TEMPLATES = [
-            { label: "OS Recusada", icon: "❌", title: "OS Recusada", message: "A OS {titulo} foi recusada pelo técnico {tecnico}.", color: "red" },
-            { label: "OS Aceita", icon: "✅", title: "OS Aceita!", message: "Você aceitou a OS {titulo}. Cliente: {nome_cliente}. Endereço: {endereco}.", color: "green" },
-            { label: "Dados da OS", icon: "📋", title: "Detalhes da OS", message: "OS: {titulo}\nCliente: {nome_cliente}\nEndereço: {endereco}\nValor: {valor}\nPrazo: {data_agendamento}", color: "blue" },
-            { label: "Aguardando", icon: "⏳", title: "Aguardando aprovação", message: "A OS {titulo} está aguardando aprovação do gestor. Você será notificado quando houver uma resposta.", color: "yellow" },
-            { label: "Em análise", icon: "🔍", title: "Em análise", message: "O orçamento para {nome_cliente} ({endereco}) está em análise. Valor: {valor}.", color: "purple" },
-            { label: "Concluída", icon: "🎉", title: "OS Concluída!", message: "Parabéns! A OS {titulo} foi concluída com sucesso. Obrigado pelo bom trabalho!", color: "green" },
-            { label: "Atenção", icon: "⚠️", title: "Atenção", message: "Esta OS é urgente! Cliente: {nome_cliente}. Prazo: {data_agendamento}. Por favor, priorize este atendimento.", color: "orange" },
-            { label: "Contato", icon: "📞", title: "Informações de contato", message: "Cliente: {nome_cliente}\nTelefone: {telefone_cliente}\nContato no local: {contato_local}\nEndereço: {endereco}", color: "cyan" },
-            { label: "Instruções", icon: "📖", title: "Instruções", message: "Leia atentamente antes de prosseguir:\n\n1. Verifique os materiais necessários\n2. Confirme o endereço com o cliente\n3. Utilize EPI obrigatório", color: "blue" },
-            { label: "Retorno", icon: "🔄", title: "OS de Retorno", message: "Esta é uma OS de retorno para {nome_cliente} ({endereco}). Verifique o histórico anterior antes de iniciar.", color: "slate" },
-          ];
           const VARS = [
-            { var: "{titulo}", label: "Título OS" },
-            { var: "{codigo}", label: "Código OS" },
-            { var: "{nome_cliente}", label: "Cliente" },
-            { var: "{telefone_cliente}", label: "Tel. Cliente" },
-            { var: "{contato_local}", label: "Contato Local" },
-            { var: "{endereco}", label: "Endereço" },
-            { var: "{tecnico}", label: "Técnico" },
-            { var: "{valor}", label: "Valor" },
-            { var: "{data_agendamento}", label: "Prazo" },
-            { var: "{empresa}", label: "Empresa" },
-            { var: "{telefone_empresa}", label: "Tel. Empresa" },
-            { var: "{status}", label: "Status" },
-            { var: "{descricao}", label: "Descrição" },
+            { var: "{titulo}", label: "Título OS", icon: "📄" },
+            { var: "{codigo}", label: "Código", icon: "🔢" },
+            { var: "{nome_cliente}", label: "Cliente", icon: "👤" },
+            { var: "{telefone_cliente}", label: "Tel. Cliente", icon: "📱" },
+            { var: "{contato_local}", label: "Contato Local", icon: "🏠" },
+            { var: "{endereco}", label: "Endereço", icon: "📍" },
+            { var: "{tecnico}", label: "Técnico", icon: "🔧" },
+            { var: "{valor}", label: "Valor", icon: "💰" },
+            { var: "{data_agendamento}", label: "Prazo", icon: "📅" },
+            { var: "{empresa}", label: "Empresa", icon: "🏢" },
+            { var: "{telefone_empresa}", label: "Tel. Empresa", icon: "☎️" },
+            { var: "{status}", label: "Status", icon: "🔄" },
+            { var: "{descricao}", label: "Descrição", icon: "📝" },
+          ];
+          const FONT_SIZES = [
+            { value: "sm", label: "Pequeno" },
+            { value: "md", label: "Médio" },
+            { value: "lg", label: "Grande" },
+          ];
+          const BOX_SIZES = [
+            { value: "compact", label: "Compacto" },
+            { value: "normal", label: "Normal" },
+            { value: "large", label: "Grande" },
           ];
           const selectedColor = INFO_COLORS.find(c => c.value === (cfg.color || "blue")) || INFO_COLORS[0];
+          const fontSize = cfg.fontSize || "md";
+          const boxSize = cfg.boxSize || "normal";
+          const previewFontSize = fontSize === "sm" ? "text-[11px]" : fontSize === "lg" ? "text-base" : "text-sm";
+          const previewTitleSize = fontSize === "sm" ? "text-xs" : fontSize === "lg" ? "text-lg" : "text-sm";
+          const previewPadding = boxSize === "compact" ? "p-2" : boxSize === "large" ? "p-5" : "p-3";
+          // Insert variable at textarea cursor position
+          const msgRef = { current: null as HTMLTextAreaElement | null };
+          const insertVar = (v: string) => {
+            const ta = msgRef.current;
+            if (ta) {
+              const start = ta.selectionStart;
+              const end = ta.selectionEnd;
+              const text = cfg.message || "";
+              const newText = text.substring(0, start) + v + text.substring(end);
+              updateConfig("message", newText);
+              setTimeout(() => { ta.focus(); ta.setSelectionRange(start + v.length, start + v.length); }, 50);
+            } else {
+              updateConfig("message", (cfg.message || "") + v);
+            }
+          };
           return (
             <>
-              {/* Templates rápidos */}
-              <Label>Templates</Label>
-              <div className="flex flex-wrap gap-1 mb-2">
-                {INFO_TEMPLATES.map(t => (
-                  <button key={t.label} type="button"
-                    onClick={() => { updateConfig("title", t.title); updateConfig("message", t.message); updateConfig("icon", t.icon); updateConfig("color", t.color); }}
-                    className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-colors"
-                  >{t.icon} {t.label}</button>
-                ))}
-              </div>
-
               <Label>Emoji</Label>
-              <div className="flex gap-1 mb-2">
-                {["ℹ️","✅","❌","⚠️","🎉","📋","📞","🔍","⏳","🔄","📖","🚫","💡","🔔","⭐","🏠","🔧","📍"].map(e => (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {["ℹ️","✅","❌","⚠️","🎉","📋","📞","🔍","⏳","🔄","📖","🚫","💡","🔔","⭐","🏠","🔧","📍","🚀","🎯","💬","📊"].map(e => (
                   <button key={e} type="button"
                     onClick={() => updateConfig("icon", e)}
-                    className={`text-base p-0.5 rounded hover:bg-slate-100 ${cfg.icon === e ? "ring-2 ring-blue-400 bg-blue-50" : ""}`}
+                    className={`text-base p-0.5 rounded hover:bg-slate-100 transition-all ${cfg.icon === e ? "ring-2 ring-blue-400 bg-blue-50 scale-110" : ""}`}
                   >{e}</button>
                 ))}
               </div>
 
-              <Label>Cor</Label>
-              <div className="flex gap-1 mb-2">
+              <Label>Cor do card</Label>
+              <div className="flex gap-1.5 mb-2">
                 {INFO_COLORS.map(c => (
                   <button key={c.value} type="button"
                     onClick={() => updateConfig("color", c.value)}
-                    className={`w-6 h-6 rounded-full ${c.bg} border-2 ${cfg.color === c.value ? "border-slate-800 scale-110" : c.border} transition-all`}
+                    className={`w-7 h-7 rounded-full ${c.bg} border-2 transition-all ${cfg.color === c.value ? "border-slate-800 scale-110 shadow" : c.border}`}
                     title={c.label}
                   />
                 ))}
+              </div>
+
+              <div className="flex gap-2 mb-2">
+                <div className="flex-1">
+                  <Label>Tamanho da fonte</Label>
+                  <div className="flex gap-1">
+                    {FONT_SIZES.map(s => (
+                      <button key={s.value} type="button"
+                        onClick={() => updateConfig("fontSize", s.value)}
+                        className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
+                          fontSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                        }`}
+                      >{s.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <Label>Tamanho do card</Label>
+                  <div className="flex gap-1">
+                    {BOX_SIZES.map(s => (
+                      <button key={s.value} type="button"
+                        onClick={() => updateConfig("boxSize", s.value)}
+                        className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
+                          boxSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                        }`}
+                      >{s.label}</button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <Label>Título (exibido ao técnico)</Label>
@@ -696,29 +890,30 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                 placeholder="Ex: OS Recusada" className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400" />
 
               <Label>Mensagem</Label>
-              <textarea value={cfg.message || ""} onChange={(e) => updateConfig("message", e.target.value)}
-                rows={4} placeholder="Texto que o técnico verá..."
+              <textarea ref={(el) => { msgRef.current = el; }} value={cfg.message || ""} onChange={(e) => updateConfig("message", e.target.value)}
+                rows={4} placeholder="Texto que o técnico verá. Use as variáveis abaixo para trazer dados reais da OS..."
                 className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400 resize-none" />
 
-              {/* Variable chips */}
-              <div className="flex flex-wrap gap-1 mt-1">
+              {/* Variable chips — click to insert at cursor position */}
+              <p className="text-[10px] text-slate-400 mt-1 mb-1">Clique para inserir dado real da OS na mensagem:</p>
+              <div className="flex flex-wrap gap-1">
                 {VARS.map(v => (
                   <button key={v.var} type="button"
-                    onClick={() => updateConfig("message", (cfg.message || "") + " " + v.var)}
-                    className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-green-100 hover:text-green-700 transition-colors"
-                  >{v.var}</button>
+                    onClick={() => insertVar(v.var)}
+                    className="flex items-center gap-0.5 rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-green-100 hover:border-green-300 hover:text-green-700 transition-colors"
+                  ><span className="text-[9px]">{v.icon}</span> {v.label}</button>
                 ))}
               </div>
 
               {/* Preview */}
-              <Label>Preview</Label>
-              <div className={`rounded-xl border-2 ${selectedColor.border} ${selectedColor.bg} p-3 mt-1`}>
+              <Label>Preview no celular</Label>
+              <div className={`rounded-xl border-2 ${selectedColor.border} ${selectedColor.bg} ${previewPadding} mt-1`}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">{cfg.icon || "ℹ️"}</span>
-                  <span className={`text-sm font-bold ${selectedColor.text}`}>{cfg.title || "Informação"}</span>
+                  <span className={fontSize === "sm" ? "text-base" : fontSize === "lg" ? "text-2xl" : "text-lg"}>{cfg.icon || "ℹ️"}</span>
+                  <span className={`font-bold ${selectedColor.text} ${previewTitleSize}`}>{cfg.title || "Informação"}</span>
                 </div>
-                <p className={`text-xs ${selectedColor.text} opacity-80 whitespace-pre-line`}>
-                  {(cfg.message || "Mensagem de exemplo...").substring(0, 120)}
+                <p className={`${selectedColor.text} opacity-80 whitespace-pre-line leading-relaxed ${previewFontSize}`}>
+                  {(cfg.message || "Use as variáveis para trazer dados reais da OS.\nEx: {titulo}, {nome_cliente}, {endereco}...").substring(0, 200)}
                 </p>
               </div>
             </>
