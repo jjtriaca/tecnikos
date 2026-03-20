@@ -1437,6 +1437,52 @@ function V2BlockAction({
           </div>
         )}
 
+        {/* INFO — Visual informational block (auto-advances after viewing) */}
+        {block.type === "INFO" && (() => {
+          const INFO_COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
+            blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
+            green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
+            red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
+            yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
+            slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
+            purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
+            cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
+            orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
+          };
+          const ic = INFO_COLOR_MAP[c.color || "blue"] || INFO_COLOR_MAP.blue;
+          // Resolve template variables from order data
+          const resolveVars = (text: string) => {
+            if (!text || !order) return text;
+            const formatCurrency = (cents?: number) => cents != null ? (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
+            const formatDate = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
+            return text
+              .replace(/\{titulo\}/g, order.title || "-")
+              .replace(/\{codigo\}/g, order.code || "-")
+              .replace(/\{nome_cliente\}/g, (order as any).clientPartnerName || (order as any).clientName || "-")
+              .replace(/\{telefone_cliente\}/g, (order as any).clientPhone || "-")
+              .replace(/\{contato_local\}/g, (order as any).contactPersonName || "-")
+              .replace(/\{endereco\}/g, order.addressText || "-")
+              .replace(/\{tecnico\}/g, (order as any).technicianName || (order as any).assignedPartnerName || "-")
+              .replace(/\{valor\}/g, formatCurrency(order.valueCents))
+              .replace(/\{data_agendamento\}/g, formatDate(order.deadlineAt || (order as any).scheduledStartAt))
+              .replace(/\{empresa\}/g, (order as any).companyName || "-")
+              .replace(/\{telefone_empresa\}/g, (order as any).companyPhone || "-")
+              .replace(/\{status\}/g, order.status || "-")
+              .replace(/\{descricao\}/g, order.description || "-");
+          };
+          return (
+            <div className={`rounded-xl border-2 ${ic.border} ${ic.bg} p-4`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{c.icon || "ℹ️"}</span>
+                <span className={`text-base font-bold ${ic.text}`}>{resolveVars(c.title || block.name)}</span>
+              </div>
+              <p className={`text-sm ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>
+                {resolveVars(c.message || "")}
+              </p>
+            </div>
+          );
+        })()}
+
         {/* FORM */}
         {block.type === "FORM" && c.fields && (
           <div className="space-y-2">
@@ -1467,7 +1513,7 @@ function V2BlockAction({
       <button onClick={onAdvance} disabled={isDisabled()}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all">
         <span className="text-xl">{block.icon || "▶️"}</span>
-        {acting ? "Avancando..." : (block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : `Confirmar: ${block.name}`)}
+        {acting ? "Avancando..." : block.type === "INFO" ? "Entendi ✓" : (block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : `Confirmar: ${block.name}`)}
       </button>
       )}
     </div>

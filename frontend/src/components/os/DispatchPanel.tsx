@@ -360,7 +360,7 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
               <span className="text-[11px] text-slate-700 font-medium">{d.technicianName || "Tecnico"}</span>
               {d.technicianPhone && <span className="text-[10px] text-slate-400">{d.technicianPhone}</span>}
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <TechStatus d={d} />
               <button
                 onClick={async (e) => {
@@ -396,6 +396,13 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
               </button>
             </div>
           </div>
+
+          {/* Refusal note */}
+          {d.osStatus === "RECUSADA" && d.lastNote && (
+            <p className="text-[10px] text-red-500 mt-0.5 italic leading-tight line-clamp-2">
+              Motivo: {d.lastNote}
+            </p>
+          )}
 
           {/* Reassign technician dropdown */}
           {showReassign && (

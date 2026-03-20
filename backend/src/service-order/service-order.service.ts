@@ -791,6 +791,17 @@ export class ServiceOrderService {
     // Get last technician GPS location for this OS
     const location = await this.getLastTechnicianLocation(id);
 
+    // Get last workflow note (e.g. refusal reason) if OS is RECUSADA
+    let lastNote: string | null = null;
+    if (so.status === 'RECUSADA') {
+      const noteLog = await this.prisma.workflowStepLog.findFirst({
+        where: { serviceOrderId: id, note: { not: null } },
+        orderBy: { stepOrder: 'desc' },
+        select: { note: true },
+      });
+      lastNote = noteLog?.note || null;
+    }
+
     return {
       serviceOrder: {
         id: so.id, code: so.code, title: so.title, description: so.description,
@@ -811,6 +822,7 @@ export class ServiceOrderService {
         : null,
       notification,
       location,
+      lastNote,
     };
   }
 

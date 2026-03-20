@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function WorkflowPalette({ onAddBlock }: Props) {
-  const categories: BlockCategory[] = ["ACTIONS", "COMMUNICATION", "SYSTEM", "FLOW"];
+  const categories: BlockCategory[] = ["ACTIONS", "VISUAL", "COMMUNICATION", "SYSTEM", "FLOW"];
 
   return (
     <div className="w-56 shrink-0 border-r border-slate-200 bg-slate-50/80 overflow-y-auto">

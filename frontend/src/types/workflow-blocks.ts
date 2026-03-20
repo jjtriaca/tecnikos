@@ -24,13 +24,15 @@ export type BlockType =
   | 'NOTIFY'
   | 'APPROVAL'
   | 'ALERT'
+  // Visual / Informational
+  | 'INFO'
   // System
   | 'DELAY'
   | 'SLA'
   | 'STATUS'
   | 'RESCHEDULE';
 
-export type BlockCategory = 'FLOW' | 'ACTIONS' | 'COMMUNICATION' | 'SYSTEM';
+export type BlockCategory = 'FLOW' | 'ACTIONS' | 'VISUAL' | 'COMMUNICATION' | 'SYSTEM';
 
 /* ── Block Data Model ────────────────────────────────────────── */
 
@@ -197,6 +199,9 @@ export const BLOCK_CATALOG: CatalogEntry[] = [
   { type: 'SIGNATURE', name: 'Assinatura', icon: '✍️', description: 'Assinatura digital do cliente', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
   { type: 'FORM', name: 'Formulário', icon: '📋', description: 'Campos customizáveis', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
 
+  // Visual / Informational
+  { type: 'INFO', name: 'Informação', icon: 'ℹ️', description: 'Exibe informação visual para o técnico (não requer ação)', category: 'VISUAL', color: 'bg-cyan-50', borderColor: 'border-cyan-300', iconBg: 'bg-cyan-500', textColor: 'text-cyan-900' },
+
   // Communication
   { type: 'NOTIFY', name: 'Notificar', icon: '💬', description: 'Enviar WhatsApp ou Email automatico', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
   { type: 'APPROVAL', name: 'Aprovação', icon: '🔒', description: 'Trava fluxo até gestor aprovar', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
@@ -212,6 +217,7 @@ export const BLOCK_CATALOG: CatalogEntry[] = [
 export const CATALOG_BY_CATEGORY: Record<BlockCategory, CatalogEntry[]> = {
   FLOW: BLOCK_CATALOG.filter(b => b.category === 'FLOW'),
   ACTIONS: BLOCK_CATALOG.filter(b => b.category === 'ACTIONS'),
+  VISUAL: BLOCK_CATALOG.filter(b => b.category === 'VISUAL'),
   COMMUNICATION: BLOCK_CATALOG.filter(b => b.category === 'COMMUNICATION'),
   SYSTEM: BLOCK_CATALOG.filter(b => b.category === 'SYSTEM'),
 };
@@ -219,6 +225,7 @@ export const CATALOG_BY_CATEGORY: Record<BlockCategory, CatalogEntry[]> = {
 export const CATEGORY_LABELS: Record<BlockCategory, { label: string; icon: string }> = {
   FLOW: { label: 'Fluxo', icon: '⚙️' },
   ACTIONS: { label: 'Ações', icon: '✋' },
+  VISUAL: { label: 'Visual', icon: 'ℹ️' },
   COMMUNICATION: { label: 'Comunicação', icon: '💬' },
   SYSTEM: { label: 'Sistema', icon: '🔧' },
 };

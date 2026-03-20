@@ -617,6 +617,114 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           </>
         )}
 
+        {/* INFO — Bloco informativo visual para o técnico */}
+        {block.type === "INFO" && (() => {
+          const INFO_COLORS = [
+            { value: "blue", label: "Azul", bg: "bg-blue-100", border: "border-blue-300", text: "text-blue-800" },
+            { value: "green", label: "Verde", bg: "bg-green-100", border: "border-green-300", text: "text-green-800" },
+            { value: "red", label: "Vermelho", bg: "bg-red-100", border: "border-red-300", text: "text-red-800" },
+            { value: "yellow", label: "Amarelo", bg: "bg-yellow-100", border: "border-yellow-300", text: "text-yellow-800" },
+            { value: "slate", label: "Neutro", bg: "bg-slate-100", border: "border-slate-300", text: "text-slate-800" },
+            { value: "purple", label: "Roxo", bg: "bg-purple-100", border: "border-purple-300", text: "text-purple-800" },
+            { value: "cyan", label: "Ciano", bg: "bg-cyan-100", border: "border-cyan-300", text: "text-cyan-800" },
+            { value: "orange", label: "Laranja", bg: "bg-orange-100", border: "border-orange-300", text: "text-orange-800" },
+          ];
+          const INFO_TEMPLATES = [
+            { label: "OS Recusada", icon: "❌", title: "OS Recusada", message: "A OS {titulo} foi recusada pelo técnico {tecnico}.", color: "red" },
+            { label: "OS Aceita", icon: "✅", title: "OS Aceita!", message: "Você aceitou a OS {titulo}. Cliente: {nome_cliente}. Endereço: {endereco}.", color: "green" },
+            { label: "Dados da OS", icon: "📋", title: "Detalhes da OS", message: "OS: {titulo}\nCliente: {nome_cliente}\nEndereço: {endereco}\nValor: {valor}\nPrazo: {data_agendamento}", color: "blue" },
+            { label: "Aguardando", icon: "⏳", title: "Aguardando aprovação", message: "A OS {titulo} está aguardando aprovação do gestor. Você será notificado quando houver uma resposta.", color: "yellow" },
+            { label: "Em análise", icon: "🔍", title: "Em análise", message: "O orçamento para {nome_cliente} ({endereco}) está em análise. Valor: {valor}.", color: "purple" },
+            { label: "Concluída", icon: "🎉", title: "OS Concluída!", message: "Parabéns! A OS {titulo} foi concluída com sucesso. Obrigado pelo bom trabalho!", color: "green" },
+            { label: "Atenção", icon: "⚠️", title: "Atenção", message: "Esta OS é urgente! Cliente: {nome_cliente}. Prazo: {data_agendamento}. Por favor, priorize este atendimento.", color: "orange" },
+            { label: "Contato", icon: "📞", title: "Informações de contato", message: "Cliente: {nome_cliente}\nTelefone: {telefone_cliente}\nContato no local: {contato_local}\nEndereço: {endereco}", color: "cyan" },
+            { label: "Instruções", icon: "📖", title: "Instruções", message: "Leia atentamente antes de prosseguir:\n\n1. Verifique os materiais necessários\n2. Confirme o endereço com o cliente\n3. Utilize EPI obrigatório", color: "blue" },
+            { label: "Retorno", icon: "🔄", title: "OS de Retorno", message: "Esta é uma OS de retorno para {nome_cliente} ({endereco}). Verifique o histórico anterior antes de iniciar.", color: "slate" },
+          ];
+          const VARS = [
+            { var: "{titulo}", label: "Título OS" },
+            { var: "{codigo}", label: "Código OS" },
+            { var: "{nome_cliente}", label: "Cliente" },
+            { var: "{telefone_cliente}", label: "Tel. Cliente" },
+            { var: "{contato_local}", label: "Contato Local" },
+            { var: "{endereco}", label: "Endereço" },
+            { var: "{tecnico}", label: "Técnico" },
+            { var: "{valor}", label: "Valor" },
+            { var: "{data_agendamento}", label: "Prazo" },
+            { var: "{empresa}", label: "Empresa" },
+            { var: "{telefone_empresa}", label: "Tel. Empresa" },
+            { var: "{status}", label: "Status" },
+            { var: "{descricao}", label: "Descrição" },
+          ];
+          const selectedColor = INFO_COLORS.find(c => c.value === (cfg.color || "blue")) || INFO_COLORS[0];
+          return (
+            <>
+              {/* Templates rápidos */}
+              <Label>Templates</Label>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {INFO_TEMPLATES.map(t => (
+                  <button key={t.label} type="button"
+                    onClick={() => { updateConfig("title", t.title); updateConfig("message", t.message); updateConfig("icon", t.icon); updateConfig("color", t.color); }}
+                    className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-colors"
+                  >{t.icon} {t.label}</button>
+                ))}
+              </div>
+
+              <Label>Emoji</Label>
+              <div className="flex gap-1 mb-2">
+                {["ℹ️","✅","❌","⚠️","🎉","📋","📞","🔍","⏳","🔄","📖","🚫","💡","🔔","⭐","🏠","🔧","📍"].map(e => (
+                  <button key={e} type="button"
+                    onClick={() => updateConfig("icon", e)}
+                    className={`text-base p-0.5 rounded hover:bg-slate-100 ${cfg.icon === e ? "ring-2 ring-blue-400 bg-blue-50" : ""}`}
+                  >{e}</button>
+                ))}
+              </div>
+
+              <Label>Cor</Label>
+              <div className="flex gap-1 mb-2">
+                {INFO_COLORS.map(c => (
+                  <button key={c.value} type="button"
+                    onClick={() => updateConfig("color", c.value)}
+                    className={`w-6 h-6 rounded-full ${c.bg} border-2 ${cfg.color === c.value ? "border-slate-800 scale-110" : c.border} transition-all`}
+                    title={c.label}
+                  />
+                ))}
+              </div>
+
+              <Label>Título (exibido ao técnico)</Label>
+              <input type="text" value={cfg.title || ""} onChange={(e) => updateConfig("title", e.target.value)}
+                placeholder="Ex: OS Recusada" className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400" />
+
+              <Label>Mensagem</Label>
+              <textarea value={cfg.message || ""} onChange={(e) => updateConfig("message", e.target.value)}
+                rows={4} placeholder="Texto que o técnico verá..."
+                className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400 resize-none" />
+
+              {/* Variable chips */}
+              <div className="flex flex-wrap gap-1 mt-1">
+                {VARS.map(v => (
+                  <button key={v.var} type="button"
+                    onClick={() => updateConfig("message", (cfg.message || "") + " " + v.var)}
+                    className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-green-100 hover:text-green-700 transition-colors"
+                  >{v.var}</button>
+                ))}
+              </div>
+
+              {/* Preview */}
+              <Label>Preview</Label>
+              <div className={`rounded-xl border-2 ${selectedColor.border} ${selectedColor.bg} p-3 mt-1`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">{cfg.icon || "ℹ️"}</span>
+                  <span className={`text-sm font-bold ${selectedColor.text}`}>{cfg.title || "Informação"}</span>
+                </div>
+                <p className={`text-xs ${selectedColor.text} opacity-80 whitespace-pre-line`}>
+                  {(cfg.message || "Mensagem de exemplo...").substring(0, 120)}
+                </p>
+              </div>
+            </>
+          );
+        })()}
+
         {/* ALERT */}
         {block.type === "ALERT" && (
           <>

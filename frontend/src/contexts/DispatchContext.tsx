@@ -59,6 +59,8 @@ export interface DispatchState {
   techHeading?: number;
   distanceMeters?: number;
   locationUpdatedAt?: string;
+  // Workflow note (e.g. refusal reason)
+  lastNote?: string;
   // UI state
   resending?: boolean;
 }
@@ -123,6 +125,7 @@ function mapApiToDispatch(item: any): DispatchState {
     notificationChannel: item.notification?.channel || "WHATSAPP",
     whatsappStatus: item.notification?.whatsappStatus,
     errorDetail: item.notification?.errorDetail,
+    lastNote: item.lastNote || undefined,
   };
 }
 
@@ -225,6 +228,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
                     notificationChannel: result.notification?.channel || p.notificationChannel,
                     whatsappStatus: result.notification?.whatsappStatus || undefined,
                     errorDetail: result.notification?.errorDetail || undefined,
+                    lastNote: result.lastNote || undefined,
                   }
                 : p,
             ),

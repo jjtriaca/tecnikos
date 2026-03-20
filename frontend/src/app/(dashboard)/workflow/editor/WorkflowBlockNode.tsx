@@ -70,6 +70,7 @@ export default function WorkflowBlockNode({ block, isSelected, isFirst, isLast, 
   if (block.type === "NOTE") subtitle = block.config?.placeholder || "";
   if (block.type === "SIGNATURE") subtitle = block.config?.label || "";
   if (block.type === "ALERT") subtitle = block.config?.severity || "";
+  if (block.type === "INFO") subtitle = block.config?.title || block.config?.message?.substring(0, 40) || "Informação";
 
   return (
     <div className="flex flex-col items-center">
