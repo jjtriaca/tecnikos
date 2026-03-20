@@ -135,6 +135,16 @@ export class ServiceOrderController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/reassign')
+  reassign(
+    @Param('id') id: string,
+    @Body() body: { technicianId: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.reassign(id, body.technicianId, user.companyId, user);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/dispatch-notifications')
   dispatchNotifications(
     @Param('id') id: string,

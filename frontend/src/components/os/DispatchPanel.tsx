@@ -129,6 +129,7 @@ function MessageStatus({ d }: { d: DispatchState }) {
 // ── Technician status ──
 
 function TechStatus({ d }: { d: DispatchState }) {
+  if (d.osStatus === "RECUSADA") return <span className="text-[10px] text-red-600 font-medium"><span className="text-[7px]">❌</span> Recusou</span>;
   if (d.completedAt) return <span className="text-[10px] text-green-700 font-medium"><span className="text-[7px]">✅</span> Concluida</span>;
   if (d.startedAt) return <span className="text-[10px] text-blue-600"><span className="text-[7px]">🔧</span> Em execucao</span>;
   if (d.arrivedAt) return <span className="text-[10px] text-indigo-600"><span className="text-[7px]">📍</span> No local</span>;
@@ -371,13 +372,27 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
                   } catch { setTechnicians([]); }
                   setShowReassign(true);
                 }}
-                className="rounded px-1.5 py-0.5 text-[9px] font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                className={`rounded px-1.5 py-0.5 text-[9px] font-medium transition-colors ${
+                  d.osStatus === "RECUSADA"
+                    ? "bg-red-100 text-red-700 hover:bg-red-200"
+                    : "text-blue-600 hover:bg-blue-50"
+                }`}
                 title="Trocar tecnico"
               >
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11l-2-2m0 0l-2 2m2-2v6" />
-                </svg>
+                {d.osStatus === "RECUSADA" ? (
+                  <span className="flex items-center gap-0.5">
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 11l-2-2m0 0l-2 2m2-2v6" />
+                    </svg>
+                    Reatribuir
+                  </span>
+                ) : (
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 11l-2-2m0 0l-2 2m2-2v6" />
+                  </svg>
+                )}
               </button>
             </div>
           </div>
@@ -395,9 +410,8 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
                       e.stopPropagation();
                       setReassigning(true);
                       try {
-                        await api.put(`/service-orders/${d.osId}`, { assignedPartnerId: t.id });
-                        // Re-dispatch notifications
-                        await api.post(`/service-orders/${d.osId}/dispatch-notifications`).catch(() => {});
+                        // Use reassign endpoint — handles RECUSADA reset (logs, tokens, status)
+                        await api.post(`/service-orders/${d.osId}/reassign`, { technicianId: t.id });
                         setShowReassign(false);
                       } catch { /* ignore */ }
                       setReassigning(false);

@@ -916,6 +916,69 @@ export class ServiceOrderService {
     return result;
   }
 
+  /**
+   * Reassign a service order to a new technician.
+   * When OS was RECUSADA: resets workflow logs, revokes old tokens, sets OFERTADA.
+   * Otherwise: delegates to regular assign().
+   */
+  async reassign(id: string, technicianId: string, companyId: string, actor: AuthenticatedUser) {
+    const so = await this.findOne(id, companyId);
+
+    if (TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)) {
+      throw new ForbiddenException('Não é possível reatribuir uma OS neste status.');
+    }
+
+    // For RECUSADA: full reset — clean logs, revoke tokens, go back to ABERTA
+    // so the entire workflow (dispatch) restarts from scratch for the new tech
+    if (so.status === ServiceOrderStatus.RECUSADA) {
+      await this.prisma.$transaction(async (tx) => {
+        // 1. Delete all workflow step logs
+        await tx.workflowStepLog.deleteMany({ where: { serviceOrderId: id } });
+        // 2. Revoke all existing offers/tokens
+        await tx.serviceOrderOffer.updateMany({
+          where: { serviceOrderId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        // 3. Reset timestamps, assign new tech, set ABERTA to restart flow from zero
+        await tx.serviceOrder.update({
+          where: { id },
+          data: {
+            assignedPartnerId: technicianId,
+            status: ServiceOrderStatus.ABERTA,
+            acceptedAt: null,
+            enRouteAt: null,
+            arrivedAt: null,
+            startedAt: null,
+            completedAt: null,
+          },
+        });
+      });
+
+      this.audit.log({
+        companyId, entityType: 'SERVICE_ORDER', entityId: id,
+        action: 'REASSIGNED', actorType: 'USER', actorId: actor.id, actorName: actor.email,
+        before: { assignedPartnerId: so.assignedPartnerId, status: so.status },
+        after: { assignedPartnerId: technicianId, status: 'ABERTA' },
+      });
+
+      this.dispatchAutomation({
+        companyId, entity: 'SERVICE_ORDER', entityId: id, eventType: 'reassigned',
+        data: { status: 'ABERTA', oldStatus: so.status, assignedPartnerId: technicianId },
+      });
+
+      // Execute workflow from start — this triggers the full dispatch flow
+      // (DELAY → STATUS → NOTIFY → ACTION_BUTTONS etc.) for the new technician
+      if (this.workflowEngine && so.workflowTemplateId) {
+        this.workflowEngine.executeWorkflowFromStart(id, companyId, so.workflowTemplateId).catch(() => {});
+      }
+
+      return this.findOne(id, companyId);
+    }
+
+    // For other statuses: regular assign
+    return this.assign(id, technicianId, companyId, actor);
+  }
+
   async updateStatus(id: string, status: ServiceOrderStatus, companyId: string, actor?: AuthenticatedUser) {
     const so = await this.findOne(id, companyId);
     const oldStatus = so.status;
