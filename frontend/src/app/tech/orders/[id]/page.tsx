@@ -1234,11 +1234,13 @@ function V2BlockAction({
 
   return (
     <div className="mt-4 space-y-3">
-      <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3">
+      <div className={`rounded-xl border p-3 ${block.type === "ACTION_BUTTONS" ? "border-transparent bg-transparent p-0" : "border-blue-200 bg-blue-50/50"}`}>
+        {block.type !== "ACTION_BUTTONS" && (
         <p className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1.5">
           <span className="text-base">{block.icon}</span>
           {block.name}
         </p>
+        )}
 
         {/* STEP */}
         {block.type === "STEP" && (
@@ -1424,19 +1426,19 @@ function V2BlockAction({
               </div>
             );
           }
-          // Multiple buttons = choice
+          // Multiple buttons = direct action (click submits immediately)
           return (
             <div className="space-y-2">
               {c.title && <p className="text-sm font-medium text-slate-700">{c.title}</p>}
-              <div className={`grid gap-2 ${buttons.length === 2 ? "grid-cols-2" : buttons.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+              <div className={`grid gap-3 ${buttons.length === 2 ? "grid-cols-2" : buttons.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
                 {buttons.map((btn) => {
-                  const colors = COLOR_MAP[btn.color] || COLOR_MAP.slate;
-                  const isSelected = v2Answer === btn.id;
+                  const colors = COLOR_MAP[btn.color] || COLOR_MAP.green;
                   return (
                     <button
                       key={btn.id}
-                      onClick={() => setV2Answer(btn.id)}
-                      className={`rounded-lg border py-3 text-sm font-bold transition-all ${isSelected ? colors.selected : colors.normal}`}
+                      disabled={acting}
+                      onClick={() => { setV2Answer(btn.id); setTimeout(() => onAdvance(), 50); }}
+                      className={`rounded-xl py-4 text-base font-bold shadow-md transition-all active:scale-[0.97] disabled:opacity-50 ${colors.full}`}
                     >
                       {btn.icon ? `${btn.icon} ` : ""}{btn.label}
                     </button>
@@ -1481,12 +1483,14 @@ function V2BlockAction({
         )}
       </div>
 
-      {/* Advance button */}
+      {/* Advance button — hidden for multi-button ACTION_BUTTONS (they submit directly) */}
+      {!(block.type === "ACTION_BUTTONS" && (c.buttons?.length || 0) > 1) && (
       <button onClick={onAdvance} disabled={isDisabled()}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all">
         <span className="text-xl">{block.icon || "▶️"}</span>
         {acting ? "Avancando..." : (block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : `Confirmar: ${block.name}`)}
       </button>
+      )}
     </div>
   );
 }
