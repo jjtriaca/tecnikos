@@ -163,17 +163,6 @@ function isAutoBlock(block: any): boolean {
   return !INTERACTIVE_TYPES.has(block.type);
 }
 
-/* Pause reason categories */
-const PAUSE_REASONS = [
-  { id: "meal_break", label: "Horario de refeicao", icon: "🍽️" },
-  { id: "end_of_day", label: "Fim do expediente", icon: "🌙" },
-  { id: "fetch_materials", label: "Buscar materiais", icon: "📦" },
-  { id: "weather", label: "Condicoes climaticas", icon: "🌧️" },
-  { id: "waiting_client", label: "Aguardando cliente", icon: "👤" },
-  { id: "waiting_access", label: "Aguardando acesso", icon: "🔑" },
-  { id: "personal", label: "Motivo pessoal", icon: "🏠" },
-  { id: "other", label: "Outro motivo", icon: "📝" },
-];
 
 function formatCurrency(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", {
@@ -182,24 +171,6 @@ function formatCurrency(cents: number) {
   });
 }
 
-/** Calculate distance between two coords in meters */
-function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function formatDistance(meters: number): string {
-  if (meters < 1000) return `${Math.round(meters)}m`;
-  return `${(meters / 1000).toFixed(1)}km`;
-}
 
 /* ═══════════════════════════════════════════════════════════════
    COMPONENT
@@ -229,26 +200,15 @@ export default function TechOrderDetailPage() {
   const [v2GpsLoading, setV2GpsLoading] = useState(false);
   const [v2FormFields, setV2FormFields] = useState<Record<string, string>>({});
 
-  // GPS tracking state (status-based A_CAMINHO tracking)
-  const [trackingActive, setTrackingActive] = useState(false);
-  const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number } | null>(null);
-  const [distanceToTarget, setDistanceToTarget] = useState<number | null>(null);
 
   // GPS block continuous tracking state
   const [v2GpsTracking, setV2GpsTracking] = useState(false);
   const v2GpsWatchRef = useRef<number | null>(null);
-  const watchIdRef = useRef<number | null>(null);
 
   // Post-workflow INFO display (client-side timer for INFO+DELAY combos)
   const [postInfo, setPostInfo] = useState<{ info: any; hideAfterMs: number; blankAfterMs: number } | null>(null);
   const [postInfoPhase, setPostInfoPhase] = useState<"info" | "blank" | "done">("done");
 
-  // Pause state
-  const [showPauseModal, setShowPauseModal] = useState(false);
-  const [pauseReason, setPauseReason] = useState("");
-  const [pauseNote, setPauseNote] = useState("");
-  const [isPaused, setIsPaused] = useState(false);
-  const [pausedAt, setPausedAt] = useState<string | null>(null);
 
   const loadOrder = useCallback(async () => {
     try {
@@ -368,93 +328,17 @@ export default function TechOrderDetailPage() {
     }
   }, [currentBlockId]);
 
-  // GPS tracking: update distance calculation
-  useEffect(() => {
-    if (currentPosition && order?.lat && order?.lng) {
-      const dist = haversineDistance(currentPosition.lat, currentPosition.lng, order.lat, order.lng);
-      setDistanceToTarget(dist);
-    }
-  }, [currentPosition, order?.lat, order?.lng]);
 
   // Cleanup GPS tracking on unmount
   useEffect(() => {
     return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
       if (v2GpsWatchRef.current !== null) {
         navigator.geolocation.clearWatch(v2GpsWatchRef.current);
       }
     };
   }, []);
 
-  /* ── GPS Tracking ── */
-  function startGpsTracking() {
-    if (!navigator.geolocation) {
-      alert("GPS nao disponivel neste dispositivo");
-      return;
-    }
-    setTrackingActive(true);
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        setCurrentPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      },
-      () => {
-        // Error — try to continue
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
-    );
-  }
 
-  function stopGpsTracking() {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-    setTrackingActive(false);
-  }
-
-  /* ── Status transitions ── */
-  async function handleStatusChange(nextStatus: string) {
-    if (!order) return;
-    setActing(true);
-    try {
-      await techApi(`/service-orders/${order.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: nextStatus }),
-      });
-
-      // Start tracking when going A_CAMINHO
-      if (nextStatus === "A_CAMINHO") {
-        startGpsTracking();
-      }
-      // Stop tracking when arriving
-      if (nextStatus === "EM_EXECUCAO") {
-        stopGpsTracking();
-      }
-
-      await loadOrder();
-    } catch {
-      alert("Erro ao atualizar status");
-    } finally {
-      setActing(false);
-    }
-  }
-
-  /* ── Pause/Resume ── */
-  function handlePause() {
-    if (!pauseReason) return;
-    setIsPaused(true);
-    setPausedAt(new Date().toISOString());
-    setShowPauseModal(false);
-    setPauseNote("");
-  }
-
-  function handleResume() {
-    setIsPaused(false);
-    setPausedAt(null);
-    setPauseReason("");
-  }
 
   /* ── V1 advance ── */
   async function handleAdvanceStepV1() {
@@ -711,34 +595,11 @@ export default function TechOrderDetailPage() {
             {isOverdue && (
               <span className="rounded-lg bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">Atrasada</span>
             )}
-            {isPaused && (
-              <span className="rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 animate-pulse">Pausado</span>
-            )}
           </div>
         )}
         <h1 className="text-lg font-bold text-slate-900">{order.title}</h1>
       </div>
 
-      {/* GPS Tracking Banner */}
-      {trackingActive && distanceToTarget !== null && (
-        <div className="rounded-2xl bg-gradient-to-r from-indigo-500 to-blue-600 p-4 mb-4 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-white/70">Distancia ate o local</p>
-              <p className="text-2xl font-bold">{formatDistance(distanceToTarget)}</p>
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="h-3 w-3 rounded-full bg-green-400 animate-pulse mb-1" />
-              <span className="text-[10px] text-white/70">GPS ativo</span>
-            </div>
-          </div>
-          {distanceToTarget < 200 && (
-            <div className="mt-3 rounded-xl bg-white/20 px-3 py-2 text-center">
-              <p className="text-xs font-semibold">Voce esta proximo! Clique em &quot;Cheguei&quot; ao chegar.</p>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Custom message from workflow */}
       {customMessage && (
@@ -773,127 +634,7 @@ export default function TechOrderDetailPage() {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════
-          ACTION BUTTONS (Smart flow)
-          ═══════════════════════════════════════════ */}
-
-      {/* ATRIBUIDA: Accept + Go (only for V1 / no workflow) */}
-      {order.status === "ATRIBUIDA" && !isV2Workflow && (
-        <div className="space-y-2 mb-4">
-          <button
-            onClick={() => handleStatusChange("A_CAMINHO")}
-            disabled={acting}
-            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all"
-          >
-            <span className="text-xl">🚗</span>
-            {acting ? "Atualizando..." : "Estou a Caminho"}
-          </button>
-          <a
-            href={`https://www.google.com/maps/dir/?api=1&destination=${order.lat},${order.lng}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 py-3 text-sm font-semibold text-blue-700 active:bg-blue-100 transition-colors"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
-            Abrir Navegacao GPS
-          </a>
-        </div>
-      )}
-
-      {/* A_CAMINHO: Arrived button (only for V1 / no workflow) */}
-      {order.status === "A_CAMINHO" && !isV2Workflow && (
-        <div className="space-y-2 mb-4">
-          <button
-            onClick={() => handleStatusChange("EM_EXECUCAO")}
-            disabled={acting}
-            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all"
-          >
-            <span className="text-xl">📍</span>
-            {acting ? "Registrando..." : "Cheguei no Local"}
-          </button>
-          <a
-            href={`https://www.google.com/maps/dir/?api=1&destination=${order.lat},${order.lng}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 py-3 text-sm font-semibold text-blue-700 active:bg-blue-100 transition-colors"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
-            Continuar Navegacao
-          </a>
-        </div>
-      )}
-
-      {/* EM_EXECUCAO: Workflow or Finalize */}
-      {order.status === "EM_EXECUCAO" && !hasWorkflow && !isPaused && (
-        <div className="space-y-2 mb-4">
-          <button
-            onClick={() => handleStatusChange("CONCLUIDA")}
-            disabled={acting}
-            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all"
-          >
-            <span className="text-xl">✅</span>
-            {acting ? "Finalizando..." : "Finalizar Servico"}
-          </button>
-        </div>
-      )}
-
-      {/* AJUSTE: Retry (only for V1 / no workflow) */}
-      {order.status === "AJUSTE" && !isV2Workflow && (
-        <div className="space-y-2 mb-4">
-          <div className="rounded-2xl bg-red-50 border border-red-200 p-3 mb-2">
-            <p className="text-xs font-semibold text-red-700">Ajuste solicitado pelo gestor</p>
-            <p className="text-[11px] text-red-600 mt-1">Verifique as orientacoes e retome o servico.</p>
-          </div>
-          <button
-            onClick={() => handleStatusChange("EM_EXECUCAO")}
-            disabled={acting}
-            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all"
-          >
-            <span className="text-xl">🔄</span>
-            {acting ? "Retomando..." : "Retomar Servico"}
-          </button>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════
-          PAUSE / RESUME (during execution)
-          ═══════════════════════════════════════════ */}
-
-      {order.status === "EM_EXECUCAO" && !isV2Workflow && (
-        <>
-          {isPaused ? (
-            <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg">⏸️</span>
-                <div>
-                  <p className="text-sm font-semibold text-amber-800">Execucao Pausada</p>
-                  <p className="text-[11px] text-amber-600">
-                    {PAUSE_REASONS.find(r => r.id === pauseReason)?.label || pauseReason}
-                    {pausedAt && ` - desde ${new Date(pausedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleResume}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 text-sm font-bold text-white shadow active:scale-[0.98] transition-all"
-              >
-                <span>▶️</span> Retomar Execucao
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowPauseModal(true)}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 mb-4 active:bg-amber-100 transition-colors"
-            >
-              <span>⏸️</span> Pausar Execucao
-            </button>
-          )}
-        </>
-      )}
+      {/* Legacy action buttons, photos, pause — REMOVED. All controlled by workflow blocks. */}
 
       {/* ═══════════════════════════════════════════
           V2 WORKFLOW
@@ -965,7 +706,7 @@ export default function TechOrderDetailPage() {
           })}
 
           {/* Current block action area */}
-          {workflow.currentBlock && canAct && !isPaused && (
+          {workflow.currentBlock && canAct && (
             <V2BlockAction
               block={workflow.currentBlock}
               order={order}
@@ -1114,7 +855,7 @@ export default function TechOrderDetailPage() {
           </div>
 
           {/* V1 current step action */}
-          {(workflow as WorkflowProgressV1).currentStep && canAct && !isPaused && (
+          {(workflow as WorkflowProgressV1).currentStep && canAct && (
             <div className="mt-4 space-y-2">
               {((workflow as WorkflowProgressV1).currentStep!.requireNote || showNoteInput) && (
                 <textarea
@@ -1169,104 +910,7 @@ export default function TechOrderDetailPage() {
         />
       )}
 
-      {/* ── Photos (Antes / Depois) — only for V1 / no workflow ── */}
-      {!isV2Workflow && ["EM_EXECUCAO", "CONCLUIDA", "APROVADA", "AJUSTE", "ATRIBUIDA", "A_CAMINHO"].includes(order.status) && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm mb-4">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">📷 Fotos</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">Antes</p>
-              <PhotoUpload
-                orderId={order.id}
-                type="ANTES"
-                attachments={attachments}
-                onUpload={(att) => setAttachments((prev) => [...prev, att])}
-                apiFetch={techApi}
-                label="Foto antes"
-                disabled={["CONCLUIDA", "APROVADA"].includes(order.status)}
-              />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">Depois</p>
-              <PhotoUpload
-                orderId={order.id}
-                type="DEPOIS"
-                attachments={attachments}
-                onUpload={(att) => setAttachments((prev) => [...prev, att])}
-                apiFetch={techApi}
-                label="Foto depois"
-                disabled={["CONCLUIDA", "APROVADA"].includes(order.status)}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Completed state (V1 only — V2 uses TerminalScreen) */}
-      {!isV2Workflow && (order.status === "CONCLUIDA" || order.status === "APROVADA") && (
-        <div className="rounded-2xl bg-green-50 border border-green-200 p-4 text-center">
-          <div className="text-3xl mb-2">✅</div>
-          <p className="text-sm font-semibold text-green-800">
-            Servico {order.status === "APROVADA" ? "aprovado" : "concluido"}!
-          </p>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════
-          PAUSE MODAL
-          ═══════════════════════════════════════════ */}
-      {showPauseModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 animate-in fade-in" onClick={() => setShowPauseModal(false)}>
-          <div className="w-full max-w-lg rounded-t-3xl bg-white shadow-2xl p-5 pb-8 animate-in slide-in-from-bottom" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-slate-800">Pausar Execucao</h3>
-              <button onClick={() => setShowPauseModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500 mb-3">Selecione o motivo da pausa:</p>
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              {PAUSE_REASONS.map(r => (
-                <button
-                  key={r.id}
-                  onClick={() => setPauseReason(r.id)}
-                  className={`flex items-center gap-2 rounded-xl border p-3 text-left transition-all ${
-                    pauseReason === r.id
-                      ? "border-amber-400 bg-amber-50 shadow-sm"
-                      : "border-slate-200 bg-white hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="text-lg">{r.icon}</span>
-                  <span className={`text-xs font-medium ${pauseReason === r.id ? "text-amber-800" : "text-slate-600"}`}>
-                    {r.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {pauseReason === "other" && (
-              <textarea
-                value={pauseNote}
-                onChange={e => setPauseNote(e.target.value)}
-                placeholder="Descreva o motivo..."
-                rows={2}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-amber-400 resize-none mb-4"
-              />
-            )}
-
-            <button
-              onClick={handlePause}
-              disabled={!pauseReason || (pauseReason === "other" && !pauseNote.trim())}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 py-3.5 text-sm font-bold text-white shadow disabled:opacity-50 active:scale-[0.98] transition-all"
-            >
-              ⏸️ Confirmar Pausa
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Legacy photos, completed state, pause modal — REMOVED. All controlled by workflow blocks. */}
     </div>
   );
 }
