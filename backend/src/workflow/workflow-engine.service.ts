@@ -884,6 +884,10 @@ export class WorkflowEngineService {
           currentBlock = block;
           break;
         }
+      } else if (block.type === 'ACTION_BUTTONS' && isCompleted) {
+        const buttonId = log?.responseData?.buttonId;
+        const branches: Record<string, string | null> = (block as any).branches || {};
+        currentId = (buttonId && branches[buttonId]) || block.next;
       } else if (isActionable && !isCompleted) {
         currentBlock = block;
         break;

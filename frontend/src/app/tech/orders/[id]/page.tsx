@@ -785,73 +785,7 @@ export default function TechOrderDetailPage() {
         const iCompleted = interactiveOnly.filter((b) => b.completed).length;
         return (
         <div className="mb-4">
-          {iTotal > 0 && (
-            <>
-              {/* Workflow header hidden from technician view */}
-
-              {/* Progress bar */}
-              <div className="h-2 rounded-full bg-slate-100 mb-4 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500"
-                  style={{ width: `${iTotal > 0 ? (iCompleted / iTotal) * 100 : 0}%` }}
-                />
-              </div>
-            </>
-          )}
-
-          {/* Execution path — only interactive blocks visible to the tech */}
-          {/* ACTION_BUTTONS: skip the card when it's the current block — V2BlockAction renders the buttons directly */}
-          <div className="space-y-2">
-            {workflow.executionPath
-              .filter((b) => INTERACTIVE_TYPES.has(b.type))
-              .filter((b) => !(b.type === "ACTION_BUTTONS" && !b.completed && workflow.currentBlock?.id === b.id))
-              .map((block) => {
-                const isCurrent = workflow.currentBlock?.id === block.id;
-                return (
-                  <div
-                    key={block.id}
-                    className={`rounded-xl border p-3 transition-all ${
-                      block.completed
-                        ? "border-green-200 bg-green-50"
-                        : isCurrent
-                          ? "border-blue-300 bg-blue-50 shadow-sm"
-                          : "border-slate-100 bg-slate-50 opacity-50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg flex-shrink-0 ${
-                        block.completed ? "bg-green-100" : isCurrent ? "bg-blue-100" : "bg-slate-100"
-                      }`}>
-                        {block.completed ? "✅" : block.icon || "📌"}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium ${
-                          block.completed ? "text-green-800" : isCurrent ? "text-blue-800" : "text-slate-500"
-                        }`}>
-                          {block.name}
-                          {block.completed && block.type === "ACTION_BUTTONS" && block.responseData?.answer && (
-                            <span className="ml-1 text-[11px] text-green-600">— {
-                              (block.config?.buttons || []).find((btn: any) => btn.id === block.responseData.answer)?.label || block.responseData.answer
-                            }</span>
-                          )}
-                        </p>
-                        {block.completed && block.completedAt && (
-                          <p className="text-[11px] text-green-600">
-                            {new Date(block.completedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                          </p>
-                        )}
-                        {block.completed && block.note && (
-                          <p className="text-[11px] text-green-700 mt-0.5 truncate">📝 {block.note}</p>
-                        )}
-                        {block.completed && block.responseData?.answer && block.type !== "ACTION_BUTTONS" && (
-                          <p className="text-[11px] text-green-700 mt-0.5">💬 {block.responseData.answer}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
+          {/* Workflow internals (progress bar, completed blocks) hidden from tech view */}
 
           {/* Current block action area */}
           {workflow.currentBlock && canAct && !isPaused && (

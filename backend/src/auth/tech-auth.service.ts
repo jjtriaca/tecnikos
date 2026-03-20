@@ -243,8 +243,8 @@ export class TechAuthService {
 
     if (offer) {
       const so = offer.serviceOrder;
-      // Token is valid until OS is APROVADA or CANCELADA
-      const terminalStatuses = ['APROVADA', 'CANCELADA'];
+      // Token is valid until OS reaches a terminal status
+      const terminalStatuses = ['APROVADA', 'CANCELADA', 'CONCLUIDA', 'RECUSADA'];
       if (terminalStatuses.includes(so.status)) {
         throw new BadRequestException('Esta ordem de serviço já foi finalizada');
       }
