@@ -1,6 +1,52 @@
 "use client";
 
+import { useState } from "react";
 import { type Block, getCatalogEntry } from "@/types/workflow-blocks";
+
+const EMOJI_OPTIONS = [
+  "✅", "❌", "🚀", "📍", "🔧", "✋", "👍", "👎", "⏳", "🔄",
+  "📋", "📞", "💬", "⚠️", "🛑", "🎯", "📦", "🏠", "🚗", "💰",
+  "📸", "🔑", "⭐", "🔔", "📝", "🗓️", "👷", "🛠️", "📊", "💡",
+];
+
+function EmojiPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="h-7 w-10 rounded border border-slate-200 text-center text-sm hover:border-blue-400 hover:bg-blue-50 transition-colors"
+        title="Escolher emoji"
+      >
+        {value || "😀"}
+      </button>
+      {open && (
+        <div className="absolute z-50 top-8 right-0 bg-white rounded-lg border border-slate-200 shadow-lg p-2 w-[200px] grid grid-cols-6 gap-1">
+          {EMOJI_OPTIONS.map((em) => (
+            <button
+              key={em}
+              type="button"
+              onClick={() => { onChange(em); setOpen(false); }}
+              className={`h-7 w-7 rounded text-sm hover:bg-blue-50 flex items-center justify-center ${value === em ? "bg-blue-100 ring-1 ring-blue-400" : ""}`}
+            >
+              {em}
+            </button>
+          ))}
+          {value && (
+            <button
+              type="button"
+              onClick={() => { onChange(""); setOpen(false); }}
+              className="col-span-6 text-[10px] text-red-400 hover:text-red-600 mt-1"
+            >
+              Remover emoji
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   block: Block | null;
@@ -515,11 +561,9 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                             />
                           ))}
                         </div>
-                        <input
+                        <EmojiPicker
                           value={btn.icon || ""}
-                          onChange={(e) => updateButton(i, "icon", e.target.value)}
-                          placeholder="icone"
-                          className="w-12 rounded border border-slate-200 px-1.5 py-0.5 text-center text-xs outline-none"
+                          onChange={(v) => updateButton(i, "icon", v)}
                         />
                       </div>
                       {/* Preview */}
