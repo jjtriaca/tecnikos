@@ -93,7 +93,6 @@ const ACTIONABLE_TYPES = new Set([
   'CONDITION',
   'ACTION_BUTTONS',
   'ARRIVAL_QUESTION',
-  'INFO',
 ]);
 
 /* ── V3 (FlowDefinition) ── */

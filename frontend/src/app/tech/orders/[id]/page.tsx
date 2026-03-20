@@ -822,6 +822,64 @@ export default function TechOrderDetailPage() {
         <div className="mb-4">
           {/* Workflow internals (progress bar, completed blocks) hidden from tech view */}
 
+          {/* Show INFO blocks that were auto-completed (non-actionable visual) — visible while workflow continues */}
+          {workflow.executionPath.filter((b) => b.type === "INFO" && b.completed).slice(-1).map((infoBlock) => {
+            const c = infoBlock.config || {};
+            const INFO_COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
+              blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
+              green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
+              red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
+              yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
+              slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
+              purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
+              cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
+              orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
+            };
+            const ic = INFO_COLOR_MAP[c.color || "blue"] || INFO_COLOR_MAP.blue;
+            const FS: Record<string, { title: string; body: string; icon: string }> = {
+              sm: { title: "text-sm", body: "text-xs", icon: "text-lg" },
+              md: { title: "text-base", body: "text-sm", icon: "text-2xl" },
+              lg: { title: "text-lg", body: "text-base", icon: "text-3xl" },
+            };
+            const fs = FS[c.fontSize || "md"] || FS.md;
+            const BS: Record<string, string> = { compact: "p-2.5 rounded-lg", normal: "p-4 rounded-xl", large: "p-6 rounded-2xl" };
+            const bs = BS[c.boxSize || "normal"] || BS.normal;
+            const resolveVars = (text: string) => {
+              if (!text || !order) return text;
+              const fmtC = (cents?: number) => cents != null ? (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
+              const fmtD = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
+              return text
+                .replace(/\{titulo\}/g, order.title || "-")
+                .replace(/\{codigo\}/g, order.code || "-")
+                .replace(/\{nome_cliente\}/g, (order as any).clientPartnerName || (order as any).clientName || "-")
+                .replace(/\{telefone_cliente\}/g, (order as any).clientPhone || "-")
+                .replace(/\{contato_local\}/g, (order as any).contactPersonName || "-")
+                .replace(/\{endereco\}/g, order.addressText || "-")
+                .replace(/\{tecnico\}/g, (order as any).technicianName || (order as any).assignedPartnerName || "-")
+                .replace(/\{valor\}/g, fmtC(order.valueCents))
+                .replace(/\{data_agendamento\}/g, fmtD(order.deadlineAt || (order as any).scheduledStartAt))
+                .replace(/\{empresa\}/g, (order as any).companyName || "-")
+                .replace(/\{telefone_empresa\}/g, (order as any).companyPhone || "-")
+                .replace(/\{status\}/g, order.status || "-")
+                .replace(/\{descricao\}/g, order.description || "-");
+            };
+            return (
+              <div key={infoBlock.id} className={`border-2 ${ic.border} ${ic.bg} ${bs} mb-3`}>
+                {c.title && (
+                  <div className={`flex items-center gap-2 ${c.boxSize === "compact" ? "mb-1" : "mb-2"}`}>
+                    <span className={fs.icon}>{c.icon || "ℹ️"}</span>
+                    <span className={`${fs.title} font-bold ${ic.text}`}>{resolveVars(c.title || infoBlock.name)}</span>
+                  </div>
+                )}
+                {c.message && (
+                  <p className={`${fs.body} ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>
+                    {resolveVars(c.message)}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+
           {/* Current block action area */}
           {workflow.currentBlock && canAct && !isPaused && (
             <V2BlockAction
