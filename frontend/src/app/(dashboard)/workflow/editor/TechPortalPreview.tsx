@@ -13,6 +13,7 @@ export interface TechPortalConfig {
   showCommission: boolean;
   showAttachments: boolean;
   showStatus: boolean;
+  showSiteContact: boolean;
   customMessage: string;
 }
 
@@ -27,6 +28,7 @@ export const DEFAULT_TECH_PORTAL_CONFIG: TechPortalConfig = {
   showCommission: false,
   showAttachments: true,
   showStatus: true,
+  showSiteContact: true,
   customMessage: "",
 };
 
@@ -102,7 +104,7 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
 
   const visibleBlocks = getVisibleBlocks(blocks);
   const interactiveCount = visibleBlocks.filter(b => b.isInteractive).length;
-  const hasAnyInfo = config.showAddress || config.showValue || config.showDeadline || config.showDescription || config.showClient || config.showClientPhone || config.showOsCode || config.showCommission;
+  const hasAnyInfo = config.showAddress || config.showValue || config.showDeadline || config.showDescription || config.showClient || config.showClientPhone || config.showOsCode || config.showCommission || config.showSiteContact;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -127,9 +129,10 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
           </div>
 
           <div className="space-y-px mt-2 pt-2 border-t border-slate-100">
-            <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Cliente</p>
+            <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Cliente / Contato</p>
             <Toggle label="Nome do cliente" checked={config.showClient} onChange={(v) => update("showClient", v)} />
             <Toggle label="Telefone do cliente" checked={config.showClientPhone} onChange={(v) => update("showClientPhone", v)} />
+            <Toggle label="Contato no local" checked={config.showSiteContact} onChange={(v) => update("showSiteContact", v)} />
           </div>
 
           <div className="space-y-px mt-2 pt-2 border-t border-slate-100">
@@ -203,6 +206,7 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                 <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 shadow-sm space-y-1">
                   <InfoItem icon="👤" label="Cliente" value="Joao da Silva" visible={config.showClient} />
                   <InfoItem icon="📞" label="Telefone" value="(66) 99999-0000" visible={config.showClientPhone} />
+                  <InfoItem icon="🏠" label="Contato no local" value="Maria - (66) 98888-0000" visible={config.showSiteContact} />
                   {config.showDescription && (
                     <p className="text-[8px] text-slate-500 leading-relaxed">Troca de filtro e bomba da piscina</p>
                   )}

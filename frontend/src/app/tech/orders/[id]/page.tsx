@@ -85,6 +85,7 @@ type TechPortalConfig = {
   showCommission?: boolean;
   showAttachments?: boolean;
   showStatus?: boolean;
+  showSiteContact?: boolean;
   customMessage?: string;
 };
 
@@ -553,6 +554,7 @@ export default function TechOrderDetailPage() {
   const showCommission = portalCfg.showCommission === true;
   const showAttachments = portalCfg.showAttachments !== false;
   const showStatusBadge = portalCfg.showStatus !== false;
+  const showSiteContact = portalCfg.showSiteContact !== false;
   const customMessage = portalCfg.customMessage || "";
 
   return (
