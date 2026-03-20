@@ -549,7 +549,7 @@ export default function TechOrderDetailPage() {
   const isOverdue = new Date(order.deadlineAt) < new Date() && !["CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status);
   const hasWorkflow = !!workflow;
   const isV2Workflow = hasWorkflow && isV2(workflow);
-  const canAct = ["ATRIBUIDA", "A_CAMINHO", "EM_EXECUCAO", "AJUSTE"].includes(order.status);
+  const canAct = ["OFERTADA", "ATRIBUIDA", "A_CAMINHO", "EM_EXECUCAO", "AJUSTE"].includes(order.status);
 
   // Tech portal visibility config (defaults to show all)
   const portalCfg: TechPortalConfig = (isV2Workflow ? (workflow as WorkflowProgressV2).techPortalConfig : null) || {};
