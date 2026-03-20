@@ -492,33 +492,35 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   const colorDef = COLORS.find(c => c.value === btn.color) || COLORS[0];
                   return (
                     <div key={btn.id} className={`rounded-lg border p-2 space-y-1.5 ${colorDef.preview.split(" ").find(c => c.startsWith("border-")) || "border-slate-200"}`}>
-                      <div className="flex items-center gap-1">
-                        <input
-                          value={btn.icon || ""}
-                          onChange={(e) => updateButton(i, "icon", e.target.value)}
-                          placeholder="emoji"
-                          className="w-8 rounded border border-slate-200 px-1 py-0.5 text-center text-xs outline-none"
-                        />
+                      <div className="flex items-center gap-1.5">
                         <input
                           value={btn.label}
                           onChange={(e) => updateButton(i, "label", e.target.value)}
-                          placeholder="Label do botao"
-                          className="flex-1 rounded border border-slate-200 px-2 py-0.5 text-xs outline-none focus:border-blue-400"
+                          placeholder="Texto do botao"
+                          className="flex-1 rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400"
                         />
                         {buttons.length > 1 && (
-                          <button onClick={() => removeButton(i)} className="px-1 text-xs text-red-400 hover:text-red-600" title="Remover">x</button>
+                          <button onClick={() => removeButton(i)} className="px-1.5 py-0.5 text-xs text-red-400 hover:text-red-600 rounded hover:bg-red-50" title="Remover">x</button>
                         )}
                       </div>
-                      <div className="flex gap-1">
-                        {COLORS.map(c => (
-                          <button
-                            key={c.value}
-                            type="button"
-                            onClick={() => updateButton(i, "color", c.value)}
-                            className={`h-5 w-5 rounded-full ${c.bg} ${btn.color === c.value ? "ring-2 ring-offset-1 ring-blue-400" : "opacity-60 hover:opacity-100"}`}
-                            title={c.label}
-                          />
-                        ))}
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {COLORS.map(c => (
+                            <button
+                              key={c.value}
+                              type="button"
+                              onClick={() => updateButton(i, "color", c.value)}
+                              className={`h-5 w-5 rounded-full ${c.bg} ${btn.color === c.value ? "ring-2 ring-offset-1 ring-blue-400" : "opacity-60 hover:opacity-100"}`}
+                              title={c.label}
+                            />
+                          ))}
+                        </div>
+                        <input
+                          value={btn.icon || ""}
+                          onChange={(e) => updateButton(i, "icon", e.target.value)}
+                          placeholder="icone"
+                          className="w-12 rounded border border-slate-200 px-1.5 py-0.5 text-center text-xs outline-none"
+                        />
                       </div>
                       {/* Preview */}
                       <div className={`rounded-md border py-1.5 text-center text-[11px] font-bold ${colorDef.preview}`}>
