@@ -250,11 +250,16 @@ export default function TechOrderDetailPage() {
     try {
       const data = await techApi<ServiceOrder>(`/service-orders/${id}`);
       setOrder(data);
-      try {
-        const wf = await techApi<WorkflowProgress>(`/service-orders/${id}/workflow`);
-        setWorkflow(wf);
-      } catch {
-        setWorkflow(null);
+      // Skip workflow reload if there's a pending deferred action — the deferred
+      // response already set the correct currentBlock. Reloading from server would
+      // overwrite it with the un-deferred state (ACTION_BUTTONS still as current).
+      if (!pendingActionRef.current) {
+        try {
+          const wf = await techApi<WorkflowProgress>(`/service-orders/${id}/workflow`);
+          setWorkflow(wf);
+        } catch {
+          setWorkflow(null);
+        }
       }
       try {
         const atts = await techApi<Attachment[]>(`/service-orders/${id}/attachments`);

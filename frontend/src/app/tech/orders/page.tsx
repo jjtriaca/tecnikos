@@ -24,7 +24,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
+  OFERTADA: { bg: "bg-purple-50 border-purple-200", text: "text-purple-800", dot: "bg-purple-500" },
   ATRIBUIDA: { bg: "bg-amber-50 border-amber-200", text: "text-amber-800", dot: "bg-amber-500" },
+  A_CAMINHO: { bg: "bg-indigo-50 border-indigo-200", text: "text-indigo-800", dot: "bg-indigo-500" },
   EM_EXECUCAO: { bg: "bg-blue-50 border-blue-200", text: "text-blue-800", dot: "bg-blue-500" },
   CONCLUIDA: { bg: "bg-green-50 border-green-200", text: "text-green-800", dot: "bg-green-500" },
   APROVADA: { bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-800", dot: "bg-emerald-500" },
@@ -58,7 +60,9 @@ export default function TechOrdersPage() {
 
   // Group by status
   const groups = [
+    { key: "OFERTADA", label: "Aguardando Aceite", orders: orders.filter((o) => o.status === "OFERTADA") },
     { key: "ATRIBUIDA", label: "Pendentes", orders: orders.filter((o) => o.status === "ATRIBUIDA") },
+    { key: "A_CAMINHO", label: "A Caminho", orders: orders.filter((o) => o.status === "A_CAMINHO") },
     { key: "EM_EXECUCAO", label: "Em Andamento", orders: orders.filter((o) => o.status === "EM_EXECUCAO") },
     { key: "AJUSTE", label: "Ajustes Necessários", orders: orders.filter((o) => o.status === "AJUSTE") },
     { key: "CONCLUIDA", label: "Concluídas Hoje", orders: orders.filter((o) => o.status === "CONCLUIDA" && new Date(o.createdAt).toDateString() === new Date().toDateString()) },
