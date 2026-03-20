@@ -652,27 +652,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           <>
             <Label>Mudar status para</Label>
             <Select value={cfg.targetStatus || "EM_EXECUCAO"} onChange={(v) => updateConfig("targetStatus", v)} options={OS_STATUSES} />
-
-            <Label>Modo de transicao</Label>
-            <Select
-              value={cfg.transitionMode || "auto"}
-              onChange={(v) => updateConfig("transitionMode", v)}
-              options={[
-                { value: "auto", label: "Automatico (sistema muda)" },
-                { value: "manual", label: "Aguardar tecnico clicar" },
-              ]}
-            />
-
-            {cfg.transitionMode === "manual" && (
-              <>
-                <Label>Texto do botao</Label>
-                <Input
-                  value={cfg.buttonLabel || ""}
-                  onChange={(v) => updateConfig("buttonLabel", v)}
-                  placeholder={`Ex: Cheguei no local`}
-                />
-              </>
-            )}
+            <p className="text-[10px] text-slate-400 mt-1">O sistema muda o status automaticamente. Para botoes de acao do tecnico, use o bloco "Botoes de Acao".</p>
           </>
         )}
 
