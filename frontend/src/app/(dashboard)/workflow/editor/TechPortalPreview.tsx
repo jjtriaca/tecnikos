@@ -14,6 +14,7 @@ export interface TechPortalConfig {
   showAttachments: boolean;
   showStatus: boolean;
   showSiteContact: boolean;
+  showCompanyPhone: boolean;
   customMessage: string;
 }
 
@@ -29,6 +30,7 @@ export const DEFAULT_TECH_PORTAL_CONFIG: TechPortalConfig = {
   showAttachments: true,
   showStatus: true,
   showSiteContact: true,
+  showCompanyPhone: true,
   customMessage: "",
 };
 
@@ -104,7 +106,7 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
 
   const visibleBlocks = getVisibleBlocks(blocks);
   const interactiveCount = visibleBlocks.filter(b => b.isInteractive).length;
-  const hasAnyInfo = config.showAddress || config.showValue || config.showDeadline || config.showDescription || config.showClient || config.showClientPhone || config.showOsCode || config.showCommission || config.showSiteContact;
+  const hasAnyInfo = config.showAddress || config.showValue || config.showDeadline || config.showDescription || config.showClient || config.showClientPhone || config.showOsCode || config.showCommission || config.showSiteContact || config.showCompanyPhone;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -133,6 +135,11 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
             <Toggle label="Nome do cliente" checked={config.showClient} onChange={(v) => update("showClient", v)} />
             <Toggle label="Telefone do cliente" checked={config.showClientPhone} onChange={(v) => update("showClientPhone", v)} />
             <Toggle label="Contato no local" checked={config.showSiteContact} onChange={(v) => update("showSiteContact", v)} />
+          </div>
+
+          <div className="space-y-px mt-2 pt-2 border-t border-slate-100">
+            <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Empresa</p>
+            <Toggle label="Telefone do escritorio" checked={config.showCompanyPhone} onChange={(v) => update("showCompanyPhone", v)} />
           </div>
 
           <div className="space-y-px mt-2 pt-2 border-t border-slate-100">
@@ -207,6 +214,7 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                   <InfoItem icon="👤" label="Cliente" value="Joao da Silva" visible={config.showClient} />
                   <InfoItem icon="📞" label="Telefone" value="(66) 99999-0000" visible={config.showClientPhone} />
                   <InfoItem icon="🏠" label="Contato no local" value="Maria - (66) 98888-0000" visible={config.showSiteContact} />
+                  <InfoItem icon="🏢" label="Escritorio" value="(66) 3521-0000" visible={config.showCompanyPhone} />
                   {config.showDescription && (
                     <p className="text-[8px] text-slate-500 leading-relaxed">Troca de filtro e bomba da piscina</p>
                   )}
