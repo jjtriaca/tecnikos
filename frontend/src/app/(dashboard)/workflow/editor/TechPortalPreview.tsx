@@ -267,14 +267,15 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
   }, [workflowId]);
 
   const selectEmulatorOs = (os: EmulatorOs) => {
+    const isTerminal = ["RECUSADA", "CANCELADA", "CONCLUIDA", "APROVADA"].includes(os.status);
     setPreviewOsId(os.serviceOrderId);
     setUsingRealOs(true);
     setShowOsList(false);
-    if (os.token) {
-      setPreviewToken(os.token);
-    } else {
-      // No valid token — need to reset first to create one
+    if (isTerminal || !os.token) {
+      // Terminal status or no token — reset to OFERTADA first
       resetOsAndLoad(os.serviceOrderId);
+    } else {
+      setPreviewToken(os.token);
     }
   };
 
