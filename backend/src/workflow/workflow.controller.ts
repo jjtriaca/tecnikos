@@ -74,6 +74,18 @@ export class WorkflowController {
     return this.service.testNotification(user.companyId, body.blocks, body.phone);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/preview-os')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get or create a preview OS for tech portal emulator' })
+  previewOs(
+    @Param('id') id: string,
+    @Body() body: { triggerLabel: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.getOrCreatePreviewOs(id, user.companyId, body.triggerLabel);
+  }
+
   @Roles(UserRole.ADMIN)
   @Delete(':id')
   remove(

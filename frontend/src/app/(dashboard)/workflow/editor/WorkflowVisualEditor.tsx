@@ -403,8 +403,17 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
           config={techPortalConfig}
           onChange={setTechPortalConfig}
           onClose={() => setShowTechPortal(false)}
-          blocks={blocks}
+          workflowId={workflowId}
           workflowName={name}
+          triggerLabel={trigger.label}
+          onSave={async () => {
+            if (!workflowId) return;
+            await api.put(`/workflows/${workflowId}`, {
+              name: name.trim(),
+              steps: { version: 2, blocks, trigger: { entity: trigger.entity, event: trigger.event, triggerId: trigger.id }, techPortalConfig },
+              isActive: initialIsActive ?? true,
+            });
+          }}
         />
       )}
 

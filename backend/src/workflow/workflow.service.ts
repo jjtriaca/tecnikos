@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Optional, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { PublicOfferService } from '../public-offer/public-offer.service';
 import { buildSearchWhere } from '../common/util/build-search-where';
 
 export interface WorkflowStep {
@@ -18,6 +19,7 @@ export class WorkflowService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
+    @Optional() @Inject(PublicOfferService) private readonly publicOfferService?: PublicOfferService,
   ) {}
 
   async findAll(companyId: string, opts?: { search?: string; page?: number; limit?: number; activeOnly?: boolean }) {
@@ -240,5 +242,98 @@ export class WorkflowService {
     if (sent === 0) throw new BadRequestException('Nenhum bloco de notificação encontrado no fluxo');
 
     return { sent, preview };
+  }
+
+  /* ── Preview OS for Tech Portal emulator ── */
+
+  /**
+   * Find or create a preview OS for this workflow.
+   * Returns { token, serviceOrderId } for iframe loading.
+   */
+  async getOrCreatePreviewOs(workflowId: string, companyId: string, triggerLabel: string) {
+    const wf = await this.findOne(workflowId, companyId);
+
+    // Look for existing preview OS with a valid (non-expired, non-revoked) offer
+    const existingOffer = await this.prisma.serviceOrderOffer.findFirst({
+      where: {
+        companyId,
+        channel: 'PREVIEW',
+        expiresAt: { gt: new Date() },
+        revokedAt: null,
+        serviceOrder: { workflowTemplateId: workflowId },
+      },
+      select: { token: true, serviceOrderId: true },
+    });
+
+    if (existingOffer) {
+      return { token: existingOffer.token, serviceOrderId: existingOffer.serviceOrderId };
+    }
+
+    // Find or create a dummy client partner for preview
+    let client = await this.prisma.partner.findFirst({
+      where: { companyId, type: 'CLIENT', deletedAt: null },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!client) {
+      client = await this.prisma.partner.create({
+        data: {
+          companyId,
+          type: 'CLIENT',
+          name: 'Cliente Teste (Preview)',
+          phone: '00000000000',
+        },
+        select: { id: true },
+      });
+    }
+
+    // Find a tech partner (needed for token auth to work)
+    let tech = await this.prisma.partner.findFirst({
+      where: { companyId, type: 'TECHNICIAN', deletedAt: null },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Generate sequential code
+    const lastOs = await this.prisma.serviceOrder.findFirst({
+      where: { companyId },
+      orderBy: { code: 'desc' },
+      select: { code: true },
+    });
+    const lastNum = lastOs?.code ? parseInt(lastOs.code.replace(/\D/g, ''), 10) : 0;
+    const code = `OS-${String((lastNum || 0) + 1).padStart(5, '0')}`;
+
+    // Create preview OS directly (bypasses engine — no notifications/automations)
+    const os = await this.prisma.serviceOrder.create({
+      data: {
+        companyId,
+        code,
+        title: `Preview - ${triggerLabel}`,
+        description: `OS de teste para visualizar o portal do técnico (${wf.name})`,
+        addressText: 'Rua Exemplo, 123 - Centro',
+        valueCents: 35000,
+        deadlineAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // +7 days
+        workflowTemplateId: workflowId,
+        clientPartnerId: client.id,
+        assignedPartnerId: tech?.id || undefined,
+        directedTechnicianIds: tech ? [tech.id] : [],
+        status: 'OFERTADA',
+      },
+    });
+
+    // Create offer token with 7-day expiry, channel=PREVIEW to distinguish
+    const { randomUUID } = await import('crypto');
+    const token = randomUUID();
+    await this.prisma.serviceOrderOffer.create({
+      data: {
+        serviceOrderId: os.id,
+        companyId,
+        channel: 'PREVIEW',
+        token,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return { token, serviceOrderId: os.id };
   }
 }

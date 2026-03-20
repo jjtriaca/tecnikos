@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { type Block, getCatalogEntry, findStartBlock, findBlock } from "@/types/workflow-blocks";
+import { api } from "@/lib/api";
 
 /* ── Field definitions ── */
 
@@ -11,26 +11,24 @@ interface FieldDef {
   key: FieldKey;
   label: string;
   icon: string;
-  previewLabel: string;
-  previewValue: string;
   defaultEnabled: boolean;
-  editableLabel?: boolean; // label can be customized
+  editableLabel?: boolean;
 }
 
 const ALL_FIELDS: FieldDef[] = [
-  { key: "osCode", label: "Codigo da OS", icon: "🔢", previewLabel: "", previewValue: "OS-00028", defaultEnabled: true },
-  { key: "status", label: "Status", icon: "🏷️", previewLabel: "", previewValue: "Ofertada", defaultEnabled: true },
-  { key: "description", label: "Descricao", icon: "📝", previewLabel: "", previewValue: "Troca de filtro e bomba da piscina", defaultEnabled: true },
-  { key: "client", label: "Nome do cliente", icon: "👤", previewLabel: "Cliente", previewValue: "Joao da Silva", defaultEnabled: false },
-  { key: "clientPhone", label: "Telefone do cliente", icon: "📞", previewLabel: "Telefone", previewValue: "(66) 99999-0000", defaultEnabled: false },
-  { key: "siteContact", label: "Contato no local", icon: "🏠", previewLabel: "Contato", previewValue: "Maria - (66) 98888-0000", defaultEnabled: true },
-  { key: "address", label: "Endereco", icon: "📍", previewLabel: "Endereco", previewValue: "Rua Exemplo, 123 - Centro", defaultEnabled: true },
-  { key: "value", label: "Valor", icon: "💰", previewLabel: "Valor", previewValue: "R$ 360,00", defaultEnabled: true },
-  { key: "deadline", label: "Prazo", icon: "🕐", previewLabel: "Prazo", previewValue: "19/03/2026", defaultEnabled: true },
-  { key: "commission", label: "Comissao do tecnico", icon: "💵", previewLabel: "Comissao", previewValue: "R$ 54,00", defaultEnabled: false, editableLabel: true },
-  { key: "companyPhone", label: "Telefone do escritorio", icon: "🏢", previewLabel: "Escritorio", previewValue: "(66) 3521-0000", defaultEnabled: true, editableLabel: true },
-  { key: "creator", label: "Criado por", icon: "✍️", previewLabel: "Criado por", previewValue: "Juliano Triaca", defaultEnabled: false },
-  { key: "attachments", label: "Anexos / Fotos", icon: "📷", previewLabel: "", previewValue: "", defaultEnabled: true },
+  { key: "osCode", label: "Codigo da OS", icon: "\u{1F522}", defaultEnabled: true },
+  { key: "status", label: "Status", icon: "\u{1F3F7}\uFE0F", defaultEnabled: true },
+  { key: "description", label: "Descricao", icon: "\u{1F4DD}", defaultEnabled: true },
+  { key: "client", label: "Nome do cliente", icon: "\u{1F464}", defaultEnabled: false },
+  { key: "clientPhone", label: "Telefone do cliente", icon: "\u{1F4DE}", defaultEnabled: false },
+  { key: "siteContact", label: "Contato no local", icon: "\u{1F3E0}", defaultEnabled: true },
+  { key: "address", label: "Endereco", icon: "\u{1F4CD}", defaultEnabled: true },
+  { key: "value", label: "Valor", icon: "\u{1F4B0}", defaultEnabled: true },
+  { key: "deadline", label: "Prazo", icon: "\u{1F550}", defaultEnabled: true },
+  { key: "commission", label: "Comissao do tecnico", icon: "\u{1F4B5}", defaultEnabled: false, editableLabel: true },
+  { key: "companyPhone", label: "Telefone do escritorio", icon: "\u{1F3E2}", defaultEnabled: true, editableLabel: true },
+  { key: "creator", label: "Criado por", icon: "\u270D\uFE0F", defaultEnabled: false },
+  { key: "attachments", label: "Anexos / Fotos", icon: "\u{1F4F7}", defaultEnabled: true },
 ];
 
 const DEFAULT_ORDER: FieldKey[] = ALL_FIELDS.map(f => f.key);
@@ -101,224 +99,11 @@ interface Props {
   config: TechPortalConfig;
   onChange: (config: TechPortalConfig) => void;
   onClose: () => void;
-  blocks: Block[];
+  workflowId: string | null;
   workflowName: string;
-}
-
-const INTERACTIVE = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
-
-/** Walk the main chain to get ALL blocks (except START/END) for the carousel */
-function getAllBlocks(blocks: Block[]): Block[] {
-  const result: Block[] = [];
-  const start = findStartBlock(blocks);
-  if (!start) return result;
-  let currentId: string | null = start.next;
-  const visited = new Set<string>();
-  while (currentId) {
-    if (visited.has(currentId)) break;
-    visited.add(currentId);
-    const b = findBlock(blocks, currentId);
-    if (!b || b.type === "END") break;
-    if (b.type !== "START") result.push(b);
-    currentId = b.next;
-  }
-  return result;
-}
-
-/** Render a single interactive block as the tech would see it */
-function BlockPreview({ block }: { block: Block }) {
-  const c = block.config || {};
-  const entry = getCatalogEntry(block.type);
-  const icon = entry?.icon || "⚙️";
-
-  switch (block.type) {
-    case "ACTION_BUTTONS": {
-      const buttons = c.buttons || [{ id: "1", label: "Confirmar", color: "green", icon: "✅" }];
-      const colorMap: Record<string, string> = {
-        green: "from-green-500 to-emerald-600",
-        blue: "from-blue-500 to-indigo-600",
-        red: "from-red-500 to-rose-600",
-        orange: "from-orange-500 to-amber-600",
-        yellow: "from-yellow-500 to-amber-500",
-        purple: "from-purple-500 to-violet-600",
-        slate: "from-slate-500 to-slate-600",
-      };
-      return (
-        <div className="space-y-1">
-          {c.title && <p className="text-[8px] font-medium text-slate-600 text-center">{c.title}</p>}
-          {buttons.map((btn: any) => (
-            <div key={btn.id} className={`rounded-lg bg-gradient-to-r ${colorMap[btn.color] || colorMap.blue} py-1.5 text-center shadow-sm`}>
-              <span className="text-[9px] font-bold text-white">{btn.icon} {btn.label}</span>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    case "STEP":
-      return (
-        <div className="space-y-1">
-          <p className="text-[8px] text-slate-600">{c.description || block.name}</p>
-          {c.requirePhoto && <div className="rounded border border-dashed border-slate-300 py-1.5 text-center"><span className="text-[7px] text-slate-400">📸 Tirar foto</span></div>}
-          {c.requireNote && <div className="rounded border border-slate-200 px-1.5 py-1"><span className="text-[7px] text-slate-400">Observacao...</span></div>}
-          <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 text-center shadow-sm">
-            <span className="text-[9px] font-bold text-white">✅ Confirmar</span>
-          </div>
-        </div>
-      );
-    case "PHOTO":
-      return (
-        <div className="space-y-1">
-          <p className="text-[8px] text-slate-600">{c.label || "Registrar foto"}</p>
-          <div className="rounded-lg border-2 border-dashed border-slate-300 py-4 text-center">
-            <span className="text-lg">📸</span>
-            <p className="text-[7px] text-slate-400 mt-0.5">Tirar foto{c.minPhotos > 1 ? ` (min ${c.minPhotos})` : ""}</p>
-          </div>
-        </div>
-      );
-    case "NOTE":
-      return (
-        <div className="space-y-1">
-          <div className="rounded border border-slate-200 px-2 py-2">
-            <span className="text-[7px] text-slate-400">{c.placeholder || "Escreva uma observacao..."}</span>
-          </div>
-          <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 text-center shadow-sm">
-            <span className="text-[9px] font-bold text-white">📝 Enviar</span>
-          </div>
-        </div>
-      );
-    case "GPS":
-      return (
-        <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-2 text-center shadow-sm">
-          <span className="text-[9px] font-bold text-white">📍 Registrar Localizacao</span>
-        </div>
-      );
-    case "QUESTION": {
-      const options = c.options || ["Sim", "Nao"];
-      return (
-        <div className="space-y-1">
-          <p className="text-[8px] font-medium text-slate-700">{c.question || "Pergunta?"}</p>
-          {options.map((opt: string, i: number) => (
-            <div key={i} className="rounded-lg border border-slate-200 py-1.5 text-center hover:bg-slate-50">
-              <span className="text-[8px] font-medium text-slate-600">{opt}</span>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    case "CHECKLIST": {
-      const items = c.items || ["Item 1", "Item 2"];
-      return (
-        <div className="space-y-1">
-          {items.map((item: string, i: number) => (
-            <div key={i} className="flex items-center gap-1.5 rounded border border-slate-200 px-2 py-1">
-              <div className="h-2.5 w-2.5 rounded border border-slate-300 shrink-0" />
-              <span className="text-[8px] text-slate-600">{item}</span>
-            </div>
-          ))}
-          <div className="rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 py-1.5 text-center shadow-sm">
-            <span className="text-[9px] font-bold text-white">☑️ Confirmar</span>
-          </div>
-        </div>
-      );
-    }
-    case "SIGNATURE":
-      return (
-        <div className="space-y-1">
-          <p className="text-[8px] text-slate-600">{c.label || "Assinatura digital"}</p>
-          <div className="rounded-lg border-2 border-dashed border-slate-300 py-4 text-center">
-            <span className="text-lg">✍️</span>
-            <p className="text-[7px] text-slate-400 mt-0.5">Toque para assinar</p>
-          </div>
-        </div>
-      );
-    case "FORM": {
-      const fields = c.fields || [{ name: "Campo", type: "text" }];
-      return (
-        <div className="space-y-1">
-          {fields.map((f: any, i: number) => (
-            <div key={i}>
-              <span className="text-[7px] text-slate-500">{f.name}</span>
-              <div className="rounded border border-slate-200 px-1.5 py-1 mt-px">
-                <span className="text-[7px] text-slate-400">{f.type === "select" ? (f.options?.[0] || "Selecione...") : "Digite..."}</span>
-              </div>
-            </div>
-          ))}
-          <div className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 text-center shadow-sm">
-            <span className="text-[9px] font-bold text-white">📋 Enviar</span>
-          </div>
-        </div>
-      );
-    }
-    case "DELAY": {
-      const minutes = c.minutes || 5;
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      const timeLabel = hours > 0 ? `${hours}h${mins > 0 ? ` ${mins}min` : ""}` : `${mins} min`;
-      return (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-4 text-center space-y-2">
-          <div className="text-2xl">⏳</div>
-          <p className="text-[9px] font-semibold text-amber-700">Aguardando...</p>
-          <div className="inline-block rounded-full bg-amber-100 px-3 py-1">
-            <span className="text-[10px] font-bold text-amber-800 font-mono">{timeLabel}</span>
-          </div>
-          <p className="text-[7px] text-amber-500">Transicao automatica apos o tempo</p>
-        </div>
-      );
-    }
-    case "STATUS": {
-      const newStatus = c.status || "EM_EXECUCAO";
-      const statusLabels: Record<string, string> = { ABERTA: "Aberta", OFERTADA: "Ofertada", ATRIBUIDA: "Atribuida", A_CAMINHO: "A Caminho", EM_EXECUCAO: "Em Execucao", CONCLUIDA: "Concluida", APROVADA: "Aprovada" };
-      return (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-4 text-center space-y-2">
-          <div className="text-2xl">🔄</div>
-          <p className="text-[9px] font-semibold text-blue-700">Mudanca de status</p>
-          <div className="inline-block rounded-full bg-blue-100 px-3 py-1">
-            <span className="text-[10px] font-bold text-blue-800">{statusLabels[newStatus] || newStatus}</span>
-          </div>
-          <p className="text-[7px] text-blue-500">Automatico</p>
-        </div>
-      );
-    }
-    case "NOTIFY": {
-      const recipients = c.recipients || [];
-      const firstRecipient = recipients[0];
-      const channelLabel = firstRecipient?.channel === "WHATSAPP" ? "WhatsApp" : firstRecipient?.channel === "EMAIL" ? "E-mail" : firstRecipient?.channel === "PUSH" ? "Push" : "Notificacao";
-      return (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-4 text-center space-y-2">
-          <div className="text-2xl">📨</div>
-          <p className="text-[9px] font-semibold text-green-700">Notificacao enviada</p>
-          <div className="inline-block rounded-full bg-green-100 px-3 py-1">
-            <span className="text-[10px] font-bold text-green-800">{channelLabel}</span>
-          </div>
-          <p className="text-[7px] text-green-500">Automatico</p>
-        </div>
-      );
-    }
-    case "APPROVAL":
-      return (
-        <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-4 text-center space-y-2">
-          <div className="text-2xl">👨‍💼</div>
-          <p className="text-[9px] font-semibold text-purple-700">Aguardando aprovacao</p>
-          <p className="text-[7px] text-purple-500">O gestor precisa aprovar</p>
-        </div>
-      );
-    case "SLA":
-      return (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-4 text-center space-y-2">
-          <div className="text-2xl">⏱️</div>
-          <p className="text-[9px] font-semibold text-red-700">SLA ativo</p>
-          <p className="text-[7px] text-red-500">Prazo monitorado</p>
-        </div>
-      );
-    default:
-      return (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-center space-y-2">
-          <div className="text-2xl">{icon}</div>
-          <p className="text-[9px] font-semibold text-slate-700">{block.name}</p>
-          <p className="text-[7px] text-slate-500">Automatico</p>
-        </div>
-      );
-  }
+  triggerLabel: string;
+  /** Called to save workflow before iframe reload */
+  onSave: () => Promise<void>;
 }
 
 /* ── Arrow buttons ── */
@@ -341,10 +126,14 @@ function MoveBtn({ direction, onClick }: { direction: "up" | "down"; onClick: ()
 
 /* ── Component ── */
 
-export default function TechPortalPreview({ config, onChange, onClose, blocks, workflowName }: Props) {
-  const [stepIdx, setStepIdx] = useState(0);
+export default function TechPortalPreview({ config, onChange, onClose, workflowId, workflowName, triggerLabel, onSave }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const iframeReady = useRef(false);
+  const [previewToken, setPreviewToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const iframeKey = useRef(0);
 
   const update = (key: keyof TechPortalConfig, value: any) => {
     onChange({ ...config, [key]: value });
@@ -371,69 +160,54 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
   const isEnabled = (key: FieldKey) => config[TOGGLE_KEY_MAP[key]] as boolean;
   const toggleField = (key: FieldKey) => update(TOGGLE_KEY_MAP[key], !isEnabled(key));
 
-  const interactiveBlocks = getAllBlocks(blocks);
-  const totalSteps = interactiveBlocks.length;
-  const currentStep = interactiveBlocks[stepIdx] || null;
-
-  // Serialize blocks for iframe (plain objects)
-  const serializeBlocks = useCallback(() => {
-    return blocks.map(b => ({
-      id: b.id,
-      type: b.type,
-      name: b.name,
-      icon: getCatalogEntry(b.type)?.icon || "⚙️",
-      config: b.config || {},
-      next: b.next,
-      branches: b.branches,
-    }));
-  }, [blocks]);
-
-  // Send data to iframe
-  const postToIframe = useCallback((msg: Record<string, any>) => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(msg, "*");
+  // Create preview OS
+  const createPreviewOs = useCallback(async () => {
+    if (!workflowId) {
+      setError("Salve o fluxo primeiro para criar uma OS de preview");
+      return;
     }
-  }, []);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.post<{ token: string; serviceOrderId: string }>(`/workflows/${workflowId}/preview-os`, { triggerLabel });
+      setPreviewToken(res.token);
+    } catch (err: any) {
+      setError(err?.message || "Erro ao criar OS de preview");
+    } finally {
+      setLoading(false);
+    }
+  }, [workflowId, triggerLabel]);
 
-  // Send full update to iframe
-  const sendFullUpdate = useCallback(() => {
-    postToIframe({
-      type: "PREVIEW_UPDATE",
-      config,
-      blocks: serializeBlocks(),
-      workflowName,
-    });
-  }, [config, serializeBlocks, workflowName, postToIframe]);
+  // Auto-save + reload iframe on config change (debounced)
+  const configRef = useRef(config);
+  configRef.current = config;
 
-  // Listen for messages from iframe
   useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      const d = e.data;
-      if (!d || typeof d !== "object") return;
-      if (d.type === "PREVIEW_READY") {
-        iframeReady.current = true;
-        sendFullUpdate();
+    if (!previewToken) return; // no iframe to reload yet
+
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await onSave();
+        // Reload iframe by changing key
+        iframeKey.current += 1;
+        setPreviewToken(t => t); // force re-render
+        iframeRef.current?.contentWindow?.location.reload();
+      } catch {
+        // silent
+      } finally {
+        setSaving(false);
       }
-      if (d.type === "PREVIEW_BLOCK_CLICKED") {
-        // Could handle block click feedback here
-      }
+    }, 800);
+
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [sendFullUpdate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, previewToken]);
 
-  // Send config/blocks updates when they change
-  useEffect(() => {
-    if (iframeReady.current) {
-      sendFullUpdate();
-    }
-  }, [sendFullUpdate]);
-
-  // Navigate steps via arrows — send to iframe
-  const goToStep = useCallback((idx: number) => {
-    setStepIdx(idx);
-    postToIframe({ type: "PREVIEW_STEP", stepIdx: idx });
-  }, [postToIframe]);
+  const iframeSrc = previewToken ? `/tech/os/${previewToken}` : "";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -444,11 +218,11 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
             <h3 className="text-xs font-bold text-slate-800">Portal do Tecnico</h3>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm leading-none">&times;</button>
           </div>
-          <p className="text-[9px] text-slate-400 mb-2">Arraste os campos para reordenar. A ordem aqui reflete na tela do tecnico.</p>
+          <p className="text-[9px] text-slate-400 mb-2">Configure os campos visiveis. Mudancas sao salvas e refletidas no celular.</p>
 
           {/* Reorderable field list */}
           <div className="space-y-px border rounded-lg border-slate-200 p-1.5">
-            {orderedFields.map((field, idx) => {
+            {orderedFields.map((field) => {
               const enabled = isEnabled(field.key);
               const labelKey = field.key === "companyPhone" ? "companyPhoneLabel" : field.key === "commission" ? "commissionLabel" : null;
               const currentLabel = labelKey ? (config[labelKey] as string) || "" : "";
@@ -457,14 +231,11 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                   key={field.key}
                   className={`flex items-center gap-1 rounded px-1 py-0.5 transition-colors ${enabled ? "bg-white" : "bg-slate-50 opacity-60"}`}
                 >
-                  {/* Arrows */}
                   <div className="flex flex-col">
                     <MoveBtn direction="up" onClick={() => moveField(field.key, "up")} />
                     <MoveBtn direction="down" onClick={() => moveField(field.key, "down")} />
                   </div>
-                  {/* Icon */}
                   <span className="text-[9px] w-3.5 text-center">{field.icon}</span>
-                  {/* Label — editable input or static text */}
                   {field.editableLabel && enabled && labelKey ? (
                     <input
                       value={currentLabel}
@@ -475,7 +246,6 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
                   ) : (
                     <span className="text-[10px] text-slate-700 flex-1 truncate">{field.label}</span>
                   )}
-                  {/* Toggle */}
                   <button
                     type="button"
                     onClick={() => toggleField(field.key)}
@@ -500,6 +270,14 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
             />
           </div>
 
+          {/* Saving indicator */}
+          {saving && (
+            <div className="mt-1 flex items-center gap-1">
+              <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+              <span className="text-[9px] text-blue-500">Salvando...</span>
+            </div>
+          )}
+
           <button
             onClick={onClose}
             className="mt-3 w-full rounded-lg bg-blue-600 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700 transition-colors shrink-0"
@@ -508,66 +286,73 @@ export default function TechPortalPreview({ config, onChange, onClose, blocks, w
           </button>
         </div>
 
-        {/* Right: Phone Emulator with iframe */}
-        <div className="flex-1 flex flex-col items-center pt-2">
-          <div className="flex items-center gap-3">
-            {/* Left arrow — outside phone */}
-            <button
-              type="button"
-              onClick={() => goToStep(Math.max(0, stepIdx - 1))}
-              disabled={stepIdx === 0 || totalSteps === 0}
-              className="h-9 w-9 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-blue-100 hover:text-blue-600 disabled:opacity-20 disabled:hover:bg-slate-100 disabled:hover:text-slate-400 transition-colors shadow-sm shrink-0"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
-            </button>
+        {/* Right: Phone Emulator */}
+        <div className="flex-1 flex flex-col items-center justify-center">
+          {/* Phone frame */}
+          <div className="w-[280px] h-[560px] rounded-[2.5rem] border-[6px] border-slate-800 bg-slate-800 overflow-hidden shadow-2xl flex flex-col relative">
+            {/* Notch */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-slate-800 rounded-b-2xl z-10" />
 
-            {/* Phone frame with iframe */}
-            <div className="w-[280px] h-[560px] rounded-[2.5rem] border-[6px] border-slate-800 bg-slate-800 overflow-hidden shadow-2xl flex flex-col relative">
-              {/* Notch */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-slate-800 rounded-b-2xl z-10" />
-              {/* iframe fills entire phone */}
+            {previewToken ? (
               <iframe
                 ref={iframeRef}
-                src="/tech/preview"
+                key={iframeKey.current}
+                src={iframeSrc}
                 className="w-full h-full border-0 bg-slate-50 rounded-[2rem]"
                 title="Preview do portal do tecnico"
               />
-            </div>
-
-            {/* Right arrow — outside phone */}
-            <button
-              type="button"
-              onClick={() => goToStep(Math.min(totalSteps - 1, stepIdx + 1))}
-              disabled={stepIdx >= totalSteps - 1 || totalSteps === 0}
-              className="h-9 w-9 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-blue-100 hover:text-blue-600 disabled:opacity-20 disabled:hover:bg-slate-100 disabled:hover:text-slate-400 transition-colors shadow-sm shrink-0"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-            </button>
+            ) : (
+              <div className="w-full h-full bg-slate-50 rounded-[2rem] flex flex-col items-center justify-center px-6 gap-4">
+                {loading ? (
+                  <>
+                    <div className="h-8 w-8 animate-spin rounded-full border-3 border-blue-600 border-t-transparent" />
+                    <p className="text-xs text-slate-400">Criando OS de preview...</p>
+                  </>
+                ) : error ? (
+                  <>
+                    <div className="text-3xl">&#x26A0;&#xFE0F;</div>
+                    <p className="text-xs text-red-500 text-center">{error}</p>
+                    <button
+                      onClick={createPreviewOs}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                    >
+                      Tentar novamente
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-4xl">&#x1F4F1;</div>
+                    <p className="text-sm font-semibold text-slate-700 text-center">Emulador do Portal</p>
+                    <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+                      Crie uma OS de teste para visualizar exatamente o que o tecnico vera no celular.
+                    </p>
+                    <button
+                      onClick={createPreviewOs}
+                      disabled={!workflowId}
+                      className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                    >
+                      Criar {triggerLabel}
+                    </button>
+                    {!workflowId && (
+                      <p className="text-[9px] text-amber-500">Salve o fluxo primeiro</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Step indicator below phone */}
-          {totalSteps > 0 && (
-            <div className="flex flex-col items-center gap-1 mt-2">
-              <div className="flex gap-1">
-                {interactiveBlocks.map((b, i) => {
-                  const isInteract = INTERACTIVE.has(b.type);
-                  const activeColor = isInteract ? "bg-blue-500" : "bg-amber-400";
-                  const inactiveColor = isInteract ? "bg-blue-200 hover:bg-blue-300" : "bg-amber-200 hover:bg-amber-300";
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => goToStep(i)}
-                      className={`h-1.5 rounded-full transition-all ${i === stepIdx ? `w-5 ${activeColor}` : `w-1.5 ${inactiveColor}`}`}
-                    />
-                  );
-                })}
-              </div>
-              <span className="text-[9px] text-slate-400">
-                {currentStep ? (currentStep.name || getCatalogEntry(currentStep.type)?.name) : ""}
-                {currentStep && !INTERACTIVE.has(currentStep.type) && <span className="text-amber-500 ml-1">(auto)</span>}
-                <span className="ml-1">({stepIdx + 1}/{totalSteps})</span>
-              </span>
+          {/* Status below phone */}
+          {previewToken && (
+            <div className="flex items-center gap-2 mt-3">
+              <div className="h-2 w-2 rounded-full bg-green-500" />
+              <span className="text-[9px] text-slate-400">OS de preview ativa</span>
+              <button
+                onClick={() => iframeRef.current?.contentWindow?.location.reload()}
+                className="text-[9px] text-blue-500 hover:text-blue-700 underline ml-2"
+              >
+                Recarregar
+              </button>
             </div>
           )}
         </div>
