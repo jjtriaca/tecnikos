@@ -206,6 +206,7 @@ model Company {
   quotes               Quote[]
   checklistResponses   ChecklistResponse[]
   pushSubscriptions    PushSubscription[]
+  deviceTokens         DeviceToken[]
 }
 
 model User {
@@ -263,6 +264,24 @@ model Session {
 
   @@index([userId])
   @@index([userId, revokedAt])
+}
+
+// ========== DeviceToken — Vincula dispositivo ao técnico (PWA persistence) ==========
+
+model DeviceToken {
+  id         String    @id @default(uuid())
+  partnerId  String
+  companyId  String
+  tokenHash  String
+  deviceName String?
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  partner Partner @relation(fields: [partnerId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([partnerId, revokedAt])
 }
 
 // ========== Partner — Entidade unificada (Cliente, Fornecedor, Técnico) ==========
@@ -325,6 +344,7 @@ model Partner {
   technicianContracts   TechnicianContract[]
   clientQuotes          Quote[]      @relation("QuoteClient")
   contacts              PartnerContact[]
+  deviceTokens          DeviceToken[]
 
   @@unique([companyId, code])
   @@index([companyId])

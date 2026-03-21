@@ -40,6 +40,8 @@ const TechAuthContext = createContext<TechAuthState>({
   logout: async () => {},
 });
 
+const DEVICE_TOKEN_KEY = "tech_device_token";
+
 let techAccessToken: string | null = null;
 
 export function setTechAccessToken(t: string | null) {
@@ -47,6 +49,20 @@ export function setTechAccessToken(t: string | null) {
 }
 export function getTechAccessToken() {
   return techAccessToken;
+}
+
+/* ── Device token helpers ──────────────────────────────── */
+
+function saveDeviceToken(token: string) {
+  try { localStorage.setItem(DEVICE_TOKEN_KEY, token); } catch { /* SSR / private mode */ }
+}
+
+function getDeviceToken(): string | null {
+  try { return localStorage.getItem(DEVICE_TOKEN_KEY); } catch { return null; }
+}
+
+function clearDeviceToken() {
+  try { localStorage.removeItem(DEVICE_TOKEN_KEY); } catch { /* ignore */ }
 }
 
 /* ── Tech API helper ───────────────────────────────────── */
@@ -69,9 +85,12 @@ export async function techApi<T = any>(
     credentials: "include",
   });
 
-  if (res.status === 401 && path !== "/tech-auth/refresh") {
-    // Try silent refresh
-    const refreshed = await techSilentRefresh();
+  if (res.status === 401 && path !== "/tech-auth/refresh" && path !== "/tech-auth/device-recover") {
+    // Layer 1: Try cookie-based silent refresh
+    let refreshed = await techSilentRefresh();
+    // Layer 2: Try device token recovery
+    if (!refreshed) refreshed = await techDeviceRecover();
+
     if (refreshed) {
       headers["Authorization"] = `Bearer ${techAccessToken}`;
       const retry = await fetch(`${API_BASE}${path}`, {
@@ -89,6 +108,7 @@ export async function techApi<T = any>(
   return res.json();
 }
 
+/* ── Layer 1: Cookie-based silent refresh ──────────────── */
 async function techSilentRefresh(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/tech-auth/refresh`, {
@@ -99,6 +119,30 @@ async function techSilentRefresh(): Promise<boolean> {
     if (!res.ok) return false;
     const data = await res.json();
     techAccessToken = data.accessToken;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* ── Layer 2: Device token recovery ────────────────────── */
+async function techDeviceRecover(): Promise<boolean> {
+  const dt = getDeviceToken();
+  if (!dt) return false;
+  try {
+    const res = await fetch(`${API_BASE}/tech-auth/device-recover`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceToken: dt }),
+    });
+    if (!res.ok) {
+      clearDeviceToken();
+      return false;
+    }
+    const data = await res.json();
+    techAccessToken = data.accessToken;
+    if (data.deviceToken) saveDeviceToken(data.deviceToken);
     return true;
   } catch {
     return false;
@@ -123,10 +167,10 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const refreshed = await techSilentRefresh();
-      if (refreshed) {
-        await fetchMe();
-      }
+      // 3-layer auth recovery: cookie → deviceToken → give up (show login)
+      let ok = await techSilentRefresh();
+      if (!ok) ok = await techDeviceRecover();
+      if (ok) await fetchMe();
       setLoading(false);
     })();
   }, [fetchMe]);
@@ -146,6 +190,7 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
       }
       const data = await res.json();
       techAccessToken = data.accessToken;
+      if (data.deviceToken) saveDeviceToken(data.deviceToken);
       await fetchMe();
       router.push("/tech/orders");
     },
@@ -182,6 +227,7 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
       }
       const data = await res.json();
       techAccessToken = data.accessToken;
+      if (data.deviceToken) saveDeviceToken(data.deviceToken);
       await fetchMe();
       router.push("/tech/orders");
     },
@@ -206,6 +252,7 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
         return { type: data.type, contractToken: data.contractToken } as { type: string; serviceOrderId?: string; contractToken?: string };
       }
       techAccessToken = data.accessToken;
+      if (data.deviceToken) saveDeviceToken(data.deviceToken);
       await fetchMe();
       return { type: data.type, serviceOrderId: data.serviceOrderId } as { type: string; serviceOrderId?: string; contractToken?: string };
     },
@@ -214,14 +261,13 @@ export function TechAuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch(`${API_BASE}/tech-auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
+      // technicianId is extracted from JWT on the backend (secure)
+      await techApi("/tech-auth/logout", { method: "POST" });
     } catch {
       // ignore
     }
     techAccessToken = null;
+    clearDeviceToken();
     setUser(null);
     router.push("/tech/login");
   }, [router]);

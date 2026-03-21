@@ -12,8 +12,8 @@ export function middleware(request: NextRequest) {
   // Detecta se é o domínio raiz (sem subdomínio) — login não existe aqui
   const isBareHost = host === 'tecnikos.com.br' || host === 'www.tecnikos.com.br' || host.startsWith('localhost');
 
-  // ── Domínio raiz: /login redireciona para landing page ──
-  if (isBareHost && (pathname === '/login' || pathname === '/tech/login')) {
+  // ── Domínio raiz: /login redireciona para landing page (tech/login pass-through — OTP recovery) ──
+  if (isBareHost && pathname === '/login') {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
@@ -68,9 +68,6 @@ export function middleware(request: NextRequest) {
   ) {
     const techToken = request.cookies.get('tech_refresh_token');
     if (!techToken) {
-      if (isBareHost) {
-        return NextResponse.redirect(new URL('/', request.url));
-      }
       return NextResponse.redirect(new URL('/tech/login', request.url));
     }
   }

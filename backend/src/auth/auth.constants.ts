@@ -10,7 +10,9 @@ export const DEFAULT_REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 export const SESSION_TTL_SECONDS = 24 * 60 * 60; // 1 day
 
 /** TTL do refresh token do portal do tecnico — PWA precisa de sessao longa */
-// TESTE: 1 dia para validar fluxo. Apos validacao, aumentar para 90 * 24 * 60 * 60
-export const TECH_REFRESH_TTL_SECONDS = 1 * 24 * 60 * 60; // 1 day (testing)
+export const TECH_REFRESH_TTL_SECONDS = 90 * 24 * 60 * 60; // 90 days
+
+/** TTL do device token — vincula dispositivo ao tecnico */
+export const DEVICE_TOKEN_TTL_SECONDS = 365 * 24 * 60 * 60; // 365 days
 
 export const REFRESH_COOKIE_NAME = 'refresh_token';

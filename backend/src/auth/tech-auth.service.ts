@@ -9,11 +9,12 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { OtpService, normalizePhone } from './otp.service';
 import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { JwtPayload } from './auth.types';
 import {
   TECH_REFRESH_TTL_SECONDS,
   SESSION_TTL_SECONDS,
+  DEVICE_TOKEN_TTL_SECONDS,
 } from './auth.constants';
 
 @Injectable()
@@ -48,11 +49,13 @@ export class TechAuthService {
     const ttl = SESSION_TTL_SECONDS;
     const accessToken = this.issueAccessToken(tech);
     const { refreshToken } = await this.createSession(tech.id, ip, userAgent, ttl);
+    const deviceToken = await this.issueDeviceToken(tech.id, tech.companyId, userAgent);
 
     return {
       accessToken,
       refreshToken,
       refreshTtlSeconds: ttl,
+      deviceToken,
       technician: {
         id: tech.id,
         name: tech.name,
@@ -115,11 +118,13 @@ export class TechAuthService {
     const ttl = SESSION_TTL_SECONDS;
     const accessToken = this.issueAccessToken(tech);
     const { refreshToken } = await this.createSession(tech.id, ip, userAgent, ttl);
+    const deviceToken = await this.issueDeviceToken(tech.id, tech.companyId, userAgent);
 
     return {
       accessToken,
       refreshToken,
       refreshTtlSeconds: ttl,
+      deviceToken,
       technician: {
         id: tech.id,
         name: tech.name,
@@ -206,11 +211,13 @@ export class TechAuthService {
       const ttl = SESSION_TTL_SECONDS;
       const accessToken = this.issueAccessToken(tech);
       const { refreshToken } = await this.createSession(tech.id, ip, userAgent, ttl);
+      const deviceToken = await this.issueDeviceToken(tech.id, tech.companyId, userAgent);
 
       return {
         accessToken,
         refreshToken,
         refreshTtlSeconds: ttl,
+        deviceToken,
         technician: {
           id: tech.id,
           name: tech.name,
@@ -268,11 +275,13 @@ export class TechAuthService {
       const ttl = SESSION_TTL_SECONDS;
       const accessToken = this.issueAccessToken(tech);
       const { refreshToken } = await this.createSession(tech.id, ip, userAgent, ttl);
+      const deviceToken = await this.issueDeviceToken(tech.id, tech.companyId, userAgent);
 
       return {
         accessToken,
         refreshToken,
         refreshTtlSeconds: ttl,
+        deviceToken,
         technician: {
           id: tech.id,
           name: tech.name,
@@ -292,9 +301,13 @@ export class TechAuthService {
   async refresh(oldRefreshToken: string, ip?: string, userAgent?: string) {
     if (!oldRefreshToken) throw new UnauthorizedException('Token ausente');
 
+    // Note: We cannot filter by userId here because we don't know the user yet
+    // (refresh uses httpOnly cookie, no JWT). But we limit scan to active sessions only.
+    // bcrypt is required for refresh tokens (unlike device tokens) because this is the
+    // standard session model shared with dashboard users.
     const sessions = await this.prisma.session.findMany({
       where: { revokedAt: null, expiresAt: { gt: new Date() } },
-      include: { user: false },
+      select: { id: true, userId: true, refreshTokenHash: true },
     });
 
     let matchedSession: (typeof sessions)[number] | null = null;
@@ -335,11 +348,12 @@ export class TechAuthService {
   }
 
   /* ─── LOGOUT ─────────────────────────────────────────── */
-  async logout(refreshToken: string) {
+  async logout(refreshToken: string, technicianId?: string) {
     if (!refreshToken) return;
 
     const sessions = await this.prisma.session.findMany({
-      where: { revokedAt: null },
+      where: { revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { id: true, userId: true, refreshTokenHash: true },
     });
 
     for (const s of sessions) {
@@ -348,6 +362,13 @@ export class TechAuthService {
           where: { id: s.id },
           data: { revokedAt: new Date() },
         });
+        // Also revoke device tokens for this technician (full logout = clean slate)
+        if (technicianId) {
+          await this.prisma.deviceToken.updateMany({
+            where: { partnerId: technicianId, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+        }
         break;
       }
     }
@@ -424,6 +445,111 @@ export class TechAuthService {
     });
 
     return { refreshToken };
+  }
+
+  /* ─── DEVICE RECOVER (PWA persistent auth) ──────────── */
+  async deviceRecover(deviceToken: string, ip?: string, userAgent?: string) {
+    if (!deviceToken) throw new UnauthorizedException('Device token ausente');
+
+    // SHA-256 hash for indexed lookup (UUID has 128-bit entropy — SHA-256 is more than enough)
+    const tokenHash = this.sha256(deviceToken);
+
+    const matched = await this.prisma.deviceToken.findFirst({
+      where: { tokenHash, revokedAt: null, expiresAt: { gt: new Date() } },
+    });
+
+    if (!matched) throw new UnauthorizedException('Device token inválido ou expirado');
+
+    const tech = await this.prisma.partner.findFirst({
+      where: { id: matched.partnerId, deletedAt: null, partnerTypes: { has: 'TECNICO' } },
+    });
+
+    if (!tech || tech.status !== 'ATIVO') {
+      throw new ForbiddenException('Técnico desativado');
+    }
+
+    const accessToken = this.issueAccessToken(tech);
+    const { refreshToken } = await this.createSession(tech.id, ip, userAgent);
+    const newDeviceToken = await this.issueDeviceToken(tech.id, tech.companyId, userAgent);
+
+    return {
+      accessToken,
+      refreshToken,
+      refreshTtlSeconds: this.refreshTtlSeconds,
+      deviceToken: newDeviceToken,
+      technician: {
+        id: tech.id,
+        name: tech.name,
+        email: tech.email,
+        phone: tech.phone,
+        companyId: tech.companyId,
+      },
+    };
+  }
+
+  /* ─── MY ORDERS (active OS for technician) ─────────── */
+  async myOrders(user: { partnerId?: string; technicianId?: string; id: string; companyId: string }) {
+    const techId = user.partnerId || user.technicianId || user.id;
+
+    // Only show OS where tech is ASSIGNED (accepted), not just directed (pending acceptance)
+    // Directed OS (OFERTADA) must be accepted via link first, which assigns the tech
+    const orders = await this.prisma.serviceOrder.findMany({
+      where: {
+        deletedAt: null,
+        companyId: user.companyId, // tenant isolation
+        status: { notIn: ['CONCLUIDA', 'APROVADA', 'CANCELADA', 'RECUSADA'] },
+        assignedPartnerId: techId,
+      },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        status: true,
+        addressText: true,
+        deadlineAt: true,
+        valueCents: true,
+        clientPartner: { select: { name: true } },
+      },
+      orderBy: [{ deadlineAt: 'asc' }],
+      take: 50,
+    });
+
+    // Sort: A_CAMINHO and EM_EXECUCAO first
+    const priorityStatuses = ['A_CAMINHO', 'EM_EXECUCAO'];
+    orders.sort((a, b) => {
+      const aPriority = priorityStatuses.includes(a.status) ? 0 : 1;
+      const bPriority = priorityStatuses.includes(b.status) ? 0 : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return 0; // keep deadlineAt order from DB
+    });
+
+    return { orders };
+  }
+
+  /* ─── ISSUE DEVICE TOKEN ────────────────────────────── */
+  async issueDeviceToken(partnerId: string, companyId: string, userAgent?: string): Promise<string> {
+    const token = randomUUID();
+    const tokenHash = this.sha256(token);
+    const expiresAt = new Date(Date.now() + DEVICE_TOKEN_TTL_SECONDS * 1000);
+    const deviceName = userAgent ? userAgent.substring(0, 128) : null;
+
+    // Transaction: revoke old + create new (prevents race condition)
+    await this.prisma.$transaction([
+      this.prisma.deviceToken.updateMany({
+        where: { partnerId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+      this.prisma.deviceToken.create({
+        data: { partnerId, companyId, tokenHash, deviceName, expiresAt },
+      }),
+    ]);
+
+    return token;
+  }
+
+  /** Deterministic hash for device tokens (UUID has 128-bit entropy, no need for bcrypt) */
+  private sha256(input: string): string {
+    return createHash('sha256').update(input).digest('hex');
   }
 
   /** Cookie persistente — maxAge alinhado com refresh token TTL (PWA precisa sobreviver ao fechar app) */

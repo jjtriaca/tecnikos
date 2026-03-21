@@ -58,6 +58,7 @@ export class TechAuthController {
 
     return {
       accessToken: result.accessToken,
+      deviceToken: result.deviceToken,
       technician: result.technician,
     };
   }
@@ -82,9 +83,11 @@ export class TechAuthController {
 
     return {
       accessToken: result.accessToken,
+      deviceToken: (result as any).deviceToken,
       technician: result.technician,
       type: result.type,
       serviceOrderId: (result as any).serviceOrderId,
+      contractToken: (result as any).contractToken,
     };
   }
 
@@ -109,6 +112,32 @@ export class TechAuthController {
 
     return {
       accessToken: result.accessToken,
+      deviceToken: result.deviceToken,
+      technician: result.technician,
+    };
+  }
+
+  /* ─── DEVICE RECOVER (PWA persistent auth) ─────────── */
+  @Public()
+  @Post('device-recover')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Recuperar sessão via device token (PWA)' })
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  async deviceRecover(
+    @Body() body: { deviceToken: string },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const ip = req.ip || req.socket?.remoteAddress;
+    const ua = req.headers['user-agent'];
+
+    const result = await this.techAuth.deviceRecover(body.deviceToken, ip, ua);
+
+    res.cookie(TECH_REFRESH_COOKIE, result.refreshToken, this.techAuth.refreshCookieOptions());
+
+    return {
+      accessToken: result.accessToken,
+      deviceToken: result.deviceToken,
       technician: result.technician,
     };
   }
@@ -131,15 +160,18 @@ export class TechAuthController {
     return { accessToken: result.accessToken };
   }
 
-  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
   async logout(
+    @CurrentUser() user: AuthenticatedUser,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const token = req.cookies?.[TECH_REFRESH_COOKIE];
-    await this.techAuth.logout(token);
+    // technicianId comes from JWT, never from request body (prevents revoking others' tokens)
+    const techId = user?.partnerId || user?.technicianId;
+    await this.techAuth.logout(token, techId);
     res.clearCookie(TECH_REFRESH_COOKIE, this.techAuth.clearCookieOptions());
     return { ok: true };
   }
@@ -147,5 +179,12 @@ export class TechAuthController {
   @Get('me')
   async me(@CurrentUser() user: AuthenticatedUser) {
     return this.techAuth.me(user);
+  }
+
+  /* ─── MY ORDERS (active OS for technician) ─────────── */
+  @Get('my-orders')
+  @ApiOperation({ summary: 'Listar OS ativas do técnico autenticado' })
+  async myOrders(@CurrentUser() user: AuthenticatedUser) {
+    return this.techAuth.myOrders(user);
   }
 }
