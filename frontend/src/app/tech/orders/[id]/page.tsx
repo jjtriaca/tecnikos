@@ -416,14 +416,15 @@ export default function TechOrderDetailPage() {
     const hasProximity = cfg.radiusMeters && cfg.radiusMeters > 0;
     const intervalMs = (cfg.intervalSeconds || 30) * 1000;
 
-    const sendPosition = hasProximity ? async (lat: number, lng: number, accuracy?: number, speed?: number, heading?: number) => {
+    // Always send position in continuous mode (dispatch panel needs it for map)
+    const sendPosition = async (lat: number, lng: number, accuracy?: number, speed?: number, heading?: number) => {
       try {
         const result = await techApi<{ distanceMeters: number | null; proximityReached: boolean; radiusMeters: number }>(
           `/service-orders/${order.id}/workflow/position`,
           { method: "POST", body: JSON.stringify({ lat, lng, accuracy, speed, heading }) }
         );
         if (result.distanceMeters != null) setProximityDistance(result.distanceMeters);
-        if (result.proximityReached && cfg.autoAdvanceOnProximity !== false) {
+        if (hasProximity && result.proximityReached && cfg.autoAdvanceOnProximity !== false) {
           proximityAdvancedRef.current = block.id;
           setTimeout(async () => {
             try {
@@ -434,7 +435,7 @@ export default function TechOrderDetailPage() {
           }, 500);
         }
       } catch { /* ignore send errors */ }
-    } : null;
+    };
 
     let lastSentAt = 0;
     let lastPositionAt = Date.now();
@@ -445,12 +446,10 @@ export default function TechOrderDetailPage() {
         setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setV2GpsLoading(false);
         setV2GpsDenied(false);
-        if (sendPosition) {
-          const now = Date.now();
-          if (now - lastSentAt >= intervalMs) {
-            lastSentAt = now;
-            sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
-          }
+        const now = Date.now();
+        if (now - lastSentAt >= intervalMs) {
+          lastSentAt = now;
+          sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
         }
       },
       () => { setV2GpsLoading(false); setV2GpsDenied(true); },
@@ -471,16 +470,15 @@ export default function TechOrderDetailPage() {
     v2GpsHealthRef.current = healthCheckInterval;
 
     // Also send position immediately on first capture
-    if (sendPosition) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          lastSentAt = Date.now();
-          sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
-        },
-        () => {},
-        { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 10000 }
-      );
-    }
+    // Send first position immediately
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        lastSentAt = Date.now();
+        sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
+      },
+      () => {},
+      { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 10000 }
+    );
   }, [currentBlockId]);
 
   // GPS pontual: auto-advance once coords are captured
@@ -1269,6 +1267,17 @@ function V2BlockAction({
               <p className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
                 ✅ Lat: {v2GpsCoords.lat.toFixed(6)}, Lng: {v2GpsCoords.lng.toFixed(6)}
               </p>
+            )}
+
+            {/* Distance to destination */}
+            {v2GpsTracking && proximityDistance != null && (
+              <div className="text-center rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
+                <p className="text-sm font-bold text-blue-700">
+                  📍 Você está a {proximityDistance >= 1000
+                    ? `${(proximityDistance / 1000).toFixed(1)} km`
+                    : `${proximityDistance} m`} do destino
+                </p>
+              </div>
             )}
           </div>
         )}
