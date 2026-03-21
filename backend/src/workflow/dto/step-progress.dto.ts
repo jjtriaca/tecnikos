@@ -1,21 +1,4 @@
-import { IsOptional, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
-
-class PendingActionDto {
-  @IsString()
-  blockId: string;
-
-  @IsOptional()
-  responseData?: Record<string, any>;
-
-  @IsOptional()
-  @IsString()
-  note?: string;
-
-  @IsOptional()
-  @IsString()
-  photoUrl?: string;
-}
+import { IsOptional, IsString } from 'class-validator';
 
 export class StepProgressDto {
   @IsOptional()
@@ -34,10 +17,4 @@ export class StepProgressDto {
   /** V2: dados de resposta específicos do bloco (answers, GPS coords, checklist, etc.) */
   @IsOptional()
   responseData?: Record<string, any>;
-
-  /** Deferred action from ACTION_BUTTONS — processed before the main advance */
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => PendingActionDto)
-  pendingAction?: PendingActionDto;
 }

@@ -55,8 +55,6 @@ export interface WorkflowProgressV2 {
   executionPath: BlockProgress[];
   isComplete: boolean;
   techPortalConfig?: Record<string, any> | null;
-  /** Deferred action — frontend must send this back when advancing the next block */
-  pendingAction?: { blockId: string; responseData?: any; note?: string; photoUrl?: string } | null;
 }
 
 /* Block types that require technician interaction */
@@ -552,145 +550,23 @@ export class WorkflowEngineService {
       );
     }
 
-    // When pendingAction is present, currentBlock is the ACTION_BUTTONS (no log yet).
-    // The actual block being advanced is the one AFTER it (dto.blockId).
-    let block: BlockDef;
-    if (dto.pendingAction && dto.blockId && dto.blockId !== progress.currentBlock.id) {
-      const allBlocks = normalizeBranches(def.blocks);
-      const targetBlock = allBlocks.find((b) => b.id === dto.blockId);
-      if (!targetBlock) {
-        throw new BadRequestException(`Bloco "${dto.blockId}" não encontrado`);
-      }
-      block = targetBlock;
-    } else {
-      block = progress.currentBlock;
-      if (dto.blockId && dto.blockId !== block.id) {
-        throw new BadRequestException(
-          `Bloco esperado: "${block.name}" (${block.id})`,
-        );
-      }
+    const block: BlockDef = progress.currentBlock;
+    if (dto.blockId && dto.blockId !== block.id) {
+      throw new BadRequestException(
+        `Bloco esperado: "${block.name}" (${block.id})`,
+      );
     }
 
     this.validateBlockRequirements(block, dto);
 
     const blocks = normalizeBranches(def.blocks);
 
-    // ── Decision blocks (ACTION_BUTTONS, CONDITION): defer if branch has actionable blocks ──
-    // Don't persist the decision until the next actionable block is completed.
-    // This ensures that if the tech closes without completing the follow-up,
-    // reopening the link shows the decision block again (not the follow-up block).
-    const DECISION_TYPES = ['ACTION_BUTTONS', 'CONDITION'];
-    if (DECISION_TYPES.includes(block.type) && !dto.pendingAction) {
-      // Determine branch next ID based on block type
-      let branchNextId: string | null = null;
-      const decBlock = blocks.find((b) => b.id === block.id);
-
-      if (block.type === 'ACTION_BUTTONS') {
-        const buttonId = dto.responseData?.buttonId;
-        if (!buttonId) {
-          throw new BadRequestException('Botões de Ação requer a seleção de um botão');
-        }
-        const abBranches: Record<string, string | null> = (decBlock as any)?.branches || {};
-        branchNextId = abBranches[buttonId] || decBlock?.next || null;
-      } else if (block.type === 'CONDITION') {
-        const answer = dto.responseData?.answer;
-        const isYes = answer === 'SIM' || answer === 'sim' || answer === 'Sim' || answer === 'yes' || answer === true;
-        branchNextId = isYes
-          ? decBlock?.yesBranch || decBlock?.next || null
-          : decBlock?.noBranch || decBlock?.next || null;
+    // ── ACTION_BUTTONS validation ──
+    if (block.type === 'ACTION_BUTTONS') {
+      const buttonId = dto.responseData?.buttonId;
+      if (!buttonId) {
+        throw new BadRequestException('Botões de Ação requer a seleção de um botão');
       }
-
-      // Walk the branch to find the first actionable block
-      // Execute system blocks immediately as we traverse (STATUS, NOTIFY, etc.)
-      let lookId: string | null = branchNextId;
-      const lookVisited = new Set<string>();
-      let nextActionableBlock: BlockDef | null = null;
-      // Collect block IDs that already have look-ahead logs (to avoid duplicates on re-click)
-      const existingLookAheadBlockIds = new Set(
-        so.workflowStepLogs
-          .filter((l: any) => l.responseData?.deferredLookAhead)
-          .map((l: any) => l.blockId),
-      );
-      const executedSystemBlocks: BlockDef[] = [];
-      while (lookId && !lookVisited.has(lookId)) {
-        lookVisited.add(lookId);
-        const lookBlock = blocks.find((b) => b.id === lookId);
-        if (!lookBlock || lookBlock.type === 'END') break;
-        if (ACTIONABLE_TYPES.has(lookBlock.type)) {
-          nextActionableBlock = lookBlock;
-          break;
-        }
-        // Skip if already executed in a previous look-ahead (tech closed and re-opened)
-        if (existingLookAheadBlockIds.has(lookBlock.id)) {
-          this.logger.log(
-            `⏭️ Look-ahead: skipping "${lookBlock.name}" — already executed previously`,
-          );
-          lookId = lookBlock.next;
-          continue;
-        }
-        // Execute system block immediately (STATUS, NOTIFY, FINANCIAL_ENTRY, etc.)
-        try {
-          this.logger.log(
-            `🔄 Deferred look-ahead: executing system block "${lookBlock.name}" (${lookBlock.type})`,
-          );
-          await this.executeSystemBlock(lookBlock, so.id, companyId, technicianId);
-          executedSystemBlocks.push(lookBlock);
-        } catch (err) {
-          this.logger.error(
-            `Deferred look-ahead system block ${lookBlock.type} failed: ${(err as Error).message}`,
-          );
-        }
-        lookId = lookBlock.next;
-      }
-
-      if (nextActionableBlock) {
-        // Log executed system blocks
-        if (executedSystemBlocks.length > 0) {
-          let sysStepOrder = so.workflowStepLogs.length + 1;
-          for (const sysBlock of executedSystemBlocks) {
-            await this.prisma.workflowStepLog.create({
-              data: {
-                serviceOrderId: so.id,
-                stepOrder: sysStepOrder,
-                stepName: sysBlock.name,
-                blockId: sysBlock.id,
-                partnerId: technicianId,
-                responseData: { autoCompleted: true, deferredLookAhead: true },
-              },
-            });
-            await this.prisma.serviceOrderEvent.create({
-              data: {
-                companyId,
-                serviceOrderId: so.id,
-                type: 'WORKFLOW_STEP_COMPLETED',
-                actorType: 'SYSTEM',
-                actorId: null,
-                payload: {
-                  blockId: sysBlock.id,
-                  blockType: sysBlock.type,
-                  blockName: sysBlock.name,
-                  autoCompleted: true,
-                  deferredLookAhead: true,
-                },
-              },
-            });
-            sysStepOrder++;
-          }
-        }
-
-        // Defer: don't persist decision block, return next actionable block
-        this.logger.log(
-          `🔄 ${block.type} deferred: → next actionable="${nextActionableBlock.name}" (${nextActionableBlock.id})`,
-        );
-        const deferredProgress = this.getProgressV2(so, def);
-        deferredProgress.currentBlock = nextActionableBlock;
-        deferredProgress.pendingAction = {
-          blockId: block.id,
-          responseData: dto.responseData,
-        };
-        return deferredProgress;
-      }
-      // No actionable block in branch → proceed normally (persist + auto-complete)
     }
 
     // ── ARRIVAL_QUESTION: validar tempo informado pelo técnico ──
@@ -728,135 +604,6 @@ export class WorkflowEngineService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      // ── Process deferred ACTION_BUTTONS if present ──
-      if (dto.pendingAction) {
-        const pendingBlock = blocks.find((b) => b.id === dto.pendingAction!.blockId);
-        if (pendingBlock) {
-          this.logger.log(
-            `🔄 Processing deferred ACTION_BUTTONS: block="${pendingBlock.name}" (${pendingBlock.id})`,
-          );
-
-          // Create log for the deferred ACTION_BUTTONS block
-          await tx.workflowStepLog.create({
-            data: {
-              serviceOrderId: so.id,
-              stepOrder: nextStepOrder,
-              stepName: pendingBlock.name,
-              blockId: pendingBlock.id,
-              partnerId: technicianId,
-              responseData: dto.pendingAction!.responseData || undefined,
-            },
-          });
-          nextStepOrder++;
-
-          await tx.serviceOrderEvent.create({
-            data: {
-              companyId,
-              serviceOrderId: so.id,
-              type: 'WORKFLOW_STEP_COMPLETED',
-              actorType: 'TECNICO',
-              actorId: technicianId,
-              payload: {
-                blockId: pendingBlock.id,
-                blockType: pendingBlock.type,
-                blockName: pendingBlock.name,
-                deferred: true,
-              },
-            },
-          });
-
-          // Auto-complete system blocks between decision block and current block
-          // NOTE: System blocks may have already been executed during the look-ahead phase
-          // (deferredLookAhead). Check existing logs to avoid re-execution.
-          let sysBlockId: string | null = null;
-          if (pendingBlock.type === 'ACTION_BUTTONS') {
-            const buttonId = dto.pendingAction!.responseData?.buttonId;
-            const abBranches: Record<string, string | null> = (pendingBlock as any).branches || {};
-            sysBlockId = abBranches[buttonId] || pendingBlock.next || null;
-          } else if (pendingBlock.type === 'CONDITION') {
-            const answer = dto.pendingAction!.responseData?.answer;
-            const isYes = answer === 'SIM' || answer === 'sim' || answer === 'Sim' || answer === 'yes' || answer === true;
-            sysBlockId = isYes
-              ? pendingBlock.yesBranch || pendingBlock.next || null
-              : pendingBlock.noBranch || pendingBlock.next || null;
-          } else {
-            sysBlockId = pendingBlock.next || null;
-          }
-          const sysVisited = new Set<string>();
-
-          // Collect block IDs already executed during look-ahead
-          const alreadyExecutedBlockIds = new Set(
-            so.workflowStepLogs
-              .filter((l: any) => l.responseData?.deferredLookAhead)
-              .map((l: any) => l.blockId),
-          );
-
-          while (sysBlockId) {
-            if (sysVisited.has(sysBlockId)) break;
-            sysVisited.add(sysBlockId);
-            const sysBlock = blocks.find((b) => b.id === sysBlockId);
-            if (!sysBlock || sysBlock.type === 'END') break;
-            if (ACTIONABLE_TYPES.has(sysBlock.type)) break; // Stop at current block
-
-            // Skip if already executed during look-ahead
-            if (alreadyExecutedBlockIds.has(sysBlock.id)) {
-              this.logger.log(
-                `⏭️ Skipping system block "${sysBlock.name}" — already executed in look-ahead`,
-              );
-              sysBlockId = sysBlock.next;
-              continue;
-            }
-
-            let actionResult: any = null;
-            try {
-              actionResult = await this.executeSystemBlock(
-                sysBlock,
-                so.id,
-                companyId,
-                technicianId,
-              );
-            } catch (err) {
-              this.logger.error(
-                `Deferred system block ${sysBlock.type} failed: ${(err as Error).message}`,
-              );
-            }
-
-            await tx.workflowStepLog.create({
-              data: {
-                serviceOrderId: so.id,
-                stepOrder: nextStepOrder,
-                stepName: sysBlock.name,
-                blockId: sysBlock.id,
-                partnerId: technicianId,
-                responseData: {
-                  autoCompleted: true,
-                  actionResult: actionResult ?? undefined,
-                },
-              },
-            });
-            nextStepOrder++;
-
-            await tx.serviceOrderEvent.create({
-              data: {
-                companyId,
-                serviceOrderId: so.id,
-                type: 'WORKFLOW_STEP_COMPLETED',
-                actorType: 'SYSTEM',
-                actorId: null,
-                payload: {
-                  blockId: sysBlock.id,
-                  blockType: sysBlock.type,
-                  blockName: sysBlock.name,
-                  autoCompleted: true,
-                },
-              },
-            });
-
-            sysBlockId = sysBlock.next;
-          }
-        }
-      }
-
       // Se ARRIVAL_QUESTION, salvar estimatedArrivalMinutes na OS
       if (arrivalMinutesToSave !== null) {
         await tx.serviceOrder.update({
@@ -1336,8 +1083,9 @@ export class WorkflowEngineService {
         if (targetStatus === 'CONCLUIDA' || targetStatus === 'APROVADA')
           data.completedAt = new Date();
 
-        // ATRIBUIDA: auto-assign first directed technician if not yet assigned
+        // ATRIBUIDA: auto-assign first directed technician + accept offer
         if (targetStatus === 'ATRIBUIDA') {
+          data.acceptedAt = new Date();
           const os = await this.prisma.serviceOrder.findUnique({
             where: { id: serviceOrderId },
             select: { assignedPartnerId: true, directedTechnicianIds: true },
@@ -1349,6 +1097,21 @@ export class WorkflowEngineService {
               this.logger.log(`🔄 Auto-assigning technician ${directedIds[0]} for ATRIBUIDA`);
             }
           }
+          // Revoke all open offers for this OS (marks acceptance)
+          await this.prisma.serviceOrderOffer.updateMany({
+            where: { serviceOrderId, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+          this.logger.log(`🔄 Revoked all open offers for OS ${serviceOrderId}`);
+        }
+
+        // RECUSADA: also revoke all open offers
+        if (targetStatus === 'RECUSADA') {
+          await this.prisma.serviceOrderOffer.updateMany({
+            where: { serviceOrderId, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+          this.logger.log(`🔄 Revoked all open offers for OS ${serviceOrderId} (RECUSADA)`);
         }
 
         this.logger.log(

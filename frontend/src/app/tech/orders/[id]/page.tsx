@@ -77,12 +77,6 @@ type TechPortalConfig = {
   customMessage?: string;
 };
 
-type PendingAction = {
-  blockId: string;
-  responseData?: Record<string, any>;
-  note?: string;
-  photoUrl?: string;
-};
 
 type WorkflowProgressV2 = {
   templateId: string;
@@ -94,7 +88,6 @@ type WorkflowProgressV2 = {
   executionPath: BlockProgress[];
   isComplete: boolean;
   techPortalConfig?: TechPortalConfig | null;
-  pendingAction?: PendingAction | null;
 };
 
 
@@ -239,7 +232,6 @@ export default function TechOrderDetailPage() {
   const [v2Answer, _setV2Answer] = useState<string>("");
   const v2AnswerRef = useRef(v2Answer);
   const setV2Answer = (val: string) => { v2AnswerRef.current = val; _setV2Answer(val); };
-  const pendingActionRef = useRef<PendingAction | null>(null);
   const [v2CheckedItems, setV2CheckedItems] = useState<string[]>([]);
   const [v2GpsCoords, setV2GpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [v2GpsLoading, setV2GpsLoading] = useState(false);
@@ -260,17 +252,11 @@ export default function TechOrderDetailPage() {
     try {
       const data = await techApi<ServiceOrder>(`/service-orders/${id}`);
       setOrder(data);
-      // Skip workflow reload if there's a pending deferred action — the deferred
-      // response already set the correct currentBlock. Reloading from server would
-      // overwrite it with the un-deferred state (ACTION_BUTTONS still as current).
-      if (!pendingActionRef.current) {
-        try {
-          const wf = await techApi<WorkflowProgressV2>(`/service-orders/${id}/workflow`);
-          setWorkflow(wf);
-        } catch {
-          // Only clear workflow if we don't already have one (preserve advance response)
-          setWorkflow((prev) => prev);
-        }
+      try {
+        const wf = await techApi<WorkflowProgressV2>(`/service-orders/${id}/workflow`);
+        setWorkflow(wf);
+      } catch {
+        setWorkflow((prev) => prev);
       }
       try {
         const atts = await techApi<Attachment[]>(`/service-orders/${id}/attachments`);
@@ -502,22 +488,11 @@ export default function TechOrderDetailPage() {
         break;
     }
 
-    // Include pending action from deferred ACTION_BUTTONS if present
-    if (pendingActionRef.current) {
-      body.pendingAction = pendingActionRef.current;
-      pendingActionRef.current = null;
-    }
-
     try {
       const wf = await techApi<WorkflowProgressV2>(
         `/service-orders/${order.id}/workflow/advance`,
         { method: "POST", body: JSON.stringify(body) }
       );
-
-      // If response has pendingAction, store it for the next advance
-      if (wf.pendingAction) {
-        pendingActionRef.current = wf.pendingAction;
-      }
 
       setWorkflow(wf);
       // Reset V2 input state for the new block
