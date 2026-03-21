@@ -436,13 +436,13 @@ export class WorkflowService {
       }
     });
 
-    // Execute workflow from START with skipDelays — all auto blocks (DELAY, STATUS, NOTIFY)
-    // are processed instantly until it reaches the first actionable block
+    // Execute workflow from START — all auto blocks (DELAY, STATUS, NOTIFY)
+    // are processed until it reaches the first actionable block.
+    // Delays are respected (e.g. 5s delay will wait 5s before continuing).
     if (this.workflowEngine) {
       try {
         await this.workflowEngine.executeWorkflowFromStart(
           serviceOrderId, companyId, workflowId,
-          { skipDelays: true },
         );
         this.logger.log(`🔄 Preview OS ${serviceOrderId} reset and workflow re-executed from START (skipDelays)`);
       } catch (err) {
