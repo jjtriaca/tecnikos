@@ -405,7 +405,14 @@ export class WorkflowService {
           status: 'ABERTA',
           completedAt: null,
           startedAt: null,
+          acceptedAt: null,
         },
+      });
+
+      // Reopen all revoked offers (undo acceptance)
+      await tx.serviceOrderOffer.updateMany({
+        where: { serviceOrderId, revokedAt: { not: null } },
+        data: { revokedAt: null },
       });
 
       // Revoke old tokens and create a permanent PREVIEW token (10 years)
