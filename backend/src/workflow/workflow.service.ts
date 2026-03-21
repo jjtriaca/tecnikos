@@ -406,6 +406,8 @@ export class WorkflowService {
           completedAt: null,
           startedAt: null,
           acceptedAt: null,
+          enRouteAt: null,
+          arrivedAt: null,
         },
       });
 
