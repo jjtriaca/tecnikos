@@ -275,7 +275,6 @@ const PROXIMITY_VARS = [
 function OnEnterRadiusNotifications({ onEnter, updateOnEnter }: { onEnter: any; updateOnEnter: (key: string, val: any) => void }) {
   const notifCliente = onEnter.notifyCliente || { enabled: false, channel: "WHATSAPP", message: "" };
   const notifGestor = onEnter.notifyGestor || { enabled: false, channel: "WHATSAPP", message: "" };
-  const alert = onEnter.alert || { enabled: false, message: "" };
 
   const updateNotifField = (notifKey: string, field: string, value: any) => {
     const current = onEnter[notifKey] || {};
@@ -328,31 +327,6 @@ function OnEnterRadiusNotifications({ onEnter, updateOnEnter }: { onEnter: any; 
         </div>
       )}
 
-      <Checkbox checked={alert.enabled} onChange={(v) => updateNotifField("alert", "enabled", v)} label="Alerta no dashboard" />
-      {alert.enabled && (
-        <div className="ml-4 space-y-1 mb-2">
-          <Input value={alert.message || ""}
-            onChange={(v) => updateNotifField("alert", "message", v)}
-            placeholder="Técnico {tecnico} chegou na região" />
-          <div className="flex flex-wrap gap-1 mt-0.5">
-            {PROXIMITY_VARS.map(v => (
-              <button key={v.var} type="button"
-                onClick={() => updateNotifField("alert", "message", (alert.message || "") + " " + v.var)}
-                className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer">
-                {v.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <Label>Mudar status ao entrar no raio</Label>
-      <Select value={onEnter.autoChangeStatus || ""} onChange={(v) => updateOnEnter("autoChangeStatus", v)}
-        options={[
-          { value: "", label: "Não mudar" },
-          { value: "EM_EXECUCAO", label: "Em Execução" },
-          { value: "NO_LOCAL", label: "No Local" },
-        ]} />
     </div>
   );
 }
