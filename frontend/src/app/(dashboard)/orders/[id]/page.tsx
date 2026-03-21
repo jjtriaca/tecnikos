@@ -486,8 +486,11 @@ export default function OrderDetailPage() {
     <div>
       {/* Breadcrumb */}
       <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
-        <Link href="/orders" className="hover:text-blue-600">
-          Ordens de Serviço
+        <Link href="/orders" className="flex items-center gap-1 hover:text-blue-600">
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Ordens de Servico
         </Link>
         <span>/</span>
         <span className="text-slate-900 font-medium">{order.title}</span>

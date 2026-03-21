@@ -224,6 +224,29 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
   }
 
   /* ---------------------------------------------------------------- */
+  /*  Delete                                                           */
+  /* ---------------------------------------------------------------- */
+
+  async function handleDelete(addr: ServiceAddress) {
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir o endereco "${addr.label}"?\n\nEssa acao nao pode ser desfeita.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.del(`/service-addresses/${addr.id}`);
+      toast('Endereco excluido com sucesso.', 'success');
+      loadAddresses();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast(err.payload?.message || err.message, 'error');
+      } else {
+        toast('Erro ao excluir endereco.', 'error');
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
   /*  Render                                                           */
   /* ---------------------------------------------------------------- */
 
@@ -429,12 +452,20 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
                   onClick={() => handleToggleActive(addr)}
                   className={
                     addr.active
-                      ? 'text-xs px-3 py-1.5 text-red-600 hover:text-red-800'
+                      ? 'text-xs px-3 py-1.5 text-amber-600 hover:text-amber-800'
                       : 'text-xs px-3 py-1.5 text-green-600 hover:text-green-800'
                   }
                   title={addr.active ? 'Desativar' : 'Ativar'}
                 >
                   {addr.active ? 'Desativar' : 'Ativar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(addr)}
+                  className="text-xs px-3 py-1.5 text-red-600 hover:text-red-800"
+                  title="Excluir"
+                >
+                  Excluir
                 </button>
               </div>
             </div>

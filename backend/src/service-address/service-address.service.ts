@@ -68,4 +68,12 @@ export class ServiceAddressService {
       data: { active: !addr.active },
     });
   }
+
+  async remove(companyId: string, id: string) {
+    const addr = await this.prisma.serviceAddress.findFirst({ where: { id, companyId } });
+    if (!addr) throw new NotFoundException('Endereco de atendimento nao encontrado');
+
+    await this.prisma.serviceAddress.delete({ where: { id } });
+    return { ok: true };
+  }
 }
