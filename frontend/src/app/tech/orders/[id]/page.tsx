@@ -234,6 +234,7 @@ export default function TechOrderDetailPage() {
   const [v2CheckedItems, setV2CheckedItems] = useState<string[]>([]);
   const [v2GpsCoords, setV2GpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [v2GpsLoading, setV2GpsLoading] = useState(false);
+  const [v2GpsDenied, setV2GpsDenied] = useState(false);
   const [v2FormFields, setV2FormFields] = useState<Record<string, string>>({});
 
 
@@ -286,6 +287,7 @@ export default function TechOrderDetailPage() {
     setV2Answer("");
     setV2CheckedItems([]);
     setV2GpsCoords(null);
+    setV2GpsDenied(false);
     setV2FormFields({});
     // Stop continuous GPS tracking from previous block
     if (v2GpsWatchRef.current !== null) {
@@ -343,26 +345,66 @@ export default function TechOrderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflow?.isComplete]);
 
-  // GPS block: auto-capture when config.auto is true
+  // GPS block: auto-capture when config.auto is true (retries every 3s if denied)
+  const gpsAutoAdvancedRef = useRef<string | null>(null);
+  const gpsRetryRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (!workflow || !workflow.currentBlock) return;
     const block = workflow.currentBlock;
     if (block.type !== "GPS") return;
     const cfg = block.config || {};
-    if (cfg.auto && !v2GpsCoords && navigator.geolocation) {
+    if (!cfg.auto || v2GpsCoords) return;
+    if (!navigator.geolocation) { setV2GpsDenied(true); return; }
+
+    const tryCapture = () => {
       setV2GpsLoading(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
           setV2GpsLoading(false);
+          setV2GpsDenied(false);
+          if (gpsRetryRef.current) { clearInterval(gpsRetryRef.current); gpsRetryRef.current = null; }
         },
-        () => {
+        (err) => {
           setV2GpsLoading(false);
+          setV2GpsDenied(true);
+          // Start retry interval if not already running
+          if (!gpsRetryRef.current) {
+            gpsRetryRef.current = setInterval(() => {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                  setV2GpsLoading(false);
+                  setV2GpsDenied(false);
+                  if (gpsRetryRef.current) { clearInterval(gpsRetryRef.current); gpsRetryRef.current = null; }
+                },
+                () => { /* still denied, keep retrying */ },
+                { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 10000 }
+              );
+            }, 3000);
+          }
         },
         { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 15000 }
       );
-    }
+    };
+    tryCapture();
+
+    return () => {
+      if (gpsRetryRef.current) { clearInterval(gpsRetryRef.current); gpsRetryRef.current = null; }
+    };
   }, [currentBlockId]);
+
+  // GPS auto: auto-advance once coords are captured
+  useEffect(() => {
+    if (!workflow?.currentBlock) return;
+    const block = workflow.currentBlock;
+    if (block.type !== "GPS") return;
+    const cfg = block.config || {};
+    if (cfg.auto && v2GpsCoords && gpsAutoAdvancedRef.current !== block.id) {
+      gpsAutoAdvancedRef.current = block.id;
+      setTimeout(() => handleAdvanceBlockV2(), 300);
+    }
+  }, [v2GpsCoords, currentBlockId]);
 
 
   // Cleanup GPS tracking on unmount
@@ -464,7 +506,7 @@ export default function TechOrderDetailPage() {
   /* ── GPS capture (respects block config) ── */
   function handleCaptureGps(gpsConfig?: Record<string, any>) {
     if (!navigator.geolocation) {
-      alert("GPS nao disponivel neste dispositivo");
+      setV2GpsDenied(true);
       return;
     }
     const cfg = gpsConfig || {};
@@ -494,7 +536,7 @@ export default function TechOrderDetailPage() {
           setV2GpsLoading(false);
         },
         () => {
-          alert("Erro ao capturar localizacao. Verifique as permissoes.");
+          setV2GpsDenied(true);
           setV2GpsLoading(false);
         },
         { enableHighAccuracy: highAccuracy, timeout: 15000 }
@@ -683,6 +725,7 @@ export default function TechOrderDetailPage() {
               setV2CheckedItems={setV2CheckedItems}
               v2GpsCoords={v2GpsCoords}
               v2GpsLoading={v2GpsLoading}
+              v2GpsDenied={v2GpsDenied}
               handleCaptureGps={handleCaptureGps}
               v2GpsTracking={v2GpsTracking}
               handleStopGpsTracking={handleStopGpsTracking}
@@ -828,7 +871,7 @@ function V2BlockAction({
   block, order, acting, attachments, setAttachments,
   v2Note, setV2Note, v2Answer, setV2Answer,
   v2CheckedItems, setV2CheckedItems,
-  v2GpsCoords, v2GpsLoading, handleCaptureGps,
+  v2GpsCoords, v2GpsLoading, v2GpsDenied, handleCaptureGps,
   v2GpsTracking, handleStopGpsTracking,
   v2FormFields, setV2FormFields, onAdvance,
 }: {
@@ -845,6 +888,7 @@ function V2BlockAction({
   setV2CheckedItems: React.Dispatch<React.SetStateAction<string[]>>;
   v2GpsCoords: { lat: number; lng: number } | null;
   v2GpsLoading: boolean;
+  v2GpsDenied: boolean;
   handleCaptureGps: (gpsConfig?: Record<string, any>) => void;
   v2GpsTracking: boolean;
   handleStopGpsTracking: () => void;
@@ -972,6 +1016,18 @@ function V2BlockAction({
                 <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">Captura automatica</span>
               )}
             </div>
+
+            {/* GPS denied/disabled warning */}
+            {v2GpsDenied && !v2GpsCoords && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-3">
+                <span className="text-lg">📍</span>
+                <div>
+                  <p className="text-sm font-bold text-red-700">GPS desativado</p>
+                  <p className="text-xs text-red-600">Ative a localizacao nas configuracoes do celular. O fluxo continuara automaticamente.</p>
+                </div>
+                <div className="ml-auto h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+              </div>
+            )}
 
             {/* Tracking active banner */}
             {v2GpsTracking && (
@@ -1197,8 +1253,11 @@ function V2BlockAction({
         )}
       </div>
 
-      {/* Advance button — hidden for types that submit directly on click */}
-      {!["ACTION_BUTTONS", "CONDITION"].includes(block.type) && (
+      {/* Advance button — hidden for types that auto-advance on interaction */}
+      {!(
+        ["ACTION_BUTTONS", "CONDITION"].includes(block.type) ||
+        (block.type === "GPS" && c.auto)
+      ) && (
       <button onClick={onAdvance} disabled={isDisabled()}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all">
         <span className="text-xl">{block.icon || "▶️"}</span>
