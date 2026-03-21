@@ -1160,7 +1160,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
           {lockedFields.services && <p className="text-xs text-amber-600 mb-1">Serviços bloqueados neste status</p>}
           <ServiceItemsSection
             items={serviceItems}
-            onChange={setServiceItems}
+            onChange={(items) => { setServiceItems(items); if (error) setError(null); }}
           />
           </fieldset>
 
