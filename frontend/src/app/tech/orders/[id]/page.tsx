@@ -242,6 +242,7 @@ export default function TechOrderDetailPage() {
   // GPS block continuous tracking state
   const [v2GpsTracking, setV2GpsTracking] = useState(false);
   const v2GpsWatchRef = useRef<number | null>(null);
+  const v2GpsHealthRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Proximity tracking state
   const [proximityDistance, setProximityDistance] = useState<number | null>(null);
@@ -295,6 +296,10 @@ export default function TechOrderDetailPage() {
       navigator.geolocation.clearWatch(v2GpsWatchRef.current);
       v2GpsWatchRef.current = null;
       setV2GpsTracking(false);
+    }
+    if (v2GpsHealthRef.current !== null) {
+      clearInterval(v2GpsHealthRef.current);
+      v2GpsHealthRef.current = null;
     }
     setProximityDistance(null);
   }, [currentBlockId]);
@@ -432,8 +437,11 @@ export default function TechOrderDetailPage() {
     } : null;
 
     let lastSentAt = 0;
+    let lastPositionAt = Date.now();
+
     v2GpsWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
+        lastPositionAt = Date.now();
         setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setV2GpsLoading(false);
         setV2GpsDenied(false);
@@ -448,6 +456,19 @@ export default function TechOrderDetailPage() {
       () => { setV2GpsLoading(false); setV2GpsDenied(true); },
       { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 15000, maximumAge: intervalMs }
     );
+
+    // Health check: detect GPS disabled mid-tracking (watchPosition may silently stop)
+    const healthCheckInterval = setInterval(() => {
+      const silentMs = Date.now() - lastPositionAt;
+      // If no position for 3x the interval (or min 30s), GPS is likely disabled
+      const thresholdMs = Math.max(30000, intervalMs * 3);
+      if (silentMs > thresholdMs) {
+        setV2GpsDenied(true);
+        setV2GpsLoading(false);
+      }
+    }, 10000);
+
+    v2GpsHealthRef.current = healthCheckInterval;
 
     // Also send position immediately on first capture
     if (sendPosition) {
@@ -638,6 +659,10 @@ export default function TechOrderDetailPage() {
     if (v2GpsWatchRef.current !== null) {
       navigator.geolocation.clearWatch(v2GpsWatchRef.current);
       v2GpsWatchRef.current = null;
+    }
+    if (v2GpsHealthRef.current !== null) {
+      clearInterval(v2GpsHealthRef.current);
+      v2GpsHealthRef.current = null;
     }
     setV2GpsTracking(false);
     setProximityDistance(null);
@@ -1095,12 +1120,12 @@ function V2BlockAction({
         {block.type === "GPS" && (
           <div className="space-y-2">
             {/* GPS denied/disabled warning */}
-            {v2GpsDenied && !v2GpsCoords && (
+            {v2GpsDenied && (
               <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-3">
                 <span className="text-lg">📍</span>
                 <div>
                   <p className="text-sm font-bold text-red-700">GPS desativado</p>
-                  <p className="text-xs text-red-600">Ative a localizacao nas configuracoes do celular. O fluxo continuara automaticamente.</p>
+                  <p className="text-xs text-red-600">Ative a localização nas configurações do celular para continuar o rastreamento.</p>
                 </div>
                 <div className="ml-auto h-3 w-3 rounded-full bg-red-400 animate-pulse" />
               </div>
