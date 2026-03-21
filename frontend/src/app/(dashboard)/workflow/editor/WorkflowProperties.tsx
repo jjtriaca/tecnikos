@@ -501,14 +501,82 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               ]}
             />
 
-            {cfg.trackingMode === "continuous" && (
-              <>
-                <Label>Intervalo entre capturas (segundos)</Label>
-                <Input type="number" value={cfg.intervalSeconds || 30} onChange={(v) => updateConfig("intervalSeconds", parseInt(v) || 30)} placeholder="30" />
-              </>
-            )}
+            {cfg.trackingMode === "continuous" && (() => {
+              const onEnter = cfg.onEnterRadius || {};
+              const notifCliente = onEnter.notifyCliente || { enabled: false, channel: "WHATSAPP", message: "" };
+              const notifGestor = onEnter.notifyGestor || { enabled: false, channel: "WHATSAPP", message: "" };
+              const alert = onEnter.alert || { enabled: false, message: "" };
+              const updateOnEnter = (key: string, val: any) => {
+                updateConfig("onEnterRadius", { ...onEnter, [key]: val });
+              };
+              return (
+                <>
+                  <Label>Intervalo entre capturas (segundos)</Label>
+                  <Input type="number" value={cfg.intervalSeconds || 30} onChange={(v) => updateConfig("intervalSeconds", parseInt(v) || 30)} placeholder="30" />
 
-            <p className="text-[10px] text-slate-400 mt-2">A localizacao e capturada automaticamente quando o fluxo chega neste bloco. Se o GPS estiver desativado, o tecnico sera avisado.</p>
+                  <div className="mt-3 border-t border-slate-200 pt-3">
+                    <p className="text-[11px] font-medium text-slate-500 mb-2">Proximidade do destino</p>
+
+                    <Label>Raio de proximidade (metros)</Label>
+                    <div className="flex items-center gap-2">
+                      <input type="range" min={10} max={1000} step={10} value={cfg.radiusMeters || 50}
+                        onChange={(e) => updateConfig("radiusMeters", parseInt(e.target.value))}
+                        className="flex-1 accent-blue-500" />
+                      <span className="text-xs font-bold text-blue-600 min-w-[50px] text-right">{cfg.radiusMeters || 50}m</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">Distancia em metros do destino para disparar eventos</p>
+
+                    <Checkbox checked={cfg.autoAdvanceOnProximity !== false} onChange={(v) => updateConfig("autoAdvanceOnProximity", v)} label="Auto-avancar ao entrar no raio" />
+                    <p className="text-[10px] text-slate-400">{cfg.autoAdvanceOnProximity !== false ? "O bloco avanca automaticamente quando o tecnico entra no raio" : "O tecnico precisa clicar 'Cheguei' para avancar"}</p>
+                  </div>
+
+                  <div className="mt-3 border-t border-slate-200 pt-3">
+                    <p className="text-[11px] font-medium text-slate-500 mb-2">Ao entrar no raio</p>
+
+                    <Checkbox checked={notifCliente.enabled} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, enabled: v })} label="Notificar cliente" />
+                    {notifCliente.enabled && (
+                      <div className="ml-4 space-y-1 mb-2">
+                        <Select value={notifCliente.channel || "WHATSAPP"} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, channel: v })}
+                          options={[{ value: "WHATSAPP", label: "WhatsApp" }, { value: "SMS", label: "SMS" }, { value: "PUSH", label: "Push" }]} />
+                        <TextArea value={notifCliente.message || ""} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, message: v })}
+                          placeholder="Ex: Ola {cliente}, o tecnico {tecnico} esta chegando!" rows={2} />
+                        <p className="text-[9px] text-slate-400">Variaveis: {"{tecnico}"} {"{cliente}"} {"{codigo}"} {"{titulo}"} {"{endereco}"}</p>
+                      </div>
+                    )}
+
+                    <Checkbox checked={notifGestor.enabled} onChange={(v) => updateOnEnter("notifyGestor", { ...notifGestor, enabled: v })} label="Notificar gestor" />
+                    {notifGestor.enabled && (
+                      <div className="ml-4 space-y-1 mb-2">
+                        <TextArea value={notifGestor.message || ""} onChange={(v) => updateOnEnter("notifyGestor", { ...notifGestor, message: v })}
+                          placeholder="Ex: Tecnico {tecnico} esta proximo da OS {codigo}" rows={2} />
+                      </div>
+                    )}
+
+                    <Checkbox checked={alert.enabled} onChange={(v) => updateOnEnter("alert", { ...alert, enabled: v })} label="Alerta no dashboard" />
+                    {alert.enabled && (
+                      <div className="ml-4 space-y-1 mb-2">
+                        <Input value={alert.message || ""} onChange={(v) => updateOnEnter("alert", { ...alert, message: v })}
+                          placeholder="Tecnico {tecnico} chegou na regiao" />
+                      </div>
+                    )}
+
+                    <Label>Mudar status ao entrar no raio</Label>
+                    <Select value={onEnter.autoChangeStatus || ""} onChange={(v) => updateOnEnter("autoChangeStatus", v)}
+                      options={[
+                        { value: "", label: "Nao mudar" },
+                        { value: "EM_EXECUCAO", label: "Em Execucao" },
+                        { value: "NO_LOCAL", label: "No Local" },
+                      ]} />
+                  </div>
+                </>
+              );
+            })()}
+
+            <p className="text-[10px] text-slate-400 mt-2">
+              {cfg.trackingMode === "continuous"
+                ? "O rastreamento GPS inicia automaticamente. O bloco avanca quando o tecnico entra no raio configurado ou clica em Cheguei."
+                : "A localizacao e capturada automaticamente quando o fluxo chega neste bloco. Se o GPS estiver desativado, o tecnico sera avisado."}
+            </p>
           </>
         )}
 

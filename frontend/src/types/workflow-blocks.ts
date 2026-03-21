@@ -84,6 +84,15 @@ export type GpsConfig = {
   highAccuracy?: boolean;
   trackingMode?: 'single' | 'continuous';
   intervalSeconds?: number;
+  // Proximity fields (continuous mode only)
+  radiusMeters?: number;
+  autoAdvanceOnProximity?: boolean;
+  onEnterRadius?: {
+    notifyCliente?: { enabled: boolean; channel: string; message: string };
+    notifyGestor?: { enabled: boolean; channel: string; message: string };
+    autoChangeStatus?: string;
+    alert?: { enabled: boolean; message: string };
+  };
 };
 
 export type QuestionConfig = {
@@ -196,7 +205,7 @@ export const BLOCK_CATALOG: CatalogEntry[] = [
   { type: 'INFO', name: 'Informação', icon: 'ℹ️', description: 'Exibe informação visual para o técnico (não requer ação)', category: 'VISUAL', color: 'bg-cyan-50', borderColor: 'border-cyan-300', iconBg: 'bg-cyan-500', textColor: 'text-cyan-900' },
 
   // GPS / Tracking
-  { type: 'PROXIMITY_TRIGGER', name: 'Proximidade', icon: '📡', description: 'Rastreia GPS e dispara eventos ao entrar no raio do destino', category: 'ACTIONS', color: 'bg-rose-50', borderColor: 'border-rose-300', iconBg: 'bg-rose-500', textColor: 'text-rose-900' },
+  { type: 'PROXIMITY_TRIGGER', name: 'Proximidade (legado)', icon: '📡', description: 'Legado — use GPS em modo continuo. Rastreia GPS e dispara eventos ao entrar no raio do destino', category: 'ACTIONS', color: 'bg-rose-50', borderColor: 'border-rose-300', iconBg: 'bg-rose-500', textColor: 'text-rose-900' },
 
   // Communication
   { type: 'NOTIFY', name: 'Notificar', icon: '💬', description: 'Enviar WhatsApp ou Email automatico', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
@@ -262,7 +271,7 @@ export function getDefaultConfig(type: BlockType): Record<string, any> {
     case 'STEP': return { requirePhoto: false, requireNote: false, requireGps: false, description: 'Executar o servico conforme especificado na ordem', confirmButton: { label: 'Confirmar etapa', color: 'blue', icon: '✅' } };
     case 'PHOTO': return { minPhotos: 1, label: 'Registrar foto do local ou equipamento', photoType: 'GERAL', confirmButton: { label: 'Enviar fotos', color: 'green', icon: '📸' } };
     case 'NOTE': return { placeholder: 'Descreva as condicoes encontradas, servicos realizados e observacoes relevantes...', required: true, confirmButton: { label: 'Enviar', color: 'blue', icon: '📝' } };
-    case 'GPS': return { highAccuracy: true, trackingMode: 'single' };
+    case 'GPS': return { highAccuracy: true, trackingMode: 'single', radiusMeters: 50, autoAdvanceOnProximity: true };
     case 'PROXIMITY_TRIGGER': return {
       radiusMeters: 50,
       trackingIntervalSeconds: 30,

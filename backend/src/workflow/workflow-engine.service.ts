@@ -1924,9 +1924,11 @@ export class WorkflowEngineService {
       distanceToTarget,
     );
 
-    // Get current workflow progress to check if we're on a PROXIMITY_TRIGGER block
+    // Get current workflow progress to check if we're on a PROXIMITY_TRIGGER or GPS continuous block
     const progress = await this.getProgress(serviceOrderId, companyId) as WorkflowProgressV2;
-    if (!progress?.currentBlock || progress.currentBlock.type !== 'PROXIMITY_TRIGGER') {
+    const isProximityBlock = progress?.currentBlock?.type === 'PROXIMITY_TRIGGER';
+    const isGpsContinuous = progress?.currentBlock?.type === 'GPS' && progress.currentBlock.config?.trackingMode === 'continuous';
+    if (!progress?.currentBlock || (!isProximityBlock && !isGpsContinuous)) {
       return {
         distanceMeters: distanceToTarget !== null ? Math.round(distanceToTarget) : null,
         proximityReached: false,
@@ -1951,22 +1953,27 @@ export class WorkflowEngineService {
         `📍 PROXIMITY: Tech ${technicianId} entered radius (${Math.round(distanceToTarget)}m <= ${radiusMeters}m) for SO ${serviceOrderId}`,
       );
 
-      // Auto-advance the PROXIMITY_TRIGGER block
-      try {
-        await this.advanceStep(serviceOrderId, technicianId, companyId, {
-          blockId: progress.currentBlock.id,
-          responseData: {
-            lat: data.lat,
-            lng: data.lng,
-            accuracy: data.accuracy,
-            distanceMeters: Math.round(distanceToTarget),
-            radiusMeters,
-            autoAdvanced: true,
-          },
-        } as any);
-        this.logger.log(`📡 PROXIMITY_TRIGGER auto-advanced for SO ${serviceOrderId}`);
-      } catch (err) {
-        this.logger.error(`PROXIMITY_TRIGGER auto-advance failed: ${(err as Error).message}`);
+      // Auto-advance the proximity block (only if autoAdvanceOnProximity is enabled)
+      const autoAdvance = proxConfig.autoAdvanceOnProximity !== false;
+      if (autoAdvance) {
+        try {
+          await this.advanceStep(serviceOrderId, technicianId, companyId, {
+            blockId: progress.currentBlock.id,
+            responseData: {
+              lat: data.lat,
+              lng: data.lng,
+              accuracy: data.accuracy,
+              distanceMeters: Math.round(distanceToTarget),
+              radiusMeters,
+              autoAdvanced: true,
+            },
+          } as any);
+          this.logger.log(`📡 Proximity auto-advanced (${progress.currentBlock.type}) for SO ${serviceOrderId}`);
+        } catch (err) {
+          this.logger.error(`Proximity auto-advance failed (${progress.currentBlock.type}): ${(err as Error).message}`);
+        }
+      } else {
+        this.logger.log(`📍 Proximity reached but autoAdvance disabled — waiting for manual "Cheguei" (${progress.currentBlock.type}) SO ${serviceOrderId}`);
       }
 
       // Execute onEnterRadius events (status change, notifications, alerts)

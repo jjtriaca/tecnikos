@@ -296,6 +296,7 @@ export default function TechOrderDetailPage() {
       v2GpsWatchRef.current = null;
       setV2GpsTracking(false);
     }
+    setProximityDistance(null);
   }, [currentBlockId]);
 
   // Post-workflow INFO timer: when workflow completes with INFO+DELAY pattern, show info then blank
@@ -397,7 +398,7 @@ export default function TechOrderDetailPage() {
 
   // GPS: auto-start continuous tracking when block is reached
   useEffect(() => {
-    if (!workflow?.currentBlock) return;
+    if (!workflow?.currentBlock || !order) return;
     const block = workflow.currentBlock;
     if (block.type !== "GPS") return;
     const cfg = block.config || {};
@@ -406,15 +407,59 @@ export default function TechOrderDetailPage() {
     if (!navigator.geolocation) { setV2GpsDenied(true); return; }
     setV2GpsTracking(true);
     setV2GpsLoading(true);
+
+    const hasProximity = cfg.radiusMeters && cfg.radiusMeters > 0;
+    const intervalMs = (cfg.intervalSeconds || 30) * 1000;
+
+    const sendPosition = hasProximity ? async (lat: number, lng: number, accuracy?: number, speed?: number, heading?: number) => {
+      try {
+        const result = await techApi<{ distanceMeters: number | null; proximityReached: boolean; radiusMeters: number }>(
+          `/service-orders/${order.id}/workflow/position`,
+          { method: "POST", body: JSON.stringify({ lat, lng, accuracy, speed, heading }) }
+        );
+        if (result.distanceMeters != null) setProximityDistance(result.distanceMeters);
+        if (result.proximityReached && cfg.autoAdvanceOnProximity !== false) {
+          proximityAdvancedRef.current = block.id;
+          setTimeout(async () => {
+            try {
+              const wf = await techApi<WorkflowProgressV2>(`/service-orders/${order.id}/workflow`);
+              setWorkflow(wf);
+              await loadOrder();
+            } catch { /* ignore */ }
+          }, 500);
+        }
+      } catch { /* ignore send errors */ }
+    } : null;
+
+    let lastSentAt = 0;
     v2GpsWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setV2GpsLoading(false);
         setV2GpsDenied(false);
+        if (sendPosition) {
+          const now = Date.now();
+          if (now - lastSentAt >= intervalMs) {
+            lastSentAt = now;
+            sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
+          }
+        }
       },
       () => { setV2GpsLoading(false); setV2GpsDenied(true); },
-      { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 15000, maximumAge: (cfg.intervalSeconds || 30) * 1000 }
+      { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 15000, maximumAge: intervalMs }
     );
+
+    // Also send position immediately on first capture
+    if (sendPosition) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          lastSentAt = Date.now();
+          sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
+        },
+        () => {},
+        { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 10000 }
+      );
+    }
   }, [currentBlockId]);
 
   // GPS pontual: auto-advance once coords are captured
@@ -453,7 +498,7 @@ export default function TechOrderDetailPage() {
           { method: "POST", body: JSON.stringify({ lat, lng, accuracy, speed, heading }) }
         );
         if (result.distanceMeters != null) setProximityDistance(result.distanceMeters);
-        if (result.proximityReached) {
+        if (result.proximityReached && cfg.autoAdvanceOnProximity !== false) {
           proximityAdvancedRef.current = block.id;
           // Reload workflow (block was auto-advanced by backend)
           setTimeout(async () => {
@@ -595,6 +640,7 @@ export default function TechOrderDetailPage() {
       v2GpsWatchRef.current = null;
     }
     setV2GpsTracking(false);
+    setProximityDistance(null);
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -1061,15 +1107,69 @@ function V2BlockAction({
             )}
 
             {/* Tracking active banner (continuous mode) */}
-            {v2GpsTracking && (
-              <div className="flex items-center justify-between rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-xs font-medium text-indigo-700">Rastreamento ativo</span>
+            {v2GpsTracking && (() => {
+              const hasProx = c.trackingMode === "continuous" && c.radiusMeters && c.radiusMeters > 0;
+              if (hasProx) {
+                return (
+                  <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
+                      <span className="text-sm font-bold text-blue-800">📡 Rastreamento ativo</span>
+                    </div>
+
+                    {proximityDistance != null && (
+                      <div className="text-center">
+                        <div className="text-3xl font-black text-blue-700">
+                          {proximityDistance >= 1000
+                            ? `${(proximityDistance / 1000).toFixed(1)} km`
+                            : `${proximityDistance} m`}
+                        </div>
+                        <p className="text-xs text-blue-500 mt-1">do destino</p>
+                        <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-1000"
+                            style={{ width: `${Math.max(5, Math.min(100, 100 - (proximityDistance / ((c.radiusMeters || 50) * 10)) * 100))}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Raio: {c.radiusMeters || 50}m {c.autoAdvanceOnProximity !== false ? "— avanca automaticamente ao chegar" : "— clique 'Cheguei' ao chegar"}
+                        </p>
+                      </div>
+                    )}
+
+                    {v2GpsCoords && proximityDistance == null && (
+                      <p className="text-xs text-blue-600 text-center">
+                        Posicao capturada. Calculando distancia...
+                      </p>
+                    )}
+
+                    <button
+                      onClick={onAdvance}
+                      disabled={acting}
+                      className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-lg hover:from-green-600 hover:to-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50"
+                    >
+                      {acting ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      ) : (
+                        <>📍 Cheguei</>
+                      )}
+                    </button>
+                    <p className="text-[10px] text-slate-400 text-center">
+                      Use se o GPS nao detectar sua chegada automaticamente
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <div className="flex items-center justify-between rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-xs font-medium text-indigo-700">Rastreamento ativo</span>
+                  </div>
+                  <button onClick={handleStopGpsTracking} className="text-[10px] font-medium text-red-500 hover:text-red-700">Parar</button>
                 </div>
-                <button onClick={handleStopGpsTracking} className="text-[10px] font-medium text-red-500 hover:text-red-700">Parar</button>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Capturing indicator */}
             {!v2GpsCoords && v2GpsLoading && !v2GpsDenied && (
