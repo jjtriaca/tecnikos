@@ -20,7 +20,7 @@ MÓDULOS E FUNCIONALIDADES QUE EXISTEM NO SISTEMA:
 - **Parceiros/Cadastros**: Clientes, fornecedores e técnicos. CRUD completo, importação via planilha (Sankhya).
 - **Financeiro**: Lançamentos a receber e a pagar, repasses para técnicos. Status: Pendente, Confirmado, Pago, Cancelado.
 - **Workflow**: Templates de etapas customizáveis para OS (ex: Abertura > Despacho > Execução > Conclusão).
-- **Avaliações**: Avaliação de técnicos pelo gestor e pelo cliente.
+- **Avaliações**: Avaliação de técnicos pelo gestor (nota 1-5 após conclusão da OS) e pelo cliente (via link público enviado por email/WhatsApp). A nota final do técnico é uma média ponderada (40% gestor, 60% cliente). Técnicos com nota abaixo do mínimo (padrão 3.0) são movidos para status EM_TREINAMENTO automaticamente.
 - **Dashboard**: KPIs, gráficos, resumo de OS e financeiro.
 - **Automação**: Regras automáticas (ex: auto-assign técnico, notificações).
 - **Configurações**: Email SMTP, WhatsApp Business API (Meta Cloud API), módulo fiscal/NFS-e, dispositivos.
@@ -30,7 +30,7 @@ MÓDULOS E FUNCIONALIDADES QUE EXISTEM NO SISTEMA:
 - **Relatórios**: Relatórios de OS, técnicos, financeiro.
 - **Contratos**: Geração de contratos com templates e variáveis.
 - **Notificações**: Sistema de notificações internas.
-- **Orçamentos**: Módulo completo de orçamentos (cotações) com itens, PDF, envio ao cliente via link público, aprovação/rejeição online, criação de OS a partir do orçamento aprovado. Gatilho "Um orçamento é criado" disponível no Fluxo de Atendimento para disparar notificações automáticas.
+- **Orçamentos**: Módulo completo de orçamentos (cotações). Funcionalidades: criar com itens (produtos, serviços, mão de obra), aplicar descontos (% ou R$), anexar PDFs de cotações de parceiros, enviar ao cliente via link público (WhatsApp/email), cliente aprova ou rejeita online, criar OS a partir de orçamento aprovado, duplicar orçamentos, gerar PDF. Status: RASCUNHO > ENVIADO > APROVADO/REJEITADO/EXPIRADO/CANCELADO. Orçamentos expiram automaticamente na data limite. Gatilho "Um orçamento é criado" disponível no Fluxo de Atendimento para notificações automáticas.
 
 FUNCIONALIDADES QUE NÃO EXISTEM AINDA:
 - Chat com cliente pelo sistema

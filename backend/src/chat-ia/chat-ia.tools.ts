@@ -316,6 +316,42 @@ export const CHAT_IA_TOOLS: ToolDefinition[] = [
       properties: {},
     },
   },
+  {
+    name: 'buscar_orcamentos',
+    description:
+      'Busca orçamentos (cotações). Pode filtrar por status, cliente, período. Retorna lista resumida com valores e status.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          description: 'Filtrar por status do orçamento',
+          enum: ['RASCUNHO', 'ENVIADO', 'APROVADO', 'REJEITADO', 'EXPIRADO', 'CANCELADO'],
+        },
+        cliente: { type: 'string', description: 'Nome do cliente (busca parcial)' },
+        dataInicio: { type: 'string', description: 'Data início (YYYY-MM-DD)' },
+        dataFim: { type: 'string', description: 'Data fim (YYYY-MM-DD)' },
+        limit: { type: 'number', description: 'Máximo de resultados (padrão: 10)' },
+      },
+    },
+  },
+  {
+    name: 'buscar_avaliacoes',
+    description:
+      'Busca avaliações de técnicos. Pode filtrar por técnico ou tipo (GESTOR/CLIENTE). Retorna notas, comentários e média.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        tecnico: { type: 'string', description: 'Nome do técnico (busca parcial)' },
+        tipo: {
+          type: 'string',
+          description: 'Tipo de avaliação',
+          enum: ['GESTOR', 'CLIENTE'],
+        },
+        limit: { type: 'number', description: 'Máximo de resultados (padrão: 10)' },
+      },
+    },
+  },
 ];
 
 /**
@@ -378,6 +414,10 @@ export async function executeTool(
         return await checkNfseImports(db);
       case 'verificar_plano_billing':
         return await checkPlanoBilling(db);
+      case 'buscar_orcamentos':
+        return await searchQuotes(db, input);
+      case 'buscar_avaliacoes':
+        return await searchEvaluations(db, input);
       default:
         return JSON.stringify({ error: `Tool "${toolName}" não encontrada` });
     }
@@ -1619,5 +1659,118 @@ async function checkPlanoBilling(db: any): Promise<string> {
         limiteUsuarios: p.maxUsers === 0 ? 'Ilimitado' : p.maxUsers,
       })),
     href: '/settings/billing',
+  });
+}
+
+// ─── Orçamentos ─────────────────────────────────────────────────
+
+async function searchQuotes(db: any, input: Record<string, any>): Promise<string> {
+  const where: any = { deletedAt: null };
+  if (input.status) where.status = input.status;
+  if (input.dataInicio || input.dataFim) {
+    where.createdAt = {};
+    if (input.dataInicio) where.createdAt.gte = new Date(input.dataInicio);
+    if (input.dataFim) where.createdAt.lte = new Date(input.dataFim + 'T23:59:59Z');
+  }
+  if (input.cliente) {
+    where.clientPartner = { name: { contains: input.cliente, mode: 'insensitive' } };
+  }
+
+  const quotes = await db.quote.findMany({
+    where,
+    take: input.limit || 10,
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      code: true,
+      title: true,
+      status: true,
+      totalCents: true,
+      createdAt: true,
+      expiresAt: true,
+      clientPartner: { select: { name: true } },
+      serviceOrder: { select: { code: true } },
+    },
+  });
+
+  const total = await db.quote.count({ where });
+
+  // Stats by status
+  const stats = await db.quote.groupBy({
+    by: ['status'],
+    where: { deletedAt: null },
+    _count: true,
+  });
+
+  return JSON.stringify({
+    total,
+    resumoPorStatus: stats.reduce((acc: any, s: any) => {
+      acc[s.status] = s._count;
+      return acc;
+    }, {}),
+    resultados: quotes.map((q: any) => ({
+      codigo: q.code,
+      titulo: q.title,
+      status: q.status,
+      valor: q.totalCents ? `R$ ${(q.totalCents / 100).toFixed(2)}` : null,
+      cliente: q.clientPartner?.name || 'Sem cliente',
+      osVinculada: q.serviceOrder?.code || null,
+      criadoEm: q.createdAt.toISOString().split('T')[0],
+      expiraEm: q.expiresAt?.toISOString().split('T')[0] || null,
+    })),
+    href: '/quotes',
+  });
+}
+
+// ─── Avaliações ─────────────────────────────────────────────────
+
+async function searchEvaluations(db: any, input: Record<string, any>): Promise<string> {
+  const where: any = { score: { gt: 0 } };
+  if (input.tipo) where.type = input.tipo;
+  if (input.tecnico) {
+    where.partner = { name: { contains: input.tecnico, mode: 'insensitive' } };
+  }
+
+  const evaluations = await db.evaluation.findMany({
+    where,
+    take: input.limit || 10,
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      type: true,
+      score: true,
+      comment: true,
+      createdAt: true,
+      partner: { select: { name: true, rating: true } },
+      serviceOrder: { select: { code: true, title: true } },
+    },
+  });
+
+  const total = await db.evaluation.count({ where });
+
+  // Average scores by type
+  const avgByType = await db.evaluation.groupBy({
+    by: ['type'],
+    where: { score: { gt: 0 } },
+    _avg: { score: true },
+    _count: true,
+  });
+
+  return JSON.stringify({
+    total,
+    mediaPorTipo: avgByType.reduce((acc: any, a: any) => {
+      acc[a.type] = { media: Number(a._avg.score).toFixed(1), total: a._count };
+      return acc;
+    }, {}),
+    resultados: evaluations.map((e: any) => ({
+      tipo: e.type === 'GESTOR' ? 'Gestor' : 'Cliente',
+      nota: e.score,
+      comentario: e.comment || null,
+      tecnico: e.partner?.name || 'N/A',
+      notaGeralTecnico: e.partner?.rating ? Number(e.partner.rating).toFixed(1) : null,
+      os: e.serviceOrder?.code || null,
+      tituloOs: e.serviceOrder?.title || null,
+      data: e.createdAt.toISOString().split('T')[0],
+    })),
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { type Block, getCatalogEntry } from "@/types/workflow-blocks";
 
 const EMOJI_OPTIONS = [
@@ -257,6 +257,105 @@ export default function WorkflowProperties({ block, onChange }: Props) {
     GESTOR: "{tecnico} concluiu a OS {titulo} ({nome_cliente}, {endereco}). Verifique o relatorio e fotos no sistema.",
   };
 
+  // Reusable "Ao entrar no raio" notification section for GPS / PROXIMITY_TRIGGER blocks
+  function OnEnterRadiusNotifications({ onEnter, updateOnEnter }: { onEnter: any; updateOnEnter: (key: string, val: any) => void }) {
+    const clienteRef = useRef<HTMLTextAreaElement>(null);
+    const gestorRef = useRef<HTMLTextAreaElement>(null);
+    const alertRef = useRef<HTMLInputElement>(null);
+    const notifCliente = onEnter.notifyCliente || { enabled: false, channel: "WHATSAPP", message: "" };
+    const notifGestor = onEnter.notifyGestor || { enabled: false, channel: "WHATSAPP", message: "" };
+    const alert = onEnter.alert || { enabled: false, message: "" };
+
+    const PROXIMITY_VARS = [
+      { var: "{tecnico}", label: "Tecnico" },
+      { var: "{cliente}", label: "Cliente" },
+      { var: "{codigo}", label: "Codigo OS" },
+      { var: "{titulo}", label: "Titulo OS" },
+      { var: "{endereco}", label: "Endereco" },
+      { var: "{empresa}", label: "Empresa" },
+      { var: "{telefone_empresa}", label: "Tel. Empresa" },
+    ];
+
+    const insertVar = (ref: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>, currentMsg: string, variable: string, updateFn: (msg: string) => void) => {
+      const el = ref.current;
+      if (el) {
+        const start = el.selectionStart || 0;
+        const end = el.selectionEnd || 0;
+        const newText = currentMsg.substring(0, start) + variable + currentMsg.substring(end);
+        updateFn(newText);
+        setTimeout(() => { el.focus(); el.setSelectionRange(start + variable.length, start + variable.length); }, 50);
+      } else {
+        updateFn(currentMsg + " " + variable);
+      }
+    };
+
+    const VariableChips = ({ currentMsg, onInsert, targetRef }: { currentMsg: string; onInsert: (msg: string) => void; targetRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null> }) => (
+      <div className="flex flex-wrap gap-1 mt-0.5">
+        <span className="text-[9px] text-slate-400 mr-0.5 self-center">Variaveis:</span>
+        {PROXIMITY_VARS.map(v => (
+          <button key={v.var} type="button" title={`Inserir ${v.var}`}
+            onClick={() => insertVar(targetRef, currentMsg, v.var, onInsert)}
+            className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer">
+            {v.label}
+          </button>
+        ))}
+      </div>
+    );
+
+    return (
+      <div className="mt-3 border-t border-slate-200 pt-3">
+        <p className="text-[11px] font-medium text-slate-500 mb-2">Ao entrar no raio</p>
+
+        <Checkbox checked={notifCliente.enabled} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, enabled: v })} label="Notificar cliente" />
+        {notifCliente.enabled && (
+          <div className="ml-4 space-y-1 mb-2">
+            <Select value={notifCliente.channel || "WHATSAPP"} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, channel: v })}
+              options={[{ value: "WHATSAPP", label: "WhatsApp" }, { value: "EMAIL", label: "Email" }, { value: "SMS", label: "SMS" }, { value: "PUSH", label: "Push" }]} />
+            <textarea ref={clienteRef} value={notifCliente.message || ""}
+              onChange={(e) => updateOnEnter("notifyCliente", { ...notifCliente, message: e.target.value })}
+              placeholder="Ex: Ola {cliente}, o tecnico {tecnico} esta chegando!"
+              rows={2}
+              className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 placeholder-slate-300 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 resize-none" />
+            <VariableChips currentMsg={notifCliente.message || ""} onInsert={(msg) => updateOnEnter("notifyCliente", { ...notifCliente, message: msg })} targetRef={clienteRef} />
+          </div>
+        )}
+
+        <Checkbox checked={notifGestor.enabled} onChange={(v) => updateOnEnter("notifyGestor", { ...notifGestor, enabled: v })} label="Notificar gestor" />
+        {notifGestor.enabled && (
+          <div className="ml-4 space-y-1 mb-2">
+            <Select value={notifGestor.channel || "PUSH"} onChange={(v) => updateOnEnter("notifyGestor", { ...notifGestor, channel: v })}
+              options={[{ value: "WHATSAPP", label: "WhatsApp" }, { value: "EMAIL", label: "Email" }, { value: "PUSH", label: "Push" }]} />
+            <textarea ref={gestorRef} value={notifGestor.message || ""}
+              onChange={(e) => updateOnEnter("notifyGestor", { ...notifGestor, message: e.target.value })}
+              placeholder="Ex: Tecnico {tecnico} esta proximo da OS {codigo}"
+              rows={2}
+              className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 placeholder-slate-300 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 resize-none" />
+            <VariableChips currentMsg={notifGestor.message || ""} onInsert={(msg) => updateOnEnter("notifyGestor", { ...notifGestor, message: msg })} targetRef={gestorRef} />
+          </div>
+        )}
+
+        <Checkbox checked={alert.enabled} onChange={(v) => updateOnEnter("alert", { ...alert, enabled: v })} label="Alerta no dashboard" />
+        {alert.enabled && (
+          <div className="ml-4 space-y-1 mb-2">
+            <input ref={alertRef} value={alert.message || ""}
+              onChange={(e) => updateOnEnter("alert", { ...alert, message: e.target.value })}
+              placeholder="Tecnico {tecnico} chegou na regiao"
+              className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 placeholder-slate-300 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100" />
+            <VariableChips currentMsg={alert.message || ""} onInsert={(msg) => updateOnEnter("alert", { ...alert, message: msg })} targetRef={alertRef} />
+          </div>
+        )}
+
+        <Label>Mudar status ao entrar no raio</Label>
+        <Select value={onEnter.autoChangeStatus || ""} onChange={(v) => updateOnEnter("autoChangeStatus", v)}
+          options={[
+            { value: "", label: "Nao mudar" },
+            { value: "EM_EXECUCAO", label: "Em Execucao" },
+            { value: "NO_LOCAL", label: "No Local" },
+          ]} />
+      </div>
+    );
+  }
+
   // Recipient editor for NOTIFY blocks
   function NotifyRecipients() {
     const recipients = Array.isArray(cfg.recipients) ? cfg.recipients : [];
@@ -503,9 +602,6 @@ export default function WorkflowProperties({ block, onChange }: Props) {
 
             {cfg.trackingMode === "continuous" && (() => {
               const onEnter = cfg.onEnterRadius || {};
-              const notifCliente = onEnter.notifyCliente || { enabled: false, channel: "WHATSAPP", message: "" };
-              const notifGestor = onEnter.notifyGestor || { enabled: false, channel: "WHATSAPP", message: "" };
-              const alert = onEnter.alert || { enabled: false, message: "" };
               const updateOnEnter = (key: string, val: any) => {
                 updateConfig("onEnterRadius", { ...onEnter, [key]: val });
               };
@@ -530,44 +626,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                     <p className="text-[10px] text-slate-400">{cfg.autoAdvanceOnProximity !== false ? "O bloco avanca automaticamente quando o tecnico entra no raio" : "O tecnico precisa clicar 'Cheguei' para avancar"}</p>
                   </div>
 
-                  <div className="mt-3 border-t border-slate-200 pt-3">
-                    <p className="text-[11px] font-medium text-slate-500 mb-2">Ao entrar no raio</p>
-
-                    <Checkbox checked={notifCliente.enabled} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, enabled: v })} label="Notificar cliente" />
-                    {notifCliente.enabled && (
-                      <div className="ml-4 space-y-1 mb-2">
-                        <Select value={notifCliente.channel || "WHATSAPP"} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, channel: v })}
-                          options={[{ value: "WHATSAPP", label: "WhatsApp" }, { value: "SMS", label: "SMS" }, { value: "PUSH", label: "Push" }]} />
-                        <TextArea value={notifCliente.message || ""} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, message: v })}
-                          placeholder="Ex: Ola {cliente}, o tecnico {tecnico} esta chegando!" rows={2} />
-                        <p className="text-[9px] text-slate-400">Variaveis: {"{tecnico}"} {"{cliente}"} {"{codigo}"} {"{titulo}"} {"{endereco}"}</p>
-                      </div>
-                    )}
-
-                    <Checkbox checked={notifGestor.enabled} onChange={(v) => updateOnEnter("notifyGestor", { ...notifGestor, enabled: v })} label="Notificar gestor" />
-                    {notifGestor.enabled && (
-                      <div className="ml-4 space-y-1 mb-2">
-                        <TextArea value={notifGestor.message || ""} onChange={(v) => updateOnEnter("notifyGestor", { ...notifGestor, message: v })}
-                          placeholder="Ex: Tecnico {tecnico} esta proximo da OS {codigo}" rows={2} />
-                      </div>
-                    )}
-
-                    <Checkbox checked={alert.enabled} onChange={(v) => updateOnEnter("alert", { ...alert, enabled: v })} label="Alerta no dashboard" />
-                    {alert.enabled && (
-                      <div className="ml-4 space-y-1 mb-2">
-                        <Input value={alert.message || ""} onChange={(v) => updateOnEnter("alert", { ...alert, message: v })}
-                          placeholder="Tecnico {tecnico} chegou na regiao" />
-                      </div>
-                    )}
-
-                    <Label>Mudar status ao entrar no raio</Label>
-                    <Select value={onEnter.autoChangeStatus || ""} onChange={(v) => updateOnEnter("autoChangeStatus", v)}
-                      options={[
-                        { value: "", label: "Nao mudar" },
-                        { value: "EM_EXECUCAO", label: "Em Execucao" },
-                        { value: "NO_LOCAL", label: "No Local" },
-                      ]} />
-                  </div>
+                  <OnEnterRadiusNotifications onEnter={onEnter} updateOnEnter={updateOnEnter} />
                 </>
               );
             })()}
@@ -583,9 +642,6 @@ export default function WorkflowProperties({ block, onChange }: Props) {
         {/* PROXIMITY_TRIGGER */}
         {block.type === "PROXIMITY_TRIGGER" && (() => {
           const onEnter = cfg.onEnterRadius || {};
-          const notifCliente = onEnter.notifyCliente || { enabled: false, channel: "WHATSAPP", message: "" };
-          const notifGestor = onEnter.notifyGestor || { enabled: false, channel: "WHATSAPP", message: "" };
-          const alert = onEnter.alert || { enabled: false, message: "" };
           const updateOnEnter = (key: string, val: any) => {
             updateConfig("onEnterRadius", { ...onEnter, [key]: val });
           };
@@ -605,44 +661,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
 
               <Checkbox checked={cfg.requireHighAccuracy !== false} onChange={(v) => updateConfig("requireHighAccuracy", v)} label="Alta precisao (GPS hardware)" />
 
-              <div className="mt-3 border-t border-slate-200 pt-3">
-                <p className="text-[11px] font-medium text-slate-500 mb-2">Ao entrar no raio</p>
-
-                <Checkbox checked={notifCliente.enabled} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, enabled: v })} label="Notificar cliente" />
-                {notifCliente.enabled && (
-                  <div className="ml-4 space-y-1 mb-2">
-                    <Select value={notifCliente.channel || "WHATSAPP"} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, channel: v })}
-                      options={[{ value: "WHATSAPP", label: "WhatsApp" }, { value: "SMS", label: "SMS" }, { value: "PUSH", label: "Push" }]} />
-                    <TextArea value={notifCliente.message || ""} onChange={(v) => updateOnEnter("notifyCliente", { ...notifCliente, message: v })}
-                      placeholder="Ex: Ola {cliente}, o tecnico {tecnico} esta chegando!" rows={2} />
-                    <p className="text-[9px] text-slate-400">Variaveis: {"{tecnico}"} {"{cliente}"} {"{codigo}"} {"{titulo}"} {"{endereco}"}</p>
-                  </div>
-                )}
-
-                <Checkbox checked={notifGestor.enabled} onChange={(v) => updateOnEnter("notifyGestor", { ...notifGestor, enabled: v })} label="Notificar gestor" />
-                {notifGestor.enabled && (
-                  <div className="ml-4 space-y-1 mb-2">
-                    <TextArea value={notifGestor.message || ""} onChange={(v) => updateOnEnter("notifyGestor", { ...notifGestor, message: v })}
-                      placeholder="Ex: Tecnico {tecnico} esta proximo da OS {codigo}" rows={2} />
-                  </div>
-                )}
-
-                <Checkbox checked={alert.enabled} onChange={(v) => updateOnEnter("alert", { ...alert, enabled: v })} label="Alerta no dashboard" />
-                {alert.enabled && (
-                  <div className="ml-4 space-y-1 mb-2">
-                    <Input value={alert.message || ""} onChange={(v) => updateOnEnter("alert", { ...alert, message: v })}
-                      placeholder="Tecnico {tecnico} chegou na regiao" />
-                  </div>
-                )}
-
-                <Label>Mudar status ao entrar no raio</Label>
-                <Select value={onEnter.autoChangeStatus || ""} onChange={(v) => updateOnEnter("autoChangeStatus", v)}
-                  options={[
-                    { value: "", label: "Nao mudar" },
-                    { value: "EM_EXECUCAO", label: "Em Execucao" },
-                    { value: "NO_LOCAL", label: "No Local" },
-                  ]} />
-              </div>
+              <OnEnterRadiusNotifications onEnter={onEnter} updateOnEnter={updateOnEnter} />
 
               <p className="text-[10px] text-slate-400 mt-3">O rastreamento GPS inicia automaticamente quando o fluxo chega neste bloco. O bloco avanca quando o tecnico entra no raio configurado.</p>
             </>
