@@ -161,6 +161,15 @@ const BOX_SIZES: Record<string, string> = {
   large: "p-6 rounded-2xl",
 };
 
+// Button color map — shared by ACTION_BUTTONS and confirmButton rendering
+const BUTTON_COLORS: Record<string, { selected: string; normal: string; full: string }> = {
+  green: { selected: "border-green-400 bg-green-100 text-green-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-green-50", full: "bg-gradient-to-r from-green-500 to-green-600 text-white" },
+  red: { selected: "border-red-400 bg-red-100 text-red-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-red-50", full: "bg-gradient-to-r from-red-500 to-red-600 text-white" },
+  blue: { selected: "border-blue-400 bg-blue-100 text-blue-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-blue-50", full: "bg-gradient-to-r from-blue-500 to-blue-600 text-white" },
+  yellow: { selected: "border-yellow-400 bg-yellow-100 text-yellow-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-yellow-50", full: "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white" },
+  slate: { selected: "border-slate-400 bg-slate-200 text-slate-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-slate-50", full: "bg-gradient-to-r from-slate-500 to-slate-600 text-white" },
+};
+
 function getInfoStyle(color?: string, fontSize?: string, boxSize?: string) {
   return {
     ic: INFO_COLORS[color || "blue"] || INFO_COLORS.blue,
@@ -345,7 +354,7 @@ export default function TechOrderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflow?.isComplete]);
 
-  // GPS block: auto-capture when config.auto is true (retries every 3s if denied)
+  // GPS block: always auto-capture when block is reached (retries every 3s if denied)
   const gpsAutoAdvancedRef = useRef<string | null>(null);
   const gpsRetryRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
@@ -353,7 +362,8 @@ export default function TechOrderDetailPage() {
     const block = workflow.currentBlock;
     if (block.type !== "GPS") return;
     const cfg = block.config || {};
-    if (!cfg.auto || v2GpsCoords) return;
+    if (v2GpsCoords) return;
+    if (cfg.trackingMode === "continuous") return; // continuous starts via watchPosition below
     if (!navigator.geolocation) { setV2GpsDenied(true); return; }
 
     const tryCapture = () => {
@@ -365,10 +375,9 @@ export default function TechOrderDetailPage() {
           setV2GpsDenied(false);
           if (gpsRetryRef.current) { clearInterval(gpsRetryRef.current); gpsRetryRef.current = null; }
         },
-        (err) => {
+        () => {
           setV2GpsLoading(false);
           setV2GpsDenied(true);
-          // Start retry interval if not already running
           if (!gpsRetryRef.current) {
             gpsRetryRef.current = setInterval(() => {
               navigator.geolocation.getCurrentPosition(
@@ -378,7 +387,7 @@ export default function TechOrderDetailPage() {
                   setV2GpsDenied(false);
                   if (gpsRetryRef.current) { clearInterval(gpsRetryRef.current); gpsRetryRef.current = null; }
                 },
-                () => { /* still denied, keep retrying */ },
+                () => {},
                 { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 10000 }
               );
             }, 3000);
@@ -394,13 +403,36 @@ export default function TechOrderDetailPage() {
     };
   }, [currentBlockId]);
 
-  // GPS auto: auto-advance once coords are captured
+  // GPS: auto-start continuous tracking when block is reached
   useEffect(() => {
     if (!workflow?.currentBlock) return;
     const block = workflow.currentBlock;
     if (block.type !== "GPS") return;
     const cfg = block.config || {};
-    if (cfg.auto && v2GpsCoords && gpsAutoAdvancedRef.current !== block.id) {
+    if (cfg.trackingMode !== "continuous") return;
+    if (v2GpsWatchRef.current !== null) return; // already tracking
+    if (!navigator.geolocation) { setV2GpsDenied(true); return; }
+    setV2GpsTracking(true);
+    setV2GpsLoading(true);
+    v2GpsWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setV2GpsLoading(false);
+        setV2GpsDenied(false);
+      },
+      () => { setV2GpsLoading(false); setV2GpsDenied(true); },
+      { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 15000, maximumAge: (cfg.intervalSeconds || 30) * 1000 }
+    );
+  }, [currentBlockId]);
+
+  // GPS pontual: auto-advance once coords are captured
+  useEffect(() => {
+    if (!workflow?.currentBlock) return;
+    const block = workflow.currentBlock;
+    if (block.type !== "GPS") return;
+    const cfg = block.config || {};
+    if (cfg.trackingMode === "continuous") return; // continuous needs manual stop
+    if (v2GpsCoords && gpsAutoAdvancedRef.current !== block.id) {
       gpsAutoAdvancedRef.current = block.id;
       setTimeout(() => handleAdvanceBlockV2(), 300);
     }
@@ -500,47 +532,6 @@ export default function TechOrderDetailPage() {
       alert(err?.message || "Erro ao avancar bloco");
     } finally {
       setActing(false);
-    }
-  }
-
-  /* ── GPS capture (respects block config) ── */
-  function handleCaptureGps(gpsConfig?: Record<string, any>) {
-    if (!navigator.geolocation) {
-      setV2GpsDenied(true);
-      return;
-    }
-    const cfg = gpsConfig || {};
-    const highAccuracy = cfg.highAccuracy !== false;
-
-    if (cfg.trackingMode === "continuous") {
-      // Start continuous tracking
-      if (v2GpsWatchRef.current !== null) return; // already tracking
-      setV2GpsTracking(true);
-      setV2GpsLoading(true);
-      v2GpsWatchRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          setV2GpsLoading(false);
-        },
-        () => {
-          setV2GpsLoading(false);
-        },
-        { enableHighAccuracy: highAccuracy, timeout: 15000, maximumAge: (cfg.intervalSeconds || 30) * 1000 }
-      );
-    } else {
-      // Single capture (pontual)
-      setV2GpsLoading(true);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          setV2GpsLoading(false);
-        },
-        () => {
-          setV2GpsDenied(true);
-          setV2GpsLoading(false);
-        },
-        { enableHighAccuracy: highAccuracy, timeout: 15000 }
-      );
     }
   }
 
@@ -726,7 +717,6 @@ export default function TechOrderDetailPage() {
               v2GpsCoords={v2GpsCoords}
               v2GpsLoading={v2GpsLoading}
               v2GpsDenied={v2GpsDenied}
-              handleCaptureGps={handleCaptureGps}
               v2GpsTracking={v2GpsTracking}
               handleStopGpsTracking={handleStopGpsTracking}
               v2FormFields={v2FormFields}
@@ -871,7 +861,7 @@ function V2BlockAction({
   block, order, acting, attachments, setAttachments,
   v2Note, setV2Note, v2Answer, setV2Answer,
   v2CheckedItems, setV2CheckedItems,
-  v2GpsCoords, v2GpsLoading, v2GpsDenied, handleCaptureGps,
+  v2GpsCoords, v2GpsLoading, v2GpsDenied,
   v2GpsTracking, handleStopGpsTracking,
   v2FormFields, setV2FormFields, onAdvance,
 }: {
@@ -889,7 +879,6 @@ function V2BlockAction({
   v2GpsCoords: { lat: number; lng: number } | null;
   v2GpsLoading: boolean;
   v2GpsDenied: boolean;
-  handleCaptureGps: (gpsConfig?: Record<string, any>) => void;
   v2GpsTracking: boolean;
   handleStopGpsTracking: () => void;
   v2FormFields: Record<string, string>;
@@ -999,24 +988,9 @@ function V2BlockAction({
           </div>
         )}
 
-        {/* GPS */}
+        {/* GPS — auto-captures on block entry, no manual button */}
         {block.type === "GPS" && (
           <div className="space-y-2">
-            {/* Config info badges */}
-            <div className="flex flex-wrap gap-1">
-              {c.highAccuracy !== false && (
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">Alta precisao</span>
-              )}
-              {c.trackingMode === "continuous" && (
-                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
-                  Rastreamento continuo{c.intervalSeconds ? ` (${c.intervalSeconds}s)` : ""}
-                </span>
-              )}
-              {c.auto && (
-                <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">Captura automatica</span>
-              )}
-            </div>
-
             {/* GPS denied/disabled warning */}
             {v2GpsDenied && !v2GpsCoords && (
               <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-3">
@@ -1029,7 +1003,7 @@ function V2BlockAction({
               </div>
             )}
 
-            {/* Tracking active banner */}
+            {/* Tracking active banner (continuous mode) */}
             {v2GpsTracking && (
               <div className="flex items-center justify-between rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2">
                 <div className="flex items-center gap-2">
@@ -1040,18 +1014,8 @@ function V2BlockAction({
               </div>
             )}
 
-            {/* Capture/Start button */}
-            {!v2GpsTracking && !c.auto && (
-              <button onClick={() => handleCaptureGps(c)} disabled={v2GpsLoading}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white py-2.5 text-sm font-medium text-blue-700 active:bg-blue-50">
-                {v2GpsLoading ? (
-                  <><div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />Capturando...</>
-                ) : (
-                  <>{c.trackingMode === "continuous" ? "📍 Iniciar rastreamento" : "📍 Registrar localizacao"}</>
-                )}
-              </button>
-            )}
-            {c.auto && !v2GpsCoords && v2GpsLoading && (
+            {/* Capturing indicator */}
+            {!v2GpsCoords && v2GpsLoading && !v2GpsDenied && (
               <div className="flex items-center justify-center gap-2 py-2 text-sm text-blue-600">
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
                 Capturando automaticamente...
@@ -1133,13 +1097,6 @@ function V2BlockAction({
         {/* ACTION_BUTTONS */}
         {block.type === "ACTION_BUTTONS" && (() => {
           const buttons: { id: string; label: string; color: string; icon?: string }[] = c.buttons || [];
-          const COLOR_MAP: Record<string, { selected: string; normal: string; full: string }> = {
-            green: { selected: "border-green-400 bg-green-100 text-green-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-green-50", full: "bg-gradient-to-r from-green-500 to-green-600 text-white" },
-            red: { selected: "border-red-400 bg-red-100 text-red-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-red-50", full: "bg-gradient-to-r from-red-500 to-red-600 text-white" },
-            blue: { selected: "border-blue-400 bg-blue-100 text-blue-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-blue-50", full: "bg-gradient-to-r from-blue-500 to-blue-600 text-white" },
-            yellow: { selected: "border-yellow-400 bg-yellow-100 text-yellow-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-yellow-50", full: "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white" },
-            slate: { selected: "border-slate-400 bg-slate-200 text-slate-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-slate-50", full: "bg-gradient-to-r from-slate-500 to-slate-600 text-white" },
-          };
           // Button size classes
           const BTN_SIZE_MAP: Record<string, { py: string; text: string }> = {
             sm: { py: "py-2", text: "text-sm" },
@@ -1156,7 +1113,7 @@ function V2BlockAction({
           // Single button = direct action (click submits immediately, no separate confirm)
           if (buttons.length === 1) {
             const btn = buttons[0];
-            const colors = COLOR_MAP[btn.color] || COLOR_MAP.green;
+            const colors = BUTTON_COLORS[btn.color] || BUTTON_COLORS.green;
             return (
               <div className="space-y-2">
                 {c.title && <p className="text-sm font-medium text-slate-700">{c.title}</p>}
@@ -1179,7 +1136,7 @@ function V2BlockAction({
               {ip?.enabled && ip.position === "before" && renderInfoPanel()}
               <div className={`grid gap-3 ${buttons.length === 2 ? "grid-cols-2" : buttons.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
                 {buttons.map((btn) => {
-                  const colors = COLOR_MAP[btn.color] || COLOR_MAP.green;
+                  const colors = BUTTON_COLORS[btn.color] || BUTTON_COLORS.green;
                   return (
                     <button
                       key={btn.id}
@@ -1253,17 +1210,22 @@ function V2BlockAction({
         )}
       </div>
 
-      {/* Advance button — hidden for types that auto-advance on interaction */}
-      {!(
-        ["ACTION_BUTTONS", "CONDITION"].includes(block.type) ||
-        (block.type === "GPS" && c.auto)
-      ) && (
-      <button onClick={onAdvance} disabled={isDisabled()}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all">
-        <span className="text-xl">{block.icon || "▶️"}</span>
-        {acting ? "Avancando..." : block.type === "INFO" ? "Entendi ✓" : (block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : "Confirmar ✓")}
-      </button>
-      )}
+      {/* Advance button — driven by block config, hidden for auto-advance types */}
+      {!["ACTION_BUTTONS", "CONDITION", "GPS"].includes(block.type) && (() => {
+        // STATUS with buttonLabel uses its own label; others use confirmButton from config
+        const cb = c.confirmButton || {};
+        const label = block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : (cb.label || "Confirmar");
+        const icon = block.type === "STATUS" && c.buttonLabel ? (block.icon || "▶️") : (cb.icon || block.icon || "▶️");
+        const color = cb.color || "blue";
+        const colors = BUTTON_COLORS[color] || BUTTON_COLORS.blue;
+        return (
+          <button onClick={onAdvance} disabled={isDisabled()}
+            className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-bold shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all ${colors.full}`}>
+            <span className="text-xl">{icon}</span>
+            {acting ? "Avancando..." : label}
+          </button>
+        );
+      })()}
     </div>
   );
 }

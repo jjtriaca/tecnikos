@@ -141,6 +141,49 @@ function ListEditor({ items, onChange, placeholder }: { items: string[]; onChang
   );
 }
 
+/* ── Confirm Button Editor — reusable section for blocks that need a confirm button ── */
+const CONFIRM_BTN_COLORS = [
+  { value: "green", label: "Verde", bg: "bg-green-500", preview: "bg-gradient-to-r from-green-500 to-green-600 text-white" },
+  { value: "blue", label: "Azul", bg: "bg-blue-500", preview: "bg-gradient-to-r from-blue-500 to-blue-600 text-white" },
+  { value: "red", label: "Vermelho", bg: "bg-red-500", preview: "bg-gradient-to-r from-red-500 to-red-600 text-white" },
+  { value: "yellow", label: "Amarelo", bg: "bg-yellow-500", preview: "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white" },
+  { value: "slate", label: "Cinza", bg: "bg-slate-500", preview: "bg-gradient-to-r from-slate-500 to-slate-600 text-white" },
+];
+
+function ConfirmButtonEditor({ config, onChange }: { config: { label: string; color: string; icon: string }; onChange: (btn: { label: string; color: string; icon: string }) => void }) {
+  const btn = config || { label: "Confirmar", color: "blue", icon: "✅" };
+  const colorDef = CONFIRM_BTN_COLORS.find(c => c.value === btn.color) || CONFIRM_BTN_COLORS[1];
+  return (
+    <div className="mt-3 border-t border-slate-200 pt-3 space-y-2">
+      <p className="text-[11px] font-medium text-slate-500">Botao de confirmacao</p>
+      <div className="flex items-center gap-1.5">
+        <EmojiPicker value={btn.icon || ""} onChange={(v) => onChange({ ...btn, icon: v })} />
+        <input
+          value={btn.label}
+          onChange={(e) => onChange({ ...btn, label: e.target.value })}
+          placeholder="Texto do botao"
+          className="flex-1 rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400"
+        />
+      </div>
+      <div className="flex gap-1">
+        {CONFIRM_BTN_COLORS.map(c => (
+          <button
+            key={c.value}
+            type="button"
+            onClick={() => onChange({ ...btn, color: c.value })}
+            className={`h-5 w-5 rounded-full ${c.bg} ${btn.color === c.value ? "ring-2 ring-offset-1 ring-blue-400" : "opacity-60 hover:opacity-100"}`}
+            title={c.label}
+          />
+        ))}
+      </div>
+      {/* Preview */}
+      <div className={`rounded-xl py-3 text-center text-sm font-bold shadow-sm ${colorDef.preview}`}>
+        {btn.icon ? `${btn.icon} ` : ""}{btn.label || "..."}
+      </div>
+    </div>
+  );
+}
+
 function FormFieldsEditor({ fields, onChange }: { fields: any[]; onChange: (fields: any[]) => void }) {
   return (
     <div className="space-y-2">
@@ -400,6 +443,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               <Checkbox checked={cfg.requireNote || false} onChange={(v) => updateConfig("requireNote", v)} label="Exigir observacao" />
               <Checkbox checked={cfg.requireGps || false} onChange={(v) => updateConfig("requireGps", v)} label="Registrar GPS" />
             </div>
+            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Confirmar etapa", color: "blue", icon: "✅" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
         )}
 
@@ -417,6 +461,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               { value: "EVIDENCIA", label: "Evidencia" },
               { value: "GERAL", label: "Geral" },
             ]} />
+            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Enviar fotos", color: "green", icon: "📸" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
         )}
 
@@ -436,10 +481,11 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                 <input type="number" min={0} value={cfg.maxChars || ""} onChange={(e) => updateConfig("maxChars", e.target.value ? parseInt(e.target.value) : null)} placeholder="Sem limite" className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400" />
               </div>
             </div>
+            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Enviar", color: "blue", icon: "📝" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
         )}
 
-        {/* GPS */}
+        {/* GPS — sempre auto-captura ao chegar no bloco */}
         {block.type === "GPS" && (
           <>
             <Checkbox checked={cfg.required !== false} onChange={(v) => updateConfig("required", v)} label="Obrigatorio" />
@@ -462,7 +508,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               </>
             )}
 
-            <Checkbox checked={cfg.auto === true} onChange={(v) => updateConfig("auto", v)} label="Captura automatica (sem clique)" />
+            <p className="text-[10px] text-slate-400 mt-2">A localizacao e capturada automaticamente quando o fluxo chega neste bloco. Se o GPS estiver desativado, o tecnico sera avisado.</p>
           </>
         )}
 
@@ -473,6 +519,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             <Input value={cfg.question || ""} onChange={(v) => updateConfig("question", v)} placeholder="Ex: O equipamento esta funcionando?" />
             <Label>Opcoes de resposta</Label>
             <ListEditor items={cfg.options || ["Sim", "Nao"]} onChange={(v) => updateConfig("options", v)} placeholder="Opcao..." />
+            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Confirmar", color: "blue", icon: "✅" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
         )}
 
@@ -481,6 +528,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           <>
             <Label>Itens do checklist</Label>
             <ListEditor items={cfg.items || []} onChange={(v) => updateConfig("items", v)} placeholder="Item..." />
+            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Confirmar checklist", color: "green", icon: "☑️" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
         )}
 
@@ -489,6 +537,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           <>
             <Label>Label</Label>
             <Input value={cfg.label || ""} onChange={(v) => updateConfig("label", v)} placeholder="Ex: Assinatura do cliente" />
+            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Enviar assinatura", color: "blue", icon: "✍️" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
         )}
 
@@ -497,6 +546,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           <>
             <Label>Campos do formulario</Label>
             <FormFieldsEditor fields={cfg.fields || []} onChange={(v) => updateConfig("fields", v)} />
+            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Enviar formulario", color: "green", icon: "📋" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
         )}
 
@@ -916,6 +966,8 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   {(cfg.message || "Use as variáveis para trazer dados reais da OS.\nEx: {titulo}, {nome_cliente}, {endereco}...").substring(0, 200)}
                 </p>
               </div>
+
+              <ConfirmButtonEditor config={cfg.confirmButton || { label: "Entendi", color: "blue", icon: "ℹ️" }} onChange={(v) => updateConfig("confirmButton", v)} />
             </>
           );
         })()}

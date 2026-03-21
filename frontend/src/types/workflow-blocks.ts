@@ -254,14 +254,14 @@ export function createBlock(type: BlockType, overrides?: Partial<Block>): Block 
 
 export function getDefaultConfig(type: BlockType): Record<string, any> {
   switch (type) {
-    case 'STEP': return { requirePhoto: false, requireNote: false, requireGps: false, description: 'Executar o servico conforme especificado na ordem' };
-    case 'PHOTO': return { minPhotos: 1, label: 'Registrar foto do local ou equipamento', photoType: 'GERAL' };
-    case 'NOTE': return { placeholder: 'Descreva as condicoes encontradas, servicos realizados e observacoes relevantes...', required: true };
-    case 'GPS': return { auto: true };
-    case 'QUESTION': return { question: 'O equipamento esta funcionando corretamente?', options: ['Sim', 'Nao'] };
-    case 'CHECKLIST': return { items: ['Verificar condicoes do local', 'Inspecionar equipamento', 'Testar funcionamento'] };
-    case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do servico' };
-    case 'FORM': return { fields: [{ name: 'Condicao do equipamento', type: 'select', required: true, options: ['Bom', 'Regular', 'Ruim'] }, { name: 'Observacoes', type: 'text', required: false }] };
+    case 'STEP': return { requirePhoto: false, requireNote: false, requireGps: false, description: 'Executar o servico conforme especificado na ordem', confirmButton: { label: 'Confirmar etapa', color: 'blue', icon: '✅' } };
+    case 'PHOTO': return { minPhotos: 1, label: 'Registrar foto do local ou equipamento', photoType: 'GERAL', confirmButton: { label: 'Enviar fotos', color: 'green', icon: '📸' } };
+    case 'NOTE': return { placeholder: 'Descreva as condicoes encontradas, servicos realizados e observacoes relevantes...', required: true, confirmButton: { label: 'Enviar', color: 'blue', icon: '📝' } };
+    case 'GPS': return { highAccuracy: true, trackingMode: 'single' };
+    case 'QUESTION': return { question: 'O equipamento esta funcionando corretamente?', options: ['Sim', 'Nao'], confirmButton: { label: 'Confirmar', color: 'blue', icon: '✅' } };
+    case 'CHECKLIST': return { items: ['Verificar condicoes do local', 'Inspecionar equipamento', 'Testar funcionamento'], confirmButton: { label: 'Confirmar checklist', color: 'green', icon: '☑️' } };
+    case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do servico', confirmButton: { label: 'Enviar assinatura', color: 'blue', icon: '✍️' } };
+    case 'FORM': return { fields: [{ name: 'Condicao do equipamento', type: 'select', required: true, options: ['Bom', 'Regular', 'Ruim'] }, { name: 'Observacoes', type: 'text', required: false }], confirmButton: { label: 'Enviar formulario', color: 'green', icon: '📋' } };
     case 'CONDITION': return { conditionType: 'question', question: 'O servico foi concluido com sucesso?' };
     case 'ACTION_BUTTONS': return { title: '', buttons: [{ id: 'btn_0', label: 'Confirmar', color: 'green', icon: '✅' }] };
     case 'NOTIFY': return { recipients: [{ type: 'CLIENTE', enabled: true, channel: 'WHATSAPP', message: 'Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.' }] };
@@ -271,6 +271,7 @@ export function getDefaultConfig(type: BlockType): Record<string, any> {
     case 'SLA': return { maxMinutes: 240, alertOnExceed: true };
     case 'STATUS': return { targetStatus: 'EM_EXECUCAO' };
     case 'RESCHEDULE': return { reason: 'Cliente solicitou reagendamento' };
+    case 'INFO': return { icon: 'ℹ️', color: 'blue', fontSize: 'md', boxSize: 'normal', title: '', message: '', confirmButton: { label: 'Entendi', color: 'blue', icon: 'ℹ️' } };
     default: return {};
   }
 }
