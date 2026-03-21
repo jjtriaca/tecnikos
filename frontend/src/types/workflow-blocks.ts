@@ -87,6 +87,7 @@ export type GpsConfig = {
   // Proximity fields (continuous mode only)
   radiusMeters?: number;
   autoAdvanceOnProximity?: boolean;
+  arrivalButton?: { label: string; color: string; icon: string };
   onEnterRadius?: {
     notifyCliente?: { enabled: boolean; channel: string; message: string };
     notifyGestor?: { enabled: boolean; channel: string; message: string };

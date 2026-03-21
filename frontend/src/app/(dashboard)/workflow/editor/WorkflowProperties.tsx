@@ -623,7 +623,14 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                     <p className="text-[10px] text-slate-400">Distancia em metros do destino para disparar eventos</p>
 
                     <Checkbox checked={cfg.autoAdvanceOnProximity !== false} onChange={(v) => updateConfig("autoAdvanceOnProximity", v)} label="Auto-avancar ao entrar no raio" />
-                    <p className="text-[10px] text-slate-400">{cfg.autoAdvanceOnProximity !== false ? "O bloco avanca automaticamente quando o tecnico entra no raio" : "O tecnico precisa clicar 'Cheguei' para avancar"}</p>
+                    <p className="text-[10px] text-slate-400">{cfg.autoAdvanceOnProximity !== false ? "O bloco avança automaticamente quando o técnico entra no raio" : "O técnico precisa clicar o botão abaixo para avançar"}</p>
+
+                    {cfg.autoAdvanceOnProximity === false && (
+                      <ConfirmButtonEditor
+                        config={cfg.arrivalButton || { label: "Cheguei", color: "green", icon: "📍" }}
+                        onChange={(v) => updateConfig("arrivalButton", v)}
+                      />
+                    )}
                   </div>
 
                   <OnEnterRadiusNotifications onEnter={onEnter} updateOnEnter={updateOnEnter} />
@@ -633,8 +640,10 @@ export default function WorkflowProperties({ block, onChange }: Props) {
 
             <p className="text-[10px] text-slate-400 mt-2">
               {cfg.trackingMode === "continuous"
-                ? "O rastreamento GPS inicia automaticamente. O bloco avanca quando o tecnico entra no raio configurado ou clica em Cheguei."
-                : "A localizacao e capturada automaticamente quando o fluxo chega neste bloco. Se o GPS estiver desativado, o tecnico sera avisado."}
+                ? cfg.autoAdvanceOnProximity !== false
+                  ? "O rastreamento GPS inicia automaticamente. O bloco avança quando o técnico entra no raio configurado."
+                  : "O rastreamento GPS inicia automaticamente. O técnico precisa clicar o botão ao entrar no raio para avançar."
+                : "A localização é capturada automaticamente quando o fluxo chega neste bloco. Se o GPS estiver desativado, o técnico será avisado."}
             </p>
           </>
         )}
