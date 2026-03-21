@@ -134,7 +134,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
   const [dispatches, setDispatches] = useState<DispatchState[]>([]);
   const [minimized, setMinimized] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const initialLoadDone = useRef(false);
+  const syncRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Unified load: fetch all active dispatches from server and merge into state
   const loadDispatches = useCallback(async () => {
@@ -144,10 +144,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
       const loaded = items.map(mapApiToDispatch).filter((d) => !TERMINAL_STATUSES.includes(d.osStatus || ""));
 
       setDispatches((prev) => {
-        // Build map of existing IDs for merge
         const existingMap = new Map(prev.map((d) => [d.osId, d]));
-
-        // Update existing + add new
         const merged: DispatchState[] = [];
         const seenIds = new Set<string>();
 
@@ -167,24 +164,23 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
         return merged;
       });
     } catch {
-      // Auth not ready or network error — will retry on next poll
+      // Auth not ready or network error — will retry on next interval
     }
   }, []);
 
-  // Initial load + periodic sync (every 10s) — guarantees dispatches always show
+  // Sync: load immediately + every 10s. No refs, no guards — guaranteed to work.
   useEffect(() => {
     if (loading || !user) return;
     if (!hasRole(user, "ADMIN", "DESPACHO")) return;
 
-    // Initial load
-    if (!initialLoadDone.current) {
-      initialLoadDone.current = true;
-      loadDispatches();
-    }
+    // Load immediately on mount
+    loadDispatches();
 
-    // Periodic full sync every 10s to catch new OS and update existing
-    const syncInterval = setInterval(loadDispatches, 10000);
-    return () => clearInterval(syncInterval);
+    // Then sync every 10s
+    syncRef.current = setInterval(loadDispatches, 10000);
+    return () => {
+      if (syncRef.current) { clearInterval(syncRef.current); syncRef.current = null; }
+    };
   }, [loading, user, loadDispatches]);
 
   // Per-dispatch detail polling (faster updates for GPS/notifications)
