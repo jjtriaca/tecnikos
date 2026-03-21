@@ -490,7 +490,7 @@ export default function OrderDetailPage() {
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
-          Ordens de Servico
+          Voltar
         </Link>
         <span>/</span>
         <span className="text-slate-900 font-medium">{order.title}</span>
