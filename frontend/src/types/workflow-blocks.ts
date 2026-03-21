@@ -56,15 +56,6 @@ export type WorkflowDefV2 = {
   blocks: Block[];
 };
 
-/* Legacy format (v1) — flat array of steps */
-export type WorkflowStepV1 = {
-  order: number;
-  name: string;
-  icon: string;
-  requirePhoto: boolean;
-  requireNote: boolean;
-};
-
 /* ── Block Config Types ──────────────────────────────────────── */
 
 export type StepConfig = {
@@ -431,54 +422,10 @@ export function walkChain(blocks: Block[], startId: string | null): string[] {
   return ids;
 }
 
-/* ── V1 → V2 Converter ──────────────────────────────────────── */
-
-export function convertV1toV2(steps: WorkflowStepV1[]): WorkflowDefV2 {
-  const blocks: Block[] = [];
-  const startId = genBlockId();
-  const endId = genBlockId();
-
-  blocks.push({ id: startId, type: 'START', name: 'Início', icon: '▶️', config: {}, next: null });
-
-  let prevId = startId;
-  for (const step of steps) {
-    const blockId = genBlockId();
-    const block: Block = {
-      id: blockId,
-      type: 'STEP',
-      name: step.name,
-      icon: step.icon,
-      config: {
-        requirePhoto: step.requirePhoto,
-        requireNote: step.requireNote,
-        requireGps: false,
-        description: '',
-      },
-      next: null,
-    };
-    // Link previous block to this one
-    const prev = blocks.find(b => b.id === prevId);
-    if (prev) prev.next = blockId;
-    blocks.push(block);
-    prevId = blockId;
-  }
-
-  // Link last block to END
-  const lastBlock = blocks.find(b => b.id === prevId);
-  if (lastBlock) lastBlock.next = endId;
-  blocks.push({ id: endId, type: 'END', name: 'Fim', icon: '⏹️', config: {}, next: null });
-
-  return { version: 2, blocks };
-}
-
-/** Check if a steps JSON is V1 (array) or V2 (object with version) */
-export function isV2Format(steps: any): steps is WorkflowDefV2 {
-  return steps && typeof steps === 'object' && !Array.isArray(steps) && steps.version === 2;
-}
-
-/** Parse steps from DB — handles both V1 and V2 */
+/** Parse steps from DB — V2 format only */
 export function parseWorkflowSteps(steps: any): WorkflowDefV2 {
-  if (isV2Format(steps)) return steps;
-  if (Array.isArray(steps)) return convertV1toV2(steps);
+  if (steps && typeof steps === 'object' && !Array.isArray(steps) && steps.version === 2) {
+    return steps;
+  }
   return { version: 2, blocks: createDefaultWorkflow() };
 }

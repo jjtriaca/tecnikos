@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ServiceOrderStatus } from '@prisma/client';
-import { WorkflowStep } from './workflow.service';
 import { NotificationService } from '../notification/notification.service';
 import { FinanceService } from '../finance/finance.service';
 import { PublicOfferService } from '../public-offer/public-offer.service';
@@ -18,26 +17,6 @@ import { StepProgressDto } from './dto/step-progress.dto';
 /* ═══════════════════════════════════════════════════════════════
    TYPES
    ═══════════════════════════════════════════════════════════════ */
-
-// ── V1 (linear) ──
-
-export interface WorkflowProgress {
-  templateId: string;
-  templateName: string;
-  version: number;
-  totalSteps: number;
-  completedSteps: number;
-  currentStep: (WorkflowStep & { completed: boolean }) | null;
-  steps: Array<
-    WorkflowStep & {
-      completed: boolean;
-      completedAt?: string;
-      note?: string;
-      photoUrl?: string;
-    }
-  >;
-  isComplete: boolean;
-}
 
 // ── V2 (graph) ──
 
@@ -95,25 +74,6 @@ const ACTIONABLE_TYPES = new Set([
   'ARRIVAL_QUESTION',
 ]);
 
-/* ── V3 (FlowDefinition) ── */
-
-interface V3Block {
-  id: string;
-  type: string;
-  name: string;
-  icon: string;
-  config: Record<string, any>;
-  children: string[];
-  yesBranch?: string[];
-  noBranch?: string[];
-}
-
-interface V3Def {
-  version: 3;
-  blocks: V3Block[];
-  trigger?: { entity: string; event: string };
-}
-
 /* ── Helpers ── */
 
 function isV2(steps: unknown): steps is V2Def {
@@ -123,196 +83,6 @@ function isV2(steps: unknown): steps is V2Def {
     !Array.isArray(steps) &&
     (steps as any).version === 2
   );
-}
-
-function isV3(steps: unknown): steps is V3Def {
-  return (
-    !!steps &&
-    typeof steps === 'object' &&
-    !Array.isArray(steps) &&
-    (steps as any).version === 3
-  );
-}
-
-/**
- * Convert V3 FlowDefinition to V2 block graph format.
- * V3 uses children arrays; V2 uses linked-list next pointers.
- */
-function convertV3toV2(v3: V3Def): V2Def {
-  const v2Blocks: BlockDef[] = [];
-  const triggerBlock = v3.blocks.find((b) => b.type === 'TRIGGER_START');
-  if (!triggerBlock) return { version: 2, blocks: [] };
-
-  const startId = '_v2_start';
-  const endId = '_v2_end';
-
-  v2Blocks.push({
-    id: startId,
-    type: 'START',
-    name: 'Inicio',
-    icon: '▶️',
-    config: {},
-    next: null,
-  });
-
-  function processChain(childIds: string[]): string | null {
-    let prevId: string | null = null;
-
-    for (const childId of childIds) {
-      const block = v3.blocks.find((b) => b.id === childId);
-      if (!block) continue;
-
-      if (block.type === 'END') {
-        if (prevId) {
-          const prev = v2Blocks.find((b) => b.id === prevId);
-          if (prev && !prev.next) prev.next = endId;
-        }
-        return endId;
-      }
-
-      // Map type: STATUS_CHANGE → STATUS for V2 compat
-      const v2Type =
-        block.type === 'STATUS_CHANGE' ? 'STATUS' : block.type;
-
-      // Check if already added (from branch processing)
-      if (v2Blocks.find((b) => b.id === block.id)) {
-        if (prevId) {
-          const prev = v2Blocks.find((b) => b.id === prevId);
-          if (prev && !prev.next) prev.next = block.id;
-        }
-        prevId = block.id;
-        continue;
-      }
-
-      const v2Block: BlockDef = {
-        id: block.id,
-        type: v2Type,
-        name: block.name,
-        icon: block.icon,
-        config: block.config || {},
-        next: null,
-      };
-
-      if (block.type === 'CONDITION') {
-        v2Block.yesBranch = null;
-        v2Block.noBranch = null;
-
-        // Process yes branch
-        if (block.yesBranch && block.yesBranch.length > 0) {
-          v2Blocks.push(v2Block);
-          const firstYesBlock = block.yesBranch.find((id) => {
-            const b = v3.blocks.find((x) => x.id === id);
-            return b && b.type !== 'END';
-          });
-          if (firstYesBlock) {
-            v2Block.yesBranch = firstYesBlock;
-            linkBranch(block.yesBranch);
-          }
-
-          // Process no branch
-          if (block.noBranch && block.noBranch.length > 0) {
-            const firstNoBlock = block.noBranch.find((id) => {
-              const b = v3.blocks.find((x) => x.id === id);
-              return b && b.type !== 'END';
-            });
-            if (firstNoBlock) {
-              v2Block.noBranch = firstNoBlock;
-              linkBranch(block.noBranch);
-            }
-          }
-
-          if (prevId) {
-            const prev = v2Blocks.find((b) => b.id === prevId);
-            if (prev && !prev.next) prev.next = block.id;
-          }
-          prevId = block.id;
-          continue;
-        }
-      }
-
-      v2Blocks.push(v2Block);
-
-      if (prevId) {
-        const prev = v2Blocks.find((b) => b.id === prevId);
-        if (prev && !prev.next) prev.next = block.id;
-      }
-
-      prevId = block.id;
-    }
-
-    return prevId;
-  }
-
-  function linkBranch(childIds: string[]) {
-    let prevId: string | null = null;
-
-    for (const childId of childIds) {
-      const block = v3.blocks.find((b) => b.id === childId);
-      if (!block || block.type === 'END') continue;
-
-      if (v2Blocks.find((b) => b.id === block.id)) {
-        if (prevId) {
-          const prev = v2Blocks.find((b) => b.id === prevId);
-          if (prev && !prev.next) prev.next = block.id;
-        }
-        prevId = block.id;
-        continue;
-      }
-
-      const v2Type =
-        block.type === 'STATUS_CHANGE' ? 'STATUS' : block.type;
-
-      const v2Block: BlockDef = {
-        id: block.id,
-        type: v2Type,
-        name: block.name,
-        icon: block.icon,
-        config: block.config || {},
-        next: null,
-      };
-
-      v2Blocks.push(v2Block);
-
-      if (prevId) {
-        const prev = v2Blocks.find((b) => b.id === prevId);
-        if (prev && !prev.next) prev.next = block.id;
-      }
-      prevId = block.id;
-    }
-  }
-
-  const lastId = processChain(triggerBlock.children);
-
-  // Add END block
-  v2Blocks.push({
-    id: endId,
-    type: 'END',
-    name: 'Fim',
-    icon: '⏹️',
-    config: {},
-    next: null,
-  });
-
-  // Link start to first child
-  const firstChild = triggerBlock.children[0];
-  if (firstChild) {
-    const firstBlock = v3.blocks.find((b) => b.id === firstChild);
-    if (firstBlock && firstBlock.type !== 'END') {
-      v2Blocks[0].next = firstChild;
-    } else {
-      v2Blocks[0].next = endId;
-    }
-  } else {
-    v2Blocks[0].next = endId;
-  }
-
-  // Ensure last block links to end
-  if (lastId && lastId !== endId) {
-    const last = v2Blocks.find((b) => b.id === lastId);
-    if (last && !last.next) last.next = endId;
-  }
-
-  return { version: 2, blocks: v2Blocks };
 }
 
 /**
@@ -398,11 +168,10 @@ export class WorkflowEngineService {
   }
 
   /* ──────────────────────────────────────────────────────────── */
-  /*  Execute workflow from START block (V3 mode)                 */
-  /*  Replaces executeStageNotifications for new workflows.       */
+  /*  Execute workflow from START block                            */
   /*  Walks from START, auto-executing system blocks (NOTIFY,     */
   /*  STATUS auto) and stopping at actionable blocks (GPS, PHOTO, */
-  /*  STATUS manual, etc.) — the tech portal handles the rest.    */
+  /*  etc.) — the tech portal handles the rest.                   */
   /*  Works with ANY trigger (OS, partner, quote).                */
   /* ──────────────────────────────────────────────────────────── */
 
@@ -425,7 +194,6 @@ export class WorkflowEngineService {
     const rawSteps = template.steps as any;
     let blocks: any[] = [];
     if (rawSteps?.version === 2 && Array.isArray(rawSteps.blocks)) blocks = rawSteps.blocks;
-    else if (rawSteps?.version === 3 && Array.isArray(rawSteps.blocks)) blocks = rawSteps.blocks;
 
     if (blocks.length === 0) {
       this.logger.log('🚀 No blocks in workflow — skipping');
@@ -553,13 +321,13 @@ export class WorkflowEngineService {
   }
 
   /* ──────────────────────────────────────────────────────────── */
-  /*  Get progress — auto-detects V1 or V2                       */
+  /*  Get progress (V2 block graph)                              */
   /* ──────────────────────────────────────────────────────────── */
 
   async getProgress(
     serviceOrderId: string,
     companyId: string,
-  ): Promise<WorkflowProgress | WorkflowProgressV2 | null> {
+  ): Promise<WorkflowProgressV2 | null> {
     const so = await this.prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, deletedAt: null },
       include: {
@@ -574,17 +342,12 @@ export class WorkflowEngineService {
     if (!so.workflowTemplate) return null;
 
     const rawSteps = so.workflowTemplate.steps;
-    if (isV3(rawSteps)) {
-      return this.getProgressV2(so, convertV3toV2(rawSteps));
-    }
-    if (isV2(rawSteps)) {
-      return this.getProgressV2(so, rawSteps);
-    }
-    return this.getProgressV1(so);
+    if (!isV2(rawSteps)) return null;
+    return this.getProgressV2(so, rawSteps);
   }
 
   /* ──────────────────────────────────────────────────────────── */
-  /*  Advance step/block — auto-detects V1 or V2                 */
+  /*  Advance block (V2 block graph)                             */
   /* ──────────────────────────────────────────────────────────── */
 
   async advanceStep(
@@ -592,7 +355,7 @@ export class WorkflowEngineService {
     technicianId: string,
     companyId: string,
     dto: StepProgressDto,
-  ): Promise<WorkflowProgress | WorkflowProgressV2> {
+  ): Promise<WorkflowProgressV2> {
     const so = await this.prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, deletedAt: null },
       include: {
@@ -616,24 +379,21 @@ export class WorkflowEngineService {
     }
 
     const rawSteps = so.workflowTemplate.steps;
-    if (isV3(rawSteps)) {
-      return this.advanceBlockV2(so, convertV3toV2(rawSteps), technicianId, companyId, dto);
+    if (!isV2(rawSteps)) {
+      throw new BadRequestException('Workflow inválido — apenas V2 é suportado');
     }
-    if (isV2(rawSteps)) {
-      return this.advanceBlockV2(so, rawSteps, technicianId, companyId, dto);
-    }
-    return this.advanceStepV1(so, technicianId, companyId, dto);
+    return this.advanceBlockV2(so, rawSteps, technicianId, companyId, dto);
   }
 
   /* ──────────────────────────────────────────────────────────── */
-  /*  Reset step — supports V1 (stepOrder) and V2 (blockId)      */
+  /*  Reset step — V2 (blockId)                                  */
   /* ──────────────────────────────────────────────────────────── */
 
   async resetStep(
     serviceOrderId: string,
-    stepOrderOrBlockId: number | string,
+    blockId: string,
     companyId: string,
-  ): Promise<WorkflowProgress | WorkflowProgressV2> {
+  ): Promise<WorkflowProgressV2> {
     const so = await this.prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, deletedAt: null },
     });
@@ -642,168 +402,22 @@ export class WorkflowEngineService {
     if (so.companyId !== companyId)
       throw new ForbiddenException('Acesso negado');
 
-    if (typeof stepOrderOrBlockId === 'number') {
+    const log = await this.prisma.workflowStepLog.findFirst({
+      where: { serviceOrderId, blockId },
+    });
+    if (log) {
       await this.prisma.workflowStepLog.deleteMany({
         where: {
           serviceOrderId,
-          stepOrder: { gte: stepOrderOrBlockId },
+          stepOrder: { gte: log.stepOrder },
         },
       });
-    } else {
-      const log = await this.prisma.workflowStepLog.findFirst({
-        where: { serviceOrderId, blockId: stepOrderOrBlockId },
-      });
-      if (log) {
-        await this.prisma.workflowStepLog.deleteMany({
-          where: {
-            serviceOrderId,
-            stepOrder: { gte: log.stepOrder },
-          },
-        });
-      }
     }
 
     return this.getProgress(
       serviceOrderId,
       companyId,
-    ) as Promise<WorkflowProgress | WorkflowProgressV2>;
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     V1 — Linear step progression (original logic)
-     ═══════════════════════════════════════════════════════════ */
-
-  private getProgressV1(so: any): WorkflowProgress {
-    const templateSteps = (
-      so.workflowTemplate.steps as unknown as WorkflowStep[]
-    ).sort((a, b) => a.order - b.order);
-
-    const completedMap = new Map<number, any>(
-      so.workflowStepLogs.map((log: any) => [log.stepOrder, log] as [number, any]),
-    );
-
-    const steps = templateSteps.map((step) => {
-      const log = completedMap.get(step.order);
-      return {
-        ...step,
-        completed: !!log,
-        completedAt: log?.completedAt?.toISOString(),
-        note: log?.note ?? undefined,
-        photoUrl: log?.photoUrl ?? undefined,
-      };
-    });
-
-    const completedCount = so.workflowStepLogs.length;
-    const currentStep = steps.find((s) => !s.completed) ?? null;
-
-    return {
-      templateId: so.workflowTemplate.id,
-      templateName: so.workflowTemplate.name,
-      version: 1,
-      totalSteps: templateSteps.length,
-      completedSteps: completedCount,
-      currentStep,
-      steps,
-      isComplete: completedCount >= templateSteps.length,
-    };
-  }
-
-  private async advanceStepV1(
-    so: any,
-    technicianId: string,
-    companyId: string,
-    dto: StepProgressDto,
-  ): Promise<WorkflowProgress> {
-    const templateSteps = (
-      so.workflowTemplate.steps as unknown as WorkflowStep[]
-    ).sort((a, b) => a.order - b.order);
-
-    const completedOrders = new Set(
-      so.workflowStepLogs.map((l: any) => l.stepOrder),
-    );
-
-    const nextStep = templateSteps.find(
-      (s) => !completedOrders.has(s.order),
-    );
-    if (!nextStep) {
-      throw new BadRequestException('Todos os passos já foram concluídos');
-    }
-
-    if (nextStep.requirePhoto && !dto.photoUrl) {
-      throw new BadRequestException(
-        `O passo "${nextStep.name}" requer uma foto`,
-      );
-    }
-    if (nextStep.requireNote && !dto.note) {
-      throw new BadRequestException(
-        `O passo "${nextStep.name}" requer uma observação`,
-      );
-    }
-
-    const newCompletedCount = completedOrders.size + 1;
-    const isNowComplete = newCompletedCount >= templateSteps.length;
-
-    let newStatus: ServiceOrderStatus | null = null;
-    if (isNowComplete) {
-      newStatus = ServiceOrderStatus.CONCLUIDA;
-    } else if (so.status === 'ATRIBUIDA' || so.status === 'AJUSTE') {
-      newStatus = ServiceOrderStatus.EM_EXECUCAO;
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.workflowStepLog.create({
-        data: {
-          serviceOrderId: so.id,
-          stepOrder: nextStep.order,
-          stepName: nextStep.name,
-          partnerId: technicianId,
-          note: dto.note,
-          photoUrl: dto.photoUrl,
-        },
-      });
-
-      if (newStatus) {
-        await tx.serviceOrder.update({
-          where: { id: so.id },
-          data: { status: newStatus },
-        });
-      }
-
-      await tx.serviceOrderEvent.create({
-        data: {
-          companyId,
-          serviceOrderId: so.id,
-          type: isNowComplete
-            ? 'WORKFLOW_COMPLETED'
-            : 'WORKFLOW_STEP_COMPLETED',
-          actorType: 'TECNICO',
-          actorId: technicianId,
-          payload: {
-            stepOrder: nextStep.order,
-            stepName: nextStep.name,
-            completedSteps: newCompletedCount,
-            totalSteps: templateSteps.length,
-          },
-        },
-      });
-    });
-
-    if (this.notifications) {
-      const statusLabel = isNowComplete ? 'CONCLUIDA' : 'EM_EXECUCAO';
-      this.notifications
-        .notifyStatusChange(
-          companyId,
-          so.id,
-          so.title ?? 'OS',
-          statusLabel,
-        )
-        .catch(() => {});
-    }
-
-    return this.getProgress(
-      so.id,
-      companyId,
-    ) as Promise<WorkflowProgress>;
+    ) as Promise<WorkflowProgressV2>;
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -1454,10 +1068,8 @@ export class WorkflowEngineService {
     if (!so?.workflowTemplate) return;
 
     const rawSteps = so.workflowTemplate.steps;
-    let def: V2Def;
-    if (isV3(rawSteps)) def = convertV3toV2(rawSteps as any);
-    else if (isV2(rawSteps)) def = rawSteps;
-    else return;
+    if (!isV2(rawSteps)) return;
+    const def: V2Def = rawSteps;
 
     const blocks = normalizeBranches(def.blocks);
     let nextBlockId: string | null = startBlockId;
@@ -2298,13 +1910,11 @@ export class WorkflowEngineService {
 
       // Parse steps V2
       const rawSteps = template.steps as any;
-      let v2: V2Def | null = null;
-      if (isV3(rawSteps)) v2 = convertV3toV2(rawSteps);
-      else if (isV2(rawSteps)) v2 = rawSteps;
-      if (!v2) {
+      if (!isV2(rawSteps)) {
         this.logger.log('📨 Not a V2 workflow — skipping');
         return;
       }
+      const v2: V2Def = rawSteps;
 
       // Find the STATUS block for this status, then find subsequent NOTIFY blocks
       const blocks = v2.blocks;

@@ -35,18 +35,15 @@ export class WorkflowEngineController {
   }
 
   /**
-   * DELETE /service-orders/:orderId/workflow/steps/:stepIdentifier
-   * V1: stepIdentifier = stepOrder (integer)
-   * V2: stepIdentifier = blockId (string)
+   * DELETE /service-orders/:orderId/workflow/steps/:blockId
+   * Resets workflow from the given blockId onwards.
    */
-  @Delete('steps/:stepIdentifier')
+  @Delete('steps/:blockId')
   resetStep(
     @Param('orderId') orderId: string,
-    @Param('stepIdentifier') stepIdentifier: string,
+    @Param('blockId') blockId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const stepOrder = parseInt(stepIdentifier, 10);
-    const param = isNaN(stepOrder) ? stepIdentifier : stepOrder;
-    return this.engine.resetStep(orderId, param, user.companyId);
+    return this.engine.resetStep(orderId, blockId, user.companyId);
   }
 }

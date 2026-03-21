@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
 ## Versao: v1.06.09
-## Ultima sessao: 148 (20/03/2026)
+## Ultima sessao: 149 (20/03/2026)
 
 ## Pendencias
 
@@ -13,6 +13,16 @@
 ### PENDENTE VALIDACAO
 - **Tech refresh TTL**: Atualmente 1 dia para teste. Apos validar, mudar para 90 dias em `auth.constants.ts`
 - **Fluxo Avaliacao Orcamento**: Testar criacao de OS avaliacao com novo engine (variaveis, status OFERTADA, aceite)
+
+### CONCLUIDO (sessao 149)
+
+#### Frontend — Remocao total de codigo V1 e V3
+- **page.tsx**: Tipos WorkflowStep/WorkflowProgressV1, isV2(), handleAdvanceStepV1(), noteText/showNoteInput state, rendering V1 inteiro removidos
+- **page.tsx**: Union type WorkflowProgress eliminado — useState tipado direto como WorkflowProgressV2
+- **page.tsx**: isV2Workflow/isV2() checks removidos — tudo e V2, sem ternarios
+- **workflow-blocks.ts**: WorkflowStepV1, convertV1toV2(), isV2Format() removidos; parseWorkflowSteps simplificado
+- **flow-blocks.ts**: FlowBlock, FlowDefinition (V3), createFlowBlock, createDefaultFlow, convertFlowToV2 removidos
+- **stage-config.ts**: decompileV1(), decompileV3Blocks() removidos; decompileFromV2 so aceita V2
 
 ### CONCLUIDO (sessao 148)
 

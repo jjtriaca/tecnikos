@@ -2066,43 +2066,12 @@ export function decompileFromV2(steps: any): WorkflowFormConfig | null {
     };
   }
 
-  // V1 format (array of steps)
-  if (Array.isArray(steps)) {
-    return decompileV1(steps, config);
-  }
-
-  // V2 format
+  // V2 format only
   if (steps?.version === 2 && Array.isArray(steps.blocks)) {
     return decompileV2Blocks(steps.blocks, config);
   }
 
-  // V3 format — try converting
-  if (steps?.version === 3 && Array.isArray(steps.blocks)) {
-    return decompileV3Blocks(steps.blocks, config);
-  }
-
   return null;
-}
-
-function decompileV1(steps: any[], config: WorkflowFormConfig): WorkflowFormConfig {
-  // V1 is just a flat list of STEP-like actions, no STATUS changes
-  // Map them all to EM_EXECUCAO stage
-  const exec = config.stages.find(s => s.status === 'EM_EXECUCAO')!;
-  exec.enabled = true;
-
-  for (const step of steps) {
-    if (step.requirePhoto) {
-      exec.techActions.photo.enabled = true;
-    }
-    if (step.requireNote) {
-      exec.techActions.note.enabled = true;
-    }
-    // Each V1 step becomes a STEP action
-    exec.techActions.step.enabled = true;
-    exec.techActions.step.description = step.name || '';
-  }
-
-  return config;
 }
 
 function decompileV2Blocks(blocks: any[], config: WorkflowFormConfig): WorkflowFormConfig | null {
@@ -2155,66 +2124,6 @@ function decompileV2Blocks(blocks: any[], config: WorkflowFormConfig): WorkflowF
     cursor = cursor.next ? blockMap.get(cursor.next) : null;
   }
 
-  return config;
-}
-
-function decompileV3Blocks(blocks: any[], config: WorkflowFormConfig): WorkflowFormConfig | null {
-  // Check for CONDITION blocks
-  if (blocks.some((b: any) => b.type === 'CONDITION')) return null;
-
-  // V3 uses children[] arrays instead of next pointers
-  // Find TRIGGER_START or first block
-  const trigger = blocks.find((b: any) => b.type === 'TRIGGER_START') || blocks[0];
-  if (!trigger) return null;
-
-  const blockMap = new Map<string, any>();
-  for (const b of blocks) blockMap.set(b.id, b);
-
-  // Walk children chain
-  let currentStage: StageConfig | null = null;
-
-  function walkChildren(childIds: string[]) {
-    for (const childId of childIds) {
-      const block = blockMap.get(childId);
-      if (!block) continue;
-
-      if (block.type === 'STATUS_CHANGE' || block.type === 'STATUS') {
-        const targetStatus = block.config?.targetStatus;
-        if (targetStatus) {
-          currentStage = config.stages.find(s => s.status === targetStatus) || null;
-          if (currentStage) {
-            currentStage.enabled = true;
-            if (block.config.execLinkLayout?.length) {
-              const defaultExec = currentStage.execLinkLayout;
-              const REMOVED_EXEC = new Set(['ex_cl2', 'ex_cl3']);
-              const cleanedExec = block.config.execLinkLayout.filter((b: any) => !REMOVED_EXEC.has(b.id));
-              const savedMap = new Map(cleanedExec.map((b: any) => [b.id, b]));
-              currentStage.execLinkLayout = [
-                ...cleanedExec,
-                ...defaultExec.filter(d => !savedMap.has(d.id)),
-              ];
-            }
-            if (block.config.concLinkLayout?.length) {
-              const defaultConc = currentStage.concLinkLayout;
-              const savedMap = new Map(block.config.concLinkLayout.map((b: any) => [b.id, b]));
-              currentStage.concLinkLayout = [
-                ...block.config.concLinkLayout,
-                ...defaultConc.filter(d => !savedMap.has(d.id)),
-              ];
-            }
-          }
-        }
-      } else if (block.type !== 'TRIGGER_START' && block.type !== 'END' && currentStage) {
-        mapBlockToStage(block, currentStage, config.stages);
-      }
-
-      if (block.children?.length) {
-        walkChildren(block.children);
-      }
-    }
-  }
-
-  walkChildren(trigger.children || []);
   return config;
 }
 

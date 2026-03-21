@@ -40,30 +40,6 @@ type ServiceOrder = {
   ledger?: { commissionCents: number; commissionBps: number } | null;
 };
 
-// V1
-type WorkflowStep = {
-  order: number;
-  name: string;
-  icon: string;
-  requirePhoto: boolean;
-  requireNote: boolean;
-  completed: boolean;
-  completedAt?: string;
-  note?: string;
-  photoUrl?: string;
-};
-
-type WorkflowProgressV1 = {
-  templateId: string;
-  templateName: string;
-  version?: number;
-  totalSteps: number;
-  completedSteps: number;
-  currentStep: WorkflowStep | null;
-  steps: WorkflowStep[];
-  isComplete: boolean;
-};
-
 // V2
 type BlockProgress = {
   id: string;
@@ -121,11 +97,6 @@ type WorkflowProgressV2 = {
   pendingAction?: PendingAction | null;
 };
 
-type WorkflowProgress = WorkflowProgressV1 | WorkflowProgressV2;
-
-function isV2(wf: WorkflowProgress): wf is WorkflowProgressV2 {
-  return wf.version === 2;
-}
 
 /* ═══════════════════════════════════════════════════════════════
    CONSTANTS
@@ -180,14 +151,10 @@ export default function TechOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [order, setOrder] = useState<ServiceOrder | null>(null);
-  const [workflow, setWorkflow] = useState<WorkflowProgress | null>(null);
+  const [workflow, setWorkflow] = useState<WorkflowProgressV2 | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-
-  // V1 state
-  const [noteText, setNoteText] = useState("");
-  const [showNoteInput, setShowNoteInput] = useState(false);
 
   // V2 state
   const [v2Note, setV2Note] = useState("");
@@ -219,7 +186,7 @@ export default function TechOrderDetailPage() {
       // overwrite it with the un-deferred state (ACTION_BUTTONS still as current).
       if (!pendingActionRef.current) {
         try {
-          const wf = await techApi<WorkflowProgress>(`/service-orders/${id}/workflow`);
+          const wf = await techApi<WorkflowProgressV2>(`/service-orders/${id}/workflow`);
           setWorkflow(wf);
         } catch {
           // Only clear workflow if we don't already have one (preserve advance response)
@@ -244,7 +211,7 @@ export default function TechOrderDetailPage() {
   }, [loadOrder]);
 
   // Reset V2 form state when workflow changes
-  const currentBlockId = workflow && isV2(workflow) ? workflow.currentBlock?.id : null;
+  const currentBlockId = workflow?.currentBlock?.id ?? null;
   useEffect(() => {
     setV2Note("");
     setV2Answer("");
@@ -261,7 +228,7 @@ export default function TechOrderDetailPage() {
 
   // Post-workflow INFO timer: when workflow completes with INFO+DELAY pattern, show info then blank
   useEffect(() => {
-    if (!workflow || !isV2(workflow) || !workflow.isComplete) {
+    if (!workflow || !workflow.isComplete) {
       if (postInfoPhase !== "done") { setPostInfoPhase("done"); setPostInfo(null); }
       return;
     }
@@ -305,11 +272,11 @@ export default function TechOrderDetailPage() {
     }, hideAfterMs);
     return () => clearTimeout(t1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflow && isV2(workflow) && (workflow as any).isComplete]);
+  }, [workflow?.isComplete]);
 
   // GPS block: auto-capture when config.auto is true
   useEffect(() => {
-    if (!workflow || !isV2(workflow) || !workflow.currentBlock) return;
+    if (!workflow || !workflow.currentBlock) return;
     const block = workflow.currentBlock;
     if (block.type !== "GPS") return;
     const cfg = block.config || {};
@@ -340,31 +307,9 @@ export default function TechOrderDetailPage() {
 
 
 
-  /* ── V1 advance ── */
-  async function handleAdvanceStepV1() {
-    if (!order) return;
-    setActing(true);
-    try {
-      const body: Record<string, string> = {};
-      if (noteText.trim()) body.note = noteText.trim();
-      const wf = await techApi<WorkflowProgress>(
-        `/service-orders/${order.id}/workflow/advance`,
-        { method: "POST", body: JSON.stringify(body) }
-      );
-      setWorkflow(wf);
-      setNoteText("");
-      setShowNoteInput(false);
-      await loadOrder();
-    } catch (err: any) {
-      alert(err?.message || "Erro ao avancar passo");
-    } finally {
-      setActing(false);
-    }
-  }
-
   /* ── V2 advance ── */
   async function handleAdvanceBlockV2() {
-    if (!order || !workflow || !isV2(workflow) || !workflow.currentBlock) return;
+    if (!order || !workflow || !workflow.currentBlock) return;
     setActing(true);
 
     const block = workflow.currentBlock;
@@ -421,13 +366,13 @@ export default function TechOrderDetailPage() {
     }
 
     try {
-      const wf = await techApi<WorkflowProgress>(
+      const wf = await techApi<WorkflowProgressV2>(
         `/service-orders/${order.id}/workflow/advance`,
         { method: "POST", body: JSON.stringify(body) }
       );
 
       // If response has pendingAction, store it for the next advance
-      if (isV2(wf) && wf.pendingAction) {
+      if (wf.pendingAction) {
         pendingActionRef.current = wf.pendingAction;
       }
 
@@ -523,13 +468,12 @@ export default function TechOrderDetailPage() {
 
   const isOverdue = new Date(order.deadlineAt) < new Date() && !["CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status);
   const hasWorkflow = !!workflow;
-  const isV2Workflow = hasWorkflow && isV2(workflow);
   // Allow action if status is interactive OR if workflow still has a pending block (e.g. INFO after RECUSADA)
-  const hasCurrentBlock = isV2Workflow && !!(workflow as any).currentBlock;
+  const hasCurrentBlock = hasWorkflow && !!workflow.currentBlock;
   const canAct = ["ABERTA", "OFERTADA", "ATRIBUIDA", "A_CAMINHO", "EM_EXECUCAO", "AJUSTE"].includes(order.status) || hasCurrentBlock;
 
   // Tech portal visibility config (defaults to show all)
-  const portalCfg: TechPortalConfig = (isV2Workflow ? (workflow as WorkflowProgressV2).techPortalConfig : null) || {};
+  const portalCfg: TechPortalConfig = workflow?.techPortalConfig || {};
   const showAddress = portalCfg.showAddress !== false;
   const showValue = portalCfg.showValue !== false;
   const showDeadline = portalCfg.showDeadline !== false;
@@ -548,7 +492,7 @@ export default function TechOrderDetailPage() {
   const customMessage = portalCfg.customMessage || "";
 
   // When workflow is complete and status is terminal → show finished screen
-  const isTerminalComplete = isV2Workflow && workflow.isComplete && ["RECUSADA", "CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status);
+  const isTerminalComplete = hasWorkflow && workflow.isComplete && ["RECUSADA", "CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status);
 
   if (isTerminalComplete) {
     // Check for INFO+DELAY pattern for timed display
@@ -642,7 +586,7 @@ export default function TechOrderDetailPage() {
       {/* ═══════════════════════════════════════════
           V2 WORKFLOW
           ═══════════════════════════════════════════ */}
-      {isV2Workflow && !workflow.isComplete && (() => {
+      {hasWorkflow && !workflow.isComplete && (() => {
         const interactiveOnly = workflow.executionPath.filter((b) => INTERACTIVE_TYPES.has(b.type));
         const iTotal = interactiveOnly.length;
         const iCompleted = interactiveOnly.filter((b) => b.completed).length;
@@ -736,7 +680,7 @@ export default function TechOrderDetailPage() {
         ); })()}
 
       {/* V2 workflow complete — with post-info animation */}
-      {isV2Workflow && workflow.isComplete && (() => {
+      {hasWorkflow && workflow.isComplete && (() => {
         // Post-workflow INFO+DELAY: show info card with timer
         if (postInfo && postInfoPhase === "info") {
           const c = postInfo.info.config || {};
@@ -802,118 +746,7 @@ export default function TechOrderDetailPage() {
         );
       })()}
 
-      {/* ═══════════════════════════════════════════
-          V1 WORKFLOW (legacy)
-          ═══════════════════════════════════════════ */}
-      {hasWorkflow && !isV2Workflow && !workflow.isComplete && (
-        <div className="mb-4">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-            <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            Fluxo: {(workflow as WorkflowProgressV1).templateName}
-            <span className="ml-auto text-xs font-normal text-slate-400">
-              {(workflow as WorkflowProgressV1).completedSteps}/{(workflow as WorkflowProgressV1).totalSteps}
-            </span>
-          </h3>
-
-          <div className="h-2 rounded-full bg-slate-100 mb-4 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500"
-              style={{ width: `${((workflow as WorkflowProgressV1).completedSteps / (workflow as WorkflowProgressV1).totalSteps) * 100}%` }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            {(workflow as WorkflowProgressV1).steps.map((step, idx) => {
-              const isCurrent = !step.completed && idx === (workflow as WorkflowProgressV1).completedSteps;
-              return (
-                <div key={step.order} className={`rounded-xl border p-3 transition-all ${
-                  step.completed ? "border-green-200 bg-green-50" : isCurrent ? "border-blue-300 bg-blue-50 shadow-sm" : "border-slate-100 bg-slate-50 opacity-50"
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg flex-shrink-0 ${
-                      step.completed ? "bg-green-100" : isCurrent ? "bg-blue-100" : "bg-slate-100"
-                    }`}>
-                      {step.completed ? "✅" : step.icon || "📌"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${step.completed ? "text-green-800" : isCurrent ? "text-blue-800" : "text-slate-500"}`}>
-                        {step.name}
-                      </p>
-                      {step.completed && step.completedAt && (
-                        <p className="text-[11px] text-green-600">
-                          {new Date(step.completedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      )}
-                      {step.completed && step.note && (
-                        <p className="text-[11px] text-green-700 mt-0.5 truncate">📝 {step.note}</p>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-slate-400 flex-shrink-0">{idx + 1}/{(workflow as WorkflowProgressV1).totalSteps}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* V1 current step action */}
-          {(workflow as WorkflowProgressV1).currentStep && canAct && (
-            <div className="mt-4 space-y-2">
-              {((workflow as WorkflowProgressV1).currentStep!.requireNote || showNoteInput) && (
-                <textarea
-                  placeholder={(workflow as WorkflowProgressV1).currentStep!.requireNote ? "Observacao obrigatoria..." : "Observacao (opcional)..."}
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  rows={2}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none"
-                />
-              )}
-              {!showNoteInput && !(workflow as WorkflowProgressV1).currentStep!.requireNote && (
-                <button onClick={() => setShowNoteInput(true)} className="text-xs text-slate-400 hover:text-slate-600">
-                  + Adicionar observacao
-                </button>
-              )}
-              {(workflow as WorkflowProgressV1).currentStep!.requirePhoto && (
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs font-medium text-slate-600 mb-2">📷 Foto obrigatoria para este passo</p>
-                  <PhotoUpload
-                    orderId={order.id}
-                    type="WORKFLOW_STEP"
-                    stepOrder={(workflow as WorkflowProgressV1).currentStep!.order}
-                    attachments={attachments}
-                    onUpload={(att) => setAttachments((prev) => [...prev, att])}
-                    apiFetch={techApi}
-                    label="Tirar foto"
-                  />
-                </div>
-              )}
-              <button
-                onClick={handleAdvanceStepV1}
-                disabled={acting || ((workflow as WorkflowProgressV1).currentStep!.requireNote && !noteText.trim())}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 py-4 text-base font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98] transition-all"
-              >
-                <span className="text-xl">{(workflow as WorkflowProgressV1).currentStep!.icon || "▶️"}</span>
-                {acting ? "Avancando..." : (workflow as WorkflowProgressV1).currentStep!.name}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* V1 workflow complete */}
-      {hasWorkflow && !isV2Workflow && workflow.isComplete && (
-        <WorkflowComplete
-          name={(workflow as WorkflowProgressV1).templateName}
-          blocks={(workflow as WorkflowProgressV1).steps.map(s => ({
-            id: String(s.order),
-            name: s.name,
-            completedAt: s.completedAt,
-          }))}
-        />
-      )}
-
-      {/* Legacy photos, completed state, pause modal — REMOVED. All controlled by workflow blocks. */}
+      {/* Legacy V1 code removed — all workflows are V2 */}
     </div>
   );
 }

@@ -36,25 +36,6 @@ export type PuzzleShape = 'cap' | 'stack' | 'wrap' | 'end';
 
 /* ── Definicao de Bloco ──────────────────────────────────── */
 
-export interface FlowBlock {
-  id: string;
-  type: FlowBlockType;
-  name: string;
-  icon: string;
-  config: Record<string, any>;
-  children: string[];
-  yesBranch?: string[];
-  noBranch?: string[];
-}
-
-/* ── Definicao do Fluxo (salvo no DB) ────────────────────── */
-
-export interface FlowDefinition {
-  version: 3;
-  blocks: FlowBlock[];
-  trigger?: { entity: 'SERVICE_ORDER' | 'PARTNER'; event: string };
-}
-
 /* ── Entrada do Catalogo ─────────────────────────────────── */
 
 export interface FlowCatalogEntry {
@@ -534,75 +515,3 @@ export function getCatalogByCategory(): Record<FlowBlockCategory, FlowCatalogEnt
   return map as Record<FlowBlockCategory, FlowCatalogEntry[]>;
 }
 
-let _idCounter = 0;
-export function genFlowBlockId(): string {
-  _idCounter++;
-  return `fb_${Date.now().toString(36)}_${_idCounter}`;
-}
-
-export function createFlowBlock(type: FlowBlockType, overrides?: Partial<FlowBlock>): FlowBlock {
-  const cat = getCatalogEntry(type);
-  const defaultConfig: Record<string, any> = {};
-  if (cat?.configFields) {
-    for (const f of cat.configFields) {
-      if (f.defaultValue !== undefined) defaultConfig[f.id] = f.defaultValue;
-    }
-  }
-  return {
-    id: genFlowBlockId(), type, name: cat?.name || type, icon: cat?.icon || '⚙️',
-    config: defaultConfig, children: [],
-    ...(type === 'CONDITION' ? { yesBranch: [], noBranch: [] } : {}),
-    ...overrides,
-  };
-}
-
-export function createDefaultFlow(): FlowDefinition {
-  const trigger = createFlowBlock('TRIGGER_START');
-  const end = createFlowBlock('END');
-  trigger.children = [end.id];
-  return { version: 3, blocks: [trigger, end], trigger: { entity: 'SERVICE_ORDER', event: 'os_assigned' } };
-}
-
-export function findFlowBlock(blocks: FlowBlock[], id: string): FlowBlock | undefined {
-  return blocks.find(b => b.id === id);
-}
-
-export function getTriggerBlock(blocks: FlowBlock[]): FlowBlock | undefined {
-  return blocks.find(b => b.type === 'TRIGGER_START');
-}
-
-export function getEndBlock(blocks: FlowBlock[]): FlowBlock | undefined {
-  return blocks.find(b => b.type === 'END');
-}
-
-export function countUserBlocks(blocks: FlowBlock[]): number {
-  return blocks.filter(b => b.type !== 'TRIGGER_START' && b.type !== 'END').length;
-}
-
-export function convertFlowToV2(flow: FlowDefinition): { version: 2; blocks: any[] } {
-  const v2Blocks: any[] = [];
-  const triggerBlock = getTriggerBlock(flow.blocks);
-  if (!triggerBlock) return { version: 2, blocks: [] };
-  const startId = `v2_start_${Date.now()}`;
-  const endId = `v2_end_${Date.now()}`;
-  v2Blocks.push({ id: startId, type: 'START', name: 'Inicio', icon: '▶️', config: {}, next: null });
-  function walk(childIds: string[], parentV2Id: string, via: string = 'next'): string | null {
-    let prevId = parentV2Id; let lastId: string | null = null;
-    for (const cid of childIds) {
-      const b = findFlowBlock(flow.blocks, cid);
-      if (!b) continue;
-      if (b.type === 'END') { const p = v2Blocks.find(x => x.id === prevId); if (p) p[via === 'next' || lastId ? 'next' : via] = endId; lastId = endId; continue; }
-      const v2t = b.type === 'STATUS_CHANGE' ? 'STATUS' : b.type;
-      const v2b: any = { id: b.id, type: v2t, name: b.name, icon: b.icon, config: b.config, next: null };
-      if (b.type === 'CONDITION') { v2b.yesBranch = null; v2b.noBranch = null; if (b.yesBranch?.length) walk(b.yesBranch, b.id, 'yesBranch'); if (b.noBranch?.length) walk(b.noBranch, b.id, 'noBranch'); }
-      v2Blocks.push(v2b);
-      const p = v2Blocks.find(x => x.id === prevId); if (p) { if (lastId) p.next = b.id; else p[via] = b.id; }
-      prevId = b.id; lastId = b.id; via = 'next';
-    }
-    return lastId;
-  }
-  walk(triggerBlock.children, startId);
-  v2Blocks.push({ id: endId, type: 'END', name: 'Fim', icon: '⏹️', config: {}, next: null });
-  const last = v2Blocks[v2Blocks.length - 2]; if (last && !last.next) last.next = endId;
-  return { version: 2, blocks: v2Blocks };
-}
