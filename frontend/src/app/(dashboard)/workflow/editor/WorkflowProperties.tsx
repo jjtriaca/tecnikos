@@ -222,6 +222,103 @@ function FormFieldsEditor({ fields, onChange }: { fields: any[]; onChange: (fiel
   );
 }
 
+// Reusable "Ao entrar no raio" notification section — MUST be outside WorkflowProperties
+// to avoid React remounting on every render (function identity changes inside components)
+const PROXIMITY_VARS = [
+  { var: "{tecnico}", label: "Técnico" },
+  { var: "{cliente}", label: "Cliente" },
+  { var: "{codigo}", label: "Código OS" },
+  { var: "{titulo}", label: "Título OS" },
+  { var: "{endereco}", label: "Endereço" },
+  { var: "{empresa}", label: "Empresa" },
+  { var: "{telefone_empresa}", label: "Tel. Empresa" },
+];
+
+function OnEnterRadiusNotifications({ onEnter, updateOnEnter }: { onEnter: any; updateOnEnter: (key: string, val: any) => void }) {
+  const notifCliente = onEnter.notifyCliente || { enabled: false, channel: "WHATSAPP", message: "" };
+  const notifGestor = onEnter.notifyGestor || { enabled: false, channel: "WHATSAPP", message: "" };
+  const alert = onEnter.alert || { enabled: false, message: "" };
+
+  const updateNotifField = (notifKey: string, field: string, value: any) => {
+    const current = onEnter[notifKey] || {};
+    updateOnEnter(notifKey, { ...current, [field]: value });
+  };
+
+  return (
+    <div className="mt-3 border-t border-slate-200 pt-3">
+      <p className="text-[11px] font-medium text-slate-500 mb-2">Ao entrar no raio</p>
+
+      <Checkbox checked={notifCliente.enabled} onChange={(v) => updateNotifField("notifyCliente", "enabled", v)} label="Notificar cliente" />
+      {notifCliente.enabled && (
+        <div className="ml-4 space-y-1 mb-2">
+          <Select value={notifCliente.channel || "WHATSAPP"} onChange={(v) => updateNotifField("notifyCliente", "channel", v)}
+            options={[{ value: "WHATSAPP", label: "WhatsApp" }, { value: "EMAIL", label: "Email" }, { value: "SMS", label: "SMS" }, { value: "PUSH", label: "Push" }]} />
+          <TextArea value={notifCliente.message || ""}
+            onChange={(v) => updateNotifField("notifyCliente", "message", v)}
+            placeholder="Ex: Olá {cliente}, o técnico {tecnico} está chegando!"
+            rows={2} />
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {PROXIMITY_VARS.map(v => (
+              <button key={v.var} type="button"
+                onClick={() => updateNotifField("notifyCliente", "message", (notifCliente.message || "") + " " + v.var)}
+                className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer">
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Checkbox checked={notifGestor.enabled} onChange={(v) => updateNotifField("notifyGestor", "enabled", v)} label="Notificar gestor" />
+      {notifGestor.enabled && (
+        <div className="ml-4 space-y-1 mb-2">
+          <Select value={notifGestor.channel || "PUSH"} onChange={(v) => updateNotifField("notifyGestor", "channel", v)}
+            options={[{ value: "WHATSAPP", label: "WhatsApp" }, { value: "EMAIL", label: "Email" }, { value: "PUSH", label: "Push" }]} />
+          <TextArea value={notifGestor.message || ""}
+            onChange={(v) => updateNotifField("notifyGestor", "message", v)}
+            placeholder="Ex: Técnico {tecnico} está próximo da OS {codigo}"
+            rows={2} />
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {PROXIMITY_VARS.map(v => (
+              <button key={v.var} type="button"
+                onClick={() => updateNotifField("notifyGestor", "message", (notifGestor.message || "") + " " + v.var)}
+                className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer">
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Checkbox checked={alert.enabled} onChange={(v) => updateNotifField("alert", "enabled", v)} label="Alerta no dashboard" />
+      {alert.enabled && (
+        <div className="ml-4 space-y-1 mb-2">
+          <Input value={alert.message || ""}
+            onChange={(v) => updateNotifField("alert", "message", v)}
+            placeholder="Técnico {tecnico} chegou na região" />
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {PROXIMITY_VARS.map(v => (
+              <button key={v.var} type="button"
+                onClick={() => updateNotifField("alert", "message", (alert.message || "") + " " + v.var)}
+                className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer">
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Label>Mudar status ao entrar no raio</Label>
+      <Select value={onEnter.autoChangeStatus || ""} onChange={(v) => updateOnEnter("autoChangeStatus", v)}
+        options={[
+          { value: "", label: "Não mudar" },
+          { value: "EM_EXECUCAO", label: "Em Execução" },
+          { value: "NO_LOCAL", label: "No Local" },
+        ]} />
+    </div>
+  );
+}
+
 export default function WorkflowProperties({ block, onChange }: Props) {
   if (!block) {
     return (
@@ -256,103 +353,6 @@ export default function WorkflowProperties({ block, onChange }: Props) {
     FORNECEDOR: "Prezado {nome}, a {razao_social} solicita o fornecimento de materiais para a OS {titulo}. Endereco de entrega: {endereco}. Prazo: {data_agendamento}. Para duvidas, contate {empresa} pelo {telefone_empresa}.",
     GESTOR: "{tecnico} concluiu a OS {titulo} ({nome_cliente}, {endereco}). Verifique o relatorio e fotos no sistema.",
   };
-
-  // Reusable "Ao entrar no raio" notification section for GPS / PROXIMITY_TRIGGER blocks
-  function OnEnterRadiusNotifications({ onEnter, updateOnEnter }: { onEnter: any; updateOnEnter: (key: string, val: any) => void }) {
-    const notifCliente = onEnter.notifyCliente || { enabled: false, channel: "WHATSAPP", message: "" };
-    const notifGestor = onEnter.notifyGestor || { enabled: false, channel: "WHATSAPP", message: "" };
-    const alert = onEnter.alert || { enabled: false, message: "" };
-
-    const PROXIMITY_VARS = [
-      { var: "{tecnico}", label: "Técnico" },
-      { var: "{cliente}", label: "Cliente" },
-      { var: "{codigo}", label: "Código OS" },
-      { var: "{titulo}", label: "Título OS" },
-      { var: "{endereco}", label: "Endereço" },
-      { var: "{empresa}", label: "Empresa" },
-      { var: "{telefone_empresa}", label: "Tel. Empresa" },
-    ];
-
-    // Helper to update a nested field without stale closure issues
-    const updateNotifField = (notifKey: string, field: string, value: any) => {
-      const current = onEnter[notifKey] || {};
-      updateOnEnter(notifKey, { ...current, [field]: value });
-    };
-
-    return (
-      <div className="mt-3 border-t border-slate-200 pt-3">
-        <p className="text-[11px] font-medium text-slate-500 mb-2">Ao entrar no raio</p>
-
-        <Checkbox checked={notifCliente.enabled} onChange={(v) => updateNotifField("notifyCliente", "enabled", v)} label="Notificar cliente" />
-        {notifCliente.enabled && (
-          <div className="ml-4 space-y-1 mb-2">
-            <Select value={notifCliente.channel || "WHATSAPP"} onChange={(v) => updateNotifField("notifyCliente", "channel", v)}
-              options={[{ value: "WHATSAPP", label: "WhatsApp" }, { value: "EMAIL", label: "Email" }, { value: "SMS", label: "SMS" }, { value: "PUSH", label: "Push" }]} />
-            <TextArea value={notifCliente.message || ""}
-              onChange={(v) => updateNotifField("notifyCliente", "message", v)}
-              placeholder="Ex: Olá {cliente}, o técnico {tecnico} está chegando!"
-              rows={2} />
-            <div className="flex flex-wrap gap-1 mt-0.5">
-              {PROXIMITY_VARS.map(v => (
-                <button key={v.var} type="button"
-                  onClick={() => updateNotifField("notifyCliente", "message", (notifCliente.message || "") + " " + v.var)}
-                  className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer">
-                  {v.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <Checkbox checked={notifGestor.enabled} onChange={(v) => updateNotifField("notifyGestor", "enabled", v)} label="Notificar gestor" />
-        {notifGestor.enabled && (
-          <div className="ml-4 space-y-1 mb-2">
-            <Select value={notifGestor.channel || "PUSH"} onChange={(v) => updateNotifField("notifyGestor", "channel", v)}
-              options={[{ value: "WHATSAPP", label: "WhatsApp" }, { value: "EMAIL", label: "Email" }, { value: "PUSH", label: "Push" }]} />
-            <TextArea value={notifGestor.message || ""}
-              onChange={(v) => updateNotifField("notifyGestor", "message", v)}
-              placeholder="Ex: Técnico {tecnico} está próximo da OS {codigo}"
-              rows={2} />
-            <div className="flex flex-wrap gap-1 mt-0.5">
-              {PROXIMITY_VARS.map(v => (
-                <button key={v.var} type="button"
-                  onClick={() => updateNotifField("notifyGestor", "message", (notifGestor.message || "") + " " + v.var)}
-                  className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer">
-                  {v.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <Checkbox checked={alert.enabled} onChange={(v) => updateNotifField("alert", "enabled", v)} label="Alerta no dashboard" />
-        {alert.enabled && (
-          <div className="ml-4 space-y-1 mb-2">
-            <Input value={alert.message || ""}
-              onChange={(v) => updateNotifField("alert", "message", v)}
-              placeholder="Técnico {tecnico} chegou na região" />
-            <div className="flex flex-wrap gap-1 mt-0.5">
-              {PROXIMITY_VARS.map(v => (
-                <button key={v.var} type="button"
-                  onClick={() => updateNotifField("alert", "message", (alert.message || "") + " " + v.var)}
-                  className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer">
-                  {v.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <Label>Mudar status ao entrar no raio</Label>
-        <Select value={onEnter.autoChangeStatus || ""} onChange={(v) => updateOnEnter("autoChangeStatus", v)}
-          options={[
-            { value: "", label: "Não mudar" },
-            { value: "EM_EXECUCAO", label: "Em Execução" },
-            { value: "NO_LOCAL", label: "No Local" },
-          ]} />
-      </div>
-    );
-  }
 
   // Recipient editor for NOTIFY blocks
   function NotifyRecipients() {
