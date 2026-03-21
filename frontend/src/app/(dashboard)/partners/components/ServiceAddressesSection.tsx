@@ -19,6 +19,8 @@ interface ServiceAddress {
   neighborhood: string | null;
   city: string;
   state: string;
+  lat: number | null;
+  lng: number | null;
   active: boolean;
 }
 
@@ -376,6 +378,25 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
               </div>
             </div>
 
+            {/* Coordenadas GPS (readonly — preenchidas automaticamente pelo tecnico) */}
+            {editingId && (() => {
+              const edited = addresses.find((a) => a.id === editingId);
+              if (!edited?.lat || !edited?.lng) return null;
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">Latitude</label>
+                    <input value={edited.lat.toFixed(6)} readOnly className={inputClass + ' w-full mt-1 bg-slate-100 text-slate-500 cursor-not-allowed'} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">Longitude</label>
+                    <input value={edited.lng.toFixed(6)} readOnly className={inputClass + ' w-full mt-1 bg-slate-100 text-slate-500 cursor-not-allowed'} />
+                  </div>
+                  <p className="sm:col-span-2 text-[10px] text-slate-400 -mt-1">Coordenadas capturadas automaticamente pelo GPS do tecnico ao chegar no local</p>
+                </div>
+              );
+            })()}
+
             {/* Actions */}
             <div className="flex gap-2 pt-2">
               <button
@@ -436,6 +457,15 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
                 <p className="text-xs text-slate-500 mt-0.5 truncate">
                   {formatAddr(addr)}
                 </p>
+                {addr.lat && addr.lng && (
+                  <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                    </svg>
+                    {addr.lat.toFixed(6)}, {addr.lng.toFixed(6)}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-1 shrink-0">
