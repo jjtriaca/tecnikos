@@ -1144,7 +1144,7 @@ function V2BlockAction({
                     )}
 
                     {c.autoAdvanceOnProximity === false ? (() => {
-                      const ab = c.arrivalButton || { label: "Cheguei", color: "green", icon: "📍" };
+                      const ab = c.arrivalButton || { label: "Cheguei", color: "green", icon: "📍", size: "md" };
                       const colorMap: Record<string, string> = {
                         green: "from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700",
                         blue: "from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700",
@@ -1152,11 +1152,16 @@ function V2BlockAction({
                         yellow: "from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700",
                         slate: "from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700",
                       };
+                      const sizeMap: Record<string, string> = {
+                        sm: "py-2 text-xs",
+                        md: "py-3 text-sm",
+                        lg: "py-5 text-base",
+                      };
                       return (
                         <button
                           onClick={onAdvance}
                           disabled={acting}
-                          className={`w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${colorMap[ab.color] || colorMap.green} px-4 py-3 text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all disabled:opacity-50`}
+                          className={`w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${colorMap[ab.color] || colorMap.green} px-4 ${sizeMap[ab.size || "md"]} font-bold text-white shadow-lg active:scale-[0.98] transition-all disabled:opacity-50`}
                         >
                           {acting ? (
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />

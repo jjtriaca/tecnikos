@@ -141,7 +141,7 @@ function ListEditor({ items, onChange, placeholder }: { items: string[]; onChang
   );
 }
 
-/* ── Confirm Button Editor — reusable section for blocks that need a confirm button ── */
+/* ── Confirm Button Editor — same visual pattern as ACTION_BUTTONS ── */
 const CONFIRM_BTN_COLORS = [
   { value: "green", label: "Verde", bg: "bg-green-500", preview: "bg-gradient-to-r from-green-500 to-green-600 text-white" },
   { value: "blue", label: "Azul", bg: "bg-blue-500", preview: "bg-gradient-to-r from-blue-500 to-blue-600 text-white" },
@@ -149,22 +149,31 @@ const CONFIRM_BTN_COLORS = [
   { value: "yellow", label: "Amarelo", bg: "bg-yellow-500", preview: "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white" },
   { value: "slate", label: "Cinza", bg: "bg-slate-500", preview: "bg-gradient-to-r from-slate-500 to-slate-600 text-white" },
 ];
+const CONFIRM_BTN_SIZES = [
+  { value: "sm", label: "Pequeno" },
+  { value: "md", label: "Médio" },
+  { value: "lg", label: "Grande" },
+];
 
-function ConfirmButtonEditor({ config, onChange }: { config: { label: string; color: string; icon: string }; onChange: (btn: { label: string; color: string; icon: string }) => void }) {
-  const btn = config || { label: "Confirmar", color: "blue", icon: "✅" };
+function ConfirmButtonEditor({ config, onChange }: { config: { label: string; color: string; icon: string; size?: string }; onChange: (btn: { label: string; color: string; icon: string; size?: string }) => void }) {
+  const btn = config || { label: "Confirmar", color: "blue", icon: "✅", size: "md" };
   const colorDef = CONFIRM_BTN_COLORS.find(c => c.value === btn.color) || CONFIRM_BTN_COLORS[1];
+  const btnSize = btn.size || "md";
+  const btnSizePreview = btnSize === "sm" ? "py-2 text-[10px]" : btnSize === "lg" ? "py-5 text-base" : "py-3 text-xs";
   return (
     <div className="mt-3 border-t border-slate-200 pt-3 space-y-2">
-      <p className="text-[11px] font-medium text-slate-500">Botao de confirmacao</p>
+      <p className="text-[11px] font-medium text-slate-500">Botão de confirmação</p>
+
       <div className="flex items-center gap-1.5">
         <EmojiPicker value={btn.icon || ""} onChange={(v) => onChange({ ...btn, icon: v })} />
         <input
           value={btn.label}
           onChange={(e) => onChange({ ...btn, label: e.target.value })}
-          placeholder="Texto do botao"
+          placeholder="Texto do botão"
           className="flex-1 rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400"
         />
       </div>
+
       <div className="flex gap-1">
         {CONFIRM_BTN_COLORS.map(c => (
           <button
@@ -176,8 +185,21 @@ function ConfirmButtonEditor({ config, onChange }: { config: { label: string; co
           />
         ))}
       </div>
+
+      <Label>Tamanho do botão</Label>
+      <div className="flex gap-1">
+        {CONFIRM_BTN_SIZES.map(s => (
+          <button key={s.value} type="button"
+            onClick={() => onChange({ ...btn, size: s.value })}
+            className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
+              btnSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+            }`}
+          >{s.label}</button>
+        ))}
+      </div>
+
       {/* Preview */}
-      <div className={`rounded-xl py-3 text-center text-sm font-bold shadow-sm ${colorDef.preview}`}>
+      <div className={`rounded-xl text-center font-bold shadow-sm ${btnSizePreview} ${colorDef.preview}`}>
         {btn.icon ? `${btn.icon} ` : ""}{btn.label || "..."}
       </div>
     </div>
