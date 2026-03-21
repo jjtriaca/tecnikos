@@ -11,38 +11,54 @@ const EMOJI_OPTIONS = [
 
 function EmojiPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: Math.max(4, rect.right - 200) });
+    }
+    setOpen(!open);
+  };
+
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={handleOpen}
         className="h-7 w-10 rounded border border-slate-200 text-center text-sm hover:border-blue-400 hover:bg-blue-50 transition-colors"
         title="Escolher emoji"
       >
         {value || "😀"}
       </button>
-      {open && (
-        <div className="absolute z-50 top-8 right-0 bg-white rounded-lg border border-slate-200 shadow-lg p-2 w-[200px] grid grid-cols-6 gap-1">
-          {EMOJI_OPTIONS.map((em) => (
-            <button
-              key={em}
-              type="button"
-              onClick={() => { onChange(em); setOpen(false); }}
-              className={`h-7 w-7 rounded text-sm hover:bg-blue-50 flex items-center justify-center ${value === em ? "bg-blue-100 ring-1 ring-blue-400" : ""}`}
-            >
-              {em}
-            </button>
-          ))}
-          {value && (
-            <button
-              type="button"
-              onClick={() => { onChange(""); setOpen(false); }}
-              className="col-span-6 text-[10px] text-red-400 hover:text-red-600 mt-1"
-            >
-              Remover emoji
-            </button>
-          )}
-        </div>
+      {open && pos && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
+          <div className="fixed z-[70] bg-white rounded-lg border border-slate-200 shadow-xl p-2 w-[200px] grid grid-cols-6 gap-1"
+            style={{ top: pos.top, left: pos.left }}>
+            {EMOJI_OPTIONS.map((em) => (
+              <button
+                key={em}
+                type="button"
+                onClick={() => { onChange(em); setOpen(false); }}
+                className={`h-7 w-7 rounded text-sm hover:bg-blue-50 flex items-center justify-center ${value === em ? "bg-blue-100 ring-1 ring-blue-400" : ""}`}
+              >
+                {em}
+              </button>
+            ))}
+            {value && (
+              <button
+                type="button"
+                onClick={() => { onChange(""); setOpen(false); }}
+                className="col-span-6 text-[10px] text-red-400 hover:text-red-600 mt-1"
+              >
+                Remover emoji
+              </button>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

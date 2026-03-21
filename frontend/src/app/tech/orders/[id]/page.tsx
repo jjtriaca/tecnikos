@@ -1192,12 +1192,42 @@ function V2BlockAction({
                 );
               }
               return (
-                <div className="flex items-center justify-between rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs font-medium text-indigo-700">Rastreamento ativo</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+                      <span className="text-xs font-medium text-indigo-700">Rastreamento ativo</span>
+                    </div>
+                    <button onClick={handleStopGpsTracking} className="text-[10px] font-medium text-red-500 hover:text-red-700">Parar</button>
                   </div>
-                  <button onClick={handleStopGpsTracking} className="text-[10px] font-medium text-red-500 hover:text-red-700">Parar</button>
+                  {c.autoAdvanceOnProximity === false && (() => {
+                    const ab = c.arrivalButton || { label: "Cheguei", color: "green", icon: "📍", size: "md" };
+                    const colorMap: Record<string, string> = {
+                      green: "from-green-500 to-emerald-600",
+                      blue: "from-blue-500 to-blue-600",
+                      red: "from-red-500 to-red-600",
+                      yellow: "from-yellow-500 to-yellow-600",
+                      slate: "from-slate-500 to-slate-600",
+                    };
+                    const sizeMap: Record<string, string> = {
+                      sm: "py-2 text-xs",
+                      md: "py-3 text-sm",
+                      lg: "py-5 text-base",
+                    };
+                    return (
+                      <button
+                        onClick={onAdvance}
+                        disabled={acting}
+                        className={`w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${colorMap[ab.color] || colorMap.green} px-4 ${sizeMap[ab.size || "md"]} font-bold text-white shadow-lg active:scale-[0.98] transition-all disabled:opacity-50`}
+                      >
+                        {acting ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        ) : (
+                          <>{ab.icon} {ab.label}</>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
               );
             })()}
