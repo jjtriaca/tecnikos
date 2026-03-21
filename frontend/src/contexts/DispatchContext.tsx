@@ -136,7 +136,10 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const syncRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Unified load: fetch all active dispatches from server and merge into state
+  // Unified load: API is the source of truth. OS not in API response = removed.
+  // Recently added dispatches (via addDispatch) are kept for 15s grace period.
+  const addedAtRef = useRef<Map<string, number>>(new Map());
+
   const loadDispatches = useCallback(async () => {
     try {
       const items = await api.get<any[]>("/service-orders/active-dispatches");
@@ -147,17 +150,26 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
         const existingMap = new Map(prev.map((d) => [d.osId, d]));
         const merged: DispatchState[] = [];
         const seenIds = new Set<string>();
+        const now = Date.now();
 
+        // API items take priority
         for (const item of loaded) {
           seenIds.add(item.osId);
           const existing = existingMap.get(item.osId);
           merged.push(existing ? { ...existing, ...item } : item);
+          // Clear grace period since API confirmed it exists
+          addedAtRef.current.delete(item.osId);
         }
 
-        // Keep manually added dispatches that aren't in the API response yet
+        // Keep recently added dispatches (grace period: 15s) not yet in API
         for (const p of prev) {
-          if (!seenIds.has(p.osId) && !TERMINAL_STATUSES.includes(p.osStatus || "")) {
-            merged.push(p);
+          if (!seenIds.has(p.osId)) {
+            const addedAt = addedAtRef.current.get(p.osId);
+            if (addedAt && now - addedAt < 15000) {
+              merged.push(p); // Still in grace period
+            } else {
+              addedAtRef.current.delete(p.osId); // Expired or not manually added — remove
+            }
           }
         }
 
@@ -176,8 +188,8 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
     // Load immediately on mount
     loadDispatches();
 
-    // Then sync every 10s
-    syncRef.current = setInterval(loadDispatches, 10000);
+    // Then sync every 30s (not too aggressive, but catches new/deleted OS)
+    syncRef.current = setInterval(loadDispatches, 30000);
     return () => {
       if (syncRef.current) { clearInterval(syncRef.current); syncRef.current = null; }
     };
@@ -285,6 +297,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
           },
         ];
       });
+      addedAtRef.current.set(osId, Date.now()); // Grace period until API picks it up
       setMinimized(false); // auto-expand when new dispatch added
     },
     [],
