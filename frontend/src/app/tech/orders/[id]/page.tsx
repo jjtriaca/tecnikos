@@ -1143,20 +1143,46 @@ function V2BlockAction({
                       </p>
                     )}
 
-                    <button
-                      onClick={onAdvance}
-                      disabled={acting}
-                      className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-lg hover:from-green-600 hover:to-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50"
-                    >
-                      {acting ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      ) : (
-                        <>📍 Cheguei</>
-                      )}
-                    </button>
-                    <p className="text-[10px] text-slate-400 text-center">
-                      Use se o GPS nao detectar sua chegada automaticamente
-                    </p>
+                    {c.autoAdvanceOnProximity === false ? (() => {
+                      const ab = c.arrivalButton || { label: "Cheguei", color: "green", icon: "📍" };
+                      const colorMap: Record<string, string> = {
+                        green: "from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700",
+                        blue: "from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700",
+                        red: "from-red-500 to-red-600 hover:from-red-600 hover:to-red-700",
+                        yellow: "from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700",
+                        slate: "from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700",
+                      };
+                      return (
+                        <button
+                          onClick={onAdvance}
+                          disabled={acting}
+                          className={`w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${colorMap[ab.color] || colorMap.green} px-4 py-3 text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all disabled:opacity-50`}
+                        >
+                          {acting ? (
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          ) : (
+                            <>{ab.icon} {ab.label}</>
+                          )}
+                        </button>
+                      );
+                    })() : (
+                      <>
+                        <button
+                          onClick={onAdvance}
+                          disabled={acting}
+                          className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-50"
+                        >
+                          {acting ? (
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                          ) : (
+                            <>📍 Cheguei (manual)</>
+                          )}
+                        </button>
+                        <p className="text-[10px] text-slate-400 text-center">
+                          Use se o GPS não detectar sua chegada automaticamente
+                        </p>
+                      </>
+                    )}
                   </div>
                 );
               }
