@@ -134,54 +134,76 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
   const [dispatches, setDispatches] = useState<DispatchState[]>([]);
   const [minimized, setMinimized] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const initialLoadRef = useRef(false);
+  const initialLoadDone = useRef(false);
 
-  // Load all active OS once auth is ready
-  useEffect(() => {
-    if (loading || !user) return; // Wait for auth
-    if (!hasRole(user, "ADMIN", "DESPACHO")) return; // Only dispatch roles
-    if (initialLoadRef.current) return;
-    initialLoadRef.current = true;
+  // Unified load: fetch all active dispatches from server and merge into state
+  const loadDispatches = useCallback(async () => {
+    try {
+      const items = await api.get<any[]>("/service-orders/active-dispatches");
+      if (!items || !Array.isArray(items)) return;
+      const loaded = items.map(mapApiToDispatch).filter((d) => !TERMINAL_STATUSES.includes(d.osStatus || ""));
 
-    api.get<any[]>("/service-orders/active-dispatches")
-      .then((items) => {
-        console.log("[Dispatch] Loaded active dispatches:", items?.length || 0);
-        if (!items || !Array.isArray(items)) return;
-        const loaded = items.map(mapApiToDispatch).filter((d) => d.osStatus !== "APROVADA");
-        console.log("[Dispatch] After filter:", loaded.length, loaded.map(d => `${d.osCode}:${d.osStatus}`));
-        if (loaded.length > 0) {
-          setDispatches((prev) => {
-            const existingIds = new Set(prev.map((d) => d.osId));
-            const newItems = loaded.filter((d) => !existingIds.has(d.osId));
-            return newItems.length > 0 ? [...prev, ...newItems] : prev;
-          });
+      setDispatches((prev) => {
+        // Build map of existing IDs for merge
+        const existingMap = new Map(prev.map((d) => [d.osId, d]));
+
+        // Update existing + add new
+        const merged: DispatchState[] = [];
+        const seenIds = new Set<string>();
+
+        for (const item of loaded) {
+          seenIds.add(item.osId);
+          const existing = existingMap.get(item.osId);
+          merged.push(existing ? { ...existing, ...item } : item);
         }
-      })
-      .catch((err) => {
-        console.error("[Dispatch] Error loading dispatches:", err);
-      });
-  }, [loading, user]);
 
-  // Polling
+        // Keep manually added dispatches that aren't in the API response yet
+        for (const p of prev) {
+          if (!seenIds.has(p.osId) && !TERMINAL_STATUSES.includes(p.osStatus || "")) {
+            merged.push(p);
+          }
+        }
+
+        return merged;
+      });
+    } catch {
+      // Auth not ready or network error — will retry on next poll
+    }
+  }, []);
+
+  // Initial load + periodic sync (every 10s) — guarantees dispatches always show
   useEffect(() => {
-    if (dispatches.length === 0) {
-      if (pollRef.current) clearInterval(pollRef.current);
+    if (loading || !user) return;
+    if (!hasRole(user, "ADMIN", "DESPACHO")) return;
+
+    // Initial load
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      loadDispatches();
+    }
+
+    // Periodic full sync every 10s to catch new OS and update existing
+    const syncInterval = setInterval(loadDispatches, 10000);
+    return () => clearInterval(syncInterval);
+  }, [loading, user, loadDispatches]);
+
+  // Per-dispatch detail polling (faster updates for GPS/notifications)
+  useEffect(() => {
+    const activeDispatches = dispatches.filter(
+      (d) => !TERMINAL_STATUSES.includes(d.osStatus || "") && d.enRouteAt,
+    );
+    if (activeDispatches.length === 0) {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       return;
     }
 
     const poll = async () => {
-      const activeDispatches = dispatches.filter(
-        (d) => !TERMINAL_STATUSES.includes(d.osStatus || ""),
-      );
-      if (activeDispatches.length === 0) return;
-
       for (const d of activeDispatches) {
         try {
           const result = await api.get<any>(`/service-orders/${d.osId}/dispatch-status`);
           const so = result.serviceOrder;
 
-          // Auto-close: remove dispatch when OS is APROVADA
-          if (so?.status === "APROVADA") {
+          if (TERMINAL_STATUSES.includes(so?.status)) {
             setDispatches((prev) => prev.filter((p) => p.osId !== d.osId));
             continue;
           }
@@ -223,7 +245,6 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
                     locationUpdatedAt: result.location?.updatedAt ?? undefined,
                     technicianName: result.technician?.name ?? p.technicianName,
                     technicianPhone: result.technician?.phone ?? p.technicianPhone,
-                    // Always use fresh notification data from server (don't keep stale errors)
                     notificationId: result.notification?.id || undefined,
                     notificationStatus: result.notification?.status || "PENDING",
                     notificationChannel: result.notification?.channel || p.notificationChannel,
