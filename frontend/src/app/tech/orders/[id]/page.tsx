@@ -1142,6 +1142,22 @@ function V2BlockAction({
                     Posicao capturada. Calculando distancia...
                   </p>
                 )}
+
+                {/* Manual "Cheguei" fallback button */}
+                <button
+                  onClick={onAdvance}
+                  disabled={acting}
+                  className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-lg hover:from-green-600 hover:to-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  {acting ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <>📍 Cheguei</>
+                  )}
+                </button>
+                <p className="text-[10px] text-slate-400 text-center">
+                  Use se o GPS nao detectar sua chegada automaticamente
+                </p>
               </div>
             )}
           </div>
