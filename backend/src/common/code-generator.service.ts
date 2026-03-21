@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type CodeEntity =
@@ -22,35 +22,94 @@ const ENTITY_PREFIX: Record<CodeEntity, string> = {
   QUOTE: 'ORC',
 };
 
+const ENTITY_TABLE: Record<CodeEntity, string> = {
+  PARTNER: 'Partner',
+  SERVICE_ORDER: 'ServiceOrder',
+  FINANCIAL_ENTRY: 'FinancialEntry',
+  EVALUATION: 'Evaluation',
+  USER: 'User',
+  PRODUCT: 'Product',
+  SERVICE: 'Service',
+  QUOTE: 'Quote',
+};
+
 @Injectable()
 export class CodeGeneratorService {
+  private readonly logger = new Logger(CodeGeneratorService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Generate the next sequential code for a given entity+company.
-   * Uses CodeCounter table with atomic increment to avoid race conditions.
+   * Uses CodeCounter table with atomic increment.
+   * If a collision occurs, auto-corrects the counter based on the highest
+   * existing code in the table and retries.
    * Format: PREFIX-00001
    */
-  async generateCode(companyId: string, entity: CodeEntity): Promise<string> {
+  async generateCode(companyId: string, entity: CodeEntity, maxRetries = 3): Promise<string> {
     const prefix = ENTITY_PREFIX[entity];
 
-    // Upsert + atomic increment in a single query
-    const counter = await this.prisma.codeCounter.upsert({
-      where: { companyId_entity: { companyId, entity } },
-      create: {
-        companyId,
-        entity,
-        prefix,
-        nextNumber: 2, // We'll use 1 for this call
-      },
-      update: {
-        nextNumber: { increment: 1 },
-      },
-    });
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      // Upsert + atomic increment in a single query
+      const counter = await this.prisma.codeCounter.upsert({
+        where: { companyId_entity: { companyId, entity } },
+        create: {
+          companyId,
+          entity,
+          prefix,
+          nextNumber: 2, // We'll use 1 for this call
+        },
+        update: {
+          nextNumber: { increment: 1 },
+        },
+      });
 
-    // On create, nextNumber is 2 (we use 1). On update, nextNumber is already incremented.
-    const number = counter.nextNumber - 1;
-    return `${prefix}-${String(number).padStart(5, '0')}`;
+      // On create, nextNumber is 2 (we use 1). On update, nextNumber is already incremented.
+      const number = counter.nextNumber - 1;
+      const code = `${prefix}-${String(number).padStart(5, '0')}`;
+
+      // Check if the code already exists in the table
+      const table = ENTITY_TABLE[entity];
+      const existing: { id: string }[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM "${table}" WHERE "companyId" = $1 AND code = $2 LIMIT 1`,
+        companyId,
+        code,
+      );
+
+      if (existing.length === 0) {
+        return code; // No collision, safe to use
+      }
+
+      // Collision detected — auto-correct the counter
+      this.logger.warn(
+        `⚠️ Code collision: ${code} already exists for ${entity}. Auto-correcting counter (attempt ${attempt + 1}/${maxRetries})...`,
+      );
+
+      // Find the highest existing code number for this prefix
+      const maxResult: { max_num: number | null }[] = await this.prisma.$queryRawUnsafe(
+        `SELECT MAX(CAST(SUBSTRING(code FROM '[0-9]+$') AS INTEGER)) as max_num ` +
+        `FROM "${table}" WHERE "companyId" = $1 AND code LIKE $2`,
+        companyId,
+        `${prefix}-%`,
+      );
+
+      const maxExisting = maxResult[0]?.max_num || 0;
+      const correctedNext = maxExisting + 2; // +1 for the one we'll use, +1 for nextNumber
+
+      await this.prisma.codeCounter.update({
+        where: { companyId_entity: { companyId, entity } },
+        data: { nextNumber: correctedNext },
+      });
+
+      this.logger.log(
+        `✅ Counter corrected: ${entity} nextNumber set to ${correctedNext} (max existing: ${prefix}-${String(maxExisting).padStart(5, '0')})`,
+      );
+
+      // Retry with corrected counter (loop continues)
+    }
+
+    // Should never reach here, but just in case
+    throw new Error(`Failed to generate unique code for ${entity} after ${maxRetries} retries`);
   }
 
   /**
