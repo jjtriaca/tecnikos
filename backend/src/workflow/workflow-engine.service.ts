@@ -601,9 +601,17 @@ export class WorkflowEngineService {
       }
 
       // Walk the branch to find the first actionable block
+      // Execute system blocks immediately as we traverse (STATUS, NOTIFY, etc.)
       let lookId: string | null = branchNextId;
       const lookVisited = new Set<string>();
       let nextActionableBlock: BlockDef | null = null;
+      // Collect block IDs that already have look-ahead logs (to avoid duplicates on re-click)
+      const existingLookAheadBlockIds = new Set(
+        so.workflowStepLogs
+          .filter((l: any) => l.responseData?.deferredLookAhead)
+          .map((l: any) => l.blockId),
+      );
+      const executedSystemBlocks: BlockDef[] = [];
       while (lookId && !lookVisited.has(lookId)) {
         lookVisited.add(lookId);
         const lookBlock = blocks.find((b) => b.id === lookId);
@@ -612,10 +620,64 @@ export class WorkflowEngineService {
           nextActionableBlock = lookBlock;
           break;
         }
+        // Skip if already executed in a previous look-ahead (tech closed and re-opened)
+        if (existingLookAheadBlockIds.has(lookBlock.id)) {
+          this.logger.log(
+            `⏭️ Look-ahead: skipping "${lookBlock.name}" — already executed previously`,
+          );
+          lookId = lookBlock.next;
+          continue;
+        }
+        // Execute system block immediately (STATUS, NOTIFY, FINANCIAL_ENTRY, etc.)
+        try {
+          this.logger.log(
+            `🔄 Deferred look-ahead: executing system block "${lookBlock.name}" (${lookBlock.type})`,
+          );
+          await this.executeSystemBlock(lookBlock, so.id, companyId, technicianId);
+          executedSystemBlocks.push(lookBlock);
+        } catch (err) {
+          this.logger.error(
+            `Deferred look-ahead system block ${lookBlock.type} failed: ${(err as Error).message}`,
+          );
+        }
         lookId = lookBlock.next;
       }
 
       if (nextActionableBlock) {
+        // Log executed system blocks
+        if (executedSystemBlocks.length > 0) {
+          let sysStepOrder = so.workflowStepLogs.length + 1;
+          for (const sysBlock of executedSystemBlocks) {
+            await this.prisma.workflowStepLog.create({
+              data: {
+                serviceOrderId: so.id,
+                stepOrder: sysStepOrder,
+                stepName: sysBlock.name,
+                blockId: sysBlock.id,
+                partnerId: technicianId,
+                responseData: { autoCompleted: true, deferredLookAhead: true },
+              },
+            });
+            await this.prisma.serviceOrderEvent.create({
+              data: {
+                companyId,
+                serviceOrderId: so.id,
+                type: 'WORKFLOW_STEP_COMPLETED',
+                actorType: 'SYSTEM',
+                actorId: null,
+                payload: {
+                  blockId: sysBlock.id,
+                  blockType: sysBlock.type,
+                  blockName: sysBlock.name,
+                  autoCompleted: true,
+                  deferredLookAhead: true,
+                },
+              },
+            });
+            sysStepOrder++;
+          }
+        }
+
         // Defer: don't persist decision block, return next actionable block
         this.logger.log(
           `🔄 ${block.type} deferred: → next actionable="${nextActionableBlock.name}" (${nextActionableBlock.id})`,
@@ -704,6 +766,8 @@ export class WorkflowEngineService {
           });
 
           // Auto-complete system blocks between decision block and current block
+          // NOTE: System blocks may have already been executed during the look-ahead phase
+          // (deferredLookAhead). Check existing logs to avoid re-execution.
           let sysBlockId: string | null = null;
           if (pendingBlock.type === 'ACTION_BUTTONS') {
             const buttonId = dto.pendingAction!.responseData?.buttonId;
@@ -720,12 +784,28 @@ export class WorkflowEngineService {
           }
           const sysVisited = new Set<string>();
 
+          // Collect block IDs already executed during look-ahead
+          const alreadyExecutedBlockIds = new Set(
+            so.workflowStepLogs
+              .filter((l: any) => l.responseData?.deferredLookAhead)
+              .map((l: any) => l.blockId),
+          );
+
           while (sysBlockId) {
             if (sysVisited.has(sysBlockId)) break;
             sysVisited.add(sysBlockId);
             const sysBlock = blocks.find((b) => b.id === sysBlockId);
             if (!sysBlock || sysBlock.type === 'END') break;
             if (ACTIONABLE_TYPES.has(sysBlock.type)) break; // Stop at current block
+
+            // Skip if already executed during look-ahead
+            if (alreadyExecutedBlockIds.has(sysBlock.id)) {
+              this.logger.log(
+                `⏭️ Skipping system block "${sysBlock.name}" — already executed in look-ahead`,
+              );
+              sysBlockId = sysBlock.next;
+              continue;
+            }
 
             let actionResult: any = null;
             try {
