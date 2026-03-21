@@ -1,12 +1,16 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { ChecklistResponseService } from '../checklist-response/checklist-response.service';
+import { WorkflowEngineService } from '../workflow/workflow-engine.service';
 import { SubmitChecklistDto } from '../checklist-response/dto/submit-checklist.dto';
 import { ServiceOrderStatus } from '@prisma/client';
 import {
@@ -149,6 +153,8 @@ export class PublicOfferService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
     private readonly checklistResponseService: ChecklistResponseService,
+    @Optional() @Inject(forwardRef(() => WorkflowEngineService))
+    private readonly workflowEngine?: WorkflowEngineService,
   ) {}
 
   /**
@@ -995,8 +1001,20 @@ export class PublicOfferService {
       distanceToTarget,
     );
 
-    // Check proximity
-    const radiusMeters = (so as any).proximityRadiusMeters || 200;
+    // Check proximity — use radius from current PROXIMITY_TRIGGER block or OS field
+    let radiusMeters = (so as any).proximityRadiusMeters || 200;
+    let proximityBlockConfig: any = null;
+
+    // If workflow has a PROXIMITY_TRIGGER block as current, use its config
+    const def = so.workflowTemplate?.steps as any;
+    if (def?.version === 2 && def.blocks) {
+      const proxBlock = def.blocks.find((b: any) => b.type === 'PROXIMITY_TRIGGER');
+      if (proxBlock?.config) {
+        proximityBlockConfig = proxBlock.config;
+        radiusMeters = proxBlock.config.radiusMeters || radiusMeters;
+      }
+    }
+
     const alreadyEntered = (so as any).proximityEnteredAt != null;
     let proximityReached = false;
 
@@ -1012,10 +1030,33 @@ export class PublicOfferService {
         `📍 PROXIMITY: Tech ${technician.id} entered radius (${Math.round(distanceToTarget)}m <= ${radiusMeters}m) for SO ${so.id}`,
       );
 
-      // Execute onEnterRadius events (fire-and-forget)
-      this.executeOnEnterRadius(so, offer.companyId, distanceToTarget).catch((err) =>
+      // Execute onEnterRadius events from block config (fire-and-forget)
+      this.executeOnEnterRadius(so, offer.companyId, distanceToTarget, proximityBlockConfig).catch((err) =>
         this.logger.error(`onEnterRadius failed for SO ${so.id}: ${(err as Error).message}`),
       );
+
+      // Auto-advance PROXIMITY_TRIGGER workflow block
+      if (this.workflowEngine) {
+        try {
+          await this.workflowEngine.advanceStep(
+            so.id,
+            technician.id,
+            offer.companyId,
+            {
+              blockId: undefined, // engine will use currentBlock
+              responseData: {
+                lat, lng, accuracy, speed, heading,
+                distanceMeters: Math.round(distanceToTarget),
+                radiusMeters,
+                autoAdvanced: true,
+              },
+            } as any,
+          );
+          this.logger.log(`📡 PROXIMITY_TRIGGER auto-advanced for SO ${so.id}`);
+        } catch (err) {
+          this.logger.error(`PROXIMITY_TRIGGER auto-advance failed: ${(err as Error).message}`);
+        }
+      }
     }
 
     return {
@@ -1074,15 +1115,19 @@ export class PublicOfferService {
     so: any,
     companyId: string,
     distanceMeters: number,
+    blockConfig?: any,
   ): Promise<void> {
-    // Get onEnterRadius config from workflow
-    const def = so.workflowTemplate?.steps as any;
-    if (!def) return;
-    const blocks = def?.version === 2 ? def.blocks : (def?.blocks || []);
-    const proxBlock = blocks?.find((b: any) => b.type === 'PROXIMITY_TRIGGER');
-    if (!proxBlock?.config?.onEnterRadius) return;
-
-    const onEnter = proxBlock.config.onEnterRadius;
+    // Use blockConfig if provided (V2 workflow block), otherwise extract from template
+    let onEnter: any = blockConfig?.onEnterRadius;
+    if (!onEnter) {
+      const def = so.workflowTemplate?.steps as any;
+      if (!def) return;
+      const blocks = def?.version === 2 ? def.blocks : (def?.blocks || []);
+      const proxBlock = blocks?.find((b: any) => b.type === 'PROXIMITY_TRIGGER');
+      if (!proxBlock?.config?.onEnterRadius) return;
+      onEnter = proxBlock.config.onEnterRadius;
+    }
+    if (!onEnter) return;
     const distStr = distanceMeters >= 1000
       ? `${(distanceMeters / 1000).toFixed(1)} km`
       : `${Math.round(distanceMeters)} m`;
@@ -1090,6 +1135,7 @@ export class PublicOfferService {
     // Build variable map for message substitution
     const vars: Record<string, string> = {
       '{titulo}': so.title || '',
+      '{codigo}': so.code || '',
       '{tecnico}': so.assignedPartner?.name || '',
       '{tecnico_telefone}': so.assignedPartner?.phone || '',
       '{cliente}': so.clientPartner?.name || '',
@@ -1136,28 +1182,29 @@ export class PublicOfferService {
       }).catch((err) => this.logger.error(`Notify gestor failed: ${(err as Error).message}`));
     }
 
-    // 3. Auto-start execution (change status to EM_EXECUCAO)
-    if (onEnter.autoStartExecution) {
+    // 3. Auto-change status (EM_EXECUCAO, NO_LOCAL, or legacy autoStartExecution)
+    const targetStatus = onEnter.autoChangeStatus || (onEnter.autoStartExecution ? 'EM_EXECUCAO' : null);
+    if (targetStatus) {
       const currentStatus = so.status;
-      if (['ATRIBUIDA', 'A_CAMINHO'].includes(currentStatus)) {
-        await this.prisma.serviceOrder.update({
-          where: { id: so.id },
-          data: { status: ServiceOrderStatus.EM_EXECUCAO, startedAt: new Date() },
-        });
-        this.logger.log(`🚀 PROXIMITY: Auto-started execution for SO ${so.id}`);
+      const data: any = { status: targetStatus };
+      if (targetStatus === 'EM_EXECUCAO') data.startedAt = new Date();
+      await this.prisma.serviceOrder.update({
+        where: { id: so.id },
+        data,
+      });
+      this.logger.log(`🚀 PROXIMITY: Auto-changed status to ${targetStatus} for SO ${so.id}`);
 
-        // Create event
-        await this.prisma.serviceOrderEvent.create({
-          data: {
-            companyId,
-            serviceOrderId: so.id,
-            type: 'PROXIMITY_AUTO_START',
-            actorType: 'SYSTEM',
-            actorId: null,
-            payload: { distanceMeters: Math.round(distanceMeters), previousStatus: currentStatus },
-          },
-        });
-      }
+      // Create event
+      await this.prisma.serviceOrderEvent.create({
+        data: {
+          companyId,
+          serviceOrderId: so.id,
+          type: 'PROXIMITY_AUTO_START',
+          actorType: 'SYSTEM',
+          actorId: null,
+          payload: { distanceMeters: Math.round(distanceMeters), previousStatus: currentStatus },
+        },
+      });
     }
 
     // 4. Dashboard alert

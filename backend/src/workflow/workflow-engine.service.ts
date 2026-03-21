@@ -13,6 +13,7 @@ import { NotificationService } from '../notification/notification.service';
 import { FinanceService } from '../finance/finance.service';
 import { PublicOfferService } from '../public-offer/public-offer.service';
 import { StepProgressDto } from './dto/step-progress.dto';
+import { haversineMeters } from '../common/geo/haversine';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -70,6 +71,7 @@ const ACTIONABLE_TYPES = new Set([
   'CONDITION',
   'ACTION_BUTTONS',
   'ARRIVAL_QUESTION',
+  'PROXIMITY_TRIGGER',
 ]);
 
 /* ── Helpers ── */
@@ -1880,5 +1882,188 @@ export class WorkflowEngineService {
         `executeStageNotifications error: ${(err as Error).message}`,
       );
     }
+  }
+
+  /* ── Proximity Position Tracking ── */
+
+  async submitProximityPosition(
+    serviceOrderId: string,
+    technicianId: string,
+    companyId: string,
+    data: { lat: number; lng: number; accuracy?: number; speed?: number; heading?: number },
+  ) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id: serviceOrderId, companyId, deletedAt: null },
+      include: {
+        workflowTemplate: true,
+        assignedPartner: { select: { id: true, name: true, phone: true, email: true } },
+        clientPartner: { select: { id: true, name: true, phone: true, email: true } },
+        company: { select: { name: true, phone: true, email: true } },
+      },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+
+    // Calculate distance to target
+    let distanceToTarget: number | null = null;
+    if (so.lat != null && so.lng != null) {
+      distanceToTarget = haversineMeters(data.lat, data.lng, so.lat, so.lng);
+    }
+
+    // Save position log
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO "TechnicianLocationLog" ("id", "companyId", "serviceOrderId", "partnerId", "lat", "lng", "accuracy", "speed", "heading", "distanceToTarget")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      companyId,
+      serviceOrderId,
+      technicianId,
+      data.lat,
+      data.lng,
+      data.accuracy ?? null,
+      data.speed ?? null,
+      data.heading ?? null,
+      distanceToTarget,
+    );
+
+    // Get current workflow progress to check if we're on a PROXIMITY_TRIGGER block
+    const progress = await this.getProgress(serviceOrderId, companyId) as WorkflowProgressV2;
+    if (!progress?.currentBlock || progress.currentBlock.type !== 'PROXIMITY_TRIGGER') {
+      return {
+        distanceMeters: distanceToTarget !== null ? Math.round(distanceToTarget) : null,
+        proximityReached: false,
+        radiusMeters: null,
+      };
+    }
+
+    const proxConfig = progress.currentBlock.config || {};
+    const radiusMeters = proxConfig.radiusMeters || 50;
+    const alreadyEntered = (so as any).proximityEnteredAt != null;
+    let proximityReached = false;
+
+    if (distanceToTarget !== null && distanceToTarget <= radiusMeters && !alreadyEntered) {
+      // FIRST TIME entering radius
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: { proximityEnteredAt: new Date() } as any,
+      });
+      proximityReached = true;
+
+      this.logger.log(
+        `📍 PROXIMITY: Tech ${technicianId} entered radius (${Math.round(distanceToTarget)}m <= ${radiusMeters}m) for SO ${serviceOrderId}`,
+      );
+
+      // Auto-advance the PROXIMITY_TRIGGER block
+      try {
+        await this.advanceStep(serviceOrderId, technicianId, companyId, {
+          blockId: progress.currentBlock.id,
+          responseData: {
+            lat: data.lat,
+            lng: data.lng,
+            accuracy: data.accuracy,
+            distanceMeters: Math.round(distanceToTarget),
+            radiusMeters,
+            autoAdvanced: true,
+          },
+        } as any);
+        this.logger.log(`📡 PROXIMITY_TRIGGER auto-advanced for SO ${serviceOrderId}`);
+      } catch (err) {
+        this.logger.error(`PROXIMITY_TRIGGER auto-advance failed: ${(err as Error).message}`);
+      }
+
+      // Execute onEnterRadius events (status change, notifications, alerts)
+      const onEnter = proxConfig.onEnterRadius;
+      if (onEnter) {
+        // Auto-change status
+        if (onEnter.autoChangeStatus) {
+          try {
+            const statusData: any = { status: onEnter.autoChangeStatus };
+            if (onEnter.autoChangeStatus === 'EM_EXECUCAO') statusData.startedAt = new Date();
+            await this.prisma.serviceOrder.update({
+              where: { id: serviceOrderId },
+              data: statusData,
+            });
+            this.logger.log(`🚀 PROXIMITY: Auto-changed status to ${onEnter.autoChangeStatus}`);
+          } catch (err) {
+            this.logger.error(`PROXIMITY status change failed: ${(err as Error).message}`);
+          }
+        }
+
+        // Notifications (fire-and-forget)
+        if (onEnter.notifyCliente?.enabled && this.notifications) {
+          const vars = this.buildProximityVars(so, distanceToTarget);
+          const msg = this.replaceProximityVars(onEnter.notifyCliente.message || 'O tecnico esta chegando!', vars);
+          this.notifications.send({
+            companyId,
+            serviceOrderId,
+            channel: onEnter.notifyCliente.channel || 'WHATSAPP',
+            message: msg,
+            type: 'PROXIMITY_ENTER',
+            recipientPhone: so.clientPartner?.phone || undefined,
+            recipientEmail: so.clientPartner?.email || undefined,
+          }).catch((err) => this.logger.error(`Proximity notify client failed: ${(err as Error).message}`));
+        }
+
+        if (onEnter.notifyGestor?.enabled && this.notifications) {
+          const vars = this.buildProximityVars(so, distanceToTarget);
+          const msg = this.replaceProximityVars(onEnter.notifyGestor.message || 'Tecnico chegou na regiao', vars);
+          this.notifications.send({
+            companyId,
+            serviceOrderId,
+            channel: onEnter.notifyGestor.channel || 'WHATSAPP',
+            message: msg,
+            type: 'PROXIMITY_ENTER',
+            recipientPhone: so.company?.phone || undefined,
+            recipientEmail: so.company?.email || undefined,
+          }).catch((err) => this.logger.error(`Proximity notify gestor failed: ${(err as Error).message}`));
+        }
+
+        // Dashboard alert
+        if (onEnter.alert?.enabled) {
+          const vars = this.buildProximityVars(so, distanceToTarget);
+          const alertMsg = this.replaceProximityVars(onEnter.alert.message || 'Tecnico chegou na regiao', vars);
+          this.prisma.notification.create({
+            data: {
+              companyId,
+              serviceOrderId,
+              channel: 'MOCK',
+              message: `[PROXIMITY] ${alertMsg}`,
+              type: 'PROXIMITY_ALERT',
+              status: 'SENT',
+              sentAt: new Date(),
+            },
+          }).catch(() => {});
+        }
+      }
+    }
+
+    return {
+      distanceMeters: distanceToTarget !== null ? Math.round(distanceToTarget) : null,
+      distanceKm: distanceToTarget !== null ? Math.round((distanceToTarget / 1000) * 100) / 100 : null,
+      proximityReached,
+      radiusMeters,
+      currentBlockType: progress.currentBlock.type,
+    };
+  }
+
+  private buildProximityVars(so: any, distanceMeters: number): Record<string, string> {
+    const distStr = distanceMeters >= 1000
+      ? `${(distanceMeters / 1000).toFixed(1)} km`
+      : `${Math.round(distanceMeters)} m`;
+    return {
+      '{titulo}': so.title || '',
+      '{codigo}': so.code || '',
+      '{tecnico}': so.assignedPartner?.name || '',
+      '{cliente}': so.clientPartner?.name || '',
+      '{empresa}': so.company?.name || '',
+      '{endereco}': so.addressText || '',
+      '{distancia_tecnico}': distStr,
+    };
+  }
+
+  private replaceProximityVars(text: string, vars: Record<string, string>): string {
+    let result = text;
+    for (const [key, val] of Object.entries(vars)) {
+      result = result.split(key).join(val);
+    }
+    return result;
   }
 }

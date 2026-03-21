@@ -243,6 +243,12 @@ export default function TechOrderDetailPage() {
   const [v2GpsTracking, setV2GpsTracking] = useState(false);
   const v2GpsWatchRef = useRef<number | null>(null);
 
+  // Proximity tracking state
+  const [proximityDistance, setProximityDistance] = useState<number | null>(null);
+  const proximityIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const proximityWatchRef = useRef<number | null>(null);
+  const proximityAdvancedRef = useRef<string | null>(null);
+
   // Post-workflow INFO display (client-side timer for INFO+DELAY combos)
   const [postInfo, setPostInfo] = useState<{ info: any; hideAfterMs: number; blankAfterMs: number } | null>(null);
   const [postInfoPhase, setPostInfoPhase] = useState<"info" | "blank" | "done">("done");
@@ -425,11 +431,84 @@ export default function TechOrderDetailPage() {
   }, [v2GpsCoords, currentBlockId]);
 
 
+  // PROXIMITY_TRIGGER: auto-start tracking when block is reached
+  useEffect(() => {
+    if (!workflow?.currentBlock || !order) return;
+    const block = workflow.currentBlock;
+    if (block.type !== "PROXIMITY_TRIGGER") return;
+    if (proximityAdvancedRef.current === block.id) return;
+    if (!navigator.geolocation) { setV2GpsDenied(true); return; }
+
+    const cfg = block.config || {};
+    const intervalMs = (cfg.trackingIntervalSeconds || 30) * 1000;
+
+    // Start watching position
+    setV2GpsLoading(true);
+    setV2GpsDenied(false);
+
+    const sendPosition = async (lat: number, lng: number, accuracy?: number, speed?: number, heading?: number) => {
+      try {
+        const result = await techApi<{ distanceMeters: number | null; proximityReached: boolean; radiusMeters: number }>(
+          `/service-orders/${order.id}/workflow/position`,
+          { method: "POST", body: JSON.stringify({ lat, lng, accuracy, speed, heading }) }
+        );
+        if (result.distanceMeters != null) setProximityDistance(result.distanceMeters);
+        if (result.proximityReached) {
+          proximityAdvancedRef.current = block.id;
+          // Reload workflow (block was auto-advanced by backend)
+          setTimeout(async () => {
+            try {
+              const wf = await techApi<WorkflowProgressV2>(`/service-orders/${order.id}/workflow`);
+              setWorkflow(wf);
+              await loadOrder();
+            } catch { /* ignore */ }
+          }, 500);
+        }
+      } catch { /* ignore send errors */ }
+    };
+
+    let lastSentAt = 0;
+    proximityWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setV2GpsLoading(false);
+        setV2GpsDenied(false);
+        const now = Date.now();
+        if (now - lastSentAt >= intervalMs) {
+          lastSentAt = now;
+          sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
+        }
+      },
+      () => { setV2GpsLoading(false); setV2GpsDenied(true); },
+      { enableHighAccuracy: cfg.requireHighAccuracy !== false, timeout: 15000, maximumAge: intervalMs }
+    );
+
+    // Also send immediately on first position
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        lastSentAt = Date.now();
+        sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
+      },
+      () => {},
+      { enableHighAccuracy: cfg.requireHighAccuracy !== false, timeout: 10000 }
+    );
+
+    return () => {
+      if (proximityWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(proximityWatchRef.current);
+        proximityWatchRef.current = null;
+      }
+    };
+  }, [currentBlockId]);
+
   // Cleanup GPS tracking on unmount
   useEffect(() => {
     return () => {
       if (v2GpsWatchRef.current !== null) {
         navigator.geolocation.clearWatch(v2GpsWatchRef.current);
+      }
+      if (proximityWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(proximityWatchRef.current);
       }
     };
   }, []);
@@ -697,6 +776,7 @@ export default function TechOrderDetailPage() {
               v2FormFields={v2FormFields}
               setV2FormFields={setV2FormFields}
               onAdvance={handleAdvanceBlockV2}
+              proximityDistance={proximityDistance}
             />
           )}
         </div>
@@ -839,6 +919,7 @@ function V2BlockAction({
   v2GpsCoords, v2GpsLoading, v2GpsDenied,
   v2GpsTracking, handleStopGpsTracking,
   v2FormFields, setV2FormFields, onAdvance,
+  proximityDistance,
 }: {
   block: BlockProgress;
   order: ServiceOrder;
@@ -859,6 +940,7 @@ function V2BlockAction({
   v2FormFields: Record<string, string>;
   setV2FormFields: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   onAdvance: () => void;
+  proximityDistance: number | null;
 }) {
   const c = block.config || {};
 
@@ -1001,6 +1083,66 @@ function V2BlockAction({
               <p className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
                 ✅ Lat: {v2GpsCoords.lat.toFixed(6)}, Lng: {v2GpsCoords.lng.toFixed(6)}
               </p>
+            )}
+          </div>
+        )}
+
+        {/* PROXIMITY_TRIGGER — auto-tracking with distance display */}
+        {block.type === "PROXIMITY_TRIGGER" && (
+          <div className="space-y-3">
+            {/* GPS denied warning */}
+            {v2GpsDenied && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-3">
+                <span className="text-lg">📍</span>
+                <div>
+                  <p className="text-sm font-bold text-red-700">GPS desativado</p>
+                  <p className="text-xs text-red-600">Ative a localizacao nas configuracoes do celular para o rastreamento funcionar.</p>
+                </div>
+                <div className="ml-auto h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+              </div>
+            )}
+
+            {/* Tracking active */}
+            {!v2GpsDenied && (
+              <div className="rounded-xl bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-sm font-bold text-rose-800">📡 Rastreamento ativo</span>
+                </div>
+
+                {v2GpsLoading && !v2GpsCoords && (
+                  <div className="flex items-center justify-center gap-2 py-2 text-sm text-rose-600">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
+                    Obtendo localizacao...
+                  </div>
+                )}
+
+                {proximityDistance != null && (
+                  <div className="text-center">
+                    <div className="text-3xl font-black text-rose-700">
+                      {proximityDistance >= 1000
+                        ? `${(proximityDistance / 1000).toFixed(1)} km`
+                        : `${proximityDistance} m`}
+                    </div>
+                    <p className="text-xs text-rose-500 mt-1">do destino</p>
+                    <div className="mt-2 h-2 bg-rose-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-rose-500 to-green-500 rounded-full transition-all duration-1000"
+                        style={{ width: `${Math.max(5, Math.min(100, 100 - (proximityDistance / ((c.radiusMeters || 50) * 10)) * 100))}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Raio de ativacao: {c.radiusMeters || 50}m — avanca automaticamente ao chegar
+                    </p>
+                  </div>
+                )}
+
+                {v2GpsCoords && proximityDistance == null && (
+                  <p className="text-xs text-rose-600 text-center">
+                    Posicao capturada. Calculando distancia...
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -1186,7 +1328,7 @@ function V2BlockAction({
       </div>
 
       {/* Advance button — driven by block config, hidden for auto-advance types */}
-      {!["ACTION_BUTTONS", "CONDITION", "GPS"].includes(block.type) && (() => {
+      {!["ACTION_BUTTONS", "CONDITION", "GPS", "PROXIMITY_TRIGGER"].includes(block.type) && (() => {
         // STATUS with buttonLabel uses its own label; others use confirmButton from config
         const cb = c.confirmButton || {};
         const label = block.type === "STATUS" && c.buttonLabel ? c.buttonLabel : (cb.label || "Confirmar");

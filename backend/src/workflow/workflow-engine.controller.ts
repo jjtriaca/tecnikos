@@ -35,6 +35,19 @@ export class WorkflowEngineController {
   }
 
   /**
+   * POST /service-orders/:orderId/workflow/position — Submit GPS position for proximity tracking
+   */
+  @Post('position')
+  submitPosition(
+    @Param('orderId') orderId: string,
+    @Body() body: { lat: number; lng: number; accuracy?: number; speed?: number; heading?: number },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const techId = user.partnerId || user.technicianId || user.id;
+    return this.engine.submitProximityPosition(orderId, techId, user.companyId, body);
+  }
+
+  /**
    * DELETE /service-orders/:orderId/workflow/steps/:blockId
    * Resets workflow from the given blockId onwards.
    */

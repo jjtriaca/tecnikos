@@ -26,6 +26,8 @@ export type BlockType =
   | 'ALERT'
   // Visual / Informational
   | 'INFO'
+  // GPS / Tracking
+  | 'PROXIMITY_TRIGGER'
   // System
   | 'DELAY'
   | 'SLA'
@@ -193,6 +195,9 @@ export const BLOCK_CATALOG: CatalogEntry[] = [
   // Visual / Informational
   { type: 'INFO', name: 'Informação', icon: 'ℹ️', description: 'Exibe informação visual para o técnico (não requer ação)', category: 'VISUAL', color: 'bg-cyan-50', borderColor: 'border-cyan-300', iconBg: 'bg-cyan-500', textColor: 'text-cyan-900' },
 
+  // GPS / Tracking
+  { type: 'PROXIMITY_TRIGGER', name: 'Proximidade', icon: '📡', description: 'Rastreia GPS e dispara eventos ao entrar no raio do destino', category: 'ACTIONS', color: 'bg-rose-50', borderColor: 'border-rose-300', iconBg: 'bg-rose-500', textColor: 'text-rose-900' },
+
   // Communication
   { type: 'NOTIFY', name: 'Notificar', icon: '💬', description: 'Enviar WhatsApp ou Email automatico', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
   { type: 'APPROVAL', name: 'Aprovação', icon: '🔒', description: 'Trava fluxo até gestor aprovar', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
@@ -258,6 +263,17 @@ export function getDefaultConfig(type: BlockType): Record<string, any> {
     case 'PHOTO': return { minPhotos: 1, label: 'Registrar foto do local ou equipamento', photoType: 'GERAL', confirmButton: { label: 'Enviar fotos', color: 'green', icon: '📸' } };
     case 'NOTE': return { placeholder: 'Descreva as condicoes encontradas, servicos realizados e observacoes relevantes...', required: true, confirmButton: { label: 'Enviar', color: 'blue', icon: '📝' } };
     case 'GPS': return { highAccuracy: true, trackingMode: 'single' };
+    case 'PROXIMITY_TRIGGER': return {
+      radiusMeters: 50,
+      trackingIntervalSeconds: 30,
+      requireHighAccuracy: true,
+      onEnterRadius: {
+        notifyCliente: { enabled: false, channel: 'WHATSAPP', message: 'Ola {cliente}, o tecnico {tecnico} esta chegando ao local! Previsao de chegada em poucos minutos.' },
+        notifyGestor: { enabled: false, channel: 'WHATSAPP', message: 'Tecnico {tecnico} esta proximo do local da OS {codigo} - {titulo}.' },
+        autoChangeStatus: '',
+        alert: { enabled: false, message: 'Tecnico {tecnico} chegou na regiao da OS {codigo}' },
+      },
+    };
     case 'QUESTION': return { question: 'O equipamento esta funcionando corretamente?', options: ['Sim', 'Nao'], confirmButton: { label: 'Confirmar', color: 'blue', icon: '✅' } };
     case 'CHECKLIST': return { items: ['Verificar condicoes do local', 'Inspecionar equipamento', 'Testar funcionamento'], confirmButton: { label: 'Confirmar checklist', color: 'green', icon: '☑️' } };
     case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do servico', confirmButton: { label: 'Enviar assinatura', color: 'blue', icon: '✍️' } };
