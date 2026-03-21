@@ -646,6 +646,9 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   <Label>Intervalo entre capturas (segundos)</Label>
                   <Input type="number" value={cfg.intervalSeconds || 30} onChange={(v) => updateConfig("intervalSeconds", parseInt(v) || 30)} placeholder="30" />
 
+                  <Checkbox checked={cfg.showDistanceToTech !== false} onChange={(v) => updateConfig("showDistanceToTech", v)} label="Mostrar distância do destino ao técnico" />
+                  <p className="text-[10px] text-slate-400">Exibe &quot;Você está a X km do destino&quot; no app do técnico</p>
+
                   <div className="mt-3 border-t border-slate-200 pt-3">
                     <p className="text-[11px] font-medium text-slate-500 mb-2">Proximidade do destino</p>
 

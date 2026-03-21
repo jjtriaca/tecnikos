@@ -86,6 +86,7 @@ export type GpsConfig = {
   intervalSeconds?: number;
   // Proximity fields (continuous mode only)
   radiusMeters?: number;
+  showDistanceToTech?: boolean;
   autoAdvanceOnProximity?: boolean;
   arrivalButton?: { label: string; color: string; icon: string; size?: string };
   onEnterRadius?: {

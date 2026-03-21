@@ -1269,8 +1269,8 @@ function V2BlockAction({
               </p>
             )}
 
-            {/* Distance to destination */}
-            {v2GpsTracking && proximityDistance != null && (
+            {/* Distance to destination (configurable via showDistanceToTech) */}
+            {v2GpsTracking && proximityDistance != null && c.showDistanceToTech !== false && (
               <div className="text-center rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
                 <p className="text-sm font-bold text-blue-700">
                   📍 Você está a {proximityDistance >= 1000
