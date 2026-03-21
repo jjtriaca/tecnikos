@@ -126,20 +126,89 @@ const STATUS_BADGE: Record<string, string> = {
   RECUSADA: "bg-red-100 text-red-800",
 };
 
-/* Block types that the technician should NOT see — only interactive blocks are shown */
+/* Block types that the technician interacts with */
 const INTERACTIVE_TYPES = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
-/* Hidden from everything */
-const HIDDEN_TYPES = new Set(["START", "END"]);
-function isAutoBlock(block: any): boolean {
-  return !INTERACTIVE_TYPES.has(block.type);
-}
-
 
 function formatCurrency(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
+}
+
+/* ── Shared INFO styling maps (used by INFO blocks, TerminalScreen, post-workflow) ── */
+
+const INFO_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+  blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
+  green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
+  red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
+  yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
+  slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
+  purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
+  cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
+  orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
+};
+
+const FONT_SIZES: Record<string, { title: string; body: string; icon: string }> = {
+  sm: { title: "text-sm", body: "text-xs", icon: "text-lg" },
+  md: { title: "text-base", body: "text-sm", icon: "text-2xl" },
+  lg: { title: "text-lg", body: "text-base", icon: "text-3xl" },
+};
+
+const BOX_SIZES: Record<string, string> = {
+  compact: "p-2.5 rounded-lg",
+  normal: "p-4 rounded-xl",
+  large: "p-6 rounded-2xl",
+};
+
+function getInfoStyle(color?: string, fontSize?: string, boxSize?: string) {
+  return {
+    ic: INFO_COLORS[color || "blue"] || INFO_COLORS.blue,
+    fs: FONT_SIZES[fontSize || "md"] || FONT_SIZES.md,
+    bs: BOX_SIZES[boxSize || "normal"] || BOX_SIZES.normal,
+  };
+}
+
+/** Resolve template variables like {titulo}, {codigo}, {endereco} etc */
+function resolveVars(text: string, order: ServiceOrder | null): string {
+  if (!text || !order) return text;
+  const fmtC = (cents?: number) => cents != null ? (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
+  const fmtD = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
+  return text
+    .replace(/\{titulo\}/g, order.title || "-")
+    .replace(/\{codigo\}/g, order.code || "-")
+    .replace(/\{nome_cliente\}/g, (order as any).clientPartnerName || (order as any).clientName || "-")
+    .replace(/\{telefone_cliente\}/g, (order as any).clientPhone || "-")
+    .replace(/\{contato_local\}/g, order.contactPersonName || "-")
+    .replace(/\{endereco\}/g, order.addressText || "-")
+    .replace(/\{tecnico\}/g, (order as any).technicianName || (order as any).assignedPartnerName || "-")
+    .replace(/\{valor\}/g, fmtC(order.valueCents))
+    .replace(/\{data_agendamento\}/g, fmtD(order.deadlineAt || (order as any).scheduledStartAt))
+    .replace(/\{empresa\}/g, (order as any).companyName || "-")
+    .replace(/\{telefone_empresa\}/g, (order as any).companyPhone || "-")
+    .replace(/\{status\}/g, order.status || "-")
+    .replace(/\{descricao\}/g, order.description || "-");
+}
+
+/** Render an INFO-style card (used by INFO blocks, TerminalScreen, post-workflow, ACTION_BUTTONS info panel) */
+function InfoCard({ config, order, name, className }: { config: any; order: ServiceOrder | null; name?: string; className?: string }) {
+  const c = config || {};
+  const { ic, fs, bs } = getInfoStyle(c.color, c.fontSize, c.boxSize);
+  return (
+    <div className={`border-2 ${ic.border} ${ic.bg} ${bs} ${className || ""}`}>
+      {c.title && (
+        <div className={`flex items-center gap-2 ${c.boxSize === "compact" ? "mb-1" : "mb-2"}`}>
+          <span className={fs.icon}>{c.icon || "ℹ️"}</span>
+          <span className={`${fs.title} font-bold ${ic.text}`}>{resolveVars(c.title || name || "", order)}</span>
+        </div>
+      )}
+      {c.message && (
+        <p className={`${fs.body} ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>
+          {resolveVars(c.message, order)}
+        </p>
+      )}
+    </div>
+  );
 }
 
 
@@ -482,7 +551,6 @@ export default function TechOrderDetailPage() {
   const showClientPhone = portalCfg.showClientPhone === true;
   const showOsCode = portalCfg.showOsCode !== false;
   const showCommission = portalCfg.showCommission === true;
-  const showAttachments = portalCfg.showAttachments !== false;
   const showStatusBadge = portalCfg.showStatus !== false;
   const showSiteContact = portalCfg.showSiteContact !== false;
   const showCompanyPhone = portalCfg.showCompanyPhone !== false;
@@ -594,63 +662,10 @@ export default function TechOrderDetailPage() {
         <div className="mb-4">
           {/* Workflow internals (progress bar, completed blocks) hidden from tech view */}
 
-          {/* Show INFO blocks that were auto-completed (non-actionable visual) — visible while workflow continues */}
-          {workflow.executionPath.filter((b) => b.type === "INFO" && b.completed).slice(-1).map((infoBlock) => {
-            const c = infoBlock.config || {};
-            const INFO_COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
-              blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
-              green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
-              red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
-              yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
-              slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
-              purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
-              cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
-              orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
-            };
-            const ic = INFO_COLOR_MAP[c.color || "blue"] || INFO_COLOR_MAP.blue;
-            const FS: Record<string, { title: string; body: string; icon: string }> = {
-              sm: { title: "text-sm", body: "text-xs", icon: "text-lg" },
-              md: { title: "text-base", body: "text-sm", icon: "text-2xl" },
-              lg: { title: "text-lg", body: "text-base", icon: "text-3xl" },
-            };
-            const fs = FS[c.fontSize || "md"] || FS.md;
-            const BS: Record<string, string> = { compact: "p-2.5 rounded-lg", normal: "p-4 rounded-xl", large: "p-6 rounded-2xl" };
-            const bs = BS[c.boxSize || "normal"] || BS.normal;
-            const resolveVars = (text: string) => {
-              if (!text || !order) return text;
-              const fmtC = (cents?: number) => cents != null ? (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
-              const fmtD = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
-              return text
-                .replace(/\{titulo\}/g, order.title || "-")
-                .replace(/\{codigo\}/g, order.code || "-")
-                .replace(/\{nome_cliente\}/g, (order as any).clientPartnerName || (order as any).clientName || "-")
-                .replace(/\{telefone_cliente\}/g, (order as any).clientPhone || "-")
-                .replace(/\{contato_local\}/g, (order as any).contactPersonName || "-")
-                .replace(/\{endereco\}/g, order.addressText || "-")
-                .replace(/\{tecnico\}/g, (order as any).technicianName || (order as any).assignedPartnerName || "-")
-                .replace(/\{valor\}/g, fmtC(order.valueCents))
-                .replace(/\{data_agendamento\}/g, fmtD(order.deadlineAt || (order as any).scheduledStartAt))
-                .replace(/\{empresa\}/g, (order as any).companyName || "-")
-                .replace(/\{telefone_empresa\}/g, (order as any).companyPhone || "-")
-                .replace(/\{status\}/g, order.status || "-")
-                .replace(/\{descricao\}/g, order.description || "-");
-            };
-            return (
-              <div key={infoBlock.id} className={`border-2 ${ic.border} ${ic.bg} ${bs} mb-3`}>
-                {c.title && (
-                  <div className={`flex items-center gap-2 ${c.boxSize === "compact" ? "mb-1" : "mb-2"}`}>
-                    <span className={fs.icon}>{c.icon || "ℹ️"}</span>
-                    <span className={`${fs.title} font-bold ${ic.text}`}>{resolveVars(c.title || infoBlock.name)}</span>
-                  </div>
-                )}
-                {c.message && (
-                  <p className={`${fs.body} ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>
-                    {resolveVars(c.message)}
-                  </p>
-                )}
-              </div>
-            );
-          })}
+          {/* Show INFO blocks that were auto-completed — visible while workflow continues */}
+          {workflow.executionPath.filter((b) => b.type === "INFO" && b.completed).slice(-1).map((infoBlock) => (
+              <InfoCard key={infoBlock.id} config={infoBlock.config} order={order} name={infoBlock.name} className="mb-3" />
+          ))}
 
           {/* Current block action area */}
           {workflow.currentBlock && canAct && (
@@ -683,53 +698,9 @@ export default function TechOrderDetailPage() {
       {hasWorkflow && workflow.isComplete && (() => {
         // Post-workflow INFO+DELAY: show info card with timer
         if (postInfo && postInfoPhase === "info") {
-          const c = postInfo.info.config || {};
-          const INFO_C: Record<string, { bg: string; border: string; text: string }> = {
-            blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
-            green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
-            red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
-            yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
-            slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
-            purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
-            cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
-            orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
-          };
-          const ic = INFO_C[c.color || "blue"] || INFO_C.blue;
-          const FS: Record<string, { title: string; body: string; icon: string }> = {
-            sm: { title: "text-sm", body: "text-xs", icon: "text-lg" },
-            md: { title: "text-base", body: "text-sm", icon: "text-2xl" },
-            lg: { title: "text-lg", body: "text-base", icon: "text-3xl" },
-          };
-          const fs = FS[c.fontSize || "md"] || FS.md;
-          const BS: Record<string, string> = { compact: "p-2.5 rounded-lg", normal: "p-4 rounded-xl", large: "p-6 rounded-2xl" };
-          const bs = BS[c.boxSize || "normal"] || BS.normal;
-          const rv = (text: string) => {
-            if (!text || !order) return text;
-            const fmtCur = (cents?: number) => cents != null ? (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
-            const fmtDt = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
-            return text
-              .replace(/\{titulo\}/g, order.title || "-").replace(/\{codigo\}/g, order.code || "-")
-              .replace(/\{nome_cliente\}/g, (order as any).clientPartnerName || (order as any).clientName || "-")
-              .replace(/\{endereco\}/g, order.addressText || "-").replace(/\{status\}/g, order.status || "-")
-              .replace(/\{valor\}/g, fmtCur(order.valueCents)).replace(/\{descricao\}/g, order.description || "-")
-              .replace(/\{data_agendamento\}/g, fmtDt(order.deadlineAt || (order as any).scheduledStartAt))
-              .replace(/\{tecnico\}/g, (order as any).technicianName || "-")
-              .replace(/\{empresa\}/g, (order as any).companyName || "-")
-              .replace(/\{telefone_empresa\}/g, (order as any).companyPhone || "-")
-              .replace(/\{telefone_cliente\}/g, (order as any).clientPhone || "-")
-              .replace(/\{contato_local\}/g, (order as any).contactPersonName || "-");
-          };
           return (
             <div className="mb-4">
-              <div className={`border-2 ${ic.border} ${ic.bg} ${bs}`}>
-                {c.title && (
-                  <div className={`flex items-center gap-2 ${c.boxSize === "compact" ? "mb-1" : "mb-2"}`}>
-                    <span className={fs.icon}>{c.icon || "ℹ️"}</span>
-                    <span className={`${fs.title} font-bold ${ic.text}`}>{rv(c.title || postInfo.info.name)}</span>
-                  </div>
-                )}
-                {c.message && <p className={`${fs.body} ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>{rv(c.message)}</p>}
-              </div>
+              <InfoCard config={postInfo.info.config} order={order} name={postInfo.info.name} />
             </div>
           );
         }
@@ -745,8 +716,6 @@ export default function TechOrderDetailPage() {
           />
         );
       })()}
-
-      {/* Legacy V1 code removed — all workflows are V2 */}
     </div>
   );
 }
@@ -806,44 +775,9 @@ function TerminalScreen({ order, infoBlock, showInfoMs, blankMs }: { order: Serv
 
   // Phase "info": show INFO card
   if (phase === "info" && infoBlock) {
-    const c = infoBlock.config || {};
-    const IC: Record<string, { bg: string; border: string; text: string }> = {
-      blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
-      green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
-      red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
-      yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
-      slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
-      purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
-      cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
-      orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
-    };
-    const ic = IC[c.color || "blue"] || IC.blue;
-    const FS: Record<string, { title: string; body: string; icon: string }> = {
-      sm: { title: "text-sm", body: "text-xs", icon: "text-lg" },
-      md: { title: "text-base", body: "text-sm", icon: "text-2xl" },
-      lg: { title: "text-lg", body: "text-base", icon: "text-3xl" },
-    };
-    const fs = FS[c.fontSize || "md"] || FS.md;
-    const BS: Record<string, string> = { compact: "p-2.5 rounded-lg", normal: "p-4 rounded-xl", large: "p-6 rounded-2xl" };
-    const bs = BS[c.boxSize || "normal"] || BS.normal;
-    const rv = (text: string) => {
-      if (!text) return text;
-      return text
-        .replace(/\{titulo\}/g, order.title || "-").replace(/\{codigo\}/g, order.code || "-")
-        .replace(/\{status\}/g, order.status || "-").replace(/\{endereco\}/g, order.addressText || "-")
-        .replace(/\{descricao\}/g, order.description || "-");
-    };
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className={`border-2 ${ic.border} ${ic.bg} ${bs} w-full max-w-sm`}>
-          {c.title && (
-            <div className={`flex items-center gap-2 ${c.boxSize === "compact" ? "mb-1" : "mb-2"}`}>
-              <span className={fs.icon}>{c.icon || "ℹ️"}</span>
-              <span className={`${fs.title} font-bold ${ic.text}`}>{rv(c.title || infoBlock.name)}</span>
-            </div>
-          )}
-          {c.message && <p className={`${fs.body} ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>{rv(c.message)}</p>}
-        </div>
+        <InfoCard config={infoBlock.config} order={order} name={infoBlock.name} className="w-full max-w-sm" />
       </div>
     );
   }
@@ -1161,60 +1095,7 @@ function V2BlockAction({
           const ip = c.infoPanel;
           const renderInfoPanel = () => {
             if (!ip?.enabled) return null;
-            const INFO_C: Record<string, { bg: string; border: string; text: string }> = {
-              blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
-              green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
-              red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
-              yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
-              slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
-              purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
-              cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
-              orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
-            };
-            const ic = INFO_C[ip.color || "blue"] || INFO_C.blue;
-            const FS: Record<string, { title: string; body: string; icon: string }> = {
-              sm: { title: "text-sm", body: "text-xs", icon: "text-lg" },
-              md: { title: "text-base", body: "text-sm", icon: "text-2xl" },
-              lg: { title: "text-lg", body: "text-base", icon: "text-3xl" },
-            };
-            const fs = FS[ip.fontSize || "sm"] || FS.sm;
-            const BS: Record<string, string> = { compact: "p-2.5 rounded-lg", normal: "p-4 rounded-xl", large: "p-6 rounded-2xl" };
-            const bx = BS[ip.boxSize || "compact"] || BS.compact;
-            // Resolve template variables (same as INFO block)
-            const rv = (text: string) => {
-              if (!text || !order) return text;
-              const fmtC = (cents?: number) => cents != null ? (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
-              const fmtD = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
-              return text
-                .replace(/\{titulo\}/g, order.title || "-")
-                .replace(/\{codigo\}/g, order.code || "-")
-                .replace(/\{nome_cliente\}/g, (order as any).clientPartnerName || (order as any).clientName || "-")
-                .replace(/\{telefone_cliente\}/g, (order as any).clientPhone || "-")
-                .replace(/\{contato_local\}/g, (order as any).contactPersonName || "-")
-                .replace(/\{endereco\}/g, order.addressText || "-")
-                .replace(/\{tecnico\}/g, (order as any).technicianName || (order as any).assignedPartnerName || "-")
-                .replace(/\{valor\}/g, fmtC(order.valueCents))
-                .replace(/\{data_agendamento\}/g, fmtD(order.deadlineAt || (order as any).scheduledStartAt))
-                .replace(/\{empresa\}/g, (order as any).companyName || "-")
-                .replace(/\{telefone_empresa\}/g, (order as any).companyPhone || "-")
-                .replace(/\{status\}/g, order.status || "-")
-                .replace(/\{descricao\}/g, order.description || "-");
-            };
-            return (
-              <div className={`border-2 ${ic.border} ${ic.bg} ${bx}`}>
-                {ip.title && (
-                  <div className={`flex items-center gap-2 ${ip.boxSize === "compact" ? "mb-1" : "mb-2"}`}>
-                    <span className={fs.icon}>{ip.icon || "ℹ️"}</span>
-                    <span className={`${fs.title} font-bold ${ic.text}`}>{rv(ip.title)}</span>
-                  </div>
-                )}
-                {ip.message && (
-                  <p className={`${fs.body} ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>
-                    {rv(ip.message)}
-                  </p>
-                )}
-              </div>
-            );
+            return <InfoCard config={{ ...ip, fontSize: ip.fontSize || "sm", boxSize: ip.boxSize || "compact" }} order={order} />;
           };
           // Single button = direct action (click submits immediately, no separate confirm)
           if (buttons.length === 1) {
@@ -1270,64 +1151,9 @@ function V2BlockAction({
         )}
 
         {/* INFO — Visual informational block (auto-advances after viewing) */}
-        {block.type === "INFO" && (() => {
-          const INFO_COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
-            blue: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-800" },
-            green: { bg: "bg-green-50", border: "border-green-300", text: "text-green-800" },
-            red: { bg: "bg-red-50", border: "border-red-300", text: "text-red-800" },
-            yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800" },
-            slate: { bg: "bg-slate-50", border: "border-slate-300", text: "text-slate-800" },
-            purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800" },
-            cyan: { bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-800" },
-            orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800" },
-          };
-          const ic = INFO_COLOR_MAP[c.color || "blue"] || INFO_COLOR_MAP.blue;
-          // Font size mapping
-          const FONT_SIZE_MAP: Record<string, { title: string; body: string; icon: string }> = {
-            sm: { title: "text-sm", body: "text-xs", icon: "text-lg" },
-            md: { title: "text-base", body: "text-sm", icon: "text-2xl" },
-            lg: { title: "text-lg", body: "text-base", icon: "text-3xl" },
-          };
-          const fs = FONT_SIZE_MAP[c.fontSize || "md"] || FONT_SIZE_MAP.md;
-          // Box size mapping
-          const BOX_SIZE_MAP: Record<string, string> = {
-            compact: "p-2.5 rounded-lg",
-            normal: "p-4 rounded-xl",
-            large: "p-6 rounded-2xl",
-          };
-          const bs = BOX_SIZE_MAP[c.boxSize || "normal"] || BOX_SIZE_MAP.normal;
-          // Resolve template variables from order data
-          const resolveVars = (text: string) => {
-            if (!text || !order) return text;
-            const formatCurrency = (cents?: number) => cents != null ? (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
-            const formatDate = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
-            return text
-              .replace(/\{titulo\}/g, order.title || "-")
-              .replace(/\{codigo\}/g, order.code || "-")
-              .replace(/\{nome_cliente\}/g, (order as any).clientPartnerName || (order as any).clientName || "-")
-              .replace(/\{telefone_cliente\}/g, (order as any).clientPhone || "-")
-              .replace(/\{contato_local\}/g, (order as any).contactPersonName || "-")
-              .replace(/\{endereco\}/g, order.addressText || "-")
-              .replace(/\{tecnico\}/g, (order as any).technicianName || (order as any).assignedPartnerName || "-")
-              .replace(/\{valor\}/g, formatCurrency(order.valueCents))
-              .replace(/\{data_agendamento\}/g, formatDate(order.deadlineAt || (order as any).scheduledStartAt))
-              .replace(/\{empresa\}/g, (order as any).companyName || "-")
-              .replace(/\{telefone_empresa\}/g, (order as any).companyPhone || "-")
-              .replace(/\{status\}/g, order.status || "-")
-              .replace(/\{descricao\}/g, order.description || "-");
-          };
-          return (
-            <div className={`border-2 ${ic.border} ${ic.bg} ${bs}`}>
-              <div className={`flex items-center gap-2 ${c.boxSize === "compact" ? "mb-1" : "mb-2"}`}>
-                <span className={fs.icon}>{c.icon || "ℹ️"}</span>
-                <span className={`${fs.title} font-bold ${ic.text}`}>{resolveVars(c.title || block.name)}</span>
-              </div>
-              <p className={`${fs.body} ${ic.text} opacity-80 whitespace-pre-line leading-relaxed`}>
-                {resolveVars(c.message || "")}
-              </p>
-            </div>
-          );
-        })()}
+        {block.type === "INFO" && (
+          <InfoCard config={c} order={order} name={block.name} />
+        )}
 
         {/* ARRIVAL_QUESTION — tempo estimado de chegada */}
         {block.type === "ARRIVAL_QUESTION" && (
