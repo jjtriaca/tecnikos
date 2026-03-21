@@ -1081,6 +1081,7 @@ export class WorkflowEngineService {
         const targetStatus = config.targetStatus;
         if (!targetStatus) return null;
         const data: any = { status: targetStatus };
+        if (targetStatus === 'A_CAMINHO') data.enRouteAt = new Date();
         if (targetStatus === 'EM_EXECUCAO') data.startedAt = new Date();
         if (targetStatus === 'CONCLUIDA' || targetStatus === 'APROVADA')
           data.completedAt = new Date();
