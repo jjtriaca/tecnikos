@@ -644,6 +644,9 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                         onChange={(v) => updateConfig("arrivalButton", v)}
                       />
                     )}
+
+                    <Checkbox checked={!!cfg.saveArrivalCoords} onChange={(v) => updateConfig("saveArrivalCoords", v)} label="Salvar coordenadas no endereco do cliente" />
+                    <p className="text-[10px] text-slate-400">Ao chegar, as coordenadas GPS serao salvas no endereco de atendimento do cliente para maior precisao em futuros atendimentos</p>
                   </div>
 
                   <OnEnterRadiusNotifications onEnter={onEnter} updateOnEnter={updateOnEnter} />

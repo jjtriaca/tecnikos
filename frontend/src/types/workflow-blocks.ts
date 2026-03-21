@@ -89,6 +89,7 @@ export type GpsConfig = {
   showDistanceToTech?: boolean;
   autoAdvanceOnProximity?: boolean;
   arrivalButton?: { label: string; color: string; icon: string; size?: string };
+  saveArrivalCoords?: boolean;
   onEnterRadius?: {
     notifyCliente?: { enabled: boolean; channel: string; message: string };
     notifyGestor?: { enabled: boolean; channel: string; message: string };

@@ -627,6 +627,58 @@ export class WorkflowEngineService {
         },
       });
 
+      // ── GPS: salvar coordenadas no endereco de atendimento do cliente ──
+      if (block.type === 'GPS' && block.config?.saveArrivalCoords && dto.responseData?.lat && dto.responseData?.lng) {
+        const lat = dto.responseData.lat as number;
+        const lng = dto.responseData.lng as number;
+
+        // Atualizar lat/lng na OS (sempre)
+        await tx.serviceOrder.update({
+          where: { id: so.id },
+          data: { lat, lng },
+        });
+
+        // Sincronizar com ServiceAddress do cliente
+        if (so.clientPartnerId && so.addressStreet) {
+          const existingAddr = await tx.serviceAddress.findFirst({
+            where: {
+              companyId,
+              partnerId: so.clientPartnerId,
+              addressStreet: so.addressStreet,
+              addressNumber: so.addressNumber || undefined,
+              city: so.city || undefined,
+              active: true,
+            },
+          });
+
+          if (existingAddr) {
+            // Ja existe → atualizar coordenadas (refinar precisao)
+            await tx.serviceAddress.update({
+              where: { id: existingAddr.id },
+              data: { lat, lng },
+            });
+          } else {
+            // Nao existe → criar endereco de atendimento com coordenadas
+            await tx.serviceAddress.create({
+              data: {
+                companyId,
+                partnerId: so.clientPartnerId,
+                label: so.addressText || `${so.addressStreet}, ${so.addressNumber || 's/n'}`,
+                addressStreet: so.addressStreet,
+                addressNumber: so.addressNumber || null,
+                addressComp: so.addressComp || null,
+                neighborhood: so.neighborhood || null,
+                city: so.city || '',
+                state: so.state || '',
+                cep: so.cep || null,
+                lat,
+                lng,
+              },
+            });
+          }
+        }
+      }
+
       if (newStatus) {
         const st = newStatus as string;
         const statusUpdateData: any = { status: newStatus };
