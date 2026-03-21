@@ -145,19 +145,20 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
 
     api.get<any[]>("/service-orders/active-dispatches")
       .then((items) => {
+        console.log("[Dispatch] Loaded active dispatches:", items?.length || 0);
         if (!items || !Array.isArray(items)) return;
         const loaded = items.map(mapApiToDispatch).filter((d) => d.osStatus !== "APROVADA");
+        console.log("[Dispatch] After filter:", loaded.length, loaded.map(d => `${d.osCode}:${d.osStatus}`));
         if (loaded.length > 0) {
           setDispatches((prev) => {
-            // Merge: keep existing (from addDispatch during create), add new from API
             const existingIds = new Set(prev.map((d) => d.osId));
             const newItems = loaded.filter((d) => !existingIds.has(d.osId));
             return newItems.length > 0 ? [...prev, ...newItems] : prev;
           });
         }
       })
-      .catch(() => {
-        // Not logged in or error — ignore
+      .catch((err) => {
+        console.error("[Dispatch] Error loading dispatches:", err);
       });
   }, [loading, user]);
 
