@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { getTechAccessToken } from "@/contexts/TechAuthContext";
 
 type Attachment = {
   id: string;
@@ -56,12 +57,17 @@ export default function PhotoUpload({
       let qs = `type=${encodeURIComponent(type)}`;
       if (stepOrder !== undefined) qs += `&stepOrder=${stepOrder}`;
 
-      // Use raw fetch for multipart upload
+      // Use raw fetch for multipart upload (no Content-Type — browser sets boundary)
+      const headers: Record<string, string> = {};
+      const token = getTechAccessToken();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const res = await fetch(
         `${apiBase}/service-orders/${orderId}/attachments?${qs}`,
         {
           method: "POST",
           body: formData,
+          headers,
           credentials: "include",
         },
       );
