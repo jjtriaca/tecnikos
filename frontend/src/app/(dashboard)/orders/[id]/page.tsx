@@ -1009,7 +1009,13 @@ export default function OrderDetailPage() {
                 .map(s => new Date(s.completedAt!).getTime())
                 .sort((a, b) => b - a)[0] || 0;
               const postEvents = (order.events || [])
-                .filter(e => new Date(e.createdAt).getTime() > lastStepTime)
+                .filter(e => {
+                  if (new Date(e.createdAt).getTime() <= lastStepTime) return false;
+                  // Exclude workflow step events (already shown as rows above)
+                  if (e.type === "WORKFLOW_STEP_COMPLETED") return false;
+                  if (e.type === "WORKFLOW_COMPLETED") return false;
+                  return true;
+                })
                 .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
               return postEvents.map((ev) => {
