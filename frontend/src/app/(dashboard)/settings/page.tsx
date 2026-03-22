@@ -34,6 +34,8 @@ type CompanyData = {
   evalGestorWeight: number;
   evalClientWeight: number;
   evalMinRating: number;
+  timezone: string | null;
+  businessHours: { start: string; end: string }[] | null;
   createdAt: string;
 };
 
@@ -66,6 +68,8 @@ type CompanyForm = {
   evalGestorWeight: string;
   evalClientWeight: string;
   evalMinRating: string;
+  timezone: string;
+  businessHours: { start: string; end: string }[];
 };
 
 const STATES = [
@@ -133,6 +137,8 @@ function companyToForm(c: CompanyData): CompanyForm {
     evalGestorWeight: String(c.evalGestorWeight ?? 40),
     evalClientWeight: String(c.evalClientWeight ?? 60),
     evalMinRating: String(c.evalMinRating ?? 3.0),
+    timezone: c.timezone || "America/Sao_Paulo",
+    businessHours: c.businessHours || [{ start: "07:00", end: "11:00" }, { start: "13:00", end: "17:00" }],
   };
 }
 
@@ -161,6 +167,8 @@ export default function SettingsPage() {
     neighborhood: "", city: "", state: "",
     ownerName: "", ownerCpf: "", ownerPhone: "", ownerEmail: "",
     evalGestorWeight: "40", evalClientWeight: "60", evalMinRating: "3.0",
+    timezone: "America/Sao_Paulo",
+    businessHours: [{ start: "07:00", end: "11:00" }, { start: "13:00", end: "17:00" }],
   });
 
   const isAdmin = user?.roles?.includes("ADMIN") ?? false;
@@ -385,6 +393,8 @@ export default function SettingsPage() {
         evalGestorWeight,
         evalClientWeight,
         evalMinRating,
+        timezone: form.timezone,
+        businessHours: form.businessHours.filter(h => h.start && h.end),
       });
 
       savedFormRef.current = JSON.stringify(form);
@@ -1004,6 +1014,99 @@ export default function SettingsPage() {
                 Tecnicos abaixo dessa nota ficam em &quot;Em Treinamento&quot;
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* ── Horario Comercial ── */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
+            <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Horario de Funcionamento
+          </h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Defina o fuso horario e os turnos de trabalho da empresa.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Fuso Horario</label>
+              <select
+                value={form.timezone}
+                onChange={(e) => { setField("timezone", e.target.value); }}
+                disabled={!isAdmin}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100"
+              >
+                <option value="America/Sao_Paulo">Brasilia (UTC-3)</option>
+                <option value="America/Cuiaba">Cuiaba (UTC-4)</option>
+                <option value="America/Manaus">Manaus (UTC-4)</option>
+                <option value="America/Belem">Belem (UTC-3)</option>
+                <option value="America/Recife">Recife (UTC-3)</option>
+                <option value="America/Fortaleza">Fortaleza (UTC-3)</option>
+                <option value="America/Campo_Grande">Campo Grande (UTC-4)</option>
+                <option value="America/Porto_Velho">Porto Velho (UTC-4)</option>
+                <option value="America/Rio_Branco">Rio Branco (UTC-5)</option>
+                <option value="America/Noronha">Fernando de Noronha (UTC-2)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-2">Turnos de Trabalho</label>
+            <div className="space-y-2">
+              {form.businessHours.map((turno, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 w-16">Turno {idx + 1}</span>
+                  <input
+                    type="time"
+                    value={turno.start}
+                    onChange={(e) => {
+                      const bh = [...form.businessHours];
+                      bh[idx] = { ...bh[idx], start: e.target.value };
+                      setForm(prev => ({ ...prev, businessHours: bh }));
+                      // isDirty auto-calculated
+                    }}
+                    disabled={!isAdmin}
+                    className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none disabled:bg-slate-100"
+                  />
+                  <span className="text-slate-400">—</span>
+                  <input
+                    type="time"
+                    value={turno.end}
+                    onChange={(e) => {
+                      const bh = [...form.businessHours];
+                      bh[idx] = { ...bh[idx], end: e.target.value };
+                      setForm(prev => ({ ...prev, businessHours: bh }));
+                      // isDirty auto-calculated
+                    }}
+                    disabled={!isAdmin}
+                    className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none disabled:bg-slate-100"
+                  />
+                  {isAdmin && form.businessHours.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, businessHours: prev.businessHours.filter((_, i) => i !== idx) }));
+                        // isDirty auto-calculated
+                      }}
+                      className="text-red-400 hover:text-red-600 text-sm"
+                    >✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {isAdmin && form.businessHours.length < 4 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(prev => ({ ...prev, businessHours: [...prev.businessHours, { start: "08:00", end: "18:00" }] }));
+                }}
+                className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                + Adicionar turno
+              </button>
+            )}
           </div>
         </div>
 

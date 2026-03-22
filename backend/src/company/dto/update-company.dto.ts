@@ -105,4 +105,11 @@ export class UpdateCompanyDto {
   @Min(1)
   @Max(5)
   evalMinRating?: number;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @IsOptional()
+  businessHours?: any;
 }

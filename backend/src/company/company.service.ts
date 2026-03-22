@@ -17,6 +17,7 @@ const ALLOWED_FIELDS: (keyof UpdateCompanyDto)[] = [
   'neighborhood', 'city', 'state',
   'ownerName', 'ownerCpf', 'ownerPhone', 'ownerEmail',
   'evalGestorWeight', 'evalClientWeight', 'evalMinRating',
+  'timezone', 'businessHours',
 ];
 
 @Injectable()

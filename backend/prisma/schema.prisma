@@ -166,6 +166,10 @@ model Company {
   maxAiMessages  Int      @default(0)     // 0 = unlimited
   maxNfseImports Int      @default(0)     // 0 = unlimited (importações NFS-e/mês)
 
+  // Horário comercial e fuso
+  timezone       String?  @default("America/Sao_Paulo")
+  businessHours  Json?    // [{start: "07:00", end: "11:00"}, {start: "13:00", end: "17:00"}]
+
   // Configurações do sistema (toggles)
   systemConfig        Json?     // { os: { financialOnApproval: true }, ... }
 
