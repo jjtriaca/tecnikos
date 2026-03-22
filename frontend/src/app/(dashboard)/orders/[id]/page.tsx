@@ -284,6 +284,7 @@ export default function OrderDetailPage() {
   const { toast } = useToast();
 
   // Gestor Evaluation state
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [evalScore, setEvalScore] = useState(0);
   const [evalHover, setEvalHover] = useState(0);
   const [evalComment, setEvalComment] = useState("");
@@ -1175,7 +1176,9 @@ export default function OrderDetailPage() {
                   <p className="text-xs font-medium text-slate-500 mb-2">Antes ({antes.length})</p>
                   <div className="flex gap-2 flex-wrap">
                     {antes.map((a) => (
-                      <img key={a.id} src={`${apiBase}${a.url}`} alt={a.fileName} className="h-24 w-24 rounded-xl object-cover border border-slate-200" />
+                      <img key={a.id} src={`${apiBase}${a.url}`} alt={a.fileName}
+                        onClick={() => setLightboxUrl(`${apiBase}${a.url}`)}
+                        className="h-24 w-24 rounded-xl object-cover border border-slate-200 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" />
                     ))}
                   </div>
                 </div>
@@ -1185,7 +1188,9 @@ export default function OrderDetailPage() {
                   <p className="text-xs font-medium text-slate-500 mb-2">Depois ({depois.length})</p>
                   <div className="flex gap-2 flex-wrap">
                     {depois.map((a) => (
-                      <img key={a.id} src={`${apiBase}${a.url}`} alt={a.fileName} className="h-24 w-24 rounded-xl object-cover border border-slate-200" />
+                      <img key={a.id} src={`${apiBase}${a.url}`} alt={a.fileName}
+                        onClick={() => setLightboxUrl(`${apiBase}${a.url}`)}
+                        className="h-24 w-24 rounded-xl object-cover border border-slate-200 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" />
                     ))}
                   </div>
                 </div>
@@ -1195,8 +1200,9 @@ export default function OrderDetailPage() {
                   <p className="text-xs font-medium text-slate-500 mb-2">Passos do fluxo ({workflow.length})</p>
                   <div className="flex gap-2 flex-wrap">
                     {workflow.map((a) => (
-                      <div key={a.id} className="relative">
-                        <img src={`${apiBase}${a.url}`} alt={a.fileName} className="h-24 w-24 rounded-xl object-cover border border-slate-200" />
+                      <div key={a.id} className="relative cursor-pointer" onClick={() => setLightboxUrl(`${apiBase}${a.url}`)}>
+                        <img src={`${apiBase}${a.url}`} alt={a.fileName}
+                          className="h-24 w-24 rounded-xl object-cover border border-slate-200 hover:ring-2 hover:ring-blue-300 transition-all" />
                         {a.stepOrder != null && (
                           <span className="absolute bottom-1 right-1 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">
                             Passo {a.stepOrder}
@@ -1285,6 +1291,18 @@ export default function OrderDetailPage() {
           loadOrder();
         }}
       />
+
+      {/* Lightbox — foto em tamanho real */}
+      {lightboxUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}>
+          <button onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white text-3xl font-light z-10">✕</button>
+          <img src={lightboxUrl} alt="Foto ampliada"
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl" />
+        </div>
+      )}
     </div>
   );
 }
