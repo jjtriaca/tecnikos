@@ -332,6 +332,7 @@ export default function ReportsPage() {
                         <th className="py-3 px-4 text-right font-medium text-slate-600">Concluídas</th>
                         <th className="py-3 px-4 text-right font-medium text-slate-600">Taxa</th>
                         <th className="py-3 px-4 text-right font-medium text-slate-600">Valor Total</th>
+                        <th className="py-3 px-4 text-center font-medium text-slate-600"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -356,6 +357,12 @@ export default function ReportsPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right font-medium text-slate-800">{formatCurrency(t.totalValue)}</td>
+                          <td className="py-3 px-4 text-center">
+                            <a href={`/reports/technician?tech=${t.id}`}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                              Detalhes
+                            </a>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

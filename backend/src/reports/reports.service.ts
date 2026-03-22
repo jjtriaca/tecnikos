@@ -170,4 +170,185 @@ export class ReportsService {
       };
     }).sort((a, b) => b.completedOs - a.completedOs);
   }
+
+  /**
+   * Detailed technician report: time tracking, commission, per OS.
+   */
+  async technicianDetailReport(
+    companyId: string,
+    technicianId: string,
+    from?: string,
+    to?: string,
+  ) {
+    const where: any = {
+      companyId,
+      deletedAt: null,
+      assignedPartnerId: technicianId,
+      status: { in: ['CONCLUIDA', 'APROVADA'] },
+    };
+
+    if (from || to) {
+      where.completedAt = {};
+      if (from) where.completedAt.gte = new Date(from);
+      if (to) where.completedAt.lte = new Date(to + 'T23:59:59.999Z');
+    }
+
+    const orders = await this.prisma.serviceOrder.findMany({
+      where,
+      select: {
+        id: true, code: true, title: true, status: true,
+        valueCents: true, commissionBps: true, techCommissionCents: true,
+        enRouteAt: true, startedAt: true, completedAt: true,
+        acceptedAt: true, arrivedAt: true,
+        totalPausedMs: true, pauseCount: true,
+        isReturn: true, isEvaluation: true,
+        createdAt: true,
+        items: {
+          select: {
+            serviceName: true, quantity: true, unitPriceCents: true,
+            commissionBps: true, techFixedValueCents: true, commissionRule: true,
+          },
+        },
+        ledger: {
+          select: { grossCents: true, commissionCents: true, netCents: true, commissionBps: true },
+        },
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    // Get technician info
+    const tech = await this.prisma.partner.findFirst({
+      where: { id: technicianId, companyId },
+      select: {
+        id: true, name: true, phone: true, rating: true, status: true,
+        specializations: {
+          include: { specialization: { select: { name: true } } },
+        },
+      },
+    });
+
+    // Get evaluation scores for this period
+    const evalWhere: any = {
+      partnerId: technicianId,
+      companyId,
+      evaluatorType: 'GESTOR',
+      score: { gt: 0 },
+    };
+    if (from || to) {
+      evalWhere.createdAt = {};
+      if (from) evalWhere.createdAt.gte = new Date(from);
+      if (to) evalWhere.createdAt.lte = new Date(to + 'T23:59:59.999Z');
+    }
+    const evaluations = await this.prisma.evaluation.findMany({
+      where: evalWhere,
+      select: { score: true },
+    });
+
+    // Build detailed rows
+    const rows = orders.map((os) => {
+      const enRoute = os.enRouteAt ? new Date(os.enRouteAt).getTime() : null;
+      const started = os.startedAt ? new Date(os.startedAt).getTime() : null;
+      const completed = os.completedAt ? new Date(os.completedAt).getTime() : null;
+      const pausedMs = Number(os.totalPausedMs || 0);
+
+      // Time calculations (in minutes)
+      let totalMinutes = 0;
+      let travelMinutes = 0;
+      let executionMinutes = 0;
+      let pauseMinutes = Math.round(pausedMs / 60000);
+
+      if (enRoute && completed) {
+        totalMinutes = Math.round((completed - enRoute) / 60000);
+      } else if (started && completed) {
+        totalMinutes = Math.round((completed - started) / 60000);
+      }
+
+      if (enRoute && started) {
+        travelMinutes = Math.round((started - enRoute) / 60000);
+      }
+
+      if (started && completed) {
+        executionMinutes = Math.round((completed - started - pausedMs) / 60000);
+        if (executionMinutes < 0) executionMinutes = 0;
+      }
+
+      const netMinutes = totalMinutes - pauseMinutes;
+
+      // Commission (from ledger or calculated)
+      const commissionCents = os.ledger?.netCents ?? os.techCommissionCents ?? 0;
+
+      // Service names
+      const serviceNames = os.items.map(i => i.serviceName).join(', ') || '—';
+
+      return {
+        id: os.id,
+        code: (os as any).code,
+        title: os.title,
+        status: os.status,
+        serviceName: serviceNames,
+        date: os.completedAt,
+        enRouteAt: os.enRouteAt,
+        startedAt: os.startedAt,
+        completedAt: os.completedAt,
+        totalMinutes,
+        travelMinutes,
+        executionMinutes,
+        pauseMinutes,
+        netMinutes,
+        pauseCount: os.pauseCount,
+        valueCents: os.valueCents,
+        commissionCents,
+        isReturn: os.isReturn,
+        isEvaluation: os.isEvaluation,
+      };
+    });
+
+    // Summaries
+    const totalOs = rows.length;
+    const totalMinutes = rows.reduce((s, r) => s + r.totalMinutes, 0);
+    const totalNetMinutes = rows.reduce((s, r) => s + r.netMinutes, 0);
+    const totalTravelMinutes = rows.reduce((s, r) => s + r.travelMinutes, 0);
+    const totalPauseMinutes = rows.reduce((s, r) => s + r.pauseMinutes, 0);
+    const totalValueCents = rows.reduce((s, r) => s + r.valueCents, 0);
+    const totalCommissionCents = rows.reduce((s, r) => s + r.commissionCents, 0);
+    const avgScore = evaluations.length > 0
+      ? Math.round((evaluations.reduce((s, e) => s + e.score, 0) / evaluations.length) * 10) / 10
+      : tech?.rating ?? 0;
+
+    // Group by service
+    const byService: Record<string, { count: number; minutes: number; commissionCents: number }> = {};
+    for (const r of rows) {
+      const key = r.serviceName;
+      if (!byService[key]) byService[key] = { count: 0, minutes: 0, commissionCents: 0 };
+      byService[key].count++;
+      byService[key].minutes += r.netMinutes;
+      byService[key].commissionCents += r.commissionCents;
+    }
+
+    return {
+      technician: tech ? {
+        id: tech.id,
+        name: tech.name,
+        phone: tech.phone,
+        rating: tech.rating,
+        status: tech.status,
+        specializations: tech.specializations.map(s => s.specialization.name),
+      } : null,
+      summary: {
+        totalOs,
+        totalMinutes,
+        totalNetMinutes,
+        totalTravelMinutes,
+        totalPauseMinutes,
+        totalValueCents,
+        totalCommissionCents,
+        avgScore,
+      },
+      byService: Object.entries(byService).map(([name, data]) => ({
+        serviceName: name,
+        ...data,
+      })),
+      rows,
+    };
+  }
 }

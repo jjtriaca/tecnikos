@@ -32,4 +32,14 @@ export class ReportsController {
   techniciansReport(@CurrentUser() user: AuthenticatedUser) {
     return this.service.techniciansReport(user.companyId);
   }
+
+  @Get('technician-detail')
+  technicianDetailReport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('technicianId') technicianId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.technicianDetailReport(user.companyId, technicianId, from, to);
+  }
 }
