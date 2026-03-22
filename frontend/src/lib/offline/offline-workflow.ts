@@ -138,7 +138,7 @@ export async function advanceBlockOffline(
   await enqueueSyncItem({
     serviceOrderId,
     type: 'WORKFLOW_ADVANCE',
-    payload: { blockId, ...payload },
+    payload: { blockId, ...payload, clientTimestamp: new Date().toISOString() },
     status: 'PENDING',
     retryCount: 0,
     maxRetries: 5,

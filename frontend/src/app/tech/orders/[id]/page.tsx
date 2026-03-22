@@ -672,6 +672,9 @@ export default function TechOrderDetailPage() {
         break;
     }
 
+    // Capture timestamp at moment of click (device time, not transmission time)
+    body.clientTimestamp = new Date().toISOString();
+
     try {
       let wf: WorkflowProgressV2;
 

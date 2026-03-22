@@ -518,14 +518,15 @@ model ServiceOrderOffer {
 }
 
 model ServiceOrderEvent {
-  id             String   @id @default(uuid())
-  companyId      String
-  serviceOrderId String
-  type           String
-  actorType      String
-  actorId        String?
-  payload        Json?
-  createdAt      DateTime @default(now())
+  id              String    @id @default(uuid())
+  companyId       String
+  serviceOrderId  String
+  type            String
+  actorType       String
+  actorId         String?
+  payload         Json?
+  clientTimestamp  DateTime? // Timestamp do dispositivo do tecnico (pode diferir do createdAt se offline)
+  createdAt       DateTime  @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
 
@@ -574,8 +575,9 @@ model WorkflowStepLog {
   partnerId      String
   note           String?
   photoUrl       String?
-  responseData   Json?    // V2: block-specific response data (answers, GPS, checklist, etc.)
-  completedAt    DateTime @default(now())
+  responseData    Json?     // V2: block-specific response data (answers, GPS, checklist, etc.)
+  clientTimestamp  DateTime? // Timestamp do dispositivo do tecnico
+  completedAt     DateTime  @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
 

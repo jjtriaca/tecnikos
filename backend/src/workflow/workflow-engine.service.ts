@@ -615,6 +615,8 @@ export class WorkflowEngineService {
         });
       }
 
+      const clientTs = dto.clientTimestamp ? new Date(dto.clientTimestamp) : undefined;
+
       await tx.workflowStepLog.create({
         data: {
           serviceOrderId: so.id,
@@ -625,6 +627,7 @@ export class WorkflowEngineService {
           note: dto.note,
           photoUrl: dto.photoUrl,
           responseData: dto.responseData || undefined,
+          clientTimestamp: clientTs,
         },
       });
 
@@ -672,6 +675,7 @@ export class WorkflowEngineService {
           actorType: 'TECNICO',
           actorId: technicianId,
           payload: eventPayload,
+          clientTimestamp: clientTs,
         },
       });
 
