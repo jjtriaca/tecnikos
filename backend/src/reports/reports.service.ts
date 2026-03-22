@@ -1,6 +1,63 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+type BusinessHour = { start: string; end: string };
+
+/**
+ * Calculate minutes worked OUTSIDE business hours.
+ * Iterates minute-by-minute from start to end, subtracting paused time proportionally.
+ */
+function calcOvertimeMinutes(
+  startTs: number | null,
+  endTs: number | null,
+  pausedMs: number,
+  businessHours: BusinessHour[] | null,
+  timezone: string,
+): number {
+  if (!startTs || !endTs || !businessHours || businessHours.length === 0) return 0;
+
+  const totalMs = endTs - startTs;
+  if (totalMs <= 0) return 0;
+
+  const totalMinutes = Math.round(totalMs / 60000);
+  const pauseMinutes = Math.round(pausedMs / 60000);
+  const activeMinutes = Math.max(0, totalMinutes - pauseMinutes);
+  if (activeMinutes === 0) return 0;
+
+  // Parse business hours into minute ranges (minutes from midnight)
+  const ranges = businessHours.map(bh => {
+    const [sh, sm] = bh.start.split(':').map(Number);
+    const [eh, em] = bh.end.split(':').map(Number);
+    return { startMin: sh * 60 + (sm || 0), endMin: eh * 60 + (em || 0) };
+  }).filter(r => r.endMin > r.startMin);
+
+  if (ranges.length === 0) return 0;
+
+  // Count minutes inside business hours
+  let insideMinutes = 0;
+  const step = Math.max(1, Math.round(totalMinutes / 1440)); // optimize for long durations
+  for (let i = 0; i < totalMinutes; i += step) {
+    const ts = startTs + i * 60000;
+    // Convert to local time using timezone
+    const localDate = new Date(ts);
+    // Use Intl to get local hour/minute in the company timezone
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone || 'America/Sao_Paulo',
+      hour: 'numeric', minute: 'numeric', hour12: false,
+    }).formatToParts(localDate);
+    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+    const minuteOfDay = hour * 60 + minute;
+
+    const isInside = ranges.some(r => minuteOfDay >= r.startMin && minuteOfDay < r.endMin);
+    if (isInside) insideMinutes += step;
+  }
+
+  // Scale: proportion of active time that was outside
+  const outsideProportion = Math.max(0, totalMinutes - insideMinutes) / totalMinutes;
+  return Math.round(activeMinutes * outsideProportion);
+}
+
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -216,6 +273,14 @@ export class ReportsService {
       orderBy: { completedAt: 'desc' },
     });
 
+    // Get company business hours
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { timezone: true, businessHours: true },
+    });
+    const bh = (company?.businessHours as BusinessHour[] | null) || null;
+    const tz = company?.timezone || 'America/Sao_Paulo';
+
     // Get technician info
     const tech = await this.prisma.partner.findFirst({
       where: { id: technicianId, companyId },
@@ -274,6 +339,11 @@ export class ReportsService {
 
       const netMinutes = totalMinutes - pauseMinutes;
 
+      // Overtime (outside business hours)
+      const overtimeMinutes = calcOvertimeMinutes(
+        enRoute || started, completed, pausedMs, bh, tz,
+      );
+
       // Commission (from ledger or calculated)
       const commissionCents = os.ledger?.netCents ?? os.techCommissionCents ?? 0;
 
@@ -295,6 +365,7 @@ export class ReportsService {
         executionMinutes,
         pauseMinutes,
         netMinutes,
+        overtimeMinutes,
         pauseCount: os.pauseCount,
         valueCents: os.valueCents,
         commissionCents,
@@ -309,6 +380,7 @@ export class ReportsService {
     const totalNetMinutes = rows.reduce((s, r) => s + r.netMinutes, 0);
     const totalTravelMinutes = rows.reduce((s, r) => s + r.travelMinutes, 0);
     const totalPauseMinutes = rows.reduce((s, r) => s + r.pauseMinutes, 0);
+    const totalOvertimeMinutes = rows.reduce((s, r) => s + r.overtimeMinutes, 0);
     const totalValueCents = rows.reduce((s, r) => s + r.valueCents, 0);
     const totalCommissionCents = rows.reduce((s, r) => s + r.commissionCents, 0);
     const avgScore = evaluations.length > 0
@@ -340,6 +412,7 @@ export class ReportsService {
         totalNetMinutes,
         totalTravelMinutes,
         totalPauseMinutes,
+        totalOvertimeMinutes,
         totalValueCents,
         totalCommissionCents,
         avgScore,

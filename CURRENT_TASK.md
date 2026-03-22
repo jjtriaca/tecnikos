@@ -28,6 +28,8 @@
    - Ao reconectar, enviar todos os pings acumulados com timestamps originais
    - Deslocamento intermunicipal: detectar que está longe e reduzir consumo ainda mais
 
+6. **PWA Pausa regime CLT**: Sistema de pausa precisa considerar regras trabalhistas CLT. Incluir: pausa obrigatória para almoço (1h entre 4ª e 6ª hora), controle de jornada (8h diárias / 44h semanais), registro de ponto integrado, alertas de hora extra, intervalo interjornada (11h), diferenciação entre pausa remunerada e não remunerada. Atrelar ao sistema de pausa existente (ExecutionPause) e ao horário comercial configurado.
+
 ### PENDENTE VALIDACAO
 - **Modal de Aprovação**: Testar fluxo completo (estrelas → modal → financeiro → APROVADA)
 - **Botão Retorno**: Testar na lista de OS com OS em status terminal

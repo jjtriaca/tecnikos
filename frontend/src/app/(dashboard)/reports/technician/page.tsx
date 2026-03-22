@@ -12,7 +12,7 @@ type TechReport = {
   } | null;
   summary: {
     totalOs: number; totalMinutes: number; totalNetMinutes: number;
-    totalTravelMinutes: number; totalPauseMinutes: number;
+    totalTravelMinutes: number; totalPauseMinutes: number; totalOvertimeMinutes: number;
     totalValueCents: number; totalCommissionCents: number; avgScore: number;
   };
   byService: { serviceName: string; count: number; minutes: number; commissionCents: number }[];
@@ -20,7 +20,7 @@ type TechReport = {
     id: string; code: string; title: string; status: string; serviceName: string;
     date: string; enRouteAt: string | null; startedAt: string | null; completedAt: string | null;
     totalMinutes: number; travelMinutes: number; executionMinutes: number;
-    pauseMinutes: number; netMinutes: number; pauseCount: number;
+    pauseMinutes: number; netMinutes: number; overtimeMinutes: number; pauseCount: number;
     valueCents: number; commissionCents: number;
     isReturn: boolean; isEvaluation: boolean;
   }[];
@@ -105,6 +105,7 @@ export default function TechnicianReportPage() {
       { header: "Tempo total", value: (r: any) => fmtTime(r.totalMinutes) },
       { header: "Pausas", value: (r: any) => fmtTime(r.pauseMinutes) },
       { header: "Tempo liquido", value: (r: any) => fmtTime(r.netMinutes) },
+      { header: "Fora expediente", value: (r: any) => fmtTime(r.overtimeMinutes) },
       ...(showOsValue ? [
         { header: "Valor OS", value: (r: any) => fmtMoney(r.valueCents) },
       ] : []),
@@ -215,7 +216,7 @@ export default function TechnicianReportPage() {
           </div>
 
           {/* Time breakdown */}
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-center">
               <p className="text-sm font-semibold text-slate-700">{fmtTime(s?.totalTravelMinutes || 0)}</p>
               <p className="text-[10px] text-slate-400">Deslocamento</p>
@@ -227,6 +228,10 @@ export default function TechnicianReportPage() {
             <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-center">
               <p className="text-sm font-semibold text-slate-700">{fmtTime(s?.totalPauseMinutes || 0)}</p>
               <p className="text-[10px] text-slate-400">Pausas</p>
+            </div>
+            <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-center">
+              <p className="text-sm font-semibold text-amber-700">{fmtTime(s?.totalOvertimeMinutes || 0)}</p>
+              <p className="text-[10px] text-amber-500">Fora expediente</p>
             </div>
           </div>
 
@@ -265,6 +270,7 @@ export default function TechnicianReportPage() {
                     <th className="px-3 py-2 text-center font-medium">Conclusao</th>
                     <th className="px-3 py-2 text-center font-medium">Tempo</th>
                     <th className="px-3 py-2 text-center font-medium">Pausas</th>
+                    <th className="px-3 py-2 text-center font-medium">Fora Exp.</th>
                     <th className="px-3 py-2 text-right font-medium">
                       <label className="inline-flex items-center gap-1 cursor-pointer">
                         <input type="checkbox" checked={showOsValue} onChange={e => setShowOsValue(e.target.checked)}
@@ -291,6 +297,9 @@ export default function TechnicianReportPage() {
                       <td className="px-3 py-2 text-center text-xs text-slate-400">
                         {r.pauseMinutes > 0 ? fmtTime(r.pauseMinutes) : "—"}
                       </td>
+                      <td className="px-3 py-2 text-center text-xs text-amber-600">
+                        {r.overtimeMinutes > 0 ? fmtTime(r.overtimeMinutes) : "—"}
+                      </td>
                       <td className="px-3 py-2 text-right text-xs text-slate-600">{showOsValue ? fmtMoney(r.valueCents) : "—"}</td>
                       <td className="px-3 py-2 text-right text-xs font-medium text-green-600">{fmtMoney(r.commissionCents)}</td>
                     </tr>
@@ -302,6 +311,7 @@ export default function TechnicianReportPage() {
                       <td colSpan={7} className="px-3 py-2 text-slate-600">TOTAL ({report.rows.length} OS)</td>
                       <td className="px-3 py-2 text-center text-slate-700">{fmtTime(s?.totalNetMinutes || 0)}</td>
                       <td className="px-3 py-2 text-center text-slate-500">{fmtTime(s?.totalPauseMinutes || 0)}</td>
+                      <td className="px-3 py-2 text-center text-amber-600">{fmtTime(s?.totalOvertimeMinutes || 0)}</td>
                       <td className="px-3 py-2 text-right text-slate-700">{showOsValue ? fmtMoney(s?.totalValueCents || 0) : "—"}</td>
                       <td className="px-3 py-2 text-right text-green-600">{fmtMoney(s?.totalCommissionCents || 0)}</td>
                     </tr>
