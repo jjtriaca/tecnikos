@@ -676,82 +676,7 @@ export default function OrderDetailPage() {
         )}
       </div>
 
-      {/* ── Gestor Evaluation (only when CONCLUIDA) ── */}
-      {order.status === "CONCLUIDA" && order.assignedPartnerId && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-            <svg className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-            </svg>
-            Avaliação do Técnico
-          </h3>
-
-          {/* Star rating */}
-          <div className="mb-4">
-            <label className="block text-xs text-slate-500 mb-2">Nota</label>
-            <div className="flex items-center gap-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setEvalScore(star)}
-                  onMouseEnter={() => setEvalHover(star)}
-                  onMouseLeave={() => setEvalHover(0)}
-                  className="focus:outline-none transition-transform hover:scale-110"
-                  aria-label={`${star} estrela${star > 1 ? "s" : ""}`}
-                >
-                  <svg
-                    className={`h-8 w-8 transition-colors ${
-                      star <= (evalHover || evalScore)
-                        ? "text-yellow-400"
-                        : "text-slate-200"
-                    }`}
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                  </svg>
-                </button>
-              ))}
-              {evalScore > 0 && (
-                <span className="ml-2 text-sm font-medium text-slate-600">
-                  {evalScore}/5
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Comment */}
-          <div className="mb-4">
-            <label className="block text-xs text-slate-500 mb-1">
-              Comentário (opcional)
-            </label>
-            <textarea
-              value={evalComment}
-              onChange={(e) => setEvalComment(e.target.value)}
-              rows={3}
-              placeholder="Descreva sua experiência com o técnico..."
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none"
-            />
-          </div>
-
-          {/* Submit button */}
-          <button
-            onClick={handleEvaluation}
-            disabled={evalSubmitting || evalScore < 1}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {evalSubmitting ? (
-              <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Enviando...
-              </>
-            ) : (
-              "Aprovar e Avaliar"
-            )}
-          </button>
-        </div>
-      )}
+      {/* Avaliação movida para depois das fotos */}
 
       {/* ── NFS-e Prompt (when OS is completed) ── */}
       {nfsePrompt?.show && nfsePrompt.financialEntryId && (
@@ -1241,7 +1166,46 @@ export default function OrderDetailPage() {
         })()}
       </div>
 
-      {/* Historico removido — unificado com Fluxo acima */}
+      {/* ── Gestor Evaluation (only when CONCLUIDA — after fotos) ── */}
+      {order.status === "CONCLUIDA" && order.assignedPartnerId && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+            <svg className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+            Avaliação do Técnico
+          </h3>
+          <div className="mb-4">
+            <label className="block text-xs text-slate-500 mb-2">Nota</label>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button key={star} type="button" onClick={() => setEvalScore(star)}
+                  onMouseEnter={() => setEvalHover(star)} onMouseLeave={() => setEvalHover(0)}
+                  className="focus:outline-none transition-transform hover:scale-110"
+                  aria-label={`${star} estrela${star > 1 ? "s" : ""}`}>
+                  <svg className={`h-8 w-8 transition-colors ${star <= (evalHover || evalScore) ? "text-yellow-400" : "text-slate-200"}`}
+                    fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                </button>
+              ))}
+              {evalScore > 0 && <span className="ml-2 text-sm font-medium text-slate-600">{evalScore}/5</span>}
+            </div>
+          </div>
+          <div className="mb-4">
+            <label className="block text-xs text-slate-500 mb-1">Comentário (opcional)</label>
+            <textarea value={evalComment} onChange={(e) => setEvalComment(e.target.value)} rows={3}
+              placeholder="Descreva sua experiência com o técnico..."
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none" />
+          </div>
+          <button onClick={handleEvaluation} disabled={evalSubmitting || evalScore < 1}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            {evalSubmitting ? (
+              <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Enviando...</>
+            ) : "Aprovar e Avaliar"}
+          </button>
+        </div>
+      )}
 
       <ConfirmModal
         open={showDeleteModal}

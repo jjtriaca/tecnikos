@@ -44,6 +44,27 @@ export class EvaluationService {
       },
     });
 
+    // Aprovar a OS (CONCLUIDA → APROVADA)
+    const so = await this.prisma.serviceOrder.findUnique({
+      where: { id: serviceOrderId },
+      select: { status: true },
+    });
+    if (so?.status === 'CONCLUIDA') {
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: { status: 'APROVADA' },
+      });
+      await this.prisma.serviceOrderEvent.create({
+        data: {
+          companyId,
+          serviceOrderId,
+          type: 'STATUS_CHANGE',
+          actorType: 'USER',
+          payload: { from: 'CONCLUIDA', to: 'APROVADA', reason: 'Avaliação do gestor' },
+        },
+      });
+    }
+
     await this.updateTechnicianRating(partnerId, companyId);
 
     return evaluation;
