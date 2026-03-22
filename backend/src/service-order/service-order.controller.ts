@@ -181,6 +181,15 @@ export class ServiceOrderController {
     return this.service.finalize(id, user.companyId, user);
   }
 
+  @Post(':id/incident')
+  reportIncident(
+    @Param('id') id: string,
+    @Body() body: { category: string; description: string; clientTimestamp?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.reportIncident(id, user.companyId, user, body);
+  }
+
   @Post(':id/pause')
   pauseExecution(
     @Param('id') id: string,

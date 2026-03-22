@@ -233,6 +233,12 @@ export default function TechOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
 
+  // Incident state
+  const [showIncidentModal, setShowIncidentModal] = useState(false);
+  const [incidentCategory, setIncidentCategory] = useState("");
+  const [incidentText, setIncidentText] = useState("");
+  const [incidentLoading, setIncidentLoading] = useState(false);
+
   // Pause state
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
@@ -621,6 +627,39 @@ export default function TechOrderDetailPage() {
   }, []);
 
 
+
+  /* ── Incident Report ── */
+  const INCIDENT_CATEGORIES = [
+    { value: "accident", label: "Acidente", icon: "🚨" },
+    { value: "vehicle_issue", label: "Problema veiculo", icon: "🚗" },
+    { value: "equipment_failure", label: "Falha equipamento", icon: "⚙️" },
+    { value: "access_denied", label: "Acesso negado", icon: "🚫" },
+    { value: "safety_risk", label: "Risco seguranca", icon: "⚠️" },
+    { value: "client_issue", label: "Problema c/ cliente", icon: "👤" },
+    { value: "pwa_error", label: "Falha no app", icon: "📱" },
+    { value: "other", label: "Outro", icon: "📝" },
+  ];
+
+  async function handleIncident() {
+    if (!order || !incidentCategory || !incidentText.trim()) return;
+    setIncidentLoading(true);
+    try {
+      await techApi(`/service-orders/${order.id}/incident`, {
+        method: "POST",
+        body: JSON.stringify({
+          category: incidentCategory,
+          description: incidentText.trim(),
+          clientTimestamp: new Date().toISOString(),
+        }),
+      });
+      setShowIncidentModal(false);
+      setIncidentCategory("");
+      setIncidentText("");
+    } catch {
+    } finally {
+      setIncidentLoading(false);
+    }
+  }
 
   /* ── Pause/Resume ── */
   const PAUSE_REASONS = [
@@ -1049,14 +1088,24 @@ export default function TechOrderDetailPage() {
             </div>
           )}
 
-          {/* Pause button (when not paused) */}
+          {/* Bottom action buttons (when not paused) */}
           {!isPaused && (
-            <button
-              onClick={() => { setPauseReason(""); setPauseReasonText(""); setShowPauseModal(true); }}
-              className="fixed bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full bg-orange-500/90 text-white px-4 py-2.5 text-xs font-semibold shadow-lg hover:bg-orange-600 active:scale-95 transition-all"
-            >
-              ⏸️ Pausar
-            </button>
+            <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2">
+              {/* Incident button (discrete) */}
+              <button
+                onClick={() => { setIncidentCategory(""); setIncidentText(""); setShowIncidentModal(true); }}
+                className="flex items-center gap-1 rounded-full bg-slate-600/80 text-white px-3 py-2 text-[10px] font-medium shadow-md hover:bg-slate-700 active:scale-95 transition-all"
+              >
+                ⚠️ Ocorrencia
+              </button>
+              {/* Pause button */}
+              <button
+                onClick={() => { setPauseReason(""); setPauseReasonText(""); setShowPauseModal(true); }}
+                className="flex items-center gap-1.5 rounded-full bg-orange-500/90 text-white px-4 py-2.5 text-xs font-semibold shadow-lg hover:bg-orange-600 active:scale-95 transition-all"
+              >
+                ⏸️ Pausar
+              </button>
+            </div>
           )}
 
           {/* Pause reason modal */}
@@ -1090,6 +1139,39 @@ export default function TechOrderDetailPage() {
                   className="w-full py-3 rounded-xl bg-orange-500 text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-all">
                   {pauseLoading ? "Pausando..." : "Confirmar Pausa"}
                 </button>
+              </div>
+            </div>
+          )}
+          {/* Incident modal */}
+          {showIncidentModal && (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setShowIncidentModal(false)}>
+              <div className="w-full max-w-sm bg-white rounded-t-2xl p-5 safe-area-pb" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-slate-800">⚠️ Relatar Ocorrencia</h3>
+                  <button onClick={() => setShowIncidentModal(false)} className="text-slate-400 text-lg">✕</button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {INCIDENT_CATEGORIES.map(c => (
+                    <button key={c.value}
+                      onClick={() => setIncidentCategory(c.value)}
+                      className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                        incidentCategory === c.value
+                          ? "border-red-400 bg-red-50 text-red-800 font-medium"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}>
+                      <span className="text-base mr-1">{c.icon}</span> {c.label}
+                    </button>
+                  ))}
+                </div>
+                <textarea value={incidentText} onChange={e => setIncidentText(e.target.value)}
+                  placeholder="Descreva o que aconteceu..." rows={3}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm mb-3 outline-none focus:border-red-400 resize-none" />
+                <button onClick={handleIncident}
+                  disabled={!incidentCategory || !incidentText.trim() || incidentLoading}
+                  className="w-full py-3 rounded-xl bg-red-600 text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-all">
+                  {incidentLoading ? "Enviando..." : "Enviar Ocorrencia"}
+                </button>
+                <p className="text-[10px] text-slate-400 text-center mt-2">O gestor sera notificado imediatamente</p>
               </div>
             </div>
           )}

@@ -243,6 +243,7 @@ const EVENT_LABELS: Record<string, string> = {
   CREATED: "OS criada",
   CHECKLIST_CONFIRMED: "Checklist confirmado",
   CHECKLIST_SKIPPED: "Checklist pulado",
+  INCIDENT_REPORTED: "⚠️ Ocorrência",
 };
 
 const CHECKLIST_CLASS_LABELS: Record<string, { label: string; icon: string }> = {

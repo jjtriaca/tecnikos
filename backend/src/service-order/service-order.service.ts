@@ -1551,6 +1551,48 @@ export class ServiceOrderService {
     return result;
   }
 
+  // ── Incident Report ──
+
+  async reportIncident(
+    id: string,
+    companyId: string,
+    actor: AuthenticatedUser,
+    data: { category: string; description: string; clientTimestamp?: string },
+  ) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+
+    const clientTs = data.clientTimestamp ? new Date(data.clientTimestamp) : undefined;
+
+    await this.prisma.serviceOrderEvent.create({
+      data: {
+        companyId,
+        serviceOrderId: id,
+        type: 'INCIDENT_REPORTED',
+        actorType: actor?.isTecnico ? 'TECNICO' : 'USER',
+        actorId: actor?.partnerId || actor?.id,
+        clientTimestamp: clientTs,
+        payload: {
+          category: data.category,
+          description: data.description,
+        },
+      },
+    });
+
+    // Notify gestor via push (fire-and-forget)
+    if (this.notifications) {
+      const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { phone: true } });
+      this.notifications.notifyStatusChange(
+        companyId, id, `⚠️ Ocorrência: ${so.title}`,
+        `INCIDENT: ${data.category}`, company?.phone ?? undefined,
+      ).catch(() => {});
+    }
+
+    return { success: true };
+  }
+
   // ── Pause / Resume (authenticated) ──
 
   async pauseExecution(id: string, companyId: string, actor: AuthenticatedUser, reasonCategory: string, reason?: string) {
