@@ -1295,18 +1295,12 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
           )}
 
           {/* ─── 8. Retorno ─────────────────────────────────── */}
-          <div id="return-section" className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isReturn}
-                onChange={(e) => setIsReturn(e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-slate-700">Retorno de atendimento anterior</span>
-            </label>
-
-            {isReturn && (
+          {isReturn && (
+            <div id="return-section" className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-600">🔄</span>
+                <span className="text-sm font-medium text-amber-800">Retorno de atendimento</span>
+              </div>
               <div className="ml-6 space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -1316,7 +1310,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                     onChange={() => setReturnPaidToTech(true)}
                     className="text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-slate-600">Lançar valor para o técnico</span>
+                  <span className="text-sm text-slate-600">Lancar valor para o tecnico</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -1326,14 +1320,14 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                     onChange={() => setReturnPaidToTech(false)}
                     className="text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-slate-600">Obrigação do técnico (sem comissão)</span>
+                  <span className="text-sm text-slate-600">Obrigacao do tecnico (sem comissao)</span>
                 </label>
               </div>
-            )}
-            {isReturn && !returnPaidToTech && (
-              <p className="text-xs text-amber-600 ml-1">Técnico não receberá comissão neste retorno</p>
-            )}
-          </div>
+              {!returnPaidToTech && (
+                <p className="text-xs text-amber-600 ml-1">Tecnico nao recebera comissao neste retorno</p>
+              )}
+            </div>
+          )}
 
           {/* ─── 9. Avaliação/Orçamento ────────────────────── */}
           <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">

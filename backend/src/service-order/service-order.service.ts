@@ -894,6 +894,8 @@ export class ServiceOrderService {
         events: { orderBy: { createdAt: 'desc' }, take: 50 },
         attachments: { orderBy: { createdAt: 'asc' } },
         items: { include: { service: { select: { id: true, name: true, unit: true, priceCents: true } } } },
+        parentOrder: { select: { id: true, code: true, title: true } },
+        returnOrders: { select: { id: true, code: true, title: true, status: true }, where: { deletedAt: null } },
       },
     });
     if (!so) throw new NotFoundException('OS não encontrada');

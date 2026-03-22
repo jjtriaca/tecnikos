@@ -65,6 +65,9 @@ type ServiceOrder = {
   clientPartnerId?: string | null;
   isReturn?: boolean;
   returnPaidToTech?: boolean;
+  parentOrderId?: string | null;
+  parentOrder?: { id: string; code: string; title: string } | null;
+  returnOrders?: { id: string; code: string; title: string; status: string }[];
 };
 
 type WorkflowStepLog = {
@@ -650,6 +653,34 @@ export default function OrderDetailPage() {
 
       {/* Técnico */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6">
+        {/* Retorno banner */}
+        {order.parentOrder && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 mb-4 flex items-center gap-2">
+            <span className="text-amber-600 text-sm">🔄</span>
+            <p className="text-xs text-amber-700">
+              Retorno de{" "}
+              <a href={`/orders/${order.parentOrder.id}`} className="font-semibold underline hover:text-amber-900">
+                {order.parentOrder.code} — {order.parentOrder.title}
+              </a>
+            </p>
+          </div>
+        )}
+        {/* Return orders */}
+        {order.returnOrders && order.returnOrders.length > 0 && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 mb-4">
+            <p className="text-xs text-blue-700">
+              📋 {order.returnOrders.length === 1 ? "Retorno criado" : `${order.returnOrders.length} retornos`}:{" "}
+              {order.returnOrders.map((r, i) => (
+                <span key={r.id}>
+                  {i > 0 && ", "}
+                  <a href={`/orders/${r.id}`} className="font-semibold underline hover:text-blue-900">
+                    {r.code}
+                  </a>
+                </span>
+              ))}
+            </p>
+          </div>
+        )}
         <h3 className="text-sm font-semibold text-slate-700 mb-3">Técnico Atribuído</h3>
         {order.assignedPartner ? (
           <div className="flex items-center gap-3">
