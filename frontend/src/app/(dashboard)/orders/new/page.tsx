@@ -190,6 +190,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
   const [isReturn, setIsReturn] = useState(false);
   const [returnPaidToTech, setReturnPaidToTech] = useState(true);
   const [isEvaluation, setIsEvaluation] = useState(false);
+  const [showZeroValueConfirm, setShowZeroValueConfirm] = useState(false);
 
   // Helper: parse BRL string "150,00" → 150.00
   function parseBRL(s: string): number { return parseFloat((s || "0").replace(/[^\d,]/g, "").replace(",", ".")); }
@@ -573,8 +574,8 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
     ? Math.round((totalCommissionCents / totalValueCents) * 10000)
     : 0;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     setError(null);
     setLoading(true);
     setGeocodingMsg(null);
@@ -592,11 +593,23 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
         return;
       }
 
-      if (totalValueCents <= 0) {
-        setError("O valor total dos serviços deve ser maior que zero");
-        setLoading(false);
-        return;
+      // Check zero value — show confirmation unless toggle allowZeroValueOs is ON
+      if (totalValueCents <= 0 && !showZeroValueConfirm) {
+        // Check system config toggle
+        try {
+          const cfg = await api.get<any>("/companies/system-config");
+          if (!cfg?.os?.allowZeroValueOs) {
+            setShowZeroValueConfirm(true);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          setShowZeroValueConfirm(true);
+          setLoading(false);
+          return;
+        }
       }
+      setShowZeroValueConfirm(false);
 
       // Calculate commission
       let finalCommissionBps = weightedCommissionBps;
@@ -1380,6 +1393,33 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
           </div>
         </div>
       </form>
+
+      {/* Zero Value Confirmation */}
+      {showZeroValueConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowZeroValueConfirm(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="text-3xl mb-2">⚠️</div>
+              <h3 className="text-sm font-bold text-slate-800">Valor da OS zerado</h3>
+              <p className="text-xs text-slate-500 mt-2">
+                O valor total dos servicos e <span className="font-bold text-red-600">R$ 0,00</span>.
+                Nenhum lancamento financeiro sera gerado para esta OS.
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Deseja criar a OS mesmo assim?</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowZeroValueConfirm(false)}
+                className="flex-1 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
+                Cancelar
+              </button>
+              <button onClick={() => { setShowZeroValueConfirm(false); handleSubmit(); }}
+                className="flex-1 py-2 rounded-lg bg-blue-600 text-sm text-white font-semibold hover:bg-blue-700">
+                Criar mesmo assim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tech Review Modal */}
       <TechReviewModal

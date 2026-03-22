@@ -227,6 +227,7 @@ export class CompanyService {
       financialOnApproval: true,
       requirePhotoBeforeComplete: false,
       allowTechSelfAssign: false,
+      allowZeroValueOs: false,
     },
     notifications: {
       emailOnNewOrder: true,

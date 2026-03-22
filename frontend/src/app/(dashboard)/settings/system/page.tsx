@@ -71,6 +71,13 @@ const SECTIONS: SectionConfig[] = [
         description: "Tecnico pode aceitar OS sem aprovacao do gestor",
         type: "toggle",
       },
+      {
+        section: "os",
+        key: "allowZeroValueOs",
+        label: "Permitir OS com valor zero",
+        description: "Permite criar OS sem valor (R$ 0,00). Quando desativado, mostra confirmacao antes de criar",
+        type: "toggle",
+      },
     ],
   },
   {
