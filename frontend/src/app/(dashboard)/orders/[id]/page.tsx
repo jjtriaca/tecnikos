@@ -143,6 +143,7 @@ type NormalisedStep = {
   requirePhoto: boolean; requireNote: boolean;
   completed: boolean; completedAt?: string;
   note?: string; photoUrl?: string; responseData?: any;
+  config?: any;
 };
 
 function normaliseWfSteps(wf: WorkflowProgress): {
@@ -168,6 +169,7 @@ function normaliseWfSteps(wf: WorkflowProgress): {
         note: b.note,
         photoUrl: b.photoUrl,
         responseData: b.responseData,
+        config: b.config,
       })),
     };
   }
@@ -932,15 +934,49 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ── Fluxo + Historico (unificado) ── */}
+      {/* ── Fluxo + Historico (unificado - relatório) ── */}
       {workflow ? (() => {
         const wfn = normaliseWfSteps(workflow);
+
+        // Helper: get detail text for a step
+        function getStepDetail(step: NormalisedStep): string {
+          if (!step.completed) return "";
+          if (step.type === "STATUS") return step.config?.targetStatus || "";
+          if (step.type === "ACTION_BUTTONS") {
+            const btnId = step.responseData?.buttonId;
+            const btns: Array<{ id: string; label: string }> = step.config?.buttons || [];
+            const btn = btns.find((b: { id: string }) => b.id === btnId);
+            return btn?.label || btnId || "";
+          }
+          if (step.type === "GPS" && step.responseData?.lat) return `${Number(step.responseData.lat).toFixed(5)}, ${Number(step.responseData.lng).toFixed(5)}`;
+          if (step.type === "CHECKLIST" && step.responseData?.checkedItems) return `${step.responseData.checkedItems.length} verificados`;
+          if (step.type === "FORM" && step.responseData?.fields) return `${Object.keys(step.responseData.fields).length} campos`;
+          if ((step.type === "QUESTION" || step.type === "CONDITION") && step.responseData?.answer !== undefined) return String(step.responseData.answer);
+          if (step.type === "PHOTO") return step.responseData?.count ? `${step.responseData.count} fotos` : "foto";
+          if (step.type === "SIGNATURE") return "assinado";
+          if (step.type === "MATERIALS" && step.responseData?.items) return `${step.responseData.items.length} itens`;
+          if (step.note) return step.note.substring(0, 40);
+          return "";
+        }
+
+        // Helper: get GPS from responseData or event
+        function getStepGps(step: NormalisedStep): string {
+          if (step.responseData?.lat) return `${Number(step.responseData.lat).toFixed(4)}, ${Number(step.responseData.lng).toFixed(4)}`;
+          return "";
+        }
+
+        const STATUS_LABELS: Record<string, string> = {
+          OFERTADA: "Ofertada", ATRIBUIDA: "Atribuída", A_CAMINHO: "A caminho",
+          EM_EXECUCAO: "Em execução", CONCLUIDA: "Concluída", APROVADA: "Aprovada",
+          AJUSTE: "Ajuste", CANCELADA: "Cancelada", RECUSADA: "Recusada",
+        };
+
         return (
         <div className="rounded-xl border border-slate-200 bg-white p-4 mb-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Fluxo: {wfn.templateName}
+              {wfn.templateName}
             </h3>
             <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
               wfn.isComplete ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
@@ -950,74 +986,78 @@ export default function OrderDetailPage() {
           </div>
 
           {/* Progress bar */}
-          <div className="h-1.5 rounded-full bg-slate-100 mb-3 overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                wfn.isComplete ? "bg-green-500" : "bg-blue-500"
-              }`}
-              style={{ width: `${wfn.totalSteps > 0 ? (wfn.completedSteps / wfn.totalSteps) * 100 : 0}%` }}
-            />
+          <div className="h-1 rounded-full bg-slate-100 mb-3 overflow-hidden">
+            <div className={`h-full rounded-full ${wfn.isComplete ? "bg-green-500" : "bg-blue-500"}`}
+              style={{ width: `${wfn.totalSteps > 0 ? (wfn.completedSteps / wfn.totalSteps) * 100 : 0}%` }} />
           </div>
 
-          {/* Unified timeline */}
-          <div className="divide-y divide-slate-50">
+          {/* Report table */}
+          <div className="max-w-2xl">
+            {/* Table header */}
+            <div className="flex items-center gap-2 text-[9px] text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-200 mb-0.5">
+              <span className="w-5 flex-shrink-0" />
+              <span className="w-28 flex-shrink-0">Passo</span>
+              <span className="flex-1 min-w-0">Detalhe</span>
+              <span className="w-24 flex-shrink-0 text-right">Hora</span>
+              <span className="w-32 flex-shrink-0 text-right hidden md:block">Coordenadas</span>
+            </div>
+
+            {/* Rows */}
             {wfn.steps.map((step, idx) => {
-              // Build inline detail chips
-              const details: string[] = [];
-              if (step.note) details.push(`📝 ${step.note.substring(0, 60)}`);
-              if (step.type === "GPS" && step.responseData?.lat) details.push(`📍 ${Number(step.responseData.lat).toFixed(4)}, ${Number(step.responseData.lng).toFixed(4)}`);
-              if (step.type === "CHECKLIST" && step.responseData?.checkedItems) details.push(`☑️ ${step.responseData.checkedItems.length} verificados`);
-              if (step.type === "FORM" && step.responseData?.fields) details.push(`📋 ${Object.keys(step.responseData.fields).length} campos`);
-              if ((step.type === "QUESTION" || step.type === "CONDITION") && step.responseData?.answer !== undefined) details.push(`💬 ${String(step.responseData.answer)}`);
+              const detail = getStepDetail(step);
+              const gps = getStepGps(step);
               const hasMaterials = step.type === "MATERIALS" && step.completed && step.responseData?.items;
+              const statusLabel = step.type === "STATUS" && detail ? (STATUS_LABELS[detail] || detail) : "";
 
               return (
-                <div key={step.order} className="py-1.5">
-                  {/* Main row */}
-                  <div className="flex items-center gap-2">
-                    {/* Status icon */}
-                    <span className={`flex h-5 w-5 items-center justify-center rounded-full flex-shrink-0 text-[10px] ${
-                      step.completed
-                        ? "bg-green-100 text-green-600"
-                        : idx === wfn.completedSteps
-                          ? "bg-blue-100 text-blue-600 ring-1 ring-blue-300"
-                          : "bg-slate-50 text-slate-300"
+                <div key={step.order}>
+                  <div className={`flex items-center gap-2 py-1 border-b border-slate-50 ${
+                    !step.completed && idx !== wfn.completedSteps ? "opacity-40" : ""
+                  }`}>
+                    {/* Status dot */}
+                    <span className={`flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] ${
+                      step.completed ? "bg-green-100 text-green-600"
+                        : idx === wfn.completedSteps ? "bg-blue-100 text-blue-600 ring-1 ring-blue-300"
+                        : "bg-slate-50 text-slate-300"
                     }`}>
                       {step.completed ? "✓" : idx === wfn.completedSteps ? "▶" : "○"}
                     </span>
-                    {/* Name */}
-                    <span className={`text-[11px] font-medium truncate ${
+                    {/* Step name */}
+                    <span className={`w-28 flex-shrink-0 text-[11px] font-medium truncate ${
                       step.completed ? "text-slate-700" : idx === wfn.completedSteps ? "text-blue-600" : "text-slate-400"
                     }`}>
                       {step.name}
                     </span>
-                    {/* Inline detail (first chip only) */}
-                    {details.length > 0 && !hasMaterials && (
-                      <span className="text-[10px] text-slate-400 truncate hidden sm:inline ml-1">
-                        {details[0]}
-                      </span>
-                    )}
-                    {/* Timestamp */}
-                    {step.completed && step.completedAt && (
-                      <span className="text-[10px] text-slate-300 ml-auto flex-shrink-0 whitespace-nowrap">
-                        {new Date(step.completedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    )}
-                    {!step.completed && idx === wfn.completedSteps && (
-                      <span className="text-[10px] text-blue-400 ml-auto">aguardando</span>
-                    )}
+                    {/* Detail column */}
+                    <span className="flex-1 min-w-0 text-[10px] text-slate-500 truncate">
+                      {step.type === "STATUS" ? (
+                        <span className={`inline-block px-1.5 py-0 rounded text-[9px] font-medium ${STATUS_COLORS[statusLabel ? detail : ""] || "bg-slate-100 text-slate-600"}`}>
+                          {statusLabel}
+                        </span>
+                      ) : step.type === "ACTION_BUTTONS" && detail ? (
+                        <span className="inline-block px-1.5 py-0 rounded bg-blue-50 text-blue-700 text-[9px] font-medium">
+                          {detail}
+                        </span>
+                      ) : step.note ? (
+                        <span>📝 {step.note.substring(0, 50)}</span>
+                      ) : (
+                        detail
+                      )}
+                    </span>
+                    {/* Time */}
+                    <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                      {step.completed && step.completedAt
+                        ? new Date(step.completedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                        : idx === wfn.completedSteps ? "aguardando" : ""}
+                    </span>
+                    {/* GPS */}
+                    <span className="w-32 flex-shrink-0 text-[9px] text-slate-400 text-right hidden md:block truncate">
+                      {gps && `📍 ${gps}`}
+                    </span>
                   </div>
-                  {/* Extra details below (GPS on desktop) */}
-                  {details.length > 1 && !hasMaterials && (
-                    <div className="ml-7 mt-0.5">
-                      {details.slice(1).map((d, i) => (
-                        <span key={i} className="text-[10px] text-slate-400 mr-3">{d}</span>
-                      ))}
-                    </div>
-                  )}
-                  {/* MATERIALS expanded */}
+                  {/* MATERIALS expanded below */}
                   {hasMaterials && (
-                    <div className="ml-7 mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 max-w-sm">
+                    <div className="ml-7 my-1 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 max-w-xs">
                       {step.responseData.note && (
                         <p className="text-[10px] text-slate-600 mb-1">{step.responseData.note}</p>
                       )}
@@ -1031,7 +1071,6 @@ export default function OrderDetailPage() {
                           <span className="w-8 text-right font-medium text-slate-600">{item.qty}</span>
                         </div>
                       ))}
-                      <p className="text-[9px] text-amber-500 mt-1">{step.responseData.items.length} material(is)</p>
                     </div>
                   )}
                 </div>
