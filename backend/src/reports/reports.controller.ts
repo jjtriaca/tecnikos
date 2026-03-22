@@ -42,4 +42,16 @@ export class ReportsController {
   ) {
     return this.service.technicianDetailReport(user.companyId, technicianId, from, to);
   }
+
+  /** Technician's own report (uses partnerId from JWT — no financial values) */
+  @Get('my-services')
+  myServicesReport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const techId = user.partnerId || user.technicianId;
+    if (!techId) return { rows: [], summary: null };
+    return this.service.technicianDetailReport(user.companyId, techId, from, to);
+  }
 }

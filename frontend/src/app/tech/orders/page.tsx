@@ -76,11 +76,17 @@ export default function TechOrdersPage() {
 
   return (
     <div>
-      <div className="mb-5">
-        <h1 className="text-xl font-bold text-slate-900">Minhas OS</h1>
-        <p className="text-xs text-slate-500">
-          {orders.length} ordem{orders.length !== 1 ? "ns" : ""} atribuída{orders.length !== 1 ? "s" : ""}
-        </p>
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Minhas OS</h1>
+          <p className="text-xs text-slate-500">
+            {orders.length} ordem{orders.length !== 1 ? "ns" : ""} atribuída{orders.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <a href="/tech/report"
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+          📊 Relatorio
+        </a>
       </div>
 
       {loading ? (
