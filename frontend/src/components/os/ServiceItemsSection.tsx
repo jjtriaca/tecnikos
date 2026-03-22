@@ -133,7 +133,7 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
                 <th className="px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase w-16">Qtd</th>
                 <th className="px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase w-16">Un</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase w-24">Valor Unit.</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase w-20">Comissão</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase w-20">Valor Tec.</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase w-24">Total</th>
                 <th className="px-3 py-2 w-8"></th>
               </tr>
@@ -177,8 +177,15 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
             </tbody>
             <tfoot>
               <tr className="bg-slate-50 border-t border-slate-200">
-                <td colSpan={5} className="px-3 py-2 text-right text-sm font-semibold text-slate-700">
+                <td colSpan={4} className="px-3 py-2 text-right text-sm font-semibold text-slate-700">
                   Total:
+                </td>
+                <td className="px-3 py-2 text-right text-xs text-blue-600 font-medium">
+                  {formatCurrency(items.reduce((s, i) => {
+                    if (i.techFixedValueCents && i.techFixedValueCents > 0) return s + i.techFixedValueCents * i.quantity;
+                    if (i.commissionBps && i.commissionBps > 0) return s + Math.round((i.unitPriceCents * i.quantity * i.commissionBps) / 10000);
+                    return s;
+                  }, 0))}
                 </td>
                 <td className="px-3 py-2 text-right text-sm font-bold text-green-700">
                   {formatCurrency(totalCents)}
