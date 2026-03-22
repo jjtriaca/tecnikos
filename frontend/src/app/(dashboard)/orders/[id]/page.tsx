@@ -50,6 +50,11 @@ type ServiceOrder = {
   city?: string | null;
   state?: string | null;
   cep?: string | null;
+  // Timestamps de execucao
+  enRouteAt?: string | null;
+  arrivedAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
   // Sistema de Pausas (v1.00.42)
   isPaused?: boolean;
   pausedAt?: string | null;
@@ -1044,6 +1049,60 @@ export default function OrderDetailPage() {
           Sem fluxo de atendimento.
         </div>
       )}
+
+      {/* ── Resumo de Tempo ── */}
+      {order.completedAt && (order.enRouteAt || order.startedAt) && (() => {
+        const enRoute = order.enRouteAt ? new Date(order.enRouteAt).getTime() : null;
+        const started = order.startedAt ? new Date(order.startedAt).getTime() : null;
+        const completed = new Date(order.completedAt).getTime();
+        const pausedMs = Number(order.totalPausedMs || 0);
+
+        const totalMs = (enRoute || started) ? completed - (enRoute || started)! : 0;
+        const travelMs = enRoute && started ? started - enRoute : 0;
+        const execMs = started ? Math.max(0, completed - started - pausedMs) : 0;
+        const netMs = Math.max(0, totalMs - pausedMs);
+
+        function fmtMs(ms: number): string {
+          if (ms <= 0) return "—";
+          const mins = Math.round(ms / 60000);
+          const h = Math.floor(mins / 60);
+          const m = mins % 60;
+          return h > 0 ? `${h}h${m.toString().padStart(2, "0")}` : `${m}min`;
+        }
+
+        return (
+          <div className="rounded-xl border border-slate-200 bg-white p-4 mb-6">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <svg className="h-3.5 w-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Tempo de Servico
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-700">{fmtMs(travelMs)}</p>
+                <p className="text-[10px] text-slate-400">Deslocamento</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-700">{fmtMs(execMs)}</p>
+                <p className="text-[10px] text-slate-400">Execucao</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-700">{fmtMs(pausedMs)}</p>
+                <p className="text-[10px] text-slate-400">Pausas{order.pauseCount ? ` (${order.pauseCount}x)` : ""}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-700">{fmtMs(totalMs)}</p>
+                <p className="text-[10px] text-slate-400">Total bruto</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-blue-600">{fmtMs(netMs)}</p>
+                <p className="text-[10px] text-blue-500 font-medium">Total liquido</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Checklists ── */}
       {checklistResponses.length > 0 && (() => {
