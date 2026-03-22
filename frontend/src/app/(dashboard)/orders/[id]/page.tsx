@@ -138,7 +138,17 @@ function isWfV2(wf: WorkflowProgress): wf is WorkflowProgressV2 {
 }
 
 /* Normalise V2 into same shape used by the timeline renderer */
-function normaliseWfSteps(wf: WorkflowProgress) {
+type NormalisedStep = {
+  order: number; name: string; type?: string; icon: string;
+  requirePhoto: boolean; requireNote: boolean;
+  completed: boolean; completedAt?: string;
+  note?: string; photoUrl?: string; responseData?: any;
+};
+
+function normaliseWfSteps(wf: WorkflowProgress): {
+  templateName: string; totalSteps: number; completedSteps: number;
+  isComplete: boolean; currentStep: any; steps: NormalisedStep[];
+} {
   if (isWfV2(wf)) {
     return {
       templateName: wf.templateName,
@@ -149,6 +159,7 @@ function normaliseWfSteps(wf: WorkflowProgress) {
       steps: wf.executionPath.map((b, idx) => ({
         order: idx,
         name: b.name,
+        type: b.type,
         icon: b.icon === 'start' ? '🚀' : b.icon === 'end' ? '🏁' : b.icon === 'location' ? '📍' : b.icon === 'camera' ? '📷' : b.icon === 'form' ? '📋' : b.icon === 'checklist' ? '✅' : b.icon === 'question' ? '❓' : b.icon === 'note' ? '📝' : b.icon === 'signature' ? '✍️' : b.icon === 'tools' ? '🔧' : b.icon,
         requirePhoto: false,
         requireNote: false,
@@ -156,6 +167,7 @@ function normaliseWfSteps(wf: WorkflowProgress) {
         completedAt: b.completedAt,
         note: b.note,
         photoUrl: b.photoUrl,
+        responseData: b.responseData,
       })),
     };
   }
@@ -165,7 +177,7 @@ function normaliseWfSteps(wf: WorkflowProgress) {
     completedSteps: wf.completedSteps,
     isComplete: wf.isComplete,
     currentStep: wf.currentStep,
-    steps: wf.steps,
+    steps: (wf.steps || []).map((s: any) => ({ ...s, type: undefined, responseData: undefined })),
   };
 }
 
@@ -990,6 +1002,40 @@ export default function OrderDetailPage() {
                     {step.note && (
                       <p className="text-[11px] text-slate-500 mt-0.5">📝 {step.note}</p>
                     )}
+                    {/* MATERIALS block: show item list */}
+                    {step.type === "MATERIALS" && step.completed && step.responseData?.items && (
+                      <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                        {step.responseData.note && (
+                          <p className="text-[11px] text-slate-600 mb-1.5">{step.responseData.note}</p>
+                        )}
+                        <div className="space-y-0.5">
+                          {(step.responseData.items as Array<{ name: string; qty: number }>).map((item: { name: string; qty: number }, i: number) => (
+                            <div key={i} className="flex items-center gap-1.5 text-[11px]">
+                              <span className="text-amber-600">•</span>
+                              <span className="flex-1 text-slate-700">{item.name}</span>
+                              <span className="font-semibold text-slate-600">x{item.qty}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-amber-600 mt-1">{step.responseData.items.length} material(is)</p>
+                      </div>
+                    )}
+                    {/* GPS block: show coords */}
+                    {step.type === "GPS" && step.completed && step.responseData?.lat && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">📍 {Number(step.responseData.lat).toFixed(5)}, {Number(step.responseData.lng).toFixed(5)}</p>
+                    )}
+                    {/* CHECKLIST block: show checked count */}
+                    {step.type === "CHECKLIST" && step.completed && step.responseData?.checkedItems && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">☑️ {step.responseData.checkedItems.length} item(ns) verificados</p>
+                    )}
+                    {/* FORM block: show field count */}
+                    {step.type === "FORM" && step.completed && step.responseData?.fields && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">📋 {Object.keys(step.responseData.fields).length} campo(s) preenchidos</p>
+                    )}
+                    {/* QUESTION/CONDITION: show answer */}
+                    {(step.type === "QUESTION" || step.type === "CONDITION") && step.completed && step.responseData?.answer !== undefined && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">💬 {String(step.responseData.answer)}</p>
+                    )}
                     {!step.completed && idx === wfn.completedSteps && (
                       <p className="text-[11px] text-blue-500 font-medium">← Próximo passo</p>
                     )}
@@ -1162,35 +1208,45 @@ export default function OrderDetailPage() {
         })()}
       </div>
 
-      {/* Histórico de Eventos */}
+      {/* Histórico de Eventos — Compacto */}
       {order.events && order.events.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">Histórico de Eventos</h3>
-          <div className="space-y-2">
-            {order.events.map((event) => (
-              <div key={event.id} className="flex items-start gap-3 border-b border-slate-50 pb-2 last:border-0">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs text-slate-500 flex-shrink-0 mt-0.5">
-                  {event.type === "CHECKLIST_CONFIRMED" || event.type === "CHECKLIST_SKIPPED"
-                    ? "📋"
-                    : event.actorType === "TECNICO" ? "🔧" : "👤"}
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Historico</h3>
+          <div className="divide-y divide-slate-50">
+            {order.events.map((event) => {
+              const p = event.payload || {};
+              const icon = event.type === "CHECKLIST_CONFIRMED" || event.type === "CHECKLIST_SKIPPED"
+                ? "📋" : event.type === "WORKFLOW_COMPLETED" ? "🏁"
+                : p.blockType === "GPS" ? "📍" : p.blockType === "PHOTO" ? "📸"
+                : p.blockType === "MATERIALS" ? "📦" : p.blockType === "NOTE" ? "📝"
+                : p.blockType === "CHECKLIST" ? "☑️" : p.blockType === "FORM" ? "📋"
+                : p.blockType === "SIGNATURE" ? "✍️"
+                : event.actorType === "TECNICO" ? "🔧" : "⚙️";
+
+              // Build summary chips
+              const chips: string[] = [];
+              if (p.note) chips.push(`"${p.note.substring(0, 40)}${p.note.length > 40 ? '...' : ''}"`);
+              if (p.materialCount) chips.push(`${p.materialCount} material(is)`);
+              if (p.checkedCount) chips.push(`${p.checkedCount} verificados`);
+              if (p.answer !== undefined) chips.push(`R: ${p.answer}`);
+              if (p.fieldCount) chips.push(`${p.fieldCount} campos`);
+              if (p.gps) chips.push(`📍 ${Number(p.gps.lat).toFixed(4)},${Number(p.gps.lng).toFixed(4)}`);
+
+              return (
+                <div key={event.id} className="flex items-center gap-2 py-1.5">
+                  <span className="text-xs flex-shrink-0">{icon}</span>
+                  <span className="text-[11px] text-slate-700 font-medium truncate">
+                    {p.blockName || EVENT_LABELS[event.type] || event.type}
+                  </span>
+                  {chips.length > 0 && (
+                    <span className="text-[10px] text-slate-400 truncate hidden sm:inline">{chips.join(" · ")}</span>
+                  )}
+                  <span className="text-[10px] text-slate-400 ml-auto flex-shrink-0 whitespace-nowrap">
+                    {new Date(event.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-slate-700">
-                    {EVENT_LABELS[event.type] || event.type}
-                    {event.payload?.stepName && (
-                      <span className="text-slate-500"> — {event.payload.stepName}</span>
-                    )}
-                    {event.payload?.checklistClass && (
-                      <span className="text-slate-500"> — {CHECKLIST_CLASS_LABELS[event.payload.checklistClass]?.label || event.payload.checklistClass}</span>
-                    )}
-                    {event.payload?.completedSteps && event.payload?.totalSteps && (
-                      <span className="text-slate-400"> ({event.payload.completedSteps}/{event.payload.totalSteps})</span>
-                    )}
-                  </p>
-                  <p className="text-[10px] text-slate-400">{formatDateTime(event.createdAt)}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

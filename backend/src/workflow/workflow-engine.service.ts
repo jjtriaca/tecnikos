@@ -640,6 +640,30 @@ export class WorkflowEngineService {
         await tx.serviceOrder.update({ where: { id: so.id }, data: statusUpdateData });
       }
 
+      // Build enriched event payload with summary data
+      const eventPayload: Record<string, any> = {
+        blockId: block.id,
+        blockType: block.type,
+        blockName: block.name,
+      };
+      if (dto.note) eventPayload.note = dto.note.substring(0, 200);
+      if (dto.responseData?.lat && dto.responseData?.lng) {
+        eventPayload.gps = { lat: dto.responseData.lat, lng: dto.responseData.lng };
+      }
+      if (dto.responseData?.items) {
+        eventPayload.materialCount = dto.responseData.items.length;
+        eventPayload.materialNote = dto.responseData.note?.substring(0, 100);
+      }
+      if (dto.responseData?.checkedItems) {
+        eventPayload.checkedCount = dto.responseData.checkedItems.length;
+      }
+      if (dto.responseData?.answer !== undefined) {
+        eventPayload.answer = String(dto.responseData.answer).substring(0, 50);
+      }
+      if (dto.responseData?.fields) {
+        eventPayload.fieldCount = Object.keys(dto.responseData.fields).length;
+      }
+
       await tx.serviceOrderEvent.create({
         data: {
           companyId,
@@ -647,11 +671,7 @@ export class WorkflowEngineService {
           type: 'WORKFLOW_STEP_COMPLETED',
           actorType: 'TECNICO',
           actorId: technicianId,
-          payload: {
-            blockId: block.id,
-            blockType: block.type,
-            blockName: block.name,
-          },
+          payload: eventPayload,
         },
       });
 

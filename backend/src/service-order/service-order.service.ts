@@ -864,7 +864,7 @@ export class ServiceOrderService {
         ledger: { select: { commissionCents: true, commissionBps: true } },
         workflowTemplate: { select: { id: true, name: true, steps: true } },
         workflowStepLogs: { orderBy: { stepOrder: 'asc' } },
-        events: { orderBy: { createdAt: 'desc' }, take: 20 },
+        events: { orderBy: { createdAt: 'desc' }, take: 50 },
         attachments: { orderBy: { createdAt: 'asc' } },
         items: { include: { service: { select: { id: true, name: true, unit: true, priceCents: true } } } },
       },
