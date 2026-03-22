@@ -60,7 +60,7 @@ export class EvaluationService {
           serviceOrderId,
           type: 'STATUS_CHANGE',
           actorType: 'USER',
-          payload: { from: 'CONCLUIDA', to: 'APROVADA', reason: 'Avaliação do gestor' },
+          payload: { from: 'CONCLUIDA', to: 'APROVADA', reason: 'Avaliação do gestor', score },
         },
       });
     }

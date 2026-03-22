@@ -1001,6 +1001,46 @@ export default function OrderDetailPage() {
                 </div>
               );
             })}
+
+            {/* Post-workflow events (approval, etc.) */}
+            {(() => {
+              // Find events that happened AFTER the last workflow step
+              const lastStepTime = wfn.steps.filter(s => s.completed && s.completedAt)
+                .map(s => new Date(s.completedAt!).getTime())
+                .sort((a, b) => b - a)[0] || 0;
+              const postEvents = (order.events || [])
+                .filter(e => new Date(e.createdAt).getTime() > lastStepTime)
+                .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+              return postEvents.map((ev) => {
+                const p = ev.payload || {};
+                const isApproval = ev.type === "STATUS_CHANGE" && p.to === "APROVADA";
+                return (
+                  <div key={ev.id} className="flex items-center gap-2 py-1 border-b border-slate-50">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] bg-green-100 text-green-600">✓</span>
+                    <span className="w-28 flex-shrink-0 text-[11px] font-medium text-slate-700 truncate">
+                      {ev.type === "STATUS_CHANGE" ? "Status" : EVENT_LABELS[ev.type] || ev.type}
+                    </span>
+                    <span className="flex-1 min-w-0 text-[10px] text-slate-500 truncate">
+                      {ev.type === "STATUS_CHANGE" && p.to ? (
+                        <span className={`inline-block px-1.5 py-0 rounded text-[9px] font-medium ${STATUS_COLORS[p.to] || "bg-slate-100 text-slate-600"}`}>
+                          {STATUS_LABELS[p.to] || p.to}
+                        </span>
+                      ) : p.blockName || ""}
+                      {isApproval && p.score && (
+                        <span className="ml-1.5 text-yellow-600">⭐ {p.score}/5</span>
+                      )}
+                    </span>
+                    <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                      {new Date(ev.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <span className="w-32 flex-shrink-0 text-[9px] text-slate-400 text-right hidden md:block truncate">
+                      {p.gps ? `📍 ${Number(p.gps.lat).toFixed(4)}, ${Number(p.gps.lng).toFixed(4)}` : ""}
+                    </span>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
         );
