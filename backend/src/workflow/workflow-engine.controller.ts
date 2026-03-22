@@ -40,7 +40,7 @@ export class WorkflowEngineController {
   @Post('position')
   submitPosition(
     @Param('orderId') orderId: string,
-    @Body() body: { lat: number; lng: number; accuracy?: number; speed?: number; heading?: number },
+    @Body() body: { lat: number; lng: number; accuracy?: number; speed?: number; heading?: number; clientTimestamp?: string },
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const techId = user.partnerId || user.technicianId || user.id;

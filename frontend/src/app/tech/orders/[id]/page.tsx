@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { techApi } from "@/contexts/TechAuthContext";
 import PhotoUpload from "@/components/Upload/PhotoUpload";
-import { cacheServiceOrder, getCachedServiceOrder } from "@/lib/offline/db";
+import { cacheServiceOrder, getCachedServiceOrder, enqueueSyncItem } from "@/lib/offline/db";
 import { advanceBlockOffline } from "@/lib/offline/offline-workflow";
 import { setupAutoSync } from "@/lib/offline/sync-queue";
 
@@ -483,11 +483,26 @@ export default function TechOrderDetailPage() {
             } catch { /* ignore */ }
           }, 500);
         }
-      } catch { /* ignore send errors */ }
+      } catch {
+        // Offline: queue GPS position for later sync
+        if (!navigator.onLine) {
+          enqueueSyncItem({
+            serviceOrderId: order.id,
+            type: "GPS_POSITION",
+            payload: { lat, lng, accuracy, speed, heading, clientTimestamp: new Date().toISOString() },
+            status: "PENDING",
+            retryCount: 0,
+            maxRetries: 3,
+            createdAt: Date.now(),
+          }).catch(() => {});
+        }
+      }
     };
 
     let lastSentAt = 0;
     let lastPositionAt = Date.now();
+    // Offline: reduce GPS frequency to save battery (3x normal interval, min 2min)
+    const offlineIntervalMs = Math.max(intervalMs * 3, 120000);
 
     v2GpsWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -496,7 +511,8 @@ export default function TechOrderDetailPage() {
         setV2GpsLoading(false);
         setV2GpsDenied(false);
         const now = Date.now();
-        if (now - lastSentAt >= intervalMs) {
+        const effectiveInterval = navigator.onLine ? intervalMs : offlineIntervalMs;
+        if (now - lastSentAt >= effectiveInterval) {
           lastSentAt = now;
           sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
         }
@@ -568,7 +584,6 @@ export default function TechOrderDetailPage() {
         if (result.distanceMeters != null) setProximityDistance(result.distanceMeters);
         if (result.proximityReached && cfg.autoAdvanceOnProximity !== false) {
           proximityAdvancedRef.current = block.id;
-          // Reload workflow (block was auto-advanced by backend)
           setTimeout(async () => {
             try {
               const wf = await techApi<WorkflowProgressV2>(`/service-orders/${order.id}/workflow`);
@@ -577,7 +592,19 @@ export default function TechOrderDetailPage() {
             } catch { /* ignore */ }
           }, 500);
         }
-      } catch { /* ignore send errors */ }
+      } catch {
+        if (!navigator.onLine) {
+          enqueueSyncItem({
+            serviceOrderId: order.id,
+            type: "GPS_POSITION",
+            payload: { lat, lng, accuracy, speed, heading, clientTimestamp: new Date().toISOString() },
+            status: "PENDING",
+            retryCount: 0,
+            maxRetries: 3,
+            createdAt: Date.now(),
+          }).catch(() => {});
+        }
+      }
     };
 
     let lastSentAt = 0;
