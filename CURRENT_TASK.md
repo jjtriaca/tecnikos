@@ -1,61 +1,58 @@
 # TAREFA ATUAL
 
-## Versao: v1.06.55
-## Ultima sessao: 154 (22/03/2026)
+## Versao: v1.06.63
+## Ultima sessao: 155 (22/03/2026)
 
 ## Pendencias
 
-### A FAZER
-- **Fase 3-7 Offline**: Testar em dispositivo real (GPS + fotos + sync)
-- **Fase 4-7**: Hardening offline (crash recovery, forcar sync, limites storage)
+### A FAZER (proxima sessao)
+- **Feature 2 Frontend**: Form de serviço com máscaras (R$, %, valor fixo técnico, regra comissão)
+- **Feature 4**: Tela de Configurações do Sistema (toggles) — Configurações > Geral
+- **ServiceItemsSection**: Exibir techFixedValueCents + commissionRule no item
+- **OS Detail**: Banner "Retorno de OS-XXXXX" quando parentOrderId existe
+- **Remover checkbox isReturn**: Substituir por banner automático quando returnFrom
 
 ### PENDENTE VALIDACAO
-- **Bloco MATERIALS**: Testar no PWA — nota + lista rapida + enviar + visualizar no dashboard
-- **Bug PHOTO minPhotos**: Testar bloco com minPhotos=2,3 — botao so habilita com N fotos
-- **Historico compacto**: Verificar novos eventos com dados resumidos (GPS, materiais, etc.)
-- **Offline-first**: Testar workflow completo offline → online → sync
-- **PWA Token Persistente**: Testar os 6 fluxos em producao
+- **Modal de Aprovação**: Testar fluxo completo (estrelas → modal → financeiro → APROVADA)
+- **Botão Retorno**: Testar na lista de OS com OS em status terminal
+- **approve-and-finalize**: Testar endpoint com e sem valor (priceCents=0)
 
-### CONCLUIDO (sessao 154)
+### CONCLUIDO (sessao 155)
 
-#### Bug Fix: PHOTO minPhotos
-- **blockId** no Attachment + migration + upload controller
-- **Backend validates** photo count per blockId (async)
-- **Frontend** conta fotos por bloco, contador "X/Y fotos"
+#### Migration
+- `parentOrderId` no ServiceOrder (self-relation ReturnOrders)
+- `techFixedValueCents` + `commissionRule` no Service e ServiceOrderItem
+- `systemConfig Json?` no Company
+- Enum `CommissionRule`: COMMISSION_ONLY, FIXED_ONLY, HIGHER, LOWER
 
-#### Offline-First PWA — Foundation
-- **IndexedDB** (idb): 4 stores (service-orders, offline-workflow-state, offline-photos, sync-queue)
-- **Execucao offline** de blocos com branching local
-- **Fotos offline**: comprime (1920px, JPEG 0.7), salva blob no IDB
-- **Sync automatico**: fila FIFO quando volta online
-- **Service Worker v2**: cache API GETs + Background Sync
-- **OfflineIndicator**: banner amber offline, badge sync
+#### Backend
+- `resolveCommission()` helper — resolve fixo vs % vs regra
+- `POST /service-orders/:id/approve-and-finalize` — avaliação + financeiro + APROVADA em 1 tx
+- Service DTOs aceitam techFixedValueCents + commissionRule
+- Service create() salva novos campos
+- Create OS aceita + salva parentOrderId
 
-#### Novo Bloco MATERIALS
-- **BlockType + BLOCK_CATALOG**: Tipo MATERIALS em todos os registros
-- **Config**: label, notePlaceholder, noteRequired, minItems, confirmButton
-- **PWA UI**: Textarea diagnostico + lista rapida (nome texto + qtd numerico + botao +)
-- **Auto-focus**: cursor volta pro campo nome apos cada adicao
-- **Backend validate**: minItems + noteRequired
-- **Editor**: painel de config + subtitulo no node visual
-- **Offline**: suportado (ACTIONABLE_TYPES)
+#### Frontend
+- **ApprovalConfirmModal** — preview financeiro (A Receber / A Pagar) + vencimento editável
+- **handleEvaluation** agora abre modal em vez de chamar API direto
+- **Botão Retorno** no dropdown da lista de OS (só para status terminal)
+- **parentOrderId** enviado no payload de criação de OS
+- **Lightbox fotos** — clique para expandir em tamanho real
+- **Timeline enriquecido** — dados inline por tipo de bloco (MATERIALS, GPS, etc.)
+- **Historico unificado** — relatório compacto com colunas (passo, detalhe, hora, coordenadas)
+- **Avaliação movida** para depois das fotos
+- **Eventos pós-workflow** (Aprovada + estrelas) no relatório
 
-#### Dashboard OS Detail — Timeline + Historico
-- **Timeline enriquecido**: mostra dados inline por tipo de bloco:
-  - MATERIALS: lista de itens com quantidades (card amber)
-  - GPS: coordenadas
-  - CHECKLIST: contagem de verificados
-  - FORM: contagem de campos
-  - QUESTION/CONDITION: resposta
-- **Eventos enriquecidos**: payload inclui note, GPS, materialCount, checkedCount, answer, fieldCount
-- **Historico compacto**: single-line por evento, icone por tipo, chips resumo, data curta
-- **Limite eventos**: 20 → 50
+#### Sessão anterior (154) — Bloco MATERIALS
+- Bloco completo (PWA + editor + backend + offline)
+- Auto-focus no campo nome após cada adição
+- Limite 50 chars no nome do item
 
 ### BLOQUEADO
 - (nenhum)
 
-### REGRAS APRENDIDAS (sessao 154)
-- **BLOCK_CATALOG vs FLOW_CATALOG**: Sidebar do editor usa BLOCK_CATALOG (workflow-blocks.ts), nao FLOW_CATALOG (flow-blocks.ts). Novo bloco precisa estar em AMBOS
-- **normaliseWfSteps**: Precisa incluir type + responseData para exibir dados inline
-- **inputMode="numeric"**: Forca teclado numerico no celular sem type=number
-- **Evento enriquecido**: Guardar resumo no payload do evento (truncar strings longas)
+### REGRAS APRENDIDAS
+- **finalize-preview**: Endpoint GET já existe, reutilizar para preview do modal
+- **resolveCommission**: fixedValue multiplica por quantity (item-level)
+- **approveAndFinalize**: Combina eval + finalize numa transação — evita estados inconsistentes
+- **Retorno de OS**: returnFrom query param já existia com lógica de pre-fill parcial

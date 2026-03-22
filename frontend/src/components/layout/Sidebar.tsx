@@ -144,6 +144,7 @@ const NAV_ITEMS: NavItem[] = [
   ] },
   { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN", "DESPACHO", "FISCAL"], children: [
     { label: "Geral", href: "/settings" },
+    { label: "Sistema", href: "/settings/system" },
     { label: "Assinatura", href: "/settings/billing" },
     { label: "Dispositivos", href: "/settings/devices" },
     { label: "Usuários", href: "/users" },
@@ -165,6 +166,7 @@ const ALLOWED_WHEN_PENDING = new Set([
   "/settings",
   "/settings/billing",
   "/settings/devices",
+  "/settings/system",
   "/settings/email",
   "/settings/fiscal",
   "/settings/whatsapp",

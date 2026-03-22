@@ -218,4 +218,60 @@ export class CompanyService {
 
     return this.getFiscalConfig(companyId);
   }
+
+  // ── System Config (JSON toggles) ──
+
+  private readonly DEFAULT_SYSTEM_CONFIG = {
+    os: {
+      financialOnApproval: true,
+      requirePhotoBeforeComplete: false,
+      allowTechSelfAssign: false,
+    },
+    notifications: {
+      emailOnNewOrder: true,
+      emailOnStatusChange: true,
+      pushEnabled: true,
+    },
+    financial: {
+      autoGenerateReceivable: true,
+      autoGeneratePayable: true,
+      defaultDueDays: 30,
+    },
+    evaluation: {
+      requireGestorApproval: true,
+      sendClientEvalLink: true,
+    },
+  };
+
+  async getSystemConfig(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    // Merge defaults with stored config
+    const stored = (company?.systemConfig as Record<string, any>) || {};
+    return this.mergeDeep(this.DEFAULT_SYSTEM_CONFIG, stored);
+  }
+
+  async updateSystemConfig(companyId: string, data: Record<string, any>) {
+    const current = await this.getSystemConfig(companyId);
+    const merged = this.mergeDeep(current, data);
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { systemConfig: merged as any },
+    });
+    return merged;
+  }
+
+  private mergeDeep(target: any, source: any): any {
+    const output = { ...target };
+    for (const key of Object.keys(source)) {
+      if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+        output[key] = this.mergeDeep(target[key] || {}, source[key]);
+      } else {
+        output[key] = source[key];
+      }
+    }
+    return output;
+  }
 }

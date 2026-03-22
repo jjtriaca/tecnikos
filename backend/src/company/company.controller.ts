@@ -95,6 +95,21 @@ export class CompanyController {
     return this.service.updateFiscalConfig(user.companyId, body);
   }
 
+  @Roles(UserRole.ADMIN)
+  @Get('system-config')
+  getSystemConfig(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getSystemConfig(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch('system-config')
+  updateSystemConfig(
+    @Body() body: Record<string, any>,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateSystemConfig(user.companyId, body);
+  }
+
   /** Admin-only: soft delete */
   @Roles(UserRole.ADMIN)
   @Delete(':id')
