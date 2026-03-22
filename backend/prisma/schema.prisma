@@ -94,6 +94,13 @@ enum QuoteStatus {
   CANCELADO
 }
 
+enum CommissionRule {
+  COMMISSION_ONLY
+  FIXED_ONLY
+  HIGHER
+  LOWER
+}
+
 enum QuoteItemType {
   SERVICE
   PRODUCT
@@ -158,6 +165,9 @@ model Company {
   maxTechnicians Int      @default(0)     // 0 = unlimited
   maxAiMessages  Int      @default(0)     // 0 = unlimited
   maxNfseImports Int      @default(0)     // 0 = unlimited (importações NFS-e/mês)
+
+  // Configurações do sistema (toggles)
+  systemConfig        Json?     // { os: { financialOnApproval: true }, ... }
 
   // Chat IA
   chatIAMonthlyMsgs   Int       @default(0)     // Messages used this month
@@ -442,6 +452,7 @@ model ServiceOrder {
   returnPaidToTech    Boolean @default(true)  // Se retorno: paga o tecnico ou obrigacao dele
   isUrgent            Boolean @default(false) // OS urgente (prioridade maxima)
   isEvaluation        Boolean @default(false) // OS de avaliação/orçamento (visita técnica para orçar)
+  parentOrderId       String?                // Vínculo com OS original (retorno)
 
   // Agendamento CLT (v1.01.72)
   scheduledStartAt          DateTime?  // Data/hora agendada para inicio do servico
@@ -471,6 +482,8 @@ model ServiceOrder {
   quotes               Quote[]
   items                ServiceOrderItem[]
   checklistResponses   ChecklistResponse[]
+  parentOrder          ServiceOrder?  @relation("ReturnOrders", fields: [parentOrderId], references: [id])
+  returnOrders         ServiceOrder[] @relation("ReturnOrders")
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -481,6 +494,7 @@ model ServiceOrder {
   @@index([createdAt])
   @@index([companyId, scheduledStartAt])
   @@index([assignedPartnerId, scheduledStartAt])
+  @@index([parentOrderId])
 }
 
 model ServiceOrderOffer {
@@ -1781,9 +1795,11 @@ model Service {
   name        String    // Nome do serviço
   description String?   // Descrição detalhada
   unit        String    @default("SV") // SV, HR, UN
-  priceCents  Int?      // Preço unitário em centavos
-  commissionBps Int?    // Comissão do técnico em basis points (ex: 1000 = 10%)
-  defaultQty  Int?      // Quantidade padrão ao adicionar na OS (ex: 2 horas)
+  priceCents          Int?              // Preço unitário em centavos
+  commissionBps       Int?              // Comissão do técnico em basis points (ex: 1000 = 10%)
+  techFixedValueCents Int?              // Valor fixo para o técnico em centavos
+  commissionRule      CommissionRule?   // Regra quando ambos (fixo + %) existem
+  defaultQty          Int?              // Quantidade padrão ao adicionar na OS (ex: 2 horas)
   checklists  Json?     // {toolsPpe: string[], materials: string[], initialCheck: string[], finalCheck: string[]}
   category    String?   // Categoria livre
   isActive    Boolean   @default(true)
@@ -1809,8 +1825,10 @@ model ServiceOrderItem {
   serviceName      String   // Snapshot do nome no momento da criação
   unit             String   // Snapshot da unidade
   quantity         Int      @default(1)
-  unitPriceCents   Int      // Preço unitário em centavos (snapshot)
-  commissionBps    Int?     // Comissão em basis points (snapshot do serviço)
+  unitPriceCents      Int              // Preço unitário em centavos (snapshot)
+  commissionBps       Int?             // Comissão em basis points (snapshot do serviço)
+  techFixedValueCents Int?             // Valor fixo para técnico (snapshot)
+  commissionRule      CommissionRule?  // Regra de comissão (snapshot)
 
   createdAt        DateTime @default(now())
 
