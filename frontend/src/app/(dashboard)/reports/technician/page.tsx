@@ -62,6 +62,7 @@ export default function TechnicianReportPage() {
   // Data
   const [report, setReport] = useState<TechReport | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showValues, setShowValues] = useState(false); // toggle coluna Valor OS — default OFF
 
   const [autoLoaded, setAutoLoaded] = useState(false);
 
@@ -104,8 +105,10 @@ export default function TechnicianReportPage() {
       { header: "Tempo total", value: (r: any) => fmtTime(r.totalMinutes) },
       { header: "Pausas", value: (r: any) => fmtTime(r.pauseMinutes) },
       { header: "Tempo liquido", value: (r: any) => fmtTime(r.netMinutes) },
-      { header: "Valor OS", value: (r: any) => fmtMoney(r.valueCents) },
-      { header: "Comissao", value: (r: any) => fmtMoney(r.commissionCents) },
+      ...(showValues ? [
+        { header: "Valor OS", value: (r: any) => fmtMoney(r.valueCents) },
+        { header: "Comissao", value: (r: any) => fmtMoney(r.commissionCents) },
+      ] : []),
     ];
     exportToCSV(report.rows, cols, `relatorio-tecnico-${report.technician?.name || "tech"}`);
   }
@@ -158,6 +161,11 @@ export default function TechnicianReportPage() {
             className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
             {loading ? "Gerando..." : "Gerar"}
           </button>
+          <label className="flex items-center gap-1.5 cursor-pointer ml-2">
+            <input type="checkbox" checked={showValues} onChange={e => setShowValues(e.target.checked)}
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+            <span className="text-xs text-slate-500 whitespace-nowrap">Mostrar valores</span>
+          </label>
         </div>
       </div>
 
@@ -201,10 +209,12 @@ export default function TechnicianReportPage() {
               <p className="text-2xl font-bold text-blue-600">{fmtTime(s?.totalNetMinutes || 0)}</p>
               <p className="text-[11px] text-slate-500">Tempo Liquido</p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
-              <p className="text-2xl font-bold text-green-600">{fmtMoney(s?.totalCommissionCents || 0)}</p>
-              <p className="text-[11px] text-slate-500">Comissao Total</p>
-            </div>
+            {showValues && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
+                <p className="text-2xl font-bold text-green-600">{fmtMoney(s?.totalCommissionCents || 0)}</p>
+                <p className="text-[11px] text-slate-500">Comissao Total</p>
+              </div>
+            )}
             <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
               <p className="text-2xl font-bold text-yellow-600">⭐ {s?.avgScore?.toFixed(1) || "—"}</p>
               <p className="text-[11px] text-slate-500">Avaliacao Media</p>
@@ -237,7 +247,7 @@ export default function TechnicianReportPage() {
                     <span className="flex-1 text-slate-700 truncate">{svc.serviceName}</span>
                     <span className="text-xs text-slate-500 w-12 text-right">{svc.count} OS</span>
                     <span className="text-xs text-slate-500 w-16 text-right">{fmtTime(svc.minutes)}</span>
-                    <span className="text-xs font-medium text-green-600 w-20 text-right">{fmtMoney(svc.commissionCents)}</span>
+                    {showValues && <span className="text-xs font-medium text-green-600 w-20 text-right">{fmtMoney(svc.commissionCents)}</span>}
                   </div>
                 ))}
               </div>
@@ -262,13 +272,13 @@ export default function TechnicianReportPage() {
                     <th className="px-3 py-2 text-center font-medium">Conclusao</th>
                     <th className="px-3 py-2 text-center font-medium">Tempo</th>
                     <th className="px-3 py-2 text-center font-medium">Pausas</th>
-                    <th className="px-3 py-2 text-right font-medium">Valor OS</th>
-                    <th className="px-3 py-2 text-right font-medium">Comissao</th>
+                    {showValues && <th className="px-3 py-2 text-right font-medium">Valor OS</th>}
+                    {showValues && <th className="px-3 py-2 text-right font-medium">Comissao</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {report.rows.length === 0 ? (
-                    <tr><td colSpan={11} className="px-3 py-6 text-center text-slate-400">Nenhuma OS encontrada no periodo</td></tr>
+                    <tr><td colSpan={showValues ? 11 : 9} className="px-3 py-6 text-center text-slate-400">Nenhuma OS encontrada no periodo</td></tr>
                   ) : report.rows.map((r) => (
                     <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                       <td className="px-3 py-2 text-xs font-mono text-slate-600">{r.code}</td>
@@ -282,8 +292,8 @@ export default function TechnicianReportPage() {
                       <td className="px-3 py-2 text-center text-xs text-slate-400">
                         {r.pauseMinutes > 0 ? fmtTime(r.pauseMinutes) : "—"}
                       </td>
-                      <td className="px-3 py-2 text-right text-xs text-slate-600">{fmtMoney(r.valueCents)}</td>
-                      <td className="px-3 py-2 text-right text-xs font-medium text-green-600">{fmtMoney(r.commissionCents)}</td>
+                      {showValues && <td className="px-3 py-2 text-right text-xs text-slate-600">{fmtMoney(r.valueCents)}</td>}
+                      {showValues && <td className="px-3 py-2 text-right text-xs font-medium text-green-600">{fmtMoney(r.commissionCents)}</td>}
                     </tr>
                   ))}
                 </tbody>
@@ -293,8 +303,8 @@ export default function TechnicianReportPage() {
                       <td colSpan={7} className="px-3 py-2 text-slate-600">TOTAL ({report.rows.length} OS)</td>
                       <td className="px-3 py-2 text-center text-slate-700">{fmtTime(s?.totalNetMinutes || 0)}</td>
                       <td className="px-3 py-2 text-center text-slate-500">{fmtTime(s?.totalPauseMinutes || 0)}</td>
-                      <td className="px-3 py-2 text-right text-slate-700">{fmtMoney(s?.totalValueCents || 0)}</td>
-                      <td className="px-3 py-2 text-right text-green-600">{fmtMoney(s?.totalCommissionCents || 0)}</td>
+                      {showValues && <td className="px-3 py-2 text-right text-slate-700">{fmtMoney(s?.totalValueCents || 0)}</td>}
+                      {showValues && <td className="px-3 py-2 text-right text-green-600">{fmtMoney(s?.totalCommissionCents || 0)}</td>}
                     </tr>
                   </tfoot>
                 )}
