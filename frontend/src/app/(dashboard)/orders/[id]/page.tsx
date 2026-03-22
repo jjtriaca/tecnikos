@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import NfseEmissionModal from "@/app/(dashboard)/finance/components/NfseEmissionModal";
 import FinalizeOrderModal from "@/components/os/FinalizeOrderModal";
+import ApprovalConfirmModal from "@/components/os/ApprovalConfirmModal";
 
 type AttachmentType = {
   id: string;
@@ -289,6 +290,7 @@ export default function OrderDetailPage() {
   const [evalHover, setEvalHover] = useState(0);
   const [evalComment, setEvalComment] = useState("");
   const [evalSubmitting, setEvalSubmitting] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
 
   // NFS-e prompt state
   const [nfsePrompt, setNfsePrompt] = useState<{ show: boolean; financialEntryId?: string } | null>(null);
@@ -391,8 +393,8 @@ export default function OrderDetailPage() {
     }
   }
 
-  // ── Gestor Evaluation handler ──
-  async function handleEvaluation() {
+  // ── Gestor Evaluation handler — opens approval modal ──
+  function handleEvaluation() {
     if (evalScore < 1) {
       toast("Selecione uma nota de 1 a 5.", "error");
       return;
@@ -401,25 +403,7 @@ export default function OrderDetailPage() {
       toast("Nenhum técnico atribuído.", "error");
       return;
     }
-    setEvalSubmitting(true);
-    try {
-      await api.post("/evaluations/gestor", {
-        serviceOrderId: order.id,
-        partnerId: order.assignedPartnerId,
-        score: evalScore,
-        comment: evalComment || undefined,
-      });
-      toast("Avaliação enviada com sucesso!", "success");
-      await loadOrder();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        toast(err.payload?.message || err.message, "error");
-      } else {
-        toast("Erro ao enviar avaliação.", "error");
-      }
-    } finally {
-      setEvalSubmitting(false);
-    }
+    setShowApprovalModal(true);
   }
 
   // ── Smart Routing handlers ──
@@ -1302,6 +1286,22 @@ export default function OrderDetailPage() {
             onClick={(e) => e.stopPropagation()}
             className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl" />
         </div>
+      )}
+
+      {/* Approval Confirm Modal */}
+      {order && (
+        <ApprovalConfirmModal
+          open={showApprovalModal}
+          orderId={order.id}
+          score={evalScore}
+          comment={evalComment}
+          onClose={() => setShowApprovalModal(false)}
+          onApproved={() => {
+            setShowApprovalModal(false);
+            toast("OS aprovada com sucesso!", "success");
+            loadOrder();
+          }}
+        />
       )}
     </div>
   );
