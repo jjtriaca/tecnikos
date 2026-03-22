@@ -29,6 +29,15 @@ export class UpdateServiceDto {
 
   @IsOptional()
   @IsInt()
+  @Min(0)
+  techFixedValueCents?: number;
+
+  @IsOptional()
+  @IsString()
+  commissionRule?: string;
+
+  @IsOptional()
+  @IsInt()
   @Min(1)
   defaultQty?: number;
 

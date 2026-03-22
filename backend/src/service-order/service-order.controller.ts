@@ -181,6 +181,16 @@ export class ServiceOrderController {
     return this.service.finalize(id, user.companyId, user);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/approve-and-finalize')
+  approveAndFinalize(
+    @Param('id') id: string,
+    @Body() body: { score: number; comment?: string; receivableDueDate?: string; payableDueDate?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.approveAndFinalize(id, user.companyId, user, body);
+  }
+
   /* ---- Generic :id routes ---- */
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
-import { ServiceOrderStatus } from '@prisma/client';
+import { ServiceOrderStatus, CommissionRule } from '@prisma/client';
 import { NotificationService } from '../notification/notification.service';
 import { AutomationEngineService, AutomationEvent } from '../automation/automation-engine.service';
 import { WaitForService } from '../workflow/wait-for.service';
@@ -13,6 +13,32 @@ import { UpdateServiceOrderDto } from './dto/update-service-order.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
 import { AuthenticatedUser } from '../auth/auth.types';
+
+/** Resolve technician commission based on flexible rules */
+function resolveCommission(params: {
+  grossCents: number;
+  commissionBps: number | null;
+  techFixedValueCents: number | null;
+  commissionRule: CommissionRule | null;
+  quantity?: number;
+}): number {
+  const { grossCents, commissionBps, techFixedValueCents, commissionRule, quantity } = params;
+  const pctValue = commissionBps ? Math.round((grossCents * commissionBps) / 10000) : 0;
+  const fixedValue = (techFixedValueCents ?? 0) * (quantity ?? 1);
+
+  if (fixedValue > 0 && (!commissionBps || commissionBps === 0)) return fixedValue;
+  if (pctValue > 0 && fixedValue === 0) return pctValue;
+  if (pctValue === 0 && fixedValue === 0) return 0;
+
+  // Both set — apply rule
+  switch (commissionRule) {
+    case 'FIXED_ONLY': return fixedValue;
+    case 'COMMISSION_ONLY': return pctValue;
+    case 'HIGHER': return Math.max(pctValue, fixedValue);
+    case 'LOWER': return Math.min(pctValue, fixedValue);
+    default: return pctValue; // fallback to %
+  }
+}
 
 const SORTABLE_COLUMNS = ['title', 'status', 'valueCents', 'deadlineAt', 'createdAt', 'acceptedAt', 'startedAt', 'completedAt', 'scheduledStartAt'];
 
@@ -1517,6 +1543,202 @@ export class ServiceOrderService {
           action: 'EVAL_TOKEN_ERROR', actorType: 'SYSTEM', actorId: 'system',
           after: { error: err.message },
         }));
+    }
+
+    return result;
+  }
+
+  /**
+   * Approve + Finalize + Evaluate in one transaction.
+   * Called from the approval modal — creates evaluation, financial entries, and changes status to APROVADA.
+   */
+  async approveAndFinalize(
+    id: string,
+    companyId: string,
+    actor: AuthenticatedUser,
+    data: {
+      score: number;
+      comment?: string;
+      receivableDueDate?: string;
+      payableDueDate?: string;
+    },
+  ) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: {
+        company: true,
+        assignedPartner: { select: { id: true, name: true } },
+        clientPartner: { select: { id: true, name: true } },
+        ledger: true,
+        items: true,
+      },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (so.ledger) throw new BadRequestException('OS já foi finalizada');
+
+    // Resolve tech commission using item-level rules
+    const grossCents = so.valueCents;
+    let effectiveTechCents: number;
+    if (so.techCommissionCents != null) {
+      effectiveTechCents = so.techCommissionCents;
+    } else if (so.items && so.items.length > 0) {
+      effectiveTechCents = so.items.reduce((sum, item) => {
+        const itemGross = item.unitPriceCents * item.quantity;
+        return sum + resolveCommission({
+          grossCents: itemGross,
+          commissionBps: item.commissionBps,
+          techFixedValueCents: item.techFixedValueCents,
+          commissionRule: item.commissionRule,
+          quantity: item.quantity,
+        });
+      }, 0);
+    } else {
+      const bps = so.commissionBps ?? 0;
+      effectiveTechCents = Math.round((grossCents * bps) / 10000);
+    }
+    const effectiveBps = so.commissionBps ?? 0;
+    const companyKeeps = grossCents - effectiveTechCents;
+
+    const isReturn = so.isReturn ?? false;
+    const returnPaidToTech = so.returnPaidToTech ?? true;
+    const shouldPayTech = so.assignedPartnerId && (!isReturn || returnPaidToTech);
+    const skipFinancial = grossCents === 0;
+
+    // Generate codes
+    const codes: string[] = [];
+    if (!skipFinancial) {
+      if (so.clientPartnerId) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+      if (shouldPayTech) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+    }
+    const evalCode = await this.codeGenerator.generateCode(companyId, 'EVALUATION');
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const createdEntries: any[] = [];
+      let codeIdx = 0;
+
+      // 1. Create evaluation
+      await tx.evaluation.create({
+        data: {
+          serviceOrderId: id,
+          partnerId: so.assignedPartnerId || '',
+          companyId,
+          code: evalCode,
+          evaluatorType: 'GESTOR',
+          score: data.score,
+          comment: data.comment,
+        },
+      });
+
+      // 2. Financial entries (skip if value = 0)
+      if (!skipFinancial) {
+        // RECEIVABLE
+        if (so.clientPartnerId) {
+          const receivable = await tx.financialEntry.create({
+            data: {
+              companyId,
+              code: codes[codeIdx++],
+              serviceOrderId: id,
+              partnerId: so.clientPartnerId,
+              type: 'RECEIVABLE',
+              status: 'PENDING',
+              description: `A receber OS: ${so.title}`,
+              grossCents,
+              netCents: grossCents,
+              dueDate: data.receivableDueDate ? new Date(data.receivableDueDate) : undefined,
+            },
+          });
+          createdEntries.push(receivable);
+        }
+
+        // PAYABLE
+        if (shouldPayTech) {
+          const payable = await tx.financialEntry.create({
+            data: {
+              companyId,
+              code: codes[codeIdx++],
+              serviceOrderId: id,
+              partnerId: so.assignedPartnerId!,
+              type: 'PAYABLE',
+              status: 'CONFIRMED',
+              description: `Repasse técnico OS: ${so.title}`,
+              grossCents,
+              commissionBps: effectiveBps,
+              commissionCents: companyKeeps,
+              netCents: effectiveTechCents,
+              confirmedAt: new Date(),
+              dueDate: data.payableDueDate ? new Date(data.payableDueDate) : undefined,
+            },
+          });
+          createdEntries.push(payable);
+        }
+
+        // Ledger
+        await tx.serviceOrderLedger.create({
+          data: {
+            serviceOrderId: id,
+            grossCents,
+            commissionBps: effectiveBps,
+            commissionCents: companyKeeps,
+            netCents: effectiveTechCents,
+            confirmedAt: new Date(),
+          },
+        });
+      }
+
+      // 3. Status → APROVADA
+      const updated = await tx.serviceOrder.update({
+        where: { id },
+        data: {
+          status: ServiceOrderStatus.APROVADA,
+          completedAt: so.completedAt || new Date(),
+        },
+      });
+
+      // 4. Event
+      await tx.serviceOrderEvent.create({
+        data: {
+          companyId,
+          serviceOrderId: id,
+          type: 'STATUS_CHANGE',
+          actorType: 'USER',
+          actorId: actor?.id,
+          payload: {
+            from: so.status,
+            to: 'APROVADA',
+            reason: 'Aprovação com avaliação',
+            score: data.score,
+            entriesCreated: createdEntries.length,
+          },
+        },
+      });
+
+      return { entries: createdEntries, status: updated.status };
+    });
+
+    // Update technician rating
+    if (so.assignedPartnerId && this.evaluationService) {
+      try {
+        await (this.evaluationService as any).updateTechnicianRating(so.assignedPartnerId, companyId);
+      } catch { /* non-critical */ }
+    }
+
+    // Audit
+    this.audit.log({
+      companyId, entityType: 'SERVICE_ORDER', entityId: id,
+      action: 'APPROVED_AND_FINALIZED', actorType: 'USER', actorId: actor?.id, actorName: actor?.email,
+      after: { status: 'APROVADA', score: data.score, entriesCreated: result.entries.length },
+    });
+
+    // Automation
+    this.dispatchAutomation({
+      companyId, entity: 'SERVICE_ORDER', entityId: id, eventType: 'completed',
+      data: { status: 'APROVADA', oldStatus: so.status, valueCents: so.valueCents, title: so.title },
+    });
+
+    // Client evaluation link
+    if (so.assignedPartnerId && so.clientPartnerId && this.evaluationService) {
+      this.generateAndSendEvaluationLink(id, so.assignedPartnerId, companyId, so.title, so.clientPartnerId)
+        .catch(() => {});
     }
 
     return result;
