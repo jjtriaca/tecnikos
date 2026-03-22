@@ -65,21 +65,13 @@ export default function TechnicianReportPage() {
 
   const [autoLoaded, setAutoLoaded] = useState(false);
 
-  // Load technicians list (try TECNICO type first, fallback to all partners)
+  // Load technicians list from reports endpoint (same as Técnicos tab)
   useEffect(() => {
-    api.get<any>("/partners?type=TECNICO&limit=200").then((res) => {
-      let list = (res.data || []).map((p: any) => ({ id: p.id, name: p.name }));
-      if (list.length === 0) {
-        // Fallback: get all partners
-        return api.get<any>("/partners?limit=200").then((res2) => {
-          list = (res2.data || []).map((p: any) => ({ id: p.id, name: p.name }));
-          setTechnicians(list);
-          if (list.length > 0 && !selectedTech) setSelectedTech(list[0].id);
-        });
-      }
+    api.get<any[]>("/reports/technicians").then((techs) => {
+      const list = (techs || []).map((t: any) => ({ id: t.id, name: t.name }));
       setTechnicians(list);
       if (list.length > 0 && !selectedTech) setSelectedTech(list[0].id);
-    });
+    }).catch(() => {});
   }, []);
 
   // Auto-generate when pre-selected from query param
