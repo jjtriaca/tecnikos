@@ -932,117 +932,108 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ── Workflow Progress ── */}
+      {/* ── Fluxo + Historico (unificado) ── */}
       {workflow ? (() => {
         const wfn = normaliseWfSteps(workflow);
         return (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 mb-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Fluxo: {wfn.templateName}
             </h3>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
               wfn.isComplete ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
             }`}>
-              {wfn.completedSteps}/{wfn.totalSteps} passos
+              {wfn.completedSteps}/{wfn.totalSteps}
             </span>
           </div>
 
           {/* Progress bar */}
-          <div className="h-2 rounded-full bg-slate-100 mb-4 overflow-hidden">
+          <div className="h-1.5 rounded-full bg-slate-100 mb-3 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                wfn.isComplete
-                  ? "bg-green-500"
-                  : "bg-gradient-to-r from-blue-500 to-blue-600"
+                wfn.isComplete ? "bg-green-500" : "bg-blue-500"
               }`}
               style={{ width: `${wfn.totalSteps > 0 ? (wfn.completedSteps / wfn.totalSteps) * 100 : 0}%` }}
             />
           </div>
 
-          {/* Steps timeline */}
-          <div className="relative">
+          {/* Unified timeline */}
+          <div className="divide-y divide-slate-50">
             {wfn.steps.map((step, idx) => {
-              const isLast = idx === wfn.steps.length - 1;
+              // Build inline detail chips
+              const details: string[] = [];
+              if (step.note) details.push(`📝 ${step.note.substring(0, 60)}`);
+              if (step.type === "GPS" && step.responseData?.lat) details.push(`📍 ${Number(step.responseData.lat).toFixed(4)}, ${Number(step.responseData.lng).toFixed(4)}`);
+              if (step.type === "CHECKLIST" && step.responseData?.checkedItems) details.push(`☑️ ${step.responseData.checkedItems.length} verificados`);
+              if (step.type === "FORM" && step.responseData?.fields) details.push(`📋 ${Object.keys(step.responseData.fields).length} campos`);
+              if ((step.type === "QUESTION" || step.type === "CONDITION") && step.responseData?.answer !== undefined) details.push(`💬 ${String(step.responseData.answer)}`);
+              const hasMaterials = step.type === "MATERIALS" && step.completed && step.responseData?.items;
+
               return (
-                <div key={step.order} className="flex gap-3 relative">
-                  {/* Vertical line */}
-                  {!isLast && (
-                    <div className={`absolute left-[15px] top-8 bottom-0 w-0.5 ${
-                      step.completed ? "bg-green-200" : "bg-slate-100"
-                    }`} />
-                  )}
-
-                  {/* Circle / icon */}
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-full flex-shrink-0 text-sm z-10 ${
-                    step.completed
-                      ? "bg-green-100 text-green-600"
-                      : !step.completed && idx === wfn.completedSteps
-                        ? "bg-blue-100 text-blue-600 ring-2 ring-blue-300"
-                        : "bg-slate-100 text-slate-400"
-                  }`}>
-                    {step.completed ? "✓" : step.icon || `${idx + 1}`}
-                  </div>
-
-                  {/* Content */}
-                  <div className={`flex-1 pb-4 ${isLast ? "" : ""}`}>
-                    <p className={`text-sm font-medium ${
-                      step.completed ? "text-slate-800" : "text-slate-500"
+                <div key={step.order} className="py-1.5">
+                  {/* Main row */}
+                  <div className="flex items-center gap-2">
+                    {/* Status icon */}
+                    <span className={`flex h-5 w-5 items-center justify-center rounded-full flex-shrink-0 text-[10px] ${
+                      step.completed
+                        ? "bg-green-100 text-green-600"
+                        : idx === wfn.completedSteps
+                          ? "bg-blue-100 text-blue-600 ring-1 ring-blue-300"
+                          : "bg-slate-50 text-slate-300"
+                    }`}>
+                      {step.completed ? "✓" : idx === wfn.completedSteps ? "▶" : "○"}
+                    </span>
+                    {/* Name */}
+                    <span className={`text-[11px] font-medium truncate ${
+                      step.completed ? "text-slate-700" : idx === wfn.completedSteps ? "text-blue-600" : "text-slate-400"
                     }`}>
                       {step.name}
-                    </p>
+                    </span>
+                    {/* Inline detail (first chip only) */}
+                    {details.length > 0 && !hasMaterials && (
+                      <span className="text-[10px] text-slate-400 truncate hidden sm:inline ml-1">
+                        {details[0]}
+                      </span>
+                    )}
+                    {/* Timestamp */}
                     {step.completed && step.completedAt && (
-                      <p className="text-[11px] text-slate-400">
-                        {new Date(step.completedAt).toLocaleString("pt-BR")}
-                      </p>
-                    )}
-                    {step.note && (
-                      <p className="text-[11px] text-slate-500 mt-0.5">📝 {step.note}</p>
-                    )}
-                    {/* MATERIALS block: show item list */}
-                    {step.type === "MATERIALS" && step.completed && step.responseData?.items && (
-                      <div className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 max-w-sm">
-                        {step.responseData.note && (
-                          <p className="text-[10px] text-slate-600 mb-1">{step.responseData.note}</p>
-                        )}
-                        <div className="flex items-center gap-1 text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">
-                          <span className="flex-1">Item</span>
-                          <span className="w-8 text-right">Qtd.</span>
-                        </div>
-                        <div className="space-y-0">
-                          {(step.responseData.items as Array<{ name: string; qty: number }>).map((item: { name: string; qty: number }, i: number) => (
-                            <div key={i} className="flex items-center gap-1 text-[10px] py-0.5 border-t border-amber-100 first:border-0">
-                              <span className="flex-1 text-slate-700 truncate">{item.name.length > 50 ? item.name.substring(0, 50) + '…' : item.name}</span>
-                              <span className="w-8 text-right font-medium text-slate-600">{item.qty}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-[9px] text-amber-500 mt-1">{step.responseData.items.length} material(is)</p>
-                      </div>
-                    )}
-                    {/* GPS block: show coords */}
-                    {step.type === "GPS" && step.completed && step.responseData?.lat && (
-                      <p className="text-[10px] text-slate-400 mt-0.5">📍 {Number(step.responseData.lat).toFixed(5)}, {Number(step.responseData.lng).toFixed(5)}</p>
-                    )}
-                    {/* CHECKLIST block: show checked count */}
-                    {step.type === "CHECKLIST" && step.completed && step.responseData?.checkedItems && (
-                      <p className="text-[10px] text-slate-400 mt-0.5">☑️ {step.responseData.checkedItems.length} item(ns) verificados</p>
-                    )}
-                    {/* FORM block: show field count */}
-                    {step.type === "FORM" && step.completed && step.responseData?.fields && (
-                      <p className="text-[10px] text-slate-400 mt-0.5">📋 {Object.keys(step.responseData.fields).length} campo(s) preenchidos</p>
-                    )}
-                    {/* QUESTION/CONDITION: show answer */}
-                    {(step.type === "QUESTION" || step.type === "CONDITION") && step.completed && step.responseData?.answer !== undefined && (
-                      <p className="text-[10px] text-slate-400 mt-0.5">💬 {String(step.responseData.answer)}</p>
+                      <span className="text-[10px] text-slate-300 ml-auto flex-shrink-0 whitespace-nowrap">
+                        {new Date(step.completedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </span>
                     )}
                     {!step.completed && idx === wfn.completedSteps && (
-                      <p className="text-[11px] text-blue-500 font-medium">← Próximo passo</p>
+                      <span className="text-[10px] text-blue-400 ml-auto">aguardando</span>
                     )}
                   </div>
+                  {/* Extra details below (GPS on desktop) */}
+                  {details.length > 1 && !hasMaterials && (
+                    <div className="ml-7 mt-0.5">
+                      {details.slice(1).map((d, i) => (
+                        <span key={i} className="text-[10px] text-slate-400 mr-3">{d}</span>
+                      ))}
+                    </div>
+                  )}
+                  {/* MATERIALS expanded */}
+                  {hasMaterials && (
+                    <div className="ml-7 mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 max-w-sm">
+                      {step.responseData.note && (
+                        <p className="text-[10px] text-slate-600 mb-1">{step.responseData.note}</p>
+                      )}
+                      <div className="flex items-center gap-1 text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">
+                        <span className="flex-1">Item</span>
+                        <span className="w-8 text-right">Qtd.</span>
+                      </div>
+                      {(step.responseData.items as Array<{ name: string; qty: number }>).map((item: { name: string; qty: number }, i: number) => (
+                        <div key={i} className="flex items-center gap-1 text-[10px] py-0.5 border-t border-amber-100 first:border-0">
+                          <span className="flex-1 text-slate-700 truncate">{item.name.length > 50 ? item.name.substring(0, 50) + '…' : item.name}</span>
+                          <span className="w-8 text-right font-medium text-slate-600">{item.qty}</span>
+                        </div>
+                      ))}
+                      <p className="text-[9px] text-amber-500 mt-1">{step.responseData.items.length} material(is)</p>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1050,12 +1041,12 @@ export default function OrderDetailPage() {
         </div>
         );
       })() : order.workflowTemplateId ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6 text-center">
-          <p className="text-sm text-slate-400">Carregando fluxo de atendimento...</p>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 mb-6 text-center">
+          <p className="text-sm text-slate-400">Carregando fluxo...</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5 mb-6 text-center text-sm text-slate-400">
-          Esta OS não possui fluxo de atendimento configurado.
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 mb-6 text-center text-sm text-slate-400">
+          Sem fluxo de atendimento.
         </div>
       )}
 
@@ -1211,48 +1202,7 @@ export default function OrderDetailPage() {
         })()}
       </div>
 
-      {/* Histórico de Eventos — Compacto */}
-      {order.events && order.events.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Historico</h3>
-          <div className="divide-y divide-slate-50">
-            {order.events.map((event) => {
-              const p = event.payload || {};
-              const icon = event.type === "CHECKLIST_CONFIRMED" || event.type === "CHECKLIST_SKIPPED"
-                ? "📋" : event.type === "WORKFLOW_COMPLETED" ? "🏁"
-                : p.blockType === "GPS" ? "📍" : p.blockType === "PHOTO" ? "📸"
-                : p.blockType === "MATERIALS" ? "📦" : p.blockType === "NOTE" ? "📝"
-                : p.blockType === "CHECKLIST" ? "☑️" : p.blockType === "FORM" ? "📋"
-                : p.blockType === "SIGNATURE" ? "✍️"
-                : event.actorType === "TECNICO" ? "🔧" : "⚙️";
-
-              // Build summary chips
-              const chips: string[] = [];
-              if (p.note) chips.push(`"${p.note.substring(0, 40)}${p.note.length > 40 ? '...' : ''}"`);
-              if (p.materialCount) chips.push(`${p.materialCount} material(is)`);
-              if (p.checkedCount) chips.push(`${p.checkedCount} verificados`);
-              if (p.answer !== undefined) chips.push(`R: ${p.answer}`);
-              if (p.fieldCount) chips.push(`${p.fieldCount} campos`);
-              if (p.gps) chips.push(`📍 ${Number(p.gps.lat).toFixed(4)},${Number(p.gps.lng).toFixed(4)}`);
-
-              return (
-                <div key={event.id} className="flex items-center gap-2 py-1.5">
-                  <span className="text-xs flex-shrink-0">{icon}</span>
-                  <span className="text-[11px] text-slate-700 font-medium truncate">
-                    {p.blockName || EVENT_LABELS[event.type] || event.type}
-                  </span>
-                  {chips.length > 0 && (
-                    <span className="text-[10px] text-slate-400 truncate hidden sm:inline">{chips.join(" · ")}</span>
-                  )}
-                  <span className="text-[10px] text-slate-400 ml-auto flex-shrink-0 whitespace-nowrap">
-                    {new Date(event.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Historico removido — unificado com Fluxo acima */}
 
       <ConfirmModal
         open={showDeleteModal}
