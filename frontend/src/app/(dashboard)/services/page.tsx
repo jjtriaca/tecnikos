@@ -61,6 +61,22 @@ function parseBRLToCents(value: string): number {
   return isNaN(num) ? 0 : Math.round(num * 100);
 }
 
+/** Format currency on blur: "350" → "350,00", "80.5" → "80,50" */
+function fmtCurrencyBlur(value: string): string {
+  if (!value) return "";
+  const num = parseFloat(value.replace(/\./g, "").replace(",", "."));
+  if (isNaN(num)) return value;
+  return num.toFixed(2).replace(".", ",");
+}
+
+/** Format percentage on blur: "10" → "10,0", "5.5" → "5,5" */
+function fmtPercentBlur(value: string): string {
+  if (!value) return "";
+  const num = parseFloat(value.replace(",", "."));
+  if (isNaN(num)) return value;
+  return num.toFixed(1).replace(".", ",");
+}
+
 const CHECKLIST_CLASSES = [
   { key: "toolsPpe" as const, label: "Ferramentas e EPI", icon: "🔧", placeholder: "Ex: Chave de fenda, Multímetro, Luvas isolantes..." },
   { key: "materials" as const, label: "Materiais", icon: "📦", placeholder: "Ex: Cabo 2.5mm, Disjuntor 20A, Fita isolante..." },
@@ -461,6 +477,7 @@ export default function ServicesPage() {
                   inputMode="decimal"
                   value={formData.priceCents}
                   onChange={(e) => setFormData({ ...formData, priceCents: e.target.value })}
+                  onBlur={(e) => setFormData({ ...formData, priceCents: fmtCurrencyBlur(e.target.value) })}
                   placeholder="350,00"
                   className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
@@ -474,6 +491,7 @@ export default function ServicesPage() {
                   inputMode="decimal"
                   value={formData.commissionBps}
                   onChange={(e) => setFormData({ ...formData, commissionBps: e.target.value })}
+                  onBlur={(e) => setFormData({ ...formData, commissionBps: fmtPercentBlur(e.target.value) })}
                   placeholder="10,0"
                   className="w-full rounded-lg border border-slate-300 pl-3 pr-7 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
@@ -489,6 +507,7 @@ export default function ServicesPage() {
                   inputMode="decimal"
                   value={formData.techFixedValue}
                   onChange={(e) => setFormData({ ...formData, techFixedValue: e.target.value })}
+                  onBlur={(e) => setFormData({ ...formData, techFixedValue: fmtCurrencyBlur(e.target.value) })}
                   placeholder="15,00"
                   className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
