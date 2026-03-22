@@ -731,6 +731,20 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           </>
         )}
 
+        {/* MATERIALS */}
+        {block.type === "MATERIALS" && (
+          <>
+            <Label>Titulo</Label>
+            <Input value={cfg.label || ""} onChange={(v) => updateConfig("label", v)} />
+            <Label>Texto guia da nota</Label>
+            <Input value={cfg.notePlaceholder || ""} onChange={(v) => updateConfig("notePlaceholder", v)} />
+            <Checkbox checked={cfg.noteRequired || false} onChange={(v) => updateConfig("noteRequired", v)} label="Nota obrigatoria" />
+            <Label>Min. itens</Label>
+            <Input type="number" value={cfg.minItems || 1} onChange={(v) => updateConfig("minItems", parseInt(v) || 1)} />
+            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Enviar materiais", color: "green", icon: "📦" }} onChange={(v) => updateConfig("confirmButton", v)} />
+          </>
+        )}
+
         {/* CONDITION */}
         {block.type === "CONDITION" && (
           <>

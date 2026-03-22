@@ -20,7 +20,7 @@ export type FlowBlockCategory =
 
 export type FlowBlockType =
   | 'TRIGGER_START'
-  | 'STEP' | 'PHOTO' | 'NOTE' | 'GPS' | 'QUESTION' | 'CHECKLIST' | 'SIGNATURE' | 'FORM'
+  | 'STEP' | 'PHOTO' | 'NOTE' | 'GPS' | 'QUESTION' | 'CHECKLIST' | 'SIGNATURE' | 'FORM' | 'MATERIALS'
   | 'GET'
   | 'CONDITION'
   | 'STATUS_CHANGE' | 'DELAY' | 'SLA' | 'RESCHEDULE' | 'GPS_PROXIMITY'
@@ -287,6 +287,16 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
     bgColor: 'bg-blue-50', borderColor: 'border-blue-400', textColor: 'text-blue-900', iconBg: 'bg-blue-500',
     configFields: [
       { id: 'fields', label: 'Campos', type: 'fields', defaultValue: [{ name: 'Campo 1', type: 'text', required: false }] },
+    ],
+  },
+  { type: 'MATERIALS', name: 'Materiais', icon: '📦', description: 'Lista de materiais com diagnostico',
+    category: 'FIELD', shape: 'stack', puzzleColor: '#2563eb', requiresInteraction: true,
+    bgColor: 'bg-blue-50', borderColor: 'border-blue-400', textColor: 'text-blue-900', iconBg: 'bg-blue-500',
+    configFields: [
+      { id: 'label', label: 'Titulo', type: 'text', defaultValue: 'Materiais necessarios' },
+      { id: 'notePlaceholder', label: 'Texto guia da nota', type: 'text', defaultValue: 'Descreva o diagnostico...' },
+      { id: 'noteRequired', label: 'Nota obrigatoria', type: 'toggle', defaultValue: false },
+      { id: 'minItems', label: 'Minimo de itens', type: 'number', defaultValue: 1 },
     ],
   },
   { type: 'GET', name: 'Buscar Dado', icon: '🔍', description: 'Busca qualquer campo do sistema',

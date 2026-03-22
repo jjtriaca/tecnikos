@@ -352,7 +352,7 @@ function AutoBlockVisual({ block }: { block: BlockDef }) {
 
 /* ── Main Preview Page ── */
 
-const INTERACTIVE_TYPES = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
+const INTERACTIVE_TYPES = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "MATERIALS", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
 
 export default function TechPreviewPage() {
   const [config, setConfig] = useState<TechPortalConfig>({});

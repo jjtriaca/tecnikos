@@ -124,7 +124,7 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 /* Block types that the technician interacts with */
-const INTERACTIVE_TYPES = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
+const INTERACTIVE_TYPES = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "MATERIALS", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
 
 function formatCurrency(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", {
@@ -242,6 +242,11 @@ export default function TechOrderDetailPage() {
   const [v2GpsDenied, setV2GpsDenied] = useState(false);
   const [v2FormFields, setV2FormFields] = useState<Record<string, string>>({});
 
+  // MATERIALS block state
+  const [v2MaterialItems, setV2MaterialItems] = useState<{ name: string; qty: number }[]>([]);
+  const [v2MaterialDraft, setV2MaterialDraft] = useState({ name: "", qty: "" });
+  const [v2MaterialNote, setV2MaterialNote] = useState("");
+  const materialNameRef = useRef<HTMLInputElement>(null);
 
   // GPS block continuous tracking state
   const [v2GpsTracking, setV2GpsTracking] = useState(false);
@@ -317,6 +322,9 @@ export default function TechOrderDetailPage() {
     setV2GpsCoords(null);
     setV2GpsDenied(false);
     setV2FormFields({});
+    setV2MaterialItems([]);
+    setV2MaterialDraft({ name: "", qty: "" });
+    setV2MaterialNote("");
     // Stop continuous GPS tracking from previous block
     if (v2GpsWatchRef.current !== null) {
       navigator.geolocation.clearWatch(v2GpsWatchRef.current);
@@ -656,6 +664,9 @@ export default function TechOrderDetailPage() {
       case "FORM":
         body.responseData = { fields: v2FormFields };
         break;
+      case "MATERIALS":
+        body.responseData = { items: v2MaterialItems, note: v2MaterialNote.trim() || undefined };
+        break;
       case "ARRIVAL_QUESTION":
         body.responseData = { selectedMinutes: parseInt(v2AnswerRef.current) || 0 };
         break;
@@ -689,6 +700,9 @@ export default function TechOrderDetailPage() {
       setV2CheckedItems([]);
       setV2GpsCoords(null);
       setV2FormFields({});
+      setV2MaterialItems([]);
+      setV2MaterialDraft({ name: "", qty: "" });
+      setV2MaterialNote("");
 
       if (navigator.onLine) {
         await loadOrder();
@@ -913,6 +927,13 @@ export default function TechOrderDetailPage() {
               handleStopGpsTracking={handleStopGpsTracking}
               v2FormFields={v2FormFields}
               setV2FormFields={setV2FormFields}
+              v2MaterialItems={v2MaterialItems}
+              setV2MaterialItems={setV2MaterialItems}
+              v2MaterialDraft={v2MaterialDraft}
+              setV2MaterialDraft={setV2MaterialDraft}
+              v2MaterialNote={v2MaterialNote}
+              setV2MaterialNote={setV2MaterialNote}
+              materialNameRef={materialNameRef}
               onAdvance={handleAdvanceBlockV2}
               proximityDistance={proximityDistance}
             />
@@ -1056,7 +1077,10 @@ function V2BlockAction({
   v2CheckedItems, setV2CheckedItems,
   v2GpsCoords, v2GpsLoading, v2GpsDenied,
   v2GpsTracking, handleStopGpsTracking,
-  v2FormFields, setV2FormFields, onAdvance,
+  v2FormFields, setV2FormFields,
+  v2MaterialItems, setV2MaterialItems, v2MaterialDraft, setV2MaterialDraft,
+  v2MaterialNote, setV2MaterialNote, materialNameRef,
+  onAdvance,
   proximityDistance,
 }: {
   block: BlockProgress;
@@ -1077,6 +1101,13 @@ function V2BlockAction({
   handleStopGpsTracking: () => void;
   v2FormFields: Record<string, string>;
   setV2FormFields: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  v2MaterialItems: { name: string; qty: number }[];
+  setV2MaterialItems: React.Dispatch<React.SetStateAction<{ name: string; qty: number }[]>>;
+  v2MaterialDraft: { name: string; qty: string };
+  setV2MaterialDraft: React.Dispatch<React.SetStateAction<{ name: string; qty: string }>>;
+  v2MaterialNote: string;
+  setV2MaterialNote: (s: string) => void;
+  materialNameRef: React.RefObject<HTMLInputElement | null>;
   onAdvance: () => void;
   proximityDistance: number | null;
 }) {
@@ -1124,6 +1155,12 @@ function V2BlockAction({
       case "FORM":
         if (c.fields) return c.fields.some((f: any) => f.required && !v2FormFields[f.name]?.trim());
         return false;
+      case "MATERIALS": {
+        const minItems = c.minItems || 1;
+        if (v2MaterialItems.length < minItems) return true;
+        if (c.noteRequired && !v2MaterialNote.trim()) return true;
+        return false;
+      }
       default:
         return false;
     }
@@ -1628,6 +1665,89 @@ function V2BlockAction({
             ))}
           </div>
         )}
+
+        {/* MATERIALS */}
+        {block.type === "MATERIALS" && (() => {
+          const minItems = c.minItems || 1;
+
+          function addItem() {
+            const name = v2MaterialDraft.name.trim();
+            const qty = parseInt(v2MaterialDraft.qty) || 1;
+            if (!name) return;
+            setV2MaterialItems(prev => [...prev, { name, qty }]);
+            setV2MaterialDraft({ name: "", qty: "" });
+            setTimeout(() => materialNameRef.current?.focus(), 50);
+          }
+
+          function removeItem(idx: number) {
+            setV2MaterialItems(prev => prev.filter((_, i) => i !== idx));
+          }
+
+          return (
+            <div className="space-y-3">
+              <div>
+                <p className="text-[11px] font-medium text-slate-500 mb-1">
+                  {c.noteRequired ? "Diagnostico (obrigatorio)" : "Diagnostico / Observacoes"}
+                </p>
+                <textarea
+                  placeholder={c.notePlaceholder || "Descreva o diagnostico..."}
+                  value={v2MaterialNote}
+                  onChange={e => setV2MaterialNote(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1 border-t border-slate-200" />
+                <span className="text-[10px] font-semibold text-slate-400 uppercase">Lista de materiais</span>
+                <div className="flex-1 border-t border-slate-200" />
+              </div>
+
+              {v2MaterialItems.map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <span className="flex-1 text-sm text-slate-800 truncate">{item.name}</span>
+                  <span className="text-sm font-semibold text-slate-600 min-w-[3ch] text-right">{item.qty}</span>
+                  <button onClick={() => removeItem(idx)}
+                    className="text-red-400 hover:text-red-600 text-sm ml-1">🗑</button>
+                </div>
+              ))}
+
+              <div className="flex items-center gap-1.5">
+                <input
+                  ref={materialNameRef}
+                  autoFocus
+                  type="text"
+                  placeholder="Nome do material..."
+                  value={v2MaterialDraft.name}
+                  onChange={e => setV2MaterialDraft(prev => ({ ...prev, name: e.target.value }))}
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="Qtd"
+                  value={v2MaterialDraft.qty}
+                  onChange={e => setV2MaterialDraft(prev => ({ ...prev, qty: e.target.value.replace(/\D/g, "") }))}
+                  className="w-14 rounded-lg border border-slate-200 px-2 py-2 text-sm text-center outline-none focus:border-blue-400"
+                />
+                <button onClick={addItem}
+                  disabled={!v2MaterialDraft.name.trim()}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 text-white disabled:opacity-30 active:scale-95 transition-all text-lg">
+                  +
+                </button>
+              </div>
+
+              {v2MaterialItems.length > 0 && (
+                <p className={`text-xs font-medium ${v2MaterialItems.length >= minItems ? "text-green-600" : "text-amber-600"}`}>
+                  {v2MaterialItems.length} {v2MaterialItems.length === 1 ? "item" : "itens"}
+                  {minItems > 1 ? ` (minimo ${minItems})` : ""}
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Advance button — driven by block config, hidden for auto-advance types */}

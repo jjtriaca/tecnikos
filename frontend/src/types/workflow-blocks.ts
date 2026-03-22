@@ -20,6 +20,7 @@ export type BlockType =
   | 'CHECKLIST'
   | 'SIGNATURE'
   | 'FORM'
+  | 'MATERIALS'
   // Communication
   | 'NOTIFY'
   | 'APPROVAL'
@@ -290,6 +291,7 @@ export function getDefaultConfig(type: BlockType): Record<string, any> {
     case 'CHECKLIST': return { items: ['Verificar condicoes do local', 'Inspecionar equipamento', 'Testar funcionamento'], confirmButton: { label: 'Confirmar checklist', color: 'green', icon: '☑️' } };
     case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do servico', confirmButton: { label: 'Enviar assinatura', color: 'blue', icon: '✍️' } };
     case 'FORM': return { fields: [{ name: 'Condicao do equipamento', type: 'select', required: true, options: ['Bom', 'Regular', 'Ruim'] }, { name: 'Observacoes', type: 'text', required: false }], confirmButton: { label: 'Enviar formulario', color: 'green', icon: '📋' } };
+    case 'MATERIALS': return { label: 'Liste os materiais necessarios para o servico', notePlaceholder: 'Descreva o diagnostico e observacoes...', noteRequired: false, minItems: 1, confirmButton: { label: 'Enviar materiais', color: 'green', icon: '📦' } };
     case 'CONDITION': return { conditionType: 'question', question: 'O servico foi concluido com sucesso?' };
     case 'ACTION_BUTTONS': return { title: '', buttons: [{ id: 'btn_0', label: 'Confirmar', color: 'green', icon: '✅' }] };
     case 'NOTIFY': return { recipients: [{ type: 'CLIENTE', enabled: true, channel: 'WHATSAPP', message: 'Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.' }] };

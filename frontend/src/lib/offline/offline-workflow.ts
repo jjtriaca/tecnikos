@@ -56,7 +56,7 @@ const SYSTEM_TYPES = new Set([
 
 const ACTIONABLE_TYPES = new Set([
   'STEP', 'PHOTO', 'NOTE', 'GPS', 'QUESTION', 'CHECKLIST',
-  'SIGNATURE', 'FORM', 'ACTION_BUTTONS', 'CONDITION', 'ARRIVAL_QUESTION',
+  'SIGNATURE', 'FORM', 'MATERIALS', 'ACTION_BUTTONS', 'CONDITION', 'ARRIVAL_QUESTION',
 ]);
 
 /* ═══════════════════════════════════════════════════════════════

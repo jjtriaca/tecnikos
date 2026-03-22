@@ -68,6 +68,7 @@ const ACTIONABLE_TYPES = new Set([
   'CHECKLIST',
   'SIGNATURE',
   'FORM',
+  'MATERIALS',
   'CONDITION',
   'ACTION_BUTTONS',
   'ARRIVAL_QUESTION',
@@ -1781,6 +1782,24 @@ export class WorkflowEngineService {
             `"${block.name}" requer a seleção de um botão`,
           );
         break;
+
+      case 'MATERIALS': {
+        const items = dto.responseData?.items;
+        if (!items || !Array.isArray(items) || items.length === 0)
+          throw new BadRequestException(
+            `"${block.name}" requer ao menos um material`,
+          );
+        const minItems = c.minItems || 1;
+        if (items.length < minItems)
+          throw new BadRequestException(
+            `"${block.name}" requer no mínimo ${minItems} itens (enviados: ${items.length})`,
+          );
+        if (c.noteRequired && !dto.responseData?.note?.trim())
+          throw new BadRequestException(
+            `"${block.name}" requer um diagnóstico/observação`,
+          );
+        break;
+      }
     }
   }
 
