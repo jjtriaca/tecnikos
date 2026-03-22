@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { getTechAccessToken } from "@/contexts/TechAuthContext";
+import { saveOfflinePhoto } from "@/lib/offline/db";
 
 type Attachment = {
   id: string;
@@ -10,13 +11,16 @@ type Attachment = {
   mimeType: string;
   url: string;
   stepOrder?: number | null;
+  blockId?: string | null;
   createdAt: string;
+  isOffline?: boolean; // local-only indicator
 };
 
 type PhotoUploadProps = {
   orderId: string;
   type: string;
   stepOrder?: number;
+  blockId?: string;
   attachments: Attachment[];
   onUpload: (att: Attachment) => void;
   onDelete?: (id: string) => void;
@@ -26,10 +30,44 @@ type PhotoUploadProps = {
   disabled?: boolean;
 };
 
+/** Compress image to max 1920px and JPEG quality 0.7 */
+async function compressImage(file: File): Promise<Blob> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1920;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        const ratio = Math.min(MAX / width, MAX / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => resolve(blob || file),
+        "image/jpeg",
+        0.7,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file); // Fallback: use original
+    };
+    img.src = url;
+  });
+}
+
 export default function PhotoUpload({
   orderId,
   type,
   stepOrder,
+  blockId,
   attachments,
   onUpload,
   onDelete,
@@ -40,9 +78,13 @@ export default function PhotoUpload({
 }: PhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  // Local object URLs for offline photos (cleaned up on unmount)
+  const localUrlsRef = useRef<string[]>([]);
 
   const filtered = attachments.filter(
-    (a) => a.type === type && (stepOrder === undefined || a.stepOrder === stepOrder)
+    (a) => a.type === type
+      && (stepOrder === undefined || a.stepOrder === stepOrder)
+      && (blockId === undefined || a.blockId === blockId)
   );
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -51,40 +93,90 @@ export default function PhotoUpload({
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      let qs = `type=${encodeURIComponent(type)}`;
-      if (stepOrder !== undefined) qs += `&stepOrder=${stepOrder}`;
-
-      // Use raw fetch for multipart upload (no Content-Type — browser sets boundary)
-      const headers: Record<string, string> = {};
-      const token = getTechAccessToken();
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(
-        `${apiBase}/service-orders/${orderId}/attachments?${qs}`,
-        {
-          method: "POST",
-          body: formData,
-          headers,
-          credentials: "include",
-        },
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || "Erro no upload");
+      if (navigator.onLine) {
+        // Online: upload immediately (existing behavior)
+        await uploadOnline(file);
+      } else {
+        // Offline: save to IndexedDB and show locally
+        await saveOffline(file);
       }
-
-      const att = await res.json();
-      onUpload(att);
     } catch (err: any) {
-      alert(err?.message || "Erro ao enviar foto");
+      // If online upload fails due to network, fallback to offline
+      if (!navigator.onLine) {
+        try {
+          await saveOffline(file);
+        } catch {
+          alert("Erro ao salvar foto offline");
+        }
+      } else {
+        alert(err?.message || "Erro ao enviar foto");
+      }
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
     }
+  }
+
+  async function uploadOnline(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    let qs = `type=${encodeURIComponent(type)}`;
+    if (stepOrder !== undefined) qs += `&stepOrder=${stepOrder}`;
+    if (blockId) qs += `&blockId=${encodeURIComponent(blockId)}`;
+
+    const headers: Record<string, string> = {};
+    const token = getTechAccessToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(
+      `${apiBase}/service-orders/${orderId}/attachments?${qs}`,
+      { method: "POST", body: formData, headers, credentials: "include" },
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "Erro no upload");
+    }
+
+    const att = await res.json();
+    onUpload(att);
+  }
+
+  async function saveOffline(file: File) {
+    // Compress photo before storing
+    const compressed = await compressImage(file);
+    const photoId = crypto.randomUUID();
+
+    // Save blob to IndexedDB
+    await saveOfflinePhoto({
+      id: photoId,
+      serviceOrderId: orderId,
+      blockId: blockId || "",
+      blob: compressed,
+      fileName: file.name || `photo_${Date.now()}.jpg`,
+      mimeType: "image/jpeg",
+      sizeBytes: compressed.size,
+      createdAt: Date.now(),
+      synced: false,
+    });
+
+    // Create local object URL for preview
+    const localUrl = URL.createObjectURL(compressed);
+    localUrlsRef.current.push(localUrl);
+
+    // Create synthetic attachment for UI
+    const syntheticAtt: Attachment = {
+      id: photoId,
+      type,
+      fileName: file.name || `photo_${Date.now()}.jpg`,
+      mimeType: "image/jpeg",
+      url: localUrl,
+      blockId: blockId || null,
+      createdAt: new Date().toISOString(),
+      isOffline: true,
+    };
+    onUpload(syntheticAtt);
   }
 
   return (
@@ -95,16 +187,23 @@ export default function PhotoUpload({
           {filtered.map((att) => (
             <div key={att.id} className="relative group">
               <img
-                src={`${apiBase}${att.url}`}
+                src={att.isOffline ? att.url : `${apiBase}${att.url}`}
                 alt={att.fileName}
                 className="h-20 w-20 rounded-xl object-cover border border-slate-200"
               />
+              {att.isOffline && (
+                <div className="absolute bottom-0.5 right-0.5 h-4 w-4 rounded-full bg-amber-500 flex items-center justify-center">
+                  <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" />
+                  </svg>
+                </div>
+              )}
               {onDelete && (
                 <button
                   onClick={() => onDelete(att.id)}
                   className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  ×
+                  x
                 </button>
               )}
             </div>
@@ -130,7 +229,7 @@ export default function PhotoUpload({
         {uploading ? (
           <>
             <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-            Enviando...
+            {navigator.onLine ? "Enviando..." : "Salvando..."}
           </>
         ) : (
           <>

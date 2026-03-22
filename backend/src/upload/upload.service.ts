@@ -23,6 +23,7 @@ export class UploadService {
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
     type: string,
     stepOrder?: number,
+    blockId?: string,
   ) {
     // Validate
     if (!ALLOWED_MIME.includes(file.mimetype)) {
@@ -61,6 +62,7 @@ export class UploadService {
         url,
         uploadedBy,
         stepOrder,
+        blockId,
       },
     });
   }

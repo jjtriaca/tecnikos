@@ -592,11 +592,13 @@ model Attachment {
   url            String
   uploadedBy     String   // partner ID or user ID
   stepOrder      Int?     // if attached to a workflow step
+  blockId        String?  // V2 workflow block ID this attachment belongs to
   createdAt      DateTime @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
 
   @@index([serviceOrderId])
+  @@index([serviceOrderId, blockId])
 }
 
 model Notification {

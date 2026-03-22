@@ -1,59 +1,53 @@
 # TAREFA ATUAL
 
-## Versao: v1.06.43
-## Ultima sessao: 153 (21/03/2026)
+## Versao: v1.06.51 (pendente deploy v1.06.52)
+## Ultima sessao: 154 (22/03/2026)
 
 ## Pendencias
 
 ### A FAZER
-- **Fase 3 — Offline-first**: IndexedDB para OS locais + fila de sync (futuro)
+- **Fase 3-7 Offline**: Testar em dispositivo real (GPS + fotos + sync)
+- **Fase 4-7**: Hardening offline (crash recovery, forcar sync, limites storage)
 
 ### PENDENTE VALIDACAO
-- **PWA Token Persistente**: Testar os 6 fluxos (ver abaixo). Deploy necessario para validar em producao.
+- **Bug PHOTO minPhotos**: Testar bloco com minPhotos=2,3 — botao so habilita com N fotos
+- **Offline-first**: Testar workflow completo offline → online → sync
+- **PWA Token Persistente**: Testar os 6 fluxos em producao
+- **Tech refresh TTL**: Agora 90 dias. Monitorar se tecnicos perdem sessao
 
-### CONCLUIDO (sessao 153)
+### CONCLUIDO (sessao 154)
 
-#### PWA Token Persistente — 3 Camadas de Auth
-- **DeviceToken model**: Nova tabela no Prisma (partnerId, tokenHash, deviceName, expiresAt, revokedAt)
-- **1 dispositivo por tecnico**: Ao criar novo deviceToken, revoga todos os anteriores
-- **deviceToken vinculado ao TECNICO**: Nao depende de OS especifica — funciona pra sempre
-- **TTLs atualizados**: Refresh cookie 90 dias, deviceToken 365 dias
-- **3 camadas de recovery**: cookie httpOnly → deviceToken localStorage → tela OTP
-- **POST /tech-auth/device-recover**: Novo endpoint para PWA recuperar sessao via localStorage
-- **GET /tech-auth/my-orders**: Lista OS ativas do tecnico (so assignedPartnerId, nao directedTechnicianIds)
-- **Todos os logins emitem deviceToken**: login, loginWithOtp, loginWithToken (welcome + OS)
-- **Logout limpa tudo**: Sessao + cookie + deviceToken (localStorage + DB)
-- **Tela de login redesenhada**: Input telefone + OTP por WhatsApp (substitui tela estatica)
-- **Token page inteligente**: Se ja autenticado, vai direto pra OS. Se token revogado, mensagem amigavel "OS ja atribuida"
-- **Mensagem generica no token revogado**: "Esta OS ja foi atribuida" (sem "a voce") — outro tecnico pode clicar
-- **OS direcionada (OFERTADA) NAO aparece no PWA**: So aparece apos aceitar via link (assignedPartnerId)
+#### Bug Fix: PHOTO minPhotos
+- **Prisma**: `blockId String?` no model Attachment + index composto
+- **Migration**: `20260322120000_add_blockid_to_attachment`
+- **Upload controller/service**: Aceita `blockId` via query string
+- **Backend validateBlockRequirements**: Agora `async`, conta fotos por blockId no DB
+- **Frontend PhotoUpload**: Envia `blockId` no upload, filtra galeria por blockId
+- **Frontend isDisabled**: Conta fotos por bloco vs `config.minPhotos`, fallback legacy
+- **Frontend handleAdvanceBlockV2**: Envia `photoCount` + `photoUrls` no responseData
+- **Contador visual**: "2/3 fotos" no bloco PHOTO quando minPhotos > 1
+- **Backward compat**: Fotos sem blockId (legacy) contam como fallback
 
-#### Fluxos a validar
-1. Login via link → fechar app → reabrir → silentRefresh OK → /tech/orders
-2. Fechar app → limpar cookies → reabrir → deviceRecover OK → /tech/orders
-3. Limpar cookies + localStorage → tela OTP → codigo WhatsApp → /tech/orders
-4. Login no celular B → celular A perde acesso (deviceToken revogado)
-5. Clicar link antigo com sessao ativa → vai direto pra OS
-6. Clicar link revogado → mensagem amigavel + botao "Abrir minhas OS"
-
-### CONCLUIDO (sessao 152)
-
-#### GPS Block — Botao "Cheguei" + Melhorias
-- **Botao Cheguei configuravel**: Quando autoAdvanceOnProximity=false, mostra ConfirmButtonEditor
-- **ConfirmButtonEditor expandido**: Adicionado seletor de tamanho (Pequeno/Medio/Grande)
-- **Texto dinamico auto-avancar**: Texto muda conforme checkbox
-- **Botao renderizado no mobile**: Aparece no app do tecnico com cor/emoji/tamanho configurados
-
-#### GPS — Envio de posicao e distancia
-- **sendPosition sempre ativo**: Envia sempre no modo continuo
-- **Distancia ao destino no mobile**: Toggle configuravel (showDistanceToTech)
-- **Health check GPS**: Detecta GPS desligado mid-tracking
-- **Banner GPS desativado**: Aparece sempre que v2GpsDenied
+#### Offline-First PWA — Foundation + Core
+- **`idb` instalado**: Wrapper IndexedDB (~1.2KB)
+- **`lib/offline/db.ts`**: Schema IDB com 4 stores (service-orders, offline-workflow-state, offline-photos, sync-queue)
+- **`lib/offline/sync-queue.ts`**: Fila de sync FIFO, fotos primeiro, advances depois
+- **`lib/offline/offline-workflow.ts`**: Execucao local de blocos com branching (CONDITION, ACTION_BUTTONS)
+- **`hooks/useOffline.ts`**: Deteccao online/offline com health ping
+- **`components/OfflineIndicator.tsx`**: Banner amber offline, badge sync, erros
+- **Service Worker v2**: Cache API GETs (network-first), Background Sync handler
+- **loadOrder() com cache**: Salva em IDB quando online, le do IDB quando offline
+- **handleAdvanceBlockV2 dual-mode**: Online = API tempo real, Offline = execucao local + queue
+- **PhotoUpload offline**: Comprime foto (max 1920px, JPEG 0.7), salva blob no IDB
+- **Auto-sync**: Processa fila quando volta online (event + SW Background Sync)
 
 ### BLOQUEADO
 - (nenhum)
 
-### REGRAS APRENDIDAS (sessao 153)
-- **deviceToken vinculado ao TECNICO, nao a OS**: Funciona independente de links
-- **OS OFERTADA nao aparece no PWA**: So apos aceitar (assignedPartnerId)
-- **Mensagem generica em token revogado**: Nao dizer "atribuida a voce" — pode ser outro tecnico
+### REGRAS APRENDIDAS (sessao 154)
+- **blockId no Attachment**: Associa foto ao bloco especifico do workflow
+- **validateBlockRequirements async**: Precisa de DB query para contar fotos
+- **Foto offline = blob + objectURL**: Comprime antes de salvar, preview local com createObjectURL
+- **FIFO por OS no sync**: Upload fotos ANTES de advance (advance referencia URL do servidor)
+- **navigator.onLine pode mentir**: Health ping /api/health a cada 30s como validacao real
+- **Background Sync API**: Fallback manual com evento online + polling

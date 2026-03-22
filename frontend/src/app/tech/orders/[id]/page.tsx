@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { techApi } from "@/contexts/TechAuthContext";
 import PhotoUpload from "@/components/Upload/PhotoUpload";
+import { cacheServiceOrder, getCachedServiceOrder } from "@/lib/offline/db";
+import { advanceBlockOffline } from "@/lib/offline/offline-workflow";
+import { setupAutoSync } from "@/lib/offline/sync-queue";
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -16,6 +19,7 @@ type Attachment = {
   mimeType: string;
   url: string;
   stepOrder?: number | null;
+  blockId?: string | null;
   createdAt: string;
 };
 
@@ -259,20 +263,36 @@ export default function TechOrderDetailPage() {
     try {
       const data = await techApi<ServiceOrder>(`/service-orders/${id}`);
       setOrder(data);
+      let wf: WorkflowProgressV2 | null = null;
+      let atts: Attachment[] = [];
       try {
-        const wf = await techApi<WorkflowProgressV2>(`/service-orders/${id}/workflow`);
+        wf = await techApi<WorkflowProgressV2>(`/service-orders/${id}/workflow`);
         setWorkflow(wf);
       } catch {
         setWorkflow((prev) => prev);
       }
       try {
-        const atts = await techApi<Attachment[]>(`/service-orders/${id}/attachments`);
+        atts = await techApi<Attachment[]>(`/service-orders/${id}/attachments`);
         setAttachments(atts);
       } catch {
         setAttachments([]);
       }
+      // Cache for offline use
+      if (wf) {
+        cacheServiceOrder(id, data, wf, atts).catch(() => {});
+      }
     } catch {
-      // ignore
+      // Network failed — try loading from IndexedDB cache
+      try {
+        const cached = await getCachedServiceOrder(id);
+        if (cached) {
+          setOrder(cached.data);
+          setWorkflow(cached.workflow);
+          setAttachments(cached.attachments || []);
+        }
+      } catch {
+        // IndexedDB also failed
+      }
     } finally {
       setLoading(false);
     }
@@ -281,6 +301,12 @@ export default function TechOrderDetailPage() {
   useEffect(() => {
     loadOrder();
   }, [loadOrder]);
+
+  // Setup auto-sync for offline queue
+  useEffect(() => {
+    const cleanup = setupAutoSync();
+    return cleanup;
+  }, []);
 
   // Reset V2 form state when workflow changes
   const currentBlockId = workflow?.currentBlock?.id ?? null;
@@ -595,9 +621,12 @@ export default function TechOrderDetailPage() {
         body.note = v2Note.trim();
         break;
       case "PHOTO": {
-        const stepPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP");
-        const lastPhoto = stepPhotos[stepPhotos.length - 1];
+        let blockPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP" && a.blockId === block.id);
+        // Fallback for legacy photos without blockId
+        if (blockPhotos.length === 0) blockPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP" && !a.blockId);
+        const lastPhoto = blockPhotos[blockPhotos.length - 1];
         if (lastPhoto) body.photoUrl = lastPhoto.url;
+        body.responseData = { photoCount: blockPhotos.length, photoUrls: blockPhotos.map((p) => p.url) };
         break;
       }
       case "GPS":
@@ -618,7 +647,8 @@ export default function TechOrderDetailPage() {
         body.responseData = { buttonId: v2AnswerRef.current };
         break;
       case "SIGNATURE": {
-        const sigPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP");
+        let sigPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP" && a.blockId === block.id);
+        if (sigPhotos.length === 0) sigPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP" && !a.blockId);
         const lastSig = sigPhotos[sigPhotos.length - 1];
         if (lastSig) body.photoUrl = lastSig.url;
         break;
@@ -632,10 +662,24 @@ export default function TechOrderDetailPage() {
     }
 
     try {
-      const wf = await techApi<WorkflowProgressV2>(
-        `/service-orders/${order.id}/workflow/advance`,
-        { method: "POST", body: JSON.stringify(body) }
-      );
+      let wf: WorkflowProgressV2;
+
+      if (navigator.onLine) {
+        // Online: API call in real-time (existing behavior)
+        wf = await techApi<WorkflowProgressV2>(
+          `/service-orders/${order.id}/workflow/advance`,
+          { method: "POST", body: JSON.stringify(body) }
+        );
+      } else {
+        // Offline: execute locally, queue for sync
+        const offlineWf = await advanceBlockOffline(
+          order.id,
+          block.id,
+          { note: body.note, photoUrl: body.photoUrl, responseData: body.responseData },
+        );
+        if (!offlineWf) throw new Error("Erro ao processar offline");
+        wf = offlineWf;
+      }
 
       setWorkflow(wf);
       // Reset V2 input state for the new block
@@ -645,8 +689,33 @@ export default function TechOrderDetailPage() {
       setV2CheckedItems([]);
       setV2GpsCoords(null);
       setV2FormFields({});
-      await loadOrder();
+
+      if (navigator.onLine) {
+        await loadOrder();
+      }
     } catch (err: any) {
+      // If online API failed due to network, try offline fallback
+      if (!navigator.onLine || (err?.message?.includes('fetch') || err?.message?.includes('network'))) {
+        try {
+          const offlineWf = await advanceBlockOffline(
+            order.id,
+            block.id,
+            { note: body.note, photoUrl: body.photoUrl, responseData: body.responseData },
+          );
+          if (offlineWf) {
+            setWorkflow(offlineWf);
+            setV2Note("");
+            _setV2Answer("");
+            v2AnswerRef.current = "";
+            setV2CheckedItems([]);
+            setV2GpsCoords(null);
+            setV2FormFields({});
+            return;
+          }
+        } catch {
+          // Offline also failed
+        }
+      }
       alert(err?.message || "Erro ao avancar bloco");
     } finally {
       setActing(false);
@@ -1026,8 +1095,14 @@ function V2BlockAction({
         if (noteText && c.maxChars && noteText.length > c.maxChars) return true;
         return false;
       }
-      case "PHOTO":
-        return !attachments.some((a) => a.type === "WORKFLOW_STEP");
+      case "PHOTO": {
+        const minPhotos = c.minPhotos || 1;
+        const blockPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP" && a.blockId === block.id);
+        // Fallback for legacy photos without blockId
+        const count = blockPhotos.length > 0 ? blockPhotos.length
+          : attachments.filter((a) => a.type === "WORKFLOW_STEP" && !a.blockId).length;
+        return count < minPhotos;
+      }
       case "GPS":
         return !v2GpsCoords;
       case "QUESTION":
@@ -1038,8 +1113,12 @@ function V2BlockAction({
         return !v2Answer;
       case "ACTION_BUTTONS":
         return !v2Answer;
-      case "SIGNATURE":
-        return !attachments.some((a) => a.type === "WORKFLOW_STEP");
+      case "SIGNATURE": {
+        const sigPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP" && a.blockId === block.id);
+        // Fallback for legacy photos without blockId
+        return sigPhotos.length > 0 ? false
+          : !attachments.some((a) => a.type === "WORKFLOW_STEP" && !a.blockId);
+      }
       case "ARRIVAL_QUESTION":
         return !v2Answer;
       case "FORM":
@@ -1067,7 +1146,7 @@ function V2BlockAction({
             {c.requirePhoto && (
               <div className="rounded-lg border border-slate-200 bg-white p-2">
                 <p className="text-[11px] font-medium text-slate-500 mb-1">📷 Foto obrigatoria</p>
-                <PhotoUpload orderId={order.id} type="WORKFLOW_STEP" attachments={attachments}
+                <PhotoUpload orderId={order.id} type="WORKFLOW_STEP" blockId={block.id} attachments={attachments}
                   onUpload={(att) => setAttachments((prev) => [...prev, att])} apiFetch={techApi} label="Tirar foto" />
               </div>
             )}
@@ -1078,13 +1157,26 @@ function V2BlockAction({
         )}
 
         {/* PHOTO */}
-        {block.type === "PHOTO" && (
-          <div className="space-y-2">
-            <p className="text-xs text-slate-600">{c.label || "Tire uma foto"}{c.minPhotos > 1 ? ` (minimo ${c.minPhotos} fotos)` : ""}</p>
-            <PhotoUpload orderId={order.id} type="WORKFLOW_STEP" attachments={attachments}
-              onUpload={(att) => setAttachments((prev) => [...prev, att])} apiFetch={techApi} label="📸 Tirar foto" />
-          </div>
-        )}
+        {block.type === "PHOTO" && (() => {
+          const minPhotos = c.minPhotos || 1;
+          const blockPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP" && a.blockId === block.id);
+          // Fallback: count untagged photos for backward compat (before blockId was added)
+          const photoCount = blockPhotos.length > 0 ? blockPhotos.length
+            : attachments.filter((a) => a.type === "WORKFLOW_STEP" && !a.blockId).length;
+          return (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-600">{c.label || "Tire uma foto"}{minPhotos > 1 ? ` (minimo ${minPhotos} fotos)` : ""}</p>
+              <PhotoUpload orderId={order.id} type="WORKFLOW_STEP" blockId={block.id} attachments={attachments}
+                onUpload={(att) => setAttachments((prev) => [...prev, att])} apiFetch={techApi} label="📸 Tirar foto" />
+              {minPhotos > 1 && (
+                <p className={`text-xs font-medium ${photoCount >= minPhotos ? "text-green-600" : "text-amber-600"}`}>
+                  {photoCount}/{minPhotos} foto{minPhotos > 1 ? "s" : ""}
+                  {photoCount >= minPhotos ? " ✓" : ""}
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* NOTE */}
         {block.type === "NOTE" && (
@@ -1486,7 +1578,7 @@ function V2BlockAction({
         {block.type === "SIGNATURE" && (
           <div className="space-y-2">
             <p className="text-xs text-slate-600">{c.label || "Assinatura digital"}</p>
-            <PhotoUpload orderId={order.id} type="WORKFLOW_STEP" attachments={attachments}
+            <PhotoUpload orderId={order.id} type="WORKFLOW_STEP" blockId={block.id} attachments={attachments}
               onUpload={(att) => setAttachments((prev) => [...prev, att])} apiFetch={techApi} label="✍️ Capturar assinatura" />
           </div>
         )}

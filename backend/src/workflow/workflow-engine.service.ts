@@ -559,7 +559,7 @@ export class WorkflowEngineService {
       );
     }
 
-    this.validateBlockRequirements(block, dto);
+    await this.validateBlockRequirements(block, dto, so.id);
 
     const blocks = normalizeBranches(def.blocks);
 
@@ -1655,10 +1655,11 @@ export class WorkflowEngineService {
 
   /* ── Block validation per type ── */
 
-  private validateBlockRequirements(
+  private async validateBlockRequirements(
     block: BlockDef,
     dto: StepProgressDto,
-  ): void {
+    serviceOrderId?: string,
+  ): Promise<void> {
     const c = block.config || {};
 
     switch (block.type) {
@@ -1673,12 +1674,28 @@ export class WorkflowEngineService {
           );
         break;
 
-      case 'PHOTO':
+      case 'PHOTO': {
         if (!dto.photoUrl)
           throw new BadRequestException(
             `"${block.name}" requer uma foto`,
           );
+        const minPhotos = c.minPhotos || 1;
+        if (minPhotos > 1 && serviceOrderId) {
+          const photoCount = await this.prisma.attachment.count({
+            where: {
+              serviceOrderId,
+              type: 'WORKFLOW_STEP',
+              blockId: block.id,
+            },
+          });
+          if (photoCount < minPhotos) {
+            throw new BadRequestException(
+              `"${block.name}" requer no mínimo ${minPhotos} fotos (enviadas: ${photoCount})`,
+            );
+          }
+        }
         break;
+      }
 
       case 'NOTE':
         if (c.required !== false && !dto.note)

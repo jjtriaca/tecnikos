@@ -1,6 +1,7 @@
-// Tecnikos Service Worker — PWA + Offline Shell + Cache Strategy
-const CACHE_NAME = "tecnikos-v1";
-const SHELL_CACHE = "tecnikos-shell-v1";
+// Tecnikos Service Worker — PWA + Offline Shell + Cache Strategy + Background Sync
+const CACHE_NAME = "tecnikos-v2";
+const SHELL_CACHE = "tecnikos-shell-v2";
+const API_CACHE = "tecnikos-api-v1";
 
 // App shell files to cache immediately
 const SHELL_FILES = [
@@ -12,13 +13,24 @@ const SHELL_FILES = [
   "/apple-touch-icon.png",
 ];
 
+// API endpoints eligible for cache (GET only, for offline fallback)
+const CACHEABLE_API_PATTERNS = [
+  /\/api\/service-orders\/[^/]+$/,
+  /\/api\/service-orders\/[^/]+\/workflow$/,
+  /\/api\/service-orders\/[^/]+\/attachments$/,
+  /\/api\/tech-auth\/my-orders$/,
+];
+
+function isCacheableApi(pathname) {
+  return CACHEABLE_API_PATTERNS.some((pattern) => pattern.test(pathname));
+}
+
 // Install: cache app shell
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(SHELL_CACHE).then((cache) => {
       return cache.addAll(SHELL_FILES).catch(() => {
         // Some files might fail (e.g., login requires auth)
-        // Continue anyway
       });
     })
   );
@@ -27,11 +39,12 @@ self.addEventListener("install", (event) => {
 
 // Activate: clean old caches
 self.addEventListener("activate", (event) => {
+  const VALID_CACHES = [CACHE_NAME, SHELL_CACHE, API_CACHE];
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== CACHE_NAME && k !== SHELL_CACHE)
+          .filter((k) => !VALID_CACHES.includes(k))
           .map((k) => caches.delete(k))
       )
     )
@@ -39,14 +52,38 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Fetch strategy: Network-first for API, Cache-first for static assets
+// Fetch strategy
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Skip non-GET requests
+  // Skip non-GET requests (POST uploads, advances, etc. go through normally)
   if (event.request.method !== "GET") return;
 
-  // Skip API calls and auth endpoints — always go to network
+  // Cacheable API calls: Network-first with API cache fallback
+  if (isCacheableApi(url.pathname)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(API_CACHE).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cached) => {
+            if (cached) return cached;
+            return new Response(JSON.stringify({ error: "offline" }), {
+              status: 503,
+              headers: { "Content-Type": "application/json" },
+            });
+          });
+        })
+    );
+    return;
+  }
+
+  // Non-cacheable API calls: always go to network
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/api")) {
     return;
   }
@@ -120,7 +157,20 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-// Push notifications (Phase 2 - ready for future use)
+// Background Sync: triggered by system when connectivity restored
+self.addEventListener("sync", (event) => {
+  if (event.tag === "tecnikos-sync") {
+    event.waitUntil(
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: "SYNC_TRIGGER" });
+        });
+      })
+    );
+  }
+});
+
+// Push notifications
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -164,4 +214,16 @@ self.addEventListener("notificationclick", (event) => {
       return self.clients.openWindow(url);
     })
   );
+});
+
+// Message handler: receive messages from app
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SYNC_COMPLETE") {
+    // Broadcast sync complete to all clients
+    self.clients.matchAll({ type: "window" }).then((clients) => {
+      clients.forEach((client) => {
+        client.postMessage({ type: "SYNC_COMPLETE" });
+      });
+    });
+  }
 });

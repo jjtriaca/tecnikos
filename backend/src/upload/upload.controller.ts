@@ -20,6 +20,7 @@ export class UploadController {
     @UploadedFile() file: Express.Multer.File,
     @Query('type') type: string,
     @Query('stepOrder') stepOrder: string | undefined,
+    @Query('blockId') blockId: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (!file) throw new BadRequestException('Nenhum arquivo enviado');
@@ -33,6 +34,7 @@ export class UploadController {
       file,
       type,
       stepOrder ? parseInt(stepOrder, 10) : undefined,
+      blockId,
     );
   }
 

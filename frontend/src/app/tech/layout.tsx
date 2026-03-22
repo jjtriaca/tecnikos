@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { TechAuthProvider, useTechAuth } from "@/contexts/TechAuthContext";
 import Link from "next/link";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 /* ── Bottom Nav Icons ──────────────────────────────────── */
 
@@ -65,6 +66,9 @@ function TechInnerLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
+      {/* Offline/sync indicator */}
+      <OfflineIndicator />
+
       {/* Top header */}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/95 backdrop-blur-sm px-4">
         <div className="flex items-center gap-2">
