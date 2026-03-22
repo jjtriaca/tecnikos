@@ -12,6 +12,8 @@ export interface ServiceItemRow {
   unit: string;
   unitPriceCents: number;
   commissionBps: number | null;
+  techFixedValueCents?: number | null;
+  commissionRule?: string | null;
   quantity: number;
 }
 
@@ -23,6 +25,8 @@ interface ServiceOption {
   unit: string;
   priceCents: number | null;
   commissionBps: number | null;
+  techFixedValueCents: number | null;
+  commissionRule: string | null;
   defaultQty: number | null;
   category: string | null;
   isActive: boolean;
@@ -70,6 +74,8 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
       unit: svc.unit || "SV",
       unitPriceCents: svc.priceCents || 0,
       commissionBps: svc.commissionBps ?? null,
+      techFixedValueCents: svc.techFixedValueCents ?? null,
+      commissionRule: svc.commissionRule ?? null,
       quantity: svc.defaultQty || 1,
     };
     onChange([...items, newItem]);
@@ -110,7 +116,8 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
             <div className="flex gap-3 text-xs text-slate-400 mt-0.5">
               <span>{UNIT_LABELS[s.unit] || s.unit}</span>
               {s.priceCents != null && <span>{formatCurrency(s.priceCents)}</span>}
-              {s.commissionBps != null && <span>Comissão: {(s.commissionBps / 100).toFixed(1)}%</span>}
+              {s.commissionBps != null && s.commissionBps > 0 && <span>Comissão: {(s.commissionBps / 100).toFixed(1)}%</span>}
+              {s.techFixedValueCents != null && s.techFixedValueCents > 0 && <span>Fixo: {formatCurrency(s.techFixedValueCents)}</span>}
             </div>
           </div>
         )}
@@ -147,7 +154,10 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
                   <td className="px-3 py-2 text-center text-slate-500">{UNIT_LABELS[item.unit] || item.unit}</td>
                   <td className="px-3 py-2 text-right text-slate-600">{formatCurrency(item.unitPriceCents)}</td>
                   <td className="px-3 py-2 text-right text-slate-500">
-                    {item.commissionBps != null ? `${(item.commissionBps / 100).toFixed(1)}%` : "—"}
+                    {item.commissionBps != null && item.commissionBps > 0 ? `${(item.commissionBps / 100).toFixed(1)}%` : ""}
+                    {item.commissionBps != null && item.commissionBps > 0 && item.techFixedValueCents ? " / " : ""}
+                    {item.techFixedValueCents ? formatCurrency(item.techFixedValueCents) : ""}
+                    {!item.commissionBps && !item.techFixedValueCents ? "—" : ""}
                   </td>
                   <td className="px-3 py-2 text-right font-semibold text-green-700">
                     {formatCurrency(item.unitPriceCents * item.quantity)}

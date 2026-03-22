@@ -593,18 +593,23 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
         return;
       }
 
-      // Check zero value — show confirmation unless toggle allowZeroValueOs is ON
+      // Check zero value
       if (totalValueCents <= 0 && !showZeroValueConfirm) {
-        // Check system config toggle
         try {
           const cfg = await api.get<any>("/companies/system-config");
-          if (!cfg?.os?.allowZeroValueOs) {
+          if (cfg?.os?.allowZeroValueOs) {
+            // Toggle ON: show confirmation modal (user can proceed)
             setShowZeroValueConfirm(true);
+            setLoading(false);
+            return;
+          } else {
+            // Toggle OFF: block creation
+            setError("O valor total dos servicos deve ser maior que zero. Ative 'Permitir OS com valor zero' em Configuracoes > Sistema para criar OS sem valor.");
             setLoading(false);
             return;
           }
         } catch {
-          setShowZeroValueConfirm(true);
+          setError("O valor total dos servicos deve ser maior que zero");
           setLoading(false);
           return;
         }

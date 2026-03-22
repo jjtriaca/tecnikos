@@ -75,7 +75,7 @@ const SECTIONS: SectionConfig[] = [
         section: "os",
         key: "allowZeroValueOs",
         label: "Permitir OS com valor zero",
-        description: "Permite criar OS sem valor (R$ 0,00). Quando desativado, mostra confirmacao antes de criar",
+        description: "Util para OS de avaliacao/orcamento com preco zero. Quando ativado, mostra confirmacao e permite criar. O sistema nao lanca financeiro a receber, mas lanca a pagar se houver valor fixo do tecnico.",
         type: "toggle",
       },
     ],
