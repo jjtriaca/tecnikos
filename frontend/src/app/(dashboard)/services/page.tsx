@@ -197,6 +197,8 @@ const EMPTY_FORM = {
   unit: "SV",
   priceCents: "",
   commissionBps: "",
+  techFixedValue: "",
+  commissionRule: "",
   defaultQty: "",
   checklists: { toolsPpe: [] as string[], materials: [] as string[], initialCheck: [] as string[], finalCheck: [] as string[], custom: [] as string[] },
   category: "",
@@ -284,6 +286,8 @@ export default function ServicesPage() {
       unit: service.unit,
       priceCents: service.priceCents != null ? (service.priceCents / 100).toFixed(2).replace(".", ",") : "",
       commissionBps: service.commissionBps != null ? (service.commissionBps / 100).toFixed(1).replace(".", ",") : "",
+      techFixedValue: (service as any).techFixedValueCents != null ? ((service as any).techFixedValueCents / 100).toFixed(2).replace(".", ",") : "",
+      commissionRule: (service as any).commissionRule || "",
       defaultQty: service.defaultQty != null ? String(service.defaultQty) : "",
       checklists: {
         toolsPpe: service.checklists?.toolsPpe || [],
@@ -313,6 +317,8 @@ export default function ServicesPage() {
         unit: formData.unit,
         priceCents: formData.priceCents ? parseBRLToCents(formData.priceCents) : undefined,
         commissionBps: commPct != null && !isNaN(commPct) ? Math.round(commPct * 100) : undefined,
+        techFixedValueCents: formData.techFixedValue ? parseBRLToCents(formData.techFixedValue) : undefined,
+        commissionRule: formData.commissionRule || undefined,
         defaultQty: formData.defaultQty ? parseInt(formData.defaultQty) || undefined : undefined,
         checklists: {
           toolsPpe: formData.checklists.toolsPpe.filter(Boolean),
@@ -352,6 +358,8 @@ export default function ServicesPage() {
       unit: service.unit,
       priceCents: service.priceCents != null ? (service.priceCents / 100).toFixed(2).replace(".", ",") : "",
       commissionBps: service.commissionBps != null ? (service.commissionBps / 100).toFixed(1).replace(".", ",") : "",
+      techFixedValue: (service as any).techFixedValueCents != null ? ((service as any).techFixedValueCents / 100).toFixed(2).replace(".", ",") : "",
+      commissionRule: (service as any).commissionRule || "",
       defaultQty: service.defaultQty != null ? String(service.defaultQty) : "",
       checklists: {
         toolsPpe: [...(service.checklists?.toolsPpe || [])],
@@ -467,7 +475,36 @@ export default function ServicesPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Qtd Padrão</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Valor fixo tecnico (R$)</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={formData.techFixedValue}
+                onChange={(e) => setFormData({ ...formData, techFixedValue: e.target.value })}
+                placeholder="Ex: 15,00"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              />
+              <p className="text-[10px] text-slate-400 mt-0.5">Valor fixo que o tecnico recebe por unidade</p>
+            </div>
+            {formData.commissionBps && formData.techFixedValue && parseFloat(formData.commissionBps.replace(",", ".")) > 0 && parseFloat(formData.techFixedValue.replace(",", ".")) > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Regra de comissao</label>
+                <select
+                  value={formData.commissionRule}
+                  onChange={(e) => setFormData({ ...formData, commissionRule: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="HIGHER">Maior valor</option>
+                  <option value="LOWER">Menor valor</option>
+                  <option value="FIXED_ONLY">Apenas valor fixo</option>
+                  <option value="COMMISSION_ONLY">Apenas comissao %</option>
+                </select>
+                <p className="text-[10px] text-slate-400 mt-0.5">Qual valor prevalece quando ambos estao preenchidos</p>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Qtd Padrao</label>
               <input
                 type="number"
                 min={1}
