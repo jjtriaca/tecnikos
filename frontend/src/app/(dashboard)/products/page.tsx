@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { fmtCurrency } from "@/components/ui/CurrencyInput";
 import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
 import DraggableHeader from "@/components/ui/DraggableHeader";
@@ -1054,6 +1055,7 @@ export default function ProductsPage() {
                         inputMode="decimal"
                         value={form.costCents}
                         onChange={(e) => setField("costCents", e.target.value)}
+                        onBlur={(e) => setField("costCents", fmtCurrency(e.target.value))}
                         placeholder="0,00"
                         className={inputClass}
                       />
@@ -1065,6 +1067,7 @@ export default function ProductsPage() {
                         inputMode="decimal"
                         value={form.salePriceCents}
                         onChange={(e) => setField("salePriceCents", e.target.value)}
+                        onBlur={(e) => setField("salePriceCents", fmtCurrency(e.target.value))}
                         placeholder="0,00"
                         className={inputClass}
                       />
@@ -1186,7 +1189,9 @@ export default function ProductsPage() {
                             inputMode="decimal"
                             value={equivForm.lastPriceCents}
                             onChange={(e) =>
-                              setEquivForm({ ...equivForm, lastPriceCents: e.target.value })
+                              setEquivForm({ ...equivForm, lastPriceCents: e.target.value })}
+                            onBlur={(e) =>
+                              setEquivForm({ ...equivForm, lastPriceCents: fmtCurrency(e.target.value) })
                             }
                             placeholder="0,00"
                             className={inputClass}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { fmtCurrency, fmtPercent } from "@/components/ui/CurrencyInput";
 
 /* ===================================================================
    RENEGOTIATION MODAL — Cancel current entry and create a new one
@@ -190,6 +191,7 @@ export default function RenegotiationModal({
               inputMode="decimal"
               value={newAmount}
               onChange={(e) => setNewAmount(e.target.value)}
+              onBlur={(e) => setNewAmount(fmtCurrency(e.target.value))}
               placeholder="0,00"
               className={inputClass}
               required
@@ -277,6 +279,7 @@ export default function RenegotiationModal({
               inputMode="decimal"
               value={interestRate}
               onChange={(e) => setInterestRate(e.target.value)}
+              onBlur={(e) => setInterestRate(fmtPercent(e.target.value))}
               placeholder="0,00"
               className={inputClass}
             />
@@ -292,6 +295,7 @@ export default function RenegotiationModal({
               inputMode="decimal"
               value={penaltyPercent}
               onChange={(e) => setPenaltyPercent(e.target.value)}
+              onBlur={(e) => setPenaltyPercent(fmtPercent(e.target.value))}
               placeholder="0,00"
               className={inputClass}
             />
@@ -307,6 +311,7 @@ export default function RenegotiationModal({
               inputMode="decimal"
               value={penaltyFixed}
               onChange={(e) => setPenaltyFixed(e.target.value)}
+              onBlur={(e) => setPenaltyFixed(fmtCurrency(e.target.value))}
               placeholder="0,00"
               className={inputClass}
             />

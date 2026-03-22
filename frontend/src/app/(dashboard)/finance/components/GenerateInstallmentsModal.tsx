@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { fmtCurrency, fmtPercent } from "@/components/ui/CurrencyInput";
 
 /* ── Types ──────────────────────────────────────────────── */
 
@@ -243,6 +244,7 @@ export default function GenerateInstallmentsModal({
               inputMode="decimal"
               value={form.interestRateMonthly}
               onChange={(e) => setField("interestRateMonthly", e.target.value)}
+              onBlur={(e) => setField("interestRateMonthly", fmtPercent(e.target.value))}
               placeholder="Ex: 1,5"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             />
@@ -258,6 +260,7 @@ export default function GenerateInstallmentsModal({
               inputMode="decimal"
               value={form.penaltyPercent}
               onChange={(e) => setField("penaltyPercent", e.target.value)}
+              onBlur={(e) => setField("penaltyPercent", fmtPercent(e.target.value))}
               placeholder="Ex: 2,0"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             />
@@ -273,6 +276,7 @@ export default function GenerateInstallmentsModal({
               inputMode="decimal"
               value={form.penaltyFixedCents}
               onChange={(e) => setField("penaltyFixedCents", e.target.value)}
+              onBlur={(e) => setField("penaltyFixedCents", fmtCurrency(e.target.value))}
               placeholder="Ex: 10,00"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             />

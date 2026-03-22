@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import { fmtCurrency } from "@/components/ui/CurrencyInput";
 import type { CashAccount, AccountTransfer } from "@/types/finance";
 
 /* ── Helpers ────────────────────────────────────────────── */
@@ -549,6 +550,7 @@ function AccountsSection() {
                       inputMode="decimal"
                       value={formData.initialBalanceCents}
                       onChange={(e) => setFormData({ ...formData, initialBalanceCents: e.target.value })}
+                      onBlur={(e) => setFormData({ ...formData, initialBalanceCents: fmtCurrency(e.target.value) })}
                       placeholder="0,00"
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                     />
@@ -789,6 +791,7 @@ function TransfersSection() {
                   inputMode="decimal"
                   value={formData.amountCents}
                   onChange={(e) => setFormData({ ...formData, amountCents: e.target.value })}
+                  onBlur={(e) => setFormData({ ...formData, amountCents: fmtCurrency(e.target.value) })}
                   placeholder="Ex: 500,00"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
