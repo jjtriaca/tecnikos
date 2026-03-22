@@ -204,6 +204,7 @@ export const BLOCK_CATALOG: CatalogEntry[] = [
   { type: 'CHECKLIST', name: 'Checklist', icon: '☑️', description: 'Lista de itens para verificar', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
   { type: 'SIGNATURE', name: 'Assinatura', icon: '✍️', description: 'Assinatura digital do cliente', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
   { type: 'FORM', name: 'Formulário', icon: '📋', description: 'Campos customizáveis', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+  { type: 'MATERIALS', name: 'Materiais', icon: '📦', description: 'Lista de materiais com diagnóstico', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
 
   // Visual / Informational
   { type: 'INFO', name: 'Informação', icon: 'ℹ️', description: 'Exibe informação visual para o técnico (não requer ação)', category: 'VISUAL', color: 'bg-cyan-50', borderColor: 'border-cyan-300', iconBg: 'bg-cyan-500', textColor: 'text-cyan-900' },
