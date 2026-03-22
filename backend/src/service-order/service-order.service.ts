@@ -234,6 +234,7 @@ export class ServiceOrderService {
         returnPaidToTech: data.returnPaidToTech ?? undefined,
         isUrgent: data.isUrgent ?? undefined,
         isEvaluation: data.isEvaluation ?? undefined,
+        parentOrderId: data.parentOrderId ?? undefined,
         // Criador da OS (v1.05.63)
         createdByUserId: actor?.id || undefined,
         createdByName,

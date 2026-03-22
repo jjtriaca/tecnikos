@@ -702,6 +702,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
         returnPaidToTech: isReturn ? returnPaidToTech : true,
         isUrgent: false,
         isEvaluation,
+        parentOrderId: returnFromId || undefined,
         // Service items
         items: serviceItems.map(i => ({ serviceId: i.serviceId, quantity: i.quantity })),
       };

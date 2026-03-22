@@ -230,6 +230,17 @@ function ActionsDropdown({
             </button>
           )}
 
+          {/* Retorno */}
+          {canEdit && TERMINAL_STATUSES.includes(order.status) && (
+            <Link
+              href={`/orders/new?returnFrom=${order.id}`}
+              className="block px-3 py-2 text-sm text-blue-700 hover:bg-blue-50"
+              onClick={() => setOpen(false)}
+            >
+              Retorno
+            </Link>
+          )}
+
           {/* Cancelar */}
           {canEdit && isEditable && (
             <button

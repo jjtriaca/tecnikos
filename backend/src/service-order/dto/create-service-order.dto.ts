@@ -152,6 +152,10 @@ export class CreateServiceOrderDto {
   @IsBoolean()
   isEvaluation?: boolean;
 
+  @IsOptional()
+  @IsString()
+  parentOrderId?: string;
+
   // Itens de serviço (v1.03.31)
   @IsOptional()
   @IsArray()
