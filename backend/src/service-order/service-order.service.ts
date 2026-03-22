@@ -1551,6 +1551,93 @@ export class ServiceOrderService {
     return result;
   }
 
+  // ── Pause / Resume (authenticated) ──
+
+  async pauseExecution(id: string, companyId: string, actor: AuthenticatedUser, reasonCategory: string, reason?: string) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if ((so as any).isPaused) throw new BadRequestException('OS já está pausada');
+
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.executionPause.create({
+        data: {
+          companyId,
+          serviceOrderId: id,
+          partnerId: actor?.partnerId || so.assignedPartnerId || '',
+          reasonCategory,
+          reason: reason || null,
+          pausedAt: now,
+        },
+      }),
+      this.prisma.serviceOrder.update({
+        where: { id },
+        data: { isPaused: true, pausedAt: now, pauseCount: { increment: 1 } },
+      }),
+    ]);
+    return { success: true, pausedAt: now.toISOString() };
+  }
+
+  async resumeExecution(id: string, companyId: string, actor: AuthenticatedUser) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (!(so as any).isPaused) throw new BadRequestException('OS não está pausada');
+
+    const activePause = await this.prisma.executionPause.findFirst({
+      where: { serviceOrderId: id, resumedAt: null },
+      orderBy: { pausedAt: 'desc' },
+    });
+    if (!activePause) throw new BadRequestException('Nenhuma pausa ativa encontrada');
+
+    const now = new Date();
+    const durationMs = now.getTime() - new Date(activePause.pausedAt).getTime();
+
+    await this.prisma.$transaction([
+      this.prisma.executionPause.update({
+        where: { id: activePause.id },
+        data: { resumedAt: now, durationMs: BigInt(durationMs) },
+      }),
+      this.prisma.serviceOrder.update({
+        where: { id },
+        data: { isPaused: false, pausedAt: null, totalPausedMs: { increment: BigInt(durationMs) } },
+      }),
+    ]);
+    return { success: true, resumedAt: now.toISOString(), durationMs };
+  }
+
+  async getPauseStatus(id: string, companyId: string) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+      select: { isPaused: true, pausedAt: true, pauseCount: true, totalPausedMs: true },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+
+    const pauses = await this.prisma.executionPause.findMany({
+      where: { serviceOrderId: id },
+      orderBy: { pausedAt: 'desc' },
+      take: 20,
+    });
+
+    return {
+      isPaused: (so as any).isPaused || false,
+      pausedAt: (so as any).pausedAt,
+      pauseCount: (so as any).pauseCount || 0,
+      totalPausedMs: Number((so as any).totalPausedMs || 0),
+      pauses: pauses.map(p => ({
+        id: p.id,
+        reasonCategory: p.reasonCategory,
+        reason: p.reason,
+        pausedAt: p.pausedAt,
+        resumedAt: p.resumedAt,
+        durationMs: p.durationMs ? Number(p.durationMs) : null,
+      })),
+    };
+  }
+
   /**
    * Approve + Finalize + Evaluate in one transaction.
    * Called from the approval modal — creates evaluation, financial entries, and changes status to APROVADA.

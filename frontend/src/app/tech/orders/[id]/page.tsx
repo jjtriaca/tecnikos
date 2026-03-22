@@ -42,6 +42,8 @@ type ServiceOrder = {
   assignedPartner?: { id: string; name: string; phone?: string } | null;
   company?: { phone?: string } | null;
   ledger?: { commissionCents: number; commissionBps: number } | null;
+  isPaused?: boolean;
+  pauseCount?: number;
 };
 
 // V2
@@ -230,6 +232,13 @@ export default function TechOrderDetailPage() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
+
+  // Pause state
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [pauseReason, setPauseReason] = useState("");
+  const [pauseReasonText, setPauseReasonText] = useState("");
+  const [pauseLoading, setPauseLoading] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   // V2 state
   const [v2Note, setV2Note] = useState("");
@@ -613,6 +622,59 @@ export default function TechOrderDetailPage() {
 
 
 
+  /* ── Pause/Resume ── */
+  const PAUSE_REASONS = [
+    { value: "meal_break", label: "Refeicao", icon: "🍽️" },
+    { value: "end_of_day", label: "Fim expediente", icon: "🌙" },
+    { value: "fetch_materials", label: "Buscar material", icon: "🔧" },
+    { value: "weather", label: "Clima", icon: "🌧️" },
+    { value: "waiting_client", label: "Aguard. cliente", icon: "⏳" },
+    { value: "personal", label: "Pessoal", icon: "🏥" },
+    { value: "other", label: "Outro", icon: "📝" },
+  ];
+
+  // Sync pause status on load
+  useEffect(() => {
+    if (order?.isPaused) setIsPaused(true);
+  }, [order?.isPaused]);
+
+  async function handlePause() {
+    if (!order || !pauseReason) return;
+    setPauseLoading(true);
+    try {
+      await techApi(`/service-orders/${order.id}/pause`, {
+        method: "POST",
+        body: JSON.stringify({
+          reasonCategory: pauseReason,
+          reason: pauseReason === "other" ? pauseReasonText : undefined,
+          clientTimestamp: new Date().toISOString(),
+        }),
+      });
+      setIsPaused(true);
+      setShowPauseModal(false);
+      setPauseReason("");
+      setPauseReasonText("");
+    } catch {
+    } finally {
+      setPauseLoading(false);
+    }
+  }
+
+  async function handleResume() {
+    if (!order) return;
+    setPauseLoading(true);
+    try {
+      await techApi(`/service-orders/${order.id}/resume`, {
+        method: "POST",
+        body: JSON.stringify({ clientTimestamp: new Date().toISOString() }),
+      });
+      setIsPaused(false);
+    } catch {
+    } finally {
+      setPauseLoading(false);
+    }
+  }
+
   /* ── V2 advance ── */
   async function handleAdvanceBlockV2() {
     if (!order || !workflow || !workflow.currentBlock) return;
@@ -966,6 +1028,73 @@ export default function TechOrderDetailPage() {
           />
         );
       })()}
+
+      {/* ── Pause floating button (sticky footer) ── */}
+      {order && ["EM_EXECUCAO", "A_CAMINHO"].includes(order.status) && !workflow?.isComplete && (
+        <>
+          {/* Paused banner */}
+          {isPaused && (
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-orange-500 text-white px-4 py-3 flex items-center justify-between safe-area-pb">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⏸️</span>
+                <div>
+                  <p className="text-sm font-semibold">Atendimento Pausado</p>
+                  <p className="text-[10px] opacity-80">Toque para retomar</p>
+                </div>
+              </div>
+              <button onClick={handleResume} disabled={pauseLoading}
+                className="rounded-lg bg-white/20 px-4 py-2 text-sm font-semibold hover:bg-white/30 transition-colors disabled:opacity-50">
+                {pauseLoading ? "..." : "▶️ Retomar"}
+              </button>
+            </div>
+          )}
+
+          {/* Pause button (when not paused) */}
+          {!isPaused && (
+            <button
+              onClick={() => { setPauseReason(""); setPauseReasonText(""); setShowPauseModal(true); }}
+              className="fixed bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full bg-orange-500/90 text-white px-4 py-2.5 text-xs font-semibold shadow-lg hover:bg-orange-600 active:scale-95 transition-all"
+            >
+              ⏸️ Pausar
+            </button>
+          )}
+
+          {/* Pause reason modal */}
+          {showPauseModal && (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setShowPauseModal(false)}>
+              <div className="w-full max-w-sm bg-white rounded-t-2xl p-5 safe-area-pb" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-slate-800">⏸️ Pausar Atendimento</h3>
+                  <button onClick={() => setShowPauseModal(false)} className="text-slate-400 text-lg">✕</button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {PAUSE_REASONS.map(r => (
+                    <button key={r.value}
+                      onClick={() => setPauseReason(r.value)}
+                      className={`rounded-lg border px-3 py-2.5 text-left text-xs transition-colors ${
+                        pauseReason === r.value
+                          ? "border-orange-400 bg-orange-50 text-orange-800 font-medium"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}>
+                      <span className="text-base mr-1">{r.icon}</span> {r.label}
+                    </button>
+                  ))}
+                </div>
+                {pauseReason === "other" && (
+                  <textarea value={pauseReasonText} onChange={e => setPauseReasonText(e.target.value)}
+                    placeholder="Descreva o motivo..." rows={2}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm mb-3 outline-none focus:border-orange-400 resize-none" />
+                )}
+                <button onClick={handlePause}
+                  disabled={!pauseReason || pauseLoading || (pauseReason === "other" && !pauseReasonText.trim())}
+                  className="w-full py-3 rounded-xl bg-orange-500 text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-all">
+                  {pauseLoading ? "Pausando..." : "Confirmar Pausa"}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -181,6 +181,31 @@ export class ServiceOrderController {
     return this.service.finalize(id, user.companyId, user);
   }
 
+  @Post(':id/pause')
+  pauseExecution(
+    @Param('id') id: string,
+    @Body() body: { reasonCategory: string; reason?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.pauseExecution(id, user.companyId, user, body.reasonCategory, body.reason);
+  }
+
+  @Post(':id/resume')
+  resumeExecution(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.resumeExecution(id, user.companyId, user);
+  }
+
+  @Get(':id/pause-status')
+  getPauseStatus(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.getPauseStatus(id, user.companyId);
+  }
+
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/approve-and-finalize')
   approveAndFinalize(
