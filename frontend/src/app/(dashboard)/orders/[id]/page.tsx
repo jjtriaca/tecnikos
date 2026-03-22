@@ -1004,20 +1004,23 @@ export default function OrderDetailPage() {
                     )}
                     {/* MATERIALS block: show item list */}
                     {step.type === "MATERIALS" && step.completed && step.responseData?.items && (
-                      <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                      <div className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 max-w-sm">
                         {step.responseData.note && (
-                          <p className="text-[11px] text-slate-600 mb-1.5">{step.responseData.note}</p>
+                          <p className="text-[10px] text-slate-600 mb-1">{step.responseData.note}</p>
                         )}
-                        <div className="space-y-0.5">
+                        <div className="flex items-center gap-1 text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">
+                          <span className="flex-1">Item</span>
+                          <span className="w-8 text-right">Qtd.</span>
+                        </div>
+                        <div className="space-y-0">
                           {(step.responseData.items as Array<{ name: string; qty: number }>).map((item: { name: string; qty: number }, i: number) => (
-                            <div key={i} className="flex items-center gap-1.5 text-[11px]">
-                              <span className="text-amber-600">•</span>
-                              <span className="flex-1 text-slate-700">{item.name}</span>
-                              <span className="font-semibold text-slate-600">x{item.qty}</span>
+                            <div key={i} className="flex items-center gap-1 text-[10px] py-0.5 border-t border-amber-100 first:border-0">
+                              <span className="flex-1 text-slate-700 truncate">{item.name.length > 50 ? item.name.substring(0, 50) + '…' : item.name}</span>
+                              <span className="w-8 text-right font-medium text-slate-600">{item.qty}</span>
                             </div>
                           ))}
                         </div>
-                        <p className="text-[10px] text-amber-600 mt-1">{step.responseData.items.length} material(is)</p>
+                        <p className="text-[9px] text-amber-500 mt-1">{step.responseData.items.length} material(is)</p>
                       </div>
                     )}
                     {/* GPS block: show coords */}

@@ -1718,6 +1718,7 @@ function V2BlockAction({
                   ref={materialNameRef}
                   autoFocus
                   type="text"
+                  maxLength={50}
                   placeholder="Nome do material..."
                   value={v2MaterialDraft.name}
                   onChange={e => setV2MaterialDraft(prev => ({ ...prev, name: e.target.value }))}
