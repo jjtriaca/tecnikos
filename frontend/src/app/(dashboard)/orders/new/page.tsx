@@ -1400,31 +1400,80 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
       </form>
 
       {/* Zero Value Confirmation */}
-      {showZeroValueConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowZeroValueConfirm(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-4">
-              <div className="text-3xl mb-2">⚠️</div>
-              <h3 className="text-sm font-bold text-slate-800">Valor da OS zerado</h3>
-              <p className="text-xs text-slate-500 mt-2">
-                O valor total dos servicos e <span className="font-bold text-red-600">R$ 0,00</span>.
-                Nenhum lancamento financeiro sera gerado para esta OS.
-              </p>
-              <p className="text-xs text-slate-400 mt-1">Deseja criar a OS mesmo assim?</p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setShowZeroValueConfirm(false)}
-                className="flex-1 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
-                Cancelar
-              </button>
-              <button onClick={() => { setShowZeroValueConfirm(false); handleSubmit(); }}
-                className="flex-1 py-2 rounded-lg bg-blue-600 text-sm text-white font-semibold hover:bg-blue-700">
-                Criar mesmo assim
-              </button>
+      {showZeroValueConfirm && (() => {
+        // Calculate tech payment from service items
+        const techPayCents = serviceItems.reduce((sum, item) => {
+          if (item.techFixedValueCents && item.techFixedValueCents > 0) {
+            return sum + item.techFixedValueCents * item.quantity;
+          }
+          if (item.commissionBps && item.commissionBps > 0) {
+            return sum + Math.round((item.unitPriceCents * item.quantity * item.commissionBps) / 10000);
+          }
+          return sum;
+        }, 0);
+        const hasReceivable = false; // valor zero = sem A Receber
+        const hasPayable = techPayCents > 0;
+        const fmtBRL = (c: number) => (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowZeroValueConfirm(false)}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
+              <div className="text-center mb-3">
+                <div className="text-3xl mb-2">⚠️</div>
+                <h3 className="text-sm font-bold text-slate-800">Valor da OS zerado</h3>
+                <p className="text-xs text-slate-500 mt-2">
+                  O valor total dos servicos e <span className="font-bold text-red-600">R$ 0,00</span>.
+                </p>
+              </div>
+
+              {/* Financial preview */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 mb-3 space-y-2">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Lancamentos ao aprovar</p>
+
+                {/* A Receber */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">🟢 A Receber (cliente)</span>
+                  <span className="text-slate-400">Nao sera gerado</span>
+                </div>
+
+                {/* A Pagar */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">🔵 A Pagar (tecnico)</span>
+                  {hasPayable ? (
+                    <span className="font-semibold text-blue-700">{fmtBRL(techPayCents)}</span>
+                  ) : (
+                    <span className="text-slate-400">Nao sera gerado</span>
+                  )}
+                </div>
+
+                {hasPayable && (
+                  <p className="text-[10px] text-blue-600 mt-1">
+                    Valor fixo do tecnico sera lancado como conta a pagar
+                  </p>
+                )}
+                {!hasPayable && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Nenhum lancamento financeiro sera criado
+                  </p>
+                )}
+              </div>
+
+              <p className="text-xs text-slate-400 text-center mb-3">Deseja criar a OS mesmo assim?</p>
+
+              <div className="flex gap-2">
+                <button onClick={() => setShowZeroValueConfirm(false)}
+                  className="flex-1 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
+                  Cancelar
+                </button>
+                <button onClick={() => { setShowZeroValueConfirm(false); handleSubmit(); }}
+                  className="flex-1 py-2 rounded-lg bg-blue-600 text-sm text-white font-semibold hover:bg-blue-700">
+                  Criar mesmo assim
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Tech Review Modal */}
       <TechReviewModal
