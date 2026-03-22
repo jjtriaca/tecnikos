@@ -153,6 +153,63 @@ const SECTIONS: SectionConfig[] = [
       },
     ],
   },
+  {
+    key: "clt",
+    title: "Jornada CLT",
+    icon: "⏰",
+    description: "Regras trabalhistas para tecnicos CLT",
+    fields: [
+      {
+        section: "clt",
+        key: "enabled",
+        label: "Ativar controle CLT",
+        description: "Habilita registro de ponto, alertas de jornada e controle de pausas obrigatorias",
+        type: "toggle",
+      },
+      {
+        section: "clt",
+        key: "alertMealBreak4h",
+        label: "Alerta pausa refeicao (4h)",
+        description: "Alerta o tecnico e notifica o gestor quando atingir 4h sem pausa de refeicao",
+        type: "toggle",
+      },
+      {
+        section: "clt",
+        key: "alertJourney8h",
+        label: "Alerta jornada diaria (8h)",
+        description: "Alerta quando o tecnico atingir 8h de trabalho no dia",
+        type: "toggle",
+      },
+      {
+        section: "clt",
+        key: "alertOvertime",
+        label: "Registrar hora extra automaticamente",
+        description: "Registra como hora extra o tempo trabalhado alem da jornada diaria",
+        type: "toggle",
+      },
+      {
+        section: "clt",
+        key: "alertInterjourneyInterval",
+        label: "Alerta intervalo interjornada (11h)",
+        description: "Alerta ao atribuir OS se o tecnico trabalhou menos de 11h atras",
+        type: "toggle",
+      },
+      {
+        section: "clt",
+        key: "journeyHoursDaily",
+        label: "Jornada diaria (horas)",
+        description: "Quantidade de horas da jornada normal de trabalho",
+        type: "number",
+      },
+      {
+        section: "clt",
+        key: "mealBreakMinMinutes",
+        label: "Pausa refeicao minima (minutos)",
+        description: "Duracao minima obrigatoria da pausa para refeicao",
+        type: "number",
+      },
+    ],
+  },
 ];
 
 export default function SystemConfigPage() {

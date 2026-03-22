@@ -62,6 +62,38 @@ export default function TechOrdersPage() {
     })();
   }, []);
 
+  // WorkDay state
+  const [workDayActive, setWorkDayActive] = useState(false);
+  const [workDayStartedAt, setWorkDayStartedAt] = useState<string | null>(null);
+  const [workDayLoading, setWorkDayLoading] = useState(false);
+
+  useEffect(() => {
+    techApi<any>("/workday/today").then((res) => {
+      if (res?.isActive) {
+        setWorkDayActive(true);
+        setWorkDayStartedAt(res.workDay?.startedAt);
+      }
+    }).catch(() => {});
+  }, []);
+
+  async function toggleWorkDay() {
+    setWorkDayLoading(true);
+    try {
+      if (workDayActive) {
+        await techApi("/workday/end", { method: "POST", body: JSON.stringify({}) });
+        setWorkDayActive(false);
+        setWorkDayStartedAt(null);
+      } else {
+        const wd = await techApi<any>("/workday/start", { method: "POST", body: JSON.stringify({}) });
+        setWorkDayActive(true);
+        setWorkDayStartedAt(wd?.startedAt);
+      }
+    } catch {
+    } finally {
+      setWorkDayLoading(false);
+    }
+  }
+
   // Group by status
   const groups = [
     { key: "ABERTA", label: "Abertas", orders: orders.filter((o) => o.status === "ABERTA") },
@@ -87,6 +119,33 @@ export default function TechOrdersPage() {
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
           📊 Relatorio
         </a>
+      </div>
+
+      {/* WorkDay card */}
+      <div className={`rounded-xl border p-3 mb-4 flex items-center justify-between ${
+        workDayActive ? "border-green-200 bg-green-50" : "border-slate-200 bg-slate-50"
+      }`}>
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{workDayActive ? "🟢" : "⚪"}</span>
+          <div>
+            <p className="text-xs font-semibold text-slate-700">
+              {workDayActive ? "Jornada ativa" : "Jornada nao iniciada"}
+            </p>
+            {workDayActive && workDayStartedAt && (
+              <p className="text-[10px] text-slate-500">
+                Inicio: {new Date(workDayStartedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            )}
+          </div>
+        </div>
+        <button onClick={toggleWorkDay} disabled={workDayLoading}
+          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 disabled:opacity-50 ${
+            workDayActive
+              ? "bg-red-100 text-red-700 hover:bg-red-200"
+              : "bg-green-600 text-white hover:bg-green-700"
+          }`}>
+          {workDayLoading ? "..." : workDayActive ? "Encerrar" : "Iniciar Jornada"}
+        </button>
       </div>
 
       {loading ? (

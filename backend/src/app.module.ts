@@ -14,6 +14,7 @@ import { UserModule } from './user/user.module';
 import { WorkflowModule } from './workflow/workflow.module';
 import { UploadModule } from './upload/upload.module';
 import { ReportsModule } from './reports/reports.module';
+import { WorkDayModule } from './workday/workday.module';
 import { NotificationModule } from './notification/notification.module';
 import { HealthModule } from './health/health.module';
 import { SpecializationModule } from './specialization/specialization.module';
@@ -69,6 +70,7 @@ import { VerificationGuard } from './auth/guards/verification.guard';
     WorkflowModule,
     UploadModule,
     ReportsModule,
+    WorkDayModule,
     NotificationModule,
     HealthModule,
     AuditModule,

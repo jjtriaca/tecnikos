@@ -242,6 +242,15 @@ export class CompanyService {
       requireGestorApproval: true,
       sendClientEvalLink: true,
     },
+    clt: {
+      enabled: false,
+      alertMealBreak4h: true,
+      alertJourney8h: true,
+      alertOvertime: true,
+      alertInterjourneyInterval: true,
+      journeyHoursDaily: 8,
+      mealBreakMinMinutes: 60,
+    },
   };
 
   async getSystemConfig(companyId: string) {

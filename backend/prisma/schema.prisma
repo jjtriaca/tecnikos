@@ -204,6 +204,7 @@ model Company {
   nfseEmissions        NfseEmission[]
   nfseServiceCodes     NfseServiceCode[]
   partnerContacts      PartnerContact[]
+  workDays             WorkDay[]
   obras                Obra[]
   serviceAddresses     ServiceAddress[]
   cardSettlements      CardSettlement[]
@@ -359,6 +360,7 @@ model Partner {
   clientQuotes          Quote[]      @relation("QuoteClient")
   contacts              PartnerContact[]
   deviceTokens          DeviceToken[]
+  workDays              WorkDay[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1228,6 +1230,30 @@ model ExecutionPause {
 
   @@index([serviceOrderId])
   @@index([companyId, serviceOrderId])
+}
+
+// ========== Jornada de Trabalho (CLT) ==========
+
+model WorkDay {
+  id              String    @id @default(uuid())
+  companyId       String
+  partnerId       String    // Técnico
+  date            String    // YYYY-MM-DD (dia da jornada)
+  startedAt       DateTime  // Início da jornada
+  endedAt         DateTime? // Fim da jornada (null = jornada ativa)
+  totalWorkedMs   BigInt    @default(0) // Tempo trabalhado em ms (atualizado ao encerrar)
+  totalPausedMs   BigInt    @default(0) // Tempo pausado em ms
+  overtimeMs      BigInt    @default(0) // Tempo extra em ms (acima de 8h)
+  mealBreakTaken  Boolean   @default(false) // Se fez pausa refeição
+  osCount         Int       @default(0) // Quantidade de OS trabalhadas
+  notes           String?   // Observações
+
+  company         Company   @relation(fields: [companyId], references: [id])
+  partner         Partner   @relation(fields: [partnerId], references: [id])
+
+  @@unique([companyId, partnerId, date])
+  @@index([companyId, partnerId])
+  @@index([partnerId, date])
 }
 
 // ========== Rastreamento GPS do Técnico (v1.00.40) ==========
