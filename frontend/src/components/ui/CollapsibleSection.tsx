@@ -95,8 +95,8 @@ export default function CollapsibleSection({
 
       {/* Collapsible content with smooth animation */}
       <div
-        className={`overflow-hidden transition-all duration-200 ease-in-out ${
-          isOpen ? "max-h-[2000px] opacity-100 mt-3" : "max-h-0 opacity-0 mt-0"
+        className={`transition-all duration-200 ease-in-out ${
+          isOpen ? "max-h-[2000px] opacity-100 mt-3 overflow-visible" : "max-h-0 opacity-0 mt-0 overflow-hidden"
         }`}
       >
         {children}
