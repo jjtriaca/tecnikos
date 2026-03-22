@@ -453,37 +453,46 @@ export default function ServicesPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Preço (R$)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={formData.priceCents}
-                onChange={(e) => setFormData({ ...formData, priceCents: e.target.value })}
-                placeholder="Ex: 350,00"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              />
+              <label className="block text-xs font-medium text-slate-600 mb-1">Preco</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">R$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.priceCents}
+                  onChange={(e) => setFormData({ ...formData, priceCents: e.target.value })}
+                  placeholder="350,00"
+                  className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Comissão (%)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={formData.commissionBps}
-                onChange={(e) => setFormData({ ...formData, commissionBps: e.target.value })}
-                placeholder="Ex: 10,0"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              />
+              <label className="block text-xs font-medium text-slate-600 mb-1">Comissao</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.commissionBps}
+                  onChange={(e) => setFormData({ ...formData, commissionBps: e.target.value })}
+                  placeholder="10,0"
+                  className="w-full rounded-lg border border-slate-300 pl-3 pr-7 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">%</span>
+              </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Valor fixo tecnico (R$)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={formData.techFixedValue}
-                onChange={(e) => setFormData({ ...formData, techFixedValue: e.target.value })}
-                placeholder="Ex: 15,00"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              />
+              <label className="block text-xs font-medium text-slate-600 mb-1">Valor fixo tecnico</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">R$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.techFixedValue}
+                  onChange={(e) => setFormData({ ...formData, techFixedValue: e.target.value })}
+                  placeholder="15,00"
+                  className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
               <p className="text-[10px] text-slate-400 mt-0.5">Valor fixo que o tecnico recebe por unidade</p>
             </div>
             {formData.commissionBps && formData.techFixedValue && parseFloat(formData.commissionBps.replace(",", ".")) > 0 && parseFloat(formData.techFixedValue.replace(",", ".")) > 0 && (
