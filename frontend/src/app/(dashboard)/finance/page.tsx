@@ -464,14 +464,21 @@ export default function FinancePage() {
    ══════════════════════════════════════════════════════════ */
 
 const SUMMARY_SECTIONS_KEY = "tecnikos_finance_summary_order";
-const DEFAULT_SECTION_ORDER = ["kpi", "receber_pagar", "saldo"];
+const DEFAULT_SECTION_ORDER = ["kpi", "receber_pagar", "caixas_bancos", "saldo"];
 
 function loadSectionOrder(): string[] {
   try {
     const stored = localStorage.getItem(SUMMARY_SECTIONS_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length === DEFAULT_SECTION_ORDER.length) return parsed;
+      if (Array.isArray(parsed)) {
+        // Ensure all default sections are present (migration)
+        const missing = DEFAULT_SECTION_ORDER.filter(s => !parsed.includes(s));
+        if (missing.length === 0 && parsed.length === DEFAULT_SECTION_ORDER.length) return parsed;
+        // Add missing sections at their default position
+        const merged = [...parsed.filter((s: string) => DEFAULT_SECTION_ORDER.includes(s)), ...missing];
+        return merged;
+      }
     }
   } catch {}
   return DEFAULT_SECTION_ORDER;
@@ -616,6 +623,30 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         </div>
       </div>
     ) : null,
+    caixas_bancos: dashData?.cashAccounts ? (() => {
+      const accounts = dashData.cashAccounts as { id: string; name: string; type: string; currentBalanceCents: number }[];
+      const active = accounts.filter((a: any) => a.currentBalanceCents !== undefined);
+      const total = active.reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
+      const caixas = active.filter((a: any) => a.type === "CAIXA").reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
+      const bancos = active.filter((a: any) => a.type === "BANCO").reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
+      return (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <span className="text-[11px] font-medium text-green-700">Saldo Total</span>
+            <p className={`mt-1 text-lg font-bold ${total >= 0 ? "text-green-900" : "text-red-700"}`}>{formatCurrency(total)}</p>
+            <p className="text-[10px] text-slate-400">{active.length} conta{active.length !== 1 ? "s" : ""} ativa{active.length !== 1 ? "s" : ""}</p>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <span className="text-[11px] font-medium text-amber-700">Caixas</span>
+            <p className={`mt-1 text-lg font-bold ${caixas >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(caixas)}</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <span className="text-[11px] font-medium text-blue-700">Bancos</span>
+            <p className={`mt-1 text-lg font-bold ${bancos >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(bancos)}</p>
+          </div>
+        </div>
+      );
+    })() : null,
     saldo: data ? (
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between">
         <div>
