@@ -472,7 +472,10 @@ export default function TechOrderDetailPage() {
           `/service-orders/${order.id}/workflow/position`,
           { method: "POST", body: JSON.stringify({ lat, lng, accuracy, speed, heading }) }
         );
-        if (result.distanceMeters != null) setProximityDistance(result.distanceMeters);
+        if (result.distanceMeters != null) {
+          setProximityDistance(result.distanceMeters);
+          lastDistanceM = result.distanceMeters;
+        }
         if (hasProximity && result.proximityReached && cfg.autoAdvanceOnProximity !== false) {
           proximityAdvancedRef.current = block.id;
           setTimeout(async () => {
@@ -501,8 +504,18 @@ export default function TechOrderDetailPage() {
 
     let lastSentAt = 0;
     let lastPositionAt = Date.now();
-    // Offline: reduce GPS frequency to save battery (3x normal interval, min 2min)
-    const offlineIntervalMs = Math.max(intervalMs * 3, 120000);
+    let lastDistanceM: number | null = null;
+
+    // Smart GPS interval: adapts based on online/offline + distance to target
+    function getEffectiveIntervalMs(): number {
+      if (navigator.onLine) return 5000; // Online: 5s always
+      // Offline: escalonado por distancia
+      const d = lastDistanceM;
+      if (d !== null && d < 500) return 30000;       // <500m: 30s
+      if (d !== null && d < 2000) return 120000;      // 500m-2km: 2min
+      if (d !== null && d < 10000) return 300000;     // 2-10km: 5min
+      return 600000;                                   // >10km: 10min
+    }
 
     v2GpsWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -511,14 +524,18 @@ export default function TechOrderDetailPage() {
         setV2GpsLoading(false);
         setV2GpsDenied(false);
         const now = Date.now();
-        const effectiveInterval = navigator.onLine ? intervalMs : offlineIntervalMs;
+        const effectiveInterval = getEffectiveIntervalMs();
         if (now - lastSentAt >= effectiveInterval) {
           lastSentAt = now;
           sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
         }
       },
       () => { setV2GpsLoading(false); setV2GpsDenied(true); },
-      { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 15000, maximumAge: intervalMs }
+      {
+        enableHighAccuracy: navigator.onLine || (lastDistanceM !== null && lastDistanceM < 500),
+        timeout: 15000,
+        maximumAge: navigator.onLine ? 5000 : 60000,
+      }
     );
 
     // Health check: detect GPS disabled mid-tracking (watchPosition may silently stop)
