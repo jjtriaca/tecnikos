@@ -39,6 +39,7 @@ import CashAccountsTab from "./components/CashAccountsTab";
 import ReconciliationTab from "./components/ReconciliationTab";
 import CardSettlementTab from "./components/CardSettlementTab";
 import FinancialReportModal from "./components/FinancialReportModal";
+import AccountsTab from "./components/AccountsTab";
 
 
 interface PaginationMeta {
@@ -65,7 +66,7 @@ function formatDate(dateStr: string) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "instrumentos" | "cobranca";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "instrumentos" | "cobranca" | "plano";
 
 const MAIN_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
@@ -81,6 +82,7 @@ const CADASTRO_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "formas", label: "Formas de Pagamento", icon: "💳" },
   { id: "instrumentos", label: "Instrumentos", icon: "🏷️" },
   { id: "cobranca", label: "Regras de Cobrança", icon: "⚡" },
+  { id: "plano", label: "Plano de Contas", icon: "📋" },
 ];
 
 const CADASTRO_TAB_IDS = new Set<TabId>(CADASTRO_TABS.map(t => t.id));
@@ -458,6 +460,7 @@ export default function FinancePage() {
       {activeTab === "formas" && <PaymentMethodsTab />}
       {activeTab === "instrumentos" && <PaymentInstrumentsTab />}
       {activeTab === "cobranca" && <CollectionRulesTab />}
+      {activeTab === "plano" && <AccountsTab />}
     </div>
   );
 }

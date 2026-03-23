@@ -608,7 +608,7 @@ export class NfseEntradaService {
     companyId: string,
     decisions: {
       prestador: { action: 'CREATE' | 'LINK'; partnerId?: string };
-      finance: { createEntry: boolean; dueDate?: string; paymentMethod?: string };
+      finance: { createEntry: boolean; dueDate?: string; paymentMethod?: string; financialAccountId?: string };
     },
   ) {
     const entry = await this.prisma.nfseEntrada.findFirst({
@@ -677,6 +677,7 @@ export class NfseEntradaService {
             netCents: totalCents,
             dueDate,
             paymentMethod: decisions.finance.paymentMethod || undefined,
+            financialAccountId: decisions.finance.financialAccountId || undefined,
           },
         });
         financialEntryId = financialEntry.id;

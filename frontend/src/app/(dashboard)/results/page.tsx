@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import type { FinanceDashboard } from "@/types/finance";
-import AccountsTab from "../finance/components/AccountsTab";
 import DreReport from "../finance/components/DreReport";
 import PeriodSelector from "./components/PeriodSelector";
 import KpiCards from "./components/KpiCards";
@@ -13,12 +12,11 @@ import OverduePanel from "./components/OverduePanel";
 import TopAccountsChart from "./components/TopAccountsChart";
 import CashBalances from "./components/CashBalances";
 
-type TabId = "dashboard" | "dre" | "plano";
+type TabId = "dashboard" | "dre";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "dre", label: "DRE" },
-  { id: "plano", label: "Plano de Contas" },
 ];
 
 function getMonthRange(): [string, string] {
@@ -101,7 +99,6 @@ export default function ResultsPage() {
         <DashboardContent data={data} loading={loading} onViewDre={() => setActiveTab("dre")} />
       )}
       {activeTab === "dre" && <DreReport />}
-      {activeTab === "plano" && <AccountsTab />}
     </div>
   );
 }
