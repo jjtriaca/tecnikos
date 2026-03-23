@@ -1693,6 +1693,8 @@ export class ServiceOrderService {
       comment?: string;
       receivableDueDate?: string;
       payableDueDate?: string;
+      receivableAccountId?: string;
+      payableAccountId?: string;
     },
   ) {
     const so = await this.prisma.serviceOrder.findFirst({
@@ -1777,6 +1779,7 @@ export class ServiceOrderService {
               grossCents,
               netCents: grossCents,
               dueDate: data.receivableDueDate ? new Date(data.receivableDueDate) : undefined,
+              financialAccountId: data.receivableAccountId || undefined,
             },
           });
           createdEntries.push(receivable);
@@ -1799,6 +1802,7 @@ export class ServiceOrderService {
               netCents: effectiveTechCents,
               confirmedAt: new Date(),
               dueDate: data.payableDueDate ? new Date(data.payableDueDate) : undefined,
+              financialAccountId: data.payableAccountId || undefined,
             },
           });
           createdEntries.push(payable);

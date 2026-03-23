@@ -1,6 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api";
+
+type PostableAccount = { id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } };
 
 type FinancialPreview = {
   type: "RECEIVABLE" | "PAYABLE";
@@ -39,22 +41,31 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
   } | null>(null);
   const [receivableDue, setReceivableDue] = useState(defaultDueDate());
   const [payableDue, setPayableDue] = useState(defaultDueDate());
+  const [receivableAccountId, setReceivableAccountId] = useState("");
+  const [payableAccountId, setPayableAccountId] = useState("");
+  const [postableAccounts, setPostableAccounts] = useState<PostableAccount[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     setError("");
-    api.get(`/service-orders/${orderId}/finalize-preview`)
-      .then((data: any) => {
-        setPreview(data);
-        setReceivableDue(defaultDueDate());
-        setPayableDue(defaultDueDate());
-      })
-      .catch((err: any) => {
-        setError(err?.message || "Erro ao carregar preview");
-      })
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get(`/service-orders/${orderId}/finalize-preview`),
+      api.get<PostableAccount[]>("/finance/accounts/postable").catch(() => []),
+    ]).then(([data, accounts]: [any, PostableAccount[]]) => {
+      setPreview(data);
+      setReceivableDue(defaultDueDate());
+      setPayableDue(defaultDueDate());
+      setPostableAccounts(accounts);
+      // Auto-select defaults: 1100 = Receita de Serviços, 2100 = Mão de Obra
+      const recDefault = accounts.find(a => a.code === "1100");
+      const payDefault = accounts.find(a => a.code === "2100");
+      setReceivableAccountId(recDefault?.id || "");
+      setPayableAccountId(payDefault?.id || "");
+    }).catch((err: any) => {
+      setError(err?.message || "Erro ao carregar preview");
+    }).finally(() => setLoading(false));
   }, [open, orderId]);
 
   if (!open) return null;
@@ -68,6 +79,8 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
         comment: comment || undefined,
         receivableDueDate: receivableDue || undefined,
         payableDueDate: payableDue || undefined,
+        receivableAccountId: receivableAccountId || undefined,
+        payableAccountId: payableAccountId || undefined,
       });
       onApproved();
     } catch (err: any) {
@@ -150,18 +163,46 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
                             {formatBRL(entry.type === "RECEIVABLE" ? entry.grossCents : entry.netCents)}
                           </span>
                         </div>
-                        {/* Due date */}
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <label className="text-[10px] text-slate-500">Venc:</label>
-                          <input
-                            type="date"
-                            value={entry.type === "RECEIVABLE" ? receivableDue : payableDue}
-                            onChange={e => entry.type === "RECEIVABLE"
-                              ? setReceivableDue(e.target.value)
-                              : setPayableDue(e.target.value)
-                            }
-                            className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:border-blue-300"
-                          />
+                        {/* Due date + Category */}
+                        <div className="flex flex-col gap-1.5 mt-1.5">
+                          <div className="flex items-center gap-2">
+                            <label className="text-[10px] text-slate-500 w-10">Venc:</label>
+                            <input
+                              type="date"
+                              value={entry.type === "RECEIVABLE" ? receivableDue : payableDue}
+                              onChange={e => entry.type === "RECEIVABLE"
+                                ? setReceivableDue(e.target.value)
+                                : setPayableDue(e.target.value)
+                              }
+                              className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:border-blue-300 flex-1"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-[10px] text-slate-500 w-10">Categ:</label>
+                            <select
+                              value={entry.type === "RECEIVABLE" ? receivableAccountId : payableAccountId}
+                              onChange={e => entry.type === "RECEIVABLE"
+                                ? setReceivableAccountId(e.target.value)
+                                : setPayableAccountId(e.target.value)
+                              }
+                              className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:border-blue-300 flex-1"
+                            >
+                              <option value="">Sem categoria</option>
+                              {(() => {
+                                const grouped = new Map<string, PostableAccount[]>();
+                                for (const acc of postableAccounts) {
+                                  const parentName = acc.parent?.name || "Outros";
+                                  if (!grouped.has(parentName)) grouped.set(parentName, []);
+                                  grouped.get(parentName)!.push(acc);
+                                }
+                                return Array.from(grouped.entries()).map(([group, items]) => (
+                                  <optgroup key={group} label={group}>
+                                    {items.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                                  </optgroup>
+                                ));
+                              })()}
+                            </select>
+                          </div>
                         </div>
                       </div>
                     ))}
