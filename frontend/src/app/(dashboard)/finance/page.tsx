@@ -239,8 +239,8 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       id: "description",
       label: "Descrição",
       render: (e) => (
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-medium text-slate-900 truncate block" title={e.description || ""}>
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-medium text-slate-900 truncate block max-w-[200px]" title={e.description || ""}>
             {e.description || "(sem descrição)"}
           </span>
           {e.installmentCount && e.installmentCount > 0 && (
@@ -266,7 +266,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       label: "OS",
       render: (e) =>
         e.serviceOrder ? (
-          <Link href={`/orders/${e.serviceOrder.id}`} className="text-sm text-blue-600 hover:underline truncate block">
+          <Link href={`/orders/${e.serviceOrder.id}`} className="text-xs text-blue-600 hover:underline truncate block max-w-[120px]">
             {e.serviceOrder.title}
           </Link>
         ) : (
@@ -278,7 +278,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       label: "Parceiro",
       render: (e) =>
         e.partner ? (
-          <span className="text-sm text-slate-700 truncate block" title={e.partner.name}>{e.partner.name}</span>
+          <span className="text-xs text-slate-700 truncate block max-w-[160px]" title={e.partner.name}>{e.partner.name}</span>
         ) : (
           <span className="text-xs text-slate-400">—</span>
         ),
@@ -303,7 +303,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       label: "Bruto",
       sortable: true,
       align: "right",
-      render: (e) => <span className="text-slate-700">{formatCurrency(e.grossCents)}</span>,
+      render: (e) => <span className="text-xs text-slate-700">{formatCurrency(e.grossCents)}</span>,
     });
     cols.push({
       id: "commission",
@@ -330,7 +330,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       sortable: true,
       align: "right",
       render: (e) => (
-        <span className={`font-semibold ${type === "RECEIVABLE" ? "text-green-700" : "text-blue-700"}`}>
+        <span className={`text-xs font-semibold ${type === "RECEIVABLE" ? "text-green-700" : "text-blue-700"}`}>
           {formatCurrency(e.netCents)}
         </span>
       ),
@@ -368,7 +368,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       align: "right",
       render: (e) =>
         e.paidAt ? (
-          <span className="text-sm text-slate-500">{formatDate(e.paidAt)}</span>
+          <span className="text-xs text-slate-500">{formatDate(e.paidAt)}</span>
         ) : (
           <span className="text-xs text-slate-400">—</span>
         ),
@@ -380,7 +380,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       align: "right",
       render: (e) =>
         e.dueDate ? (
-          <span className="text-sm text-slate-500">{formatDate(e.dueDate)}</span>
+          <span className="text-xs text-slate-500">{formatDate(e.dueDate)}</span>
         ) : (
           <span className="text-xs text-slate-400">—</span>
         ),
@@ -390,7 +390,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       label: "Criado",
       sortable: true,
       align: "right",
-      render: (e) => <span className="text-sm text-slate-500">{formatDate(e.createdAt)}</span>,
+      render: (e) => <span className="text-xs text-slate-500">{formatDate(e.createdAt)}</span>,
     },
     {
       id: "reason",

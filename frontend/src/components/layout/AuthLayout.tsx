@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth, isVerificationPending, isAdminHost } from "@/contexts/AuthContext";
 import { FiscalModuleProvider } from "@/contexts/FiscalModuleContext";
@@ -16,6 +16,22 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [hoverExpanded, setHoverExpanded] = useState(false);
+  const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSidebarMouseEnter = useCallback(() => {
+    if (!sidebarCollapsed) return;
+    if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+    setHoverExpanded(true);
+  }, [sidebarCollapsed]);
+
+  const handleSidebarMouseLeave = useCallback(() => {
+    if (!sidebarCollapsed) return;
+    hoverTimeout.current = setTimeout(() => setHoverExpanded(false), 1500);
+  }, [sidebarCollapsed]);
+
+  // Effective collapsed state: collapsed by user but temporarily expanded by hover
+  const effectiveCollapsed = sidebarCollapsed && !hoverExpanded;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -59,18 +75,23 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           {/* Billing warning banner — overdue, due today, blocked */}
           <BillingBanner />
 
-          <Sidebar
-            collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed((c) => !c)}
-            tenantPending={pendingVerification}
-          />
-          <Header sidebarCollapsed={sidebarCollapsed} />
+          <div
+            onMouseEnter={handleSidebarMouseEnter}
+            onMouseLeave={handleSidebarMouseLeave}
+          >
+            <Sidebar
+              collapsed={effectiveCollapsed}
+              onToggle={() => { setSidebarCollapsed((c) => !c); setHoverExpanded(false); }}
+              tenantPending={pendingVerification}
+            />
+          </div>
+          <Header sidebarCollapsed={effectiveCollapsed} />
 
           {/* Main content */}
           <main
             data-main
             className={`pt-16 transition-all duration-300 ${
-              sidebarCollapsed ? "ml-[68px]" : "ml-64"
+              effectiveCollapsed ? "ml-[68px]" : "ml-64"
             }`}
           >
             <div className="p-6">{children}</div>
