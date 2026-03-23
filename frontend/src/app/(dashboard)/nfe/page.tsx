@@ -670,6 +670,10 @@ export default function NfePage() {
   // Step 4 - finance
   const [createFinancialEntry, setCreateFinancialEntry] = useState(true);
   const [financeDueDate, setFinanceDueDate] = useState("");
+  const [financePaymentMethod, setFinancePaymentMethod] = useState("");
+  const [financeAccountId, setFinanceAccountId] = useState("");
+  const [nfeActivePMs, setNfeActivePMs] = useState<{ id: string; code: string; name: string }[]>([]);
+  const [nfePostableAccounts, setNfePostableAccounts] = useState<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>([]);
 
   // Duplicatas parsed from XML
   const parsedDuplicatas: NfeDuplicata[] = useMemo(() => {
@@ -847,6 +851,11 @@ export default function NfePage() {
       setProductLookupItem(null);
       setCreateFinancialEntry(true);
       setFinanceDueDate(result.issueDate ? result.issueDate.split("T")[0] : "");
+      setFinancePaymentMethod("");
+      setFinanceAccountId("");
+      // Load payment methods and postable accounts
+      api.get<{ id: string; code: string; name: string }[]>("/finance/payment-methods/active").then(setNfeActivePMs).catch(() => setNfeActivePMs([]));
+      api.get<typeof nfePostableAccounts>("/finance/accounts/postable").then(setNfePostableAccounts).catch(() => setNfePostableAccounts([]));
       setStep(2);
       setWizardStartStep(2);
       setWizardOpen(true);
@@ -1092,6 +1101,10 @@ export default function NfePage() {
       setItemActions(actions);
       setCreateFinancialEntry(true);
       setFinanceDueDate(result.issueDate ? result.issueDate.split("T")[0] : "");
+      setFinancePaymentMethod("");
+      setFinanceAccountId("");
+      api.get<{ id: string; code: string; name: string }[]>("/finance/payment-methods/active").then(setNfeActivePMs).catch(() => setNfeActivePMs([]));
+      api.get<typeof nfePostableAccounts>("/finance/accounts/postable").then(setNfePostableAccounts).catch(() => setNfePostableAccounts([]));
       toast("XML processado com sucesso!", "success");
     } catch (err: any) {
       toast(err?.message || "Erro ao processar XML.", "error");
@@ -1203,6 +1216,8 @@ export default function NfePage() {
         finance: {
           createEntry: createFinancialEntry,
           dueDate: financeDueDate || undefined,
+          paymentMethod: financePaymentMethod || undefined,
+          financialAccountId: financeAccountId || undefined,
           installments: parsedDuplicatas.length > 0
             ? parsedDuplicatas.map((d) => ({
                 number: parseInt(d.number) || 1,
@@ -2470,6 +2485,41 @@ export default function NfePage() {
                     </div>
 
                     {/* Duplicatas or manual due date (only if creating entry) */}
+                    {createFinancialEntry && (
+                      <>
+                        {/* Forma de pagamento */}
+                        <div className="rounded-xl border border-slate-200 bg-white p-5">
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pagamento *</label>
+                          <select value={financePaymentMethod} onChange={(e) => setFinancePaymentMethod(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                            <option value="">Selecione...</option>
+                            {nfeActivePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+                          </select>
+                        </div>
+
+                        {/* Categoria */}
+                        <div className="rounded-xl border border-slate-200 bg-white p-5">
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Categoria *</label>
+                          <select value={financeAccountId} onChange={(e) => setFinanceAccountId(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                            <option value="">Selecione...</option>
+                            {(() => {
+                              const grouped = new Map<string, typeof nfePostableAccounts>();
+                              for (const acc of nfePostableAccounts) {
+                                const parentName = acc.parent?.name || "Outros";
+                                if (!grouped.has(parentName)) grouped.set(parentName, []);
+                                grouped.get(parentName)!.push(acc);
+                              }
+                              return Array.from(grouped.entries()).map(([group, items]) => (
+                                <optgroup key={group} label={group}>
+                                  {items.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                                </optgroup>
+                              ));
+                            })()}
+                          </select>
+                          <p className="text-xs text-slate-500 mt-1.5">Classifique no plano de contas para o DRE.</p>
+                        </div>
+                      </>
+                    )}
+
                     {createFinancialEntry && parsedDuplicatas.length > 0 && (
                       <div className="rounded-xl border border-slate-200 bg-white p-5">
                         <div className="flex items-center gap-2 mb-3">
@@ -2573,7 +2623,8 @@ export default function NfePage() {
                     </button>
                     <button
                       onClick={() => setStep(5)}
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+                      disabled={createFinancialEntry && (!financePaymentMethod || !financeAccountId)}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Proximo
                     </button>

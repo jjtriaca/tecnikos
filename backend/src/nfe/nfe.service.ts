@@ -675,6 +675,8 @@ export class NfeService {
             grossCents: nfeImport.totalCents ?? 0,
             netCents: nfeImport.totalCents ?? 0,
             dueDate,
+            paymentMethod: decisions.finance?.paymentMethod || undefined,
+            financialAccountId: decisions.finance?.financialAccountId || undefined,
             installmentCount: hasInstallments ? installments.length : null,
             notes: nfeImport.nfeKey ? `Chave NFe: ${nfeImport.nfeKey}` : undefined,
           },

@@ -905,12 +905,11 @@ export default function NfseEntradaPage() {
                       <>
                         {/* Forma de pagamento */}
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
-                          <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pagamento</label>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pagamento *</label>
                           <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
-                            <option value="">Nao informada</option>
+                            <option value="">Selecione...</option>
                             {activePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
                           </select>
-                          <p className="text-xs text-slate-500 mt-1.5">Opcional. Pode ser definida depois ao dar baixa no lancamento.</p>
                         </div>
 
                         {/* Due date */}
@@ -922,9 +921,9 @@ export default function NfseEntradaPage() {
 
                         {/* Categoria (Plano de Contas) */}
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
-                          <label className="block text-sm font-medium text-slate-700 mb-2">Categoria</label>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Categoria *</label>
                           <select value={processAccountId} onChange={(e) => setProcessAccountId(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
-                            <option value="">Sem categoria</option>
+                            <option value="">Selecione...</option>
                             {(() => {
                               const grouped = new Map<string, typeof postableAccounts>();
                               for (const acc of postableAccounts) {
@@ -967,7 +966,7 @@ export default function NfseEntradaPage() {
 
                   <div className="flex justify-between mt-6">
                     <button onClick={() => setWizardStep(1)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Voltar</button>
-                    <button onClick={() => setWizardStep(3)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">Proximo</button>
+                    <button onClick={() => setWizardStep(3)} disabled={createFinancialEntry && (!paymentMethod || !processAccountId)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Proximo</button>
                   </div>
                 </div>
               )}
