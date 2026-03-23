@@ -719,6 +719,36 @@ export class NfseEntradaService {
     return { reverted: true };
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     fetchFocusXml / fetchFocusPdf — Get XML/PDF from Focus NFe API
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async fetchFocusXml(companyId: string, chaveNfse: string): Promise<string | null> {
+    const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    if (!config) return null;
+    const token = this.getActiveToken(config);
+    if (!token) return null;
+    try {
+      return await this.focusNfe.getNfseRecebidaXml(token, config.focusNfeEnvironment, chaveNfse);
+    } catch (err) {
+      this.logger.warn(`fetchFocusXml failed for ${chaveNfse}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async fetchFocusPdf(companyId: string, chaveNfse: string): Promise<Buffer | null> {
+    const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    if (!config) return null;
+    const token = this.getActiveToken(config);
+    if (!token) return null;
+    try {
+      return await this.focusNfe.getNfseRecebidaPdf(token, config.focusNfeEnvironment, chaveNfse);
+    } catch (err) {
+      this.logger.warn(`fetchFocusPdf failed for ${chaveNfse}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   /** Get decrypted active token from NfseConfig */
   private getActiveToken(config: { focusNfeToken: string | null; focusNfeTokenHomolog: string | null; focusNfeEnvironment: string }): string | null {
     const encrypted = config.focusNfeEnvironment === 'HOMOLOGATION'

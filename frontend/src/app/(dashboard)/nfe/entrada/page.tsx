@@ -90,13 +90,13 @@ function buildColumns(): ColumnDefinition<NfseEntrada>[] {
     { id: "dataEmissao", label: "Emissao", sortable: true, render: (r) => <span className="text-xs text-slate-700">{fmtDate(r.dataEmissao)}</span> },
     { id: "competencia", label: "Compet.", sortable: true, render: (r) => <span className="text-xs text-slate-600">{r.competencia || "\u2014"}</span> },
     { id: "prestadorRazaoSocial", label: "Prestador", sortable: true, render: (r) => (
-      <span className="text-[8px] text-slate-900 font-medium break-words leading-tight" title={r.prestadorRazaoSocial || undefined}>
+      <span className="text-[10px] text-slate-900 font-medium break-words leading-tight" title={r.prestadorRazaoSocial || undefined}>
         {r.prestador?.name || r.prestadorRazaoSocial || "\u2014"}
       </span>
     )},
-    { id: "prestadorCnpjCpf", label: "CNPJ/CPF", sortable: false, render: (r) => <span className="text-[8px] text-slate-600 font-mono break-all leading-tight">{fmtDoc(r.prestadorCnpjCpf)}</span> },
+    { id: "prestadorCnpjCpf", label: "CNPJ/CPF", sortable: false, render: (r) => <span className="text-[10px] text-slate-600 font-mono break-all leading-tight">{fmtDoc(r.prestadorCnpjCpf)}</span> },
     { id: "discriminacao", label: "Servi\u00e7o", sortable: false, render: (r) => (
-      <span className="text-[8px] text-slate-600 break-words leading-tight" title={r.discriminacao || undefined}>{r.discriminacao || "\u2014"}</span>
+      <span className="text-[10px] text-slate-600 break-words leading-tight" title={r.discriminacao || undefined}>{r.discriminacao || "\u2014"}</span>
     )},
     { id: "valorServicosCents", label: "Valor", sortable: true, align: "right", render: (r) => <span className="text-xs font-medium text-slate-900">{fmt(r.valorServicosCents)}</span> },
     { id: "valorIssCents", label: "ISS", sortable: true, align: "right", render: (r) => <span className="text-xs text-slate-700">{fmt(r.valorIssCents)}</span> },
@@ -617,7 +617,7 @@ export default function NfseEntradaPage() {
             <p className="text-xs text-slate-400 mt-1">Importe um XML ou registre manualmente</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "scroll" }}>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-scroll" style={{ scrollbarGutter: "stable" }}>
             <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "1200px", width: "100%" }}>
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
@@ -662,7 +662,7 @@ export default function NfseEntradaPage() {
                         if (col.id === "actions") {
                           return (
                             <td key="actions" style={tdStyle} className="py-3 px-4">
-                              <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1 flex-wrap">
                                 {/* Import / Revert */}
                                 {entry.status === "ACTIVE" && !entry.financialEntryId && (
                                   <button onClick={(e) => { e.stopPropagation(); openProcessModal(entry); }} className="text-blue-600 hover:text-blue-700 text-[10px] font-medium hover:underline">
@@ -675,9 +675,15 @@ export default function NfseEntradaPage() {
                                   </button>
                                 )}
                                 {/* XML */}
-                                {entry.hasXml && (
-                                  <a href={`/api/nfse-entrada/${entry.id}/xml`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors" title="Ver XML">
+                                {(entry.hasXml || entry.focusSource) && (
+                                  <a href={`/api/nfse-entrada/${entry.id}/xml`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors" title="Ver XML">
                                     XML
+                                  </a>
+                                )}
+                                {/* PDF */}
+                                {(entry.hasXml || entry.focusSource) && (
+                                  <a href={`/api/nfse-entrada/${entry.id}/pdf`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 hover:bg-red-100 transition-colors" title="Ver PDF">
+                                    PDF
                                   </a>
                                 )}
                                 {/* Cancel */}
@@ -751,8 +757,8 @@ export default function NfseEntradaPage() {
 
       {/* Process Wizard */}
       {processEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => !processing && closeWizard()}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => !processing && closeWizard()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {/* Header with steps */}
             <div className="border-b border-slate-200 px-6 pt-5 pb-4">
               <h3 className="text-lg font-semibold text-slate-900">Importar NFS-e</h3>

@@ -528,6 +528,27 @@ export class FocusNfeProvider {
     return Buffer.from(await response.arrayBuffer());
   }
 
+  /** Download XML de NFS-e recebida */
+  async getNfseRecebidaXml(
+    token: string,
+    environment: string,
+    chave: string,
+  ): Promise<string | null> {
+    const url = `${this.getBaseUrl(environment)}/v2/nfsens_recebidas/${chave}.xml`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: this.getHeaders(token).Authorization },
+    });
+
+    if (!response.ok) {
+      this.logger.warn(`Focus NFe NFS-e recebida XML error: ${response.status}`);
+      return null;
+    }
+
+    return await response.text();
+  }
+
   // ========== TEST CONNECTION ==========
 
   async testConnection(token: string, environment: string): Promise<{ valid: boolean; message: string }> {
