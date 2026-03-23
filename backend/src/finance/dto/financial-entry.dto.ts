@@ -91,8 +91,8 @@ export class UpdateFinancialEntryDto {
 }
 
 export class ChangeEntryStatusDto {
-  @IsEnum(['CONFIRMED', 'PAID', 'CANCELLED', 'REVERSED'])
-  status: 'CONFIRMED' | 'PAID' | 'CANCELLED' | 'REVERSED';
+  @IsEnum(['PAID', 'CANCELLED', 'REVERSED'])
+  status: 'PAID' | 'CANCELLED' | 'REVERSED';
 
   @IsOptional()
   @IsString()

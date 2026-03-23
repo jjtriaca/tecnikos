@@ -162,7 +162,6 @@ function getEntryFilters(type: FinancialEntryType): FilterDefinition[] {
     placeholder: "Todos",
     options: [
       { value: "PENDING", label: "Pendente" },
-      { value: "CONFIRMED", label: "Confirmado" },
       { value: "PAID", label: type === "RECEIVABLE" ? "Recebido" : "Pago" },
       { value: "CANCELLED", label: "Cancelado" },
     ],
@@ -718,7 +717,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [reverseAction, setReverseAction] = useState<{ entry: FinancialEntry } | null>(null);
 
   // Pay/Confirm with payment method
-  const [payAction, setPayAction] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" } | null>(null);
+  const [payAction, setPayAction] = useState<{ entry: FinancialEntry; action: "PAID" } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [selectedCardRateId, setSelectedCardRateId] = useState("");
   const [activePMs, setActivePMs] = useState<PaymentMethod[]>([]);
@@ -745,7 +744,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
 
   // v3.00 — NFS-e emission modal
   const [nfseModal, setNfseModal] = useState<string | null>(null); // financialEntryId
-  const [nfseWarnEntry, setNfseWarnEntry] = useState<{ entry: FinancialEntry; action: "CONFIRMED" | "PAID" } | null>(null);
+  const [nfseWarnEntry, setNfseWarnEntry] = useState<{ entry: FinancialEntry; action: "PAID" } | null>(null);
 
   // Edit entry modal
   const [editEntry, setEditEntry] = useState<FinancialEntry | null>(null);
@@ -927,7 +926,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         cashAccountId: isCard ? undefined : (selectedAccountId || undefined),
         paymentInstrumentId: selectedInstrumentId || undefined,
       });
-      const labels: Record<string, string> = { CONFIRMED: "confirmada", PAID: "paga" };
+      const labels: Record<string, string> = { PAID: type === "RECEIVABLE" ? "recebida" : "paga" };
       toast(`Entrada ${labels[action]} com sucesso!`, "success");
       setPayAction(null);
       setPaymentMethod("");
@@ -1300,7 +1299,13 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       </option>
                     ))}
                   </select>
-                  <p className="mt-0.5 text-[10px] text-slate-400">Selecione para atualizar o saldo automaticamente</p>
+                  {!selectedAccountId && (
+                    <p className="mt-1 text-[10px] text-amber-600 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                      Sem conta selecionada — o saldo nao sera atualizado
+                    </p>
+                  )}
+                  {selectedAccountId && <p className="mt-0.5 text-[10px] text-green-600">Saldo sera atualizado automaticamente</p>}
                 </div>
               )}
 
@@ -1677,7 +1682,7 @@ function EntryActions({
   entry: FinancialEntry;
   type: FinancialEntryType;
   loading: boolean;
-  onAction: (action: "CONFIRMED" | "PAID" | "CANCELLED" | "REVERSED") => void;
+  onAction: (action: "PAID" | "CANCELLED" | "REVERSED") => void;
   onInstallments: () => void;
   onViewInstallments: () => void;
   onRenegotiate: () => void;
@@ -1689,22 +1694,17 @@ function EntryActions({
     return <span className="text-xs text-slate-400 animate-pulse">Processando...</span>;
   }
 
-  const confirmLabel = type === "RECEIVABLE" ? "Receber" : "Pagar";
-  const statusButtons: { label: string; action: "CONFIRMED" | "PAID" | "CANCELLED" | "REVERSED"; className: string }[] = [];
+  const payLabel = type === "RECEIVABLE" ? "Receber" : "Pagar";
+  const statusButtons: { label: string; action: "PAID" | "CANCELLED" | "REVERSED"; className: string; title?: string }[] = [];
 
-  if (entry.status === "PENDING") {
+  if (entry.status === "PENDING" || entry.status === "CONFIRMED") {
     statusButtons.push(
-      { label: confirmLabel, action: "CONFIRMED", className: "text-blue-600 hover:text-blue-800" },
-      { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
-    );
-  } else if (entry.status === "CONFIRMED") {
-    statusButtons.push(
-      { label: confirmLabel, action: "PAID", className: "text-green-600 hover:text-green-800" },
+      { label: payLabel, action: "PAID", className: "text-green-600 hover:text-green-800", title: type === "RECEIVABLE" ? "Registrar recebimento efetuado" : "Registrar pagamento efetuado" },
       { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
     );
   } else if (entry.status === "PAID") {
     statusButtons.push(
-      { label: "Estornar", action: "REVERSED", className: "text-orange-600 hover:text-orange-800" },
+      { label: "Estornar", action: "REVERSED", className: "text-orange-600 hover:text-orange-800", title: "Reverter pagamento e voltar para pendente" },
     );
   }
 
@@ -1718,6 +1718,7 @@ function EntryActions({
         <button
           key={btn.action}
           onClick={() => onAction(btn.action)}
+          title={btn.title}
           className={`text-xs font-medium ${btn.className} transition-colors`}
         >
           {btn.label}

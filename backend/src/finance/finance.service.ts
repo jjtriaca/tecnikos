@@ -450,12 +450,12 @@ export class FinanceService {
     const { status: currentStatus } = entry;
     const { status: newStatus, notes } = dto;
 
-    // REVERSED is an alias — transitions to CONFIRMED while reversing side effects
+    // REVERSED is an alias — transitions to PENDING while reversing side effects
     const isReversal = newStatus === 'REVERSED';
 
     const allowedTransitions: Record<string, string[]> = {
-      PENDING: ['CONFIRMED', 'CANCELLED'],
-      CONFIRMED: ['PAID', 'CANCELLED'],
+      PENDING: ['PAID', 'CANCELLED'],
+      CONFIRMED: ['PAID', 'CANCELLED'],  // backward-compat for legacy entries
       PAID: ['REVERSED'],  // estorno
       CANCELLED: [],       // terminal
     };
@@ -471,8 +471,8 @@ export class FinanceService {
     const timestamp = now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
     if (isReversal) {
-      // Reversal: go back to CONFIRMED, clear payment fields
-      data.status = 'CONFIRMED';
+      // Reversal: go back to PENDING, clear payment fields
+      data.status = 'PENDING';
       data.paidAt = null;
       data.paymentMethod = null;
       data.cardBrand = null;
@@ -484,7 +484,6 @@ export class FinanceService {
       data.notes = entry.notes ? `${entry.notes}\n${logLine}` : logLine;
     } else {
       data.status = newStatus;
-      if (newStatus === 'CONFIRMED') data.confirmedAt = now;
       if (newStatus === 'PAID') {
         data.paidAt = now;
         if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
