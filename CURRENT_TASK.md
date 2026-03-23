@@ -125,5 +125,8 @@ Adicionar ao editor do bloco GPS (modo contínuo) uma seção de etapas de escal
 - Filtro concluídas por completedAt
 - Retry automático 5xx
 
+### PENDENCIAS FUTURAS
+- Cadastro Parceiros: tratamento de empresas com filiais (como vincular CNPJ matriz/filial)
+
 ### BLOQUEADO
 - (nenhum)

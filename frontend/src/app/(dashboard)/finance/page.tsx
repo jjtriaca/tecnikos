@@ -593,7 +593,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   // New entry modal
   const [showNewForm, setShowNewForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "" });
+  const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "" });
   const [selectedPartner, setSelectedPartner] = useState<PartnerSummary | null>(null);
   const [postableAccounts, setPostableAccounts] = useState<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>([]);
 
@@ -677,6 +677,13 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       .then(setPostableAccounts)
       .catch(() => {});
   }, []);
+
+  // Pre-fill payment method when opening pay modal
+  useEffect(() => {
+    if (payAction?.entry.paymentMethod) {
+      setPaymentMethod(payAction.entry.paymentMethod);
+    }
+  }, [payAction]);
 
   function openEditEntry(e: FinancialEntry) {
     setEditEntry(e);
@@ -793,6 +800,10 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       toast("Informe um valor válido.", "error");
       return;
     }
+    if (!formData.paymentMethod) {
+      toast("Selecione a forma de pagamento.", "error");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/finance/entries", {
@@ -803,10 +814,11 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
         dueDate: formData.dueDate || undefined,
         notes: formData.notes || undefined,
         financialAccountId: formData.financialAccountId || undefined,
+        paymentMethod: formData.paymentMethod || undefined,
       });
       toast("Entrada criada com sucesso!", "success");
       setShowNewForm(false);
-      setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "" });
+      setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "" });
       setSelectedPartner(null);
       await loadEntries();
     } catch {
@@ -1253,6 +1265,19 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 />
               </div>
               <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Forma de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"} *</label>
+                <select
+                  value={formData.paymentMethod}
+                  onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                >
+                  <option value="">Selecione...</option>
+                  {activePMs.map((m) => (
+                    <option key={m.code} value={m.code}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Categoria</label>
                 <select
                   value={formData.financialAccountId}
@@ -1292,7 +1317,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
               <button
                 onClick={() => {
                   setShowNewForm(false);
-                  setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "" });
+                  setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "" });
                   setSelectedPartner(null);
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"

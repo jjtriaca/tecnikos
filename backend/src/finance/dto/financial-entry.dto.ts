@@ -54,6 +54,10 @@ export class CreateFinancialEntryDto {
   @IsOptional()
   @IsString()
   financialAccountId?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
 }
 
 export class UpdateFinancialEntryDto {

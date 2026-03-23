@@ -262,6 +262,7 @@ export class FinanceService {
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         notes: data.notes,
         financialAccountId: data.financialAccountId || undefined,
+        paymentMethod: data.paymentMethod || undefined,
       },
       include: {
         serviceOrder: { select: { id: true, title: true, status: true } },
