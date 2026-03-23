@@ -154,7 +154,7 @@ function StatusBadge({ status, entryType }: { status: FinancialEntryStatus; entr
 /* ── Entry Filters ─────────────────────────────────────── */
 
 function getEntryFilters(type: FinancialEntryType): FilterDefinition[] {
-  return [
+  const filters: FilterDefinition[] = [
   {
     key: "status",
     label: "Status",
@@ -170,20 +170,26 @@ function getEntryFilters(type: FinancialEntryType): FilterDefinition[] {
   { key: "dateTo", label: "Até", type: "date" },
   { key: "paidFrom", label: type === "RECEIVABLE" ? "Recebido de" : "Pago de", type: "date" },
   { key: "paidTo", label: type === "RECEIVABLE" ? "Recebido até" : "Pago até", type: "date" },
-  {
-    key: "nfseStatus",
-    label: "NFS-e",
-    type: "select",
-    placeholder: "Todas",
-    options: [
-      { value: "NOT_ISSUED", label: "Sem nota" },
-      { value: "AUTHORIZED", label: "Autorizada" },
-      { value: "PROCESSING", label: "Processando" },
-      { value: "ERROR", label: "Com erro" },
-      { value: "CANCELLED", label: "Cancelada" },
-    ],
-  },
   ];
+
+  // NFS-e filter only for RECEIVABLE
+  if (type === "RECEIVABLE") {
+    filters.push({
+      key: "nfseStatus",
+      label: "NFS-e",
+      type: "select",
+      placeholder: "Todas",
+      options: [
+        { value: "NOT_ISSUED", label: "Sem nota" },
+        { value: "AUTHORIZED", label: "Autorizada" },
+        { value: "PROCESSING", label: "Processando" },
+        { value: "ERROR", label: "Com erro" },
+        { value: "CANCELLED", label: "Cancelada" },
+      ],
+    });
+  }
+
+  return filters;
 }
 
 /* ── Partner lookup ────────────────────────────────────── */
@@ -335,7 +341,11 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       sortable: true,
       render: (e) => <StatusBadge status={e.status} entryType={type} />,
     },
-    {
+  );
+
+  // NFS-e column only for RECEIVABLE (we emit notes for clients)
+  if (type === "RECEIVABLE") {
+    cols.push({
       id: "nfseStatus",
       label: "NFS-e",
       render: (e) => {
@@ -347,7 +357,10 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
           </span>
         );
       },
-    },
+    });
+  }
+
+  cols.push(
     {
       id: "paidAt",
       label: type === "RECEIVABLE" ? "Recebido em" : "Pago em",
