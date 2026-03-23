@@ -553,7 +553,7 @@ export class ServiceOrderService {
         include: {
           assignedPartner: { select: { id: true, name: true, phone: true } },
           clientPartner: { select: { id: true, name: true } },
-          workflowTemplate: { select: { id: true, name: true, steps: true } },
+          workflowTemplate: { select: { id: true, name: true, steps: true, techPortalConfig: true } },
           _count: { select: { workflowStepLogs: true } },
         },
       }),

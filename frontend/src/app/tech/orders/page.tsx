@@ -15,6 +15,7 @@ type ServiceOrder = {
   deadlineAt: string;
   createdAt: string;
   completedAt?: string | null;
+  workflowTemplate?: { techPortalConfig?: any } | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -198,9 +199,19 @@ export default function TechOrdersPage() {
                             {order.addressText}
                           </p>
                         </div>
-                        <span className="ml-2 text-sm font-bold text-slate-700 flex-shrink-0">
-                          {formatCurrency(order.techCommissionCents && order.techCommissionCents > 0 ? order.techCommissionCents : order.valueCents)}
-                        </span>
+                        {(() => {
+                          const pc = order.workflowTemplate?.techPortalConfig;
+                          const showValue = pc?.showValue !== false;
+                          const showCommission = pc?.showCommission === true;
+                          const techCents = order.techCommissionCents && order.techCommissionCents > 0 ? order.techCommissionCents : null;
+                          // Show tech commission if enabled and available, else show value if enabled
+                          const displayCents = showCommission && techCents ? techCents : showValue ? order.valueCents : null;
+                          return displayCents != null ? (
+                            <span className="ml-2 text-sm font-bold text-slate-700 flex-shrink-0">
+                              {formatCurrency(displayCents)}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
 
                       <div className="mt-2.5 flex items-center gap-3">
