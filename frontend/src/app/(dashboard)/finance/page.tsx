@@ -463,8 +463,8 @@ export default function FinancePage() {
    TAB: RESUMO (Summary v2)
    ══════════════════════════════════════════════════════════ */
 
-const SUMMARY_SECTIONS_KEY = "tecnikos_finance_summary_order";
-const DEFAULT_SECTION_ORDER = ["kpi", "receber_pagar", "caixas_bancos", "saldo"];
+const SUMMARY_SECTIONS_KEY = "tecnikos_finance_summary_order_v2";
+const DEFAULT_SECTION_ORDER = ["kpi", "receber_pagar", "caixas_bancos"];
 
 function loadSectionOrder(): string[] {
   try {
@@ -472,12 +472,10 @@ function loadSectionOrder(): string[] {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
-        // Ensure all default sections are present (migration)
-        const missing = DEFAULT_SECTION_ORDER.filter(s => !parsed.includes(s));
-        if (missing.length === 0 && parsed.length === DEFAULT_SECTION_ORDER.length) return parsed;
-        // Add missing sections at their default position
-        const merged = [...parsed.filter((s: string) => DEFAULT_SECTION_ORDER.includes(s)), ...missing];
-        return merged;
+        const valid = parsed.filter((s: string) => DEFAULT_SECTION_ORDER.includes(s));
+        const missing = DEFAULT_SECTION_ORDER.filter(s => !valid.includes(s));
+        if (missing.length === 0 && valid.length === DEFAULT_SECTION_ORDER.length) return valid;
+        return [...valid, ...missing];
       }
     }
   } catch {}
@@ -489,8 +487,8 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   const [dashData, setDashData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
-  const dragItem = useRef<string | null>(null);
-  const dragOverItem = useRef<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   useEffect(() => { setSectionOrder(loadSectionOrder()); }, []);
 
@@ -507,32 +505,39 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
     }).finally(() => setLoading(false));
   }, []);
 
-  function handleDragStart(sectionId: string) { dragItem.current = sectionId; }
-  function handleDragEnter(sectionId: string) { dragOverItem.current = sectionId; }
+  function handleDragStart(e: React.DragEvent, sectionId: string) {
+    setDraggingId(sectionId);
+    e.dataTransfer.effectAllowed = "move";
+  }
+  function handleDragEnter(sectionId: string) {
+    if (draggingId && sectionId !== draggingId) setDragOverId(sectionId);
+  }
   function handleDragEnd() {
-    if (!dragItem.current || !dragOverItem.current || dragItem.current === dragOverItem.current) return;
-    const newOrder = [...sectionOrder];
-    const fromIdx = newOrder.indexOf(dragItem.current);
-    const toIdx = newOrder.indexOf(dragOverItem.current);
-    if (fromIdx === -1 || toIdx === -1) return;
-    newOrder.splice(fromIdx, 1);
-    newOrder.splice(toIdx, 0, dragItem.current);
-    setSectionOrder(newOrder);
-    localStorage.setItem(SUMMARY_SECTIONS_KEY, JSON.stringify(newOrder));
-    dragItem.current = null;
-    dragOverItem.current = null;
+    if (draggingId && dragOverId && draggingId !== dragOverId) {
+      const newOrder = [...sectionOrder];
+      const fromIdx = newOrder.indexOf(draggingId);
+      const toIdx = newOrder.indexOf(dragOverId);
+      if (fromIdx !== -1 && toIdx !== -1) {
+        newOrder.splice(fromIdx, 1);
+        newOrder.splice(toIdx, 0, draggingId);
+        setSectionOrder(newOrder);
+        localStorage.setItem(SUMMARY_SECTIONS_KEY, JSON.stringify(newOrder));
+      }
+    }
+    setDraggingId(null);
+    setDragOverId(null);
   }
 
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-200" />
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 2 }).map((_, i) => (
             <div key={i} className="h-20 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
           ))}
         </div>
@@ -543,26 +548,23 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   const r = data?.receivables;
   const p = data?.payables;
 
-  // KPI data
+  // KPI data (3 cards — sem "Saldo em Caixa" que já aparece em Caixas/Bancos)
   const revenue = dashData?.dre?.revenue?.totalCents ?? 0;
   const costsAndExpenses = (dashData?.dre?.costs?.totalCents ?? 0) + (dashData?.dre?.expenses?.totalCents ?? 0);
   const netResult = dashData?.dre?.netResultCents ?? 0;
-  const cashBalance = (dashData?.cashAccounts ?? []).reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
   const margin = revenue > 0 ? Math.round((netResult / revenue) * 100) : 0;
-  const accountCount = dashData?.cashAccounts?.length ?? 0;
 
   const kpiCards = [
     { label: "Receita Bruta", value: formatCurrency(revenue), gradient: "from-emerald-500 to-emerald-600", icon: "📈", badge: null as string | null },
     { label: "Custos + Despesas", value: formatCurrency(costsAndExpenses), gradient: "from-red-500 to-red-600", icon: "📉", badge: null as string | null },
     { label: "Resultado Líquido", value: formatCurrency(netResult), gradient: netResult >= 0 ? "from-blue-500 to-blue-600" : "from-red-600 to-red-700", icon: "📊", badge: `${margin}% margem` },
-    { label: "Saldo em Caixa", value: formatCurrency(cashBalance), gradient: "from-violet-500 to-purple-600", icon: "💰", badge: `${accountCount} conta${accountCount !== 1 ? "s" : ""}` },
   ];
 
-  const sectionMap: Record<string, React.ReactNode> = {
-    kpi: (
-      <div>
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Resultados do Mês</h3>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  const sectionMap: Record<string, { label: string; content: React.ReactNode }> = {
+    kpi: {
+      label: "Resultados do Mês",
+      content: (
+        <div className="grid grid-cols-3 gap-3">
           {kpiCards.map((card) => (
             <div key={card.label} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${card.gradient} p-4 text-white shadow-lg`}>
               <div className="absolute -top-4 -right-4 h-16 w-16 rounded-full bg-white/5" />
@@ -577,111 +579,108 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
             </div>
           ))}
         </div>
-      </div>
-    ),
-    receber_pagar: data && r && p ? (
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("receber")}>
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-3"><span>📥</span> A Receber</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <p className="text-[11px] text-slate-500">Pendente</p>
-              <p className="text-lg font-bold text-amber-700">{formatCurrency(r.pendingCents + r.confirmedCents)}</p>
-              <p className="text-[10px] text-slate-400">{r.pendingCount + r.confirmedCount} entrada{(r.pendingCount + r.confirmedCount) !== 1 ? "s" : ""}</p>
+      ),
+    },
+    receber_pagar: {
+      label: "Contas a Receber / Pagar",
+      content: data && r && p ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("receber")}>
+            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-3"><span>📥</span> A Receber</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <p className="text-[11px] text-slate-500">Pendente</p>
+                <p className="text-lg font-bold text-amber-700">{formatCurrency(r.pendingCents + r.confirmedCents)}</p>
+                <p className="text-[10px] text-slate-400">{r.pendingCount + r.confirmedCount} entrada{(r.pendingCount + r.confirmedCount) !== 1 ? "s" : ""}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500">Recebido</p>
+                <p className="text-lg font-bold text-green-700">{formatCurrency(r.paidCents)}</p>
+                <p className="text-[10px] text-slate-400">{r.paidCount} entrada{r.paidCount !== 1 ? "s" : ""}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500">Ag. Confirmação</p>
+                <p className="text-lg font-bold text-slate-700">{r.pendingCount}</p>
+                <p className="text-[10px] text-slate-400">pendentes</p>
+              </div>
             </div>
-            <div>
-              <p className="text-[11px] text-slate-500">Recebido</p>
-              <p className="text-lg font-bold text-green-700">{formatCurrency(r.paidCents)}</p>
-              <p className="text-[10px] text-slate-400">{r.paidCount} entrada{r.paidCount !== 1 ? "s" : ""}</p>
-            </div>
-            <div>
-              <p className="text-[11px] text-slate-500">Ag. Confirmação</p>
-              <p className="text-lg font-bold text-slate-700">{r.pendingCount}</p>
-              <p className="text-[10px] text-slate-400">pendentes</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("pagar")}>
+            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-3"><span>📤</span> A Pagar</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <p className="text-[11px] text-slate-500">Pendente</p>
+                <p className="text-lg font-bold text-amber-700">{formatCurrency(p.pendingCents + p.confirmedCents)}</p>
+                <p className="text-[10px] text-slate-400">{p.pendingCount + p.confirmedCount} entrada{(p.pendingCount + p.confirmedCount) !== 1 ? "s" : ""}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500">Pago</p>
+                <p className="text-lg font-bold text-blue-700">{formatCurrency(p.paidCents)}</p>
+                <p className="text-[10px] text-slate-400">{p.paidCount} entrada{p.paidCount !== 1 ? "s" : ""}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500">Ag. Confirmação</p>
+                <p className="text-lg font-bold text-slate-700">{p.pendingCount}</p>
+                <p className="text-[10px] text-slate-400">pendentes</p>
+              </div>
             </div>
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("pagar")}>
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-3"><span>📤</span> A Pagar</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <p className="text-[11px] text-slate-500">Pendente</p>
-              <p className="text-lg font-bold text-amber-700">{formatCurrency(p.pendingCents + p.confirmedCents)}</p>
-              <p className="text-[10px] text-slate-400">{p.pendingCount + p.confirmedCount} entrada{(p.pendingCount + p.confirmedCount) !== 1 ? "s" : ""}</p>
+      ) : null,
+    },
+    caixas_bancos: {
+      label: "Caixas e Bancos",
+      content: dashData?.cashAccounts ? (() => {
+        const accounts = dashData.cashAccounts as { id: string; name: string; type: string; currentBalanceCents: number }[];
+        const active = accounts.filter((a: any) => a.currentBalanceCents !== undefined);
+        const total = active.reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
+        const caixas = active.filter((a: any) => a.type === "CAIXA").reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
+        const bancos = active.filter((a: any) => a.type === "BANCO").reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
+        return (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+              <span className="text-[11px] font-medium text-green-700">Saldo Total</span>
+              <p className={`mt-1 text-lg font-bold ${total >= 0 ? "text-green-900" : "text-red-700"}`}>{formatCurrency(total)}</p>
+              <p className="text-[10px] text-slate-400">{active.length} conta{active.length !== 1 ? "s" : ""} ativa{active.length !== 1 ? "s" : ""}</p>
             </div>
-            <div>
-              <p className="text-[11px] text-slate-500">Pago</p>
-              <p className="text-lg font-bold text-blue-700">{formatCurrency(p.paidCents)}</p>
-              <p className="text-[10px] text-slate-400">{p.paidCount} entrada{p.paidCount !== 1 ? "s" : ""}</p>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+              <span className="text-[11px] font-medium text-amber-700">Caixas</span>
+              <p className={`mt-1 text-lg font-bold ${caixas >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(caixas)}</p>
             </div>
-            <div>
-              <p className="text-[11px] text-slate-500">Ag. Confirmação</p>
-              <p className="text-lg font-bold text-slate-700">{p.pendingCount}</p>
-              <p className="text-[10px] text-slate-400">pendentes</p>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+              <span className="text-[11px] font-medium text-blue-700">Bancos</span>
+              <p className={`mt-1 text-lg font-bold ${bancos >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(bancos)}</p>
             </div>
           </div>
-        </div>
-      </div>
-    ) : null,
-    caixas_bancos: dashData?.cashAccounts ? (() => {
-      const accounts = dashData.cashAccounts as { id: string; name: string; type: string; currentBalanceCents: number }[];
-      const active = accounts.filter((a: any) => a.currentBalanceCents !== undefined);
-      const total = active.reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
-      const caixas = active.filter((a: any) => a.type === "CAIXA").reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
-      const bancos = active.filter((a: any) => a.type === "BANCO").reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
-      return (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
-            <span className="text-[11px] font-medium text-green-700">Saldo Total</span>
-            <p className={`mt-1 text-lg font-bold ${total >= 0 ? "text-green-900" : "text-red-700"}`}>{formatCurrency(total)}</p>
-            <p className="text-[10px] text-slate-400">{active.length} conta{active.length !== 1 ? "s" : ""} ativa{active.length !== 1 ? "s" : ""}</p>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
-            <span className="text-[11px] font-medium text-amber-700">Caixas</span>
-            <p className={`mt-1 text-lg font-bold ${caixas >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(caixas)}</p>
-          </div>
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
-            <span className="text-[11px] font-medium text-blue-700">Bancos</span>
-            <p className={`mt-1 text-lg font-bold ${bancos >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(bancos)}</p>
-          </div>
-        </div>
-      );
-    })() : null,
-    saldo: data ? (
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium text-slate-500">Saldo (Recebido - Pago)</p>
-          <p className={`text-2xl font-bold ${data.balanceCents >= 0 ? "text-green-700" : "text-red-700"}`}>
-            {formatCurrency(data.balanceCents)}
-          </p>
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-xl">
-          {data.balanceCents >= 0 ? "📈" : "📉"}
-        </div>
-      </div>
-    ) : null,
+        );
+      })() : null,
+    },
   };
 
   return (
     <div className="space-y-5">
       {sectionOrder.map((sectionId) => {
-        const content = sectionMap[sectionId];
-        if (!content) return null;
+        const section = sectionMap[sectionId];
+        if (!section?.content) return null;
+        const isDragging = draggingId === sectionId;
+        const isDragOver = dragOverId === sectionId && draggingId !== sectionId;
         return (
           <div
             key={sectionId}
             draggable
-            onDragStart={() => handleDragStart(sectionId)}
+            onDragStart={(e) => handleDragStart(e, sectionId)}
             onDragEnter={() => handleDragEnter(sectionId)}
             onDragEnd={handleDragEnd}
             onDragOver={(e) => e.preventDefault()}
-            className="group relative"
+            className={`group relative rounded-xl transition-all ${isDragging ? "opacity-50 scale-[0.98]" : ""} ${isDragOver ? "ring-2 ring-blue-400 ring-offset-2" : ""}`}
           >
-            {/* Drag handle indicator */}
-            <div className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-40 transition-opacity cursor-grab active:cursor-grabbing text-slate-400">
+            {/* Drag handle — visible on hover */}
+            <div className="absolute -left-7 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity cursor-grab active:cursor-grabbing text-slate-400 p-1">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
             </div>
-            {content}
+            {/* Section label */}
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 opacity-0 group-hover:opacity-100 transition-opacity">{section.label}</h3>
+            {section.content}
           </div>
         );
       })}
