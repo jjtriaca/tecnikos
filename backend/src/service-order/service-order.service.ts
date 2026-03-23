@@ -261,10 +261,31 @@ export class ServiceOrderService {
             quantity: i.quantity || 1,
             unitPriceCents: svc.priceCents || 0,
             commissionBps: svc.commissionBps ?? null,
+            techFixedValueCents: svc.techFixedValueCents ?? null,
+            commissionRule: svc.commissionRule ?? null,
           };
         });
       if (itemsData.length) {
         await this.prisma.serviceOrderItem.createMany({ data: itemsData });
+
+        // Auto-calculate techCommissionCents from items if not explicitly set
+        if (data.techCommissionCents == null || data.techCommissionCents === 0) {
+          const totalTechCents = itemsData.reduce((sum, item) => {
+            return sum + resolveCommission({
+              grossCents: (item.unitPriceCents || 0) * (item.quantity || 1),
+              commissionBps: item.commissionBps,
+              techFixedValueCents: item.techFixedValueCents,
+              commissionRule: item.commissionRule as CommissionRule | null,
+              quantity: item.quantity,
+            });
+          }, 0);
+          if (totalTechCents > 0) {
+            await this.prisma.serviceOrder.update({
+              where: { id: result.id },
+              data: { techCommissionCents: totalTechCents },
+            });
+          }
+        }
       }
     }
 

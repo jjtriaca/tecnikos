@@ -199,7 +199,7 @@ export default function TechOrdersPage() {
                           </p>
                         </div>
                         <span className="ml-2 text-sm font-bold text-slate-700 flex-shrink-0">
-                          {formatCurrency(order.techCommissionCents ?? order.valueCents)}
+                          {formatCurrency(order.techCommissionCents && order.techCommissionCents > 0 ? order.techCommissionCents : order.valueCents)}
                         </span>
                       </div>
 
