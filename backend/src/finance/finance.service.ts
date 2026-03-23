@@ -12,7 +12,7 @@ import { CashAccountService } from './cash-account.service';
 import { InstallmentService } from './installment.service';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
-const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt'];
+const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt', 'paidAt'];
 
 @Injectable()
 export class FinanceService {
@@ -337,7 +337,7 @@ export class FinanceService {
     companyId: string,
     type: 'RECEIVABLE' | 'PAYABLE',
     pagination?: PaginationDto,
-    filters?: { status?: string; dateFrom?: string; dateTo?: string; partnerId?: string; nfseStatus?: string },
+    filters?: { status?: string; dateFrom?: string; dateTo?: string; partnerId?: string; nfseStatus?: string; paidFrom?: string; paidTo?: string },
   ): Promise<PaginatedResult<any>> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
@@ -364,6 +364,11 @@ export class FinanceService {
       if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
       if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo + 'T23:59:59.999Z');
     }
+    if (filters?.paidFrom || filters?.paidTo) {
+      where.paidAt = {};
+      if (filters.paidFrom) where.paidAt.gte = new Date(filters.paidFrom);
+      if (filters.paidTo) where.paidAt.lte = new Date(filters.paidTo + 'T23:59:59.999Z');
+    }
     if (pagination?.search) {
       const words = pagination.search.trim().split(/\s+/).filter(Boolean);
       if (words.length <= 1) {
@@ -385,7 +390,7 @@ export class FinanceService {
 
     const orderBy = buildOrderBy(pagination?.sortBy, pagination?.sortOrder, ENTRY_SORTABLE, { createdAt: 'desc' });
 
-    const [data, total] = await this.prisma.$transaction([
+    const [data, total, agg] = await this.prisma.$transaction([
       this.prisma.financialEntry.findMany({
         where,
         orderBy,
@@ -398,11 +403,19 @@ export class FinanceService {
         },
       }),
       this.prisma.financialEntry.count({ where }),
+      this.prisma.financialEntry.aggregate({
+        where,
+        _sum: { netCents: true, grossCents: true },
+      }),
     ]);
 
     return {
       data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      totals: {
+        sumNetCents: agg._sum.netCents || 0,
+        sumGrossCents: agg._sum.grossCents || 0,
+      },
     };
   }
 
@@ -485,7 +498,7 @@ export class FinanceService {
     } else {
       data.status = newStatus;
       if (newStatus === 'PAID') {
-        data.paidAt = now;
+        data.paidAt = dto.paidAt ? new Date(dto.paidAt) : now;
         if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
         if (dto.cardBrand) data.cardBrand = dto.cardBrand;
         if (dto.cashAccountId) data.cashAccountId = dto.cashAccountId;

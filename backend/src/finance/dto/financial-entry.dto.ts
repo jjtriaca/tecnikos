@@ -104,6 +104,10 @@ export class ChangeEntryStatusDto {
 
   @IsOptional()
   @IsString()
+  paidAt?: string; // ISO date string — defaults to now() if not provided
+
+  @IsOptional()
+  @IsString()
   cardBrand?: string;
 
   @IsOptional()

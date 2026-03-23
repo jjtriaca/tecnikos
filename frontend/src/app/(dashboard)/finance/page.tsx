@@ -168,6 +168,8 @@ function getEntryFilters(type: FinancialEntryType): FilterDefinition[] {
   },
   { key: "dateFrom", label: "De", type: "date" },
   { key: "dateTo", label: "Até", type: "date" },
+  { key: "paidFrom", label: type === "RECEIVABLE" ? "Recebido de" : "Pago de", type: "date" },
+  { key: "paidTo", label: type === "RECEIVABLE" ? "Recebido até" : "Pago até", type: "date" },
   {
     key: "nfseStatus",
     label: "NFS-e",
@@ -345,6 +347,18 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
           </span>
         );
       },
+    },
+    {
+      id: "paidAt",
+      label: type === "RECEIVABLE" ? "Recebido em" : "Pago em",
+      sortable: true,
+      align: "right",
+      render: (e) =>
+        e.paidAt ? (
+          <span className="text-sm text-slate-500">{formatDate(e.paidAt)}</span>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
     },
     {
       id: "dueDate",
@@ -709,6 +723,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   );
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
+  const [totals, setTotals] = useState<{ sumNetCents: number; sumGrossCents: number }>({ sumNetCents: 0, sumGrossCents: 0 });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -786,11 +801,12 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     try {
       setLoading(true);
       const qs = tp.buildQueryString();
-      const result = await api.get<PaginatedResponse<FinancialEntry>>(
+      const result = await api.get<PaginatedResponse<FinancialEntry> & { totals?: { sumNetCents: number; sumGrossCents: number } }>(
         `/finance/entries?type=${type}&${qs}`,
       );
       setEntries(result.data);
       setMeta(result.meta);
+      if (result.totals) setTotals(result.totals);
     } catch {
       /* ignore */
     } finally {
@@ -820,8 +836,9 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
 
   // State for category in pay modal
   const [payAccountId, setPayAccountId] = useState("");
+  const [payDate, setPayDate] = useState("");
 
-  // Pre-fill payment method and category when opening pay modal
+  // Pre-fill payment method, category, and date when opening pay modal
   useEffect(() => {
     if (payAction?.entry.paymentMethod) {
       setPaymentMethod(payAction.entry.paymentMethod);
@@ -830,6 +847,10 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       setPayAccountId(payAction.entry.financialAccount.id);
     } else {
       setPayAccountId("");
+    }
+    // Default pay date to today
+    if (payAction) {
+      setPayDate(new Date().toISOString().slice(0, 10));
     }
   }, [payAction]);
 
@@ -921,6 +942,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       await api.patch(`/finance/entries/${entry.id}/status`, {
         status: action,
         paymentMethod,
+        paidAt: payDate || undefined,
         cardBrand: isCard && selectedCardRate ? selectedCardRate.brand : undefined,
         cardFeeRateId: isCard ? selectedCardRateId : undefined,
         cashAccountId: isCard ? undefined : (selectedAccountId || undefined),
@@ -934,6 +956,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       setSelectedAccountId("");
       setSelectedInstrumentId("");
       setPayAccountId("");
+      setPayDate("");
       setAvailableInstruments([]);
       await loadEntries();
     } catch {
@@ -992,6 +1015,11 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
           <span className="ml-2 text-xs font-normal text-slate-400">
             {meta.total} registro{meta.total !== 1 ? "s" : ""}
           </span>
+          {totals.sumNetCents > 0 && (
+            <span className="ml-3 text-xs font-semibold text-green-700 bg-green-50 rounded-full px-2.5 py-0.5">
+              Total: {formatCurrency(totals.sumNetCents)}
+            </span>
+          )}
         </h3>
         <div className="flex gap-2">
           <button
@@ -1198,6 +1226,18 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
             </div>
 
             <div className="mt-4 space-y-3">
+              {/* Data do pagamento/recebimento */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Data de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"}
+                </label>
+                <input
+                  type="date"
+                  value={payDate}
+                  onChange={(e) => setPayDate(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Forma de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"} *
