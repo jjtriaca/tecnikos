@@ -1100,7 +1100,7 @@ export default function TechOrderDetailPage() {
         <>
           {/* Paused banner */}
           {isPaused && (
-            <div className="fixed bottom-0 left-0 right-0 z-40 bg-orange-500 text-white px-4 py-3 flex items-center justify-between safe-area-pb">
+            <div className="fixed bottom-14 left-0 right-0 z-40 bg-orange-500 text-white px-4 py-2.5 flex items-center justify-between rounded-t-xl">
               <div className="flex items-center gap-2">
                 <span className="text-lg">⏸️</span>
                 <div>
@@ -1117,18 +1117,18 @@ export default function TechOrderDetailPage() {
 
           {/* Bottom action buttons (when not paused) */}
           {!isPaused && (
-            <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2">
+            <div className="fixed bottom-16 right-3 z-40 flex items-center gap-1.5">
               {/* Incident button (discrete) */}
               <button
                 onClick={() => { setIncidentCategory(""); setIncidentText(""); setShowIncidentModal(true); }}
-                className="flex items-center gap-1 rounded-full bg-slate-600/80 text-white px-3 py-2 text-[10px] font-medium shadow-md hover:bg-slate-700 active:scale-95 transition-all"
+                className="flex items-center gap-1 rounded-full bg-slate-600/80 text-white px-2.5 py-1.5 text-[10px] font-medium shadow-md hover:bg-slate-700 active:scale-95 transition-all"
               >
                 ⚠️ Ocorrencia
               </button>
               {/* Pause button */}
               <button
                 onClick={() => { setPauseReason(""); setPauseReasonText(""); setShowPauseModal(true); }}
-                className="flex items-center gap-1.5 rounded-full bg-orange-500/90 text-white px-4 py-2.5 text-xs font-semibold shadow-lg hover:bg-orange-600 active:scale-95 transition-all"
+                className="flex items-center gap-1 rounded-full bg-orange-500/90 text-white px-3 py-1.5 text-[10px] font-semibold shadow-lg hover:bg-orange-600 active:scale-95 transition-all"
               >
                 ⏸️ Pausar
               </button>
