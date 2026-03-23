@@ -13,6 +13,7 @@ type ServiceOrder = {
   valueCents: number;
   deadlineAt: string;
   createdAt: string;
+  completedAt?: string | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -110,7 +111,7 @@ export default function TechOrdersPage() {
     { key: "A_CAMINHO", label: "A Caminho", orders: orders.filter((o) => o.status === "A_CAMINHO") },
     { key: "EM_EXECUCAO", label: "Em Andamento", orders: orders.filter((o) => o.status === "EM_EXECUCAO") },
     { key: "AJUSTE", label: "Ajustes Necessários", orders: orders.filter((o) => o.status === "AJUSTE") },
-    { key: "CONCLUIDA", label: "Concluídas Hoje", orders: orders.filter((o) => o.status === "CONCLUIDA" && new Date(o.createdAt).toDateString() === new Date().toDateString()) },
+    { key: "CONCLUIDA", label: "Concluídas Hoje", orders: orders.filter((o) => o.status === "CONCLUIDA" && o.completedAt && new Date(o.completedAt).toDateString() === new Date().toDateString()) },
     { key: "APROVADA", label: "Aprovadas", orders: orders.filter((o) => o.status === "APROVADA").slice(0, 5) },
   ].filter((g) => g.orders.length > 0);
 

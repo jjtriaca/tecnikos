@@ -95,7 +95,6 @@ export class CompanyController {
     return this.service.updateFiscalConfig(user.companyId, body);
   }
 
-  @Roles(UserRole.ADMIN)
   @Get('system-config')
   getSystemConfig(@CurrentUser() user: AuthenticatedUser) {
     return this.service.getSystemConfig(user.companyId);

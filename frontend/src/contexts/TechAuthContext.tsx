@@ -104,6 +104,18 @@ export async function techApi<T = any>(
     throw new Error("Unauthorized");
   }
 
+  // Retry once on 5xx (server errors — 502, 503, etc.)
+  if (res.status >= 500) {
+    await new Promise(r => setTimeout(r, 2000)); // wait 2s
+    const retry = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+    if (!retry.ok) throw new Error(await retry.text());
+    return retry.json();
+  }
+
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
