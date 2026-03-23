@@ -1028,11 +1028,6 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
           <span className="ml-2 text-xs font-normal text-slate-400">
             {meta.total} registro{meta.total !== 1 ? "s" : ""}
           </span>
-          {totals.sumNetCents > 0 && (
-            <span className="ml-3 text-xs font-semibold text-green-700 bg-green-50 rounded-full px-2.5 py-0.5">
-              Total: {formatCurrency(totals.sumNetCents)}
-            </span>
-          )}
         </h3>
         <div className="flex gap-2">
           <button
@@ -1171,6 +1166,21 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 </tr>
               ))}
             </tbody>
+            {totals.sumNetCents > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-slate-300 bg-slate-50">
+                  <td colSpan={orderedColumns.findIndex(c => c.id === "netCents")} className="py-3 px-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Total filtrado ({meta.total} registro{meta.total !== 1 ? "s" : ""})
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <span className={`text-base font-bold ${type === "RECEIVABLE" ? "text-green-700" : "text-blue-700"}`}>
+                      {formatCurrency(totals.sumNetCents)}
+                    </span>
+                  </td>
+                  <td colSpan={orderedColumns.length - orderedColumns.findIndex(c => c.id === "netCents") - 1} />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       )}
