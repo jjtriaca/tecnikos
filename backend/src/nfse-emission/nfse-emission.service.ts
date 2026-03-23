@@ -5,6 +5,7 @@ import { SaasConfigService } from '../common/saas-config.service';
 import { FocusNfeProvider, FocusNfseRequest, FocusNfsenRequest, NfseLayout } from './focus-nfe.provider';
 import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto, UpdateNfseServiceCodeDto } from './dto/nfse-emission.dto';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { DanfseService, DanfseData } from './danfse.service';
 import { randomUUID } from 'crypto';
 
 /** Retorna data/hora atual no fuso de Brasilia (UTC-3) em formato ISO sem 'Z'. */
@@ -31,6 +32,7 @@ export class NfseEmissionService {
     private readonly saasConfig: SaasConfigService,
     private readonly focusNfe: FocusNfeProvider,
     private readonly whatsApp: WhatsAppService,
+    private readonly danfseService: DanfseService,
   ) {}
 
   /** Map Focus NFe technical errors to user-friendly messages */
@@ -1031,12 +1033,51 @@ export class NfseEmissionService {
 
     // Fallback to Focus NFe API
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
-    if (!config?.focusNfeToken) throw new BadRequestException('Token Focus NFe não configurado');
+    if (config?.focusNfeToken && !emission.focusNfeRef.startsWith('manual-')) {
+      try {
+        const token = this.getActiveToken(config)!;
+        const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
+        const buffer = await this.focusNfe.downloadPdf(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
+        return { buffer, filename };
+      } catch (err) {
+        this.logger.warn(`Focus NFe PDF download failed: ${(err as Error).message}, falling back to local generation`);
+      }
+    }
 
-    const token = this.getActiveToken(config)!;
-    const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
-    const buffer = await this.focusNfe.downloadPdf(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
+    // Fallback: Generate DANFSe locally from database data
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true, cnpj: true, phone: true },
+    });
 
+    const danfseData: DanfseData = {
+      nfseNumber: emission.nfseNumber || '',
+      rpsNumber: emission.rpsNumber,
+      rpsSeries: emission.rpsSeries,
+      codigoVerificacao: emission.codigoVerificacao || '',
+      issuedAt: emission.issuedAt
+        ? new Date(emission.issuedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : new Date(emission.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      prestadorCnpj: emission.prestadorCnpj,
+      prestadorRazaoSocial: company?.name || '',
+      prestadorIm: emission.prestadorIm || undefined,
+      prestadorMunicipio: emission.prestadorCodigoMunicipio || undefined,
+      tomadorCnpjCpf: emission.tomadorCnpjCpf || undefined,
+      tomadorRazaoSocial: emission.tomadorRazaoSocial || undefined,
+      tomadorEmail: emission.tomadorEmail || undefined,
+      discriminacao: emission.discriminacao || undefined,
+      itemListaServico: emission.itemListaServico || undefined,
+      codigoCnae: emission.codigoCnae || undefined,
+      codigoMunicipioServico: emission.codigoMunicipioServico || undefined,
+      naturezaOperacao: emission.naturezaOperacao || undefined,
+      valorServicosCents: emission.valorServicos,
+      aliquotaIss: emission.aliquotaIss || undefined,
+      valorIssCents: emission.valorIss || undefined,
+      issRetido: emission.issRetido,
+      status: emission.status,
+    };
+
+    const buffer = await this.danfseService.generate(danfseData);
     return { buffer, filename };
   }
 
