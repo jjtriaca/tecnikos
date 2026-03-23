@@ -403,7 +403,8 @@ export class NfseEntradaService {
      syncFromFocus — Import NFS-e recebidas from Focus NFe API
      ═══════════════════════════════════════════════════════════════════ */
 
-  async syncFromFocus(companyId: string): Promise<{ imported: number; skipped: number; total: number; limitReached: boolean; monthlyLimit: number; usedThisMonth: number }> {
+  async syncFromFocus(companyId: string, dateFrom?: string): Promise<{ imported: number; skipped: number; total: number; limitReached: boolean; monthlyLimit: number; usedThisMonth: number }> {
+    const dateFilter = dateFrom ? new Date(dateFrom) : null;
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     if (!config?.focusNfeToken) {
       throw new BadRequestException('Token Focus NFe nao configurado');
@@ -483,6 +484,15 @@ export class NfseEntradaService {
         if (!nfse.chave_nfse) {
           skipped++;
           continue;
+        }
+
+        // Skip notes older than dateFrom filter (don't count against quota)
+        if (dateFilter && nfse.data_emissao) {
+          const emissao = new Date(nfse.data_emissao);
+          if (emissao < dateFilter) {
+            skipped++;
+            continue;
+          }
         }
 
         // Check if already imported (deduplication by chaveNfse)

@@ -159,6 +159,11 @@ export default function NfseEntradaPage() {
   // Focus NFe sync
   const [syncing, setSyncing] = useState(false);
   const [importUsage, setImportUsage] = useState<{ used: number; limit: number; percentage: number; enabled: boolean } | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncDateFrom, setSyncDateFrom] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  });
 
   // Process wizard
   const [processEntry, setProcessEntry] = useState<NfseEntrada | null>(null);
@@ -243,15 +248,18 @@ export default function NfseEntradaPage() {
 
   /* ── Sync Focus NFe ────────────────────────────── */
 
-  async function handleSyncFocus() {
+  async function handleSyncFocus(dateFrom?: string) {
+    setShowSyncModal(false);
     setSyncing(true);
     try {
-      const result = await api.post<{ imported: number; skipped: number; total: number; limitReached: boolean; monthlyLimit: number; usedThisMonth: number }>("/nfse-entrada/sync-focus", {});
+      const result = await api.post<{ imported: number; skipped: number; total: number; limitReached: boolean; monthlyLimit: number; usedThisMonth: number }>("/nfse-entrada/sync-focus", { dateFrom });
       if (result.limitReached && result.imported === 0) {
-        toast(`Limite mensal atingido (${result.usedThisMonth}/${result.monthlyLimit} importacoes)`, "error");
+        toast(`Limite mensal atingido (${result.usedThisMonth}/${result.monthlyLimit} importacoes). Contrate mais importacoes para continuar.`, "error");
+      } else if (result.imported > 0 && result.limitReached) {
+        toast(`Importadas ${result.imported} de ${result.total} NFS-e encontradas. Limite mensal atingido (${result.usedThisMonth}/${result.monthlyLimit}). Contrate mais importacoes para baixar as restantes.`, "error");
+        loadData();
       } else if (result.imported > 0) {
-        const limitMsg = result.limitReached ? ` (limite: ${result.usedThisMonth}/${result.monthlyLimit})` : "";
-        toast(`${result.imported} NFS-e importada(s) do Focus NFe${limitMsg}`);
+        toast(`${result.imported} NFS-e importada(s) do Focus NFe (${result.usedThisMonth}/${result.monthlyLimit} usadas no ciclo)`);
         loadData();
       } else if (result.total === 0) {
         toast("Nenhuma NFS-e nova encontrada no Focus NFe", "info");
@@ -494,7 +502,7 @@ export default function NfseEntradaPage() {
         </button>
         {importUsage?.enabled ? (
           <div className="flex items-center gap-2">
-            <button onClick={handleSyncFocus} disabled={syncing || importUsage.used >= importUsage.limit} className="rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={() => syncing ? null : importUsage.used >= importUsage.limit ? null : setShowSyncModal(true)} disabled={syncing || importUsage.used >= importUsage.limit} className="rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <svg className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               {syncing ? "Baixando..." : "Baixar NFS-e"}
             </button>
@@ -1000,6 +1008,74 @@ export default function NfseEntradaPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal: Confirmação de Importação */}
+      {showSyncModal && importUsage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
+              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Baixar NFS-e do Focus NFe
+            </h3>
+
+            {/* Quota warning */}
+            <div className={`rounded-lg p-3 mb-4 ${importUsage.percentage >= 80 ? "bg-amber-50 border border-amber-200" : "bg-blue-50 border border-blue-200"}`}>
+              <p className={`text-sm font-medium ${importUsage.percentage >= 80 ? "text-amber-800" : "text-blue-800"}`}>
+                {importUsage.percentage >= 80 ? "⚠️" : "ℹ️"} Cada nota importada consome 1 uso do seu plano
+              </p>
+              <p className={`text-xs mt-1 ${importUsage.percentage >= 80 ? "text-amber-600" : "text-blue-600"}`}>
+                Voce ja usou <strong>{importUsage.used} de {importUsage.limit}</strong> importacoes neste ciclo.
+                {importUsage.limit - importUsage.used > 0
+                  ? ` Restam ${importUsage.limit - importUsage.used} importacoes.`
+                  : " Seu limite foi atingido."}
+              </p>
+              <p className={`text-xs mt-1 ${importUsage.percentage >= 80 ? "text-amber-600" : "text-blue-600"}`}>
+                Notas ja importadas anteriormente nao sao contadas novamente.
+              </p>
+            </div>
+
+            {/* Date field */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Buscar notas a partir de</label>
+              <input
+                type="date"
+                value={syncDateFrom}
+                onChange={(e) => setSyncDateFrom(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Notas anteriores a esta data serao ignoradas. Se quiser buscar meses anteriores, ajuste a data — as notas encontradas ainda contam no saldo de importacao deste ciclo.
+              </p>
+            </div>
+
+            {/* Overflow warning */}
+            {importUsage.limit - importUsage.used <= 10 && importUsage.limit - importUsage.used > 0 && (
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 mb-4">
+                <p className="text-xs text-slate-600">
+                  <strong>Se houver mais notas que o saldo restante:</strong> o sistema importa ate o limite ({importUsage.limit - importUsage.used} restantes) e para. Na proxima importacao, as ja baixadas nao serao contadas novamente.
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 mt-2">
+              <button
+                onClick={() => setShowSyncModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleSyncFocus(syncDateFrom)}
+                disabled={importUsage.used >= importUsage.limit}
+                className="px-5 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Importar Notas
+              </button>
             </div>
           </div>
         </div>

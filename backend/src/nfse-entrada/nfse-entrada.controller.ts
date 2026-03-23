@@ -246,8 +246,8 @@ ${entry.codigoObra || entry.art ? '<h2>Construção Civil</h2><div class="grid">
 
   @Roles(UserRole.ADMIN, UserRole.FISCAL)
   @Post('sync-focus')
-  async syncFocus(@CurrentUser() user: AuthenticatedUser) {
-    return this.service.syncFromFocus(user.companyId);
+  async syncFocus(@CurrentUser() user: AuthenticatedUser, @Body() body?: { dateFrom?: string }) {
+    return this.service.syncFromFocus(user.companyId, body?.dateFrom);
   }
 
   /* ── Link Prestador ────────────────────────────── */
