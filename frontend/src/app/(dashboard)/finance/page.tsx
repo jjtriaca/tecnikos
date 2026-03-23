@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
@@ -67,18 +67,75 @@ function formatDate(dateStr: string) {
 
 type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "instrumentos" | "cobranca";
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
+const MAIN_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
   { id: "receber", label: "A Receber", icon: "📥" },
   { id: "pagar", label: "A Pagar", icon: "📤" },
   { id: "parcelas", label: "Parcelas", icon: "📑" },
   { id: "cartoes", label: "Baixa Cartoes", icon: "🔻" },
-  { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
   { id: "conciliacao", label: "Conciliacao", icon: "🔄" },
-  { id: "formas", label: "Formas Pgto", icon: "💳" },
-  { id: "instrumentos", label: "Instrumentos", icon: "🏷️" },
-  { id: "cobranca", label: "Cobranca", icon: "⚡" },
 ];
+
+const CADASTRO_TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
+  { id: "formas", label: "Formas de Pagamento", icon: "💳" },
+  { id: "instrumentos", label: "Instrumentos", icon: "🏷️" },
+  { id: "cobranca", label: "Regras de Cobrança", icon: "⚡" },
+];
+
+const CADASTRO_TAB_IDS = new Set<TabId>(CADASTRO_TABS.map(t => t.id));
+
+/* ── CadastrosDropdown ─────────────────────────────────── */
+
+function CadastrosDropdown({ activeTab, onSelect }: { activeTab: TabId; onSelect: (t: TabId) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isActive = CADASTRO_TAB_IDS.has(activeTab);
+  const activeLabel = isActive ? CADASTRO_TABS.find(t => t.id === activeTab)?.label : null;
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+          isActive
+            ? "border-blue-600 text-blue-700"
+            : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+        }`}
+      >
+        <span>⚙️</span>
+        {activeLabel || "Cadastros"}
+        <svg className={`w-3.5 h-3.5 ml-0.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[220px] py-1">
+          {CADASTRO_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => { onSelect(tab.id); setOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+                activeTab === tab.id
+                  ? "bg-blue-50 text-blue-700 font-medium"
+                  : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <span>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ── StatusBadge ───────────────────────────────────────── */
 
@@ -345,7 +402,7 @@ export default function FinancePage() {
   const tabParam = searchParams.get("tab");
 
   const initialTab = useMemo<TabId>(() => {
-    if (tabParam && TABS.some((t) => t.id === tabParam)) return tabParam as TabId;
+    if (tabParam && [...MAIN_TABS, ...CADASTRO_TABS].some((t) => t.id === tabParam)) return tabParam as TabId;
     if (typeParam === "RECEIVABLE") return "receber";
     if (typeParam === "PAYABLE") return "pagar";
     return "resumo";
@@ -369,7 +426,7 @@ export default function FinancePage() {
 
       {/* Tab Navigation */}
       <div className="flex gap-1 mb-6 border-b border-slate-200">
-        {TABS.map((tab) => (
+        {MAIN_TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -383,6 +440,8 @@ export default function FinancePage() {
             {tab.label}
           </button>
         ))}
+        {/* Dropdown: Cadastros */}
+        <CadastrosDropdown activeTab={activeTab} onSelect={setActiveTab} />
       </div>
 
       {/* Tab Content */}
