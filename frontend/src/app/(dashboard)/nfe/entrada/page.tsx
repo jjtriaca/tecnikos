@@ -157,12 +157,20 @@ export default function NfseEntradaPage() {
   const [syncing, setSyncing] = useState(false);
   const [importUsage, setImportUsage] = useState<{ used: number; limit: number; percentage: number; enabled: boolean } | null>(null);
 
-  // Process modal
+  // Process wizard
   const [processEntry, setProcessEntry] = useState<NfseEntrada | null>(null);
-  const [processCreatePrestador, setProcessCreatePrestador] = useState(false);
-  const [processCreateFinance, setProcessCreateFinance] = useState(true);
-  const [processDueDate, setProcessDueDate] = useState("");
+  const [wizardStep, setWizardStep] = useState(1);
   const [processing, setProcessing] = useState(false);
+  // Step 1: Prestador
+  const [supplierAction, setSupplierAction] = useState<{ action: "CREATE" | "LINK"; partnerId?: string }>({ action: "CREATE" });
+  const [partnerSearch, setPartnerSearch] = useState("");
+  const [partnerResults, setPartnerResults] = useState<{ id: string; name: string; document: string }[]>([]);
+  const [searchingPartners, setSearchingPartners] = useState(false);
+  // Step 2: Financeiro
+  const [createFinancialEntry, setCreateFinancialEntry] = useState(true);
+  const [processDueDate, setProcessDueDate] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [activePMs, setActivePMs] = useState<{ id: string; code: string; name: string }[]>([]);
 
   /* ── Load ──────────────────────────────────────── */
 
@@ -349,13 +357,39 @@ export default function NfseEntradaPage() {
     }
   }
 
-  /* ── Process (gerar financeiro) ─────────────────── */
+  /* ── Process wizard ─────────────────────────────── */
 
   function openProcessModal(entry: NfseEntrada) {
     setProcessEntry(entry);
-    setProcessCreatePrestador(!entry.prestadorId);
-    setProcessCreateFinance(true);
+    setWizardStep(1);
+    setCreateFinancialEntry(true);
     setProcessDueDate(entry.dataEmissao ? entry.dataEmissao.split("T")[0] : "");
+    setPaymentMethod("");
+    setPartnerSearch("");
+    setPartnerResults([]);
+    if (entry.prestadorId) {
+      setSupplierAction({ action: "LINK", partnerId: entry.prestadorId });
+    } else {
+      setSupplierAction({ action: "CREATE" });
+    }
+    // Load payment methods
+    api.get<{ id: string; code: string; name: string }[]>("/finance/payment-methods/active")
+      .then(setActivePMs).catch(() => setActivePMs([]));
+  }
+
+  function closeWizard() {
+    setProcessEntry(null);
+  }
+
+  async function searchPartnersFn(query: string) {
+    setPartnerSearch(query);
+    if (query.length < 2) { setPartnerResults([]); return; }
+    setSearchingPartners(true);
+    try {
+      const res = await api.get<{ data: { id: string; name: string; document: string }[]; meta: any }>(`/partners?search=${encodeURIComponent(query)}&limit=10&type=FORNECEDOR`);
+      setPartnerResults(res.data || []);
+    } catch { setPartnerResults([]); }
+    finally { setSearchingPartners(false); }
   }
 
   async function handleProcess() {
@@ -363,20 +397,18 @@ export default function NfseEntradaPage() {
     setProcessing(true);
     try {
       await api.post(`/nfse-entrada/${processEntry.id}/process`, {
-        prestador: {
-          action: processCreatePrestador ? "CREATE" : "LINK",
-          partnerId: processEntry.prestadorId || undefined,
-        },
+        prestador: supplierAction,
         finance: {
-          createEntry: processCreateFinance,
+          createEntry: createFinancialEntry,
           dueDate: processDueDate || undefined,
+          paymentMethod: paymentMethod || undefined,
         },
       });
-      toast("NFS-e processada com sucesso!");
-      setProcessEntry(null);
+      toast("NFS-e importada com sucesso!");
+      closeWizard();
       loadData();
     } catch (err: any) {
-      toast(err?.message || "Erro ao processar NFS-e", "error");
+      toast(err?.message || "Erro ao importar NFS-e", "error");
     } finally {
       setProcessing(false);
     }
@@ -707,59 +739,228 @@ export default function NfseEntradaPage() {
       {/* Pagination */}
       <Pagination meta={meta} onPageChange={tp.setPage} />
 
-      {/* Process Modal */}
+      {/* Process Wizard */}
       {processEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !processing && setProcessEntry(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 mb-1">Importar NFS-e</h3>
-            <p className="text-sm text-slate-500 mb-4">Vincular prestador e gerar lançamento financeiro (Contas a Pagar)</p>
-
-            {/* NFS-e Info */}
-            <div className="bg-slate-50 rounded-lg p-3 mb-4 text-xs space-y-1">
-              <div className="flex justify-between"><span className="text-slate-500">NFS-e</span><span className="font-medium">{processEntry.numero || "\u2014"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Prestador</span><span className="font-medium">{processEntry.prestadorRazaoSocial || "\u2014"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">CNPJ/CPF</span><span className="font-mono">{fmtDoc(processEntry.prestadorCnpjCpf)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Valor</span><span className="font-semibold text-slate-900">{fmt(processEntry.valorServicosCents)}</span></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => !processing && closeWizard()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+            {/* Header with steps */}
+            <div className="border-b border-slate-200 px-6 pt-5 pb-4">
+              <h3 className="text-lg font-semibold text-slate-900">Importar NFS-e</h3>
+              <p className="text-xs text-slate-500 mt-0.5">NFS-e {processEntry.numero || ""} — {processEntry.prestadorRazaoSocial || "Prestador"} — {fmt(processEntry.valorServicosCents)}</p>
+              <div className="flex items-center gap-2 mt-3">
+                {[1, 2, 3].map((s) => (
+                  <div key={s} className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
+                      wizardStep === s ? "bg-blue-600 text-white" : wizardStep > s ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"
+                    }`}>
+                      {wizardStep > s ? (
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      ) : s}
+                    </div>
+                    <span className={`text-xs ${wizardStep === s ? "text-blue-700 font-medium" : "text-slate-400"}`}>
+                      {s === 1 ? "Prestador" : s === 2 ? "Financeiro" : "Confirmacao"}
+                    </span>
+                    {s < 3 && <div className="w-6 h-px bg-slate-200" />}
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Prestador */}
-            <div className="mb-4">
-              <label className="text-xs font-medium text-slate-600 mb-1 block">Prestador</label>
-              {processEntry.prestadorId ? (
-                <div className="flex items-center gap-1.5 text-xs text-green-700">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  Vinculado: {processEntry.prestador?.name}
-                </div>
-              ) : (
-                <div className="text-xs text-amber-600 flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  Prestador sera criado automaticamente
-                </div>
-              )}
-            </div>
-
-            {/* Financeiro */}
-            <div className="space-y-3 mb-6">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={processCreateFinance} onChange={(e) => setProcessCreateFinance(e.target.checked)} className="rounded border-slate-300" />
-                <span className="text-slate-700">Gerar lançamento financeiro (A Pagar)</span>
-              </label>
-              {processCreateFinance && (
+            <div className="px-6 py-5">
+              {/* ── Step 1: Prestador ────────────────────────── */}
+              {wizardStep === 1 && (
                 <div>
-                  <label className="text-xs font-medium text-slate-600 mb-1 block">Data de Vencimento</label>
-                  <input type="date" value={processDueDate} onChange={(e) => setProcessDueDate(e.target.value)} className={inputClass} />
+                  <h4 className="text-sm font-semibold text-slate-800 mb-3">Prestador do Servico</h4>
+                  <div className="bg-slate-50 rounded-lg p-3 mb-4 text-xs space-y-1">
+                    <div className="flex justify-between"><span className="text-slate-500">Razao Social</span><span className="font-medium text-slate-900">{processEntry.prestadorRazaoSocial || "\u2014"}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">CNPJ/CPF</span><span className="font-mono text-slate-700">{fmtDoc(processEntry.prestadorCnpjCpf)}</span></div>
+                  </div>
+
+                  {processEntry.prestadorId ? (
+                    <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                      <div className="flex items-center gap-2">
+                        <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span className="text-sm font-medium text-green-800">Prestador encontrado: {processEntry.prestador?.name}</span>
+                      </div>
+                      <p className="text-xs text-green-600 mt-1">Identificado automaticamente pelo CNPJ/CPF.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-slate-600">Prestador nao encontrado no sistema. Escolha uma acao:</p>
+                      <label className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
+                        supplierAction.action === "CREATE" ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}>
+                        <input type="radio" name="supplierAction" checked={supplierAction.action === "CREATE"} onChange={() => setSupplierAction({ action: "CREATE" })} className="mt-0.5 h-4 w-4 text-blue-600" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">Cadastrar novo prestador</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Sera criado com os dados da NFS-e: {processEntry.prestadorRazaoSocial} ({fmtDoc(processEntry.prestadorCnpjCpf)})</p>
+                        </div>
+                      </label>
+                      <label className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
+                        supplierAction.action === "LINK" ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}>
+                        <input type="radio" name="supplierAction" checked={supplierAction.action === "LINK"} onChange={() => setSupplierAction({ action: "LINK" })} className="mt-0.5 h-4 w-4 text-blue-600" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-slate-900">Vincular a prestador existente</p>
+                          <p className="text-xs text-slate-500 mt-0.5 mb-2">Busque e selecione um fornecedor ja cadastrado.</p>
+                          {supplierAction.action === "LINK" && (
+                            <div className="relative">
+                              <input type="text" value={partnerSearch} onChange={(e) => searchPartnersFn(e.target.value)} placeholder="Buscar por nome..." className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                              {searchingPartners && <div className="absolute right-3 top-2.5"><div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" /></div>}
+                              {partnerResults.length > 0 && (
+                                <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                                  {partnerResults.map((p) => (
+                                    <button key={p.id} onClick={(e) => { e.preventDefault(); setSupplierAction({ action: "LINK", partnerId: p.id }); setPartnerSearch(p.name); setPartnerResults([]); }} className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50 transition-colors">
+                                      <span className="font-medium text-slate-900">{p.name}</span>
+                                      <span className="text-xs text-slate-400">{fmtDoc(p.document)}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between mt-6">
+                    <button onClick={closeWizard} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancelar</button>
+                    <button onClick={() => setWizardStep(2)} disabled={supplierAction.action === "LINK" && !supplierAction.partnerId && !processEntry.prestadorId} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Proximo</button>
+                  </div>
                 </div>
               )}
-            </div>
 
-            {/* Actions */}
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setProcessEntry(null)} disabled={processing} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                Cancelar
-              </button>
-              <button onClick={handleProcess} disabled={processing} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50">
-                {processing ? "Importando..." : "Importar"}
-              </button>
+              {/* ── Step 2: Financeiro ──────────────────────── */}
+              {wizardStep === 2 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-800 mb-4">Lancamento Financeiro</h4>
+                  <div className="space-y-4">
+                    {/* Toggle */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">Criar lancamento A Pagar</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Registra uma conta a pagar no valor de {fmt(processEntry.valorServicosCents)} vinculada ao prestador.</p>
+                        </div>
+                        <button onClick={() => setCreateFinancialEntry(!createFinancialEntry)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${createFinancialEntry ? "bg-blue-600" : "bg-slate-300"}`}>
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${createFinancialEntry ? "translate-x-6" : "translate-x-1"}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {createFinancialEntry && (
+                      <>
+                        {/* Forma de pagamento */}
+                        <div className="rounded-xl border border-slate-200 bg-white p-5">
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pagamento</label>
+                          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                            <option value="">Nao informada</option>
+                            {activePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+                          </select>
+                          <p className="text-xs text-slate-500 mt-1.5">Opcional. Pode ser definida depois ao dar baixa no lancamento.</p>
+                        </div>
+
+                        {/* Due date */}
+                        <div className="rounded-xl border border-slate-200 bg-white p-5">
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Data de Vencimento</label>
+                          <input type="date" value={processDueDate} onChange={(e) => setProcessDueDate(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+                          <p className="text-xs text-slate-500 mt-1.5">{processDueDate ? `Vencimento: ${new Date(processDueDate + "T12:00:00").toLocaleDateString("pt-BR")}` : "Se nao informado, usara a data de emissao da NFS-e."}</p>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Summary */}
+                    <div className={`rounded-xl border p-4 ${createFinancialEntry ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+                      <div className="flex items-center gap-2">
+                        {createFinancialEntry ? (
+                          <>
+                            <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
+                            <div>
+                              <p className="text-sm font-medium text-blue-800">Sera criado lancamento A Pagar de {fmt(processEntry.valorServicosCents)}</p>
+                              {paymentMethod && <p className="text-xs text-blue-600 mt-0.5">Forma: {activePMs.find(m => m.code === paymentMethod)?.name}</p>}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                            <p className="text-sm font-medium text-slate-600">Nenhum lancamento financeiro sera criado.</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between mt-6">
+                    <button onClick={() => setWizardStep(1)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Voltar</button>
+                    <button onClick={() => setWizardStep(3)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">Proximo</button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Step 3: Confirmacao ─────────────────────── */}
+              {wizardStep === 3 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-800 mb-4">Confirmacao</h4>
+                  <div className="space-y-4">
+                    {/* NFS-e summary */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">NFS-e</p>
+                      <div className="text-xs space-y-1">
+                        <div className="flex justify-between"><span className="text-slate-500">Numero</span><span className="font-medium">{processEntry.numero || "\u2014"}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Servico</span><span className="font-medium truncate max-w-[250px]" title={processEntry.discriminacao || undefined}>{processEntry.discriminacao || "\u2014"}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Valor</span><span className="font-semibold text-slate-900">{fmt(processEntry.valorServicosCents)}</span></div>
+                      </div>
+                    </div>
+
+                    {/* Prestador summary */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Prestador</p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-sm font-medium text-slate-900">{processEntry.prestadorRazaoSocial || "\u2014"}</p>
+                        {supplierAction.action === "CREATE" && !processEntry.prestadorId ? (
+                          <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">Cadastrar novo</span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 border border-green-200">Vinculado</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Financial summary */}
+                    <div className={`rounded-xl border p-4 ${createFinancialEntry ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Financeiro</p>
+                      {createFinancialEntry ? (
+                        <div className="flex items-center gap-2">
+                          <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          <div>
+                            <p className="text-sm font-medium text-blue-800">Lancamento A Pagar: {fmt(processEntry.valorServicosCents)}</p>
+                            <div className="flex flex-wrap gap-x-3 text-xs text-blue-600 mt-0.5">
+                              {processDueDate && <span>Vencimento: {new Date(processDueDate + "T12:00:00").toLocaleDateString("pt-BR")}</span>}
+                              {paymentMethod && <span>Forma: {activePMs.find(m => m.code === paymentMethod)?.name}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <svg className="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                          <p className="text-sm text-slate-500">Nenhum lancamento financeiro</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between mt-6">
+                    <button onClick={() => setWizardStep(2)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Voltar</button>
+                    <button onClick={handleProcess} disabled={processing} className="rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+                      {processing ? (
+                        <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Importando...</>
+                      ) : (
+                        <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Confirmar Importacao</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
