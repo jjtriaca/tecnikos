@@ -62,6 +62,14 @@ export class ProcessFinanceDecision {
   dueDate?: string; // Single due date (when no installments)
 
   @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  financialAccountId?: string;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ProcessInstallmentDecision)
