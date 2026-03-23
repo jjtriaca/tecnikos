@@ -603,12 +603,62 @@ export class NfseEntradaService {
      process — Link prestador + create FinancialEntry (Contas a Pagar)
      ═══════════════════════════════════════════════════════════════════ */
 
+  /* ═══════════════════════════════════════════════════════════════════
+     findLinkableEntries — Find PAYABLE PENDING entries for same partner
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async findLinkableEntries(nfseEntradaId: string, companyId: string) {
+    const entry = await this.prisma.nfseEntrada.findFirst({
+      where: { id: nfseEntradaId, companyId },
+    });
+    if (!entry) throw new NotFoundException('NFS-e nao encontrada');
+
+    const prestadorId = entry.prestadorId;
+    if (!prestadorId) return [];
+
+    const entries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        type: 'PAYABLE',
+        status: 'PENDING',
+        partnerId: prestadorId,
+        deletedAt: null,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        grossCents: true,
+        netCents: true,
+        dueDate: true,
+        createdAt: true,
+        serviceOrder: { select: { id: true, title: true, code: true } },
+        financialAccount: { select: { id: true, code: true, name: true } },
+      },
+    });
+
+    return entries;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     process — Link prestador + create/link FinancialEntry
+     ═══════════════════════════════════════════════════════════════════ */
+
   async process(
     id: string,
     companyId: string,
     decisions: {
       prestador: { action: 'CREATE' | 'LINK'; partnerId?: string };
-      finance: { createEntry: boolean; dueDate?: string; paymentMethod?: string; financialAccountId?: string };
+      finance: {
+        mode: 'CREATE' | 'LINK' | 'NONE';
+        createEntry?: boolean;
+        dueDate?: string;
+        paymentMethod?: string;
+        financialAccountId?: string;
+        linkedEntryIds?: string[];
+      };
     },
   ) {
     const entry = await this.prisma.nfseEntrada.findFirst({
@@ -655,10 +705,13 @@ export class NfseEntradaService {
         prestadorId = partner.id;
       }
 
-      // ── 2. Create FinancialEntry PAYABLE ────────────────────────
+      // ── 2. Financial Entry (CREATE / LINK / NONE) ─────────────
       let financialEntryId: string | null = null;
 
-      if (decisions.finance.createEntry) {
+      // Backward-compat: createEntry=true without mode → treat as CREATE
+      const finMode = decisions.finance.mode || (decisions.finance.createEntry ? 'CREATE' : 'NONE');
+
+      if (finMode === 'CREATE') {
         const totalCents = entry.valorServicosCents || 0;
         const dueDate = decisions.finance.dueDate
           ? new Date(decisions.finance.dueDate)
@@ -681,7 +734,27 @@ export class NfseEntradaService {
           },
         });
         financialEntryId = financialEntry.id;
+      } else if (finMode === 'LINK' && decisions.finance.linkedEntryIds?.length) {
+        // Link to existing entry(ies)
+        financialEntryId = decisions.finance.linkedEntryIds[0]; // Primary link (1:1 FK)
+
+        // Create N:N links for all selected entries
+        for (const entryId of decisions.finance.linkedEntryIds) {
+          // Validate entry exists and belongs to company
+          const existing = await tx.financialEntry.findFirst({
+            where: { id: entryId, companyId, type: 'PAYABLE', deletedAt: null },
+          });
+          if (!existing) continue;
+
+          await tx.nfseEntradaEntryLink.create({
+            data: {
+              nfseEntradaId: id,
+              financialEntryId: entryId,
+            },
+          });
+        }
       }
+      // finMode === 'NONE': no financial entry, financialEntryId stays null
 
       // ── 3. Update NfseEntrada ───────────────────────────────────
       await tx.nfseEntrada.update({

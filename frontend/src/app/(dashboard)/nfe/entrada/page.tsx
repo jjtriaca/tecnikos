@@ -175,12 +175,14 @@ export default function NfseEntradaPage() {
   const [partnerResults, setPartnerResults] = useState<{ id: string; name: string; document: string }[]>([]);
   const [searchingPartners, setSearchingPartners] = useState(false);
   // Step 2: Financeiro
-  const [createFinancialEntry, setCreateFinancialEntry] = useState(true);
+  const [financeMode, setFinanceMode] = useState<"LINK" | "CREATE" | "NONE">("CREATE");
   const [processDueDate, setProcessDueDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [processAccountId, setProcessAccountId] = useState("");
   const [activePMs, setActivePMs] = useState<{ id: string; code: string; name: string }[]>([]);
   const [postableAccounts, setPostableAccounts] = useState<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>([]);
+  const [linkableEntries, setLinkableEntries] = useState<{ id: string; code: string; description: string; grossCents: number; netCents: number; dueDate: string | null; serviceOrder?: { id: string; title: string; code: string } | null; financialAccount?: { id: string; code: string; name: string } | null }[]>([]);
+  const [selectedLinkIds, setSelectedLinkIds] = useState<Set<string>>(new Set());
 
   /* ── Load ──────────────────────────────────────── */
 
@@ -375,7 +377,7 @@ export default function NfseEntradaPage() {
   function openProcessModal(entry: NfseEntrada) {
     setProcessEntry(entry);
     setWizardStep(1);
-    setCreateFinancialEntry(true);
+    setFinanceMode("CREATE");
     setProcessDueDate(entry.dataEmissao ? entry.dataEmissao.split("T")[0] : "");
     setPaymentMethod("");
     setPartnerSearch("");
@@ -385,11 +387,24 @@ export default function NfseEntradaPage() {
     } else {
       setSupplierAction({ action: "CREATE" });
     }
-    // Load payment methods
+    // Load payment methods + accounts + linkable entries
     api.get<{ id: string; code: string; name: string }[]>("/finance/payment-methods/active")
       .then(setActivePMs).catch(() => setActivePMs([]));
     api.get<typeof postableAccounts>("/finance/accounts/postable")
       .then(setPostableAccounts).catch(() => setPostableAccounts([]));
+    // Load linkable entries for this NFS-e
+    api.get<typeof linkableEntries>(`/nfse-entrada/${entry.id}/linkable-entries`)
+      .then((entries) => {
+        setLinkableEntries(entries);
+        setSelectedLinkIds(new Set());
+        // Auto-select LINK mode if linkable entries exist
+        if (entries.length > 0) {
+          setFinanceMode("LINK");
+        } else {
+          setFinanceMode("CREATE");
+        }
+      })
+      .catch(() => { setLinkableEntries([]); setFinanceMode("CREATE"); });
   }
 
   function closeWizard() {
@@ -414,10 +429,12 @@ export default function NfseEntradaPage() {
       await api.post(`/nfse-entrada/${processEntry.id}/process`, {
         prestador: supplierAction,
         finance: {
-          createEntry: createFinancialEntry,
-          dueDate: processDueDate || undefined,
-          paymentMethod: paymentMethod || undefined,
-          financialAccountId: processAccountId || undefined,
+          mode: financeMode,
+          createEntry: financeMode === "CREATE",
+          dueDate: financeMode === "CREATE" ? (processDueDate || undefined) : undefined,
+          paymentMethod: financeMode === "CREATE" ? (paymentMethod || undefined) : undefined,
+          financialAccountId: financeMode === "CREATE" ? (processAccountId || undefined) : undefined,
+          linkedEntryIds: financeMode === "LINK" ? Array.from(selectedLinkIds) : undefined,
         },
       });
       toast("NFS-e importada com sucesso!");
@@ -888,22 +905,84 @@ export default function NfseEntradaPage() {
                 <div>
                   <h4 className="text-sm font-semibold text-slate-800 mb-4">Lancamento Financeiro</h4>
                   <div className="space-y-4">
-                    {/* Toggle */}
-                    <div className="rounded-xl border border-slate-200 bg-white p-5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">Criar lancamento A Pagar</p>
-                          <p className="text-xs text-slate-500 mt-0.5">Registra uma conta a pagar no valor de {fmt(processEntry.valorServicosCents)} vinculada ao prestador.</p>
+                    {/* Mode selection — 3 radio options */}
+                    <div className="space-y-2">
+                      {/* Option A: Link to existing */}
+                      {linkableEntries.length > 0 && (
+                        <label className={`block rounded-xl border p-4 cursor-pointer transition-colors ${financeMode === "LINK" ? "border-green-400 bg-green-50" : "border-slate-200 bg-white hover:border-slate-300"}`}>
+                          <div className="flex items-center gap-3">
+                            <input type="radio" name="finMode" checked={financeMode === "LINK"} onChange={() => setFinanceMode("LINK")} className="accent-green-600" />
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">Vincular a lancamento(s) existente(s)</p>
+                              <p className="text-xs text-slate-500 mt-0.5">A NFS-e sera vinculada como comprovante fiscal sem criar lancamento duplicado.</p>
+                            </div>
+                          </div>
+                        </label>
+                      )}
+                      {/* Option B: Create new */}
+                      <label className={`block rounded-xl border p-4 cursor-pointer transition-colors ${financeMode === "CREATE" ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-white hover:border-slate-300"}`}>
+                        <div className="flex items-center gap-3">
+                          <input type="radio" name="finMode" checked={financeMode === "CREATE"} onChange={() => setFinanceMode("CREATE")} className="accent-blue-600" />
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">Criar novo lancamento A Pagar</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Cria um novo lancamento de {fmt(processEntry.valorServicosCents)} vinculado ao prestador.</p>
+                          </div>
                         </div>
-                        <button onClick={() => setCreateFinancialEntry(!createFinancialEntry)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${createFinancialEntry ? "bg-blue-600" : "bg-slate-300"}`}>
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${createFinancialEntry ? "translate-x-6" : "translate-x-1"}`} />
-                        </button>
-                      </div>
+                      </label>
+                      {/* Option C: None */}
+                      <label className={`block rounded-xl border p-4 cursor-pointer transition-colors ${financeMode === "NONE" ? "border-slate-400 bg-slate-50" : "border-slate-200 bg-white hover:border-slate-300"}`}>
+                        <div className="flex items-center gap-3">
+                          <input type="radio" name="finMode" checked={financeMode === "NONE"} onChange={() => setFinanceMode("NONE")} className="accent-slate-600" />
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">Nao criar lancamento</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Apenas registra a NFS-e sem vinculo financeiro.</p>
+                          </div>
+                        </div>
+                      </label>
                     </div>
 
-                    {createFinancialEntry && (
+                    {/* LINK mode: show linkable entries as checkboxes */}
+                    {financeMode === "LINK" && linkableEntries.length > 0 && (
+                      <div className="rounded-xl border border-green-200 bg-white p-4">
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Selecione o(s) lancamento(s) para vincular</p>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {linkableEntries.map((le) => (
+                            <label key={le.id} className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${selectedLinkIds.has(le.id) ? "border-green-300 bg-green-50" : "border-slate-100 hover:border-slate-200"}`}>
+                              <input
+                                type="checkbox"
+                                checked={selectedLinkIds.has(le.id)}
+                                onChange={() => {
+                                  const next = new Set(selectedLinkIds);
+                                  if (next.has(le.id)) next.delete(le.id);
+                                  else next.add(le.id);
+                                  setSelectedLinkIds(next);
+                                }}
+                                className="accent-green-600"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-mono text-slate-500">{le.code}</span>
+                                  {le.serviceOrder && <span className="text-[10px] bg-blue-100 text-blue-700 rounded px-1.5 py-0.5">OS: {le.serviceOrder.title}</span>}
+                                </div>
+                                <p className="text-sm text-slate-700 truncate">{le.description}</p>
+                                <div className="flex gap-3 text-xs text-slate-400 mt-0.5">
+                                  <span className="font-semibold text-slate-600">{fmt(le.netCents)}</span>
+                                  {le.dueDate && <span>Venc: {new Date(le.dueDate).toLocaleDateString("pt-BR")}</span>}
+                                  {le.financialAccount && <span>{le.financialAccount.code} - {le.financialAccount.name}</span>}
+                                </div>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                        {selectedLinkIds.size > 0 && (
+                          <p className="text-xs text-green-700 mt-2 font-medium">{selectedLinkIds.size} lancamento(s) selecionado(s)</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CREATE mode: payment method + due date + category */}
+                    {financeMode === "CREATE" && (
                       <>
-                        {/* Forma de pagamento */}
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
                           <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pagamento *</label>
                           <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
@@ -911,15 +990,11 @@ export default function NfseEntradaPage() {
                             {activePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
                           </select>
                         </div>
-
-                        {/* Due date */}
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
                           <label className="block text-sm font-medium text-slate-700 mb-2">Data de Vencimento</label>
                           <input type="date" value={processDueDate} onChange={(e) => setProcessDueDate(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                           <p className="text-xs text-slate-500 mt-1.5">{processDueDate ? `Vencimento: ${new Date(processDueDate + "T12:00:00").toLocaleDateString("pt-BR")}` : "Se nao informado, usara a data de emissao da NFS-e."}</p>
                         </div>
-
-                        {/* Categoria (Plano de Contas) */}
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
                           <label className="block text-sm font-medium text-slate-700 mb-2">Categoria *</label>
                           <select value={processAccountId} onChange={(e) => setProcessAccountId(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
@@ -942,31 +1017,20 @@ export default function NfseEntradaPage() {
                         </div>
                       </>
                     )}
-
-                    {/* Summary */}
-                    <div className={`rounded-xl border p-4 ${createFinancialEntry ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
-                      <div className="flex items-center gap-2">
-                        {createFinancialEntry ? (
-                          <>
-                            <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
-                            <div>
-                              <p className="text-sm font-medium text-blue-800">Sera criado lancamento A Pagar de {fmt(processEntry.valorServicosCents)}</p>
-                              {paymentMethod && <p className="text-xs text-blue-600 mt-0.5">Forma: {activePMs.find(m => m.code === paymentMethod)?.name}</p>}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <svg className="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
-                            <p className="text-sm font-medium text-slate-600">Nenhum lancamento financeiro sera criado.</p>
-                          </>
-                        )}
-                      </div>
-                    </div>
                   </div>
 
                   <div className="flex justify-between mt-6">
                     <button onClick={() => setWizardStep(1)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Voltar</button>
-                    <button onClick={() => setWizardStep(3)} disabled={createFinancialEntry && (!paymentMethod || !processAccountId)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Proximo</button>
+                    <button
+                      onClick={() => setWizardStep(3)}
+                      disabled={
+                        (financeMode === "LINK" && selectedLinkIds.size === 0) ||
+                        (financeMode === "CREATE" && (!paymentMethod || !processAccountId))
+                      }
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Proximo
+                    </button>
                   </div>
                 </div>
               )}
@@ -1000,18 +1064,23 @@ export default function NfseEntradaPage() {
                     </div>
 
                     {/* Financial summary */}
-                    <div className={`rounded-xl border p-4 ${createFinancialEntry ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+                    <div className={`rounded-xl border p-4 ${financeMode !== "NONE" ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
                       <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Financeiro</p>
-                      {createFinancialEntry ? (
+                      {financeMode === "CREATE" ? (
                         <div className="flex items-center gap-2">
                           <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           <div>
-                            <p className="text-sm font-medium text-blue-800">Lancamento A Pagar: {fmt(processEntry.valorServicosCents)}</p>
+                            <p className="text-sm font-medium text-blue-800">Novo lancamento A Pagar: {fmt(processEntry.valorServicosCents)}</p>
                             <div className="flex flex-wrap gap-x-3 text-xs text-blue-600 mt-0.5">
                               {processDueDate && <span>Vencimento: {new Date(processDueDate + "T12:00:00").toLocaleDateString("pt-BR")}</span>}
                               {paymentMethod && <span>Forma: {activePMs.find(m => m.code === paymentMethod)?.name}</span>}
                             </div>
                           </div>
+                        </div>
+                      ) : financeMode === "LINK" ? (
+                        <div className="flex items-center gap-2">
+                          <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                          <p className="text-sm font-medium text-green-800">Vincular a {selectedLinkIds.size} lancamento(s) existente(s)</p>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">

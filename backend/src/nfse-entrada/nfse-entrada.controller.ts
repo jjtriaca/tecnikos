@@ -205,6 +205,17 @@ ${entry.codigoObra || entry.art ? '<h2>Construção Civil</h2><div class="grid">
     res.send(html);
   }
 
+  /* ── Linkable entries (lancamentos vinculaveis) ── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
+  @Get(':id/linkable-entries')
+  async linkableEntries(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.findLinkableEntries(id, user.companyId);
+  }
+
   /* ── Process (gerar financeiro) ────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FISCAL)
@@ -213,7 +224,14 @@ ${entry.codigoObra || entry.art ? '<h2>Construção Civil</h2><div class="grid">
     @Param('id') id: string,
     @Body() decisions: {
       prestador: { action: 'CREATE' | 'LINK'; partnerId?: string };
-      finance: { createEntry: boolean; dueDate?: string };
+      finance: {
+        mode: 'CREATE' | 'LINK' | 'NONE';
+        createEntry?: boolean;
+        dueDate?: string;
+        paymentMethod?: string;
+        financialAccountId?: string;
+        linkedEntryIds?: string[];
+      };
     },
     @CurrentUser() user: AuthenticatedUser,
   ) {

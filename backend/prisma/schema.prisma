@@ -852,8 +852,9 @@ model FinancialEntry {
   renegotiationSource FinancialEntry[]      @relation("RenegotiationTarget")
 
   // Parcelas
-  installments     FinancialInstallment[]
-  cardSettlements  CardSettlement[]
+  installments       FinancialInstallment[]
+  cardSettlements    CardSettlement[]
+  nfseEntradaLinks   NfseEntradaEntryLink[]
 
   @@unique([companyId, code])
   @@index([companyId, type, status])
@@ -1807,14 +1808,30 @@ model NfseEntrada {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  company   Company   @relation(fields: [companyId], references: [id])
-  prestador Partner?  @relation("NfseEntradaPrestador", fields: [prestadorId], references: [id])
+  company    Company   @relation(fields: [companyId], references: [id])
+  prestador  Partner?  @relation("NfseEntradaPrestador", fields: [prestadorId], references: [id])
+  entryLinks NfseEntradaEntryLink[]
 
   @@unique([companyId, chaveNfse])
   @@index([companyId])
   @@index([companyId, competencia])
   @@index([companyId, status])
   @@index([prestadorCnpjCpf])
+}
+
+// ========== Vinculo NFS-e Entrada ↔ Lançamento Financeiro (N:N) ==========
+
+model NfseEntradaEntryLink {
+  id               String   @id @default(uuid())
+  nfseEntradaId    String
+  financialEntryId String
+  createdAt        DateTime @default(now())
+
+  nfseEntrada    NfseEntrada    @relation(fields: [nfseEntradaId], references: [id])
+  financialEntry FinancialEntry @relation(fields: [financialEntryId], references: [id])
+
+  @@unique([nfseEntradaId, financialEntryId])
+  @@index([financialEntryId])
 }
 
 // ========== Cadastro de Serviços ==========
