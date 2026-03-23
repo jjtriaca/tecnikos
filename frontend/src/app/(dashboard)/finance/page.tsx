@@ -139,18 +139,20 @@ function CadastrosDropdown({ activeTab, onSelect }: { activeTab: TabId; onSelect
 
 /* ── StatusBadge ───────────────────────────────────────── */
 
-function StatusBadge({ status }: { status: FinancialEntryStatus }) {
+function StatusBadge({ status, entryType }: { status: FinancialEntryStatus; entryType?: FinancialEntryType }) {
   const cfg = ENTRY_STATUS_CONFIG[status];
+  const label = status === "PAID" && entryType === "RECEIVABLE" ? "Recebido" : cfg.label;
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.bgColor} ${cfg.color} border ${cfg.borderColor}`}>
-      {cfg.label}
+      {label}
     </span>
   );
 }
 
 /* ── Entry Filters ─────────────────────────────────────── */
 
-const ENTRY_FILTERS: FilterDefinition[] = [
+function getEntryFilters(type: FinancialEntryType): FilterDefinition[] {
+  return [
   {
     key: "status",
     label: "Status",
@@ -159,7 +161,7 @@ const ENTRY_FILTERS: FilterDefinition[] = [
     options: [
       { value: "PENDING", label: "Pendente" },
       { value: "CONFIRMED", label: "Confirmado" },
-      { value: "PAID", label: "Pago" },
+      { value: "PAID", label: type === "RECEIVABLE" ? "Recebido" : "Pago" },
       { value: "CANCELLED", label: "Cancelado" },
     ],
   },
@@ -178,7 +180,8 @@ const ENTRY_FILTERS: FilterDefinition[] = [
       { value: "CANCELLED", label: "Cancelada" },
     ],
   },
-];
+  ];
+}
 
 /* ── Partner lookup ────────────────────────────────────── */
 
@@ -327,7 +330,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       id: "status",
       label: "Status",
       sortable: true,
-      render: (e) => <StatusBadge status={e.status} />,
+      render: (e) => <StatusBadge status={e.status} entryType={type} />,
     },
     {
       id: "nfseStatus",
@@ -996,7 +999,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       </div>
 
       <FilterBar
-        filters={ENTRY_FILTERS}
+        filters={getEntryFilters(type)}
         values={tp.filters}
         onChange={tp.setFilter}
         onReset={tp.resetFilters}
