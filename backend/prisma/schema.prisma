@@ -808,6 +808,7 @@ model FinancialEntry {
   paymentMethodId      String?           // FK para PaymentMethod
   cashAccountId        String?           // FK para CashAccount (conta de recebimento/pagamento)
   paymentInstrumentId  String?           // FK para PaymentInstrument (instrumento especifico)
+  batchPaymentId       String?           // Agrupamento de pagamentos em lote
 
   // Parcelas e Juros (v2.0)
   installmentCount    Int?              // Nro de parcelas (null = à vista)

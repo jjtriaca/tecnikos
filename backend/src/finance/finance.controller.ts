@@ -491,6 +491,21 @@ export class FinanceController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('entries/batch-pay')
+  batchPay(
+    @Body() body: {
+      entryIds: string[];
+      paymentMethod: string;
+      paidAt?: string;
+      cashAccountId?: string;
+      paymentInstrumentId?: string;
+    },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.batchPay(user.companyId, body);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Get('entries/:id')
   findOneEntry(
     @Param('id') id: string,

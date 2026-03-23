@@ -456,6 +456,63 @@ export class FinanceService {
     });
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     batchPay — Pay multiple entries at once
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async batchPay(
+    companyId: string,
+    body: {
+      entryIds: string[];
+      paymentMethod: string;
+      paidAt?: string;
+      cashAccountId?: string;
+      paymentInstrumentId?: string;
+    },
+  ) {
+    if (!body.entryIds?.length) throw new BadRequestException('Nenhuma entrada selecionada');
+    if (!body.paymentMethod) throw new BadRequestException('Forma de pagamento obrigatoria');
+
+    const batchId = `BATCH_${Date.now().toString(36)}`;
+    const paidAt = body.paidAt ? new Date(body.paidAt) : new Date();
+    const now = new Date();
+    const timestamp = now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+    let totalPaidCents = 0;
+    let paidCount = 0;
+    const errors: string[] = [];
+
+    for (const entryId of body.entryIds) {
+      try {
+        await this.changeEntryStatus(entryId, companyId, {
+          status: 'PAID',
+          paymentMethod: body.paymentMethod,
+          paidAt: body.paidAt,
+          cashAccountId: body.cashAccountId,
+          paymentInstrumentId: body.paymentInstrumentId,
+        } as ChangeEntryStatusDto);
+
+        // Set batchPaymentId
+        const entry = await this.prisma.financialEntry.update({
+          where: { id: entryId },
+          data: { batchPaymentId: batchId },
+        });
+        totalPaidCents += entry.netCents;
+        paidCount++;
+      } catch (err: any) {
+        errors.push(`${entryId}: ${err.message || 'Erro desconhecido'}`);
+      }
+    }
+
+    return {
+      batchId,
+      paidCount,
+      totalPaidCents,
+      totalRequested: body.entryIds.length,
+      errors,
+    };
+  }
+
   async changeEntryStatus(id: string, companyId: string, dto: ChangeEntryStatusDto) {
     const entry = await this.findOneEntry(id, companyId);
 

@@ -781,7 +781,18 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   const [editNotes, setEditNotes] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
+  // Batch selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchDate, setBatchDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [batchPayMethod, setBatchPayMethod] = useState("");
+  const [batchAccountId, setBatchAccountId] = useState("");
+  const [batchProcessing, setBatchProcessing] = useState(false);
+
   const { toast } = useToast();
+
+  // Clear selection when filters/page change
+  useEffect(() => { setSelectedIds(new Set()); }, [tp.buildQueryString]);
 
   // Determine if selected payment method is a card and filter available brands
   const isCardPayment = useMemo(() => {
@@ -979,6 +990,38 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     }
   }
 
+  async function handleBatchPay() {
+    if (selectedIds.size === 0 || !batchPayMethod) return;
+    setBatchProcessing(true);
+    try {
+      const result = await api.post<{ paidCount: number; totalPaidCents: number; errors: string[] }>("/finance/entries/batch-pay", {
+        entryIds: Array.from(selectedIds),
+        paymentMethod: batchPayMethod,
+        paidAt: batchDate || undefined,
+        cashAccountId: batchAccountId || undefined,
+      });
+      if (result.errors.length > 0) {
+        toast(`${result.paidCount} de ${selectedIds.size} ${type === "RECEIVABLE" ? "recebidos" : "pagos"}. ${result.errors.length} erro(s).`, "error");
+      } else {
+        toast(`${result.paidCount} lancamento(s) ${type === "RECEIVABLE" ? "recebido(s)" : "pago(s)"} — ${formatCurrency(result.totalPaidCents)}`, "success");
+      }
+      setShowBatchModal(false);
+      setSelectedIds(new Set());
+      setBatchPayMethod("");
+      setBatchAccountId("");
+      await loadEntries();
+    } catch (err: any) {
+      toast(err?.message || "Erro ao processar pagamento em lote", "error");
+    } finally {
+      setBatchProcessing(false);
+    }
+  }
+
+  // Compute selected entries total
+  const selectedEntries = entries.filter(e => selectedIds.has(e.id));
+  const selectedTotal = selectedEntries.reduce((sum, e) => sum + e.netCents, 0);
+  const selectableEntries = entries.filter(e => e.status === "PENDING" || e.status === "CONFIRMED");
+
   async function handleCreateEntry() {
     if (!selectedPartner) {
       toast("Selecione um parceiro.", "error");
@@ -1078,6 +1121,21 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
           <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "700px", width: "max-content" }}>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="py-2 px-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectableEntries.length > 0 && selectableEntries.every(e => selectedIds.has(e.id))}
+                    onChange={(ev) => {
+                      if (ev.target.checked) {
+                        setSelectedIds(new Set(selectableEntries.map(e => e.id)));
+                      } else {
+                        setSelectedIds(new Set());
+                      }
+                    }}
+                    className="accent-blue-600 w-3.5 h-3.5"
+                    title="Selecionar todos pendentes"
+                  />
+                </th>
                 {orderedColumns.map((col, idx) => (
                   <DraggableHeader
                     key={col.id}
@@ -1109,7 +1167,21 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <tr key={e.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${selectedIds.has(e.id) ? "bg-blue-50" : ""}`}>
+                  <td className="py-2 px-2 w-8">
+                    {(e.status === "PENDING" || e.status === "CONFIRMED") && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(e.id)}
+                        onChange={() => {
+                          const next = new Set(selectedIds);
+                          if (next.has(e.id)) next.delete(e.id); else next.add(e.id);
+                          setSelectedIds(next);
+                        }}
+                        className="accent-blue-600 w-3.5 h-3.5"
+                      />
+                    )}
+                  </td>
                   {orderedColumns.map((col) => {
                     const w = columnWidths[col.id];
                     const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};
@@ -1169,11 +1241,11 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
             {totals.sumNetCents > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-slate-300 bg-slate-50">
-                  <td colSpan={orderedColumns.findIndex(c => c.id === "netCents")} className="py-3 px-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <td colSpan={orderedColumns.findIndex(c => c.id === "netCents") + 1} className="py-3 px-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Total filtrado ({meta.total} registro{meta.total !== 1 ? "s" : ""})
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <span className={`text-base font-bold ${type === "RECEIVABLE" ? "text-green-700" : "text-blue-700"}`}>
+                    <span className={`text-sm font-bold ${type === "RECEIVABLE" ? "text-green-700" : "text-blue-700"}`}>
                       {formatCurrency(totals.sumNetCents)}
                     </span>
                   </td>
@@ -1186,6 +1258,83 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       )}
 
       <Pagination meta={meta} onPageChange={tp.setPage} />
+
+      {/* Floating batch action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white rounded-2xl shadow-2xl px-6 py-3 flex items-center gap-4 animate-scale-in">
+          <span className="text-sm font-medium">
+            {selectedIds.size} selecionado{selectedIds.size !== 1 ? "s" : ""} — {formatCurrency(selectedTotal)}
+          </span>
+          <button
+            onClick={() => { setBatchDate(new Date().toISOString().slice(0, 10)); setBatchPayMethod(""); setBatchAccountId(""); setShowBatchModal(true); }}
+            className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-colors ${type === "RECEIVABLE" ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}`}
+          >
+            {type === "RECEIVABLE" ? "Receber todos" : "Pagar todos"}
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-slate-400 hover:text-white transition-colors"
+          >
+            Limpar
+          </button>
+        </div>
+      )}
+
+      {/* Batch pay modal */}
+      {showBatchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">
+              {type === "RECEIVABLE" ? "Receber" : "Pagar"} {selectedIds.size} lancamento{selectedIds.size !== 1 ? "s" : ""}
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Total: <strong className={type === "RECEIVABLE" ? "text-green-700" : "text-blue-700"}>{formatCurrency(selectedTotal)}</strong>
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Data de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"}</label>
+                <input type="date" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Forma de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"} *</label>
+                <select value={batchPayMethod} onChange={(e) => setBatchPayMethod(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                  <option value="">Selecione...</option>
+                  {activePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+                </select>
+              </div>
+              {activeAccounts.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Conta/Caixa</label>
+                  <select value={batchAccountId} onChange={(e) => setBatchAccountId(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                    <option value="">Nenhuma (nao atualizar saldo)</option>
+                    {activeAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} — {formatCurrency(a.currentBalanceCents)}</option>)}
+                  </select>
+                </div>
+              )}
+              {/* Selected entries summary */}
+              <div className="border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Lancamentos selecionados</p>
+                {selectedEntries.map((e) => (
+                  <div key={e.id} className="flex justify-between text-xs py-1 border-b border-slate-50 last:border-0">
+                    <span className="text-slate-600 truncate max-w-[250px]">{e.description || e.code}</span>
+                    <span className="font-medium text-slate-800 whitespace-nowrap ml-2">{formatCurrency(e.netCents)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setShowBatchModal(false)} disabled={batchProcessing} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">Cancelar</button>
+              <button
+                onClick={handleBatchPay}
+                disabled={batchProcessing || !batchPayMethod}
+                className={`px-5 py-2 text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-50 ${type === "RECEIVABLE" ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}`}
+              >
+                {batchProcessing ? "Processando..." : `${type === "RECEIVABLE" ? "Receber" : "Pagar"} ${formatCurrency(selectedTotal)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancel modal — requires reason (min 10 chars) */}
       <ConfirmModal
