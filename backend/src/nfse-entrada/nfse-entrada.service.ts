@@ -230,8 +230,13 @@ export class NfseEntradaService {
       this.prisma.nfseEntrada.count({ where }),
     ]);
 
+    const mapped = data.map(({ xmlContent, ...rest }) => ({
+      ...rest,
+      hasXml: !!xmlContent,
+    }));
+
     return {
-      data,
+      data: mapped,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }

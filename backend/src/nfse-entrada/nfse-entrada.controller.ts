@@ -1,7 +1,8 @@
 import {
-  Controller, Get, Post, Patch, Delete, Param, Query, Body,
+  Controller, Get, Post, Patch, Delete, Param, Query, Body, Res,
   UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { NfseEntradaService } from './nfse-entrada.service';
@@ -100,6 +101,27 @@ export class NfseEntradaController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.update(id, user.companyId, dto);
+  }
+
+  /* ── Download XML ─────────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL, UserRole.FINANCEIRO, UserRole.LEITURA)
+  @Get(':id/xml')
+  async downloadXml(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const entry = await this.service.findOne(id, user.companyId);
+    if (!entry.xmlContent) {
+      throw new BadRequestException('Esta NFS-e não possui XML armazenado');
+    }
+    const filename = `nfse-${entry.numero || entry.id}.xml`;
+    res.set({
+      'Content-Type': 'application/xml',
+      'Content-Disposition': `inline; filename="${filename}"`,
+    });
+    res.send(entry.xmlContent);
   }
 
   /* ── Process (gerar financeiro) ────────────────── */
