@@ -1,81 +1,129 @@
 # TAREFA ATUAL
 
-## Versao: v1.06.90
+## Versao: v1.06.92
 ## Ultima sessao: 155 (22/03/2026)
 
-## BUGS CRITICOS (proxima sessao — prioridade)
+## PROXIMA SESSAO — PRIORIDADES
 
-1. **PWA Offline renderizacao**: Pagina do tech portal nao renderiza corretamente quando offline. Service Worker pode estar servindo cache antigo ou fallback HTML quebrado. Investigar sw.js e cache strategy.
+### 1. Enriquecer Bloco GPS (Opção 2 — Etapas Configuráveis)
+Adicionar ao editor do bloco GPS (modo contínuo) uma seção de etapas de escalonamento:
+```
+📍 GPS Contínuo
+├── Intervalo online: [5] segundos
+├── 🔋 Etapas de economia (offline):
+│   ┌──────────────┬───────────┬──────────┐
+│   │ Até (metros) │ Intervalo │ Precisão │
+│   ├──────────────┼───────────┼──────────┤
+│   │ 500          │ 30s       │ Alta     │
+│   │ 2000         │ 2min      │ Baixa    │
+│   │ 10000        │ 5min      │ Baixa    │
+│   │ ∞            │ 10min     │ Baixa    │
+│   └──────────────┴───────────┴──────────┘
+│   [+ Adicionar etapa]
+└── Alta precisão online: [ON/OFF]
+```
 
-2. **Erro 502 ao pausar**: Ao clicar pausar no PWA, retornou "502 Bad Gateway" com HTML do Cloudflare/Nginx. Pode ser: endpoint /service-orders/:id/pause crashando, ou timeout do backend. Verificar logs do container.
+**Arquivos a modificar:**
+- `frontend/src/types/workflow-blocks.ts` — GpsConfig type + defaults
+- `frontend/src/app/(dashboard)/workflow/editor/WorkflowProperties.tsx` — UI tabela de etapas
+- `frontend/src/app/tech/orders/[id]/page.tsx` — ler etapas do config em vez de hardcoded
 
-3. **OS concluida aparece na lista**: Apos concluir, OS continua na lista "Minhas OS" como "Concluida Hoje". Deveria desaparecer ou ir para historico. Revisar filtro da lista — atualmente mostra concluidas do dia (`CONCLUIDA` + createdAt today).
+**Config JSON esperado:**
+```json
+{
+  "trackingMode": "continuous",
+  "onlineIntervalSeconds": 5,
+  "highAccuracyOnline": true,
+  "offlineSteps": [
+    { "maxDistanceM": 500, "intervalSeconds": 30, "highAccuracy": true },
+    { "maxDistanceM": 2000, "intervalSeconds": 120, "highAccuracy": false },
+    { "maxDistanceM": 10000, "intervalSeconds": 300, "highAccuracy": false },
+    { "maxDistanceM": null, "intervalSeconds": 600, "highAccuracy": false }
+  ]
+}
+```
 
-## Pendencias
+### 2. Auditoria de Funcionalidades (garantir que nada está fantasma)
+- Verificar TODOS os toggles do sistema estão realmente sendo lidos e aplicados
+- Verificar se endpoints de pausa/resume/incident funcionam no PWA
+- Verificar se approve-and-finalize cria financeiro corretamente
+- Verificar se resolveCommission usa techFixedValueCents + commissionRule
+- Testar retorno de OS (botão + pre-fill + parentOrderId)
+- Testar relatório técnico no PWA
+- Verificar offline: advance + GPS + fotos sincronizam ao reconectar
 
-### A FAZER
-- Corrigir 3 bugs criticos acima
-- **CLT Fase 2**: Alertas de almoço (4h) + jornada (8h) + push gestor
-- **CLT Fase 3**: Intervalo interjornada + relatório de ponto
+### 3. CLT Fase 2 (quando toggle ativado)
+- Alertas no PWA: banner 4h sem pausa refeição
+- Alertas no PWA: banner 8h de jornada
+- Push pro gestor nos alertas
+- Verificar intervalo interjornada (11h)
 
-### MELHORIAS PWA (pendentes)
-- PWA card de info muito grande no celular — reduzir fontes/spacing
-- Diminuir tamanho geral das telas PWA para celular
+## BUGS CORRIGIDOS (sessão 155)
+- ✅ system-config 403 para técnico (GET liberado)
+- ✅ OS concluída na lista (filtro completedAt em vez de createdAt)
+- ✅ Retry automático em 5xx (techApi retry após 2s)
+- ✅ GPS inteligente (escalonamento por distância + online/offline)
+- ✅ Card jornada CLT só aparece com toggle ativado
+- ✅ Botões pausa/ocorrência reposicionados acima do nav bar
 
-### PENDENTE VALIDACAO
-- Modal de Aprovação (estrelas → modal → financeiro → APROVADA)
-- Botão Retorno na lista de OS
-- Banner Retorno na OS detail
-- Relatório técnico (múltiplas OS, overtime, CSV, toggle valor)
-- Toggles sistema (Configurações > Sistema)
+## PENDENTE VALIDACAO (checklist completo em CHECKLIST_SESSAO_155.md)
+- Modal de Aprovação + financeiro
+- Botão/Banner Retorno de OS
+- Toggles sistema (verificar se todos funcionam de verdade)
 - Valor fixo técnico + regra comissão
 - Resumo tempo na OS detail
-- Botão Pausa no PWA
-- Botão Ocorrência no PWA
-- Relatório do técnico no PWA
-- GPS offline
-- Timestamp exato do clique
-- Jornada CLT (quando toggle ativado)
+- Botão Pausa + Ocorrência no PWA
+- Relatório técnico (gestor + PWA)
+- GPS offline + timestamp exato
+- Formatação moeda em todo o sistema
 
-### CONCLUIDO (sessao 155)
+## CONCLUIDO (sessao 155)
 
-#### Deploys: v1.06.55 → v1.06.90 (36 deploys)
+### Deploys: v1.06.55 → v1.06.92 (38 deploys)
 
-##### Melhorias PWA
-- Timestamp exato (clientTimestamp)
-- Botão Pausa flutuante + bottom sheet + confirmação
-- Relatar Ocorrência (botão + modal + push + evento na OS)
-- GPS Offline (IndexedDB + frequência reduzida + sync)
-- Relatório do Técnico no PWA
-- Jornada CLT Fase 1 (WorkDay + toggles + PWA card)
+#### Melhorias PWA
+- Timestamp exato (clientTimestamp em WorkflowStepLog + ServiceOrderEvent)
+- Botão Pausa flutuante + bottom sheet + confirmação + motivos
+- Relatar Ocorrência (botão + modal + push + evento INCIDENT_REPORTED)
+- GPS Offline (IndexedDB + escalonamento inteligente por distância + sync)
+- Relatório do Técnico no PWA (meus serviços sem valores financeiros)
+- Jornada CLT Fase 1 (WorkDay model + toggles + PWA card condicional)
+- GPS Smart Interval (5s online, 30s-10min offline escalonado)
 
-##### Dashboard + OS Detail
-- Bloco MATERIALS + Timeline enriquecido + Histórico unificado
-- Avaliação após fotos + status APROVADA
-- Lightbox fotos + Resumo tempo + Banner retorno
-- Eventos pós-workflow
+#### Dashboard + OS Detail
+- Bloco MATERIALS + Timeline enriquecido + Histórico unificado compacto
+- Avaliação após fotos + status APROVADA + eventos pós-workflow
+- Lightbox fotos + Resumo tempo (deslocamento/execução/pausas/total)
+- Banner retorno de OS + retornos criados + parentOrderId
 
-##### Regras de Comissão + Financeiro
-- resolveCommission + approve-and-finalize
-- ApprovalConfirmModal + Valor fixo técnico + Máscaras R$ e %
-- Modal valor zero inteligente (preview financeiro)
+#### Regras de Comissão + Financeiro
+- resolveCommission (fixo vs % vs regra HIGHER/LOWER/FIXED/COMMISSION)
+- approve-and-finalize (eval + financeiro + APROVADA em 1 tx)
+- ApprovalConfirmModal (preview financeiro + vencimento editável)
+- Valor fixo técnico + regra comissão no cadastro de serviço
+- Modal valor zero inteligente (mostra A Pagar quando tem fixo do técnico)
+- Máscaras R$ e % em todo o sistema (serviços, produtos, financeiro)
 
-##### Relatório do Técnico (Gestor)
-- Filtros + cards + tabela + CSV + toggle valor
-- calcOvertimeMinutes + fora expediente
-- Breakdown tempo
+#### Relatório do Técnico (Gestor)
+- Filtros + cards + tabela + CSV + toggle "Valor OS"
+- calcOvertimeMinutes (baseado no horário comercial + fuso)
+- Breakdown: deslocamento, execução, pausas, fora expediente
 
-##### Configurações
-- Tela Sistema (toggles OS, Financeiro, Notificações, Avaliação, CLT)
-- Horário Comercial + fuso horário
-- Retorno OS + parentOrderId
-- DateTimePicker compacto + prazo default 17:00
+#### Configurações
+- Tela Sistema: toggles OS, Financeiro, Notificações, Avaliação, Jornada CLT
+- Horário Comercial + fuso horário (turnos dinâmicos)
+- Retorno OS (botão lista + parentOrderId + banner + pre-fill)
+- DateTimePicker compacto + prazo default amanhã 17:00
+- Toggle permitir OS valor zero + CurrencyInput component
 
-##### UX
-- Formatação moeda (onBlur) em todo o sistema
+#### UX Fixes
+- Formatação moeda onBlur em todo sistema
 - Dropdown overflow fix (CollapsibleSection)
-- Botões pausa/ocorrência reposicionados acima do nav
+- Botões pausa/ocorrência acima nav bar
 - Coluna "Valor Téc." nos itens da OS
+- system-config acessível para técnico
+- Filtro concluídas por completedAt
+- Retry automático 5xx
 
 ### BLOQUEADO
 - (nenhum)
