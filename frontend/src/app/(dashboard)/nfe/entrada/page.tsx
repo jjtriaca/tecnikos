@@ -89,13 +89,13 @@ function buildColumns(): ColumnDefinition<NfseEntrada>[] {
     { id: "dataEmissao", label: "Emissao", sortable: true, render: (r) => <span className="text-xs text-slate-700">{fmtDate(r.dataEmissao)}</span> },
     { id: "competencia", label: "Compet.", sortable: true, render: (r) => <span className="text-xs text-slate-600">{r.competencia || "\u2014"}</span> },
     { id: "prestadorRazaoSocial", label: "Prestador", sortable: true, render: (r) => (
-      <span className="text-xs text-slate-900 font-medium break-words" title={r.prestadorRazaoSocial || undefined}>
+      <span className="text-[8px] text-slate-900 font-medium break-words leading-tight" title={r.prestadorRazaoSocial || undefined}>
         {r.prestador?.name || r.prestadorRazaoSocial || "\u2014"}
       </span>
     )},
-    { id: "prestadorCnpjCpf", label: "CNPJ/CPF", sortable: false, render: (r) => <span className="text-xs text-slate-600 font-mono break-all">{fmtDoc(r.prestadorCnpjCpf)}</span> },
-    { id: "discriminacao", label: "Servico", sortable: false, render: (r) => (
-      <span className="text-xs text-slate-600 break-words" title={r.discriminacao || undefined}>{r.discriminacao || "\u2014"}</span>
+    { id: "prestadorCnpjCpf", label: "CNPJ/CPF", sortable: false, render: (r) => <span className="text-[8px] text-slate-600 font-mono break-all leading-tight">{fmtDoc(r.prestadorCnpjCpf)}</span> },
+    { id: "discriminacao", label: "Servi\u00e7o", sortable: false, render: (r) => (
+      <span className="text-[8px] text-slate-600 break-words leading-tight" title={r.discriminacao || undefined}>{r.discriminacao || "\u2014"}</span>
     )},
     { id: "valorServicosCents", label: "Valor", sortable: true, align: "right", render: (r) => <span className="text-xs font-medium text-slate-900">{fmt(r.valorServicosCents)}</span> },
     { id: "valorIssCents", label: "ISS", sortable: true, align: "right", render: (r) => <span className="text-xs text-slate-700">{fmt(r.valorIssCents)}</span> },
