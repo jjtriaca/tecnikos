@@ -66,12 +66,20 @@ export default function TechOrdersPage() {
   const [workDayActive, setWorkDayActive] = useState(false);
   const [workDayStartedAt, setWorkDayStartedAt] = useState<string | null>(null);
   const [workDayLoading, setWorkDayLoading] = useState(false);
+  const [cltEnabled, setCltEnabled] = useState(false);
 
   useEffect(() => {
-    techApi<any>("/workday/today").then((res) => {
-      if (res?.isActive) {
-        setWorkDayActive(true);
-        setWorkDayStartedAt(res.workDay?.startedAt);
+    // Check if CLT is enabled
+    techApi<any>("/companies/system-config").then((cfg) => {
+      if (cfg?.clt?.enabled) {
+        setCltEnabled(true);
+        // Only fetch workday if CLT enabled
+        techApi<any>("/workday/today").then((res) => {
+          if (res?.isActive) {
+            setWorkDayActive(true);
+            setWorkDayStartedAt(res.workDay?.startedAt);
+          }
+        }).catch(() => {});
       }
     }).catch(() => {});
   }, []);
@@ -121,8 +129,8 @@ export default function TechOrdersPage() {
         </a>
       </div>
 
-      {/* WorkDay card */}
-      <div className={`rounded-xl border p-3 mb-4 flex items-center justify-between ${
+      {/* WorkDay card — only when CLT enabled */}
+      {cltEnabled && <div className={`rounded-xl border p-3 mb-4 flex items-center justify-between ${
         workDayActive ? "border-green-200 bg-green-50" : "border-slate-200 bg-slate-50"
       }`}>
         <div className="flex items-center gap-2">
@@ -146,7 +154,7 @@ export default function TechOrdersPage() {
           }`}>
           {workDayLoading ? "..." : workDayActive ? "Encerrar" : "Iniciar Jornada"}
         </button>
-      </div>
+      </div>}
 
       {loading ? (
         <div className="space-y-3">
