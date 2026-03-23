@@ -761,11 +761,28 @@ export default function TechOrderDetailPage() {
   }
 
   /* ── V2 advance ── */
+  const [offlineWarning, setOfflineWarning] = useState<string | null>(null);
+
+  // Clear offline warning when back online
+  useEffect(() => {
+    const clear = () => setOfflineWarning(null);
+    window.addEventListener("online", clear);
+    return () => window.removeEventListener("online", clear);
+  }, []);
+
   async function handleAdvanceBlockV2() {
     if (!order || !workflow || !workflow.currentBlock) return;
-    setActing(true);
 
     const block = workflow.currentBlock;
+
+    // ACTION_BUTTONS require online — they change OS status (accept/reject/en-route)
+    if (block.type === "ACTION_BUTTONS" && !navigator.onLine) {
+      setOfflineWarning("Sem conexao com a internet. Conecte-se para continuar.");
+      return;
+    }
+    setOfflineWarning(null);
+    setActing(true);
+
     const body: Record<string, any> = { blockId: block.id };
 
     switch (block.type) {
@@ -1060,6 +1077,14 @@ export default function TechOrderDetailPage() {
           {workflow.executionPath.filter((b) => b.type === "INFO" && b.completed).slice(-1).map((infoBlock) => (
               <InfoCard key={infoBlock.id} config={infoBlock.config} order={order} name={infoBlock.name} className="mb-3" />
           ))}
+
+          {/* Offline warning for ACTION_BUTTONS */}
+          {offlineWarning && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 mb-3 flex items-center gap-2">
+              <span className="text-amber-600 text-lg">&#x26A0;&#xFE0F;</span>
+              <p className="text-sm text-amber-800 font-medium">{offlineWarning}</p>
+            </div>
+          )}
 
           {/* Current block action area */}
           {workflow.currentBlock && canAct && (
