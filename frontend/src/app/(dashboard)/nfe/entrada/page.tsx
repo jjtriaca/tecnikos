@@ -49,6 +49,7 @@ interface NfseEntrada {
   focusSource: boolean;
   chaveNfse: string | null;
   situacaoFocus: string | null;
+  financialEntryId: string | null;
   status: string;
   createdAt: string;
   prestador: { id: string; name: string; document: string } | null;
@@ -87,13 +88,13 @@ function buildColumns(): ColumnDefinition<NfseEntrada>[] {
     { id: "dataEmissao", label: "Emissao", sortable: true, render: (r) => <span className="text-xs text-slate-700">{fmtDate(r.dataEmissao)}</span> },
     { id: "competencia", label: "Compet.", sortable: true, render: (r) => <span className="text-xs text-slate-600">{r.competencia || "\u2014"}</span> },
     { id: "prestadorRazaoSocial", label: "Prestador", sortable: true, render: (r) => (
-      <span className="text-xs text-slate-900 font-medium truncate block max-w-[200px]" title={r.prestadorRazaoSocial || undefined}>
+      <span className="text-xs text-slate-900 font-medium break-words" title={r.prestadorRazaoSocial || undefined}>
         {r.prestador?.name || r.prestadorRazaoSocial || "\u2014"}
       </span>
     )},
-    { id: "prestadorCnpjCpf", label: "CNPJ/CPF", sortable: false, render: (r) => <span className="text-xs text-slate-600 font-mono">{fmtDoc(r.prestadorCnpjCpf)}</span> },
+    { id: "prestadorCnpjCpf", label: "CNPJ/CPF", sortable: false, render: (r) => <span className="text-xs text-slate-600 font-mono break-all">{fmtDoc(r.prestadorCnpjCpf)}</span> },
     { id: "discriminacao", label: "Servico", sortable: false, render: (r) => (
-      <span className="text-xs text-slate-600 truncate block max-w-[180px]" title={r.discriminacao || undefined}>{r.discriminacao || "\u2014"}</span>
+      <span className="text-xs text-slate-600 break-words" title={r.discriminacao || undefined}>{r.discriminacao || "\u2014"}</span>
     )},
     { id: "valorServicosCents", label: "Valor", sortable: true, align: "right", render: (r) => <span className="text-xs font-medium text-slate-900">{fmt(r.valorServicosCents)}</span> },
     { id: "valorIssCents", label: "ISS", sortable: true, align: "right", render: (r) => <span className="text-xs text-slate-700">{fmt(r.valorIssCents)}</span> },
@@ -154,6 +155,13 @@ export default function NfseEntradaPage() {
   // Focus NFe sync
   const [syncing, setSyncing] = useState(false);
   const [importUsage, setImportUsage] = useState<{ used: number; limit: number; percentage: number; enabled: boolean } | null>(null);
+
+  // Process modal
+  const [processEntry, setProcessEntry] = useState<NfseEntrada | null>(null);
+  const [processCreatePrestador, setProcessCreatePrestador] = useState(false);
+  const [processCreateFinance, setProcessCreateFinance] = useState(true);
+  const [processDueDate, setProcessDueDate] = useState("");
+  const [processing, setProcessing] = useState(false);
 
   /* ── Load ──────────────────────────────────────── */
 
@@ -340,6 +348,52 @@ export default function NfseEntradaPage() {
     }
   }
 
+  /* ── Process (gerar financeiro) ─────────────────── */
+
+  function openProcessModal(entry: NfseEntrada) {
+    setProcessEntry(entry);
+    setProcessCreatePrestador(!entry.prestadorId);
+    setProcessCreateFinance(true);
+    setProcessDueDate(entry.dataEmissao ? entry.dataEmissao.split("T")[0] : "");
+  }
+
+  async function handleProcess() {
+    if (!processEntry) return;
+    setProcessing(true);
+    try {
+      await api.post(`/nfse-entrada/${processEntry.id}/process`, {
+        prestador: {
+          action: processCreatePrestador ? "CREATE" : "LINK",
+          partnerId: processEntry.prestadorId || undefined,
+        },
+        finance: {
+          createEntry: processCreateFinance,
+          dueDate: processDueDate || undefined,
+        },
+      });
+      toast("NFS-e processada com sucesso!");
+      setProcessEntry(null);
+      loadData();
+    } catch (err: any) {
+      toast(err?.message || "Erro ao processar NFS-e", "error");
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  /* ── Revert ──────────────────────────────────────── */
+
+  async function handleRevert(id: string) {
+    if (!confirm("Deseja reverter? O lançamento financeiro será apagado.")) return;
+    try {
+      await api.post(`/nfse-entrada/${id}/revert`);
+      toast("Lançamento financeiro revertido");
+      loadData();
+    } catch (err: any) {
+      toast(err?.message || "Erro ao reverter", "error");
+    }
+  }
+
   /* ── Summary Cards ──────────────────────────────── */
 
   const totalServicos = entries.reduce((sum, e) => sum + (e.valorServicosCents || 0), 0);
@@ -385,7 +439,7 @@ export default function NfseEntradaPage() {
           <div className="flex items-center gap-2">
             <button onClick={handleSyncFocus} disabled={syncing || importUsage.used >= importUsage.limit} className="rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <svg className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              {syncing ? "Importando..." : "Importar NFS-e"}
+              {syncing ? "Baixando..." : "Baixar NFS-e"}
             </button>
             <span className={`text-[11px] font-medium ${importUsage.percentage >= 90 ? "text-red-500" : importUsage.percentage >= 80 ? "text-amber-500" : "text-slate-500"}`}>
               {importUsage.used}/{importUsage.limit}
@@ -395,10 +449,10 @@ export default function NfseEntradaPage() {
           <div className="flex items-center gap-3">
             <a href="/settings/billing?filter=nfse" className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-400 flex items-center gap-2 hover:bg-slate-100 transition-colors shrink-0">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-              Importar NFS-e
+              Baixar NFS-e
             </a>
             <p className="text-[11px] text-slate-400 max-w-lg leading-relaxed">
-              A importacao manual de XML e gratuita e ilimitada. A importacao automatica traz praticidade e organizacao, permitindo visualizar todas as notas de servico emitidas contra sua empresa. Para usar, adquira um pacote de importacoes. Diferente da NFe (disponivel na Receita Federal), a consulta de NFS-e depende de integracao com cada prefeitura — algumas ainda nao estao integradas, entao nem todas as notas aparecerao aqui.
+              A importacao manual de XML e gratuita e ilimitada. A baixa automatica traz praticidade e organizacao, permitindo visualizar todas as notas de servico emitidas contra sua empresa. Para usar, adquira um pacote de importacoes. Diferente da NFe (disponivel na Receita Federal), a consulta de NFS-e depende de integracao com cada prefeitura — algumas ainda nao estao integradas, entao nem todas as notas aparecerao aqui.
             </p>
           </div>
         )}
@@ -571,21 +625,30 @@ export default function NfseEntradaPage() {
                     >
                       {orderedColumns.map((col) => {
                         const w = columnWidths[col.id];
-                        const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};
+                        const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflowWrap: "break-word", wordBreak: "break-word" } : {};
                         return (
-                          <td key={col.id} style={tdStyle} className="py-3 px-4">
+                          <td key={col.id} style={tdStyle} className="py-3 px-4 whitespace-normal">
                             {col.render(entry)}
                           </td>
                         );
                       })}
-                      <td className="py-3 px-4 text-right">
-                        {entry.status === "ACTIVE" ? (
-                          <button onClick={(e) => { e.stopPropagation(); handleCancel(entry.id); }} className="text-red-600 hover:text-red-700 text-xs font-medium hover:underline">
-                            Cancelar
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        {entry.status === "ACTIVE" && !entry.financialEntryId ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={(e) => { e.stopPropagation(); openProcessModal(entry); }} className="text-blue-600 hover:text-blue-700 text-xs font-medium hover:underline">
+                              Importar
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); handleCancel(entry.id); }} className="text-red-500 hover:text-red-700 text-xs" title="Cancelar">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        ) : entry.status === "ACTIVE" && entry.financialEntryId ? (
+                          <button onClick={(e) => { e.stopPropagation(); handleRevert(entry.id); }} className="text-red-600 hover:text-red-700 text-xs font-medium hover:underline">
+                            Reverter
                           </button>
-                        ) : entry.status === "CANCELLED" ? (
+                        ) : (
                           <span className="text-slate-400 text-xs">{"\u2014"}</span>
-                        ) : null}
+                        )}
                       </td>
                     </tr>
                     {/* Expanded Detail */}
@@ -639,6 +702,64 @@ export default function NfseEntradaPage() {
 
       {/* Pagination */}
       <Pagination meta={meta} onPageChange={tp.setPage} />
+
+      {/* Process Modal */}
+      {processEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !processing && setProcessEntry(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-900 mb-1">Importar NFS-e</h3>
+            <p className="text-sm text-slate-500 mb-4">Vincular prestador e gerar lançamento financeiro (Contas a Pagar)</p>
+
+            {/* NFS-e Info */}
+            <div className="bg-slate-50 rounded-lg p-3 mb-4 text-xs space-y-1">
+              <div className="flex justify-between"><span className="text-slate-500">NFS-e</span><span className="font-medium">{processEntry.numero || "\u2014"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Prestador</span><span className="font-medium">{processEntry.prestadorRazaoSocial || "\u2014"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">CNPJ/CPF</span><span className="font-mono">{fmtDoc(processEntry.prestadorCnpjCpf)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Valor</span><span className="font-semibold text-slate-900">{fmt(processEntry.valorServicosCents)}</span></div>
+            </div>
+
+            {/* Prestador */}
+            <div className="mb-4">
+              <label className="text-xs font-medium text-slate-600 mb-1 block">Prestador</label>
+              {processEntry.prestadorId ? (
+                <div className="flex items-center gap-1.5 text-xs text-green-700">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Vinculado: {processEntry.prestador?.name}
+                </div>
+              ) : (
+                <div className="text-xs text-amber-600 flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  Prestador sera criado automaticamente
+                </div>
+              )}
+            </div>
+
+            {/* Financeiro */}
+            <div className="space-y-3 mb-6">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={processCreateFinance} onChange={(e) => setProcessCreateFinance(e.target.checked)} className="rounded border-slate-300" />
+                <span className="text-slate-700">Gerar lançamento financeiro (A Pagar)</span>
+              </label>
+              {processCreateFinance && (
+                <div>
+                  <label className="text-xs font-medium text-slate-600 mb-1 block">Data de Vencimento</label>
+                  <input type="date" value={processDueDate} onChange={(e) => setProcessDueDate(e.target.value)} className={inputClass} />
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setProcessEntry(null)} disabled={processing} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleProcess} disabled={processing} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50">
+                {processing ? "Importando..." : "Importar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

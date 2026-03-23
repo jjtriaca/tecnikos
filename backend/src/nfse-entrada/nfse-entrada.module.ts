@@ -5,11 +5,12 @@ import { NfseEntradaService } from './nfse-entrada.service';
 import { NfseEntradaParserService } from './nfse-entrada-parser.service';
 import { FocusNfeProvider } from '../nfse-emission/focus-nfe.provider';
 import { EncryptionService } from '../common/encryption.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 
 @Module({
   imports: [PrismaModule],
   controllers: [NfseEntradaController],
-  providers: [NfseEntradaService, NfseEntradaParserService, FocusNfeProvider, EncryptionService],
+  providers: [NfseEntradaService, NfseEntradaParserService, FocusNfeProvider, EncryptionService, CodeGeneratorService],
   exports: [NfseEntradaService],
 })
 export class NfseEntradaModule {}

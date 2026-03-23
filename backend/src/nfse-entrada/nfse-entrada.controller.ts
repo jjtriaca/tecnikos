@@ -102,6 +102,32 @@ export class NfseEntradaController {
     return this.service.update(id, user.companyId, dto);
   }
 
+  /* ── Process (gerar financeiro) ────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
+  @Post(':id/process')
+  async process(
+    @Param('id') id: string,
+    @Body() decisions: {
+      prestador: { action: 'CREATE' | 'LINK'; partnerId?: string };
+      finance: { createEntry: boolean; dueDate?: string };
+    },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.process(id, user.companyId, decisions);
+  }
+
+  /* ── Revert (reverter financeiro) ─────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
+  @Post(':id/revert')
+  async revert(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.revert(id, user.companyId);
+  }
+
   /* ── Cancel ────────────────────────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FISCAL)

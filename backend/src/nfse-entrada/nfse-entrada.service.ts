@@ -10,6 +10,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { CreateNfseEntradaDto } from './dto/create-nfse-entrada.dto';
 import { FocusNfeProvider, FocusNfseRecebida } from '../nfse-emission/focus-nfe.provider';
 import { EncryptionService } from '../common/encryption.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { buildSearchWhere } from '../common/util/build-search-where';
 
 @Injectable()
@@ -21,6 +22,7 @@ export class NfseEntradaService {
     private readonly parser: NfseEntradaParserService,
     private readonly focusNfe: FocusNfeProvider,
     private readonly encryption: EncryptionService,
+    private readonly codeGenerator: CodeGeneratorService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -574,6 +576,141 @@ export class NfseEntradaService {
 
     this.logger.log(`Focus NFe sync for company ${companyId}: imported=${imported}, skipped=${skipped}, total=${totalFetched}, limitReached=${limitReached}, used=${usedThisMonth + imported}/${monthlyLimit}`);
     return { imported, skipped, total: totalFetched, limitReached, monthlyLimit, usedThisMonth: usedThisMonth + imported };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     process — Link prestador + create FinancialEntry (Contas a Pagar)
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async process(
+    id: string,
+    companyId: string,
+    decisions: {
+      prestador: { action: 'CREATE' | 'LINK'; partnerId?: string };
+      finance: { createEntry: boolean; dueDate?: string };
+    },
+  ) {
+    const entry = await this.prisma.nfseEntrada.findFirst({
+      where: { id, companyId },
+    });
+
+    if (!entry) throw new NotFoundException('NFS-e de entrada não encontrada');
+    if (entry.status !== 'ACTIVE') throw new BadRequestException('NFS-e não está ativa');
+    if (entry.financialEntryId) throw new BadRequestException('NFS-e já possui lançamento financeiro');
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // ── 1. Prestador: CREATE or LINK ────────────────────────────
+      let prestadorId = entry.prestadorId;
+
+      if (decisions.prestador.action === 'CREATE') {
+        const partnerCode = await this.codeGenerator.generateCode(companyId, 'PARTNER');
+        const newPartner = await tx.partner.create({
+          data: {
+            companyId,
+            code: partnerCode,
+            partnerTypes: ['FORNECEDOR'],
+            personType: entry.prestadorCnpjCpf && entry.prestadorCnpjCpf.length === 14 ? 'PJ' : 'PF',
+            name: entry.prestadorRazaoSocial || 'Prestador NFS-e',
+            document: entry.prestadorCnpjCpf || undefined,
+            documentType: entry.prestadorCnpjCpf
+              ? (entry.prestadorCnpjCpf.length === 14 ? 'CNPJ' : 'CPF')
+              : undefined,
+            status: 'ATIVO',
+          },
+        });
+        prestadorId = newPartner.id;
+      } else if (decisions.prestador.action === 'LINK' && decisions.prestador.partnerId) {
+        const partner = await tx.partner.findFirst({
+          where: { id: decisions.prestador.partnerId, companyId, deletedAt: null },
+        });
+        if (!partner) throw new NotFoundException('Prestador vinculado não encontrado');
+
+        if (!partner.partnerTypes.includes('FORNECEDOR')) {
+          await tx.partner.update({
+            where: { id: partner.id },
+            data: { partnerTypes: [...partner.partnerTypes, 'FORNECEDOR'] },
+          });
+        }
+        prestadorId = partner.id;
+      }
+
+      // ── 2. Create FinancialEntry PAYABLE ────────────────────────
+      let financialEntryId: string | null = null;
+
+      if (decisions.finance.createEntry) {
+        const totalCents = entry.valorServicosCents || 0;
+        const dueDate = decisions.finance.dueDate
+          ? new Date(decisions.finance.dueDate)
+          : (entry.dataEmissao ?? undefined);
+
+        const finCode = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+        const financialEntry = await tx.financialEntry.create({
+          data: {
+            companyId,
+            code: finCode,
+            partnerId: prestadorId,
+            type: 'PAYABLE',
+            status: 'PENDING',
+            description: `NFS-e ${entry.numero || ''} — ${entry.prestadorRazaoSocial || 'Prestador'}`,
+            grossCents: totalCents,
+            netCents: totalCents,
+            dueDate,
+          },
+        });
+        financialEntryId = financialEntry.id;
+      }
+
+      // ── 3. Update NfseEntrada ───────────────────────────────────
+      await tx.nfseEntrada.update({
+        where: { id },
+        data: {
+          prestadorId,
+          financialEntryId,
+        },
+      });
+
+      return { financialEntryId, prestadorId };
+    });
+
+    return result;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     revert — Delete FinancialEntry linked to NFS-e
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async revert(id: string, companyId: string) {
+    const entry = await this.prisma.nfseEntrada.findFirst({
+      where: { id, companyId },
+    });
+
+    if (!entry) throw new NotFoundException('NFS-e de entrada não encontrada');
+    if (!entry.financialEntryId) throw new BadRequestException('NFS-e não possui lançamento financeiro para reverter');
+
+    // Block revert if financial entry is paid
+    const finEntry = await this.prisma.financialEntry.findUnique({
+      where: { id: entry.financialEntryId },
+    });
+    if (finEntry && finEntry.status === 'PAID') {
+      throw new BadRequestException('Lançamento financeiro já está pago. Cancele o pagamento antes de reverter.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Delete financial entry (cascades installments)
+      if (entry.financialEntryId) {
+        await tx.financialEntry.delete({
+          where: { id: entry.financialEntryId },
+        });
+      }
+
+      // Clear financialEntryId
+      await tx.nfseEntrada.update({
+        where: { id },
+        data: { financialEntryId: null },
+      });
+    });
+
+    return { reverted: true };
   }
 
   /** Get decrypted active token from NfseConfig */
