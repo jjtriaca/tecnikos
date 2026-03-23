@@ -119,6 +119,21 @@ function FilterControl({
         </div>
       );
 
+    case "month":
+      return (
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-slate-500 whitespace-nowrap">
+            {def.label}
+          </label>
+          <input
+            type="month"
+            value={value ?? ""}
+            onChange={(e) => onChange(e.target.value || undefined)}
+            className={`${baseClass} w-40`}
+          />
+        </div>
+      );
+
     case "numberRange":
       return (
         <div className="flex items-center gap-1.5">

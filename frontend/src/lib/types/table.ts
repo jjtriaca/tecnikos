@@ -8,7 +8,7 @@ export interface SortState {
 export interface FilterDefinition {
   key: string;
   label: string;
-  type: 'text' | 'select' | 'date' | 'numberRange';
+  type: 'text' | 'select' | 'date' | 'month' | 'numberRange';
   options?: { value: string; label: string }[];
   placeholder?: string;
 }
