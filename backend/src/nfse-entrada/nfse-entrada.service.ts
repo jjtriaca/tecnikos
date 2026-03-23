@@ -192,10 +192,16 @@ export class NfseEntradaService {
       where.competencia = competencia;
     }
 
-    if (status) {
-      where.status = status;
-    } else {
+    if (status === 'DOWNLOADED') {
       where.status = 'ACTIVE';
+      where.financialEntryId = null;
+    } else if (status === 'IMPORTED') {
+      where.status = 'ACTIVE';
+      where.financialEntryId = { not: null };
+    } else if (status === 'CANCELLED') {
+      where.status = 'CANCELLED';
+    } else {
+      // "Todas" — no filter by status (show all)
     }
 
     if (pagination?.search) {

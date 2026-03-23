@@ -96,7 +96,7 @@ function buildColumns(): ColumnDefinition<NfseEntrada>[] {
     )},
     { id: "prestadorCnpjCpf", label: "CNPJ/CPF", sortable: false, render: (r) => <span className="text-[10px] text-slate-600 font-mono break-all leading-tight">{fmtDoc(r.prestadorCnpjCpf)}</span> },
     { id: "discriminacao", label: "Servi\u00e7o", sortable: false, render: (r) => (
-      <span className="text-[10px] text-slate-600 break-words leading-tight" title={r.discriminacao || undefined}>{r.discriminacao || "\u2014"}</span>
+      <span className="text-[10px] text-slate-600 leading-tight line-clamp-2" title={r.discriminacao || undefined}>{r.discriminacao || "\u2014"}</span>
     )},
     { id: "valorServicosCents", label: "Valor", sortable: true, align: "right", render: (r) => <span className="text-xs font-medium text-slate-900">{fmt(r.valorServicosCents)}</span> },
     { id: "valorIssCents", label: "ISS", sortable: true, align: "right", render: (r) => <span className="text-xs text-slate-700">{fmt(r.valorIssCents)}</span> },
@@ -120,7 +120,9 @@ function buildColumns(): ColumnDefinition<NfseEntrada>[] {
 const FILTERS: FilterDefinition[] = [
   { key: "competencia", type: "month", label: "Competencia" },
   { key: "status", type: "select", label: "Status", options: [
-    { value: "", label: "Ativas" },
+    { value: "", label: "Todas" },
+    { value: "DOWNLOADED", label: "Baixadas" },
+    { value: "IMPORTED", label: "Importadas" },
     { value: "CANCELLED", label: "Canceladas" },
   ]},
 ];
