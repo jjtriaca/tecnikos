@@ -337,7 +337,7 @@ export class FinanceService {
     companyId: string,
     type: 'RECEIVABLE' | 'PAYABLE',
     pagination?: PaginationDto,
-    filters?: { status?: string; dateFrom?: string; dateTo?: string; partnerId?: string; nfseStatus?: string; paidFrom?: string; paidTo?: string },
+    filters?: { status?: string; dateFrom?: string; dateTo?: string; dateType?: string; partnerId?: string; nfseStatus?: string },
   ): Promise<PaginatedResult<any> & { totals?: { sumNetCents: number; sumGrossCents: number } }> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
@@ -345,7 +345,11 @@ export class FinanceService {
 
     const where: any = { companyId, type, deletedAt: null };
 
-    if (filters?.status) {
+    if (filters?.status === 'OVERDUE') {
+      // Vencidas: pendentes com data de vencimento no passado
+      where.status = 'PENDING';
+      where.dueDate = { lt: new Date() };
+    } else if (filters?.status) {
       where.status = filters.status;
     } else {
       // By default, exclude CANCELLED entries — user must explicitly filter by CANCELLED
@@ -360,14 +364,11 @@ export class FinanceService {
       }
     }
     if (filters?.dateFrom || filters?.dateTo) {
-      where.createdAt = {};
-      if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
-      if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo + 'T23:59:59.999Z');
-    }
-    if (filters?.paidFrom || filters?.paidTo) {
-      where.paidAt = {};
-      if (filters.paidFrom) where.paidAt.gte = new Date(filters.paidFrom);
-      if (filters.paidTo) where.paidAt.lte = new Date(filters.paidTo + 'T23:59:59.999Z');
+      // dateType: 'created' (default) | 'paid' | 'due'
+      const dateField = filters?.dateType === 'paid' ? 'paidAt' : filters?.dateType === 'due' ? 'dueDate' : 'createdAt';
+      where[dateField] = {};
+      if (filters.dateFrom) where[dateField].gte = new Date(filters.dateFrom);
+      if (filters.dateTo) where[dateField].lte = new Date(filters.dateTo + 'T23:59:59.999Z');
     }
     if (pagination?.search) {
       const words = pagination.search.trim().split(/\s+/).filter(Boolean);

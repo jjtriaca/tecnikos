@@ -162,14 +162,24 @@ function getEntryFilters(type: FinancialEntryType): FilterDefinition[] {
     placeholder: "Todos",
     options: [
       { value: "PENDING", label: "Pendente" },
+      { value: "OVERDUE", label: "Vencidas" },
       { value: "PAID", label: type === "RECEIVABLE" ? "Recebido" : "Pago" },
       { value: "CANCELLED", label: "Cancelado" },
     ],
   },
+  {
+    key: "dateType",
+    label: "Periodo por",
+    type: "select",
+    placeholder: "Criação",
+    options: [
+      { value: "created", label: "Criação" },
+      { value: "paid", label: type === "RECEIVABLE" ? "Recebimento" : "Pagamento" },
+      { value: "due", label: "Vencimento" },
+    ],
+  },
   { key: "dateFrom", label: "De", type: "date" },
   { key: "dateTo", label: "Até", type: "date" },
-  { key: "paidFrom", label: type === "RECEIVABLE" ? "Recebido de" : "Pago de", type: "date" },
-  { key: "paidTo", label: type === "RECEIVABLE" ? "Recebido até" : "Pago até", type: "date" },
   ];
 
   // NFS-e filter only for RECEIVABLE
