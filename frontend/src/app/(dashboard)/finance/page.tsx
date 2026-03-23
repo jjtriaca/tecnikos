@@ -463,151 +463,197 @@ export default function FinancePage() {
    TAB: RESUMO (Summary v2)
    ══════════════════════════════════════════════════════════ */
 
+const SUMMARY_SECTIONS_KEY = "tecnikos_finance_summary_order";
+const DEFAULT_SECTION_ORDER = ["kpi", "receber_pagar", "saldo"];
+
+function loadSectionOrder(): string[] {
+  try {
+    const stored = localStorage.getItem(SUMMARY_SECTIONS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length === DEFAULT_SECTION_ORDER.length) return parsed;
+    }
+  } catch {}
+  return DEFAULT_SECTION_ORDER;
+}
+
 function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void }) {
   const [data, setData] = useState<FinanceSummaryV2 | null>(null);
+  const [dashData, setDashData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
+  const dragItem = useRef<string | null>(null);
+  const dragOverItem = useRef<string | null>(null);
+
+  useEffect(() => { setSectionOrder(loadSectionOrder()); }, []);
 
   useEffect(() => {
-    api.get<FinanceSummaryV2>("/finance/summary-v2")
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+    Promise.all([
+      api.get<FinanceSummaryV2>("/finance/summary-v2").catch(() => null),
+      api.get(`/finance/dashboard?dateFrom=${first}&dateTo=${last}`).catch(() => null),
+    ]).then(([summary, dash]) => {
+      setData(summary);
+      setDashData(dash);
+    }).finally(() => setLoading(false));
   }, []);
+
+  function handleDragStart(sectionId: string) { dragItem.current = sectionId; }
+  function handleDragEnter(sectionId: string) { dragOverItem.current = sectionId; }
+  function handleDragEnd() {
+    if (!dragItem.current || !dragOverItem.current || dragItem.current === dragOverItem.current) return;
+    const newOrder = [...sectionOrder];
+    const fromIdx = newOrder.indexOf(dragItem.current);
+    const toIdx = newOrder.indexOf(dragOverItem.current);
+    if (fromIdx === -1 || toIdx === -1) return;
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, dragItem.current);
+    setSectionOrder(newOrder);
+    localStorage.setItem(SUMMARY_SECTIONS_KEY, JSON.stringify(newOrder));
+    dragItem.current = null;
+    dragOverItem.current = null;
+  }
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-28 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
-        ))}
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-200" />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
+          ))}
+        </div>
       </div>
     );
   }
 
-  if (!data) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
-        Erro ao carregar dados financeiros.
-      </div>
-    );
-  }
+  const r = data?.receivables;
+  const p = data?.payables;
 
-  const { receivables: r, payables: p } = data;
+  // KPI data
+  const revenue = dashData?.dre?.revenue?.totalCents ?? 0;
+  const costsAndExpenses = (dashData?.dre?.costs?.totalCents ?? 0) + (dashData?.dre?.expenses?.totalCents ?? 0);
+  const netResult = dashData?.dre?.netResultCents ?? 0;
+  const cashBalance = (dashData?.cashAccounts ?? []).reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
+  const margin = revenue > 0 ? Math.round((netResult / revenue) * 100) : 0;
+  const accountCount = dashData?.cashAccounts?.length ?? 0;
 
-  return (
-    <div className="space-y-6">
-      {/* A Receber */}
+  const kpiCards = [
+    { label: "Receita Bruta", value: formatCurrency(revenue), gradient: "from-emerald-500 to-emerald-600", icon: "📈", badge: null as string | null },
+    { label: "Custos + Despesas", value: formatCurrency(costsAndExpenses), gradient: "from-red-500 to-red-600", icon: "📉", badge: null as string | null },
+    { label: "Resultado Líquido", value: formatCurrency(netResult), gradient: netResult >= 0 ? "from-blue-500 to-blue-600" : "from-red-600 to-red-700", icon: "📊", badge: `${margin}% margem` },
+    { label: "Saldo em Caixa", value: formatCurrency(cashBalance), gradient: "from-violet-500 to-purple-600", icon: "💰", badge: `${accountCount} conta${accountCount !== 1 ? "s" : ""}` },
+  ];
+
+  const sectionMap: Record<string, React.ReactNode> = {
+    kpi: (
       <div>
-        <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-1.5">
-          <span>📥</span> A Receber
-        </h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <SummaryCard
-            label="Total Pendente"
-            value={formatCurrency(r.pendingCents + r.confirmedCents)}
-            count={r.pendingCount + r.confirmedCount}
-            colorClass="border-amber-200 bg-amber-50"
-            valueColor="text-amber-900"
-            onClick={() => onNavigateTab?.("receber")}
-          />
-          <SummaryCard
-            label="Recebido"
-            value={formatCurrency(r.paidCents)}
-            count={r.paidCount}
-            colorClass="border-green-200 bg-green-50"
-            valueColor="text-green-900"
-            onClick={() => onNavigateTab?.("receber")}
-          />
-          <SummaryCard
-            label="Aguardando Confirmação"
-            value={String(r.pendingCount)}
-            sub="entradas pendentes"
-            colorClass="border-slate-200 bg-slate-50"
-            valueColor="text-slate-900"
-            onClick={() => onNavigateTab?.("receber")}
-          />
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Resultados do Mês</h3>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {kpiCards.map((card) => (
+            <div key={card.label} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${card.gradient} p-4 text-white shadow-lg`}>
+              <div className="absolute -top-4 -right-4 h-16 w-16 rounded-full bg-white/5" />
+              <div className="relative">
+                <div className="flex items-center justify-between">
+                  <span className="text-lg">{card.icon}</span>
+                  {card.badge && <span className="text-[10px] font-medium bg-white/20 rounded-lg px-1.5 py-0.5">{card.badge}</span>}
+                </div>
+                <p className="mt-2 text-xl font-bold truncate">{card.value}</p>
+                <p className="text-[11px] font-medium text-white/70">{card.label}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-
-      {/* A Pagar */}
-      <div>
-        <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-1.5">
-          <span>📤</span> A Pagar
-        </h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <SummaryCard
-            label="Total Pendente"
-            value={formatCurrency(p.pendingCents + p.confirmedCents)}
-            count={p.pendingCount + p.confirmedCount}
-            colorClass="border-amber-200 bg-amber-50"
-            valueColor="text-amber-900"
-            onClick={() => onNavigateTab?.("pagar")}
-          />
-          <SummaryCard
-            label="Pago"
-            value={formatCurrency(p.paidCents)}
-            count={p.paidCount}
-            colorClass="border-blue-200 bg-blue-50"
-            valueColor="text-blue-900"
-            onClick={() => onNavigateTab?.("pagar")}
-          />
-          <SummaryCard
-            label="Aguardando Confirmação"
-            value={String(p.pendingCount)}
-            sub="entradas pendentes"
-            colorClass="border-slate-200 bg-slate-50"
-            valueColor="text-slate-900"
-            onClick={() => onNavigateTab?.("pagar")}
-          />
-        </div>
-      </div>
-
-      {/* Saldo */}
-      <div className="rounded-xl border-2 border-slate-300 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-600">Saldo (Recebido - Pago)</p>
-            <p className={`text-3xl font-bold mt-1 ${data.balanceCents >= 0 ? "text-green-700" : "text-red-700"}`}>
-              {formatCurrency(data.balanceCents)}
-            </p>
+    ),
+    receber_pagar: data && r && p ? (
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("receber")}>
+          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-3"><span>📥</span> A Receber</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-[11px] text-slate-500">Pendente</p>
+              <p className="text-lg font-bold text-amber-700">{formatCurrency(r.pendingCents + r.confirmedCents)}</p>
+              <p className="text-[10px] text-slate-400">{r.pendingCount + r.confirmedCount} entrada{(r.pendingCount + r.confirmedCount) !== 1 ? "s" : ""}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500">Recebido</p>
+              <p className="text-lg font-bold text-green-700">{formatCurrency(r.paidCents)}</p>
+              <p className="text-[10px] text-slate-400">{r.paidCount} entrada{r.paidCount !== 1 ? "s" : ""}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500">Ag. Confirmação</p>
+              <p className="text-lg font-bold text-slate-700">{r.pendingCount}</p>
+              <p className="text-[10px] text-slate-400">pendentes</p>
+            </div>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-2xl">
-            {data.balanceCents >= 0 ? "📈" : "📉"}
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("pagar")}>
+          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-3"><span>📤</span> A Pagar</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-[11px] text-slate-500">Pendente</p>
+              <p className="text-lg font-bold text-amber-700">{formatCurrency(p.pendingCents + p.confirmedCents)}</p>
+              <p className="text-[10px] text-slate-400">{p.pendingCount + p.confirmedCount} entrada{(p.pendingCount + p.confirmedCount) !== 1 ? "s" : ""}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500">Pago</p>
+              <p className="text-lg font-bold text-blue-700">{formatCurrency(p.paidCents)}</p>
+              <p className="text-[10px] text-slate-400">{p.paidCount} entrada{p.paidCount !== 1 ? "s" : ""}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500">Ag. Confirmação</p>
+              <p className="text-lg font-bold text-slate-700">{p.pendingCount}</p>
+              <p className="text-[10px] text-slate-400">pendentes</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    ) : null,
+    saldo: data ? (
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-slate-500">Saldo (Recebido - Pago)</p>
+          <p className={`text-2xl font-bold ${data.balanceCents >= 0 ? "text-green-700" : "text-red-700"}`}>
+            {formatCurrency(data.balanceCents)}
+          </p>
+        </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-xl">
+          {data.balanceCents >= 0 ? "📈" : "📉"}
+        </div>
+      </div>
+    ) : null,
+  };
 
-function SummaryCard({
-  label,
-  value,
-  count,
-  sub,
-  colorClass,
-  valueColor,
-  onClick,
-}: {
-  label: string;
-  value: string;
-  count?: number;
-  sub?: string;
-  colorClass: string;
-  valueColor: string;
-  onClick?: () => void;
-}) {
   return (
-    <div
-      className={`rounded-xl border p-5 shadow-sm ${colorClass} ${onClick ? "cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all" : ""}`}
-      onClick={onClick}
-    >
-      <span className="text-xs font-medium text-slate-600">{label}</span>
-      <p className={`mt-1 text-2xl font-bold ${valueColor}`}>{value}</p>
-      {count != null && (
-        <p className="mt-0.5 text-xs text-slate-500">{count} entrada{count !== 1 ? "s" : ""}</p>
-      )}
-      {sub && <p className="mt-0.5 text-xs text-slate-500">{sub}</p>}
+    <div className="space-y-5">
+      {sectionOrder.map((sectionId) => {
+        const content = sectionMap[sectionId];
+        if (!content) return null;
+        return (
+          <div
+            key={sectionId}
+            draggable
+            onDragStart={() => handleDragStart(sectionId)}
+            onDragEnter={() => handleDragEnter(sectionId)}
+            onDragEnd={handleDragEnd}
+            onDragOver={(e) => e.preventDefault()}
+            className="group relative"
+          >
+            {/* Drag handle indicator */}
+            <div className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-40 transition-opacity cursor-grab active:cursor-grabbing text-slate-400">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+            </div>
+            {content}
+          </div>
+        );
+      })}
     </div>
   );
 }
