@@ -15,7 +15,7 @@ type ServiceOrder = {
   deadlineAt: string;
   createdAt: string;
   completedAt?: string | null;
-  workflowTemplate?: { techPortalConfig?: any } | null;
+  workflowTemplate?: { steps?: any } | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -200,7 +200,7 @@ export default function TechOrdersPage() {
                           </p>
                         </div>
                         {(() => {
-                          const pc = order.workflowTemplate?.techPortalConfig;
+                          const pc = order.workflowTemplate?.steps?.techPortalConfig;
                           const showValue = pc?.showValue !== false;
                           const showCommission = pc?.showCommission === true;
                           const techCents = order.techCommissionCents && order.techCommissionCents > 0 ? order.techCommissionCents : null;
