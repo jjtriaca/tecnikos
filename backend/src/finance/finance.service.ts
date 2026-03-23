@@ -338,7 +338,7 @@ export class FinanceService {
     type: 'RECEIVABLE' | 'PAYABLE',
     pagination?: PaginationDto,
     filters?: { status?: string; dateFrom?: string; dateTo?: string; partnerId?: string; nfseStatus?: string; paidFrom?: string; paidTo?: string },
-  ): Promise<PaginatedResult<any>> {
+  ): Promise<PaginatedResult<any> & { totals?: { sumNetCents: number; sumGrossCents: number } }> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
     const skip = (page - 1) * limit;
