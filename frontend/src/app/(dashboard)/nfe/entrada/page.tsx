@@ -617,8 +617,8 @@ export default function NfseEntradaPage() {
             <p className="text-xs text-slate-400 mt-1">Importe um XML ou registre manualmente</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "auto", overflowY: "hidden" }}>
-            <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "1100px", width: "max-content" }}>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ overflowX: "scroll" }}>
+            <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "1200px", width: "100%" }}>
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   {orderedColumns.map((col, idx) => (
