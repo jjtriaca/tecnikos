@@ -232,7 +232,10 @@ export default function NfseSaidaPage() {
       const res = await fetch(`/api/nfse-emission/emissions/${emission.id}/pdf`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Erro ao baixar PDF");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.message || "Erro ao baixar PDF");
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

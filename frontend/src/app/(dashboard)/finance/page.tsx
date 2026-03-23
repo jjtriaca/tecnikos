@@ -1989,7 +1989,10 @@ function EntryActions({
               const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/nfse-emission/emissions/${entry.nfseEmissionId}/pdf`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
               });
-              if (!res.ok) throw new Error("Erro ao baixar PDF");
+              if (!res.ok) {
+                const errBody = await res.json().catch(() => null);
+                throw new Error(errBody?.message || "Erro ao baixar PDF");
+              }
               const blob = await res.blob();
               // Extract filename from Content-Disposition header
               const cd = res.headers.get("content-disposition") || "";
@@ -2003,8 +2006,8 @@ function EntryActions({
               a.click();
               document.body.removeChild(a);
               setTimeout(() => URL.revokeObjectURL(url), 10000);
-            } catch {
-              toast("Erro ao baixar PDF da NFS-e.", "error");
+            } catch (err: any) {
+              toast(err?.message || "Erro ao baixar PDF da NFS-e.", "error");
             }
           }}
           className="text-xs font-medium text-green-600 hover:text-green-800 transition-colors"

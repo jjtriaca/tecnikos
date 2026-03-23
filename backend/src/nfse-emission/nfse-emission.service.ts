@@ -5,7 +5,6 @@ import { SaasConfigService } from '../common/saas-config.service';
 import { FocusNfeProvider, FocusNfseRequest, FocusNfsenRequest, NfseLayout } from './focus-nfe.provider';
 import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto, UpdateNfseServiceCodeDto } from './dto/nfse-emission.dto';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
-import { DanfseService, DanfseData } from './danfse.service';
 import { randomUUID } from 'crypto';
 
 /** Retorna data/hora atual no fuso de Brasilia (UTC-3) em formato ISO sem 'Z'. */
@@ -32,7 +31,6 @@ export class NfseEmissionService {
     private readonly saasConfig: SaasConfigService,
     private readonly focusNfe: FocusNfeProvider,
     private readonly whatsApp: WhatsAppService,
-    private readonly danfseService: DanfseService,
   ) {}
 
   /** Map Focus NFe technical errors to user-friendly messages */
@@ -1033,62 +1031,14 @@ export class NfseEmissionService {
 
     // Fallback to Focus NFe API
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
-    if (config?.focusNfeToken && !emission.focusNfeRef.startsWith('manual-')) {
-      try {
-        const token = this.getActiveToken(config)!;
-        const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
-        const buffer = await this.focusNfe.downloadPdf(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
-        return { buffer, filename };
-      } catch (err) {
-        this.logger.warn(`Focus NFe PDF download failed: ${(err as Error).message}, falling back to local generation`);
-      }
+    if (!config?.focusNfeToken || emission.focusNfeRef.startsWith('manual-')) {
+      throw new BadRequestException('PDF não disponível para notas importadas manualmente');
     }
 
-    // Fallback: Generate DANFSe locally from database data
-    const [company, nfseConfig] = await Promise.all([
-      this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true, cnpj: true, phone: true, addressStreet: true, addressNumber: true, neighborhood: true, city: true, state: true, cep: true, email: true } }),
-      this.prisma.nfseConfig.findUnique({ where: { companyId }, select: { optanteSimplesNacional: true, codigoTributarioNacional: true, codigoTributarioMunicipio: true, codigoMunicipio: true } }).catch(() => null),
-    ]);
+    const token = this.getActiveToken(config)!;
+    const layout = (config.nfseLayout || 'MUNICIPAL') as NfseLayout;
+    const buffer = await this.focusNfe.downloadPdf(token, config.focusNfeEnvironment, emission.focusNfeRef, layout);
 
-    const issueDate = emission.issuedAt ? new Date(emission.issuedAt) : new Date(emission.createdAt);
-    const fmtDateTime = (dt: Date) => dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const fmtDate = (dt: Date) => dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-    const danfseData: DanfseData = {
-      nfseNumber: emission.nfseNumber || '',
-      rpsNumber: emission.rpsNumber,
-      rpsSeries: emission.rpsSeries,
-      codigoVerificacao: emission.codigoVerificacao || '',
-      issuedAt: fmtDateTime(issueDate),
-      competencia: fmtDate(issueDate),
-      prestadorCnpj: emission.prestadorCnpj,
-      prestadorRazaoSocial: company?.name || '',
-      prestadorIm: emission.prestadorIm || undefined,
-      prestadorEmail: company?.email || undefined,
-      prestadorTelefone: company?.phone || undefined,
-      prestadorEndereco: [company?.addressStreet, company?.addressNumber, company?.neighborhood].filter(Boolean).join(', ') || undefined,
-      prestadorMunicipio: company?.city || undefined,
-      prestadorUf: company?.state || undefined,
-      prestadorCep: company?.cep || undefined,
-      simplesNacional: nfseConfig?.optanteSimplesNacional ?? undefined,
-      tomadorCnpjCpf: emission.tomadorCnpjCpf || undefined,
-      tomadorRazaoSocial: emission.tomadorRazaoSocial || undefined,
-      tomadorEmail: emission.tomadorEmail || undefined,
-      discriminacao: emission.discriminacao || undefined,
-      itemListaServico: emission.itemListaServico || undefined,
-      codigoCnae: emission.codigoCnae || undefined,
-      codigoTributacaoNacional: nfseConfig?.codigoTributarioNacional || undefined,
-      codigoTributacaoMunicipal: nfseConfig?.codigoTributarioMunicipio || undefined,
-      codigoMunicipioServico: emission.codigoMunicipioServico || undefined,
-      naturezaOperacao: emission.naturezaOperacao || undefined,
-      valorServicosCents: emission.valorServicos,
-      aliquotaIss: emission.aliquotaIss || undefined,
-      valorIssCents: emission.valorIss || undefined,
-      issRetido: emission.issRetido,
-      status: emission.status,
-    };
-
-    const buffer = await this.danfseService.generate(danfseData);
     return { buffer, filename };
   }
 
