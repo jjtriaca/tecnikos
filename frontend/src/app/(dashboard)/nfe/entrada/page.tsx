@@ -84,6 +84,7 @@ const LAYOUT_BADGE: Record<string, { label: string; cls: string }> = {
 
 function buildColumns(): ColumnDefinition<NfseEntrada>[] {
   return [
+    { id: "actions", label: "Acoes", sortable: false, render: () => null as any },
     { id: "numero", label: "Numero", sortable: true, render: (r) => <span className="font-medium text-slate-900 text-xs">{r.numero || "\u2014"}</span> },
     { id: "dataEmissao", label: "Emissao", sortable: true, render: (r) => <span className="text-xs text-slate-700">{fmtDate(r.dataEmissao)}</span> },
     { id: "competencia", label: "Compet.", sortable: true, render: (r) => <span className="text-xs text-slate-600">{r.competencia || "\u2014"}</span> },
@@ -613,7 +614,6 @@ export default function NfseEntradaPage() {
                       )}
                     </DraggableHeader>
                   ))}
-                  <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-right w-[60px]">Acoes</th>
                 </tr>
               </thead>
               <tbody>
@@ -626,35 +626,39 @@ export default function NfseEntradaPage() {
                       {orderedColumns.map((col) => {
                         const w = columnWidths[col.id];
                         const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflowWrap: "break-word", wordBreak: "break-word" } : {};
+                        if (col.id === "actions") {
+                          return (
+                            <td key="actions" style={tdStyle} className="py-3 px-4 whitespace-nowrap">
+                              {entry.status === "ACTIVE" && !entry.financialEntryId ? (
+                                <div className="flex items-center gap-2">
+                                  <button onClick={(e) => { e.stopPropagation(); openProcessModal(entry); }} className="text-blue-600 hover:text-blue-700 text-xs font-medium hover:underline">
+                                    Importar
+                                  </button>
+                                  <button onClick={(e) => { e.stopPropagation(); handleCancel(entry.id); }} className="text-red-500 hover:text-red-700 text-xs" title="Cancelar">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
+                              ) : entry.status === "ACTIVE" && entry.financialEntryId ? (
+                                <button onClick={(e) => { e.stopPropagation(); handleRevert(entry.id); }} className="text-red-600 hover:text-red-700 text-xs font-medium hover:underline">
+                                  Reverter
+                                </button>
+                              ) : (
+                                <span className="text-slate-400 text-xs">{"\u2014"}</span>
+                              )}
+                            </td>
+                          );
+                        }
                         return (
                           <td key={col.id} style={tdStyle} className="py-3 px-4 whitespace-normal">
                             {col.render(entry)}
                           </td>
                         );
                       })}
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
-                        {entry.status === "ACTIVE" && !entry.financialEntryId ? (
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={(e) => { e.stopPropagation(); openProcessModal(entry); }} className="text-blue-600 hover:text-blue-700 text-xs font-medium hover:underline">
-                              Importar
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); handleCancel(entry.id); }} className="text-red-500 hover:text-red-700 text-xs" title="Cancelar">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                          </div>
-                        ) : entry.status === "ACTIVE" && entry.financialEntryId ? (
-                          <button onClick={(e) => { e.stopPropagation(); handleRevert(entry.id); }} className="text-red-600 hover:text-red-700 text-xs font-medium hover:underline">
-                            Reverter
-                          </button>
-                        ) : (
-                          <span className="text-slate-400 text-xs">{"\u2014"}</span>
-                        )}
-                      </td>
                     </tr>
                     {/* Expanded Detail */}
                     {expandedId === entry.id && (
                       <tr className="bg-slate-50/70 border-b border-slate-100">
-                        <td colSpan={orderedColumns.length + 1} className="px-4 py-4">
+                        <td colSpan={orderedColumns.length} className="px-4 py-4">
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-xs">
                             <div><p className="text-slate-400 text-[10px] uppercase">Cod. Verificacao</p><p className="text-slate-700 font-mono">{entry.codigoVerificacao || "\u2014"}</p></div>
                             <div><p className="text-slate-400 text-[10px] uppercase">Item LC 116</p><p className="text-slate-700">{entry.itemListaServico || "\u2014"}</p></div>
