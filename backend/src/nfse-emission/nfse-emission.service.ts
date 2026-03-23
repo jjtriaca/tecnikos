@@ -1045,29 +1045,40 @@ export class NfseEmissionService {
     }
 
     // Fallback: Generate DANFSe locally from database data
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { name: true, cnpj: true, phone: true },
-    });
+    const [company, nfseConfig] = await Promise.all([
+      this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true, cnpj: true, phone: true, addressStreet: true, addressNumber: true, neighborhood: true, city: true, state: true, cep: true, email: true } }),
+      this.prisma.nfseConfig.findUnique({ where: { companyId }, select: { optanteSimplesNacional: true, codigoTributarioNacional: true, codigoTributarioMunicipio: true, codigoMunicipio: true } }).catch(() => null),
+    ]);
+
+    const issueDate = emission.issuedAt ? new Date(emission.issuedAt) : new Date(emission.createdAt);
+    const fmtDateTime = (dt: Date) => dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const fmtDate = (dt: Date) => dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const danfseData: DanfseData = {
       nfseNumber: emission.nfseNumber || '',
       rpsNumber: emission.rpsNumber,
       rpsSeries: emission.rpsSeries,
       codigoVerificacao: emission.codigoVerificacao || '',
-      issuedAt: emission.issuedAt
-        ? new Date(emission.issuedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : new Date(emission.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      issuedAt: fmtDateTime(issueDate),
+      competencia: fmtDate(issueDate),
       prestadorCnpj: emission.prestadorCnpj,
       prestadorRazaoSocial: company?.name || '',
       prestadorIm: emission.prestadorIm || undefined,
-      prestadorMunicipio: emission.prestadorCodigoMunicipio || undefined,
+      prestadorEmail: company?.email || undefined,
+      prestadorTelefone: company?.phone || undefined,
+      prestadorEndereco: [company?.addressStreet, company?.addressNumber, company?.neighborhood].filter(Boolean).join(', ') || undefined,
+      prestadorMunicipio: company?.city || undefined,
+      prestadorUf: company?.state || undefined,
+      prestadorCep: company?.cep || undefined,
+      simplesNacional: nfseConfig?.optanteSimplesNacional ?? undefined,
       tomadorCnpjCpf: emission.tomadorCnpjCpf || undefined,
       tomadorRazaoSocial: emission.tomadorRazaoSocial || undefined,
       tomadorEmail: emission.tomadorEmail || undefined,
       discriminacao: emission.discriminacao || undefined,
       itemListaServico: emission.itemListaServico || undefined,
       codigoCnae: emission.codigoCnae || undefined,
+      codigoTributacaoNacional: nfseConfig?.codigoTributarioNacional || undefined,
+      codigoTributacaoMunicipal: nfseConfig?.codigoTributarioMunicipio || undefined,
       codigoMunicipioServico: emission.codigoMunicipioServico || undefined,
       naturezaOperacao: emission.naturezaOperacao || undefined,
       valorServicosCents: emission.valorServicos,
