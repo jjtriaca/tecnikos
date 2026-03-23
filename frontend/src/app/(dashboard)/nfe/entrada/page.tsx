@@ -430,6 +430,27 @@ export default function NfseEntradaPage() {
     }
   }
 
+  /* ── Open XML / PDF ────────────────────────────── */
+
+  async function openDocument(id: string, type: "xml" | "pdf") {
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`/api/nfse-entrada/${id}/${type}`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `Erro ao abrir ${type.toUpperCase()}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (err: any) {
+      toast(err?.message || `Erro ao abrir ${type.toUpperCase()}`, "error");
+    }
+  }
+
   /* ── Summary Cards ──────────────────────────────── */
 
   const totalServicos = entries.reduce((sum, e) => sum + (e.valorServicosCents || 0), 0);
@@ -678,15 +699,15 @@ export default function NfseEntradaPage() {
                                 )}
                                 {/* XML */}
                                 {(entry.hasXml || entry.focusSource) && (
-                                  <a href={`/api/nfse-entrada/${entry.id}/xml`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors" title="Ver XML">
+                                  <button onClick={(e) => { e.stopPropagation(); openDocument(entry.id, "xml"); }} className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors" title="Ver XML">
                                     XML
-                                  </a>
+                                  </button>
                                 )}
                                 {/* PDF */}
                                 {(entry.hasXml || entry.focusSource) && (
-                                  <a href={`/api/nfse-entrada/${entry.id}/pdf`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 hover:bg-red-100 transition-colors" title="Ver PDF">
+                                  <button onClick={(e) => { e.stopPropagation(); openDocument(entry.id, "pdf"); }} className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 hover:bg-red-100 transition-colors" title="Ver PDF">
                                     PDF
-                                  </a>
+                                  </button>
                                 )}
                                 {/* Cancel */}
                                 {entry.status === "ACTIVE" && !entry.financialEntryId && (
