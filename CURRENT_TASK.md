@@ -127,6 +127,7 @@ Adicionar ao editor do bloco GPS (modo contínuo) uma seção de etapas de escal
 
 ### PENDENCIAS FUTURAS
 - Cadastro Parceiros: tratamento de empresas com filiais (como vincular CNPJ matriz/filial)
+- ChatIA: revisar orientações para cada passo do início do sistema (onboarding geral)
 
 ### BLOQUEADO
 - (nenhum)

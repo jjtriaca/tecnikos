@@ -84,4 +84,8 @@ export class UpdateCashAccountDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  initialBalanceCents?: number;
 }

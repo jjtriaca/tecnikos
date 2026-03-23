@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -75,6 +76,18 @@ export class CashAccountService {
     if (!account) throw new NotFoundException('Conta não encontrada.');
     if (account.companyId !== companyId) throw new ForbiddenException();
 
+    // Allow setting initial balance only when current balance is still 0
+    let initialBalanceUpdate = {};
+    if (dto.initialBalanceCents !== undefined) {
+      if (account.currentBalanceCents !== 0) {
+        throw new BadRequestException('Saldo inicial só pode ser definido quando o saldo atual é zero (sem movimentações).');
+      }
+      initialBalanceUpdate = {
+        initialBalanceCents: dto.initialBalanceCents,
+        currentBalanceCents: dto.initialBalanceCents,
+      };
+    }
+
     return this.prisma.cashAccount.update({
       where: { id },
       data: {
@@ -88,6 +101,7 @@ export class CashAccountService {
         ...(dto.pixKeyType !== undefined && { pixKeyType: dto.pixKeyType }),
         ...(dto.pixKey !== undefined && { pixKey: dto.pixKey }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...initialBalanceUpdate,
       },
     });
   }

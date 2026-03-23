@@ -167,6 +167,7 @@ function AccountsSection() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingCurrentBalance, setEditingCurrentBalance] = useState(0);
   const [formData, setFormData] = useState<AccountFormData>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CashAccount | null>(null);
@@ -196,6 +197,7 @@ function AccountsSection() {
 
   function openEditForm(acc: CashAccount) {
     setEditingId(acc.id);
+    setEditingCurrentBalance(acc.currentBalanceCents);
     setFormData({
       name: acc.name,
       type: acc.type,
@@ -247,7 +249,7 @@ function AccountsSection() {
       payload.pixKey = null;
     }
 
-    if (!editingId) {
+    if (!editingId || editingCurrentBalance === 0) {
       const val = parseFloat(formData.initialBalanceCents.replace(",", ".")) || 0;
       payload.initialBalanceCents = Math.round(val * 100);
     }
@@ -542,7 +544,7 @@ function AccountsSection() {
 
               {/* Saldo inicial (only on create) + Ativo */}
               <div className="grid grid-cols-2 gap-3">
-                {!editingId && (
+                {(!editingId || editingCurrentBalance === 0) && (
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Saldo Inicial (R$)</label>
                     <input
