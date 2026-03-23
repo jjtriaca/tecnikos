@@ -819,10 +819,18 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       .catch(() => {});
   }, []);
 
-  // Pre-fill payment method when opening pay modal
+  // State for category in pay modal
+  const [payAccountId, setPayAccountId] = useState("");
+
+  // Pre-fill payment method and category when opening pay modal
   useEffect(() => {
     if (payAction?.entry.paymentMethod) {
       setPaymentMethod(payAction.entry.paymentMethod);
+    }
+    if (payAction?.entry.financialAccount?.id) {
+      setPayAccountId(payAction.entry.financialAccount.id);
+    } else {
+      setPayAccountId("");
     }
   }, [payAction]);
 
@@ -907,6 +915,10 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     setActionLoading(entry.id);
     try {
       const isCard = !!selectedPM?.requiresBrand;
+      // Update category if changed
+      if (payAccountId && payAccountId !== (entry.financialAccount?.id || "")) {
+        await api.patch(`/finance/entries/${entry.id}`, { financialAccountId: payAccountId });
+      }
       await api.patch(`/finance/entries/${entry.id}/status`, {
         status: action,
         paymentMethod,
@@ -922,6 +934,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
       setSelectedCardRateId("");
       setSelectedAccountId("");
       setSelectedInstrumentId("");
+      setPayAccountId("");
       setAvailableInstruments([]);
       await loadEntries();
     } catch {
@@ -1288,6 +1301,35 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                     ))}
                   </select>
                   <p className="mt-0.5 text-[10px] text-slate-400">Selecione para atualizar o saldo automaticamente</p>
+                </div>
+              )}
+
+              {/* Categoria (Plano de Contas) */}
+              {postableAccounts.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Categoria</label>
+                  <select
+                    value={payAccountId}
+                    onChange={(e) => setPayAccountId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                  >
+                    <option value="">Sem categoria</option>
+                    {(() => {
+                      const grouped = new Map<string, typeof postableAccounts>();
+                      for (const acc of postableAccounts) {
+                        const parentName = acc.parent?.name || "Outros";
+                        if (!grouped.has(parentName)) grouped.set(parentName, []);
+                        grouped.get(parentName)!.push(acc);
+                      }
+                      return Array.from(grouped.entries()).map(([group, items]) => (
+                        <optgroup key={group} label={group}>
+                          {items.map((a) => (
+                            <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                          ))}
+                        </optgroup>
+                      ));
+                    })()}
+                  </select>
                 </div>
               )}
 
