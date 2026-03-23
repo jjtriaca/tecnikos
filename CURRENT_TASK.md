@@ -1,9 +1,9 @@
 # TAREFA ATUAL
 
-## Versao: v1.07.26
+## Versao: v1.07.27
 ## Ultima sessao: 156 (23/03/2026)
 
-## CONCLUIDO (sessao 156) — Deploys v1.07.07 → v1.07.26 (20 deploys)
+## CONCLUIDO (sessao 156) — Deploys v1.07.07 → v1.07.27 (21 deploys)
 
 ### Financeiro — Reorganizacao completa
 - Abas agrupadas: Caixas/Bancos, Formas Pgto, Instrumentos, Cobranca, Plano de Contas → dropdown "Cadastros"
@@ -16,17 +16,19 @@
 - Novo fluxo: PENDING → PAID → ESTORNADO (volta PENDING) | CANCELLED
 - 119 entries migradas de CONFIRMED para PENDING
 - Botao "Pagar"/"Receber" agora vai direto para PAID
-- Estorno volta para PENDING (nao mais CONFIRMED)
+- Estorno volta para PENDING
 
 ### Financeiro — Campos e colunas
-- Campo Categoria (plano de contas) obrigatorio em: modal Pagar/Receber, Nova Entrada, Wizard NFS-e, Wizard NF-e, Approve-and-finalize
+- Campo Categoria obrigatorio em: modal Pagar/Receber, Nova Entrada, Wizard NFS-e, Wizard NF-e, Approve-and-finalize (com defaults 1100/2100)
 - Campo Data de Pagamento/Recebimento no modal (default hoje, editavel)
-- Coluna "Pago em" / "Recebido em" na tabela
-- Filtros por data de pagamento (paidFrom/paidTo)
+- Coluna "Pago em" / "Recebido em" na tabela (sortavel)
+- Filtros compactos: dropdown "Periodo por" (Criacao/Pagamento/Vencimento) + De/Ate
+- Filtro "Vencidas" no status (pendentes com vencimento passado)
 - Total filtrado no rodape da tabela (aggregate backend)
 - Colunas diferenciadas: A Receber tem NFS-e, A Pagar tem Comissao (sem NFS-e)
 - Fontes reduzidas para melhor leitura
 - Aviso visual quando sem conta/caixa selecionada
+- Status "Recebido" (nao "Pago") na aba A Receber
 
 ### Financeiro — Pagamento em lote
 - Checkboxes na tabela para selecao multipla (so entradas pendentes)
@@ -44,14 +46,16 @@
 - Modal de confirmacao com aviso de cota + campo data antes de importar
 - Backend aceita dateFrom para filtrar notas por data
 
-### Filtro A Receber
-- Status PAID mostra "Recebido" (nao "Pago") na aba A Receber
+### NFS-e Saida
+- Nota 52 (R$ 3.000 CONSTRUTORA COSENTINO) importada manualmente e vinculada ao lancamento
+- Auto-cleanup do vinculo quando NFS-e cancelada JA EXISTIA no codigo (todos os pontos cobertos)
+
+### NF-e Import
+- Campos Forma de Pagamento e Categoria obrigatorios no step Financeiro
+- Botao Proximo bloqueado sem preencher
 
 ### Sidebar
 - Auto-expand no hover quando recolhido (expande ao passar mouse, recolhe apos 1.5s)
-
-### NFS-e Saida — Vinculacao manual
-- Nota 52 (R$ 3.000 CONSTRUTORA COSENTINO) emitida no portal, importada manualmente e vinculada ao lancamento
 
 ## PROXIMA SESSAO — PRIORIDADES
 
@@ -62,7 +66,7 @@
 ### 2. Auditoria de Funcionalidades
 - Verificar TODOS os toggles do sistema estao realmente sendo lidos e aplicados
 - Verificar se endpoints de pausa/resume/incident funcionam no PWA
-- Verificar se approve-and-finalize cria financeiro corretamente
+- Verificar se approve-and-finalize cria financeiro corretamente com novos campos
 - Testar retorno de OS (botao + pre-fill + parentOrderId)
 
 ### 3. CLT Fase 2
@@ -74,8 +78,9 @@
 ### PENDENCIAS FUTURAS
 - Cadastro Parceiros: tratamento de empresas com filiais
 - ChatIA: revisar orientacoes onboarding geral
-- NFS-e: importacao de XML de nota emitida externamente (feature para importar como a nota 52)
+- NFS-e: feature para importar XML de nota emitida externamente (como nota 52)
 - Conciliacao bancaria: integrar batchPaymentId na reconciliacao
+- Financeiro: conciliacao automatica (match por valor/data entre extrato e lancamentos)
 
 ### BLOQUEADO
 - (nenhum)

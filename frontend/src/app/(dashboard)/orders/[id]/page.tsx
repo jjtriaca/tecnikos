@@ -31,6 +31,8 @@ type ServiceOrder = {
   lng: number | null;
   status: string;
   valueCents: number;
+  techCommissionCents?: number | null;
+  commissionBps?: number | null;
   deadlineAt: string;
   createdAt: string;
   updatedAt: string;
@@ -636,6 +638,16 @@ export default function OrderDetailPage() {
           <dl className="space-y-2 text-sm">
             <dt className="text-slate-500">Valor</dt>
             <dd className="text-xl font-bold text-slate-900">{formatCurrency(order.valueCents)}</dd>
+            {(() => {
+              const techCents = order.techCommissionCents
+                ?? (order.commissionBps != null && order.valueCents ? Math.round((order.valueCents * order.commissionBps) / 10000) : null);
+              return techCents != null && techCents > 0 ? (
+                <>
+                  <dt className="text-slate-500">Comissão Técnico</dt>
+                  <dd className="text-lg font-bold text-green-700">{formatCurrency(techCents)}</dd>
+                </>
+              ) : null;
+            })()}
             <dt className="text-slate-500">Prazo</dt>
             <dd className={isOverdue ? "text-red-600 font-medium" : "text-slate-900"}>
               {formatDateTime(order.deadlineAt)}

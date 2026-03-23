@@ -388,8 +388,14 @@ export class WorkflowService {
     // Verify the OS belongs to this workflow and company
     const os = await this.prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, companyId, workflowTemplateId: workflowId, deletedAt: null },
+      include: { offers: { where: { channel: 'PREVIEW' }, select: { id: true }, take: 1 } },
     });
     if (!os) throw new NotFoundException('OS não encontrada ou não pertence a este workflow');
+
+    // Safety: only allow reset on preview OS (created by emulator), never real OS
+    if (!os.offers || os.offers.length === 0) {
+      throw new ForbiddenException('Apenas OS de teste (preview) podem ser resetadas pelo emulador');
+    }
 
     await this.prisma.$transaction(async (tx) => {
       // Delete all workflow step logs

@@ -11,6 +11,7 @@ type ServiceOrder = {
   addressText: string;
   status: string;
   valueCents: number;
+  techCommissionCents?: number | null;
   deadlineAt: string;
   createdAt: string;
   completedAt?: string | null;
@@ -198,7 +199,7 @@ export default function TechOrdersPage() {
                           </p>
                         </div>
                         <span className="ml-2 text-sm font-bold text-slate-700 flex-shrink-0">
-                          {formatCurrency(order.valueCents)}
+                          {formatCurrency(order.techCommissionCents ?? order.valueCents)}
                         </span>
                       </div>
 

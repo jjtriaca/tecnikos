@@ -508,6 +508,7 @@ export class TechAuthService {
         addressText: true,
         deadlineAt: true,
         valueCents: true,
+        techCommissionCents: true,
         clientPartner: { select: { name: true } },
       },
       orderBy: [{ deadlineAt: 'asc' }],

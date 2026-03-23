@@ -32,6 +32,8 @@ type ServiceOrder = {
   addressText: string;
   status: string;
   valueCents: number;
+  techCommissionCents?: number | null;
+  commissionBps?: number | null;
   deadlineAt: string;
   createdAt: string;
   acceptedAt?: string | null;
@@ -331,6 +333,17 @@ function makeColumns(
       ),
     },
     {
+      id: "techCommissionCents",
+      label: "Comissão Técnico",
+      sortable: true,
+      align: "right",
+      render: (order) => {
+        const cents = order.techCommissionCents
+          ?? (order.commissionBps != null && order.valueCents ? Math.round((order.valueCents * order.commissionBps) / 10000) : null);
+        return <span className="font-medium text-green-700">{cents != null && cents > 0 ? formatCurrency(cents) : "\u2014"}</span>;
+      },
+    },
+    {
       id: "createdAt",
       label: "Criada em",
       sortable: true,
@@ -521,6 +534,10 @@ export default function OrdersPage() {
     { header: "Status", value: (r) => fmtStatus(r.status) },
     { header: "Técnico", value: (r) => r.assignedPartner?.name || "" },
     { header: "Valor (R$)", value: (r) => r.valueCents ? (r.valueCents / 100).toFixed(2).replace(".", ",") : "" },
+    { header: "Comissão Técnico (R$)", value: (r) => {
+      const cents = r.techCommissionCents ?? (r.commissionBps != null && r.valueCents ? Math.round((r.valueCents * r.commissionBps) / 10000) : null);
+      return cents != null && cents > 0 ? (cents / 100).toFixed(2).replace(".", ",") : "";
+    }},
     { header: "Criada em", value: (r) => fmtDateTime(r.createdAt) },
     { header: "Aceite em", value: (r) => fmtDateTime(r.acceptedAt) },
     { header: "Iniciada em", value: (r) => fmtDateTime(r.startedAt) },

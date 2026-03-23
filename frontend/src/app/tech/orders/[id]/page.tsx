@@ -33,6 +33,8 @@ type ServiceOrder = {
   lng: number;
   status: string;
   valueCents: number;
+  techCommissionCents?: number | null;
+  commissionBps?: number | null;
   deadlineAt: string;
   createdAt: string;
   workflowTemplateId?: string | null;
@@ -1028,9 +1030,14 @@ export default function TechOrderDetailPage() {
               bold={isOverdue}
             />
           )}
-          {showCommission && order.ledger?.commissionCents != null && order.ledger.commissionCents > 0 && (
-            <InfoRow icon="money" color="green" label={commissionLabel} value={formatCurrency(order.ledger.commissionCents)} bold />
-          )}
+          {showCommission && (() => {
+            const techCents = order.ledger?.commissionCents
+              ?? order.techCommissionCents
+              ?? (order.commissionBps != null ? Math.round((order.valueCents * order.commissionBps) / 10000) : null);
+            return techCents != null && techCents > 0
+              ? <InfoRow icon="money" color="green" label={commissionLabel} value={formatCurrency(techCents)} bold />
+              : null;
+          })()}
           {showCompanyPhone && order.company?.phone && <InfoRow icon="building" color="slate" label={companyPhoneLabel} value={order.company.phone} />}
           {showCreator && order.createdByName && <InfoRow icon="pencil" color="slate" label="Criado por" value={order.createdByName} />}
         </div>

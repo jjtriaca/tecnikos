@@ -553,65 +553,22 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
                         </button>
                       </>
                     ) : (
+                      /* Default empty state — only test OS creation */
                       <>
-                        {showOsList ? (
-                          /* OS selection list */
-                          <div className="w-full h-full flex flex-col px-3 pt-8 pb-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs font-semibold text-slate-700">Selecionar OS</p>
-                              <button onClick={() => setShowOsList(false)} className="text-[10px] text-slate-400 hover:text-slate-600">&larr; Voltar</button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto space-y-1.5">
-                              {emulatorOsList.length === 0 ? (
-                                <p className="text-[10px] text-slate-400 text-center mt-8">Nenhuma OS encontrada para este workflow</p>
-                              ) : (
-                                emulatorOsList.map((os) => {
-                                  const isTerminal = ["RECUSADA", "CANCELADA", "CONCLUIDA", "APROVADA"].includes(os.status);
-                                  return (
-                                    <button
-                                      key={os.serviceOrderId}
-                                      onClick={() => selectEmulatorOs(os)}
-                                      className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-mono font-bold text-blue-600">{os.code}</span>
-                                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${isTerminal ? "bg-red-50 text-red-500" : "bg-slate-100 text-slate-500"}`}>{os.status}</span>
-                                      </div>
-                                      <p className="text-[10px] text-slate-600 truncate mt-0.5">{os.title}</p>
-                                      {os.techName && <p className="text-[9px] text-slate-400 mt-0.5">{os.techName}</p>}
-                                      {isTerminal && <p className="text-[9px] text-amber-500 mt-0.5">Sera reiniciada ao selecionar</p>}
-                                    </button>
-                                  );
-                                })
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          /* Default empty state */
-                          <>
-                            <div className="text-4xl">&#x1F4F1;</div>
-                            <p className="text-sm font-semibold text-slate-700 text-center">Emulador do Portal</p>
-                            <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-                              Crie uma OS de teste ou use uma OS real para visualizar o portal do tecnico.
-                            </p>
-                            <button
-                              onClick={createPreviewOs}
-                              disabled={!workflowId}
-                              className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-                            >
-                              Criar {triggerLabel}
-                            </button>
-                            <button
-                              onClick={loadEmulatorOs}
-                              disabled={loadingOsList}
-                              className="rounded-xl border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-all disabled:opacity-50"
-                            >
-                              {loadingOsList ? "Carregando..." : "Usar OS existente"}
-                            </button>
-                            {!workflowId && (
-                              <p className="text-[9px] text-amber-500">Salve o fluxo primeiro</p>
-                            )}
-                          </>
+                        <div className="text-4xl">&#x1F4F1;</div>
+                        <p className="text-sm font-semibold text-slate-700 text-center">Emulador do Portal</p>
+                        <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+                          Crie uma OS de teste para visualizar o portal do tecnico.
+                        </p>
+                        <button
+                          onClick={createPreviewOs}
+                          disabled={!workflowId}
+                          className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                        >
+                          Criar {triggerLabel}
+                        </button>
+                        {!workflowId && (
+                          <p className="text-[9px] text-amber-500">Salve o fluxo primeiro</p>
                         )}
                       </>
                     )}
