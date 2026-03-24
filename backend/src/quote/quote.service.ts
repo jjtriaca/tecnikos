@@ -15,6 +15,7 @@ import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { SendQuoteDto } from './dto/send-quote.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { NotificationService } from '../notification/notification.service';
+import { EmailService } from '../email/email.service';
 import { WorkflowEngineService } from '../workflow/workflow-engine.service';
 import { randomUUID } from 'crypto';
 import { QuoteStatus, Prisma } from '@prisma/client';
@@ -29,6 +30,7 @@ export class QuoteService {
     private readonly codeGenerator: CodeGeneratorService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationService,
+    @Optional() @Inject(EmailService) private readonly emailService?: EmailService,
     @Optional() @Inject(WorkflowEngineService) private readonly workflowEngine?: WorkflowEngineService,
   ) {}
 
@@ -951,5 +953,108 @@ export class QuoteService {
 
       current = current.next ? blockMap.get(current.next) : undefined;
     }
+  }
+
+  // ---- Resend WhatsApp ----
+
+  async sendWhatsApp(id: string, companyId: string) {
+    const quote = await this.prisma.quote.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: { clientPartner: true, company: true },
+    });
+    if (!quote) throw new NotFoundException('Orçamento não encontrado');
+    if (!quote.publicToken) throw new BadRequestException('Orçamento ainda não foi enviado');
+    if (!quote.clientPartner.phone) throw new BadRequestException('Cliente não possui telefone cadastrado');
+
+    const formatMoney = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
+    const baseDomain = process.env.BASE_DOMAIN || 'https://tecnikos.com.br';
+    const publicUrl = `${baseDomain}/q/${quote.publicToken}`;
+
+    const message = `Olá ${quote.clientPartner.name}! Segue o orçamento *${quote.code}* - ${quote.title}.\n\nValor: *${formatMoney(quote.totalCents)}*\nValidade: ${quote.expiresAt ? new Date(quote.expiresAt).toLocaleDateString('pt-BR') : 'Indeterminada'}\n\nAcesse para aprovar ou recusar:\n${publicUrl}`;
+
+    await this.notifications.send({
+      companyId,
+      channel: 'WHATSAPP',
+      recipientPhone: quote.clientPartner.phone,
+      message,
+      type: 'QUOTE_SENT',
+      forceTemplate: true,
+    });
+
+    return { success: true, message: 'WhatsApp enviado' };
+  }
+
+  // ---- Send Email ----
+
+  async sendEmail(id: string, companyId: string) {
+    const quote = await this.prisma.quote.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: { clientPartner: true, company: true, items: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!quote) throw new NotFoundException('Orçamento não encontrado');
+    if (!quote.publicToken) throw new BadRequestException('Orçamento ainda não foi enviado');
+    if (!quote.clientPartner.email) throw new BadRequestException('Cliente não possui email cadastrado');
+    if (!this.emailService) throw new BadRequestException('Serviço de email não configurado');
+
+    const formatMoney = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
+    const baseDomain = process.env.BASE_DOMAIN || 'https://tecnikos.com.br';
+    const publicUrl = `${baseDomain}/q/${quote.publicToken}`;
+
+    const itemRows = quote.items.map((item, i) =>
+      `<tr style="border-bottom:1px solid #e2e8f0">
+        <td style="padding:8px;text-align:center">${i + 1}</td>
+        <td style="padding:8px">${item.description}</td>
+        <td style="padding:8px;text-align:center">${item.quantity} ${item.unit}</td>
+        <td style="padding:8px;text-align:right">${formatMoney(item.unitPriceCents)}</td>
+        <td style="padding:8px;text-align:right;font-weight:bold">${formatMoney(item.totalCents)}</td>
+      </tr>`
+    ).join('');
+
+    const html = `
+      <div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;color:#1e293b">
+        <div style="background:#1e40af;padding:20px;border-radius:12px 12px 0 0;text-align:center">
+          <h1 style="color:#fff;margin:0;font-size:20px">${quote.company.tradeName || quote.company.name}</h1>
+        </div>
+        <div style="background:#fff;padding:24px;border:1px solid #e2e8f0">
+          <h2 style="margin:0 0 8px;font-size:18px">Orçamento ${quote.code}</h2>
+          <p style="color:#64748b;margin:0 0 16px">${quote.title}</p>
+          <p>Olá <strong>${quote.clientPartner.name}</strong>,</p>
+          <p>Segue o orçamento solicitado:</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+            <thead>
+              <tr style="background:#f1f5f9">
+                <th style="padding:8px;text-align:center">#</th>
+                <th style="padding:8px;text-align:left">Descrição</th>
+                <th style="padding:8px;text-align:center">Qtde</th>
+                <th style="padding:8px;text-align:right">Unit.</th>
+                <th style="padding:8px;text-align:right">Total</th>
+              </tr>
+            </thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+          <div style="text-align:right;margin:16px 0">
+            <p style="font-size:20px;font-weight:bold;color:#1e40af;margin:0">TOTAL: ${formatMoney(quote.totalCents)}</p>
+            ${quote.expiresAt ? `<p style="color:#64748b;font-size:12px;margin:4px 0 0">Válido até ${new Date(quote.expiresAt).toLocaleDateString('pt-BR')}</p>` : ''}
+          </div>
+          <div style="text-align:center;margin:24px 0">
+            <a href="${publicUrl}" style="background:#1e40af;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;display:inline-block">
+              Ver Orçamento Completo
+            </a>
+          </div>
+          <p style="color:#94a3b8;font-size:12px;text-align:center">Clique no botão acima para visualizar o orçamento completo, incluindo anexos, e aprovar ou recusar.</p>
+        </div>
+        <div style="text-align:center;padding:12px;color:#94a3b8;font-size:11px">
+          Enviado por ${quote.company.tradeName || quote.company.name} via Tecnikos
+        </div>
+      </div>`;
+
+    await this.emailService.sendEmail(
+      companyId,
+      quote.clientPartner.email,
+      `Orçamento ${quote.code} — ${quote.title}`,
+      html,
+    );
+
+    return { success: true, message: 'Email enviado' };
   }
 }

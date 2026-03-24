@@ -111,6 +111,24 @@ export class QuoteController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/send-whatsapp')
+  sendWhatsApp(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.sendWhatsApp(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/send-email')
+  sendEmail(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.sendEmail(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/approve')
   approve(
     @Param('id') id: string,

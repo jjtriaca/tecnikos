@@ -38,7 +38,7 @@ interface PublicQuoteData {
   items: PublicQuoteItem[];
   attachments: PublicQuoteAttachment[];
   company: { name: string; logoUrl: string | null; phone: string | null; email: string | null };
-  client: { name: string };
+  clientPartner: { name: string };
 }
 
 /* ── Helpers ── */
@@ -237,7 +237,7 @@ export default function PublicQuotePage() {
           <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-sm">
             <div>
               <span className="text-slate-500">Cliente:</span>
-              <span className="ml-1 font-medium text-slate-800">{quote.client.name}</span>
+              <span className="ml-1 font-medium text-slate-800">{quote.clientPartner.name}</span>
             </div>
             {quote.expiresAt && (
               <div>
