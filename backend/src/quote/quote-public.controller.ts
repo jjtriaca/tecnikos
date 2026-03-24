@@ -1,10 +1,15 @@
-import { Controller, Get, Post, Param, Body, Res } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Res, NotFoundException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { QuoteService } from './quote.service';
 import { QuotePdfService } from './quote-pdf.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { createReadStream, existsSync } from 'fs';
+import { join } from 'path';
+
+const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 
 @ApiTags('Quote Public')
 @Public()
@@ -13,6 +18,7 @@ export class QuotePublicController {
   constructor(
     private readonly service: QuoteService,
     private readonly pdfService: QuotePdfService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get(':token')
@@ -39,6 +45,29 @@ export class QuotePublicController {
     @Body('reason') reason: string | undefined,
   ) {
     return this.service.rejectPublic(token, reason);
+  }
+
+  @Get(':token/attachments/:attachmentId')
+  async downloadAttachment(
+    @Param('token') token: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res() res: Response,
+  ) {
+    // Validate token
+    const quote = await this.service.findByPublicToken(token);
+    const attachment = await this.prisma.quoteAttachment.findFirst({
+      where: { id: attachmentId, quoteId: (quote as any).id },
+    });
+    if (!attachment) throw new NotFoundException('Anexo não encontrado');
+
+    const fullPath = join(UPLOAD_DIR, attachment.filePath.replace(/^\/uploads\//, ''));
+    if (!existsSync(fullPath)) throw new NotFoundException('Arquivo não encontrado');
+
+    res.set({
+      'Content-Type': attachment.mimeType || 'application/pdf',
+      'Content-Disposition': `inline; filename="${attachment.fileName}"`,
+    });
+    createReadStream(fullPath).pipe(res);
   }
 
   @Get(':token/pdf')
