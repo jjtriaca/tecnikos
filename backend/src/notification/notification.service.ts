@@ -17,6 +17,8 @@ export interface SendNotificationDto {
   templateName?: string;
   /** Explicit template parameters (e.g. [name, link]) instead of sending full message as {{1}}. */
   templateParams?: string[];
+  /** Dynamic URL button parameters for templates with CTA buttons. */
+  urlButtonParams?: string[];
   /** User ID of the recipient — enables push notification delivery */
   recipientUserId?: string;
 }
@@ -47,7 +49,7 @@ export class NotificationService {
         const connected = await this.whatsApp.isConnected(dto.companyId);
         if (connected) {
           const result = dto.templateName
-            ? await this.whatsApp.sendWithNamedTemplate(dto.companyId, dto.recipientPhone, dto.message, dto.templateName, dto.templateParams)
+            ? await this.whatsApp.sendWithNamedTemplate(dto.companyId, dto.recipientPhone, dto.message, dto.templateName, dto.templateParams, dto.urlButtonParams)
             : await this.whatsApp.sendTextWithTemplateFallback(dto.companyId, dto.recipientPhone, dto.message, dto.forceTemplate);
           status = result.success ? 'SENT' : 'FAILED';
           whatsappMessageId = result.messageId;

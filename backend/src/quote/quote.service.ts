@@ -405,10 +405,8 @@ export class QuoteService {
       `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
 
     if (deliveryMethod === 'WHATSAPP_LINK' || deliveryMethod === 'WHATSAPP_MESSAGE') {
-      const message =
-        deliveryMethod === 'WHATSAPP_LINK'
-          ? `Olá ${quote.clientPartner.name}! Segue o orçamento *${quote.code}* - ${quote.title}.\n\nValor: *${formatMoney(quote.totalCents)}*\nValidade: ${quote.expiresAt ? new Date(quote.expiresAt).toLocaleDateString('pt-BR') : 'Indeterminada'}\n\nAcesse para aprovar ou recusar:\n${publicUrl}`
-          : `Olá ${quote.clientPartner.name}! Segue o orçamento *${quote.code}*:\n\n*${quote.title}*\nValor Total: *${formatMoney(quote.totalCents)}*\n\n${dto.message || 'Entre em contato para aprovar.'}`;
+      const clientName = quote.clientPartner.name.split(' ')[0]; // First name only
+      const message = `Prezado(a) ${clientName}, seu orçamento ${quote.code} no valor de ${formatMoney(quote.totalCents)} está disponível para aprovação.`;
 
       try {
         await this.notifications.send({
@@ -417,7 +415,10 @@ export class QuoteService {
           recipientPhone: quote.clientPartner.phone || undefined,
           message,
           type: 'QUOTE_SENT',
-          forceTemplate: true, // Business-initiated — skip text attempt
+          templateName: 'orcamento_enviado_v2',
+          templateParams: [clientName, quote.code || '', formatMoney(quote.totalCents)],
+          urlButtonParams: [publicToken],
+          forceTemplate: true,
         });
       } catch (err) {
         this.logger.warn(`Failed to send WhatsApp for quote ${id}: ${err.message}`);
@@ -978,7 +979,8 @@ export class QuoteService {
     const baseDomain = process.env.BASE_DOMAIN || 'https://tecnikos.com.br';
     const publicUrl = `${baseDomain}/q/${quote.publicToken}`;
 
-    const message = `Olá ${quote.clientPartner.name}! Segue o orçamento *${quote.code}* - ${quote.title}.\n\nValor: *${formatMoney(quote.totalCents)}*\nValidade: ${quote.expiresAt ? new Date(quote.expiresAt).toLocaleDateString('pt-BR') : 'Indeterminada'}\n\nAcesse para aprovar ou recusar:\n${publicUrl}`;
+    const clientName = quote.clientPartner.name.split(' ')[0];
+    const message = `Prezado(a) ${clientName}, seu orçamento ${quote.code} no valor de ${formatMoney(quote.totalCents)} está disponível para aprovação.`;
 
     await this.notifications.send({
       companyId,
@@ -986,6 +988,9 @@ export class QuoteService {
       recipientPhone: quote.clientPartner.phone,
       message,
       type: 'QUOTE_SENT',
+      templateName: 'orcamento_enviado_v2',
+      templateParams: [clientName, quote.code || '', formatMoney(quote.totalCents)],
+      urlButtonParams: [quote.publicToken],
       forceTemplate: true,
     });
 

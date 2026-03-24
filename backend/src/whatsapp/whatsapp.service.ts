@@ -393,6 +393,7 @@ export class WhatsAppService {
     message: string,
     templateName: string,
     templateParams?: string[],
+    urlButtonParams?: string[],
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     const token = await this.getAccessToken(companyId);
     const phoneNumberId = await this.getPhoneNumberId(companyId);
@@ -419,6 +420,23 @@ export class WhatsAppService {
           return [{ type: 'text' as const, text: truncatedMsg }];
         })();
 
+    // Build components array — body + optional URL button
+    const components: any[] = [
+      { type: 'body', parameters: bodyParameters },
+    ];
+
+    // Add URL button parameters if provided (for templates with CTA URL buttons)
+    if (urlButtonParams && urlButtonParams.length > 0) {
+      urlButtonParams.forEach((param, idx) => {
+        components.push({
+          type: 'button',
+          sub_type: 'url',
+          index: String(idx),
+          parameters: [{ type: 'text', text: param }],
+        });
+      });
+    }
+
     // Try named template first
     this.logger.log(`📱 Trying template "${templateName}" to ${formattedPhone} (${bodyParameters.length} params)`);
     try {
@@ -429,12 +447,7 @@ export class WhatsAppService {
         template: {
           name: templateName,
           language: { code: 'pt_BR' },
-          components: [
-            {
-              type: 'body',
-              parameters: bodyParameters,
-            },
-          ],
+          components,
         },
       });
 
