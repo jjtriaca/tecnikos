@@ -141,7 +141,7 @@ export default function LookupField<T>({
                   key={keyExtractor(item)}
                   type="button"
                   onClick={() => handleSelect(item)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                  className="w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-blue-50 border-b border-slate-100 last:border-0"
                 >
                   {renderItem(item)}
                 </button>
