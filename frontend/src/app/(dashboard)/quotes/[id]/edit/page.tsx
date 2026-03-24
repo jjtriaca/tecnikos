@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import Link from "next/link";
@@ -533,6 +533,42 @@ function ItemEditor({ item, index, totalItems, onUpdate, onRemove, onMove, onSel
   const [showServiceLookup, setShowServiceLookup] = useState(false);
   const itemTotal = calcItemTotal(item);
 
+  // Autocomplete state
+  const [acSuggestions, setAcSuggestions] = useState<(ProductSummary | ServiceSummary)[]>([]);
+  const [acShow, setAcShow] = useState(false);
+  const [acLoading, setAcLoading] = useState(false);
+  const acDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const acContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (acContainerRef.current && !acContainerRef.current.contains(e.target as Node)) setAcShow(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleDescriptionChange(val: string) {
+    onUpdate("description", val);
+    if (acDebounceRef.current) clearTimeout(acDebounceRef.current);
+    if (val.length < 2 || item.type === "LABOR") { setAcSuggestions([]); setAcShow(false); return; }
+    setAcLoading(true); setAcShow(true);
+    acDebounceRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      try {
+        const fetcher = item.type === "PRODUCT" ? productFetcher : serviceFetcher;
+        const result = await fetcher(val, 1, controller.signal);
+        setAcSuggestions(result.data.slice(0, 6));
+      } catch { setAcSuggestions([]); } finally { setAcLoading(false); }
+    }, 300);
+  }
+
+  function handleAcSelect(s: ProductSummary | ServiceSummary) {
+    if (item.type === "PRODUCT") onSelectProduct(s as ProductSummary);
+    else onSelectService(s as ServiceSummary);
+    setAcShow(false); setAcSuggestions([]);
+  }
+
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center gap-2 mb-3">
@@ -572,10 +608,27 @@ function ItemEditor({ item, index, totalItems, onUpdate, onRemove, onMove, onSel
         </button>
       </div>
       <div className="grid grid-cols-12 gap-2">
-        <div className="col-span-12 md:col-span-5">
+        <div className="col-span-12 md:col-span-5 relative" ref={acContainerRef}>
           <label className="text-[10px] uppercase tracking-wide text-slate-500 mb-0.5 block">Descricao</label>
-          <input type="text" value={item.description} onChange={e => onUpdate("description", e.target.value)}
+          <input type="text" value={item.description} onChange={e => handleDescriptionChange(e.target.value)}
+            onFocus={() => { if (item.description.length >= 2 && acSuggestions.length > 0) setAcShow(true); }}
+            placeholder="Digite para buscar no catalogo..."
             className="rounded border border-slate-300 px-2 py-1.5 text-sm w-full outline-none focus:border-blue-500" />
+          {acShow && (
+            <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
+              {acLoading && <div className="px-3 py-2 text-xs text-slate-400">Buscando...</div>}
+              {!acLoading && acSuggestions.length === 0 && <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>}
+              {acSuggestions.map((s) => (
+                <button key={s.id} type="button" onClick={() => handleAcSelect(s)}
+                  className="w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-blue-50 border-b border-slate-100 last:border-0">
+                  <div className="flex items-center justify-between">
+                    <div><div className="font-medium">{s.name}</div>{s.code && <div className="text-xs text-slate-500">{s.code}</div>}</div>
+                    <span className="text-xs font-medium text-slate-600">{formatCurrency("salePriceCents" in s ? s.salePriceCents : (s as ServiceSummary).priceCents)}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="col-span-4 md:col-span-1">
           <label className="text-[10px] uppercase tracking-wide text-slate-500 mb-0.5 block">Qtd</label>
