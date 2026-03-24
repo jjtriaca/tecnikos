@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, getAccessToken } from "@/lib/api";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -273,10 +273,27 @@ export default function QuoteDetailPage() {
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
             Duplicar
           </button>
-          <a href={`/api/quotes/${quoteId}/pdf`} target="_blank" rel="noreferrer"
+          <button onClick={async () => {
+              try {
+                const token = getAccessToken();
+                const res = await fetch(`/api/quotes/${quoteId}/pdf`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (!res.ok) {
+                  const errBody = await res.json().catch(() => null);
+                  throw new Error(errBody?.message || "Erro ao gerar PDF");
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                window.open(url, "_blank");
+                setTimeout(() => URL.revokeObjectURL(url), 30000);
+              } catch (err: any) {
+                toast(err?.message || "Erro ao gerar PDF", "error");
+              }
+            }}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
             PDF
-          </a>
+          </button>
           {quote.status === "RASCUNHO" && (
             <button onClick={() => setShowDeleteModal(true)}
               className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
