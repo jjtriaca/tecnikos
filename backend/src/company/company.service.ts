@@ -243,6 +243,11 @@ export class CompanyService {
       requireGestorApproval: true,
       sendClientEvalLink: true,
     },
+    quotes: {
+      autoSendOnSave: true,
+      showProductValue: true,
+      showPartnerQuotes: true,
+    },
     clt: {
       enabled: false,
       alertMealBreak4h: true,
