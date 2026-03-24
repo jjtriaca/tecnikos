@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PDFDocument as PDFLibDocument } from 'pdf-lib';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit');
 
@@ -51,12 +52,48 @@ export class QuotePdfService {
         company: true,
         clientPartner: true,
         items: { orderBy: { sortOrder: 'asc' } },
+        attachments: { orderBy: { createdAt: 'asc' } },
       },
     });
 
     if (!quote) throw new NotFoundException('Orçamento não encontrado');
 
-    return this.buildPdf(quote);
+    const mainPdf = await this.buildPdf(quote);
+
+    // Merge with attachment PDFs if any
+    const pdfAttachments = (quote.attachments || []).filter(
+      (a: any) => a.mimeType === 'application/pdf',
+    );
+    if (pdfAttachments.length === 0) return mainPdf;
+
+    try {
+      const merged = await PDFLibDocument.create();
+      const mainDoc = await PDFLibDocument.load(mainPdf);
+      const mainPages = await merged.copyPages(mainDoc, mainDoc.getPageIndices());
+      mainPages.forEach((p) => merged.addPage(p));
+
+      for (const att of pdfAttachments) {
+        const filePath = path.join(
+          UPLOAD_DIR,
+          (att as any).filePath.replace(/^\/?uploads\//, ''),
+        );
+        if (!fs.existsSync(filePath)) continue;
+        try {
+          const attBytes = fs.readFileSync(filePath);
+          const attDoc = await PDFLibDocument.load(attBytes, { ignoreEncryption: true });
+          const attPages = await merged.copyPages(attDoc, attDoc.getPageIndices());
+          attPages.forEach((p) => merged.addPage(p));
+        } catch {
+          // Skip invalid PDFs
+        }
+      }
+
+      const mergedBytes = await merged.save();
+      return Buffer.from(mergedBytes);
+    } catch {
+      // If merge fails, return main PDF only
+      return mainPdf;
+    }
   }
 
   private buildPdf(quote: any): Promise<Buffer> {

@@ -60,7 +60,7 @@ export class QuotePublicController {
     });
     if (!attachment) throw new NotFoundException('Anexo não encontrado');
 
-    const fullPath = join(UPLOAD_DIR, attachment.filePath.replace(/^\/uploads\//, ''));
+    const fullPath = join(UPLOAD_DIR, attachment.filePath.replace(/^\/?uploads\//, ''));
     if (!existsSync(fullPath)) throw new NotFoundException('Arquivo não encontrado');
 
     res.set({
