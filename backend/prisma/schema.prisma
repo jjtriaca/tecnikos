@@ -2551,8 +2551,9 @@ model Quote {
   discountCents   Int?        // Fixed amount in cents
 
   // Totals (computed on save)
-  subtotalCents   Int         @default(0)
-  totalCents      Int         @default(0)
+  subtotalCents       Int         @default(0)
+  productValueCents   Int         @default(0) // Valor dos produtos/materiais (somado ao total)
+  totalCents          Int         @default(0)
 
   // Delivery & Approval
   deliveryMethod  String      @default("WHATSAPP_LINK") // WHATSAPP_LINK | WHATSAPP_MESSAGE | EMAIL_LINK

@@ -49,6 +49,7 @@ interface QuoteDetail {
   discountPercent: number | null;
   discountCents: number | null;
   subtotalCents: number;
+  productValueCents: number;
   totalCents: number;
   publicToken: string | null;
   sentAt: string | null;
@@ -507,8 +508,14 @@ export default function QuoteDetailPage() {
                       Desconto {quote.discountPercent ? `(${quote.discountPercent}%)` : ""}
                     </span>
                     <span className="font-medium text-red-600 w-32 text-right">
-                      -{formatCurrency(quote.subtotalCents - quote.totalCents)}
+                      -{formatCurrency(quote.subtotalCents - quote.totalCents + (quote.productValueCents || 0))}
                     </span>
+                  </div>
+                )}
+                {quote.productValueCents > 0 && (
+                  <div className="flex gap-8">
+                    <span className="text-slate-500">Valor Produtos</span>
+                    <span className="font-medium text-slate-800 w-32 text-right">{formatCurrency(quote.productValueCents)}</span>
                   </div>
                 )}
                 <div className="flex gap-8 border-t border-slate-300 pt-2 mt-1 text-base font-bold">

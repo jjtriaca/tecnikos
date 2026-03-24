@@ -91,6 +91,12 @@ export class CreateQuoteDto {
   @Min(0)
   discountCents?: number;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  productValueCents?: number;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateQuoteItemDto)

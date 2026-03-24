@@ -32,6 +32,7 @@ interface PublicQuoteData {
   validityDays: number;
   expiresAt: string | null;
   subtotalCents: number;
+  productValueCents: number;
   totalCents: number;
   discountPercent: number | null;
   discountCents: number | null;
@@ -303,7 +304,13 @@ export default function PublicQuotePage() {
               {(quote.discountPercent || quote.discountCents) && (
                 <div className="flex gap-6 w-full max-w-xs justify-between">
                   <span className="text-slate-500">Desconto{quote.discountPercent ? ` (${quote.discountPercent}%)` : ""}</span>
-                  <span className="font-medium text-red-600">-{formatCurrency(quote.subtotalCents - quote.totalCents)}</span>
+                  <span className="font-medium text-red-600">-{formatCurrency(quote.subtotalCents - quote.totalCents + (quote.productValueCents || 0))}</span>
+                </div>
+              )}
+              {quote.productValueCents > 0 && (
+                <div className="flex gap-6 w-full max-w-xs justify-between">
+                  <span className="text-slate-500">Valor Produtos</span>
+                  <span className="font-medium text-slate-700">{formatCurrency(quote.productValueCents)}</span>
                 </div>
               )}
               <div className="flex gap-6 w-full max-w-xs justify-between border-t border-slate-300 pt-2 mt-1">
@@ -322,39 +329,36 @@ export default function PublicQuotePage() {
           )}
         </div>
 
-        {/* Attachments - inline PDF viewers */}
+        {/* Attachments */}
         {quote.attachments.length > 0 && (
-          <div className="space-y-4 mb-6">
-            {quote.attachments.map(att => (
-              <div key={att.id} className="rounded-2xl bg-white shadow-lg border border-slate-200 overflow-hidden">
-                <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
-                  <svg className="h-5 w-5 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 20V4h7v5h5v11H6z" />
-                  </svg>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-700 truncate">
-                      {att.supplierName || att.label || att.fileName}
-                    </div>
-                    {att.supplierName && att.label && (
-                      <div className="text-xs text-slate-500">{att.label}</div>
-                    )}
+          <div className="rounded-2xl bg-white shadow-lg border border-slate-200 overflow-hidden mb-6">
+            <div className="px-6 py-4 border-b border-slate-200">
+              <h3 className="text-sm font-semibold text-slate-700">Documentos Anexos</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              {quote.attachments.map(att => (
+                <a key={att.id} href={`${API_BASE}/q/${token}/attachments/${att.id}`} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-colors group">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-red-100 group-hover:bg-red-200 transition-colors flex-shrink-0">
+                    <svg className="h-6 w-6 text-red-600" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 20V4h7v5h5v11H6z" />
+                    </svg>
                   </div>
-                  <a href={`${API_BASE}/q/${token}/attachments/${att.id}`} target="_blank" rel="noreferrer"
-                    className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-800 group-hover:text-blue-700 truncate">
+                      {att.supplierName || att.label || "Documento anexo"}
+                    </div>
+                    <div className="text-xs text-slate-500">{att.fileName}</div>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm font-medium text-blue-600 group-hover:text-blue-700 flex-shrink-0">
+                    <span>Visualizar</span>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
-                    Abrir
-                  </a>
-                </div>
-                <iframe
-                  src={`${API_BASE}/q/${token}/attachments/${att.id}`}
-                  className="w-full border-0"
-                  style={{ height: "500px" }}
-                  title={att.fileName}
-                />
-              </div>
-            ))}
+                  </div>
+                </a>
+              ))}
+            </div>
           </div>
         )}
 

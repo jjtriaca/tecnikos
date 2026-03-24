@@ -48,6 +48,7 @@ export class QuoteService {
     items: CreateQuoteItemDto[],
     discountPercent?: number | null,
     discountCents?: number | null,
+    productValueCents?: number | null,
   ) {
     const itemTotals = items.map((item) => this.computeItemTotal(item));
     const subtotalCents = itemTotals.reduce((sum, t) => sum + t, 0);
@@ -60,7 +61,7 @@ export class QuoteService {
       globalDiscount = discountCents;
     }
 
-    const totalCents = Math.max(0, subtotalCents - globalDiscount);
+    const totalCents = Math.max(0, subtotalCents - globalDiscount + (productValueCents || 0));
     return { subtotalCents, totalCents, itemTotals };
   }
 
@@ -72,6 +73,7 @@ export class QuoteService {
       dto.items,
       dto.discountPercent,
       dto.discountCents,
+      dto.productValueCents,
     );
 
     // TODO: validityDays, deliveryMethod, approvalMode will come from workflow config in the future
@@ -94,6 +96,7 @@ export class QuoteService {
         expiresAt,
         discountPercent: dto.discountPercent ?? null,
         discountCents: dto.discountCents ?? null,
+        productValueCents: dto.productValueCents ?? 0,
         subtotalCents,
         totalCents,
         deliveryMethod: 'WHATSAPP_LINK',
@@ -251,16 +254,19 @@ export class QuoteService {
     let totalCents = quote.totalCents;
     let itemTotals: number[] = [];
 
+    const effectiveProductValue = dto.productValueCents ?? quote.productValueCents ?? 0;
+
     if (items) {
       const result = this.computeTotals(
         items,
         dto.discountPercent ?? quote.discountPercent,
         dto.discountCents ?? quote.discountCents,
+        effectiveProductValue,
       );
       subtotalCents = result.subtotalCents;
       totalCents = result.totalCents;
       itemTotals = result.itemTotals;
-    } else if (dto.discountPercent !== undefined || dto.discountCents !== undefined) {
+    } else if (dto.discountPercent !== undefined || dto.discountCents !== undefined || dto.productValueCents !== undefined) {
       // Recalculate with existing items
       const existingItems = await this.prisma.quoteItem.findMany({
         where: { quoteId: id },
@@ -276,6 +282,7 @@ export class QuoteService {
         asDto,
         dto.discountPercent ?? quote.discountPercent,
         dto.discountCents ?? quote.discountCents,
+        effectiveProductValue,
       );
       subtotalCents = result.subtotalCents;
       totalCents = result.totalCents;
@@ -315,6 +322,7 @@ export class QuoteService {
           ...(dto.termsConditions !== undefined && { termsConditions: dto.termsConditions }),
           ...(dto.discountPercent !== undefined && { discountPercent: dto.discountPercent }),
           ...(dto.discountCents !== undefined && { discountCents: dto.discountCents }),
+          ...(dto.productValueCents !== undefined && { productValueCents: dto.productValueCents }),
           subtotalCents,
           totalCents,
           expiresAt,

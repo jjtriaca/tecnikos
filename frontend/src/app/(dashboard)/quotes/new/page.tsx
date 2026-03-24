@@ -116,6 +116,9 @@ function NewQuotePage() {
   const [notes, setNotes] = useState("");
   const [termsConditions, setTermsConditions] = useState("");
 
+  // Product value (materials)
+  const [productValue, setProductValue] = useState("");
+
   // Attachments (partner PDFs)
   const [attachmentFiles, setAttachmentFiles] = useState<{ file: File; label: string; supplierName: string }[]>([]);
 
@@ -127,7 +130,8 @@ function NewQuotePage() {
   const globalDiscountCents = discountType === "percent"
     ? Math.round(subtotalCents * (parseFloat(discountValue.replace(",", ".")) || 0) / 100)
     : Math.round(parseBRL(discountValue) * 100);
-  const totalCents = Math.max(0, subtotalCents - globalDiscountCents);
+  const productValueCents = Math.round(parseBRL(productValue) * 100);
+  const totalCents = Math.max(0, subtotalCents - globalDiscountCents + productValueCents);
 
   // Item handlers
   function updateItem(key: string, field: keyof QuoteItemRow, value: string) {
@@ -218,6 +222,7 @@ function NewQuotePage() {
         serviceOrderId: selectedOS?.id || undefined,
         discountPercent: discountType === "percent" ? (parseFloat(discountValue.replace(",", ".")) || undefined) : undefined,
         discountCents: discountType === "fixed" ? Math.round(parseBRL(discountValue) * 100) || undefined : undefined,
+        productValueCents: productValueCents || undefined,
         notes: notes.trim() || undefined,
         termsConditions: termsConditions.trim() || undefined,
         items: validItems.map((item, idx) => ({
@@ -428,6 +433,24 @@ function NewQuotePage() {
                 {globalDiscountCents > 0 && (
                   <span className="text-red-500 w-32 text-right">-{formatCurrency(globalDiscountCents)}</span>
                 )}
+              </div>
+
+              {/* Product Value */}
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-slate-600">Valor produtos:</span>
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">R$</span>
+                  <input
+                    type="text"
+                    value={productValue}
+                    onChange={e => {
+                      const v = e.target.value.replace(/[^\d,]/g, "");
+                      setProductValue(v);
+                    }}
+                    placeholder="0,00"
+                    className="w-28 rounded border border-slate-300 pl-7 pr-2 py-1 text-sm text-right outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-4 text-base font-bold border-t border-slate-300 pt-2 mt-1">

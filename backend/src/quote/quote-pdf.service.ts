@@ -326,6 +326,16 @@ export class QuotePdfService {
         y += 14;
       }
 
+      // Product value
+      if (quote.productValueCents && quote.productValueCents > 0) {
+        doc.text('Valor Produtos:', totalsX, y, { width: 120, align: 'right' });
+        doc.text(formatMoney(quote.productValueCents), totalsX + 125, y, {
+          width: 75,
+          align: 'right',
+        });
+        y += 14;
+      }
+
       // Total (bold, larger)
       doc.rect(totalsX, y, 200, 20).fill('#1e40af');
       doc.fill('#ffffff').font('Helvetica-Bold').fontSize(FONT_SIZE_LG);
