@@ -245,8 +245,8 @@ export class QuoteService {
     });
 
     if (!quote) throw new NotFoundException('Orçamento não encontrado');
-    if (quote.status !== 'RASCUNHO') {
-      throw new BadRequestException('Só é possível editar orçamentos em rascunho');
+    if (!['RASCUNHO', 'ENVIADO'].includes(quote.status)) {
+      throw new BadRequestException('Só é possível editar orçamentos em rascunho ou enviados');
     }
 
     const items = dto.items;
