@@ -99,6 +99,16 @@ function NewQuotePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // System config toggles
+  const [showProductValue, setShowProductValue] = useState(true);
+  const [showPartnerQuotes, setShowPartnerQuotes] = useState(true);
+  useEffect(() => {
+    api.get<any>("/company/system-config").then(cfg => {
+      if (cfg?.quotes?.showProductValue === false) setShowProductValue(false);
+      if (cfg?.quotes?.showPartnerQuotes === false) setShowPartnerQuotes(false);
+    }).catch(() => {});
+  }, []);
+
   // Header fields
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -436,7 +446,7 @@ function NewQuotePage() {
               </div>
 
               {/* Product Value */}
-              <div className="flex items-center gap-2 text-sm">
+              {showProductValue && <div className="flex items-center gap-2 text-sm">
                 <span className="text-slate-600">Valor produtos:</span>
                 <div className="relative">
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">R$</span>
@@ -451,7 +461,7 @@ function NewQuotePage() {
                     className="w-28 rounded border border-slate-300 pl-7 pr-2 py-1 text-sm text-right outline-none focus:border-blue-500"
                   />
                 </div>
-              </div>
+              </div>}
 
               <div className="flex items-center gap-4 text-base font-bold border-t border-slate-300 pt-2 mt-1">
                 <span className="text-slate-800">TOTAL:</span>
@@ -462,7 +472,7 @@ function NewQuotePage() {
         </div>
 
         {/* ── Attachments Section (Partner PDFs) ── */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
+        {showPartnerQuotes && <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
           <h2 className="text-lg font-semibold text-slate-700 mb-2">Orcamentos de Parceiros</h2>
           <p className="text-xs text-slate-500 mb-4">
             Anexe orcamentos em PDF de lojas parceiras (ex: materiais, equipamentos). Serao enviados junto com o orcamento.
@@ -522,7 +532,7 @@ function NewQuotePage() {
               }}
             />
           </label>
-        </div>
+        </div>}
 
         {/* ── Notes Section ── */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">

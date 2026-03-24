@@ -96,6 +96,16 @@ function EditQuotePage() {
   const [error, setError] = useState<string | null>(null);
   const [quoteCode, setQuoteCode] = useState("");
 
+  // System config toggles
+  const [showProductValue, setShowProductValue] = useState(true);
+  const [showPartnerQuotes, setShowPartnerQuotes] = useState(true);
+  useEffect(() => {
+    api.get<any>("/company/system-config").then(cfg => {
+      if (cfg?.quotes?.showProductValue === false) setShowProductValue(false);
+      if (cfg?.quotes?.showPartnerQuotes === false) setShowPartnerQuotes(false);
+    }).catch(() => {});
+  }, []);
+
   // Header fields
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -426,7 +436,7 @@ function EditQuotePage() {
                   className="w-24 rounded border border-slate-300 px-2 py-1 text-sm text-right outline-none focus:border-blue-500" />
                 {globalDiscountCents > 0 && <span className="text-red-500 w-32 text-right">-{formatCurrency(globalDiscountCents)}</span>}
               </div>
-              <div className="flex items-center gap-2 text-sm">
+              {showProductValue && <div className="flex items-center gap-2 text-sm">
                 <span className="text-slate-600">Valor produtos:</span>
                 <div className="relative">
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">R$</span>
@@ -435,7 +445,7 @@ function EditQuotePage() {
                     placeholder="0,00"
                     className="w-28 rounded border border-slate-300 pl-7 pr-2 py-1 text-sm text-right outline-none focus:border-blue-500" />
                 </div>
-              </div>
+              </div>}
               <div className="flex items-center gap-4 text-base font-bold border-t border-slate-300 pt-2 mt-1">
                 <span className="text-slate-800">TOTAL:</span>
                 <span className="text-blue-700 w-32 text-right">{formatCurrency(totalCents)}</span>
@@ -445,7 +455,7 @@ function EditQuotePage() {
         </div>
 
         {/* Attachments */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
+        {showPartnerQuotes && <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
           <h2 className="text-lg font-semibold text-slate-700 mb-2">Orcamentos de Parceiros</h2>
 
           {existingAttachments.map(att => (
@@ -497,7 +507,7 @@ function EditQuotePage() {
             <input type="file" accept=".pdf,image/jpeg,image/png" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) setNewAttachmentFiles(prev => [...prev, { file: f, label: "", supplierName: "" }]); e.target.value = ""; }} />
           </label>
-        </div>
+        </div>}
 
         {/* Notes */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">

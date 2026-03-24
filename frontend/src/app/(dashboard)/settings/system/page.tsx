@@ -139,6 +139,28 @@ const SECTIONS: SectionConfig[] = [
     ],
   },
   {
+    key: "quotes",
+    title: "Orcamentos",
+    icon: "📝",
+    description: "Configuracoes de orcamentos",
+    fields: [
+      {
+        section: "quotes",
+        key: "showProductValue",
+        label: "Campo Valor de Produtos",
+        description: "Exibe campo para informar o valor dos produtos/materiais no orcamento. O valor e somado ao total.",
+        type: "toggle",
+      },
+      {
+        section: "quotes",
+        key: "showPartnerQuotes",
+        label: "Orcamentos de Parceiros",
+        description: "Permite anexar PDFs de orcamentos de lojas parceiras (materiais, equipamentos) ao orcamento.",
+        type: "toggle",
+      },
+    ],
+  },
+  {
     key: "evaluation",
     title: "Avaliacao",
     icon: "⭐",

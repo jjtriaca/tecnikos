@@ -122,7 +122,7 @@ const QUOTE_COLUMNS: ColumnDefinition<Quote>[] = [
     label: "Valor",
     sortable: true,
     align: "right",
-    render: (q) => <span className="text-sm font-medium">{formatCurrency(q.totalCents)}</span>,
+    render: (q) => <span className="text-sm font-semibold text-slate-800">{formatCurrency(q.totalCents)}</span>,
   },
   {
     id: "status",
@@ -252,8 +252,8 @@ export default function QuotesPage() {
               </svg>
             </Link>
 
-            {/* Edit (only RASCUNHO) */}
-            {q.status === "RASCUNHO" && (
+            {/* Edit */}
+            {["RASCUNHO", "ENVIADO"].includes(q.status) && (
               <Link
                 href={`/quotes/${q.id}/edit`}
                 className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
