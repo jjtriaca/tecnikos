@@ -138,8 +138,8 @@ function EditQuotePage() {
         const q = await api.get<any>(`/quotes/${quoteId}`);
         if (cancelled) return;
 
-        if (q.status !== "RASCUNHO") {
-          toast("Somente rascunhos podem ser editados", "error");
+        if (q.status === "CANCELADO") {
+          toast("Orcamentos cancelados nao podem ser editados", "error");
           router.push(`/quotes/${quoteId}`);
           return;
         }
