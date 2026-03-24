@@ -102,10 +102,12 @@ function NewQuotePage() {
   // System config toggles
   const [showProductValue, setShowProductValue] = useState(true);
   const [showPartnerQuotes, setShowPartnerQuotes] = useState(true);
+  const [autoSendOnSave, setAutoSendOnSave] = useState(true);
   useEffect(() => {
     api.get<any>("/company/system-config").then(cfg => {
       if (cfg?.quotes?.showProductValue === false) setShowProductValue(false);
       if (cfg?.quotes?.showPartnerQuotes === false) setShowPartnerQuotes(false);
+      if (cfg?.quotes?.autoSendOnSave === false) setAutoSendOnSave(false);
     }).catch(() => {});
   }, []);
 
@@ -213,6 +215,13 @@ function NewQuotePage() {
     setAttachmentFiles(prev => prev.map((a, i) => i === idx ? { ...a, [field]: value } : a));
   }
 
+  // Send modal state
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null);
+  const [sendWhatsApp, setSendWhatsApp] = useState(true);
+  const [sendEmail, setSendEmail] = useState(true);
+  const [sending, setSending] = useState(false);
+
   // Submit
   async function handleSubmit(action: "draft" | "send") {
     setError(null);
@@ -268,12 +277,21 @@ function NewQuotePage() {
       }
 
       if (action === "send") {
+        // Send the quote first (changes status to ENVIADO)
         try {
           await api.post(`/quotes/${quote.id}/send`, {});
-          toast("Orcamento criado e enviado!", "success");
         } catch {
           toast("Orcamento criado, mas houve erro ao enviar.", "warning");
+          router.push(`/quotes/${quote.id}`);
+          return;
         }
+        // Show send modal for delivery options
+        setSavedQuoteId(quote.id);
+        setSendWhatsApp(!!selectedClient?.phone);
+        setSendEmail(!!selectedClient?.email);
+        setShowSendModal(true);
+        setLoading(false);
+        return;
       } else {
         toast("Orcamento salvo como rascunho!", "success");
       }
@@ -288,6 +306,33 @@ function NewQuotePage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSendConfirm() {
+    if (!savedQuoteId) return;
+    setSending(true);
+    try {
+      if (sendWhatsApp && selectedClient?.phone) {
+        await api.post(`/quotes/${savedQuoteId}/send-whatsapp`, {});
+      }
+      if (sendEmail && selectedClient?.email) {
+        await api.post(`/quotes/${savedQuoteId}/send-email`, {});
+      }
+      const methods = [sendWhatsApp && "WhatsApp", sendEmail && "Email"].filter(Boolean).join(" e ");
+      toast(methods ? `Orcamento enviado via ${methods}!` : "Orcamento salvo e enviado!", "success");
+    } catch (err: any) {
+      toast(err?.response?.data?.message || "Erro ao enviar notificacao", "error");
+    } finally {
+      setSending(false);
+      setShowSendModal(false);
+      router.push(`/quotes/${savedQuoteId}`);
+    }
+  }
+
+  function handleSkipSend() {
+    toast("Orcamento salvo e enviado!", "success");
+    setShowSendModal(false);
+    if (savedQuoteId) router.push(`/quotes/${savedQuoteId}`);
   }
 
   return (
@@ -578,17 +623,73 @@ function NewQuotePage() {
             >
               {loading ? "Salvando..." : "Salvar Rascunho"}
             </button>
-            <button
-              type="button"
-              onClick={() => handleSubmit("send")}
-              disabled={loading}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
-            >
-              {loading ? "Salvando..." : "Salvar e Enviar"}
-            </button>
+            {autoSendOnSave && (
+              <button
+                type="button"
+                onClick={() => handleSubmit("send")}
+                disabled={loading}
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
+              >
+                {loading ? "Salvando..." : "Salvar e Enviar"}
+              </button>
+            )}
           </div>
         </div>
       </form>
+
+      {/* Send Options Modal */}
+      {showSendModal && selectedClient && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleSkipSend} />
+          <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white shadow-xl p-6">
+            <h3 className="text-lg font-bold text-slate-800 mb-1">Enviar Orcamento</h3>
+            <p className="text-sm text-slate-500 mb-5">Escolha como deseja notificar o cliente:</p>
+
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 mb-5">
+              <div className="text-sm font-semibold text-slate-800">{selectedClient.name}</div>
+              {selectedClient.phone && <div className="text-xs text-slate-500 mt-1">Tel: {selectedClient.phone}</div>}
+              {selectedClient.email && <div className="text-xs text-slate-500">Email: {selectedClient.email}</div>}
+              <div className="text-xs text-blue-600 font-medium mt-2">Valor: {formatCurrency(totalCents)}</div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {selectedClient.phone && (
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-green-50 hover:border-green-300 transition-colors">
+                  <input type="checkbox" checked={sendWhatsApp} onChange={e => setSendWhatsApp(e.target.checked)}
+                    className="h-5 w-5 rounded border-slate-300 text-green-600 focus:ring-green-500" />
+                  <svg className="h-5 w-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.612.638l4.728-1.396A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.24 0-4.318-.727-6.003-1.958l-.42-.313-3.07.907.844-3.183-.33-.434A9.96 9.96 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z"/></svg>
+                  <div>
+                    <div className="text-sm font-medium text-slate-800">WhatsApp</div>
+                    <div className="text-xs text-slate-500">{selectedClient.phone}</div>
+                  </div>
+                </label>
+              )}
+              {selectedClient.email && (
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors">
+                  <input type="checkbox" checked={sendEmail} onChange={e => setSendEmail(e.target.checked)}
+                    className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  <svg className="h-5 w-5 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                  <div>
+                    <div className="text-sm font-medium text-slate-800">E-mail</div>
+                    <div className="text-xs text-slate-500">{selectedClient.email}</div>
+                  </div>
+                </label>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={handleSkipSend}
+                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                Pular
+              </button>
+              <button onClick={handleSendConfirm} disabled={sending || (!sendWhatsApp && !sendEmail)}
+                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
+                {sending ? "Enviando..." : "Enviar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

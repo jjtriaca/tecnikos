@@ -146,6 +146,13 @@ const SECTIONS: SectionConfig[] = [
     fields: [
       {
         section: "quotes",
+        key: "autoSendOnSave",
+        label: "Envio automatico ao salvar",
+        description: "Ao salvar o orcamento, exibe modal para escolher envio por WhatsApp, Email ou ambos. Se desativado, salva apenas como rascunho.",
+        type: "toggle",
+      },
+      {
+        section: "quotes",
         key: "showProductValue",
         label: "Campo Valor de Produtos",
         description: "Exibe campo para informar o valor dos produtos/materiais no orcamento. O valor e somado ao total.",
