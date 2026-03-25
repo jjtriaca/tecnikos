@@ -218,7 +218,7 @@ export default function SearchLookupModal<T>({
                   key={keyExtractor(item)}
                   ref={(el) => { itemRefs.current[idx] = el; }}
                   onClick={() => onSelect(item)}
-                  className={`w-full text-left rounded-lg px-4 py-3 transition-colors ${
+                  className={`w-full text-left rounded-lg px-4 py-3 text-slate-900 transition-colors ${
                     idx === highlightIndex
                       ? "bg-blue-50 ring-1 ring-blue-200"
                       : "hover:bg-slate-50"

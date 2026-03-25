@@ -633,6 +633,24 @@ export class PartnerService {
     return result;
   }
 
+  async updateIeStatus(partnerId: string, companyId: string, ieStatus: string, ie?: string) {
+    const update: any = { ieStatus, ieLastCheck: new Date() };
+    if (ie) update.ie = ie;
+    await this.prisma.partner.updateMany({
+      where: { id: partnerId, companyId, deletedAt: null },
+      data: update,
+    });
+  }
+
+  async updateIeStatusByCpf(cpfDigits: string, companyId: string, ieStatus: string, ie?: string) {
+    const update: any = { ieStatus, ieLastCheck: new Date() };
+    if (ie) update.ie = ie;
+    await this.prisma.partner.updateMany({
+      where: { document: cpfDigits, companyId, deletedAt: null },
+      data: update,
+    });
+  }
+
   async remove(id: string, companyId: string, actor?: AuthenticatedUser) {
     await this.findOne(id, companyId);
     const result = await this.prisma.partner.update({

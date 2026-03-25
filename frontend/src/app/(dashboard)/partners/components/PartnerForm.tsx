@@ -20,6 +20,7 @@ import ObrasSection from "./ObrasSection";
 import ServiceAddressesSection from "./ServiceAddressesSection";
 import ContactsSection from "./ContactsSection";
 import ContractsSection from "./ContractsSection";
+import SefazImportModal from "./SefazImportModal";
 
 type PersonType = "PF" | "PJ";
 
@@ -106,6 +107,7 @@ export default function PartnerForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [lookingUpCnpj, setLookingUpCnpj] = useState(false);
+  const [sefazModalOpen, setSefazModalOpen] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<{ name: string; document: string; ie: string | null }[] | null>(null);
   const [forceDuplicate, setForceDuplicate] = useState(false);
 
@@ -189,6 +191,22 @@ export default function PartnerForm({
       toast("Dados do CNPJ preenchidos.", "success");
     } catch { toast("Erro ao consultar CNPJ.", "error"); }
     finally { setLookingUpCnpj(false); }
+  }
+
+  function handleSefazConfirm(data: any) {
+    setForm((f) => ({
+      ...f,
+      name: data.name ? toTitleCase(data.name) : f.name,
+      ie: data.ie || f.ie,
+      cep: data.cep ? maskCep(data.cep) : f.cep,
+      addressStreet: data.addressStreet ? toTitleCase(data.addressStreet) : f.addressStreet,
+      addressNumber: data.addressNumber || f.addressNumber,
+      neighborhood: data.neighborhood ? toTitleCase(data.neighborhood) : f.neighborhood,
+      city: data.city ? toTitleCase(data.city) : f.city,
+      state: data.state || f.state,
+    }));
+    const statusLabel = data.ieStatus === "ATIVA" ? "IE Ativa" : data.ieStatus === "INATIVA" ? "IE Inativa" : "IE Não habilitado";
+    toast(`Dados importados da SEFAZ (${statusLabel}).`, data.ieStatus === "ATIVA" ? "success" : "warning");
   }
 
   async function handleCepBlur() {
@@ -356,7 +374,17 @@ export default function PartnerForm({
               Produtor Rural
             </label>
             {form.isRuralProducer && (
-              <input placeholder="Inscrição Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: e.target.value }))} className={inputClass + " w-full sm:w-1/2"} />
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input placeholder="Inscrição Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: e.target.value }))} className={inputClass + " w-full sm:w-1/2"} />
+                <button
+                  type="button"
+                  onClick={() => setSefazModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors whitespace-nowrap"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Importar SEFAZ
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -514,6 +542,15 @@ export default function PartnerForm({
           </button>
         </div>
       </form>
+
+      <SefazImportModal
+        open={sefazModalOpen}
+        onClose={() => setSefazModalOpen(false)}
+        onConfirm={handleSefazConfirm}
+        initialCpf={form.document}
+        initialIe={form.ie}
+        initialUf={form.state}
+      />
     </div>
   );
 }

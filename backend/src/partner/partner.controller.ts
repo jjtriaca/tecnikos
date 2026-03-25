@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PartnerService } from './partner.service';
+import { SefazConsultaCadastroService } from './sefaz-consulta-cadastro.service';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { UpdatePartnerDto } from './dto/update-partner.dto';
 import { UpdatePartnerStatusDto } from './dto/update-status.dto';
@@ -13,7 +14,10 @@ import { UserRole } from '@prisma/client';
 @ApiTags('Partners')
 @Controller('partners')
 export class PartnerController {
-  constructor(private readonly service: PartnerService) {}
+  constructor(
+    private readonly service: PartnerService,
+    private readonly sefazConsulta: SefazConsultaCadastroService,
+  ) {}
 
   @Get()
   findAll(
@@ -33,6 +37,30 @@ export class PartnerController {
   ) {
     const specializationIds = ids ? ids.split(',').filter(Boolean) : [];
     return this.service.findBySpecializations(user.companyId, specializationIds);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Get('sefaz-lookup')
+  @ApiOperation({ summary: 'Consulta cadastro de contribuinte na SEFAZ (CadConsultaCadastro4)' })
+  async sefazLookup(
+    @Query('cpf') cpf: string | undefined,
+    @Query('cnpj') cnpj: string | undefined,
+    @Query('ie') ie: string | undefined,
+    @Query('uf') uf: string,
+    @Query('partnerId') partnerId: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.sefazConsulta.consultaCadastro(user.companyId, uf, { cpf, cnpj, ie });
+
+    // If partnerId provided, update ieStatus and ieLastCheck on the partner record
+    if (partnerId && result.ieStatus) {
+      await this.service.updateIeStatus(partnerId, user.companyId, result.ieStatus, result.ie).catch(() => {});
+    } else if (cpf) {
+      // Try to find partner by CPF and update
+      await this.service.updateIeStatusByCpf(cpf.replace(/\D/g, ''), user.companyId, result.ieStatus, result.ie).catch(() => {});
+    }
+
+    return result;
   }
 
   @Get('check-duplicate')

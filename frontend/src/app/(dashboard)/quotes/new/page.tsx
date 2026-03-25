@@ -386,7 +386,7 @@ function NewQuotePage() {
               displayValue={c => c.name}
               renderItem={c => (
                 <div>
-                  <div className="font-medium text-sm">{c.name}</div>
+                  <div className="font-medium text-sm text-slate-900">{c.name}</div>
                   {c.document && <div className="text-xs text-slate-500">{c.document}</div>}
                 </div>
               )}

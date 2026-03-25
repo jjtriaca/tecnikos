@@ -36,6 +36,7 @@ type PartnerSummary = {
   id: string; name: string; document: string | null; phone: string | null;
   cep: string | null; addressStreet: string | null; addressNumber: string | null;
   addressComp: string | null; neighborhood: string | null; city: string | null; state: string | null;
+  ie: string | null; ieStatus: string | null; isRuralProducer: boolean;
 };
 type ObraSummary = { id: string; name: string; cno: string; city: string; state: string; active: boolean };
 type ServiceAddressSummary = {
@@ -119,6 +120,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
     allowEdit: boolean;
   }>({ open: false, orderId: "", orderCode: "", orderTitle: "", candidates: [], allowEdit: false });
   const [selectedClient, setSelectedClient] = useState<PartnerSummary | null>(null);
+  const [ieWarning, setIeWarning] = useState<{ type: "error" | "warning" | "success"; message: string } | null>(null);
   const [obras, setObras] = useState<ObraSummary[]>([]);
   const [selectedObraId, setSelectedObraId] = useState<string>("");
   const [selectedCity, setSelectedCity] = useState<IBGECity | null>(null);
@@ -332,6 +334,8 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             addressNumber: order.clientPartner.addressNumber || null, addressComp: order.clientPartner.addressComp || null,
             neighborhood: order.clientPartner.neighborhood || null, city: order.clientPartner.city || null,
             state: order.clientPartner.state || null,
+            ie: order.clientPartner.ie || null, ieStatus: order.clientPartner.ieStatus || null,
+            isRuralProducer: order.clientPartner.isRuralProducer ?? false,
           });
         }
 
@@ -573,6 +577,36 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
   const weightedCommissionBps = totalValueCents > 0
     ? Math.round((totalCommissionCents / totalValueCents) * 10000)
     : 0;
+
+  async function checkClientIe(client: PartnerSummary) {
+    if (!client.ie || !client.state) return;
+    // Show stored status immediately
+    if (client.ieStatus && client.ieStatus !== "ATIVA") {
+      setIeWarning({
+        type: "error",
+        message: `Atenção: IE ${client.ie} do cliente ${client.name} está ${client.ieStatus === "INATIVA" ? "INATIVA" : "NÃO HABILITADA"} na SEFAZ.`,
+      });
+    }
+    // Background live check
+    try {
+      const cpfDigits = client.document?.replace(/\D/g, "") || "";
+      if (cpfDigits.length < 11) return;
+      const params = new URLSearchParams({ cpf: cpfDigits, uf: client.state });
+      const result = await api.get<{ ieStatus: string; ie: string }>(`/partners/sefaz-lookup?${params}`);
+      if (result.ieStatus === "ATIVA") {
+        setIeWarning({ type: "success", message: `IE ${result.ie} do cliente ${client.name} está ATIVA na SEFAZ.` });
+        // Clear success message after 5s
+        setTimeout(() => setIeWarning((prev) => prev?.type === "success" ? null : prev), 5000);
+      } else {
+        setIeWarning({
+          type: "error",
+          message: `Atenção: IE ${result.ie} do cliente ${client.name} está ${result.ieStatus === "INATIVA" ? "INATIVA" : "NÃO HABILITADA"} na SEFAZ. Verifique antes de prosseguir.`,
+        });
+      }
+    } catch {
+      // Silently fail — don't block OS creation if SEFAZ check fails
+    }
+  }
 
   async function handleSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
@@ -910,7 +944,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             modalPlaceholder="Nome, documento ou telefone..."
             value={selectedClient}
             displayValue={(c) => c.name}
-            onChange={(c) => { setSelectedClient(c); setAddressSource("new"); }}
+            onChange={(c) => { setSelectedClient(c); setAddressSource("new"); setIeWarning(null); if (c?.ie && c.state) checkClientIe(c); }}
             fetcher={clientFetcher}
             keyExtractor={(c) => c.id}
             required
@@ -925,6 +959,20 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
               </div>
             )}
           />
+          {ieWarning && (
+            <div className={`rounded-lg border px-3 py-2 text-sm flex items-start gap-2 ${
+              ieWarning.type === "error"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : ieWarning.type === "warning"
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : "border-green-200 bg-green-50 text-green-700"
+            }`}>
+              <svg className="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              <span>{ieWarning.message}</span>
+            </div>
+          )}
 
           {/* ─── 2. Titulo ──────────────────────────────────── */}
           <label className="flex flex-col gap-1.5">
