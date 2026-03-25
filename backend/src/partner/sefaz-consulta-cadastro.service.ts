@@ -179,6 +179,8 @@ export class SefazConsultaCadastroService {
         method: 'POST',
         cert: certPem,
         key: keyPem,
+        // SEFAZ state servers use ICP-Brasil CAs not in Node.js default bundle
+        rejectUnauthorized: false,
         headers: {
           'Content-Type': 'application/soap+xml;charset=UTF-8',
           'Content-Length': Buffer.byteLength(soapEnvelope, 'utf-8'),
