@@ -164,6 +164,15 @@ export class ServiceOrderController {
     return this.service.getDispatchStatus(id, user.companyId);
   }
 
+  @Roles(UserRole.ADMIN)
+  @Post(':id/retry-workflow')
+  retryWorkflow(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.retryWorkflow(id, user.companyId);
+  }
+
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Get(':id/early-financial-preview')
   earlyFinancialPreview(

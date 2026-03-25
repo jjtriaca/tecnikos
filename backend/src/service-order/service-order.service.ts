@@ -1358,6 +1358,21 @@ export class ServiceOrderService {
     return result;
   }
 
+  /* ── Retry Workflow (re-execute workflow from start) ─── */
+
+  async retryWorkflow(id: string, companyId: string) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+      select: { id: true, workflowTemplateId: true, status: true },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (!so.workflowTemplateId) throw new BadRequestException('OS não tem workflow vinculado');
+    if (!this.workflowEngine) throw new BadRequestException('WorkflowEngine não disponível');
+
+    await this.workflowEngine.executeWorkflowFromStart(id, companyId, so.workflowTemplateId);
+    return { success: true, message: 'Workflow re-executado' };
+  }
+
   /* ── Early Financial Launch (Lançamento Antecipado) ─── */
 
   async earlyFinancialPreview(id: string, companyId: string) {
