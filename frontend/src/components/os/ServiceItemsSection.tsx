@@ -88,7 +88,7 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
 
   function handleQtyChange(idx: number, qty: number) {
     const updated = items.map((item, i) =>
-      i === idx ? { ...item, quantity: Math.max(0.1, qty) } : item,
+      i === idx ? { ...item, quantity: qty } : item,
     );
     onChange(updated);
   }
@@ -149,7 +149,17 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
                       min={0.1}
                       step={0.1}
                       value={item.quantity}
-                      onChange={(e) => handleQtyChange(idx, parseFloat(e.target.value) || 1)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "" || val === "0") return handleQtyChange(idx, 0);
+                        const num = parseFloat(val);
+                        if (!isNaN(num)) handleQtyChange(idx, num);
+                      }}
+                      onBlur={(e) => {
+                        const num = parseFloat(e.target.value);
+                        if (!num || num < 0.1) handleQtyChange(idx, 1);
+                      }}
+                      onFocus={(e) => e.target.select()}
                       className="w-16 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
                     />
                   </td>
