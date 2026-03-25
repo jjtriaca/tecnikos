@@ -327,12 +327,10 @@ export class WhatsAppService {
     }
 
     // 2. Send via template — template must contain ALL the content (self-sufficient)
-    //    Sanitize: remove \r \t, collapse 3+ newlines into 2, collapse 4+ spaces
+    //    Meta rejects newlines/tabs in template params → replace with space
     const sanitizedMsg = message
-      .replace(/\r/g, '')
-      .replace(/\t/g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .replace(/ {4,}/g, '   ')
+      .replace(/[\r\n\t]/g, ' ')
+      .replace(/ {2,}/g, ' ')
       .trim();
 
     // Truncate for template body param (max 1024 chars)
