@@ -138,29 +138,30 @@ export class SefazConsultaCadastroService {
     const cUF = UF_IBGE[ufUpper];
     if (!cUF) throw new BadRequestException(`UF "${ufUpper}" não reconhecida.`);
 
-    // Build SOAP envelope — method name varies per SEFAZ (consultaCadastro vs consultaCadastro4)
-    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
-  <soap12:Header>
-    <nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4">
-      <cUF>${cUF}</cUF>
-      <versaoDados>2.00</versaoDados>
-    </nfeCabecMsg>
-  </soap12:Header>
-  <soap12:Body>
-    <${soapMethod} xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4">
-      <nfeDadosMsg>
-        <ConsCad xmlns="http://www.portalfiscal.inf.br/nfe" versao="2.00">
-          <infCons>
-            <xServ>CONS-CAD</xServ>
-            <UF>${ufUpper}</UF>
-            ${queryElement}
-          </infCons>
-        </ConsCad>
-      </nfeDadosMsg>
-    </${soapMethod}>
-  </soap12:Body>
-</soap12:Envelope>`;
+    // Build SOAP envelope — COMPACT (no whitespace between tags — MT rejects formatting)
+    const soapEnvelope =
+      `<?xml version="1.0" encoding="utf-8"?>` +
+      `<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">` +
+      `<soap12:Header>` +
+      `<nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4">` +
+      `<cUF>${cUF}</cUF>` +
+      `<versaoDados>2.00</versaoDados>` +
+      `</nfeCabecMsg>` +
+      `</soap12:Header>` +
+      `<soap12:Body>` +
+      `<${soapMethod} xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4">` +
+      `<nfeDadosMsg>` +
+      `<ConsCad xmlns="http://www.portalfiscal.inf.br/nfe" versao="2.00">` +
+      `<infCons>` +
+      `<xServ>CONS-CAD</xServ>` +
+      `<UF>${ufUpper}</UF>` +
+      `${queryElement}` +
+      `</infCons>` +
+      `</ConsCad>` +
+      `</nfeDadosMsg>` +
+      `</${soapMethod}>` +
+      `</soap12:Body>` +
+      `</soap12:Envelope>`;
 
     // SOAP 1.2 action (required by Axis2 servers like MT)
     const soapAction = `http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4/${soapMethod}`;
@@ -260,18 +261,11 @@ export class SefazConsultaCadastroService {
       throw new BadRequestException(`Erro SEFAZ: ${msg}`);
     }
 
-    // The response wrapper varies by state, try common patterns
-    const resp = this.findDeep(body, [
-      'consultaCadastroResult', 'consultaCadastro4Result',
-      'consultaCadastro2Result', 'CadConsultaCadastro4Result',
-      'nfeResultMsg',
-    ]) ?? body;
-
-    const retConsCad = resp?.retConsCad ?? this.findDeep(resp, ['retConsCad']) ?? resp;
-    const infCons = retConsCad?.infCons ?? retConsCad;
+    // Find infCons recursively — the wrapper tags vary wildly by state/namespace
+    const infCons = this.findRecursive(body, 'infCons');
 
     if (!infCons) {
-      this.logger.error(`ConsultaCadastro: could not parse response. Keys: ${JSON.stringify(Object.keys(parsed))}`);
+      this.logger.error(`ConsultaCadastro: could not find infCons in response. Body keys: ${JSON.stringify(this.allKeys(body))}`);
       throw new BadRequestException('Resposta inválida da SEFAZ. Tente novamente.');
     }
 
@@ -323,22 +317,41 @@ export class SefazConsultaCadastroService {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     findDeep — Find first matching key in object (handles namespaced XML)
+     findRecursive — Find first matching key recursively (handles namespaced XML)
+     Strips namespace prefixes for comparison (ns:infCons → infCons)
      ═══════════════════════════════════════════════════════════════════ */
 
-  private findDeep(obj: any, keys: string[]): any {
-    if (!obj || typeof obj !== 'object') return undefined;
-    for (const key of keys) {
-      if (obj[key] !== undefined) return obj[key];
+  private findRecursive(obj: any, targetKey: string, maxDepth = 10): any {
+    if (!obj || typeof obj !== 'object' || maxDepth <= 0) return undefined;
+
+    for (const key of Object.keys(obj)) {
+      const stripped = key.includes(':') ? key.split(':').pop()! : key;
+      if (stripped === targetKey) return obj[key];
     }
-    // Also search without namespace prefix (strip ns:)
-    for (const objKey of Object.keys(obj)) {
-      const stripped = objKey.includes(':') ? objKey.split(':').pop()! : objKey;
-      for (const key of keys) {
-        const keyStripped = key.includes(':') ? key.split(':').pop()! : key;
-        if (stripped === keyStripped) return obj[objKey];
+
+    // Recurse into child objects
+    for (const key of Object.keys(obj)) {
+      if (key.startsWith('@_') || key.startsWith('#')) continue; // skip attributes/text
+      const val = obj[key];
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        const found = this.findRecursive(val, targetKey, maxDepth - 1);
+        if (found !== undefined) return found;
       }
     }
     return undefined;
+  }
+
+  private allKeys(obj: any, depth = 3): string[] {
+    if (!obj || typeof obj !== 'object' || depth <= 0) return [];
+    const keys: string[] = [];
+    for (const key of Object.keys(obj)) {
+      keys.push(key);
+      if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+        for (const sub of this.allKeys(obj[key], depth - 1)) {
+          keys.push(`${key}.${sub}`);
+        }
+      }
+    }
+    return keys;
   }
 }
