@@ -390,34 +390,34 @@ export default function WorkflowProperties({ block, onChange }: Props) {
       updateConfig("recipients", recipients.filter((_: any, i: number) => i !== idx));
     };
 
-    // All available variables
+    // All available variables — label shows exact variable name
     const COMMON_VARS = [
-      { var: "{nome}", label: "Nome" },
-      { var: "{empresa}", label: "Empresa" },
-      { var: "{razao_social}", label: "Razao Social" },
-      { var: "{cnpj_empresa}", label: "CNPJ" },
-      { var: "{titulo}", label: "Titulo OS" },
-      { var: "{data}", label: "Data Hoje" },
-      { var: "{data_agendamento}", label: "Data Agendamento" },
-      { var: "{endereco}", label: "Endereco" },
+      { var: "{nome}", label: "{nome}" },
+      { var: "{empresa}", label: "{empresa}" },
+      { var: "{razao_social}", label: "{razao_social}" },
+      { var: "{cnpj_empresa}", label: "{cnpj_empresa}" },
+      { var: "{titulo}", label: "{titulo}" },
+      { var: "{data}", label: "{data}" },
+      { var: "{data_agendamento}", label: "{data_agendamento}" },
+      { var: "{endereco}", label: "{endereco}" },
     ];
     const TECNICO_VARS = [
-      { var: "{link_app}", label: "Link Primeiro Acesso" },
-      { var: "{link_os}", label: "Link da OS" },
-      { var: "{nome_cliente}", label: "Nome Cliente" },
+      { var: "{link_app}", label: "{link_app}" },
+      { var: "{link_os}", label: "{link_os}" },
+      { var: "{nome_cliente}", label: "{nome_cliente}" },
     ];
     const CLIENTE_VARS = [
-      { var: "{tecnico}", label: "Tecnico" },
-      { var: "{telefone_empresa}", label: "Tel. Empresa" },
+      { var: "{tecnico}", label: "{tecnico}" },
+      { var: "{telefone_empresa}", label: "{telefone_empresa}" },
     ];
     const FORNECEDOR_VARS = [
-      { var: "{tecnico}", label: "Tecnico" },
-      { var: "{telefone_empresa}", label: "Tel. Empresa" },
-      { var: "{nome_cliente}", label: "Nome Cliente" },
+      { var: "{tecnico}", label: "{tecnico}" },
+      { var: "{telefone_empresa}", label: "{telefone_empresa}" },
+      { var: "{nome_cliente}", label: "{nome_cliente}" },
     ];
     const GESTOR_VARS = [
-      { var: "{tecnico}", label: "Tecnico" },
-      { var: "{nome_cliente}", label: "Nome Cliente" },
+      { var: "{tecnico}", label: "{tecnico}" },
+      { var: "{nome_cliente}", label: "{nome_cliente}" },
     ];
 
     const getVarsForType = (type: string) => {
