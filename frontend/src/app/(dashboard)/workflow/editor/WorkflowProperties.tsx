@@ -428,6 +428,23 @@ export default function WorkflowProperties({ block, onChange }: Props) {
       return [...COMMON_VARS, ...extra];
     };
 
+    // Refs for textarea cursor position (one per recipient)
+    const textareaRefs = useRef<Record<number, HTMLTextAreaElement | null>>({});
+
+    const insertVarAtCursor = (idx: number, varStr: string) => {
+      const ta = textareaRefs.current[idx];
+      const msg = recipients[idx]?.message || "";
+      if (ta) {
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const newText = msg.substring(0, start) + varStr + msg.substring(end);
+        updateRecipient(idx, "message", newText);
+        setTimeout(() => { ta.focus(); ta.setSelectionRange(start + varStr.length, start + varStr.length); }, 50);
+      } else {
+        updateRecipient(idx, "message", msg + " " + varStr);
+      }
+    };
+
     return (
       <div className="space-y-2">
         {recipients.map((r: any, i: number) => (
@@ -446,14 +463,21 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               { value: "EMAIL", label: "Email" },
               { value: "PUSH", label: "Push" },
             ]} />
-            <TextArea value={r.message || ""} onChange={(v) => updateRecipient(i, "message", v)} placeholder="Digite a mensagem..." rows={4} />
-            {/* Variable chips */}
+            <textarea
+              ref={(el) => { textareaRefs.current[i] = el; }}
+              value={r.message || ""}
+              onChange={(e) => updateRecipient(i, "message", e.target.value)}
+              placeholder="Digite a mensagem..."
+              rows={4}
+              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-y"
+            />
+            {/* Variable chips — insert at cursor position */}
             <div className="flex flex-wrap gap-1">
               {getVarsForType(r.type).map(v => (
                 <button
                   key={v.var}
                   type="button"
-                  onClick={() => updateRecipient(i, "message", (r.message || "") + " " + v.var)}
+                  onClick={() => insertVarAtCursor(i, v.var)}
                   className="text-[10px] bg-slate-100 hover:bg-green-100 text-slate-600 px-1.5 py-0.5 rounded"
                 >
                   {v.label}
