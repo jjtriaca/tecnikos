@@ -50,6 +50,7 @@ const UNIT_LABELS: Record<string, string> = {
   DI: "Diária",
   MT: "Metro",
   M2: "Metro²",
+  KM: "Km",
 };
 
 /* ── Fetcher (module-level) ─────────────────────────── */
@@ -87,12 +88,12 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
 
   function handleQtyChange(idx: number, qty: number) {
     const updated = items.map((item, i) =>
-      i === idx ? { ...item, quantity: Math.max(1, qty) } : item,
+      i === idx ? { ...item, quantity: Math.max(0.1, qty) } : item,
     );
     onChange(updated);
   }
 
-  const totalCents = items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0);
+  const totalCents = items.reduce((sum, i) => sum + Math.round(i.unitPriceCents * i.quantity), 0);
 
   return (
     <div>
@@ -145,10 +146,11 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
                   <td className="px-3 py-2 text-center">
                     <input
                       type="number"
-                      min={1}
+                      min={0.1}
+                      step={0.1}
                       value={item.quantity}
-                      onChange={(e) => handleQtyChange(idx, parseInt(e.target.value) || 1)}
-                      className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
+                      onChange={(e) => handleQtyChange(idx, parseFloat(e.target.value) || 1)}
+                      className="w-16 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
                     />
                   </td>
                   <td className="px-3 py-2 text-center text-slate-500">{UNIT_LABELS[item.unit] || item.unit}</td>
@@ -160,7 +162,7 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
                     {!item.commissionBps && !item.techFixedValueCents ? "—" : ""}
                   </td>
                   <td className="px-3 py-2 text-right font-semibold text-green-700">
-                    {formatCurrency(item.unitPriceCents * item.quantity)}
+                    {formatCurrency(Math.round(item.unitPriceCents * item.quantity))}
                   </td>
                   <td className="px-1 py-2 text-center">
                     <button

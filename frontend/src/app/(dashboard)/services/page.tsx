@@ -92,6 +92,7 @@ const UNIT_OPTIONS = [
   { value: "DI", label: "Diária (DI)" },
   { value: "MT", label: "Metro (MT)" },
   { value: "M2", label: "Metro² (M2)" },
+  { value: "KM", label: "Quilômetro (KM)" },
 ];
 
 /* ── Filters ──────────────────────────────────────────── */

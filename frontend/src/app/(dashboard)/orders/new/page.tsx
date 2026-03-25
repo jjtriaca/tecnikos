@@ -569,7 +569,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
   );
 
   // Computed values from service items
-  const totalValueCents = serviceItems.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0);
+  const totalValueCents = serviceItems.reduce((sum, i) => sum + Math.round(i.unitPriceCents * i.quantity), 0);
   const totalCommissionCents = serviceItems.reduce((sum, i) => {
     const bps = i.commissionBps ?? 0;
     return sum + Math.round((i.unitPriceCents * i.quantity * bps) / 10000);

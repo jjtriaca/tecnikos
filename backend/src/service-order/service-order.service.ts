@@ -274,7 +274,7 @@ export class ServiceOrderService {
         if (data.techCommissionCents == null || data.techCommissionCents === 0) {
           const totalTechCents = itemsData.reduce((sum, item) => {
             return sum + resolveCommission({
-              grossCents: (item.unitPriceCents || 0) * (item.quantity || 1),
+              grossCents: Math.round((item.unitPriceCents || 0) * (item.quantity || 1)),
               commissionBps: item.commissionBps,
               techFixedValueCents: item.techFixedValueCents,
               commissionRule: item.commissionRule as CommissionRule | null,
@@ -1404,7 +1404,7 @@ export class ServiceOrderService {
       effectiveTechCents = so.techCommissionCents;
     } else if (so.items && so.items.length > 0) {
       effectiveTechCents = so.items.reduce((sum, item) => {
-        const itemGross = item.unitPriceCents * item.quantity;
+        const itemGross = Math.round(item.unitPriceCents * item.quantity);
         return sum + resolveCommission({
           grossCents: itemGross,
           commissionBps: item.commissionBps,
@@ -1533,7 +1533,7 @@ export class ServiceOrderService {
       effectiveTechCents = so.techCommissionCents;
     } else if (so.items && so.items.length > 0) {
       effectiveTechCents = so.items.reduce((sum, item) => {
-        const itemGross = item.unitPriceCents * item.quantity;
+        const itemGross = Math.round(item.unitPriceCents * item.quantity);
         return sum + resolveCommission({
           grossCents: itemGross,
           commissionBps: item.commissionBps,
@@ -2037,7 +2037,7 @@ export class ServiceOrderService {
       effectiveTechCents = so.techCommissionCents;
     } else if (so.items && so.items.length > 0) {
       effectiveTechCents = so.items.reduce((sum, item) => {
-        const itemGross = item.unitPriceCents * item.quantity;
+        const itemGross = Math.round(item.unitPriceCents * item.quantity);
         return sum + resolveCommission({
           grossCents: itemGross,
           commissionBps: item.commissionBps,

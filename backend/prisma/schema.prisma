@@ -1874,7 +1874,7 @@ model ServiceOrderItem {
   serviceId        String
   serviceName      String   // Snapshot do nome no momento da criação
   unit             String   // Snapshot da unidade
-  quantity         Int      @default(1)
+  quantity         Float    @default(1)  // Supports decimals (e.g., 2.5 diárias)
   unitPriceCents      Int              // Preço unitário em centavos (snapshot)
   commissionBps       Int?             // Comissão em basis points (snapshot do serviço)
   techFixedValueCents Int?             // Valor fixo para técnico (snapshot)
