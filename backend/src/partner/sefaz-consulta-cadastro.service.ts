@@ -23,25 +23,31 @@ const UF_IBGE: Record<string, number> = {
    States not listed here don't support this service.
    ══════════════════════════════════════════════════════════════════════ */
 
-const CONSULTA_CADASTRO_URLS: Record<string, string> = {
-  // States with own authorizer
-  AM: 'https://nfe.sefaz.am.gov.br/services2/services/cadconsultacadastro4',
-  BA: 'https://nfe.sefaz.ba.gov.br/webservices/CadConsultaCadastro4/CadConsultaCadastro4.asmx',
-  GO: 'https://nfe.sefaz.go.gov.br/nfe/services/CadConsultaCadastro4',
-  MG: 'https://nfe.fazenda.mg.gov.br/nfe2/services/CadConsultaCadastro4',
-  MS: 'https://nfe.sefaz.ms.gov.br/ws/CadConsultaCadastro4',
-  MT: 'https://nfe.sefaz.mt.gov.br/nfews/v2/services/CadConsultaCadastro4',
-  PE: 'https://nfe.sefaz.pe.gov.br/nfe-service/services/CadConsultaCadastro4',
-  PR: 'https://nfe.sefa.pr.gov.br/nfe/CadConsultaCadastro4',
-  RS: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx',
-  SP: 'https://nfe.fazenda.sp.gov.br/ws/cadconsultacadastro4.asmx',
+interface SefazEndpoint {
+  url: string;
+  /** SOAP method name — varies per SEFAZ implementation */
+  method: 'consultaCadastro' | 'consultaCadastro4';
+}
 
-  // States served by SVRS (Sefaz Virtual RS)
-  AC: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx',
-  ES: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx',
-  PB: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx',
-  RN: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx',
-  SC: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx',
+const CONSULTA_CADASTRO_ENDPOINTS: Record<string, SefazEndpoint> = {
+  // States with own authorizer — method varies per SEFAZ implementation
+  AM: { url: 'https://nfe.sefaz.am.gov.br/services2/services/cadconsultacadastro4', method: 'consultaCadastro4' },
+  BA: { url: 'https://nfe.sefaz.ba.gov.br/webservices/CadConsultaCadastro4/CadConsultaCadastro4.asmx', method: 'consultaCadastro' },
+  GO: { url: 'https://nfe.sefaz.go.gov.br/nfe/services/CadConsultaCadastro4', method: 'consultaCadastro' },
+  MG: { url: 'https://nfe.fazenda.mg.gov.br/nfe2/services/CadConsultaCadastro4', method: 'consultaCadastro4' },
+  MS: { url: 'https://nfe.sefaz.ms.gov.br/ws/CadConsultaCadastro4', method: 'consultaCadastro' },
+  MT: { url: 'https://nfe.sefaz.mt.gov.br/nfews/v2/services/CadConsultaCadastro4', method: 'consultaCadastro' },
+  PE: { url: 'https://nfe.sefaz.pe.gov.br/nfe-service/services/CadConsultaCadastro4', method: 'consultaCadastro4' },
+  PR: { url: 'https://nfe.sefa.pr.gov.br/nfe/CadConsultaCadastro4', method: 'consultaCadastro4' },
+  RS: { url: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx', method: 'consultaCadastro4' },
+  SP: { url: 'https://nfe.fazenda.sp.gov.br/ws/cadconsultacadastro4.asmx', method: 'consultaCadastro' },
+
+  // States served by SVRS (Sefaz Virtual RS) — uses consultaCadastro4
+  AC: { url: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx', method: 'consultaCadastro4' },
+  ES: { url: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx', method: 'consultaCadastro4' },
+  PB: { url: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx', method: 'consultaCadastro4' },
+  RN: { url: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx', method: 'consultaCadastro4' },
+  SC: { url: 'https://cad.svrs.rs.gov.br/ws/cadconsultacadastro/cadconsultacadastro4.asmx', method: 'consultaCadastro4' },
 };
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -96,13 +102,14 @@ export class SefazConsultaCadastroService {
     const ufUpper = uf.toUpperCase();
 
     // Validate UF has endpoint
-    const url = CONSULTA_CADASTRO_URLS[ufUpper];
-    if (!url) {
+    const endpoint = CONSULTA_CADASTRO_ENDPOINTS[ufUpper];
+    if (!endpoint) {
       throw new BadRequestException(
         `Consulta cadastro não disponível para o estado ${ufUpper}. ` +
-        `Estados disponíveis: ${Object.keys(CONSULTA_CADASTRO_URLS).sort().join(', ')}.`,
+        `Estados disponíveis: ${Object.keys(CONSULTA_CADASTRO_ENDPOINTS).sort().join(', ')}.`,
       );
     }
+    const { url, method: soapMethod } = endpoint;
 
     // Load SEFAZ certificate
     const config = await this.prisma.sefazConfig.findUnique({ where: { companyId } });
@@ -131,7 +138,7 @@ export class SefazConsultaCadastroService {
     const cUF = UF_IBGE[ufUpper];
     if (!cUF) throw new BadRequestException(`UF "${ufUpper}" não reconhecida.`);
 
-    // Build SOAP envelope
+    // Build SOAP envelope — method name varies per SEFAZ (consultaCadastro vs consultaCadastro4)
     const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
   <soap12:Header>
@@ -141,7 +148,7 @@ export class SefazConsultaCadastroService {
     </nfeCabecMsg>
   </soap12:Header>
   <soap12:Body>
-    <consultaCadastro4 xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4">
+    <${soapMethod} xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4">
       <nfeDadosMsg>
         <ConsCad xmlns="http://www.portalfiscal.inf.br/nfe" versao="2.00">
           <infCons>
@@ -151,12 +158,12 @@ export class SefazConsultaCadastroService {
           </infCons>
         </ConsCad>
       </nfeDadosMsg>
-    </consultaCadastro4>
+    </${soapMethod}>
   </soap12:Body>
 </soap12:Envelope>`;
 
     // SOAP 1.2 action (required by Axis2 servers like MT)
-    const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4/consultaCadastro4';
+    const soapAction = `http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4/${soapMethod}`;
 
     this.logger.log(`ConsultaCadastro → ${url} | UF=${ufUpper} | query=${queryElement}`);
 
@@ -255,9 +262,9 @@ export class SefazConsultaCadastroService {
 
     // The response wrapper varies by state, try common patterns
     const resp = this.findDeep(body, [
-      'consultaCadastro4Result', 'consultaCadastro2Result',
-      'CadConsultaCadastro4Result', 'nfeResultMsg',
-      'ns1:consultaCadastro4Result', 'ns2:consultaCadastro4Result',
+      'consultaCadastroResult', 'consultaCadastro4Result',
+      'consultaCadastro2Result', 'CadConsultaCadastro4Result',
+      'nfeResultMsg',
     ]) ?? body;
 
     const retConsCad = resp?.retConsCad ?? this.findDeep(resp, ['retConsCad']) ?? resp;
