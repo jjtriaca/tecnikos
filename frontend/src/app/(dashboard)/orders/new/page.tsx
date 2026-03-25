@@ -627,6 +627,14 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
         return;
       }
 
+      // Check zero quantity
+      const zeroQtyItem = serviceItems.find(i => !i.quantity || i.quantity <= 0);
+      if (zeroQtyItem) {
+        setError(`O serviço "${zeroQtyItem.serviceName}" está com quantidade zero. Informe a quantidade.`);
+        setLoading(false);
+        return;
+      }
+
       // Check zero value
       if (totalValueCents <= 0 && !showZeroValueConfirm) {
         try {
