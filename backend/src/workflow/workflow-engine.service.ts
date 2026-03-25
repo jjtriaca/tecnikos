@@ -1237,7 +1237,7 @@ export class WorkflowEngineService {
           include: {
             assignedPartner: { select: { id: true, name: true, phone: true, email: true } },
             clientPartner: { select: { id: true, name: true, phone: true, email: true } },
-            company: { select: { name: true, tradeName: true, cnpj: true, phone: true, email: true } },
+            company: { select: { name: true, tradeName: true, cnpj: true, phone: true, email: true, timezone: true } },
             items: { select: { serviceName: true, service: { select: { description: true } } } },
           },
         });
@@ -1297,8 +1297,8 @@ export class WorkflowEngineService {
           //   CLIENTE: replaced with clientPartner.name
           //   GESTOR: replaced with 'Gestor'
           '{nome_cliente}': notifySO.clientPartner?.name || '',
-          '{data}': new Date().toLocaleDateString('pt-BR'),
-          '{data_agendamento}': (notifySO as any).scheduledStartAt ? new Date((notifySO as any).scheduledStartAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+          '{data}': new Date().toLocaleDateString('pt-BR', { timeZone: (notifySO.company as any)?.timezone || 'America/Sao_Paulo' }),
+          '{data_agendamento}': (notifySO as any).scheduledStartAt ? new Date((notifySO as any).scheduledStartAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: (notifySO.company as any)?.timezone || 'America/Sao_Paulo' }) : '',
           // {link_app} and {link_os} are NOT in this map — they are replaced per-technician in the TECNICO handler below
           '{link}': `${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/${serviceOrderId}`,
           '{tempo_aceitar}': (notifySO as any).acceptTimeoutMinutes
