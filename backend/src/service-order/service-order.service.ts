@@ -1356,6 +1356,281 @@ export class ServiceOrderService {
     return result;
   }
 
+  /* ── Early Financial Launch (Lançamento Antecipado) ─── */
+
+  async earlyFinancialPreview(id: string, companyId: string) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: {
+        assignedPartner: { select: { id: true, name: true } },
+        clientPartner: { select: { id: true, name: true } },
+        items: true,
+      },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (so.status === ServiceOrderStatus.CANCELADA) {
+      throw new BadRequestException('OS cancelada não permite lançamento financeiro');
+    }
+
+    // Check existing entries
+    const existingEntries = await this.prisma.financialEntry.findMany({
+      where: { serviceOrderId: id, companyId, status: { not: 'CANCELLED' } },
+      select: { id: true, type: true, status: true, netCents: true, paidAt: true, code: true },
+    });
+    const existingReceivable = existingEntries.find(e => e.type === 'RECEIVABLE');
+    const existingPayable = existingEntries.find(e => e.type === 'PAYABLE');
+
+    // Calculate values (same logic as finalizePreview/approveAndFinalize)
+    const grossCents = so.valueCents;
+    let effectiveTechCents: number;
+    if (so.techCommissionCents != null) {
+      effectiveTechCents = so.techCommissionCents;
+    } else if (so.items && so.items.length > 0) {
+      effectiveTechCents = so.items.reduce((sum, item) => {
+        const itemGross = item.unitPriceCents * item.quantity;
+        return sum + resolveCommission({
+          grossCents: itemGross,
+          commissionBps: item.commissionBps,
+          techFixedValueCents: item.techFixedValueCents,
+          commissionRule: item.commissionRule,
+          quantity: item.quantity,
+        });
+      }, 0);
+    } else {
+      const bps = so.commissionBps ?? 0;
+      effectiveTechCents = Math.round((grossCents * bps) / 10000);
+    }
+    const effectiveBps = so.commissionBps ?? 0;
+    const companyKeeps = grossCents - effectiveTechCents;
+
+    const isReturn = so.isReturn ?? false;
+    const returnPaidToTech = so.returnPaidToTech ?? true;
+    const shouldPayTech = !!so.assignedPartnerId && (!isReturn || returnPaidToTech);
+
+    const entries: Array<{
+      type: 'RECEIVABLE' | 'PAYABLE';
+      partnerName: string | null;
+      description: string;
+      grossCents: number;
+      netCents: number;
+      commissionBps: number;
+      commissionCents: number;
+      alreadyLaunched: boolean;
+      existingCode?: string;
+      available: boolean;
+    }> = [];
+
+    // RECEIVABLE
+    if (so.clientPartnerId) {
+      entries.push({
+        type: 'RECEIVABLE',
+        partnerName: so.clientPartner?.name || null,
+        description: `A receber OS: ${so.title}`,
+        grossCents,
+        netCents: grossCents,
+        commissionBps: 0,
+        commissionCents: 0,
+        alreadyLaunched: !!existingReceivable,
+        existingCode: existingReceivable?.code || undefined,
+        available: !existingReceivable,
+      });
+    }
+
+    // PAYABLE
+    if (shouldPayTech) {
+      entries.push({
+        type: 'PAYABLE',
+        partnerName: so.assignedPartner?.name || null,
+        description: `Repasse técnico OS: ${so.title}`,
+        grossCents,
+        netCents: effectiveTechCents,
+        commissionBps: effectiveBps,
+        commissionCents: companyKeeps,
+        alreadyLaunched: !!existingPayable,
+        existingCode: existingPayable?.code || undefined,
+        available: !existingPayable,
+      });
+    }
+
+    return {
+      osCode: (so as any).code,
+      osTitle: so.title,
+      clientName: so.clientPartner?.name || null,
+      techName: so.assignedPartner?.name || null,
+      entries,
+    };
+  }
+
+  async earlyFinancialLaunch(
+    id: string,
+    companyId: string,
+    actor: AuthenticatedUser,
+    data: {
+      launchReceivable: boolean;
+      launchPayable: boolean;
+      receivableDueDate?: string;
+      payableDueDate?: string;
+      receivableAccountId?: string;
+      payableAccountId?: string;
+      paymentMethod?: string;
+    },
+  ) {
+    const so = await this.prisma.serviceOrder.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: {
+        assignedPartner: { select: { id: true, name: true } },
+        clientPartner: { select: { id: true, name: true } },
+        items: true,
+      },
+    });
+    if (!so) throw new NotFoundException('OS não encontrada');
+    if (so.status === ServiceOrderStatus.CANCELADA) {
+      throw new BadRequestException('OS cancelada não permite lançamento financeiro');
+    }
+    if (so.valueCents === 0) {
+      throw new BadRequestException('OS com valor zero não permite lançamento financeiro');
+    }
+    if (!data.launchReceivable && !data.launchPayable) {
+      throw new BadRequestException('Selecione ao menos um lançamento');
+    }
+
+    // Check existing entries to avoid duplicates
+    const existingEntries = await this.prisma.financialEntry.findMany({
+      where: { serviceOrderId: id, companyId, status: { not: 'CANCELLED' } },
+      select: { type: true },
+    });
+    const hasReceivable = existingEntries.some(e => e.type === 'RECEIVABLE');
+    const hasPayable = existingEntries.some(e => e.type === 'PAYABLE');
+
+    if (data.launchReceivable && hasReceivable) {
+      throw new BadRequestException('Lançamento A Receber já existe para esta OS');
+    }
+    if (data.launchPayable && hasPayable) {
+      throw new BadRequestException('Lançamento A Pagar já existe para esta OS');
+    }
+
+    // Calculate values
+    const grossCents = so.valueCents;
+    let effectiveTechCents: number;
+    if (so.techCommissionCents != null) {
+      effectiveTechCents = so.techCommissionCents;
+    } else if (so.items && so.items.length > 0) {
+      effectiveTechCents = so.items.reduce((sum, item) => {
+        const itemGross = item.unitPriceCents * item.quantity;
+        return sum + resolveCommission({
+          grossCents: itemGross,
+          commissionBps: item.commissionBps,
+          techFixedValueCents: item.techFixedValueCents,
+          commissionRule: item.commissionRule,
+          quantity: item.quantity,
+        });
+      }, 0);
+    } else {
+      const bps = so.commissionBps ?? 0;
+      effectiveTechCents = Math.round((grossCents * bps) / 10000);
+    }
+    const effectiveBps = so.commissionBps ?? 0;
+    const companyKeeps = grossCents - effectiveTechCents;
+
+    const isReturn = so.isReturn ?? false;
+    const returnPaidToTech = so.returnPaidToTech ?? true;
+    const shouldPayTech = !!so.assignedPartnerId && (!isReturn || returnPaidToTech);
+
+    // Generate codes
+    const codes: string[] = [];
+    if (data.launchReceivable && so.clientPartnerId) {
+      codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+    }
+    if (data.launchPayable && shouldPayTech) {
+      codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+    }
+
+    const now = new Date();
+    const timestamp = now.toISOString().replace('T', ' ').substring(0, 19);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const createdEntries: any[] = [];
+      let codeIdx = 0;
+
+      // RECEIVABLE — A Receber (cliente) — already PAID
+      if (data.launchReceivable && so.clientPartnerId) {
+        const payLog = `[${timestamp}] RECEBIDO ANTECIPADO via ${data.paymentMethod || 'N/A'}`;
+        const receivable = await tx.financialEntry.create({
+          data: {
+            companyId,
+            code: codes[codeIdx++],
+            serviceOrderId: id,
+            partnerId: so.clientPartnerId,
+            type: 'RECEIVABLE',
+            status: 'PAID',
+            paidAt: now,
+            paymentMethod: data.paymentMethod || undefined,
+            description: `A receber OS: ${so.title} (Antecipado)`,
+            grossCents,
+            netCents: grossCents,
+            dueDate: data.receivableDueDate ? new Date(data.receivableDueDate) : now,
+            financialAccountId: data.receivableAccountId || undefined,
+            notes: payLog,
+          },
+        });
+        createdEntries.push(receivable);
+      }
+
+      // PAYABLE — A Pagar (técnico) — already PAID
+      if (data.launchPayable && shouldPayTech) {
+        const payLog = `[${timestamp}] PAGO ANTECIPADO via ${data.paymentMethod || 'N/A'}`;
+        const payable = await tx.financialEntry.create({
+          data: {
+            companyId,
+            code: codes[codeIdx++],
+            serviceOrderId: id,
+            partnerId: so.assignedPartnerId!,
+            type: 'PAYABLE',
+            status: 'PAID',
+            paidAt: now,
+            paymentMethod: data.paymentMethod || undefined,
+            description: `Repasse técnico OS: ${so.title} (Antecipado)`,
+            grossCents,
+            commissionBps: effectiveBps,
+            commissionCents: companyKeeps,
+            netCents: effectiveTechCents,
+            dueDate: data.payableDueDate ? new Date(data.payableDueDate) : now,
+            financialAccountId: data.payableAccountId || undefined,
+            notes: payLog,
+          },
+        });
+        createdEntries.push(payable);
+      }
+
+      // Event for audit trail
+      await tx.serviceOrderEvent.create({
+        data: {
+          companyId,
+          serviceOrderId: id,
+          type: 'EARLY_FINANCIAL',
+          actorType: 'USER',
+          actorId: actor?.id,
+          payload: {
+            entriesCreated: createdEntries.length,
+            types: createdEntries.map(e => e.type),
+            paymentMethod: data.paymentMethod,
+          },
+        },
+      });
+
+      return { entries: createdEntries };
+    });
+
+    // Audit
+    this.audit.log({
+      companyId, entityType: 'SERVICE_ORDER', entityId: id,
+      action: 'EARLY_FINANCIAL', actorType: 'USER', actorId: actor?.id, actorName: actor?.email,
+      after: { entriesCreated: result.entries.length, types: result.entries.map((e: any) => e.type) },
+    });
+
+    return result;
+  }
+
   /* ── Finalize (Confirmar OS) ─────────────────────── */
 
   async finalizePreview(id: string, companyId: string) {
@@ -1471,12 +1746,20 @@ export class ServiceOrderService {
     const returnPaidToTech = (so as any).returnPaidToTech ?? true;
     const shouldPayTech = so.assignedPartnerId && (!isReturn || returnPaidToTech);
 
-    // Generate codes before transaction
+    // Check for early-launched entries (lançamento antecipado)
+    const earlyEntries = await this.prisma.financialEntry.findMany({
+      where: { serviceOrderId: id, companyId, status: { not: 'CANCELLED' } },
+      select: { type: true },
+    });
+    const hasEarlyReceivable = earlyEntries.some(e => e.type === 'RECEIVABLE');
+    const hasEarlyPayable = earlyEntries.some(e => e.type === 'PAYABLE');
+
+    // Generate codes only for entries that don't already exist
     const codes: string[] = [];
-    if (so.clientPartnerId) {
+    if (so.clientPartnerId && !hasEarlyReceivable) {
       codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
     }
-    if (shouldPayTech) {
+    if (shouldPayTech && !hasEarlyPayable) {
       codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
     }
 
@@ -1484,8 +1767,8 @@ export class ServiceOrderService {
       const createdEntries: any[] = [];
       let codeIdx = 0;
 
-      // 1. RECEIVABLE (a receber do cliente)
-      if (so.clientPartnerId) {
+      // 1. RECEIVABLE (a receber do cliente) — skip if early-launched
+      if (so.clientPartnerId && !hasEarlyReceivable) {
         const receivable = await tx.financialEntry.create({
           data: {
             companyId,
@@ -1502,8 +1785,8 @@ export class ServiceOrderService {
         createdEntries.push(receivable);
       }
 
-      // 2. PAYABLE (a pagar ao tecnico)
-      if (shouldPayTech) {
+      // 2. PAYABLE (a pagar ao tecnico) — skip if early-launched
+      if (shouldPayTech && !hasEarlyPayable) {
         const payable = await tx.financialEntry.create({
           data: {
             companyId,
@@ -1758,11 +2041,19 @@ export class ServiceOrderService {
     const shouldPayTech = so.assignedPartnerId && (!isReturn || returnPaidToTech);
     const skipFinancial = grossCents === 0;
 
-    // Generate codes
+    // Check for early-launched entries (lançamento antecipado)
+    const earlyEntries = await this.prisma.financialEntry.findMany({
+      where: { serviceOrderId: id, companyId, status: { not: 'CANCELLED' } },
+      select: { type: true },
+    });
+    const hasEarlyReceivable = earlyEntries.some(e => e.type === 'RECEIVABLE');
+    const hasEarlyPayable = earlyEntries.some(e => e.type === 'PAYABLE');
+
+    // Generate codes only for entries that don't already exist
     const codes: string[] = [];
     if (!skipFinancial) {
-      if (so.clientPartnerId) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
-      if (shouldPayTech) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+      if (so.clientPartnerId && !hasEarlyReceivable) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+      if (shouldPayTech && !hasEarlyPayable) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
     }
     const evalCode = await this.codeGenerator.generateCode(companyId, 'EVALUATION');
 
@@ -1783,10 +2074,10 @@ export class ServiceOrderService {
         },
       });
 
-      // 2. Financial entries (skip if value = 0)
+      // 2. Financial entries (skip if value = 0 or already early-launched)
       if (!skipFinancial) {
-        // RECEIVABLE
-        if (so.clientPartnerId) {
+        // RECEIVABLE — skip if early-launched
+        if (so.clientPartnerId && !hasEarlyReceivable) {
           const receivable = await tx.financialEntry.create({
             data: {
               companyId,
@@ -1805,8 +2096,8 @@ export class ServiceOrderService {
           createdEntries.push(receivable);
         }
 
-        // PAYABLE
-        if (shouldPayTech) {
+        // PAYABLE — skip if early-launched
+        if (shouldPayTech && !hasEarlyPayable) {
           const payable = await tx.financialEntry.create({
             data: {
               companyId,

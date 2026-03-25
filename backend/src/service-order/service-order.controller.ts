@@ -5,6 +5,7 @@ import { CreateServiceOrderDto } from './dto/create-service-order.dto';
 import { UpdateServiceOrderDto } from './dto/update-service-order.dto';
 import { UpdateServiceOrderStatusDto } from './dto/update-status.dto';
 import { AssignPartnerDto } from './dto/assign-partner.dto';
+import { EarlyFinancialDto } from './dto/early-financial.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -161,6 +162,25 @@ export class ServiceOrderController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.getDispatchStatus(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Get(':id/early-financial-preview')
+  earlyFinancialPreview(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.earlyFinancialPreview(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/early-financial')
+  earlyFinancialLaunch(
+    @Param('id') id: string,
+    @Body() body: EarlyFinancialDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.earlyFinancialLaunch(id, user.companyId, user, body);
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)

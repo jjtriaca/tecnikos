@@ -17,6 +17,7 @@ import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
 import { exportToCSV, fmtDate, fmtDateTime, fmtMoney, fmtStatus, type ExportColumn } from "@/lib/export-utils";
 import AgendaView from "@/components/os/AgendaView";
+import EarlyFinancialModal from "@/components/os/EarlyFinancialModal";
 
 type OrdersTabId = "lista" | "agenda";
 const ORDERS_TABS: { id: OrdersTabId; label: string; icon: string }[] = [
@@ -144,6 +145,7 @@ function ActionsDropdown({
   onCancel,
   onDuplicate,
   onDelete,
+  onEarlyFinancial,
 }: {
   order: ServiceOrder;
   canEdit: boolean;
@@ -151,6 +153,7 @@ function ActionsDropdown({
   onCancel: (order: ServiceOrder) => void;
   onDuplicate: (order: ServiceOrder) => void;
   onDelete: (order: ServiceOrder) => void;
+  onEarlyFinancial: (order: ServiceOrder) => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -232,6 +235,16 @@ function ActionsDropdown({
             </button>
           )}
 
+          {/* Lancar Financeiro Antecipado */}
+          {canEdit && isEditable && order.status !== "ABERTA" && (
+            <button
+              onClick={() => { setOpen(false); onEarlyFinancial(order); }}
+              className="block w-full text-left px-3 py-2 text-sm text-green-700 hover:bg-green-50"
+            >
+              Lancar Financeiro
+            </button>
+          )}
+
           {/* Retorno */}
           {canEdit && TERMINAL_STATUSES.includes(order.status) && (
             <Link
@@ -278,6 +291,7 @@ function makeColumns(
   onCancel: (o: ServiceOrder) => void,
   onDuplicate: (o: ServiceOrder) => void,
   onDelete: (o: ServiceOrder) => void,
+  onEarlyFinancial: (o: ServiceOrder) => void,
   expandedAuditId: string | null,
   onToggleAudit: (id: string) => void,
 ): ColumnDefinition<ServiceOrder>[] {
@@ -416,6 +430,7 @@ function makeColumns(
             onCancel={onCancel}
             onDuplicate={onDuplicate}
             onDelete={onDelete}
+            onEarlyFinancial={onEarlyFinancial}
           />
         )}
       </div>
@@ -452,6 +467,7 @@ export default function OrdersPage() {
 
   const [cancelTarget, setCancelTarget] = useState<ServiceOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceOrder | null>(null);
+  const [earlyFinancialTarget, setEarlyFinancialTarget] = useState<ServiceOrder | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
 
@@ -469,6 +485,7 @@ export default function OrdersPage() {
       }
     },
     (o) => setDeleteTarget(o),
+    (o) => setEarlyFinancialTarget(o),
     expandedAuditId,
     (id) => setExpandedAuditId((prev) => (prev === id ? null : id)),
   );
@@ -727,6 +744,14 @@ export default function OrdersPage() {
         loading={actionLoading}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* Early Financial Modal */}
+      <EarlyFinancialModal
+        open={!!earlyFinancialTarget}
+        orderId={earlyFinancialTarget?.id || ""}
+        onClose={() => setEarlyFinancialTarget(null)}
+        onLaunched={() => { setEarlyFinancialTarget(null); loadOrders(); }}
       />
     </div>
   );
