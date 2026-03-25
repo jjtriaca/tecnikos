@@ -160,6 +160,8 @@ export class ServiceOrderService {
       if (data.isEvaluation) triggerIds.push('os_evaluation_created');
       if (data.isUrgent) triggerIds.push('os_urgent_created');
       if (data.isReturn) triggerIds.push('os_return_created');
+      // If OS has scheduledStartAt, it's an agenda OS regardless of assignment mode
+      if (data.scheduledStartAt) triggerIds.push('os_agenda_created');
       // Assignment mode triggers (more specific before generic)
       const mode = data.techAssignmentMode || 'BY_SPECIALIZATION';
       if (mode === 'BY_SPECIALIZATION') triggerIds.push('os_specialization_created');
