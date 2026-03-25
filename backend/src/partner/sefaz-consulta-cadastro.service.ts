@@ -155,10 +155,13 @@ export class SefazConsultaCadastroService {
   </soap12:Body>
 </soap12:Envelope>`;
 
+    // SOAP 1.2 action (required by Axis2 servers like MT)
+    const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4/consultaCadastro4';
+
     this.logger.log(`ConsultaCadastro → ${url} | UF=${ufUpper} | query=${queryElement}`);
 
     // Make SOAP call
-    const responseXml = await this.callSoap(certPem, keyPem, url, soapEnvelope);
+    const responseXml = await this.callSoap(certPem, keyPem, url, soapEnvelope, soapAction);
 
     // Parse response
     return this.parseResponse(responseXml, ufUpper);
@@ -168,8 +171,13 @@ export class SefazConsultaCadastroService {
      callSoap — Make HTTPS SOAP call with mTLS
      ═══════════════════════════════════════════════════════════════════ */
 
-  private callSoap(certPem: string, keyPem: string, url: string, soapEnvelope: string): Promise<string> {
+  private callSoap(certPem: string, keyPem: string, url: string, soapEnvelope: string, soapAction?: string): Promise<string> {
     const parsedUrl = new URL(url);
+
+    // SOAP 1.2: action goes in Content-Type header (required by Axis2 servers)
+    const contentType = soapAction
+      ? `application/soap+xml;charset=UTF-8;action="${soapAction}"`
+      : 'application/soap+xml;charset=UTF-8';
 
     return new Promise<string>((resolve, reject) => {
       const options: https.RequestOptions = {
@@ -182,7 +190,7 @@ export class SefazConsultaCadastroService {
         // SEFAZ state servers use ICP-Brasil CAs not in Node.js default bundle
         rejectUnauthorized: false,
         headers: {
-          'Content-Type': 'application/soap+xml;charset=UTF-8',
+          'Content-Type': contentType,
           'Content-Length': Buffer.byteLength(soapEnvelope, 'utf-8'),
         },
         timeout: 30000,
@@ -225,19 +233,34 @@ export class SefazConsultaCadastroService {
   private parseResponse(xml: string, uf: string): ConsultaCadastroResult {
     const parsed = this.xmlParser.parse(xml);
 
-    // Navigate SOAP envelope
-    const envelope = parsed['soap:Envelope'] ?? parsed['soap12:Envelope'] ?? parsed;
-    const body = envelope['soap:Body'] ?? envelope['soap12:Body'] ?? envelope;
+    this.logger.debug(`Parsed XML keys: ${JSON.stringify(Object.keys(parsed))}`);
+
+    // Navigate SOAP envelope — handle all namespace prefixes
+    const envelope =
+      parsed['soap:Envelope'] ?? parsed['soap12:Envelope'] ??
+      parsed['soapenv:Envelope'] ?? parsed['env:Envelope'] ?? parsed;
+    const body =
+      envelope['soap:Body'] ?? envelope['soap12:Body'] ??
+      envelope['soapenv:Body'] ?? envelope['env:Body'] ?? envelope;
+
+    // Check for SOAP Fault first
+    const fault = body['soap:Fault'] ?? body['soapenv:Fault'] ?? body['env:Fault'];
+    if (fault) {
+      const reason = fault['soap:Reason'] ?? fault['soapenv:Reason'] ?? fault['faultstring'] ?? {};
+      const text = reason['soap:Text'] ?? reason['soapenv:Text'] ?? reason;
+      const msg = typeof text === 'string' ? text : (text?.['#text'] ?? JSON.stringify(text));
+      this.logger.error(`SEFAZ SOAP Fault: ${msg}`);
+      throw new BadRequestException(`Erro SEFAZ: ${msg}`);
+    }
 
     // The response wrapper varies by state, try common patterns
-    const resp =
-      body?.consultaCadastro4Result ??
-      body?.consultaCadastro2Result ??
-      body?.CadConsultaCadastro4Result ??
-      body?.nfeResultMsg ??
-      body;
+    const resp = this.findDeep(body, [
+      'consultaCadastro4Result', 'consultaCadastro2Result',
+      'CadConsultaCadastro4Result', 'nfeResultMsg',
+      'ns1:consultaCadastro4Result', 'ns2:consultaCadastro4Result',
+    ]) ?? body;
 
-    const retConsCad = resp?.retConsCad ?? resp;
+    const retConsCad = resp?.retConsCad ?? this.findDeep(resp, ['retConsCad']) ?? resp;
     const infCons = retConsCad?.infCons ?? retConsCad;
 
     if (!infCons) {
@@ -290,5 +313,25 @@ export class SefazConsultaCadastroService {
       cep: ender.CEP ? String(ender.CEP) : null,
       state: uf,
     };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     findDeep — Find first matching key in object (handles namespaced XML)
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private findDeep(obj: any, keys: string[]): any {
+    if (!obj || typeof obj !== 'object') return undefined;
+    for (const key of keys) {
+      if (obj[key] !== undefined) return obj[key];
+    }
+    // Also search without namespace prefix (strip ns:)
+    for (const objKey of Object.keys(obj)) {
+      const stripped = objKey.includes(':') ? objKey.split(':').pop()! : objKey;
+      for (const key of keys) {
+        const keyStripped = key.includes(':') ? key.split(':').pop()! : key;
+        if (stripped === keyStripped) return obj[objKey];
+      }
+    }
+    return undefined;
   }
 }
