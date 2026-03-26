@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class EarlyFinancialDto {
   @IsBoolean()
@@ -26,4 +26,17 @@ export class EarlyFinancialDto {
   @IsOptional()
   @IsString()
   paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  cardBrand?: string;
+
+  @IsOptional()
+  @IsString()
+  cardFeeRateId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  installmentCount?: number;
 }

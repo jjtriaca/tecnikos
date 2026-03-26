@@ -1,9 +1,11 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 
 type PostableAccount = { id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } };
+type PaymentMethodPM = { id: string; code: string; name: string; isActive: boolean; requiresBrand: boolean; feePercent?: number | null; receivingDays?: number | null; sortOrder: number };
+type CardFeeRateItem = { id: string; description: string; brand: string; type: string; installmentFrom: number; installmentTo: number; feePercent: number; receivingDays: number; isActive: boolean };
 
 type EntryPreview = {
   type: "RECEIVABLE" | "PAYABLE";
@@ -33,16 +35,6 @@ type Props = {
   onLaunched: () => void;
 };
 
-const PAYMENT_METHODS = [
-  { value: "PIX", label: "PIX" },
-  { value: "DINHEIRO", label: "Dinheiro" },
-  { value: "TRANSFERENCIA", label: "Transferencia" },
-  { value: "BOLETO", label: "Boleto" },
-  { value: "CARTAO_CREDITO", label: "Cartao de Credito" },
-  { value: "CARTAO_DEBITO", label: "Cartao de Debito" },
-  { value: "CHEQUE", label: "Cheque" },
-];
-
 function formatBRL(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -57,6 +49,8 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
   const [submitting, setSubmitting] = useState(false);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [postableAccounts, setPostableAccounts] = useState<PostableAccount[]>([]);
+  const [activePMs, setActivePMs] = useState<PaymentMethodPM[]>([]);
+  const [cardFeeRates, setCardFeeRates] = useState<CardFeeRateItem[]>([]);
   const [error, setError] = useState("");
 
   // Form state
@@ -66,7 +60,31 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
   const [payableDue, setPayableDue] = useState(todayStr());
   const [receivableAccountId, setReceivableAccountId] = useState("");
   const [payableAccountId, setPayableAccountId] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("PIX");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [selectedCardRateId, setSelectedCardRateId] = useState("");
+
+  // Card logic
+  const selectedPM = useMemo(() => activePMs.find(p => p.code === paymentMethod), [paymentMethod, activePMs]);
+  const isCardPayment = !!selectedPM?.requiresBrand;
+  const cardType = useMemo(() => {
+    if (!selectedPM?.requiresBrand) return "";
+    const text = (selectedPM.code + " " + selectedPM.name).toUpperCase();
+    return (text.includes("DEBIT") || text.includes("DÉBITO") || text.includes("DEBITO")) ? "DEBITO" : "CREDITO";
+  }, [selectedPM]);
+  const filteredCardRates = useMemo(() => {
+    if (!cardType) return [];
+    return cardFeeRates.filter(r => r.type === cardType && r.isActive);
+  }, [cardType, cardFeeRates]);
+  const selectedCardRate = useMemo(() => {
+    if (!selectedCardRateId) return null;
+    return cardFeeRates.find(r => r.id === selectedCardRateId) || null;
+  }, [selectedCardRateId, cardFeeRates]);
+
+  // Fee calculation
+  const recGross = preview?.entries.find(e => e.type === "RECEIVABLE")?.grossCents || 0;
+  const feeCents = selectedCardRate ? Math.round(recGross * selectedCardRate.feePercent / 100) : 0;
+  const netAfterFee = recGross - feeCents;
+  const installmentCount = selectedCardRate ? (selectedCardRate.installmentTo || 1) : 1;
 
   useEffect(() => {
     if (!open) return;
@@ -76,19 +94,26 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
     setLaunchPayable(false);
     setReceivableDue(todayStr());
     setPayableDue(todayStr());
-    setPaymentMethod("PIX");
+    setPaymentMethod("");
+    setSelectedCardRateId("");
 
     Promise.all([
       api.get<PreviewData>(`/service-orders/${orderId}/early-financial-preview`),
       api.get<PostableAccount[]>("/finance/accounts/postable").catch(() => []),
-    ]).then(([data, accounts]) => {
+      api.get<PaymentMethodPM[]>("/finance/payment-methods/active").catch(() => []),
+      api.get<CardFeeRateItem[]>("/finance/card-fee-rates").catch(() => []),
+    ]).then(([data, accounts, pms, rates]) => {
       setPreview(data);
       setPostableAccounts(accounts);
+      setActivePMs(pms);
+      setCardFeeRates(rates);
       // Auto-select defaults
       const recDefault = accounts.find(a => a.code === "1100");
       const payDefault = accounts.find(a => a.code === "2100");
       setReceivableAccountId(recDefault?.id || "");
       setPayableAccountId(payDefault?.id || "");
+      // Auto-select first payment method
+      if (pms.length > 0) setPaymentMethod(pms[0].code);
       // Auto-check available entries
       const recEntry = data.entries.find(e => e.type === "RECEIVABLE");
       const payEntry = data.entries.find(e => e.type === "PAYABLE");
@@ -99,11 +124,15 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
     }).finally(() => setLoading(false));
   }, [open, orderId]);
 
+  // Reset card selection when payment method changes
+  useEffect(() => { setSelectedCardRateId(""); }, [paymentMethod]);
+
   if (!open) return null;
 
   const recEntry = preview?.entries.find(e => e.type === "RECEIVABLE");
   const payEntry = preview?.entries.find(e => e.type === "PAYABLE");
-  const canSubmit = (launchReceivable || launchPayable) && !submitting && !loading;
+  const needsCard = isCardPayment && !selectedCardRateId;
+  const canSubmit = (launchReceivable || launchPayable) && !submitting && !loading && paymentMethod && !needsCard;
 
   async function handleLaunch() {
     setSubmitting(true);
@@ -117,6 +146,9 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
         receivableAccountId: launchReceivable ? (receivableAccountId || undefined) : undefined,
         payableAccountId: launchPayable ? (payableAccountId || undefined) : undefined,
         paymentMethod,
+        cardBrand: isCardPayment && selectedCardRate ? selectedCardRate.brand : undefined,
+        cardFeeRateId: isCardPayment ? selectedCardRateId : undefined,
+        installmentCount: isCardPayment && selectedCardRate ? installmentCount : undefined,
       });
       toast("Lancamento antecipado realizado com sucesso!", "success");
       onLaunched();
@@ -149,9 +181,9 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
           <div>
             <h3 className="text-sm font-semibold text-slate-800">Lancamento Financeiro Antecipado</h3>
             {preview && (
@@ -164,7 +196,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
         </div>
 
-        <div className="p-5 space-y-3">
+        <div className="p-5 space-y-3 overflow-y-auto flex-1">
           {/* Loading */}
           {loading && (
             <div className="text-center py-6">
@@ -207,7 +239,6 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
                     <span className="text-sm font-semibold text-slate-800">{formatBRL(recEntry.grossCents)}</span>
                   </div>
 
-                  {/* Fields — only if available and checked */}
                   {!recEntry.alreadyLaunched && launchReceivable && (
                     <div className="flex flex-col gap-1.5 mt-2 pl-6">
                       <div className="flex items-center gap-2">
@@ -255,7 +286,6 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
                     <span className="text-sm font-semibold text-slate-800">{formatBRL(payEntry.netCents)}</span>
                   </div>
 
-                  {/* Fields */}
                   {!payEntry.alreadyLaunched && launchPayable && (
                     <div className="flex flex-col gap-1.5 mt-2 pl-6">
                       <div className="flex items-center gap-2">
@@ -272,16 +302,104 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
                 </div>
               )}
 
-              {/* Payment method — shared */}
+              {/* Payment method + Card selection */}
               {(launchReceivable || launchPayable) && (
-                <div className="flex items-center gap-2 pt-1">
-                  <label className="text-xs text-slate-600 font-medium">Forma de pagamento:</label>
-                  <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                    className="text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-blue-300 flex-1">
-                    {PAYMENT_METHODS.map(m => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                  </select>
+                <div className="space-y-2 pt-1 border-t border-slate-100">
+                  {/* Payment method */}
+                  <div>
+                    <label className="text-xs text-slate-600 font-medium">Forma de pagamento *</label>
+                    <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:border-blue-300 mt-1">
+                      <option value="">Selecione...</option>
+                      {activePMs.map(m => (
+                        <option key={m.code} value={m.code}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Card selection — only for card payments */}
+                  {isCardPayment && (
+                    <div>
+                      <label className="text-xs text-slate-600 font-medium">Cartao *</label>
+                      {filteredCardRates.length === 0 ? (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700 mt-1">
+                          <p className="font-medium">Nenhuma taxa cadastrada para {cardType === "DEBITO" ? "debito" : "credito"}.</p>
+                          <p className="mt-0.5">Cadastre as taxas em Financeiro &gt; Baixa Cartoes &gt; Configurar Taxas.</p>
+                        </div>
+                      ) : (
+                        <select value={selectedCardRateId} onChange={e => setSelectedCardRateId(e.target.value)}
+                          className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:border-blue-300 mt-1">
+                          <option value="">Selecione o cartao...</option>
+                          {filteredCardRates.map(r => (
+                            <option key={r.id} value={r.id}>
+                              {r.description || `${r.brand} ${r.type === "CREDITO" ? "Credito" : "Debito"} ${r.installmentFrom === r.installmentTo ? `${r.installmentFrom}x` : `${r.installmentFrom}-${r.installmentTo}x`}`}
+                              {` — ${r.feePercent.toFixed(2)}%`}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Fee preview for selected card */}
+                  {isCardPayment && selectedCardRate && recEntry && launchReceivable && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <span className="text-[10px] text-slate-400">Bandeira</span>
+                          <p className="font-medium text-slate-700">{selectedCardRate.brand}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400">Parcelas</span>
+                          <p className="font-medium text-slate-700">{installmentCount}x</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400">Taxa</span>
+                          <p className="font-medium text-red-600">{selectedCardRate.feePercent.toFixed(2)}%</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400">Recebimento</span>
+                          <p className="font-medium text-slate-700">{selectedCardRate.receivingDays}d/parcela</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-slate-200 grid grid-cols-3 gap-2">
+                        <div>
+                          <span className="text-[10px] text-slate-400">Bruto</span>
+                          <p className="font-medium text-slate-700">{formatBRL(recGross)}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400">Taxa</span>
+                          <p className="font-medium text-red-600">- {formatBRL(feeCents)}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400">Liquido</span>
+                          <p className="font-medium text-green-700">{formatBRL(netAfterFee)}</p>
+                        </div>
+                      </div>
+                      {installmentCount > 1 && (
+                        <div className="mt-2 pt-2 border-t border-slate-200">
+                          <span className="text-[10px] text-slate-400">Previsao de recebimento:</span>
+                          <div className="mt-1 space-y-0.5">
+                            {Array.from({ length: installmentCount }).map((_, i) => {
+                              const parcGross = i < installmentCount - 1
+                                ? Math.floor(recGross / installmentCount)
+                                : recGross - Math.floor(recGross / installmentCount) * (installmentCount - 1);
+                              const parcFee = i < installmentCount - 1
+                                ? Math.floor(feeCents / installmentCount)
+                                : feeCents - Math.floor(feeCents / installmentCount) * (installmentCount - 1);
+                              const days = (i + 1) * selectedCardRate.receivingDays;
+                              return (
+                                <div key={i} className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Parcela {i + 1} — {days} dias</span>
+                                  <span className="text-slate-700 font-medium">{formatBRL(parcGross - parcFee)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -309,7 +427,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 bg-slate-50">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 bg-slate-50 shrink-0">
           <button onClick={onClose} disabled={submitting}
             className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
             Fechar

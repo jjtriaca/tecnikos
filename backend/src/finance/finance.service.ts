@@ -667,6 +667,8 @@ export class FinanceService {
             }
           }
 
+          // Determine installment count from card fee rate
+          const installmentCount = cardRate ? (cardRate.installmentTo || 1) : 1;
           await this.cardSettlementService.createFromEntry(tx, {
             id: entry.id,
             companyId,
@@ -678,6 +680,7 @@ export class FinanceService {
             receivingDays,
             cardBrand,
             cardFeeRateId: dto.cardFeeRateId,
+            installmentCount,
           });
           this.logger.log(`Card settlement created for entry ${entry.id}, method=${pm.code}, fee=${feePercent}%, days=${receivingDays}`);
         } else if (dto.cashAccountId) {

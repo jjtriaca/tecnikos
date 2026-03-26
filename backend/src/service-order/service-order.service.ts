@@ -1490,6 +1490,9 @@ export class ServiceOrderService {
       receivableAccountId?: string;
       payableAccountId?: string;
       paymentMethod?: string;
+      cardBrand?: string;
+      cardFeeRateId?: string;
+      installmentCount?: number;
     },
   ) {
     const so = await this.prisma.serviceOrder.findFirst({
@@ -1571,7 +1574,16 @@ export class ServiceOrderService {
 
       // RECEIVABLE — A Receber (cliente) — already PAID
       if (data.launchReceivable && so.clientPartnerId) {
-        const payLog = `[${timestamp}] RECEBIDO ANTECIPADO via ${data.paymentMethod || 'N/A'}`;
+        // Resolve card fee if paying by card
+        let cardFeeRate: any = null;
+        let feeCents = 0;
+        const nParcelas = data.installmentCount || 1;
+        if (data.cardFeeRateId) {
+          cardFeeRate = await tx.cardFeeRate.findUnique({ where: { id: data.cardFeeRateId } });
+          if (cardFeeRate) feeCents = Math.round(grossCents * cardFeeRate.feePercent / 100);
+        }
+
+        const payLog = `[${timestamp}] RECEBIDO ANTECIPADO via ${data.paymentMethod || 'N/A'}${data.cardBrand ? ` (${data.cardBrand} ${nParcelas}x)` : ''}`;
         const receivable = await tx.financialEntry.create({
           data: {
             companyId,
@@ -1582,6 +1594,8 @@ export class ServiceOrderService {
             status: 'PAID',
             paidAt: now,
             paymentMethod: data.paymentMethod || undefined,
+            cardBrand: data.cardBrand || undefined,
+            installmentCount: nParcelas > 1 ? nParcelas : undefined,
             description: `A receber OS: ${so.title} (Antecipado)`,
             grossCents,
             netCents: grossCents,
@@ -1591,6 +1605,40 @@ export class ServiceOrderService {
           },
         });
         createdEntries.push(receivable);
+
+        // Create CardSettlements (1 per installment) if card payment
+        if (cardFeeRate && data.cardBrand) {
+          const receivingDays = cardFeeRate.receivingDays || 30;
+          for (let i = 0; i < nParcelas; i++) {
+            const isLast = i === nParcelas - 1;
+            const parcGross = isLast
+              ? grossCents - Math.floor(grossCents / nParcelas) * (nParcelas - 1)
+              : Math.floor(grossCents / nParcelas);
+            const parcFee = isLast
+              ? feeCents - Math.floor(feeCents / nParcelas) * (nParcelas - 1)
+              : Math.floor(feeCents / nParcelas);
+            const expectedDate = new Date(now);
+            expectedDate.setDate(expectedDate.getDate() + (i + 1) * receivingDays);
+
+            await tx.cardSettlement.create({
+              data: {
+                companyId,
+                financialEntryId: receivable.id,
+                paymentMethodCode: data.paymentMethod,
+                cardBrand: data.cardBrand,
+                grossCents: parcGross,
+                feePercent: cardFeeRate.feePercent,
+                feeCents: parcFee,
+                expectedNetCents: parcGross - parcFee,
+                expectedDate,
+                receivingDays: (i + 1) * receivingDays,
+                status: 'PENDING',
+                cardFeeRateId: data.cardFeeRateId,
+                notes: `Parcela ${i + 1}/${nParcelas} — OS: ${so.title}`,
+              },
+            });
+          }
+        }
       }
 
       // PAYABLE — A Pagar (técnico) — already PAID

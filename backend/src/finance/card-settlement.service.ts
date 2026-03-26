@@ -22,30 +22,46 @@ export class CardSettlementService {
   async createFromEntry(
     tx: any, // Prisma transaction client
     entry: { id: string; companyId: string; netCents: number; paidAt: Date },
-    pm: { code: string; feePercent: number; receivingDays: number; cardBrand?: string; cardFeeRateId?: string },
+    pm: { code: string; feePercent: number; receivingDays: number; cardBrand?: string; cardFeeRateId?: string; installmentCount?: number },
   ) {
     const grossCents = entry.netCents;
-    const feeCents = Math.round(grossCents * pm.feePercent / 100);
-    const expectedNetCents = grossCents - feeCents;
-    const expectedDate = new Date(entry.paidAt);
-    expectedDate.setDate(expectedDate.getDate() + pm.receivingDays);
+    const totalFeeCents = Math.round(grossCents * pm.feePercent / 100);
+    const nParcelas = pm.installmentCount || 1;
+    const receivingDays = pm.receivingDays || 30;
+    const settlements: any[] = [];
 
-    return tx.cardSettlement.create({
-      data: {
-        companyId: entry.companyId,
-        financialEntryId: entry.id,
-        paymentMethodCode: pm.code,
-        cardBrand: pm.cardBrand || undefined,
-        cardFeeRateId: pm.cardFeeRateId || undefined,
-        grossCents,
-        feePercent: pm.feePercent,
-        feeCents,
-        expectedNetCents,
-        expectedDate,
-        receivingDays: pm.receivingDays,
-        status: 'PENDING',
-      },
-    });
+    for (let i = 0; i < nParcelas; i++) {
+      const isLast = i === nParcelas - 1;
+      const parcGross = isLast
+        ? grossCents - Math.floor(grossCents / nParcelas) * (nParcelas - 1)
+        : Math.floor(grossCents / nParcelas);
+      const parcFee = isLast
+        ? totalFeeCents - Math.floor(totalFeeCents / nParcelas) * (nParcelas - 1)
+        : Math.floor(totalFeeCents / nParcelas);
+      const expectedDate = new Date(entry.paidAt);
+      expectedDate.setDate(expectedDate.getDate() + (i + 1) * receivingDays);
+
+      const settlement = await tx.cardSettlement.create({
+        data: {
+          companyId: entry.companyId,
+          financialEntryId: entry.id,
+          paymentMethodCode: pm.code,
+          cardBrand: pm.cardBrand || undefined,
+          cardFeeRateId: pm.cardFeeRateId || undefined,
+          grossCents: parcGross,
+          feePercent: pm.feePercent,
+          feeCents: parcFee,
+          expectedNetCents: parcGross - parcFee,
+          expectedDate,
+          receivingDays: (i + 1) * receivingDays,
+          status: 'PENDING',
+          notes: nParcelas > 1 ? `Parcela ${i + 1}/${nParcelas}` : undefined,
+        },
+      });
+      settlements.push(settlement);
+    }
+
+    return nParcelas === 1 ? settlements[0] : settlements;
   }
 
   /** Summary counts for the tab header */
