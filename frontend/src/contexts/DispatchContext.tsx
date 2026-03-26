@@ -144,7 +144,7 @@ function mapApiToDispatch(item: any): DispatchState {
 export function DispatchProvider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const [dispatches, setDispatches] = useState<DispatchState[]>([]);
-  const [minimized, setMinimized] = useState(false);
+  const [minimized, setMinimized] = useState(true); // Start minimized — only expand on user action or config trigger
   const [config, setConfig] = useState<DispatchConfig>(DEFAULT_DISPATCH_CONFIG);
   const configRef = useRef(config);
   configRef.current = config;
