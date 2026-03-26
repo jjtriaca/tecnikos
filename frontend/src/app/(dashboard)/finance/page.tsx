@@ -38,6 +38,7 @@ import PaymentInstrumentsTab from "./components/PaymentInstrumentsTab";
 import CashAccountsTab from "./components/CashAccountsTab";
 import ReconciliationTab from "./components/ReconciliationTab";
 import CardSettlementTab from "./components/CardSettlementTab";
+import CardFeeRatesTab from "./components/CardFeeRatesTab";
 import FinancialReportModal from "./components/FinancialReportModal";
 import AccountsTab from "./components/AccountsTab";
 
@@ -66,7 +67,7 @@ function formatDate(dateStr: string) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "instrumentos" | "cobranca" | "plano";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "instrumentos" | "cobranca" | "plano" | "taxas";
 
 const MAIN_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
@@ -81,6 +82,7 @@ const CADASTRO_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
   { id: "formas", label: "Formas de Pagamento", icon: "💳" },
   { id: "instrumentos", label: "Instrumentos", icon: "🏷️" },
+  { id: "taxas", label: "Taxas de Cartao", icon: "%" },
   { id: "cobranca", label: "Regras de Cobrança", icon: "⚡" },
   { id: "plano", label: "Plano de Contas", icon: "📋" },
 ];
@@ -495,6 +497,7 @@ export default function FinancePage() {
       {activeTab === "conciliacao" && <ReconciliationTab />}
       {activeTab === "formas" && <PaymentMethodsTab />}
       {activeTab === "instrumentos" && <PaymentInstrumentsTab />}
+      {activeTab === "taxas" && <CardFeeRatesTab />}
       {activeTab === "cobranca" && <CollectionRulesTab />}
       {activeTab === "plano" && <AccountsTab />}
     </div>
@@ -1456,7 +1459,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                   {filteredCardRates.length === 0 ? (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
                       <p className="font-medium">Nenhum cartao cadastrado para {cardType === "DEBITO" ? "debito" : "credito"}.</p>
-                      <p className="mt-1">Cadastre as taxas na aba <strong>Baixa Cartoes</strong> → Configurar Taxas por Bandeira.</p>
+                      <p className="mt-1">Cadastre as taxas na aba <strong>Cadastros</strong> → <strong>Taxas de Cartao</strong>.</p>
                     </div>
                   ) : (
                     <select

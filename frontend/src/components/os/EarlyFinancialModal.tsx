@@ -324,7 +324,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
                       {filteredCardRates.length === 0 ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700 mt-1">
                           <p className="font-medium">Nenhuma taxa cadastrada para {cardType === "DEBITO" ? "debito" : "credito"}.</p>
-                          <p className="mt-0.5">Cadastre as taxas em Financeiro &gt; Baixa Cartoes &gt; Configurar Taxas.</p>
+                          <p className="mt-0.5">Cadastre as taxas em Financeiro &gt; Cadastros &gt; Taxas de Cartao.</p>
                         </div>
                       ) : (
                         <select value={selectedCardRateId} onChange={e => setSelectedCardRateId(e.target.value)}
