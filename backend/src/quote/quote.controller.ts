@@ -181,10 +181,17 @@ export class QuoteController {
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
+    const quote = await this.service.findOne(id, user.companyId);
     const buffer = await this.pdfService.generatePdf(id, user.companyId);
+    const clientName = (quote.clientPartner?.name || 'cliente')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9 ]/g, '')
+      .replace(/\s+/g, '_')
+      .toUpperCase();
+    const filename = `${quote.code || 'ORC'}_${clientName}.pdf`;
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="orcamento-${id.slice(0, 8)}.pdf"`,
+      'Content-Disposition': `inline; filename="${filename}"`,
       'Content-Length': buffer.length,
     });
     res.end(buffer);

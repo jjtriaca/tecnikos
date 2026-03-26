@@ -371,6 +371,7 @@ export class QuoteService {
         clientPartner: true,
         company: true,
         attachments: true,
+        items: { orderBy: { sortOrder: 'asc' } },
       },
     });
 
@@ -395,33 +396,43 @@ export class QuoteService {
         publicToken,
         publicTokenExpiresAt: tokenExpiry,
         sentAt: new Date(),
-        sentVia: deliveryMethod.includes('WHATSAPP') ? 'WHATSAPP' : 'EMAIL',
+        sentVia: dto.sendWhatsApp ? 'WHATSAPP' : dto.sendEmail ? 'EMAIL' : null,
         deliveryMethod,
       },
     });
 
-    // Send notification
+    // Send notifications based on explicit flags
     const formatMoney = (cents: number) =>
       `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
 
-    if (deliveryMethod === 'WHATSAPP_LINK' || deliveryMethod === 'WHATSAPP_MESSAGE') {
-      const clientName = quote.clientPartner.name.split(' ')[0]; // First name only
-      const message = `Prezado(a) ${clientName}, seu orçamento ${quote.code} no valor de ${formatMoney(quote.totalCents)} está disponível para aprovação.`;
+    const sentChannels: string[] = [];
 
+    if (dto.sendWhatsApp && quote.clientPartner.phone) {
+      const clientName = quote.clientPartner.name.split(' ')[0];
       try {
         await this.notifications.send({
           companyId,
           channel: 'WHATSAPP',
-          recipientPhone: quote.clientPartner.phone || undefined,
-          message,
+          recipientPhone: quote.clientPartner.phone,
+          message: `Prezado(a) ${clientName}, seu orçamento ${quote.code} no valor de ${formatMoney(quote.totalCents)} está disponível para aprovação.`,
           type: 'QUOTE_SENT',
           templateName: 'orcamento_enviado_v2',
           templateParams: [clientName, quote.code || '', formatMoney(quote.totalCents)],
           urlButtonParams: [publicToken],
           forceTemplate: true,
         });
+        sentChannels.push('WHATSAPP');
       } catch (err) {
         this.logger.warn(`Failed to send WhatsApp for quote ${id}: ${err.message}`);
+      }
+    }
+
+    if (dto.sendEmail && quote.clientPartner.email) {
+      try {
+        await this.sendEmailInternal(quote, publicUrl);
+        sentChannels.push('EMAIL');
+      } catch (err) {
+        this.logger.warn(`Failed to send email for quote ${id}: ${err.message}`);
       }
     }
 
@@ -999,21 +1010,14 @@ export class QuoteService {
 
   // ---- Send Email ----
 
-  async sendEmail(id: string, companyId: string) {
-    const quote = await this.prisma.quote.findFirst({
-      where: { id, companyId, deletedAt: null },
-      include: { clientPartner: true, company: true, items: { orderBy: { sortOrder: 'asc' } } },
-    });
-    if (!quote) throw new NotFoundException('Orçamento não encontrado');
-    if (!quote.publicToken) throw new BadRequestException('Orçamento ainda não foi enviado');
-    if (!quote.clientPartner.email) throw new BadRequestException('Cliente não possui email cadastrado');
+  private async sendEmailInternal(quote: any, publicUrl: string) {
     if (!this.emailService) throw new BadRequestException('Serviço de email não configurado');
+    if (!quote.clientPartner?.email) throw new BadRequestException('Cliente não possui email cadastrado');
 
     const formatMoney = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
-    const baseDomain = process.env.BASE_DOMAIN || 'https://tecnikos.com.br';
-    const publicUrl = `${baseDomain}/q/${quote.publicToken}`;
 
-    const itemRows = quote.items.map((item, i) =>
+    const items = quote.items || [];
+    const itemRows = items.map((item, i) =>
       `<tr style="border-bottom:1px solid #e2e8f0">
         <td style="padding:8px;text-align:center">${i + 1}</td>
         <td style="padding:8px">${item.description}</td>
@@ -1062,12 +1066,25 @@ export class QuoteService {
       </div>`;
 
     await this.emailService.sendEmail(
-      companyId,
+      quote.companyId,
       quote.clientPartner.email,
       `Orçamento ${quote.code} — ${quote.title}`,
       html,
     );
+  }
 
+  async sendEmail(id: string, companyId: string) {
+    const quote = await this.prisma.quote.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: { clientPartner: true, company: true, items: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!quote) throw new NotFoundException('Orçamento não encontrado');
+    if (!quote.publicToken) throw new BadRequestException('Orçamento ainda não foi enviado');
+
+    const baseDomain = process.env.BASE_DOMAIN || 'https://tecnikos.com.br';
+    const publicUrl = `${baseDomain}/q/${quote.publicToken}`;
+
+    await this.sendEmailInternal(quote, publicUrl);
     return { success: true, message: 'Email enviado' };
   }
 }

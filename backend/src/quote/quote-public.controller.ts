@@ -81,9 +81,15 @@ export class QuotePublicController {
       (quote as any).id,
       (quote as any).companyId,
     );
+    const clientName = ((quote as any).clientPartner?.name || 'cliente')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9 ]/g, '')
+      .replace(/\s+/g, '_')
+      .toUpperCase();
+    const filename = `${(quote as any).code || 'ORC'}_${clientName}.pdf`;
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="orcamento-${(quote as any).code || 'download'}.pdf"`,
+      'Content-Disposition': `inline; filename="${filename}"`,
       'Content-Length': buffer.length,
     });
     res.end(buffer);

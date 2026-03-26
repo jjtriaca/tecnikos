@@ -224,7 +224,7 @@ function NewQuotePage() {
   const [sending, setSending] = useState(false);
 
   // Submit
-  async function handleSubmit(action: "draft" | "send") {
+  async function handleSubmit() {
     setError(null);
     setLoading(true);
 
@@ -277,34 +277,24 @@ function NewQuotePage() {
         });
       }
 
-      if (action === "send") {
-        // Send the quote first (changes status to ENVIADO)
-        try {
-          await api.post(`/quotes/${quote.id}/send`, {});
-        } catch {
-          toast("Orcamento criado, mas houve erro ao enviar.", "warning");
-          router.push(`/quotes/${quote.id}`);
-          return;
-        }
-        // Show send modal for delivery options
+      if (autoSendOnSave) {
+        // Show send modal so user can choose how to deliver
         setSavedQuoteId(quote.id);
         setSendWhatsApp(!!selectedClient?.phone);
         setSendEmail(!!selectedClient?.email);
         setShowSendModal(true);
         setLoading(false);
-        return;
       } else {
+        // Save as draft without showing modal
         toast("Orcamento salvo como rascunho!", "success");
+        router.push(`/quotes/${quote.id}`);
       }
-
-      router.push(`/quotes/${quote.id}`);
     } catch (err: any) {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
         setError("Erro ao salvar orcamento");
       }
-    } finally {
       setLoading(false);
     }
   }
@@ -313,16 +303,14 @@ function NewQuotePage() {
     if (!savedQuoteId) return;
     setSending(true);
     try {
-      if (sendWhatsApp && selectedClient?.phone) {
-        await api.post(`/quotes/${savedQuoteId}/send-whatsapp`, {});
-      }
-      if (sendEmail && selectedClient?.email) {
-        await api.post(`/quotes/${savedQuoteId}/send-email`, {});
-      }
-      const methods = [sendWhatsApp && "WhatsApp", sendEmail && "Email"].filter(Boolean).join(" e ");
-      toast(methods ? `Orcamento enviado via ${methods}!` : "Orcamento salvo e enviado!", "success");
+      await api.post(`/quotes/${savedQuoteId}/send`, {
+        sendWhatsApp: sendWhatsApp && !!selectedClient?.phone,
+        sendEmail: sendEmail && !!selectedClient?.email,
+      });
+      const methods = [sendWhatsApp && selectedClient?.phone && "WhatsApp", sendEmail && selectedClient?.email && "Email"].filter(Boolean).join(" e ");
+      toast(methods ? `Orcamento enviado via ${methods}!` : "Orcamento enviado!", "success");
     } catch (err: any) {
-      toast(err?.response?.data?.message || "Erro ao enviar notificacao", "error");
+      toast(err?.response?.data?.message || "Erro ao enviar orcamento", "error");
     } finally {
       setSending(false);
       setShowSendModal(false);
@@ -331,7 +319,7 @@ function NewQuotePage() {
   }
 
   function handleSkipSend() {
-    toast("Orcamento salvo e enviado!", "success");
+    toast("Orcamento salvo como rascunho!", "success");
     setShowSendModal(false);
     if (savedQuoteId) router.push(`/quotes/${savedQuoteId}`);
   }
@@ -353,7 +341,7 @@ function NewQuotePage() {
         </div>
       )}
 
-      <form onSubmit={(e) => { e.preventDefault(); handleSubmit("draft"); }}>
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
         {/* ── Header Section ── */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
           <h2 className="text-lg font-semibold text-slate-700 mb-4">Dados do Orcamento</h2>
@@ -621,20 +609,10 @@ function NewQuotePage() {
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg border border-blue-300 bg-white px-5 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
             >
-              {loading ? "Salvando..." : "Salvar Rascunho"}
+              {loading ? "Salvando..." : "Salvar"}
             </button>
-            {autoSendOnSave && (
-              <button
-                type="button"
-                onClick={() => handleSubmit("send")}
-                disabled={loading}
-                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
-              >
-                {loading ? "Salvando..." : "Salvar e Enviar"}
-              </button>
-            )}
           </div>
         </div>
       </form>
@@ -644,8 +622,8 @@ function NewQuotePage() {
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleSkipSend} />
           <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white shadow-xl p-6">
-            <h3 className="text-lg font-bold text-slate-800 mb-1">Enviar Orcamento</h3>
-            <p className="text-sm text-slate-500 mb-5">Escolha como deseja notificar o cliente:</p>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">Orcamento Salvo!</h3>
+            <p className="text-sm text-slate-500 mb-5">Deseja enviar para o cliente agora?</p>
 
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 mb-5">
               <div className="text-sm font-semibold text-slate-800">{selectedClient.name}</div>
@@ -682,11 +660,11 @@ function NewQuotePage() {
             <div className="flex gap-3">
               <button onClick={handleSkipSend}
                 className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-                Pular
+                Salvar como Rascunho
               </button>
               <button onClick={handleSendConfirm} disabled={sending || (!sendWhatsApp && !sendEmail)}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
-                {sending ? "Enviando..." : "Enviar"}
+                {sending ? "Enviando..." : "Salvar e Enviar"}
               </button>
             </div>
           </div>
