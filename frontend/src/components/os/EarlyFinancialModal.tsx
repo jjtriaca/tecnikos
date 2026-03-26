@@ -130,7 +130,8 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
   if (!open) return null;
 
   const recEntry = preview?.entries.find(e => e.type === "RECEIVABLE");
-  const payEntry = preview?.entries.find(e => e.type === "PAYABLE");
+  const payEntryRaw = preview?.entries.find(e => e.type === "PAYABLE");
+  const payEntry = payEntryRaw && payEntryRaw.netCents > 0 ? payEntryRaw : null; // Hide if zero
   const needsCard = isCardPayment && !selectedCardRateId;
   const canSubmit = (launchReceivable || launchPayable) && !submitting && !loading && paymentMethod && !needsCard;
 

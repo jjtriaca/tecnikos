@@ -58,7 +58,7 @@ export class FinanceController {
     return this.financialAccountService.findAll(user.companyId, type);
   }
 
-  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO, UserRole.DESPACHO)
   @Get('accounts/postable')
   findPostableAccounts(@CurrentUser() user: AuthenticatedUser, @Query('type') type?: string) {
     return this.financialAccountService.findPostable(user.companyId, type);
@@ -96,7 +96,7 @@ export class FinanceController {
     return this.paymentMethodService.findAll(user.companyId);
   }
 
-  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO, UserRole.DESPACHO)
   @Get('payment-methods/active')
   findActivePaymentMethods(@CurrentUser() user: AuthenticatedUser) {
     return this.paymentMethodService.findActive(user.companyId);
@@ -374,7 +374,7 @@ export class FinanceController {
 
   /* ── Card Fee Rates (Taxas de Cartao) ───────────────────── */
 
-  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO, UserRole.DESPACHO)
   @Get('card-fee-rates')
   findCardFeeRates(@CurrentUser() user: AuthenticatedUser) {
     return this.cardFeeRateService.findAll(user.companyId);
