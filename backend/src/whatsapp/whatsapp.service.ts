@@ -940,6 +940,12 @@ export class WhatsAppService {
       where: { whatsappMsgId: status.id },
       data: { status: newStatus },
     });
+
+    // Also update Notification status if wamid matches
+    await this.prisma.notification.updateMany({
+      where: { whatsappMessageId: status.id },
+      data: { status: newStatus },
+    });
   }
 
   /**
