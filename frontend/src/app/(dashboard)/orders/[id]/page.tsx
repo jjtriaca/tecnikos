@@ -71,6 +71,7 @@ type ServiceOrder = {
   parentOrder?: { id: string; code: string; title: string } | null;
   returnOrders?: { id: string; code: string; title: string; status: string }[];
   financialEntries?: { id: string; status: string; type: string; grossCents: number }[];
+  evaluations?: { id: string; evaluatorType: string; score: number; comment: string | null; createdAt: string }[];
 };
 
 type WorkflowStepLog = {
@@ -1091,34 +1092,75 @@ export default function OrderDetailPage() {
                 })
                 .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-              return postEvents.map((ev) => {
+              const timelineRows = postEvents.map((ev) => {
                 const p = ev.payload || {};
                 const isApproval = ev.type === "STATUS_CHANGE" && p.to === "APROVADA";
                 return (
-                  <div key={ev.id} className="flex items-center gap-2 py-1 border-b border-slate-50">
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] bg-green-100 text-green-600">✓</span>
-                    <span className="w-28 flex-shrink-0 text-[11px] font-medium text-slate-700 truncate">
-                      {ev.type === "STATUS_CHANGE" ? "Status" : EVENT_LABELS[ev.type] || ev.type}
-                    </span>
-                    <span className="flex-1 min-w-0 text-[10px] text-slate-500 truncate">
-                      {ev.type === "STATUS_CHANGE" && p.to ? (
-                        <span className={`inline-block px-1.5 py-0 rounded text-[9px] font-medium ${STATUS_COLORS[p.to] || "bg-slate-100 text-slate-600"}`}>
-                          {STATUS_LABELS[p.to] || p.to}
-                        </span>
-                      ) : p.blockName || ""}
-                      {isApproval && p.score && (
-                        <span className="ml-1.5 text-yellow-600">⭐ {p.score}/5</span>
-                      )}
-                    </span>
-                    <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
-                      {new Date(ev.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                    <span className="w-32 flex-shrink-0 text-[9px] text-slate-400 text-right hidden md:block truncate">
-                      {p.gps ? `📍 ${Number(p.gps.lat).toFixed(4)}, ${Number(p.gps.lng).toFixed(4)}` : ""}
-                    </span>
+                  <div key={ev.id}>
+                    <div className="flex items-center gap-2 py-1 border-b border-slate-50">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] bg-green-100 text-green-600">✓</span>
+                      <span className="w-28 flex-shrink-0 text-[11px] font-medium text-slate-700 truncate">
+                        {ev.type === "STATUS_CHANGE" ? "Status" : EVENT_LABELS[ev.type] || ev.type}
+                      </span>
+                      <span className="flex-1 min-w-0 text-[10px] text-slate-500 truncate">
+                        {ev.type === "STATUS_CHANGE" && p.to ? (
+                          <span className={`inline-block px-1.5 py-0 rounded text-[9px] font-medium ${STATUS_COLORS[p.to] || "bg-slate-100 text-slate-600"}`}>
+                            {STATUS_LABELS[p.to] || p.to}
+                          </span>
+                        ) : p.blockName || ""}
+                        {isApproval && p.score && (
+                          <span className="ml-1.5 text-yellow-600">⭐ {p.score}/5</span>
+                        )}
+                      </span>
+                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                        {new Date(ev.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className="w-32 flex-shrink-0 text-[9px] text-slate-400 text-right hidden md:block truncate">
+                        {p.gps ? `📍 ${Number(p.gps.lat).toFixed(4)}, ${Number(p.gps.lng).toFixed(4)}` : ""}
+                      </span>
+                    </div>
+                    {isApproval && p.comment && (
+                      <div className="ml-6 pl-2 pb-1 border-b border-slate-50">
+                        <p className="text-[10px] text-slate-500 italic">&ldquo;{p.comment}&rdquo;</p>
+                      </div>
+                    )}
                   </div>
                 );
               });
+
+              // Add client evaluation row if exists
+              const clientEval = order.evaluations?.find(e => e.evaluatorType === "CLIENTE" && e.score > 0);
+              if (clientEval) {
+                timelineRows.push(
+                  <div key={`client-eval-${clientEval.id}`}>
+                    <div className="flex items-center gap-2 py-1 border-b border-slate-50">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] bg-purple-100 text-purple-600">★</span>
+                      <span className="w-28 flex-shrink-0 text-[11px] font-medium text-purple-700 truncate">
+                        Avaliação Cliente
+                      </span>
+                      <span className="flex-1 min-w-0 text-[10px] text-slate-500">
+                        <span className="text-yellow-600">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <span key={i}>{i < clientEval.score ? "★" : "☆"}</span>
+                          ))}
+                        </span>
+                        <span className="ml-1 text-slate-600">{clientEval.score}/5</span>
+                      </span>
+                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                        {new Date(clientEval.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className="w-32 flex-shrink-0 hidden md:block" />
+                    </div>
+                    {clientEval.comment && (
+                      <div className="ml-6 pl-2 pb-1 border-b border-slate-50">
+                        <p className="text-[10px] text-purple-500 italic">&ldquo;{clientEval.comment}&rdquo;</p>
+                      </div>
+                    )}
+                  </div>,
+                );
+              }
+
+              return timelineRows;
             })()}
           </div>
         </div>
