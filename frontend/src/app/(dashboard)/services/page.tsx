@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
+import { toTitleCase } from "@/lib/brazil-utils";
 import { useToast } from "@/components/ui/Toast";
 import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
@@ -443,6 +444,7 @@ export default function ServicesPage() {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onBlur={() => setFormData((f) => ({ ...f, name: toTitleCase(f.name) }))}
                 placeholder="Ex: Instalação de ar-condicionado"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
               />
@@ -550,6 +552,7 @@ export default function ServicesPage() {
                 type="text"
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                onBlur={() => setFormData((f) => ({ ...f, category: toTitleCase(f.category) }))}
                 placeholder="Ex: Refrigeração"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
               />

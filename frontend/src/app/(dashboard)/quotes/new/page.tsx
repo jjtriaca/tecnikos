@@ -7,6 +7,7 @@ import Link from "next/link";
 import LookupField from "@/components/ui/LookupField";
 import type { LookupFetcher, LookupFetcherResult } from "@/components/ui/SearchLookupModal";
 import { useToast } from "@/components/ui/Toast";
+import { toTitleCase } from "@/lib/brazil-utils";
 
 /* ── Types ── */
 type PartnerSummary = { id: string; name: string; document: string | null; phone: string | null; email: string | null };
@@ -367,6 +368,7 @@ function NewQuotePage() {
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
+                onBlur={() => setTitle(t => toTitleCase(t))}
                 placeholder="Ex: Manutencao preventiva - Ar condicionado"
                 className={inputClass}
                 required
