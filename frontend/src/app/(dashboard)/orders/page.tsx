@@ -196,7 +196,7 @@ function ActionsDropdown({
       <button
         ref={btnRef}
         onClick={() => setOpen((v) => !v)}
-        className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+        className="rounded border border-slate-300 px-2 py-1 text-sm font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900"
       >
         &#x22EF;
       </button>
