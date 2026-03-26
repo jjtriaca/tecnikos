@@ -312,16 +312,28 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
           estimatedDurationMinutes: order.estimatedDurationMinutes != null ? String(order.estimatedDurationMinutes) : "",
         });
 
-        // Service items
+        // Service items — re-fetch from catalog to get updated names/prices
         if (order.items?.length) {
-          setServiceItems(order.items.map((item: any) => ({
-            serviceId: item.serviceId,
-            serviceName: item.serviceName,
-            unit: item.unit,
-            unitPriceCents: item.unitPriceCents,
-            commissionBps: item.commissionBps ?? null,
-            quantity: item.quantity || 1,
-          })));
+          const serviceIds = [...new Set(order.items.map((i: any) => i.serviceId).filter(Boolean))];
+          let catalogMap: Record<string, any> = {};
+          // Fetch each service from catalog (usually 1-5 items)
+          await Promise.all(serviceIds.map(async (sid: string) => {
+            try {
+              const s = await api.get<any>(`/services/${sid}`);
+              if (s) catalogMap[s.id] = s;
+            } catch { /* service may have been deleted — use OS data */ }
+          }));
+          setServiceItems(order.items.map((item: any) => {
+            const catalog = catalogMap[item.serviceId];
+            return {
+              serviceId: item.serviceId,
+              serviceName: catalog?.name || item.serviceName,
+              unit: catalog?.unit || item.unit,
+              unitPriceCents: catalog?.priceCents ?? item.unitPriceCents,
+              commissionBps: catalog?.commissionBps ?? item.commissionBps ?? null,
+              quantity: item.quantity || 1,
+            };
+          }));
         }
 
         // Timeouts
@@ -340,18 +352,33 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
         if (order.isReturn) setIsReturn(true);
         if (order.returnPaidToTech === false) setReturnPaidToTech(false);
 
-        // Client
-        if (order.clientPartner) {
-          setSelectedClient({
-            id: order.clientPartner.id, name: order.clientPartner.name,
-            document: order.clientPartner.document || null, phone: order.clientPartner.phone || null,
-            cep: order.clientPartner.cep || null, addressStreet: order.clientPartner.addressStreet || null,
-            addressNumber: order.clientPartner.addressNumber || null, addressComp: order.clientPartner.addressComp || null,
-            neighborhood: order.clientPartner.neighborhood || null, city: order.clientPartner.city || null,
-            state: order.clientPartner.state || null,
-            ie: order.clientPartner.ie || null, ieStatus: order.clientPartner.ieStatus || null,
-            isRuralProducer: order.clientPartner.isRuralProducer ?? false,
-          });
+        // Client — re-fetch to get latest data (name, address, phone changes)
+        if (order.clientPartner?.id) {
+          try {
+            const freshClient = await api.get<any>(`/partners/${order.clientPartner.id}`);
+            setSelectedClient({
+              id: freshClient.id, name: freshClient.name,
+              document: freshClient.document || null, phone: freshClient.phone || null,
+              cep: freshClient.cep || null, addressStreet: freshClient.addressStreet || null,
+              addressNumber: freshClient.addressNumber || null, addressComp: freshClient.addressComp || null,
+              neighborhood: freshClient.neighborhood || null, city: freshClient.city || null,
+              state: freshClient.state || null,
+              ie: freshClient.ie || null, ieStatus: freshClient.ieStatus || null,
+              isRuralProducer: freshClient.isRuralProducer ?? false,
+            });
+          } catch {
+            // Fallback to OS snapshot
+            setSelectedClient({
+              id: order.clientPartner.id, name: order.clientPartner.name,
+              document: order.clientPartner.document || null, phone: order.clientPartner.phone || null,
+              cep: order.clientPartner.cep || null, addressStreet: order.clientPartner.addressStreet || null,
+              addressNumber: order.clientPartner.addressNumber || null, addressComp: order.clientPartner.addressComp || null,
+              neighborhood: order.clientPartner.neighborhood || null, city: order.clientPartner.city || null,
+              state: order.clientPartner.state || null,
+              ie: order.clientPartner.ie || null, ieStatus: order.clientPartner.ieStatus || null,
+              isRuralProducer: order.clientPartner.isRuralProducer ?? false,
+            });
+          }
         }
 
         // Tech assignment
