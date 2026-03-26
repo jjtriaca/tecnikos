@@ -142,7 +142,7 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Serviços Tomados", href: "/fiscal/servicos-tomados" },
     { label: "Geração SPED", href: "/fiscal/sped" },
   ] },
-  { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN", "DESPACHO", "FISCAL"], children: [
+  { label: "Configurações", href: "/settings", icon: icons.settings, roles: ["ADMIN"], children: [
     { label: "Geral", href: "/settings" },
     { label: "Sistema", href: "/settings/system" },
     { label: "Assinatura", href: "/settings/billing" },
