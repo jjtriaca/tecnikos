@@ -387,7 +387,7 @@ export default function PartnerForm({
               <input placeholder="Nome completo *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
               <input placeholder="CPF" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " w-full"} />
             </div>
-            <input placeholder="Nome da Propriedade / Fazenda" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: f.tradeName.toUpperCase() }))} className={inputClass + " w-full"} />
+            <input placeholder="Nome da Propriedade / Fazenda" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: f.tradeName.toUpperCase(), addressComp: f.addressComp || f.tradeName.toUpperCase() }))} className={inputClass + " w-full"} />
             <div className="flex flex-col sm:flex-row gap-2">
               <input placeholder="Inscricao Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: e.target.value }))} className={inputClass + " w-full sm:w-1/2"} />
               <button
