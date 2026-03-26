@@ -1709,8 +1709,8 @@ export class ServiceOrderService {
         }
       }
 
-      // PAYABLE — A Pagar (técnico) — already PAID
-      if (data.launchPayable && shouldPayTech) {
+      // PAYABLE — A Pagar (técnico) — already PAID (skip if zero)
+      if (data.launchPayable && shouldPayTech && effectiveTechCents > 0) {
         const payLog = `[${timestamp}] PAGO ANTECIPADO via ${data.paymentMethod || 'N/A'}`;
         const payable = await tx.financialEntry.create({
           data: {
@@ -2186,7 +2186,7 @@ export class ServiceOrderService {
     const codes: string[] = [];
     if (!skipFinancial) {
       if (so.clientPartnerId && !hasEarlyReceivable) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
-      if (shouldPayTech && !hasEarlyPayable) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+      if (shouldPayTech && !hasEarlyPayable && effectiveTechCents > 0) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
     }
     const evalCode = await this.codeGenerator.generateCode(companyId, 'EVALUATION');
 
@@ -2229,8 +2229,8 @@ export class ServiceOrderService {
           createdEntries.push(receivable);
         }
 
-        // PAYABLE — skip if early-launched
-        if (shouldPayTech && !hasEarlyPayable) {
+        // PAYABLE — skip if early-launched or tech value is zero
+        if (shouldPayTech && !hasEarlyPayable && effectiveTechCents > 0) {
           const payable = await tx.financialEntry.create({
             data: {
               companyId,
