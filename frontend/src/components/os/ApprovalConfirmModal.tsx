@@ -45,6 +45,11 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
   const [payableAccountId, setPayableAccountId] = useState("");
   const [postableAccounts, setPostableAccounts] = useState<PostableAccount[]>([]);
   const [error, setError] = useState("");
+  const [financialOnApproval, setFinancialOnApproval] = useState(true);
+
+  // Checkboxes for optional financial launch
+  const [launchReceivable, setLaunchReceivable] = useState(false);
+  const [launchPayable, setLaunchPayable] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -53,16 +58,26 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
     Promise.all([
       api.get(`/service-orders/${orderId}/finalize-preview`),
       api.get<PostableAccount[]>("/finance/accounts/postable").catch(() => []),
-    ]).then(([data, accounts]: [any, PostableAccount[]]) => {
+      api.get<any>("/companies/system-config").catch(() => null),
+    ]).then(([data, accounts, cfg]: [any, PostableAccount[], any]) => {
       setPreview(data);
       setReceivableDue(defaultDueDate());
       setPayableDue(defaultDueDate());
       setPostableAccounts(accounts);
-      // Auto-select defaults: 1100 = Receita de Serviços, 2100 = Mão de Obra
+      const autoLaunch = cfg?.os?.financialOnApproval !== false;
+      setFinancialOnApproval(autoLaunch);
+      // Auto-select defaults: 1100 = Receita de Servicos, 2100 = Mao de Obra
       const recDefault = accounts.find(a => a.code === "1100");
       const payDefault = accounts.find(a => a.code === "2100");
       setReceivableAccountId(recDefault?.id || "");
       setPayableAccountId(payDefault?.id || "");
+      // If optional mode, auto-check available entries
+      if (!autoLaunch) {
+        const recEntry = data?.entries?.find((e: any) => e.type === "RECEIVABLE" && e.grossCents > 0);
+        const payEntry = data?.entries?.find((e: any) => e.type === "PAYABLE" && e.netCents > 0);
+        setLaunchReceivable(!!recEntry);
+        setLaunchPayable(!!payEntry);
+      }
     }).catch((err: any) => {
       setError(err?.message || "Erro ao carregar preview");
     }).finally(() => setLoading(false));
@@ -70,18 +85,42 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
 
   if (!open) return null;
 
+  const recEntry = preview?.entries?.find(e => e.type === "RECEIVABLE");
+  const payEntryRaw = preview?.entries?.find(e => e.type === "PAYABLE");
+  // Hide payable with zero value
+  const payEntry = payEntryRaw && payEntryRaw.netCents > 0 ? payEntryRaw : null;
+  const noFinancial = !recEntry && !payEntry;
+
   async function handleConfirm() {
     setSubmitting(true);
     setError("");
     try {
-      await api.post(`/service-orders/${orderId}/approve-and-finalize`, {
+      const body: any = {
         score,
         comment: comment || undefined,
-        receivableDueDate: receivableDue || undefined,
-        payableDueDate: payableDue || undefined,
-        receivableAccountId: receivableAccountId || undefined,
-        payableAccountId: payableAccountId || undefined,
-      });
+      };
+
+      if (financialOnApproval) {
+        // Auto-launch: always send due dates/accounts
+        body.receivableDueDate = receivableDue || undefined;
+        body.payableDueDate = payableDue || undefined;
+        body.receivableAccountId = receivableAccountId || undefined;
+        body.payableAccountId = payableAccountId || undefined;
+      } else {
+        // Optional: send skipFinancial flag or selective launch flags
+        body.skipReceivable = !launchReceivable;
+        body.skipPayable = !launchPayable;
+        if (launchReceivable) {
+          body.receivableDueDate = receivableDue || undefined;
+          body.receivableAccountId = receivableAccountId || undefined;
+        }
+        if (launchPayable) {
+          body.payableDueDate = payableDue || undefined;
+          body.payableAccountId = payableAccountId || undefined;
+        }
+      }
+
+      await api.post(`/service-orders/${orderId}/approve-and-finalize`, body);
       onApproved();
     } catch (err: any) {
       setError(err?.message || "Erro ao aprovar");
@@ -90,9 +129,79 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
     }
   }
 
-  const hasReceivable = preview?.entries?.some(e => e.type === "RECEIVABLE");
-  const hasPayable = preview?.entries?.some(e => e.type === "PAYABLE");
-  const noFinancial = !preview?.entries?.length;
+  function renderAccountSelect(value: string, onChange: (v: string) => void) {
+    const grouped = new Map<string, PostableAccount[]>();
+    for (const acc of postableAccounts) {
+      const parentName = acc.parent?.name || "Outros";
+      if (!grouped.has(parentName)) grouped.set(parentName, []);
+      grouped.get(parentName)!.push(acc);
+    }
+    return (
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:border-blue-300 flex-1">
+        <option value="">Sem categoria</option>
+        {Array.from(grouped.entries()).map(([group, items]) => (
+          <optgroup key={group} label={group}>
+            {items.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+          </optgroup>
+        ))}
+      </select>
+    );
+  }
+
+  function renderEntry(entry: FinancialPreview, isOptional: boolean, checked: boolean, onCheck: (v: boolean) => void, dueValue: string, onDueChange: (v: string) => void, accountValue: string, onAccountChange: (v: string) => void) {
+    const isRec = entry.type === "RECEIVABLE";
+    const colorBorder = isRec ? "border-green-200 bg-green-50" : "border-blue-200 bg-blue-50";
+    const colorBorderChecked = isRec ? "border-green-300 bg-green-50" : "border-blue-300 bg-blue-50";
+    const colorBorderUnchecked = "border-slate-200 bg-white";
+    const displayValue = isRec ? entry.grossCents : entry.netCents;
+
+    return (
+      <div className={`rounded-lg border p-3 transition-colors ${
+        isOptional
+          ? (checked ? colorBorderChecked : colorBorderUnchecked)
+          : colorBorder
+      }`}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5">
+            {isOptional ? (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={checked} onChange={e => onCheck(e.target.checked)}
+                  className={`rounded border-slate-300 ${isRec ? "text-green-600 focus:ring-green-500" : "text-blue-600 focus:ring-blue-500"}`} />
+                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                  isRec ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                }`}>
+                  {isRec ? "A Receber" : "A Pagar"}
+                </span>
+              </label>
+            ) : (
+              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                isRec ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+              }`}>
+                {isRec ? "A Receber" : "A Pagar"}
+              </span>
+            )}
+            <span className="text-xs text-slate-600">{entry.partnerName}</span>
+          </div>
+          <span className="text-sm font-semibold text-slate-800">{formatBRL(displayValue)}</span>
+        </div>
+        {/* Due date + Category — show when checked (optional) or always (auto) */}
+        {(!isOptional || checked) && (
+          <div className="flex flex-col gap-1.5 mt-1.5">
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-slate-500 w-10">Venc:</label>
+              <input type="date" value={dueValue} onChange={e => onDueChange(e.target.value)}
+                className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:border-blue-300 flex-1" />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-slate-500 w-10">Categ:</label>
+              {renderAccountSelect(accountValue, onAccountChange)}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
@@ -134,6 +243,9 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
               <div className="border-t border-slate-200 pt-3">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Lançamentos Financeiros
+                  {!financialOnApproval && (
+                    <span className="ml-1 text-amber-500 normal-case font-normal">(opcional — marque os que deseja lançar)</span>
+                  )}
                 </p>
 
                 {noFinancial ? (
@@ -142,70 +254,26 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {preview.entries.map((entry, i) => (
-                      <div key={i} className={`rounded-lg border p-3 ${
-                        entry.type === "RECEIVABLE"
-                          ? "border-green-200 bg-green-50"
-                          : "border-blue-200 bg-blue-50"
-                      }`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                              entry.type === "RECEIVABLE"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-blue-100 text-blue-700"
-                            }`}>
-                              {entry.type === "RECEIVABLE" ? "A Receber" : "A Pagar"}
-                            </span>
-                            <span className="text-xs text-slate-600">{entry.partnerName}</span>
-                          </div>
-                          <span className="text-sm font-semibold text-slate-800">
-                            {formatBRL(entry.type === "RECEIVABLE" ? entry.grossCents : entry.netCents)}
-                          </span>
-                        </div>
-                        {/* Due date + Category */}
-                        <div className="flex flex-col gap-1.5 mt-1.5">
-                          <div className="flex items-center gap-2">
-                            <label className="text-[10px] text-slate-500 w-10">Venc:</label>
-                            <input
-                              type="date"
-                              value={entry.type === "RECEIVABLE" ? receivableDue : payableDue}
-                              onChange={e => entry.type === "RECEIVABLE"
-                                ? setReceivableDue(e.target.value)
-                                : setPayableDue(e.target.value)
-                              }
-                              className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:border-blue-300 flex-1"
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <label className="text-[10px] text-slate-500 w-10">Categ:</label>
-                            <select
-                              value={entry.type === "RECEIVABLE" ? receivableAccountId : payableAccountId}
-                              onChange={e => entry.type === "RECEIVABLE"
-                                ? setReceivableAccountId(e.target.value)
-                                : setPayableAccountId(e.target.value)
-                              }
-                              className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:border-blue-300 flex-1"
-                            >
-                              <option value="">Sem categoria</option>
-                              {(() => {
-                                const grouped = new Map<string, PostableAccount[]>();
-                                for (const acc of postableAccounts) {
-                                  const parentName = acc.parent?.name || "Outros";
-                                  if (!grouped.has(parentName)) grouped.set(parentName, []);
-                                  grouped.get(parentName)!.push(acc);
-                                }
-                                return Array.from(grouped.entries()).map(([group, items]) => (
-                                  <optgroup key={group} label={group}>
-                                    {items.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
-                                  </optgroup>
-                                ));
-                              })()}
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    {recEntry && recEntry.grossCents > 0 && renderEntry(
+                      recEntry,
+                      !financialOnApproval,
+                      financialOnApproval ? true : launchReceivable,
+                      setLaunchReceivable,
+                      receivableDue,
+                      setReceivableDue,
+                      receivableAccountId,
+                      setReceivableAccountId,
+                    )}
+                    {payEntry && renderEntry(
+                      payEntry,
+                      !financialOnApproval,
+                      financialOnApproval ? true : launchPayable,
+                      setLaunchPayable,
+                      payableDue,
+                      setPayableDue,
+                      payableAccountId,
+                      setPayableAccountId,
+                    )}
                   </div>
                 )}
               </div>

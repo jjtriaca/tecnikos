@@ -55,8 +55,8 @@ const SECTIONS: SectionConfig[] = [
       {
         section: "os",
         key: "financialOnApproval",
-        label: "Lancar financeiro ao aprovar OS",
-        description: "Ao aprovar e avaliar uma OS, cria automaticamente os lancamentos financeiros (a receber e a pagar)",
+        label: "Lancar financeiro automaticamente ao aprovar OS",
+        description: "Ligado: cria automaticamente A Receber e A Pagar ao aprovar. Desligado: exibe os lancamentos com checkboxes para o gestor escolher quais lancar (ou nenhum). Lancamentos com valor zero nao aparecem.",
         type: "toggle",
       },
       {

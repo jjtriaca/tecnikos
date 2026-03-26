@@ -2131,6 +2131,8 @@ export class ServiceOrderService {
       payableDueDate?: string;
       receivableAccountId?: string;
       payableAccountId?: string;
+      skipReceivable?: boolean;
+      skipPayable?: boolean;
     },
   ) {
     const so = await this.prisma.serviceOrder.findFirst({
@@ -2174,6 +2176,10 @@ export class ServiceOrderService {
     const shouldPayTech = so.assignedPartnerId && (!isReturn || returnPaidToTech);
     const skipFinancial = grossCents === 0;
 
+    // Skip flags from frontend (when financialOnApproval is OFF, user chooses which to launch)
+    const skipReceivable = data.skipReceivable === true;
+    const skipPayable = data.skipPayable === true;
+
     // Check for early-launched entries (lançamento antecipado)
     const earlyEntries = await this.prisma.financialEntry.findMany({
       where: { serviceOrderId: id, companyId, status: { not: 'CANCELLED' } },
@@ -2182,12 +2188,13 @@ export class ServiceOrderService {
     const hasEarlyReceivable = earlyEntries.some(e => e.type === 'RECEIVABLE');
     const hasEarlyPayable = earlyEntries.some(e => e.type === 'PAYABLE');
 
-    // Generate codes only for entries that don't already exist
+    const shouldCreateReceivable = !skipFinancial && !skipReceivable && so.clientPartnerId && !hasEarlyReceivable;
+    const shouldCreatePayable = !skipFinancial && !skipPayable && shouldPayTech && !hasEarlyPayable && effectiveTechCents > 0;
+
+    // Generate codes only for entries that will be created
     const codes: string[] = [];
-    if (!skipFinancial) {
-      if (so.clientPartnerId && !hasEarlyReceivable) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
-      if (shouldPayTech && !hasEarlyPayable && effectiveTechCents > 0) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
-    }
+    if (shouldCreateReceivable) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+    if (shouldCreatePayable) codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
     const evalCode = await this.codeGenerator.generateCode(companyId, 'EVALUATION');
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -2207,62 +2214,58 @@ export class ServiceOrderService {
         },
       });
 
-      // 2. Financial entries (skip if value = 0 or already early-launched)
-      if (!skipFinancial) {
-        // RECEIVABLE — skip if early-launched
-        if (so.clientPartnerId && !hasEarlyReceivable) {
-          const receivable = await tx.financialEntry.create({
-            data: {
-              companyId,
-              code: codes[codeIdx++],
-              serviceOrderId: id,
-              partnerId: so.clientPartnerId,
-              type: 'RECEIVABLE',
-              status: 'PENDING',
-              description: `A receber OS: ${so.title}`,
-              grossCents,
-              netCents: grossCents,
-              dueDate: data.receivableDueDate ? new Date(data.receivableDueDate) : undefined,
-              financialAccountId: data.receivableAccountId || undefined,
-            },
-          });
-          createdEntries.push(receivable);
-        }
-
-        // PAYABLE — skip if early-launched or tech value is zero
-        if (shouldPayTech && !hasEarlyPayable && effectiveTechCents > 0) {
-          const payable = await tx.financialEntry.create({
-            data: {
-              companyId,
-              code: codes[codeIdx++],
-              serviceOrderId: id,
-              partnerId: so.assignedPartnerId!,
-              type: 'PAYABLE',
-              status: 'PENDING',
-              description: `Repasse técnico OS: ${so.title}`,
-              grossCents,
-              commissionBps: effectiveBps,
-              commissionCents: companyKeeps,
-              netCents: effectiveTechCents,
-              dueDate: data.payableDueDate ? new Date(data.payableDueDate) : undefined,
-              financialAccountId: data.payableAccountId || undefined,
-            },
-          });
-          createdEntries.push(payable);
-        }
-
-        // Ledger
-        await tx.serviceOrderLedger.create({
+      // 2. Financial entries (skip if value = 0, user opted out, or already early-launched)
+      if (shouldCreateReceivable) {
+        const receivable = await tx.financialEntry.create({
           data: {
+            companyId,
+            code: codes[codeIdx++],
             serviceOrderId: id,
+            partnerId: so.clientPartnerId!,
+            type: 'RECEIVABLE',
+            status: 'PENDING',
+            description: `A receber OS: ${so.title}`,
+            grossCents,
+            netCents: grossCents,
+            dueDate: data.receivableDueDate ? new Date(data.receivableDueDate) : undefined,
+            financialAccountId: data.receivableAccountId || undefined,
+          },
+        });
+        createdEntries.push(receivable);
+      }
+
+      if (shouldCreatePayable) {
+        const payable = await tx.financialEntry.create({
+          data: {
+            companyId,
+            code: codes[codeIdx++],
+            serviceOrderId: id,
+            partnerId: so.assignedPartnerId!,
+            type: 'PAYABLE',
+            status: 'PENDING',
+            description: `Repasse técnico OS: ${so.title}`,
             grossCents,
             commissionBps: effectiveBps,
             commissionCents: companyKeeps,
             netCents: effectiveTechCents,
-            confirmedAt: new Date(),
+            dueDate: data.payableDueDate ? new Date(data.payableDueDate) : undefined,
+            financialAccountId: data.payableAccountId || undefined,
           },
         });
+        createdEntries.push(payable);
       }
+
+      // Ledger (always created for tracking)
+      await tx.serviceOrderLedger.create({
+        data: {
+          serviceOrderId: id,
+          grossCents,
+          commissionBps: effectiveBps,
+          commissionCents: companyKeeps,
+          netCents: effectiveTechCents,
+          confirmedAt: new Date(),
+        },
+      });
 
       // 3. Status → APROVADA
       const updated = await tx.serviceOrder.update({
