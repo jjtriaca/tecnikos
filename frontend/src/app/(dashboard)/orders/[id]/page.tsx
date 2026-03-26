@@ -72,6 +72,7 @@ type ServiceOrder = {
   returnOrders?: { id: string; code: string; title: string; status: string }[];
   financialEntries?: { id: string; status: string; type: string; grossCents: number }[];
   evaluations?: { id: string; evaluatorType: string; score: number; comment: string | null; createdAt: string }[];
+  notifications?: { id: string; type: string; status: string; deliveryStatus?: string; recipientPhone: string | null; sentAt: string | null; createdAt: string }[];
 };
 
 type WorkflowStepLog = {
@@ -1092,6 +1093,23 @@ export default function OrderDetailPage() {
                 })
                 .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
+              const DELIVERY_LABELS: Record<string, { label: string; color: string }> = {
+                SENT: { label: "Enviada", color: "text-slate-400" },
+                DELIVERED: { label: "Entregue", color: "text-blue-500" },
+                READ: { label: "Lida", color: "text-green-500" },
+                FAILED: { label: "Falhou", color: "text-red-500" },
+                PENDING: { label: "Pendente", color: "text-slate-400" },
+              };
+
+              const renderStars = (score: number) => (
+                <span className="text-yellow-500 text-[10px]">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <span key={i}>{i < score ? "★" : "☆"}</span>
+                  ))}
+                  <span className="ml-1 text-slate-600">{score}/5</span>
+                </span>
+              );
+
               const timelineRows = postEvents.map((ev) => {
                 const p = ev.payload || {};
                 const isApproval = ev.type === "STATUS_CHANGE" && p.to === "APROVADA";
@@ -1128,24 +1146,68 @@ export default function OrderDetailPage() {
                 );
               });
 
-              // Add client evaluation row if exists
+              // Gestor evaluation row (separate from status change, shows full details)
+              const gestorEval = order.evaluations?.find(e => e.evaluatorType === "GESTOR" && e.score > 0);
+              if (gestorEval) {
+                timelineRows.push(
+                  <div key={`gestor-eval-${gestorEval.id}`}>
+                    <div className="flex items-center gap-2 py-1 border-b border-slate-50">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] bg-yellow-100 text-yellow-600">★</span>
+                      <span className="w-28 flex-shrink-0 text-[11px] font-medium text-yellow-700 truncate">
+                        Aval. Gestor
+                      </span>
+                      <span className="flex-1 min-w-0">{renderStars(gestorEval.score)}</span>
+                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                        {new Date(gestorEval.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className="w-32 flex-shrink-0 hidden md:block" />
+                    </div>
+                    {gestorEval.comment && (
+                      <div className="ml-6 pl-2 pb-1 border-b border-slate-50">
+                        <p className="text-[10px] text-slate-500 italic">&ldquo;{gestorEval.comment}&rdquo;</p>
+                      </div>
+                    )}
+                  </div>,
+                );
+              }
+
+              // Client evaluation notification status + evaluation
+              const evalNotif = order.notifications?.find(n => n.type === "EVALUATION_REQUEST");
               const clientEval = order.evaluations?.find(e => e.evaluatorType === "CLIENTE" && e.score > 0);
+
+              if (evalNotif) {
+                const ds = DELIVERY_LABELS[(evalNotif as any).deliveryStatus || evalNotif.status] || DELIVERY_LABELS.PENDING;
+                timelineRows.push(
+                  <div key={`eval-notif-${evalNotif.id}`}>
+                    <div className="flex items-center gap-2 py-1 border-b border-slate-50">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] bg-teal-100 text-teal-600">📩</span>
+                      <span className="w-28 flex-shrink-0 text-[11px] font-medium text-teal-700 truncate">
+                        Aval. Cliente
+                      </span>
+                      <span className="flex-1 min-w-0 text-[10px] text-slate-500">
+                        <span className={`font-medium ${ds.color}`}>{ds.label}</span>
+                        {evalNotif.recipientPhone && (
+                          <span className="ml-1.5 text-slate-400">→ {evalNotif.recipientPhone}</span>
+                        )}
+                      </span>
+                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                        {evalNotif.sentAt ? new Date(evalNotif.sentAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+                      </span>
+                      <span className="w-32 flex-shrink-0 hidden md:block" />
+                    </div>
+                  </div>,
+                );
+              }
+
               if (clientEval) {
                 timelineRows.push(
                   <div key={`client-eval-${clientEval.id}`}>
                     <div className="flex items-center gap-2 py-1 border-b border-slate-50">
                       <span className="flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] bg-purple-100 text-purple-600">★</span>
                       <span className="w-28 flex-shrink-0 text-[11px] font-medium text-purple-700 truncate">
-                        Avaliação Cliente
+                        Aval. Cliente
                       </span>
-                      <span className="flex-1 min-w-0 text-[10px] text-slate-500">
-                        <span className="text-yellow-600">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <span key={i}>{i < clientEval.score ? "★" : "☆"}</span>
-                          ))}
-                        </span>
-                        <span className="ml-1 text-slate-600">{clientEval.score}/5</span>
-                      </span>
+                      <span className="flex-1 min-w-0">{renderStars(clientEval.score)}</span>
                       <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
                         {new Date(clientEval.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </span>
@@ -1156,6 +1218,13 @@ export default function OrderDetailPage() {
                         <p className="text-[10px] text-purple-500 italic">&ldquo;{clientEval.comment}&rdquo;</p>
                       </div>
                     )}
+                  </div>,
+                );
+              } else if (evalNotif) {
+                // Show "Aguardando avaliação" if notification was sent but no evaluation yet
+                timelineRows.push(
+                  <div key="eval-waiting" className="ml-6 pl-2 pb-1 border-b border-slate-50">
+                    <p className="text-[10px] text-slate-400 italic">Aguardando avaliação do cliente...</p>
                   </div>,
                 );
               }

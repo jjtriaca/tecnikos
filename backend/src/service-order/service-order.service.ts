@@ -924,7 +924,31 @@ export class ServiceOrderService {
       },
     });
     if (!so) throw new NotFoundException('OS não encontrada');
-    return so;
+
+    // Fetch relevant notifications for this OS (evaluation request, etc.)
+    const notifications = await this.prisma.notification.findMany({
+      where: { serviceOrderId: id, type: { in: ['EVALUATION_REQUEST'] } },
+      select: { id: true, type: true, status: true, whatsappMessageId: true, recipientPhone: true, sentAt: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
+    // Enrich with WhatsApp delivery status
+    const wamids = notifications.filter((n) => n.whatsappMessageId).map((n) => n.whatsappMessageId!);
+    let deliveryMap = new Map<string, string>();
+    if (wamids.length > 0) {
+      const waMessages = await this.prisma.whatsAppMessage.findMany({
+        where: { whatsappMsgId: { in: wamids } },
+        select: { whatsappMsgId: true, status: true },
+      });
+      deliveryMap = new Map(waMessages.map((m) => [m.whatsappMsgId!, m.status]));
+    }
+    const enrichedNotifications = notifications.map((n) => ({
+      ...n,
+      deliveryStatus: n.whatsappMessageId ? deliveryMap.get(n.whatsappMessageId) || n.status : n.status,
+    }));
+
+    return { ...so, notifications: enrichedNotifications };
   }
 
   async assign(id: string, technicianId: string, companyId: string, actor?: AuthenticatedUser) {
