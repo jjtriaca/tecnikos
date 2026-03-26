@@ -624,7 +624,14 @@ function MinimizedTray({ dispatches, onClick, config, onConfigChange }: {
     ? { x: window.innerWidth - 220, y: window.innerHeight - 80 }
     : { x: 600, y: 600 });
 
+  const gearClickedRef = useRef(false);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Don't start drag if clicking on gear button or config menu
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-dispatch-gear]") || target.closest("[data-dispatch-config]")) {
+      return;
+    }
     dragRef.current = { startX: e.clientX, startY: e.clientY, originX: position.x, originY: position.y, moved: false };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -694,8 +701,10 @@ function MinimizedTray({ dispatches, onClick, config, onConfigChange }: {
         </span>
         {/* Config gear */}
         <button
+          data-dispatch-gear
           onClick={(e) => { e.stopPropagation(); setShowConfigMenu((p) => !p); }}
           onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
           className="shrink-0 p-0.5 rounded hover:bg-white/20 transition-colors"
           title="Configuracoes do painel"
         >
@@ -714,7 +723,10 @@ function MinimizedTray({ dispatches, onClick, config, onConfigChange }: {
       {showConfigMenu && (
         <div
           ref={configMenuRef}
+          data-dispatch-config
           onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           className="absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-white shadow-xl border border-slate-200 p-3 text-sm"
         >
           <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Comportamento do Painel</div>

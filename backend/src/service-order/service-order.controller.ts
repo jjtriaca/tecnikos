@@ -283,4 +283,14 @@ export class ServiceOrderController {
   ) {
     return this.service.remove(id, user.companyId, user);
   }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Delete(':id/attachments/:attachmentId')
+  removeAttachment(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.removeAttachment(id, attachmentId, user);
+  }
 }

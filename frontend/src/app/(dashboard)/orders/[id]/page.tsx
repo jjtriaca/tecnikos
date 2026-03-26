@@ -70,6 +70,7 @@ type ServiceOrder = {
   parentOrderId?: string | null;
   parentOrder?: { id: string; code: string; title: string } | null;
   returnOrders?: { id: string; code: string; title: string; status: string }[];
+  financialEntries?: { id: string; status: string; type: string; grossCents: number }[];
 };
 
 type WorkflowStepLog = {
@@ -322,6 +323,12 @@ export default function OrderDetailPage() {
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
 
+  // System config for conditional features
+  const [sysConfig, setSysConfig] = useState<any>(null);
+  useEffect(() => {
+    api.get<any>("/company/system-config").then(setSysConfig).catch(() => {});
+  }, []);
+
   async function loadOrder() {
     try {
       const data = await api.get<ServiceOrder>(`/service-orders/${id}`);
@@ -536,15 +543,47 @@ export default function OrderDetailPage() {
             </button>
           )}
 
-          {/* Editar — visivel em OS nao-terminal */}
-          {!["CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status) && (
-            <Link
-              href={`/orders/${id}/edit`}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              Editar
-            </Link>
-          )}
+          {/* Editar — visivel em OS nao-terminal ou terminal com config habilitada */}
+          {(() => {
+            if (order.status === "CANCELADA") return null;
+            if (!["CONCLUIDA", "APROVADA"].includes(order.status)) {
+              return (
+                <Link href={`/orders/${id}/edit`}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  Editar
+                </Link>
+              );
+            }
+            // Terminal statuses: check sysConfig
+            if (order.status === "CONCLUIDA" && sysConfig?.os?.allowEditConcluida) {
+              return (
+                <Link href={`/orders/${id}/edit`}
+                  className="rounded-lg border border-orange-200 px-3 py-1.5 text-sm text-orange-600 hover:bg-orange-50 transition-colors">
+                  Editar
+                </Link>
+              );
+            }
+            if (order.status === "APROVADA" && sysConfig?.os?.allowEditAprovada) {
+              const hasPaid = (order.financialEntries || []).some(
+                (e: any) => e.status === "PAID" || e.status === "CONFIRMED"
+              );
+              if (hasPaid) {
+                return (
+                  <span className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-400 cursor-not-allowed"
+                    title="Estorne os recebimentos para liberar a edição">
+                    Editar
+                  </span>
+                );
+              }
+              return (
+                <Link href={`/orders/${id}/edit`}
+                  className="rounded-lg border border-orange-200 px-3 py-1.5 text-sm text-orange-600 hover:bg-orange-50 transition-colors">
+                  Editar
+                </Link>
+              );
+            }
+            return null;
+          })()}
 
           {/* Retorno — visivel em OS finalizadas */}
           {["CONCLUIDA", "APROVADA"].includes(order.status) && (
@@ -1251,6 +1290,42 @@ export default function OrderDetailPage() {
           const depois = (order.attachments || []).filter((a) => a.type === "DEPOIS");
           const workflow = (order.attachments || []).filter((a) => a.type === "WORKFLOW_STEP");
           const hasAny = antes.length > 0 || depois.length > 0 || workflow.length > 0;
+          const canDelete = user && user.roles?.some((r: string) => r === "ADMIN" || r === "DESPACHO");
+
+          const handleDeletePhoto = async (attachmentId: string) => {
+            if (!confirm("Excluir esta foto?")) return;
+            try {
+              await api.del(`/service-orders/${id}/attachments/${attachmentId}`);
+              toast("Foto excluida", "success");
+              loadOrder();
+            } catch {
+              toast("Erro ao excluir foto", "error");
+            }
+          };
+
+          const PhotoThumb = ({ a, showStep }: { a: any; showStep?: boolean }) => (
+            <div key={a.id} className="relative group">
+              <img src={`${apiBase}${a.url}`} alt={a.fileName}
+                onClick={() => setLightboxUrl(`${apiBase}${a.url}`)}
+                className="h-24 w-24 rounded-xl object-cover border border-slate-200 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" />
+              {showStep && a.stepOrder != null && (
+                <span className="absolute bottom-1 right-1 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">
+                  Passo {a.stepOrder}
+                </span>
+              )}
+              {canDelete && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeletePhoto(a.id); }}
+                  className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
+                  title="Excluir foto"
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          );
 
           if (!hasAny) {
             return <p className="text-sm text-slate-400">Nenhuma foto registrada.</p>;
@@ -1262,11 +1337,7 @@ export default function OrderDetailPage() {
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-2">Antes ({antes.length})</p>
                   <div className="flex gap-2 flex-wrap">
-                    {antes.map((a) => (
-                      <img key={a.id} src={`${apiBase}${a.url}`} alt={a.fileName}
-                        onClick={() => setLightboxUrl(`${apiBase}${a.url}`)}
-                        className="h-24 w-24 rounded-xl object-cover border border-slate-200 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" />
-                    ))}
+                    {antes.map((a) => <PhotoThumb key={a.id} a={a} />)}
                   </div>
                 </div>
               )}
@@ -1274,11 +1345,7 @@ export default function OrderDetailPage() {
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-2">Depois ({depois.length})</p>
                   <div className="flex gap-2 flex-wrap">
-                    {depois.map((a) => (
-                      <img key={a.id} src={`${apiBase}${a.url}`} alt={a.fileName}
-                        onClick={() => setLightboxUrl(`${apiBase}${a.url}`)}
-                        className="h-24 w-24 rounded-xl object-cover border border-slate-200 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" />
-                    ))}
+                    {depois.map((a) => <PhotoThumb key={a.id} a={a} />)}
                   </div>
                 </div>
               )}
@@ -1286,17 +1353,7 @@ export default function OrderDetailPage() {
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-2">Passos do fluxo ({workflow.length})</p>
                   <div className="flex gap-2 flex-wrap">
-                    {workflow.map((a) => (
-                      <div key={a.id} className="relative cursor-pointer" onClick={() => setLightboxUrl(`${apiBase}${a.url}`)}>
-                        <img src={`${apiBase}${a.url}`} alt={a.fileName}
-                          className="h-24 w-24 rounded-xl object-cover border border-slate-200 hover:ring-2 hover:ring-blue-300 transition-all" />
-                        {a.stepOrder != null && (
-                          <span className="absolute bottom-1 right-1 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">
-                            Passo {a.stepOrder}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                    {workflow.map((a) => <PhotoThumb key={a.id} a={a} showStep />)}
                   </div>
                 </div>
               )}

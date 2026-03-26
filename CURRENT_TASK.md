@@ -1,55 +1,26 @@
 # TAREFA ATUAL
 
-## Versao: v1.07.64
-## Ultima sessao: 158 (25/03/2026)
+## Versao: v1.07.76
+## Ultima sessao: 159 (26/03/2026)
 
-## CONCLUIDO (sessao 158) — Deploys v1.07.49 → v1.07.64 (16 deploys)
+## CONCLUIDO (sessao 159) — Deploy v1.07.76
 
-### Consulta SEFAZ — Importar dados Produtor Rural
-- Modal "Importar dados da SEFAZ" no cadastro de parceiros (estilo Sankhya)
-- Consulta CadConsultaCadastro4 via SOAP com mTLS (certificado A1)
-- Metodo SOAP dinamico por estado (consultaCadastro vs consultaCadastro4)
-- XML compacto (MT rejeita whitespace), SOAPAction no Content-Type (Axis2)
-- Parse recursivo de namespaces (soapenv:, soap:, env:, etc.)
-- Suporte: AM, BA, GO, MG, MS, MT, PE, PR, RS, SP + SVRS (AC, ES, PB, RN, SC)
-- Limitacao: SLS Obras e isenta de IE, nao pode consultar SEFAZ (funciona para tenants com certificado NF-e)
+### Orcamentos — Correcoes Multiplas
+- Fix PDF 401: botao PDF agora abre via blob URL em nova aba (autenticado) ou via endpoint publico /q/:token/pdf
+- Fix envio indevido: workflow de orcamento NAO dispara mais no create, somente no send() explicito
+- Fix campo Data vazio no WhatsApp: {data_agendamento} mostra "A definir" quando OS sem agendamento
 
-### Produtor Rural PF + IE — Estudo Fiscal
-- Estudo completo: NF-e vs NFS-e para produtor rural PF
-- NFS-e (Focus NFe): IE NAO vai no XML do tomador (ISS, nao ICMS)
-- IE e dado cadastral interno, nao impacta emissao NFS-e
-- Multiplas IEs por parceiro: adiado (campo unico suficiente por enquanto)
+### Dispatch Panel — Config de Comportamento
+- Menu engrenagem na barra minimizada com opcoes:
+  - "Abrir ao lancar nova OS" (checkbox, padrao: ligado)
+  - "Abrir ao atualizar status" (checkbox, padrao: desligado)
+  - Sem nenhuma opcao marcada: abre somente ao clicar
+- Config salva em user preferences (persiste por usuario)
+- Deteccao automatica de novas OS e mudancas de status no polling
 
-### Lancamento Financeiro Antecipado
-- Novo botao "Lancar Financeiro" no menu de acoes da OS
-- Modal com checkboxes: A Receber (cliente) + A Pagar (tecnico)
-- Lancamentos criados como PAGO com metodo de pagamento, vencimento e conta
-- finalize() e approveAndFinalize() ajustados para nao duplicar entries
-- Evento EARLY_FINANCIAL para auditoria
-- Endpoint retry-workflow para re-executar workflow de OS existente
-
-### Workflow — Trigger Agenda
-- Fix: OS com scheduledStartAt agora dispara trigger os_agenda_created
-- Independente do techAssignmentMode (DIRECTED, BY_SPECIALIZATION, etc.)
-
-### Workflow — Chips de Variaveis
-- Fix: chips inserem na posicao do cursor (ref textarea + selectionStart/selectionEnd)
-- Labels dos chips mostram variavel exata ({nome_cliente} em vez de "Nome Cliente")
-
-### Workflow — Notificacoes WhatsApp
-- Fix: newlines removidas do parametro do template Meta (erro 132018)
-- Fix: timezone de {data_agendamento} usa Company.timezone (nao UTC do servidor)
-- Fix: query company inclui campo timezone
-
-### Servicos — Unidade e Quantidade
-- Nova unidade KM (Quilometro) no cadastro de servicos
-- Quantidade decimal: campo mudou de Int para Float (ex: 2,5 diarias)
-- Math.round em todos calculos de centavos para evitar fracoes
-- Input: onFocus seleciona tudo, permite apagar e digitar, onBlur valida min 1
-- Validacao: nao permite criar OS com servico com quantidade zero
-
-### Outros
-- Fix texto apagado no modal de busca (SearchLookupModal: text-slate-900)
+### Nota: WhatsApp Meta — Pagamento Bloqueado
+- Erro 131042: "Business eligibility payment issue" — Meta bloqueou envio de templates
+- Usuario precisa resolver metodo de pagamento no Meta Business Suite
 
 ## PROXIMA SESSAO — PRIORIDADES
 

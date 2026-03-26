@@ -10,6 +10,8 @@ type SystemConfig = {
     financialOnApproval: boolean;
     requirePhotoBeforeComplete: boolean;
     allowTechSelfAssign: boolean;
+    allowEditConcluida: boolean;
+    allowEditAprovada: boolean;
   };
   notifications: {
     emailOnNewOrder: boolean;
@@ -76,6 +78,20 @@ const SECTIONS: SectionConfig[] = [
         key: "allowZeroValueOs",
         label: "Permitir OS com valor zero",
         description: "Util para OS de avaliacao/orcamento com preco zero. Quando ativado, mostra confirmacao e permite criar. O sistema nao lanca financeiro a receber, mas lanca a pagar se houver valor fixo do tecnico.",
+        type: "toggle",
+      },
+      {
+        section: "os",
+        key: "allowEditConcluida",
+        label: "Permitir editar OS Concluida",
+        description: "Permite que o gestor edite OS com status Concluida.",
+        type: "toggle",
+      },
+      {
+        section: "os",
+        key: "allowEditAprovada",
+        label: "Permitir editar OS Aprovada",
+        description: "Permite editar OS aprovada, desde que nenhum lancamento financeiro esteja pago ou recebido. Se houver, sera necessario estornar antes.",
         type: "toggle",
       },
     ],

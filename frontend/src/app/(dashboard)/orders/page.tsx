@@ -146,6 +146,7 @@ function ActionsDropdown({
   onDuplicate,
   onDelete,
   onEarlyFinancial,
+  sysConfig,
 }: {
   order: ServiceOrder;
   canEdit: boolean;
@@ -154,12 +155,18 @@ function ActionsDropdown({
   onDuplicate: (order: ServiceOrder) => void;
   onDelete: (order: ServiceOrder) => void;
   onEarlyFinancial: (order: ServiceOrder) => void;
+  sysConfig: any;
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const isEditable = !TERMINAL_STATUSES.includes(order.status);
+  const isEditable = (() => {
+    if (!TERMINAL_STATUSES.includes(order.status)) return true;
+    if (order.status === "CONCLUIDA" && sysConfig?.os?.allowEditConcluida) return true;
+    if (order.status === "APROVADA" && sysConfig?.os?.allowEditAprovada) return true;
+    return false;
+  })();
 
   useEffect(() => {
     if (open && btnRef.current) {
@@ -294,6 +301,7 @@ function makeColumns(
   onEarlyFinancial: (o: ServiceOrder) => void,
   expandedAuditId: string | null,
   onToggleAudit: (id: string) => void,
+  sysConfig: any,
 ): ColumnDefinition<ServiceOrder>[] {
   const cols: ColumnDefinition<ServiceOrder>[] = [
     {
@@ -431,6 +439,7 @@ function makeColumns(
             onDuplicate={onDuplicate}
             onDelete={onDelete}
             onEarlyFinancial={onEarlyFinancial}
+            sysConfig={sysConfig}
           />
         )}
       </div>
@@ -448,6 +457,12 @@ export default function OrdersPage() {
 
   const canEdit = authUser?.roles?.some(r => r === "ADMIN" || r === "DESPACHO") ?? false;
   const canDelete = authUser?.roles?.includes("ADMIN") ?? false;
+
+  // System config for conditional features (edit terminal OS)
+  const [sysConfig, setSysConfig] = useState<any>(null);
+  useEffect(() => {
+    api.get<any>("/company/system-config").then(setSysConfig).catch(() => {});
+  }, []);
 
   // Tab state with localStorage persistence + URL deep-link support
   const [activeTab, setActiveTab] = useState<OrdersTabId>(() => {
@@ -488,6 +503,7 @@ export default function OrdersPage() {
     (o) => setEarlyFinancialTarget(o),
     expandedAuditId,
     (id) => setExpandedAuditId((prev) => (prev === id ? null : id)),
+    sysConfig,
   );
 
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } = useTableLayout("orders-v3", columns);

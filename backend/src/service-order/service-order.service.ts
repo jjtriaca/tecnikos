@@ -917,6 +917,7 @@ export class ServiceOrderService {
         events: { orderBy: { createdAt: 'desc' }, take: 50 },
         attachments: { orderBy: { createdAt: 'asc' } },
         items: { include: { service: { select: { id: true, name: true, unit: true, priceCents: true } } } },
+        financialEntries: { select: { id: true, status: true, type: true, grossCents: true }, where: { cancelledAt: null } },
         parentOrder: { select: { id: true, code: true, title: true } },
         returnOrders: { select: { id: true, code: true, title: true, status: true }, where: { deletedAt: null } },
       },
@@ -1095,7 +1096,38 @@ export class ServiceOrderService {
     const so = await this.findOne(id, companyId);
 
     if (TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)) {
-      throw new ForbiddenException('Não é possível editar uma OS neste status');
+      if (so.status === 'CANCELADA') {
+        throw new ForbiddenException('Não é possível editar uma OS cancelada');
+      }
+
+      // Check system config for terminal status editing
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { systemConfig: true },
+      });
+      const cfg = (company?.systemConfig as any)?.os || {};
+
+      if (so.status === 'CONCLUIDA' && !cfg.allowEditConcluida) {
+        throw new ForbiddenException('Edição de OS concluída está desabilitada. Ative em Configurações > Sistema.');
+      }
+      if (so.status === 'APROVADA' && !cfg.allowEditAprovada) {
+        throw new ForbiddenException('Edição de OS aprovada está desabilitada. Ative em Configurações > Sistema.');
+      }
+
+      // APROVADA: block if any financial entry is PAID or CONFIRMED
+      if (so.status === 'APROVADA') {
+        const paidEntries = await this.prisma.financialEntry.count({
+          where: {
+            serviceOrderId: so.id,
+            status: { in: ['PAID', 'CONFIRMED'] },
+          },
+        });
+        if (paidEntries > 0) {
+          throw new ForbiddenException(
+            'OS possui lançamentos financeiros pagos/recebidos. Estorne os recebimentos antes de editar.',
+          );
+        }
+      }
     }
 
     const updateData: any = {};
@@ -1356,6 +1388,42 @@ export class ServiceOrderService {
     });
 
     return result;
+  }
+
+  async removeAttachment(osId: string, attachmentId: string, actor: AuthenticatedUser) {
+    const attachment = await this.prisma.attachment.findFirst({
+      where: { id: attachmentId, serviceOrderId: osId, companyId: actor.companyId },
+    });
+    if (!attachment) {
+      throw new NotFoundException('Foto não encontrada');
+    }
+
+    // Delete physical file if it exists on disk
+    try {
+      const uploadDir = process.env.UPLOAD_DIR || './uploads';
+      const fs = require('fs');
+      const path = require('path');
+      // url is like /uploads/companyId/service-orders/file.jpg
+      const filePath = path.join(uploadDir, attachment.url.replace(/^\/?uploads\//, ''));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch {
+      // Ignore file deletion errors (file may not exist)
+    }
+
+    await this.prisma.attachment.delete({ where: { id: attachmentId } });
+
+    this.audit.log({
+      companyId: actor.companyId,
+      entityType: 'SERVICE_ORDER',
+      entityId: osId,
+      action: 'ATTACHMENT_DELETED',
+      actorType: 'USER',
+      actorId: actor.id,
+      actorName: actor.email,
+      after: { fileName: attachment.fileName, type: attachment.type },
+    });
+
+    return { success: true };
   }
 
   /* ── Retry Workflow (re-execute workflow from start) ─── */

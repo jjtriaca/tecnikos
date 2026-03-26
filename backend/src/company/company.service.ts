@@ -228,6 +228,8 @@ export class CompanyService {
       requirePhotoBeforeComplete: false,
       allowTechSelfAssign: false,
       allowZeroValueOs: false,
+      allowEditConcluida: false,
+      allowEditAprovada: false,
     },
     notifications: {
       emailOnNewOrder: true,
