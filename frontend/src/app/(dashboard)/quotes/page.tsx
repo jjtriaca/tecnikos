@@ -302,18 +302,9 @@ export default function QuotesPage() {
                     throw new Error(errBody?.message || "Erro ao gerar PDF");
                   }
                   const blob = await res.blob();
-                  const cd = res.headers.get("content-disposition") || "";
-                  const match = cd.match(/filename="?([^";\n]+)"?/);
-                  const filename = match?.[1] || `orcamento-${q.code || q.id.slice(0, 8)}.pdf`;
                   const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = filename;
-                  a.target = "_blank";
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  setTimeout(() => URL.revokeObjectURL(url), 30000);
+                  window.open(url, "_blank");
+                  setTimeout(() => URL.revokeObjectURL(url), 60000);
                 } catch (err: any) {
                   toast(err?.message || "Erro ao gerar PDF", "error");
                 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useDispatch, DispatchState } from "@/contexts/DispatchContext";
+import { useDispatch, DispatchState, DispatchConfig } from "@/contexts/DispatchContext";
 import { useAuth, hasRole } from "@/contexts/AuthContext";
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { api } from "@/lib/api";
@@ -582,11 +582,30 @@ function GpsSection({ d }: { d: DispatchState }) {
 
 const MINIMIZED_PREF_KEY = "dispatchMinimizedPos";
 
-function MinimizedTray({ dispatches, onClick }: { dispatches: DispatchState[]; onClick: () => void }) {
+function MinimizedTray({ dispatches, onClick, config, onConfigChange }: {
+  dispatches: DispatchState[];
+  onClick: () => void;
+  config: DispatchConfig;
+  onConfigChange: (partial: Partial<DispatchConfig>) => void;
+}) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [ready, setReady] = useState(false);
+  const [showConfigMenu, setShowConfigMenu] = useState(false);
+  const configMenuRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
   const loadedRef = useRef(false);
+
+  // Close config menu on outside click
+  useEffect(() => {
+    if (!showConfigMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (configMenuRef.current && !configMenuRef.current.contains(e.target as Node)) {
+        setShowConfigMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showConfigMenu]);
 
   // Load saved position — hide until loaded to avoid flash
   useEffect(() => {
@@ -673,11 +692,55 @@ function MinimizedTray({ dispatches, onClick }: { dispatches: DispatchState[]; o
         <span className={`shrink-0 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold text-white ${failedCount > 0 ? "bg-red-500 animate-pulse" : "bg-green-500"}`}>
           {dispatches.length}
         </span>
+        {/* Config gear */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowConfigMenu((p) => !p); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="shrink-0 p-0.5 rounded hover:bg-white/20 transition-colors"
+          title="Configuracoes do painel"
+        >
+          <svg className="h-3 w-3 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
         {/* Expand arrow */}
         <svg className="h-3 w-3 text-white/60 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
         </svg>
       </div>
+
+      {/* Config dropdown */}
+      {showConfigMenu && (
+        <div
+          ref={configMenuRef}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-white shadow-xl border border-slate-200 p-3 text-sm"
+        >
+          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Comportamento do Painel</div>
+          <label className="flex items-center gap-2 py-1.5 cursor-pointer hover:bg-slate-50 rounded px-1">
+            <input
+              type="checkbox"
+              checked={config.openOnNewOS}
+              onChange={(e) => onConfigChange({ openOnNewOS: e.target.checked })}
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span className="text-slate-700">Abrir ao lancar nova OS</span>
+          </label>
+          <label className="flex items-center gap-2 py-1.5 cursor-pointer hover:bg-slate-50 rounded px-1">
+            <input
+              type="checkbox"
+              checked={config.openOnUpdate}
+              onChange={(e) => onConfigChange({ openOnUpdate: e.target.checked })}
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span className="text-slate-700">Abrir ao atualizar status</span>
+          </label>
+          <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-400">
+            Sem nenhuma opcao marcada, abre somente ao clicar.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -687,7 +750,7 @@ function MinimizedTray({ dispatches, onClick }: { dispatches: DispatchState[]; o
 type PositionMap = Record<string, { x: number; y: number }>;
 
 export default function DispatchPanel() {
-  const { dispatches, minimized, toggleMinimize } = useDispatch();
+  const { dispatches, minimized, toggleMinimize, config, updateConfig } = useDispatch();
   const { user } = useAuth();
 
   // Only render for ADMIN/DESPACHO roles
@@ -789,7 +852,7 @@ export default function DispatchPanel() {
   if (dispatches.length === 0) return null;
 
   if (minimized) {
-    return <MinimizedTray dispatches={dispatches} onClick={toggleMinimize} />;
+    return <MinimizedTray dispatches={dispatches} onClick={toggleMinimize} config={config} onConfigChange={updateConfig} />;
   }
 
   const BASE_Z = 1000;

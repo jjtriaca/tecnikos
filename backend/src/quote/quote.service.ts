@@ -129,10 +129,8 @@ export class QuoteService {
       after: { code, totalCents },
     });
 
-    // Fire workflow trigger (async, non-blocking)
-    this.executeQuoteWorkflow(companyId, quote).catch(err =>
-      this.logger.error(`Quote workflow failed: ${err.message}`),
-    );
+    // NOTE: Workflow is NOT fired on create — only on explicit send().
+    // This prevents auto-sending WhatsApp before the user confirms delivery method.
 
     return quote;
   }
@@ -443,8 +441,13 @@ export class QuoteService {
       entityType: 'QUOTE',
       entityId: id,
       action: 'SENT',
-      after: { deliveryMethod, publicUrl },
+      after: { deliveryMethod, publicUrl, sentChannels },
     });
+
+    // Fire workflow trigger on explicit send (async, non-blocking)
+    this.executeQuoteWorkflow(companyId, { ...quote, publicToken }).catch(err =>
+      this.logger.error(`Quote workflow failed: ${err.message}`),
+    );
 
     return { ...updated, publicUrl };
   }

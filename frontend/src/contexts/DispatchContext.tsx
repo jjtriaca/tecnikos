@@ -65,13 +65,25 @@ export interface DispatchState {
   resending?: boolean;
 }
 
+export interface DispatchConfig {
+  openOnNewOS: boolean;   // Auto-expand when new OS is dispatched
+  openOnUpdate: boolean;  // Auto-expand when OS status changes
+}
+
+const DEFAULT_DISPATCH_CONFIG: DispatchConfig = {
+  openOnNewOS: true,
+  openOnUpdate: false,
+};
+
 interface DispatchContextValue {
   dispatches: DispatchState[];
   minimized: boolean;
+  config: DispatchConfig;
   addDispatch: (osId: string, data: DispatchInitData, osCode?: string, osTitle?: string) => void;
   removeDispatch: (osId: string) => void;
   toggleMinimize: () => void;
   resendNotification: (osId: string) => Promise<void>;
+  updateConfig: (partial: Partial<DispatchConfig>) => void;
 }
 
 const DispatchContext = createContext<DispatchContextValue | null>(null);
@@ -133,12 +145,34 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const [dispatches, setDispatches] = useState<DispatchState[]>([]);
   const [minimized, setMinimized] = useState(false);
+  const [config, setConfig] = useState<DispatchConfig>(DEFAULT_DISPATCH_CONFIG);
+  const configRef = useRef(config);
+  configRef.current = config;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const syncRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Load config from preferences
+  useEffect(() => {
+    api.get<Record<string, any>>("/users/me/preferences").then((prefs) => {
+      if (prefs?.dispatchConfig) {
+        setConfig({ ...DEFAULT_DISPATCH_CONFIG, ...prefs.dispatchConfig });
+      }
+    }).catch(() => {});
+  }, []);
+
+  const updateConfig = useCallback((partial: Partial<DispatchConfig>) => {
+    setConfig((prev) => {
+      const next = { ...prev, ...partial };
+      api.patch("/users/me/preferences", { dispatchConfig: next }).catch(() => {});
+      return next;
+    });
+  }, []);
 
   // Unified load: API is the source of truth. OS not in API response = removed.
   // Recently added dispatches (via addDispatch) are kept for 15s grace period.
   const addedAtRef = useRef<Map<string, number>>(new Map());
+
+  const prevIdsRef = useRef<Set<string>>(new Set());
 
   const loadDispatches = useCallback(async () => {
     try {
@@ -146,16 +180,26 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
       if (!items || !Array.isArray(items)) return;
       const loaded = items.map(mapApiToDispatch).filter((d) => !TERMINAL_STATUSES.includes(d.osStatus || ""));
 
+      // Detect new OS arrivals for auto-expand
+      const newIds = loaded.map((d) => d.osId);
+      const hadNew = newIds.some((id) => !prevIdsRef.current.has(id));
+      if (hadNew && prevIdsRef.current.size > 0 && configRef.current.openOnNewOS) {
+        setMinimized(false);
+      }
+      prevIdsRef.current = new Set(newIds);
+
       setDispatches((prev) => {
         const existingMap = new Map(prev.map((d) => [d.osId, d]));
         const merged: DispatchState[] = [];
         const seenIds = new Set<string>();
         const now = Date.now();
+        let statusChanged = false;
 
         // API items take priority
         for (const item of loaded) {
           seenIds.add(item.osId);
           const existing = existingMap.get(item.osId);
+          if (existing && existing.osStatus !== item.osStatus) statusChanged = true;
           merged.push(existing ? { ...existing, ...item } : item);
           // Clear grace period since API confirmed it exists
           addedAtRef.current.delete(item.osId);
@@ -171,6 +215,11 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
               addedAtRef.current.delete(p.osId); // Expired or not manually added — remove
             }
           }
+        }
+
+        // Auto-expand on status change if configured
+        if (statusChanged && configRef.current.openOnUpdate) {
+          setTimeout(() => setMinimized(false), 0);
         }
 
         return merged;
@@ -298,7 +347,9 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
         ];
       });
       addedAtRef.current.set(osId, Date.now()); // Grace period until API picks it up
-      setMinimized(false); // auto-expand when new dispatch added
+      if (configRef.current.openOnNewOS) {
+        setMinimized(false); // auto-expand when new dispatch added (if config allows)
+      }
     },
     [],
   );
@@ -341,7 +392,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
 
   return (
     <DispatchContext.Provider
-      value={{ dispatches, minimized, addDispatch, removeDispatch, toggleMinimize, resendNotification }}
+      value={{ dispatches, minimized, config, addDispatch, removeDispatch, toggleMinimize, resendNotification, updateConfig }}
     >
       {children}
     </DispatchContext.Provider>
