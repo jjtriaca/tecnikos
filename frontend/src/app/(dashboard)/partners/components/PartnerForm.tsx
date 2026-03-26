@@ -328,64 +328,77 @@ export default function PartnerForm({
           )}
         </div>
 
-        {/* Person Type */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Tipo de Pessoa</label>
-            <div className="flex gap-1">
-              {(["PF", "PJ"] as const).map((pt) => (
+        {/* Person Type — PF / PJ / PRODUTOR RURAL */}
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Tipo de Pessoa</label>
+          <div className="flex gap-1">
+            {([
+              { key: "PF", label: "PF", isRural: false },
+              { key: "PJ", label: "PJ", isRural: false },
+              { key: "RURAL", label: "Produtor Rural", isRural: true },
+            ] as const).map((opt) => {
+              const isActive =
+                opt.key === "RURAL" ? (form.personType === "PF" && form.isRuralProducer) :
+                opt.key === "PF" ? (form.personType === "PF" && !form.isRuralProducer) :
+                form.personType === "PJ";
+              return (
                 <button
-                  key={pt}
+                  key={opt.key}
                   type="button"
                   onClick={() =>
                     setForm((f) => ({
                       ...f,
-                      personType: pt,
+                      personType: opt.key === "PJ" ? "PJ" : "PF",
                       document: "",
-                      documentType: pt === "PJ" ? "CNPJ" : "CPF",
+                      documentType: opt.key === "PJ" ? "CNPJ" : "CPF",
                       ie: "",
                       im: "",
-                      tradeName: pt === "PF" ? "" : f.tradeName,
-                      isRuralProducer: false,
+                      tradeName: "",
+                      isRuralProducer: opt.isRural,
                     }))
                   }
                   className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    form.personType === pt
-                      ? "bg-blue-600 text-white"
+                    isActive
+                      ? opt.key === "RURAL" ? "bg-green-600 text-white" : "bg-blue-600 text-white"
                       : "border border-slate-300 text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  {pt}
+                  {opt.label}
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* PF fields */}
-        {form.personType === "PF" && (
+        {/* PF fields (pessoa fisica comum) */}
+        {form.personType === "PF" && !form.isRuralProducer && (
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input placeholder="Nome completo *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
               <input placeholder="CPF" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " w-full"} />
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input type="checkbox" checked={form.isRuralProducer} onChange={(e) => setForm((f) => ({ ...f, isRuralProducer: e.target.checked }))} className="rounded border-slate-300" />
-              Produtor Rural
-            </label>
-            {form.isRuralProducer && (
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input placeholder="Inscrição Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: e.target.value }))} className={inputClass + " w-full sm:w-1/2"} />
-                <button
-                  type="button"
-                  onClick={() => setSefazModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors whitespace-nowrap"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  Importar SEFAZ
-                </button>
-              </div>
-            )}
+          </div>
+        )}
+
+        {/* Produtor Rural fields */}
+        {form.personType === "PF" && form.isRuralProducer && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input placeholder="Nome completo *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
+              <input placeholder="CPF" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " w-full"} />
+            </div>
+            <input placeholder="Nome da Propriedade / Fazenda" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: f.tradeName.toUpperCase() }))} className={inputClass + " w-full"} />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input placeholder="Inscricao Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: e.target.value }))} className={inputClass + " w-full sm:w-1/2"} />
+              <button
+                type="button"
+                onClick={() => setSefazModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors whitespace-nowrap"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Importar SEFAZ
+              </button>
+            </div>
           </div>
         )}
 

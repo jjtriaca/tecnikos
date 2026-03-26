@@ -1,9 +1,9 @@
 # TAREFA ATUAL
 
-## Versao: v1.07.59
+## Versao: v1.07.64
 ## Ultima sessao: 158 (25/03/2026)
 
-## CONCLUIDO (sessao 158) — Deploys v1.07.49 → v1.07.59 (11 deploys)
+## CONCLUIDO (sessao 158) — Deploys v1.07.49 → v1.07.64 (16 deploys)
 
 ### Consulta SEFAZ — Importar dados Produtor Rural
 - Modal "Importar dados da SEFAZ" no cadastro de parceiros (estilo Sankhya)
@@ -33,15 +33,20 @@
 - Independente do techAssignmentMode (DIRECTED, BY_SPECIALIZATION, etc.)
 
 ### Workflow — Chips de Variaveis
-- Fix: chips de variaveis no bloco Notificar agora inserem na posicao do cursor
-- Antes: sempre concatenava no final do texto
-- Agora: usa ref do textarea + selectionStart/selectionEnd
+- Fix: chips inserem na posicao do cursor (ref textarea + selectionStart/selectionEnd)
+- Labels dos chips mostram variavel exata ({nome_cliente} em vez de "Nome Cliente")
+
+### Workflow — Notificacoes WhatsApp
+- Fix: newlines removidas do parametro do template Meta (erro 132018)
+- Fix: timezone de {data_agendamento} usa Company.timezone (nao UTC do servidor)
+- Fix: query company inclui campo timezone
 
 ### Servicos — Unidade e Quantidade
 - Nova unidade KM (Quilometro) no cadastro de servicos
 - Quantidade decimal: campo mudou de Int para Float (ex: 2,5 diarias)
 - Math.round em todos calculos de centavos para evitar fracoes
-- Input com step=0.1 e min=0.1
+- Input: onFocus seleciona tudo, permite apagar e digitar, onBlur valida min 1
+- Validacao: nao permite criar OS com servico com quantidade zero
 
 ### Outros
 - Fix texto apagado no modal de busca (SearchLookupModal: text-slate-900)
@@ -50,6 +55,7 @@
 
 ### 1. Testar Fluxo Completo OS Agendada
 - Criar OS com agendamento → workflow dispara → tecnico aceita → notifica cliente
+- Testar notificacao ao cliente (adicionar destinatario Cliente no bloco Notificar)
 - Testar lancamento financeiro antecipado → aprovar OS → nao duplica
 
 ### 2. Cadastro de Unidades Customizaveis
@@ -73,6 +79,7 @@
 - Financeiro: conciliacao automatica
 - DANFSe local: implementar com logo prefeitura + QR code quando viavel
 - Consulta SINTEGRA: API terceiros para empresas sem certificado NF-e
+- Investigar: tela flutuante dispatch some ao editar OS (nao reproduzido apos refresh)
 
 ### BLOQUEADO
 - Nota 48 Focus NFe: aguardando correcao da Focus (contato: Cesar/Natan)
