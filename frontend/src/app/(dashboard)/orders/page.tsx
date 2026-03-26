@@ -161,12 +161,11 @@ function ActionsDropdown({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const isEditable = (() => {
-    if (!TERMINAL_STATUSES.includes(order.status)) return true;
-    if (order.status === "CONCLUIDA" && sysConfig?.os?.allowEditConcluida) return true;
-    if (order.status === "APROVADA" && sysConfig?.os?.allowEditAprovada) return true;
-    return false;
-  })();
+  const isActive = !TERMINAL_STATUSES.includes(order.status);
+  const isEditable = isActive || (
+    (order.status === "CONCLUIDA" && sysConfig?.os?.allowEditConcluida) ||
+    (order.status === "APROVADA" && sysConfig?.os?.allowEditAprovada)
+  );
 
   useEffect(() => {
     if (open && btnRef.current) {
@@ -243,7 +242,7 @@ function ActionsDropdown({
           )}
 
           {/* Lancar Financeiro Antecipado */}
-          {canEdit && isEditable && order.status !== "ABERTA" && (
+          {canEdit && isActive && order.status !== "ABERTA" && (
             <button
               onClick={() => { setOpen(false); onEarlyFinancial(order); }}
               className="block w-full text-left px-3 py-2 text-sm text-green-700 hover:bg-green-50"
@@ -264,7 +263,7 @@ function ActionsDropdown({
           )}
 
           {/* Cancelar */}
-          {canEdit && isEditable && (
+          {canEdit && isActive && (
             <button
               onClick={() => { setOpen(false); onCancel(order); }}
               className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50"

@@ -249,6 +249,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
   const [editLoading, setEditLoading] = useState(!!editId);
   const [status, setStatus] = useState("");
   const [isTerminal, setIsTerminal] = useState(false);
+  const [editSysConfig, setEditSysConfig] = useState<any>(null);
   const [acceptTimeoutMode, setAcceptTimeoutMode] = useState<'minutes' | 'hours' | 'from_flow'>('from_flow');
   const [acceptTimeoutValue, setAcceptTimeoutValue] = useState<number>(60);
   const [enRouteTimeoutMode, setEnRouteTimeoutMode] = useState<'minutes' | 'hours' | 'from_flow'>('from_flow');
@@ -280,7 +281,21 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
         if (cancelled) return;
 
         setStatus(order.status);
-        setIsTerminal(TERMINAL_STATUSES.includes(order.status));
+        // Check if terminal status is editable via system config
+        if (TERMINAL_STATUSES.includes(order.status)) {
+          try {
+            const cfg = await api.get<any>("/companies/system-config");
+            setEditSysConfig(cfg);
+            const canEditTerminal =
+              (order.status === "CONCLUIDA" && cfg?.os?.allowEditConcluida) ||
+              (order.status === "APROVADA" && cfg?.os?.allowEditAprovada);
+            setIsTerminal(!canEditTerminal);
+          } catch {
+            setIsTerminal(true);
+          }
+        } else {
+          setIsTerminal(false);
+        }
 
         setForm({
           title: order.title || "",
@@ -919,6 +934,12 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
       {isTerminal && (
         <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           Esta OS está em status final ({STATUS_LABELS[status] || status}). Não é possível editar.
+        </div>
+      )}
+
+      {isEditMode && !isTerminal && TERMINAL_STATUSES.includes(status) && (
+        <div className="mb-4 rounded-lg bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-700">
+          ⚠️ Editando OS em status <strong>{STATUS_LABELS[status] || status}</strong>. Alteracoes serao salvas diretamente.
         </div>
       )}
 
