@@ -653,6 +653,7 @@ export class FinanceService {
           let feePercent = pm.feePercent || 0;
           let receivingDays = pm.receivingDays || 0;
           let cardBrand = dto.cardBrand;
+          let installmentCount = 1;
 
           // If a specific card fee rate was selected, use its values
           if (dto.cardFeeRateId) {
@@ -663,12 +664,10 @@ export class FinanceService {
               feePercent = cardRate.feePercent;
               receivingDays = cardRate.receivingDays;
               cardBrand = cardRate.brand;
-              this.logger.log(`Using CardFeeRate ${cardRate.id}: brand=${cardRate.brand}, fee=${cardRate.feePercent}%, days=${cardRate.receivingDays}`);
+              installmentCount = cardRate.installmentTo || 1;
+              this.logger.log(`Using CardFeeRate ${cardRate.id}: brand=${cardRate.brand}, fee=${cardRate.feePercent}%, days=${cardRate.receivingDays}, installments=${installmentCount}`);
             }
           }
-
-          // Determine installment count from card fee rate
-          const installmentCount = cardRate ? (cardRate.installmentTo || 1) : 1;
           await this.cardSettlementService.createFromEntry(tx, {
             id: entry.id,
             companyId,
