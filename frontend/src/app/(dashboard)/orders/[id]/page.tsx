@@ -326,7 +326,7 @@ export default function OrderDetailPage() {
   // System config for conditional features
   const [sysConfig, setSysConfig] = useState<any>(null);
   useEffect(() => {
-    api.get<any>("/company/system-config").then(setSysConfig).catch(() => {});
+    api.get<any>("/companies/system-config").then(setSysConfig).catch(() => {});
   }, []);
 
   async function loadOrder() {

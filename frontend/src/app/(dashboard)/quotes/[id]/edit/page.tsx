@@ -101,7 +101,7 @@ function EditQuotePage() {
   const [showPartnerQuotes, setShowPartnerQuotes] = useState(true);
   const [autoSendOnSave, setAutoSendOnSave] = useState(true);
   useEffect(() => {
-    api.get<any>("/company/system-config").then(cfg => {
+    api.get<any>("/companies/system-config").then(cfg => {
       if (cfg?.quotes?.showProductValue === false) setShowProductValue(false);
       if (cfg?.quotes?.showPartnerQuotes === false) setShowPartnerQuotes(false);
       if (cfg?.quotes?.autoSendOnSave === false) setAutoSendOnSave(false);
