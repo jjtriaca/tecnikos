@@ -515,37 +515,57 @@ function PdfLayoutSection({ value, onChange }: { value: number; onChange: (v: nu
    NFS-E TEMPLATE SECTION
    ══════════════════════════════════════════════════════════ */
 
-const NFSE_VARIABLES = [
-  // Cliente/Tomador
-  { var: "{nome_cliente}", label: "Nome do Cliente", desc: "Razao social ou nome do tomador" },
-  { var: "{documento_cliente}", label: "CPF/CNPJ Cliente", desc: "Documento do tomador" },
-  { var: "{ie_cliente}", label: "IE Cliente", desc: "Inscricao Estadual do tomador" },
-  { var: "{im_cliente}", label: "IM Cliente", desc: "Inscricao Municipal do tomador" },
-  { var: "{razao_social_cliente}", label: "Razao Social Cliente", desc: "Razao social (PJ) ou nome completo (PF)" },
-  { var: "{nome_fantasia_cliente}", label: "Nome Fantasia Cliente", desc: "Nome fantasia ou nome da propriedade" },
-  { var: "{endereco_cliente}", label: "Endereco Cliente", desc: "Endereco completo do tomador" },
-  { var: "{telefone_cliente}", label: "Telefone Cliente", desc: "Telefone do tomador" },
-  { var: "{email_cliente}", label: "Email Cliente", desc: "Email do tomador" },
-  { var: "{caepf_cliente}", label: "CAEPF Cliente", desc: "CAEPF da propriedade rural do tomador" },
-  // OS
-  { var: "{codigo_os}", label: "Codigo OS", desc: "Ex: OS-00046" },
-  { var: "{titulo_os}", label: "Titulo OS", desc: "Titulo da ordem de servico" },
-  { var: "{nome_tecnico}", label: "Nome do Tecnico", desc: "Tecnico atribuido a OS" },
-  { var: "{endereco_servico}", label: "Endereco do Servico", desc: "Endereco completo (rua, numero, bairro, cidade/UF)" },
-  { var: "{complemento_servico}", label: "Complemento Servico", desc: "Complemento do endereco do servico (fazenda, lote, etc)" },
-  { var: "{descricao_os}", label: "Descricao OS", desc: "Descricao detalhada da ordem de servico" },
-  // Nota
-  { var: "{valor_total}", label: "Valor Total", desc: "Valor total da NFS-e" },
-  { var: "{numero_nfse}", label: "Numero NFS-e", desc: "Numero da nota emitida" },
-  { var: "{data_emissao}", label: "Data Emissao", desc: "Data de emissao da nota" },
-  { var: "{codigo_servico}", label: "Codigo Servico", desc: "Codigo do item de servico LC 116" },
-  { var: "{aliquota_iss}", label: "Aliquota ISS", desc: "Aliquota do ISS em %" },
-  { var: "{valor_iss}", label: "Valor ISS", desc: "Valor do ISS calculado" },
-  // Prestador
-  { var: "{nome_empresa}", label: "Nome da Empresa", desc: "Razao social do prestador" },
-  { var: "{cnpj_empresa}", label: "CNPJ Empresa", desc: "CNPJ do prestador" },
-  { var: "{ie_empresa}", label: "IE Empresa", desc: "Inscricao Estadual do prestador" },
-  { var: "{im_empresa}", label: "IM Empresa", desc: "Inscricao municipal do prestador" },
+const NFSE_VAR_GROUPS = [
+  {
+    label: "👤 Cliente / Tomador",
+    color: "blue",
+    vars: [
+      { var: "{nome_cliente}", label: "Nome", desc: "Razao social ou nome do tomador" },
+      { var: "{documento_cliente}", label: "CPF/CNPJ", desc: "Documento do tomador" },
+      { var: "{ie_cliente}", label: "IE", desc: "Inscricao Estadual do tomador" },
+      { var: "{im_cliente}", label: "IM", desc: "Inscricao Municipal do tomador" },
+      { var: "{caepf_cliente}", label: "CAEPF", desc: "CAEPF da propriedade rural" },
+      { var: "{razao_social_cliente}", label: "Razao Social", desc: "Razao social (PJ) ou nome (PF)" },
+      { var: "{nome_fantasia_cliente}", label: "Nome Fantasia", desc: "Nome fantasia ou propriedade" },
+      { var: "{endereco_cliente}", label: "Endereco", desc: "Endereco completo do tomador" },
+      { var: "{telefone_cliente}", label: "Telefone", desc: "Telefone do tomador" },
+      { var: "{email_cliente}", label: "Email", desc: "Email do tomador" },
+    ],
+  },
+  {
+    label: "📋 Ordem de Servico",
+    color: "green",
+    vars: [
+      { var: "{codigo_os}", label: "Codigo OS", desc: "Ex: OS-00046" },
+      { var: "{titulo_os}", label: "Titulo", desc: "Titulo da OS" },
+      { var: "{descricao_os}", label: "Descricao", desc: "Descricao detalhada da OS" },
+      { var: "{nome_tecnico}", label: "Tecnico", desc: "Tecnico atribuido" },
+      { var: "{endereco_servico}", label: "Endereco Servico", desc: "Local do servico (rua, bairro, cidade/UF)" },
+      { var: "{complemento_servico}", label: "Complemento", desc: "Complemento (fazenda, lote, etc)" },
+    ],
+  },
+  {
+    label: "🧾 Nota Fiscal",
+    color: "amber",
+    vars: [
+      { var: "{valor_total}", label: "Valor Total", desc: "Valor total da NFS-e" },
+      { var: "{numero_nfse}", label: "Numero NFS-e", desc: "Numero da nota emitida" },
+      { var: "{data_emissao}", label: "Data Emissao", desc: "Data de emissao" },
+      { var: "{codigo_servico}", label: "Cod. Servico", desc: "Item lista servico LC 116" },
+      { var: "{aliquota_iss}", label: "Aliquota ISS", desc: "Aliquota ISS em %" },
+      { var: "{valor_iss}", label: "Valor ISS", desc: "Valor do ISS calculado" },
+    ],
+  },
+  {
+    label: "🏢 Prestador (Empresa)",
+    color: "slate",
+    vars: [
+      { var: "{nome_empresa}", label: "Razao Social", desc: "Razao social do prestador" },
+      { var: "{cnpj_empresa}", label: "CNPJ", desc: "CNPJ do prestador" },
+      { var: "{ie_empresa}", label: "IE", desc: "Inscricao Estadual do prestador" },
+      { var: "{im_empresa}", label: "IM", desc: "Inscricao Municipal do prestador" },
+    ],
+  },
 ];
 
 function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -580,22 +600,31 @@ function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v:
       </div>
 
       <div className="px-5 py-4 space-y-3">
-        <div>
-          <p className="text-[11px] font-medium text-slate-500 mb-2">Variaveis disponiveis (clique para inserir):</p>
-          <div className="flex flex-wrap gap-1.5">
-            {NFSE_VARIABLES.map((v) => (
-              <button
-                key={v.var}
-                type="button"
-                onClick={() => insertVariable(v.var)}
-                title={v.desc}
-                className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-green-100 hover:text-green-700 transition-colors border border-slate-200 hover:border-green-300"
-              >
-                <span className="text-slate-400">{`{}`}</span>
-                {v.label}
-              </button>
-            ))}
-          </div>
+        <div className="space-y-2.5">
+          {NFSE_VAR_GROUPS.map((group) => (
+            <div key={group.label}>
+              <p className="text-[10px] font-semibold text-slate-500 mb-1.5">{group.label}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {group.vars.map((v) => (
+                  <button
+                    key={v.var}
+                    type="button"
+                    onClick={() => insertVariable(v.var)}
+                    title={v.desc}
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors border ${
+                      group.color === "blue" ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" :
+                      group.color === "green" ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" :
+                      group.color === "amber" ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" :
+                      "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span className="opacity-40">{`{}`}</span>
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
 
         <textarea
