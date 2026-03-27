@@ -108,6 +108,8 @@ export interface CashAccount {
   pixKey?: string | null;
   initialBalanceCents: number;
   currentBalanceCents: number;
+  showInReceivables: boolean;
+  showInPayables: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

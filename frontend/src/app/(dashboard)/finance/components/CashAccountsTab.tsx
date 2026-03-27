@@ -56,6 +56,8 @@ interface AccountFormData {
   pixKeyType: string;
   pixKey: string;
   initialBalanceCents: string;
+  showInReceivables: boolean;
+  showInPayables: boolean;
   isActive: boolean;
 }
 
@@ -70,6 +72,8 @@ const EMPTY_FORM: AccountFormData = {
   pixKeyType: "",
   pixKey: "",
   initialBalanceCents: "0",
+  showInReceivables: true,
+  showInPayables: true,
   isActive: true,
 };
 
@@ -209,6 +213,8 @@ function AccountsSection() {
       pixKeyType: acc.pixKeyType || "",
       pixKey: acc.pixKey || "",
       initialBalanceCents: (acc.initialBalanceCents / 100).toFixed(2).replace(".", ","),
+      showInReceivables: acc.showInReceivables ?? true,
+      showInPayables: acc.showInPayables ?? true,
       isActive: acc.isActive,
     });
     setShowForm(true);
@@ -230,6 +236,8 @@ function AccountsSection() {
     const payload: Record<string, unknown> = {
       name: formData.name.trim(),
       type: formData.type,
+      showInReceivables: formData.showInReceivables,
+      showInPayables: formData.showInPayables,
       isActive: formData.isActive,
     };
 
@@ -558,15 +566,24 @@ function AccountsSection() {
                     />
                   </div>
                 )}
-                <div className={`flex items-end pb-1 ${editingId ? "col-span-2" : ""}`}>
+                <div className={`flex flex-col gap-2 pb-1 ${editingId ? "col-span-2" : ""}`}>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.isActive}
+                    <input type="checkbox" checked={formData.isActive}
                       onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span className="text-sm text-slate-700">Ativa</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={formData.showInReceivables}
+                      onChange={(e) => setFormData({ ...formData, showInReceivables: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500" />
+                    <span className="text-sm text-slate-700">Exibir em Recebimentos</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={formData.showInPayables}
+                      onChange={(e) => setFormData({ ...formData, showInPayables: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <span className="text-sm text-slate-700">Exibir em Pagamentos</span>
                   </label>
                 </div>
               </div>

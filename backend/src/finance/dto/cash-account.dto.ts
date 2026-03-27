@@ -41,6 +41,14 @@ export class CreateCashAccountDto {
 
   @IsOptional()
   @IsBoolean()
+  showInReceivables?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  showInPayables?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }
 
@@ -80,6 +88,14 @@ export class UpdateCashAccountDto {
   @IsOptional()
   @IsString()
   pixKey?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  showInReceivables?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  showInPayables?: boolean;
 
   @IsOptional()
   @IsBoolean()

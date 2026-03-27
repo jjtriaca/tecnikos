@@ -1390,6 +1390,8 @@ model CashAccount {
   pixKey              String?
   initialBalanceCents Int              @default(0)
   currentBalanceCents Int              @default(0)
+  showInReceivables   Boolean          @default(true)  // Aparece em formas de recebimento
+  showInPayables      Boolean          @default(true)  // Aparece em formas de pagamento
   isActive            Boolean          @default(true)
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt

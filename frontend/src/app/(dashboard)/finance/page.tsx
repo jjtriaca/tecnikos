@@ -1650,7 +1650,9 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                   >
                     <option value="">Nenhuma (nao atualizar saldo)</option>
-                    {activeAccounts.map((a) => (
+                    {activeAccounts
+                      .filter((a: any) => type === "RECEIVABLE" ? a.showInReceivables !== false : a.showInPayables !== false)
+                      .map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"})
                       </option>
