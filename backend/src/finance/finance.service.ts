@@ -948,12 +948,26 @@ export class FinanceService {
      STATEMENT — Extrato Consolidado
      ═══════════════════════════════════════════════════════════════ */
 
-  async getStatement(companyId: string, limit = 50) {
+  async getStatement(companyId: string, limit = 50, dateFrom?: string, dateTo?: string) {
+    const dateFilter: any = {};
+    if (dateFrom) dateFilter.gte = new Date(dateFrom);
+    if (dateTo) {
+      const d = new Date(dateTo);
+      d.setHours(23, 59, 59, 999);
+      dateFilter.lte = d;
+    }
+    const hasDates = Object.keys(dateFilter).length > 0;
+
     // 1) Fetch paid FinancialEntries
     const entries = await this.prisma.financialEntry.findMany({
-      where: { companyId, status: 'PAID', deletedAt: null },
+      where: {
+        companyId,
+        status: 'PAID',
+        deletedAt: null,
+        ...(hasDates ? { paidAt: dateFilter } : {}),
+      },
       orderBy: { paidAt: 'desc' },
-      take: limit * 2, // fetch extra to merge with transfers
+      take: hasDates ? 500 : limit * 2,
       include: {
         partner: { select: { name: true } },
         financialAccount: { select: { name: true } },
@@ -963,9 +977,12 @@ export class FinanceService {
 
     // 2) Fetch account transfers
     const transfers = await this.prisma.accountTransfer.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(hasDates ? { transferDate: dateFilter } : {}),
+      },
       orderBy: { transferDate: 'desc' },
-      take: limit,
+      take: hasDates ? 500 : limit,
       select: {
         id: true,
         amountCents: true,

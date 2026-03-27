@@ -546,6 +546,12 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   const [data, setData] = useState<FinanceSummaryV2 | null>(null);
   const [dashData, setDashData] = useState<any>(null);
   const [statementData, setStatementData] = useState<any[]>([]);
+  const [stmtDateFrom, setStmtDateFrom] = useState(() => {
+    const d = new Date(); d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [stmtDateTo, setStmtDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [stmtLoading, setStmtLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -560,13 +566,21 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
     Promise.all([
       api.get<FinanceSummaryV2>("/finance/summary-v2").catch(() => null),
       api.get(`/finance/dashboard?dateFrom=${first}&dateTo=${last}`).catch(() => null),
-      api.get<any[]>("/finance/statement?limit=50").catch(() => []),
+      api.get<any[]>(`/finance/statement?limit=200&dateFrom=${stmtDateFrom}&dateTo=${stmtDateTo}`).catch(() => []),
     ]).then(([summary, dash, statement]) => {
       setData(summary);
       setDashData(dash);
       setStatementData(statement ?? []);
     }).finally(() => setLoading(false));
   }, []);
+
+  const reloadStatement = useCallback(() => {
+    setStmtLoading(true);
+    api.get<any[]>(`/finance/statement?limit=500&dateFrom=${stmtDateFrom}&dateTo=${stmtDateTo}`)
+      .then((res) => setStatementData(res ?? []))
+      .catch(() => {})
+      .finally(() => setStmtLoading(false));
+  }, [stmtDateFrom, stmtDateTo]);
 
   function handleDragStart(e: React.DragEvent, sectionId: string) {
     setDraggingId(sectionId);
@@ -721,14 +735,32 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
     extrato: {
       label: "Extrato Consolidado",
       content: (() => {
-        if (!statementData || statementData.length === 0) return null;
         let runningBalance = 0;
-        const rows = [...statementData].reverse().map((row) => {
-          runningBalance += row.amountCents;
-          return { ...row, balance: runningBalance };
-        }).reverse();
+        const rows = statementData.length > 0
+          ? [...statementData].reverse().map((row) => {
+              runningBalance += row.amountCents;
+              return { ...row, balance: runningBalance };
+            }).reverse()
+          : [];
         return (
           <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            {/* Period filter */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+              <label className="text-xs text-slate-500">De</label>
+              <input type="date" value={stmtDateFrom} onChange={(e) => setStmtDateFrom(e.target.value)}
+                className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+              <label className="text-xs text-slate-500">Até</label>
+              <input type="date" value={stmtDateTo} onChange={(e) => setStmtDateTo(e.target.value)}
+                className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+              <button onClick={reloadStatement} disabled={stmtLoading}
+                className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">
+                {stmtLoading ? "..." : "Filtrar"}
+              </button>
+              <span className="text-[10px] text-slate-400 ml-auto">{rows.length} movimento{rows.length !== 1 ? "s" : ""}</span>
+            </div>
+            {rows.length === 0 ? (
+              <div className="text-center py-6 text-xs text-slate-400">Nenhum movimento no período selecionado.</div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -766,10 +798,6 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 </tbody>
               </table>
             </div>
-            {statementData.length >= 50 && (
-              <div className="text-center py-2 text-xs text-slate-400 border-t border-slate-100">
-                Exibindo últimos 50 movimentos
-              </div>
             )}
           </div>
         );

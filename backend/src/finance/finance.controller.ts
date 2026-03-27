@@ -423,9 +423,11 @@ export class FinanceController {
   @Get('statement')
   getStatement(
     @Query('limit') limit: string | undefined,
+    @Query('dateFrom') dateFrom: string | undefined,
+    @Query('dateTo') dateTo: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.getStatement(user.companyId, limit ? parseInt(limit, 10) : 50);
+    return this.service.getStatement(user.companyId, limit ? parseInt(limit, 10) : 50, dateFrom, dateTo);
   }
 
   /* ── Dashboard Financeiro ────────────────────────────────── */
