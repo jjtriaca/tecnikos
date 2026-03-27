@@ -520,7 +520,7 @@ export class ServiceOrderPdfService {
 
   // ============================================================
   // LAYOUT 3 — "Moderno"
-  // Faixa lateral esquerda colorida, secoes com titulos grandes, espaçoso
+  // Faixa lateral pontilhada (draft), azul suave, espaçoso
   // ============================================================
   private buildLayout3(so: any): Promise<Buffer> {
     return new Promise((resolve, reject) => {
@@ -535,11 +535,23 @@ export class ServiceOrderPdfService {
       const company = so.company;
       const client = so.clientPartner;
       const logo = loadLogo(company);
-      const ACCENT = '#2563eb';
+      const ACCENT = '#93b5e1';  // azul bem suave
+      const ACCENT_DARK = '#5b8bc9'; // azul um pouco mais forte para texto
+      const ACCENT_TEXT = '#4a7ab5'; // labels
       let y = margin;
 
-      // --- Left accent stripe ---
-      doc.rect(0, 0, 5, doc.page.height).fill(ACCENT);
+      // --- Left stipple/draft stripe (dots pattern) ---
+      const stripeW = 8;
+      const dotR = 0.7;
+      const dotGap = 3.5;
+      doc.save();
+      for (let dy = 0; dy < doc.page.height; dy += dotGap) {
+        for (let dx = 1; dx < stripeW; dx += dotGap) {
+          const offset = (Math.floor(dy / dotGap) % 2 === 0) ? 0 : dotGap / 2;
+          doc.circle(dx + offset, dy, dotR).fill(ACCENT);
+        }
+      }
+      doc.restore();
 
       // --- Header ---
       if (logo) {
@@ -559,10 +571,10 @@ export class ServiceOrderPdfService {
       y = Math.max(doc.y, y) + 20;
 
       // --- Big OS Code + Status ---
-      doc.font('Helvetica-Bold').fontSize(22).fill(ACCENT);
+      doc.font('Helvetica-Bold').fontSize(22).fill(ACCENT_DARK);
       doc.text(so.code || 'OS', margin, y);
       const codeBottom = doc.y;
-      doc.font('Helvetica').fontSize(9).fill('#6b7280');
+      doc.font('Helvetica').fontSize(9).fill('#9ca3af');
       doc.text('ORDEM DE SERVIÇO', margin, codeBottom + 1);
       // Status right
       doc.font('Helvetica-Bold').fontSize(9).fill('#374151');
@@ -572,8 +584,11 @@ export class ServiceOrderPdfService {
 
       y = codeBottom + 18;
 
-      // --- Accent line ---
-      doc.moveTo(margin, y).lineTo(margin + pageW, y).strokeColor(ACCENT).lineWidth(1.5).stroke();
+      // --- Accent dotted line ---
+      doc.save();
+      doc.moveTo(margin, y).lineTo(margin + pageW, y).dash(2, { space: 3 }).strokeColor(ACCENT).lineWidth(1).stroke();
+      doc.undash();
+      doc.restore();
       y += 12;
 
       // --- Title + description ---
@@ -596,7 +611,7 @@ export class ServiceOrderPdfService {
       const gridY = y;
 
       // Col 1: Client
-      doc.font('Helvetica-Bold').fontSize(8).fill(ACCENT).text('Cliente', lX, gridY);
+      doc.font('Helvetica-Bold').fontSize(8).fill(ACCENT_TEXT).text('Cliente', lX, gridY);
       let ly = gridY + 12;
       if (client) {
         doc.font('Helvetica-Bold').fontSize(8.5).fill('#111827').text(client.name, lX, ly, { width: colW }); ly = doc.y + 1;
@@ -609,7 +624,7 @@ export class ServiceOrderPdfService {
       }
 
       // Col 2: Details
-      doc.font('Helvetica-Bold').fontSize(8).fill(ACCENT).text('Detalhes', rX, gridY);
+      doc.font('Helvetica-Bold').fontSize(8).fill(ACCENT_TEXT).text('Detalhes', rX, gridY);
       let ry = gridY + 12;
       doc.font('Helvetica').fontSize(7.5).fill('#4b5563');
       const details: [string, string][] = [];
@@ -626,12 +641,12 @@ export class ServiceOrderPdfService {
       y = Math.max(ly, ry) + 14;
 
       // --- Items ---
-      y = drawItemsTable(doc, so.items || [], y, margin, pageW, ACCENT, '#ffffff', ACCENT);
+      y = drawItemsTable(doc, so.items || [], y, margin, pageW, ACCENT, '#374151', ACCENT_DARK);
       y += 4;
 
-      // Total
+      // Total — soft accent background
       const tX = margin + pageW - 180;
-      doc.rect(tX, y, 180, 22).fill(ACCENT);
+      doc.rect(tX, y, 180, 22).fill(ACCENT_DARK);
       doc.fill('#ffffff').font('Helvetica-Bold').fontSize(10);
       doc.text('TOTAL:', tX + 8, y + 5, { width: 90, align: 'right' });
       doc.text(formatMoney(so.valueCents || 0), tX + 105, y + 5, { width: 68, align: 'right' });
@@ -640,8 +655,8 @@ export class ServiceOrderPdfService {
 
       // Notes
       if (so.notes) {
-        if (y > doc.page.height - 80) { doc.addPage(); y = margin; doc.rect(0, 0, 5, doc.page.height).fill(ACCENT); }
-        doc.font('Helvetica-Bold').fontSize(8).fill(ACCENT).text('Observações', margin, y);
+        if (y > doc.page.height - 80) { doc.addPage(); y = margin; }
+        doc.font('Helvetica-Bold').fontSize(8).fill(ACCENT_TEXT).text('Observações', margin, y);
         y = doc.y + 3;
         doc.font('Helvetica').fontSize(7.5).fill('#4b5563').text(so.notes, margin, y, { width: pageW });
         y = doc.y + 8;
