@@ -1558,6 +1558,14 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                     setPaymentMethod(code);
                     setSelectedCardRateId("");
                     setSelectedInstrumentId("");
+                    // Auto-select account: DINHEIRO → CAIXA INTERNO, others → Valores em transito
+                    if (code === "DINHEIRO") {
+                      const caixa = activeAccounts.find((a) => a.type === "CAIXA" && !a.name.toLowerCase().includes("transit"));
+                      setSelectedAccountId(caixa?.id || "");
+                    } else if (code) {
+                      const transit = activeAccounts.find((a) => a.name.toLowerCase().includes("transit"));
+                      setSelectedAccountId(transit?.id || "");
+                    }
                     // Load instruments for this payment method
                     const pm = activePMs.find((p) => p.code === code);
                     if (pm) {
