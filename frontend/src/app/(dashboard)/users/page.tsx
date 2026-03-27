@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -43,6 +43,90 @@ const ROLE_COLORS: Record<string, string> = {
 
 const ALL_ROLES = ["ADMIN", "DESPACHO", "FINANCEIRO", "FISCAL", "LEITURA"];
 
+/* ── Actions Dropdown ─────────────────────────────────── */
+
+function ActionsDropdown({
+  items,
+}: {
+  items: { label: string; onClick: () => void; danger?: boolean; hidden?: boolean; separator?: boolean }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const toggle = useCallback(() => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.right });
+      setOpen(true);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    function handleScroll() {
+      setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [open]);
+
+  const visibleItems = items.filter((i) => !i.hidden);
+
+  return (
+    <div className="relative inline-block">
+      <button
+        ref={btnRef}
+        onClick={(e) => { e.stopPropagation(); toggle(); }}
+        className="rounded border border-slate-300 px-2 py-1 text-sm font-bold text-slate-700 hover:bg-slate-100"
+      >
+        &#x22EF;
+      </button>
+      {open && pos && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 min-w-[180px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          style={{ top: pos.top, left: pos.left, transform: "translateX(-100%)" }}
+        >
+          {visibleItems.map((item, idx) => {
+            const showSep = item.separator || (item.danger && idx > 0 && !visibleItems[idx - 1].danger);
+            return (
+              <React.Fragment key={idx}>
+                {showSep && <div className="my-1 border-t border-slate-200" />}
+                <button
+                  onClick={() => { setOpen(false); item.onClick(); }}
+                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 ${
+                    item.danger ? "text-red-600 hover:bg-red-50" : "text-slate-700"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Column definitions ───────────────────────────────── */
 
 function buildUserColumns(
@@ -60,38 +144,15 @@ function buildUserColumns(
       sortable: false,
       align: "center" as const,
       render: (u) => (
-        <div className="flex items-center justify-center gap-1.5">
-          <button
-            onClick={() => setExpandedAuditId((prev) => (prev === u.id ? null : u.id))}
-            title="Historico de alteracoes"
-            className={`rounded border px-1.5 py-1 text-xs transition-colors ${expandedAuditId === u.id ? "border-blue-300 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"}`}
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => startEdit(u)}
-            className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
-          >
-            Editar
-          </button>
-          {u.invitedAt && !u.passwordSetAt && (
-            <button
-              onClick={() => handleResendInvite(u.id)}
-              disabled={resendingId === u.id}
-              className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-              title="Reenviar convite"
-            >
-              {resendingId === u.id ? "Enviando..." : "Reenviar"}
-            </button>
-          )}
-          <button
-            onClick={() => handleDeleteClick(u.id, u.name)}
-            className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
-          >
-            Desativar
-          </button>
+        <div className="flex items-center justify-center">
+          <ActionsDropdown
+            items={[
+              { label: "Editar", onClick: () => startEdit(u) },
+              { label: "Reenviar convite", onClick: () => handleResendInvite(u.id), hidden: !(u.invitedAt && !u.passwordSetAt) },
+              { label: "Historico de alteracoes", onClick: () => setExpandedAuditId((prev) => (prev === u.id ? null : u.id)), separator: true },
+              { label: "Desativar", onClick: () => handleDeleteClick(u.id, u.name), danger: true },
+            ]}
+          />
         </div>
       ),
     },

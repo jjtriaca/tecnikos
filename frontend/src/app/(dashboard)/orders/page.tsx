@@ -148,6 +148,7 @@ function ActionsDropdown({
   onDelete,
   onEarlyFinancial,
   onPdf,
+  onAudit,
   sysConfig,
 }: {
   order: ServiceOrder;
@@ -158,6 +159,7 @@ function ActionsDropdown({
   onDelete: (order: ServiceOrder) => void;
   onEarlyFinancial: (order: ServiceOrder) => void;
   onPdf: (order: ServiceOrder) => void;
+  onAudit: (order: ServiceOrder) => void;
   sysConfig: any;
 }) {
   const [open, setOpen] = useState(false);
@@ -283,17 +285,23 @@ function ActionsDropdown({
             </button>
           )}
 
+          {/* Historico */}
+          <div className="my-1 border-t border-slate-100" />
+          <button
+            onClick={() => { setOpen(false); onAudit(order); }}
+            className="block w-full text-left px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
+          >
+            Histórico de alterações
+          </button>
+
           {/* Excluir */}
           {canDelete && (
-            <>
-              <div className="my-1 border-t border-slate-100" />
-              <button
-                onClick={() => { setOpen(false); onDelete(order); }}
-                className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-              >
-                Excluir
-              </button>
-            </>
+            <button
+              onClick={() => { setOpen(false); onDelete(order); }}
+              className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+            >
+              Excluir
+            </button>
           )}
         </div>
       )}
@@ -310,7 +318,6 @@ function makeColumns(
   onDelete: (o: ServiceOrder) => void,
   onEarlyFinancial: (o: ServiceOrder) => void,
   onPdf: (o: ServiceOrder) => void,
-  expandedAuditId: string | null,
   onToggleAudit: (id: string) => void,
   sysConfig: any,
 ): ColumnDefinition<ServiceOrder>[] {
@@ -430,30 +437,25 @@ function makeColumns(
     },
   ];
 
-  // Actions column — always present (audit toggle for all, dropdown for editors)
+  // Actions column — only (...) dropdown
   cols.unshift({
     id: "actions",
     label: "Ações",
     align: "right",
     render: (order) => (
-      <div className="flex items-center justify-end gap-1">
-        <AuditToggle
-          active={expandedAuditId === order.id}
-          onClick={() => onToggleAudit(order.id)}
+      <div className="flex items-center justify-end">
+        <ActionsDropdown
+          order={order}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          onCancel={onCancel}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onEarlyFinancial={onEarlyFinancial}
+          onPdf={onPdf}
+          onAudit={(o) => onToggleAudit(o.id)}
+          sysConfig={sysConfig}
         />
-        {(canEdit || canDelete) && (
-          <ActionsDropdown
-            order={order}
-            canEdit={canEdit}
-            canDelete={canDelete}
-            onCancel={onCancel}
-            onDuplicate={onDuplicate}
-            onDelete={onDelete}
-            onEarlyFinancial={onEarlyFinancial}
-            onPdf={onPdf}
-            sysConfig={sysConfig}
-          />
-        )}
       </div>
     ),
   });
@@ -538,7 +540,6 @@ export default function OrdersPage() {
         toast(err?.message || "Erro ao gerar PDF", "error");
       }
     },
-    expandedAuditId,
     (id) => setExpandedAuditId((prev) => (prev === id ? null : id)),
     sysConfig,
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { maskCnpj, maskCpf, maskPhone } from "@/lib/brazil-utils";
 import SortableHeader from "@/components/ui/SortableHeader";
 import DraggableHeader from "@/components/ui/DraggableHeader";
@@ -95,6 +96,106 @@ interface PartnerTableProps {
   onToggleSort: (column: string) => void;
 }
 
+/* ---- Actions dropdown (fixed positioning to escape overflow clip) ---- */
+function ActionsDropdown({
+  partner,
+  canEdit,
+  onEdit,
+  onDelete,
+  onToggleAudit,
+  expandedAuditId,
+}: {
+  partner: Partner;
+  canEdit: boolean;
+  onEdit: (p: Partner) => void;
+  onDelete: (id: string, name: string) => void;
+  onToggleAudit: (id: string) => void;
+  expandedAuditId: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      const menuHeight = 160;
+      const fitsBelow = rect.bottom + menuHeight < window.innerHeight;
+      setPos({
+        top: fitsBelow ? rect.bottom + 4 : rect.top - menuHeight - 4,
+        left: Math.max(8, rect.right - 168),
+      });
+    }
+  }, [open]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    return () => window.removeEventListener("scroll", close, true);
+  }, [open]);
+
+  return (
+    <div ref={wrapperRef} className="flex justify-end">
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((v) => !v)}
+        className="rounded border border-slate-300 px-2 py-1 text-sm font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+      >
+        &#x22EF;
+      </button>
+      {open && pos && (
+        <div
+          className="fixed z-50 min-w-[168px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg text-left"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          <Link
+            href={`/partners/${partner.id}`}
+            className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            onClick={() => setOpen(false)}
+          >
+            Ver detalhes
+          </Link>
+          {canEdit && (
+            <>
+              <button
+                onClick={() => { onEdit(partner); setOpen(false); }}
+                className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+              >
+                Editar
+              </button>
+              <button
+                onClick={() => { onDelete(partner.id, partner.name); setOpen(false); }}
+                className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+              >
+                Excluir
+              </button>
+            </>
+          )}
+          <div className="my-1 border-t border-slate-100" />
+          <button
+            onClick={() => { onToggleAudit(partner.id); setOpen(false); }}
+            className={`block w-full px-4 py-2 text-left text-sm ${expandedAuditId === partner.id ? "text-blue-600" : "text-slate-700"} hover:bg-slate-50`}
+          >
+            Histórico
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function makePartnerColumns(
   canEdit: boolean,
   onEdit: (p: Partner) => void,
@@ -184,39 +285,20 @@ function makePartnerColumns(
     },
   ];
 
-  // Actions column — always present (audit for all, edit/delete for editors)
+  // Actions column — dropdown menu
   cols.unshift({
     id: "actions",
     label: "Ações",
     align: "right",
     render: (p) => (
-      <div className="flex justify-end gap-1.5">
-        <button
-          onClick={() => onToggleAudit(p.id)}
-          title="Histórico de alterações"
-          className={`rounded border px-1.5 py-1 text-xs transition-colors ${expandedAuditId === p.id ? "border-blue-300 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"}`}
-        >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </button>
-        {canEdit && (
-          <>
-            <button
-              onClick={() => onEdit(p)}
-              className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
-            >
-              Editar
-            </button>
-            <button
-              onClick={() => onDelete(p.id, p.name)}
-              className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
-            >
-              Excluir
-            </button>
-          </>
-        )}
-      </div>
+      <ActionsDropdown
+        partner={p}
+        canEdit={canEdit}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onToggleAudit={onToggleAudit}
+        expandedAuditId={expandedAuditId}
+      />
     ),
   });
 

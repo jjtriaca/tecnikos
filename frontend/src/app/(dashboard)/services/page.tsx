@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import { toTitleCase } from "@/lib/brazil-utils";
 import { useToast } from "@/components/ui/Toast";
@@ -222,6 +222,85 @@ const EMPTY_FORM = {
   category: "",
   isActive: true,
 };
+
+/* ── ActionsDropdown ──────────────────────────────────────── */
+
+function ActionsDropdown({
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: {
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClose = () => setOpen(false);
+    window.addEventListener("scroll", handleClose, true);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (btnRef.current && !btnRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      window.removeEventListener("scroll", handleClose, true);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left - 100 });
+    }
+    setOpen(!open);
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        className="rounded border border-slate-300 px-2 py-1 text-sm font-bold text-slate-700 hover:bg-slate-100"
+      >
+        &#x22EF;
+      </button>
+      {open && (
+        <div
+          className="fixed z-50 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setOpen(false); onEdit(); }}
+            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Editar
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setOpen(false); onDuplicate(); }}
+            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Duplicar
+          </button>
+          <div className="my-1 border-t border-slate-200" />
+          <button
+            onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }}
+            className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
+          >
+            Excluir
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
 
 /* ══════════════════════════════════════════════════════════
    MAIN PAGE
@@ -711,29 +790,11 @@ export default function ServicesPage() {
                         style={{ width: columnWidths[col.id], textAlign: col.id === "actions" ? "center" : col.align || "left" }}
                       >
                         {col.id === "actions" ? (
-                          <div className="flex items-center gap-2 justify-center">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openEditForm(service); }}
-                              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                              title="Editar"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDuplicate(service); }}
-                              className="text-xs text-slate-500 hover:text-slate-700 font-medium"
-                              title="Duplicar"
-                            >
-                              Duplicar
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(service); }}
-                              className="text-xs text-red-500 hover:text-red-700 font-medium"
-                              title="Excluir"
-                            >
-                              Excluir
-                            </button>
-                          </div>
+                          <ActionsDropdown
+                            onEdit={() => openEditForm(service)}
+                            onDuplicate={() => handleDuplicate(service)}
+                            onDelete={() => setDeleteTarget(service)}
+                          />
                         ) : (
                           col.render(service)
                         )}
