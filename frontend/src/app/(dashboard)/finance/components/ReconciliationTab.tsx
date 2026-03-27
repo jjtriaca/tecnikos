@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import type { CashAccount, BankStatementImport, BankStatementLine, StatementLineStatus } from "@/types/finance";
+import DraggableHeader from "@/components/ui/DraggableHeader";
+import { useTableLayout } from "@/hooks/useTableLayout";
+import type { ColumnDefinition } from "@/lib/types/table";
 
 /* ── Helpers ────────────────────────────────────────────── */
 
@@ -139,10 +142,10 @@ function ConciliationModal({
   useEffect(() => {
     if (!open || !line) return;
     setLoading(true);
-    // Search for matching financial entries by approximate value
+    // Search for PAID financial entries (already received/paid, matching the bank statement)
     const amountAbs = Math.abs(line.amountCents);
     const type = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
-    api.get<any>(`/finance/entries?status=PENDING&type=${type}&minValue=${(amountAbs - 100) / 100}&maxValue=${(amountAbs + 100) / 100}&limit=20`)
+    api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50`)
       .then((res) => {
         setCandidates(res.data || []);
       })
@@ -472,6 +475,26 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
   const [matchLine, setMatchLine] = useState<BankStatementLine | null>(null);
   const { toast } = useToast();
 
+  const RECON_COLUMNS: ColumnDefinition<BankStatementLine>[] = [
+    { id: "actions", label: "Ações", render: () => null as any },
+    { id: "date", label: "Data", sortable: true, render: (l) => <span className="text-slate-700 whitespace-nowrap">{formatDate(l.transactionDate)}</span> },
+    { id: "description", label: "Descrição", render: (l) => (
+      <span className="text-slate-700 truncate block max-w-[300px]" title={l.description}>
+        {l.description}
+        {l.fitId && <span className="ml-1 text-[10px] text-slate-400">[{l.fitId}]</span>}
+      </span>
+    )},
+    { id: "value", label: "Valor", sortable: true, align: "right", render: (l) => (
+      <span className={`font-semibold ${l.amountCents >= 0 ? "text-green-700" : "text-red-700"}`}>{formatCurrency(l.amountCents)}</span>
+    )},
+    { id: "status", label: "Status", align: "center", render: (l) => {
+      const c = STATUS_CONFIG[l.status];
+      return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${c.bg} ${c.color} border ${c.border}`}>{c.label}</span>;
+    }},
+  ];
+
+  const { orderedColumns, reorderColumns } = useTableLayout("reconciliation-lines", RECON_COLUMNS);
+
   const loadLines = useCallback(async () => {
     try {
       setLoading(true);
@@ -570,47 +593,42 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-left">Data</th>
-                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-left">Descricao</th>
-                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-right">Valor</th>
-                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-center">Status</th>
-                <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-center w-[120px]">Acoes</th>
+                {orderedColumns.map((col, idx) => (
+                  <DraggableHeader
+                    key={col.id}
+                    index={idx}
+                    columnId={col.id}
+                    onReorder={reorderColumns}
+                  >
+                    <div className={`py-3 px-4 text-xs font-semibold uppercase text-slate-600 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}>
+                      {col.label}
+                    </div>
+                  </DraggableHeader>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {lines.map((line) => {
-                const cfg = STATUS_CONFIG[line.status];
-                return (
-                  <tr key={line.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 text-slate-700 whitespace-nowrap">{formatDate(line.transactionDate)}</td>
-                    <td className="py-3 px-4 text-slate-700 truncate max-w-[300px]" title={line.description}>
-                      {line.description}
-                      {line.fitId && <span className="ml-1 text-[10px] text-slate-400">[{line.fitId}]</span>}
+              {lines.map((line) => (
+                <tr key={line.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  {orderedColumns.map((col) => (
+                    <td key={col.id} className={`py-3 px-4 text-sm ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
+                      {col.id === "actions" ? (
+                        actionLoading === line.id ? (
+                          <span className="text-xs text-slate-400 animate-pulse">...</span>
+                        ) : (
+                          <LineActionsDropdown
+                            line={line}
+                            onConciliar={() => setMatchLine(line)}
+                            onIgnore={() => handleIgnore(line.id)}
+                            onUnignore={() => handleUnignore(line.id)}
+                            onUnmatch={() => handleUnmatch(line.id)}
+                          />
+                        )
+                      ) : col.render ? col.render(line) : null}
                     </td>
-                    <td className={`py-3 px-4 text-right font-semibold ${line.amountCents >= 0 ? "text-green-700" : "text-red-700"}`}>
-                      {formatCurrency(line.amountCents)}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
-                        {cfg.label}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {actionLoading === line.id ? (
-                        <span className="text-xs text-slate-400 animate-pulse">...</span>
-                      ) : (
-                        <LineActionsDropdown
-                          line={line}
-                          onConciliar={() => setMatchLine(line)}
-                          onIgnore={() => handleIgnore(line.id)}
-                          onUnignore={() => handleUnignore(line.id)}
-                          onUnmatch={() => handleUnmatch(line.id)}
-                        />
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                  ))}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
