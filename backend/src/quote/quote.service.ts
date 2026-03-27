@@ -610,8 +610,11 @@ export class QuoteService {
     });
 
     if (!quote) throw new NotFoundException('Orçamento não encontrado');
-    if (quote.status !== 'APROVADO') {
-      throw new BadRequestException('Apenas orçamentos aprovados podem gerar OS');
+    if (!['APROVADO', 'ENVIADO'].includes(quote.status)) {
+      throw new BadRequestException('Apenas orçamentos enviados ou aprovados podem gerar OS');
+    }
+    if (quote.serviceOrderId) {
+      throw new BadRequestException('Este orçamento já possui uma OS vinculada');
     }
 
     // ── Enforce maxOsPerMonth limit (OS + NFS-e avulsas = transações) ──
@@ -649,6 +652,11 @@ export class QuoteService {
     // Import CodeGeneratorService to generate OS code
     const osCode = await this.codeGenerator.generateCode(companyId, 'SERVICE_ORDER');
 
+    const client = quote.clientPartner;
+    const addressText = client.addressStreet
+      ? `${client.addressStreet}, ${client.addressNumber || 'S/N'} - ${client.neighborhood || ''}, ${client.city || ''} - ${client.state || ''}`
+      : 'A definir';
+
     const os = await this.prisma.serviceOrder.create({
       data: {
         companyId,
@@ -657,12 +665,34 @@ export class QuoteService {
         description,
         clientPartnerId: quote.clientPartnerId,
         valueCents: quote.totalCents,
-        deadlineAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        addressText: quote.clientPartner.addressStreet
-          ? `${quote.clientPartner.addressStreet}, ${quote.clientPartner.addressNumber || 'S/N'} - ${quote.clientPartner.neighborhood || ''}, ${quote.clientPartner.city || ''} - ${quote.clientPartner.state || ''}`
-          : 'A definir',
+        deadlineAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        addressText,
+        addressStreet: client.addressStreet || null,
+        addressNumber: client.addressNumber || null,
+        addressComp: client.addressComp || null,
+        neighborhood: client.neighborhood || null,
+        city: client.city || null,
+        state: client.state || null,
+        cep: client.cep || null,
       },
     });
+
+    // Create OS items from quote items (service items)
+    const sortedItems = quote.items.sort((a, b) => a.sortOrder - b.sortOrder);
+    for (const item of sortedItems) {
+      if (item.serviceId) {
+        await this.prisma.serviceOrderItem.create({
+          data: {
+            serviceOrderId: os.id,
+            serviceId: item.serviceId,
+            serviceName: item.description,
+            unit: item.unit || 'SV',
+            quantity: item.quantity,
+            unitPriceCents: item.unitPriceCents,
+          },
+        });
+      }
+    }
 
     // Link quote to OS
     await this.prisma.quote.update({

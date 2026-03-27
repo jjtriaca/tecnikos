@@ -93,12 +93,14 @@ function ActionsDropdown({
   onDelete,
   onSend,
   onPdf,
+  onConvertToOs,
 }: {
   quote: Quote;
   onDuplicate: (q: Quote) => void;
   onDelete: (q: Quote) => void;
   onSend: (q: Quote) => void;
   onPdf: (q: Quote) => void;
+  onConvertToOs: (q: Quote) => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -137,6 +139,7 @@ function ActionsDropdown({
   const canEdit = ["RASCUNHO", "ENVIADO"].includes(quote.status);
   const canSend = quote.status === "RASCUNHO";
   const canDelete = quote.status === "RASCUNHO";
+  const canConvertToOs = ["APROVADO", "ENVIADO"].includes(quote.status) && !quote.serviceOrder;
 
   return (
     <div ref={wrapperRef}>
@@ -187,6 +190,19 @@ function ActionsDropdown({
           >
             Duplicar
           </button>
+
+          {/* Converter em OS */}
+          {canConvertToOs && (
+            <>
+              <div className="my-1 border-t border-slate-100" />
+              <button
+                onClick={() => { setOpen(false); onConvertToOs(quote); }}
+                className="block w-full text-left px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+              >
+                Converter em OS
+              </button>
+            </>
+          )}
 
           {/* Enviar */}
           {canSend && (
@@ -390,6 +406,17 @@ export default function QuotesPage() {
     }
   };
 
+  const handleConvertToOs = async (q: Quote) => {
+    if (!confirm(`Converter orçamento ${q.code} em Ordem de Serviço?`)) return;
+    try {
+      const os = await api.post<{ id: string; code: string }>(`/quotes/${q.id}/create-os`);
+      toast(`OS ${os.code} criada com sucesso!`, "success");
+      router.push(`/orders/${os.id}`);
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao converter", "error");
+    }
+  };
+
   // Inject action column render
   const columnsWithActions = orderedColumns.map((col) => {
     if (col.id === "actions") {
@@ -403,6 +430,7 @@ export default function QuotesPage() {
               onDelete={(q) => setConfirmDelete(q.id)}
               onSend={handleSend}
               onPdf={handlePdf}
+              onConvertToOs={handleConvertToOs}
             />
           </div>
         ),
