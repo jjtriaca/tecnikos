@@ -516,21 +516,33 @@ function PdfLayoutSection({ value, onChange }: { value: number; onChange: (v: nu
    ══════════════════════════════════════════════════════════ */
 
 const NFSE_VARIABLES = [
+  // Cliente/Tomador
   { var: "{nome_cliente}", label: "Nome do Cliente", desc: "Razao social ou nome do tomador" },
   { var: "{documento_cliente}", label: "CPF/CNPJ Cliente", desc: "Documento do tomador" },
+  { var: "{ie_cliente}", label: "IE Cliente", desc: "Inscricao Estadual do tomador" },
+  { var: "{im_cliente}", label: "IM Cliente", desc: "Inscricao Municipal do tomador" },
+  { var: "{razao_social_cliente}", label: "Razao Social Cliente", desc: "Razao social (PJ) ou nome completo (PF)" },
+  { var: "{nome_fantasia_cliente}", label: "Nome Fantasia Cliente", desc: "Nome fantasia ou nome da propriedade" },
+  { var: "{endereco_cliente}", label: "Endereco Cliente", desc: "Endereco completo do tomador" },
+  { var: "{telefone_cliente}", label: "Telefone Cliente", desc: "Telefone do tomador" },
+  { var: "{email_cliente}", label: "Email Cliente", desc: "Email do tomador" },
+  // OS
   { var: "{codigo_os}", label: "Codigo OS", desc: "Ex: OS-00046" },
   { var: "{titulo_os}", label: "Titulo OS", desc: "Titulo da ordem de servico" },
+  { var: "{nome_tecnico}", label: "Nome do Tecnico", desc: "Tecnico atribuido a OS" },
+  { var: "{endereco_servico}", label: "Endereco do Servico", desc: "Local onde o servico foi executado" },
+  // Nota
   { var: "{valor_total}", label: "Valor Total", desc: "Valor total da NFS-e" },
   { var: "{numero_nfse}", label: "Numero NFS-e", desc: "Numero da nota emitida" },
   { var: "{data_emissao}", label: "Data Emissao", desc: "Data de emissao da nota" },
-  { var: "{nome_empresa}", label: "Nome da Empresa", desc: "Razao social do prestador" },
-  { var: "{cnpj_empresa}", label: "CNPJ Empresa", desc: "CNPJ do prestador" },
-  { var: "{im_empresa}", label: "IM Empresa", desc: "Inscricao municipal do prestador" },
   { var: "{codigo_servico}", label: "Codigo Servico", desc: "Codigo do item de servico LC 116" },
   { var: "{aliquota_iss}", label: "Aliquota ISS", desc: "Aliquota do ISS em %" },
   { var: "{valor_iss}", label: "Valor ISS", desc: "Valor do ISS calculado" },
-  { var: "{nome_tecnico}", label: "Nome do Tecnico", desc: "Tecnico atribuido a OS" },
-  { var: "{endereco_servico}", label: "Endereco do Servico", desc: "Local onde o servico foi executado" },
+  // Prestador
+  { var: "{nome_empresa}", label: "Nome da Empresa", desc: "Razao social do prestador" },
+  { var: "{cnpj_empresa}", label: "CNPJ Empresa", desc: "CNPJ do prestador" },
+  { var: "{ie_empresa}", label: "IE Empresa", desc: "Inscricao Estadual do prestador" },
+  { var: "{im_empresa}", label: "IM Empresa", desc: "Inscricao municipal do prestador" },
 ];
 
 function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -599,19 +611,27 @@ function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v:
               {value
                 .replace(/\{nome_cliente\}/g, "Maria Fernanda da Silva")
                 .replace(/\{documento_cliente\}/g, "123.456.789-01")
+                .replace(/\{ie_cliente\}/g, "134576250")
+                .replace(/\{im_cliente\}/g, "54321")
+                .replace(/\{razao_social_cliente\}/g, "Maria Fernanda da Silva")
+                .replace(/\{nome_fantasia_cliente\}/g, "Fazenda Agua Limpa")
+                .replace(/\{endereco_cliente\}/g, "Rua das Flores, 123, Centro, Primavera do Leste/MT")
+                .replace(/\{telefone_cliente\}/g, "(66) 99876-5432")
+                .replace(/\{email_cliente\}/g, "maria@email.com")
                 .replace(/\{codigo_os\}/g, "OS-00123")
                 .replace(/\{titulo_os\}/g, "Instalacao de Ar-Condicionado")
+                .replace(/\{nome_tecnico\}/g, "Carlos Eduardo Mendes")
+                .replace(/\{endereco_servico\}/g, "Rua das Palmeiras, 456 - Centro, Sao Paulo/SP")
                 .replace(/\{valor_total\}/g, "R$ 2.850,00")
                 .replace(/\{numero_nfse\}/g, "54")
                 .replace(/\{data_emissao\}/g, "27/03/2026")
-                .replace(/\{nome_empresa\}/g, "SLS OBRAS LTDA")
-                .replace(/\{cnpj_empresa\}/g, "47.226.599/0001-40")
-                .replace(/\{im_empresa\}/g, "12345")
                 .replace(/\{codigo_servico\}/g, "14.01")
                 .replace(/\{aliquota_iss\}/g, "5,00")
                 .replace(/\{valor_iss\}/g, "R$ 142,50")
-                .replace(/\{nome_tecnico\}/g, "Carlos Eduardo Mendes")
-                .replace(/\{endereco_servico\}/g, "Rua das Palmeiras, 456 - Centro, Sao Paulo/SP")
+                .replace(/\{nome_empresa\}/g, "SLS OBRAS LTDA")
+                .replace(/\{cnpj_empresa\}/g, "47.226.599/0001-40")
+                .replace(/\{ie_empresa\}/g, "137307136")
+                .replace(/\{im_empresa\}/g, "12345")
               }
             </p>
           </div>

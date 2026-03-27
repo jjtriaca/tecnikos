@@ -376,8 +376,14 @@ export default function PartnerForm({
         {form.personType === "PF" && !form.isRuralProducer && (
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input placeholder="Nome completo *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
-              <input placeholder="CPF" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " w-full"} />
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Nome Completo *</label>
+                <input placeholder="Ex: Maria Fernanda da Silva" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">CPF</label>
+                <input placeholder="000.000.000-00" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " w-full"} />
+              </div>
             </div>
           </div>
         )}
@@ -386,16 +392,28 @@ export default function PartnerForm({
         {form.personType === "PF" && form.isRuralProducer && (
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input placeholder="Nome completo *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
-              <input placeholder="CPF" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " w-full"} />
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Nome Completo *</label>
+                <input placeholder="Ex: Joao Carlos Pereira" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">CPF</label>
+                <input placeholder="000.000.000-00" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCpf(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " w-full"} />
+              </div>
             </div>
-            <input placeholder="Nome da Propriedade / Fazenda" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: f.tradeName.toUpperCase(), addressComp: f.addressComp || f.tradeName.toUpperCase() }))} className={inputClass + " w-full"} />
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Nome da Propriedade / Fazenda</label>
+              <input placeholder="Ex: Fazenda Agua Limpa" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: f.tradeName.toUpperCase(), addressComp: f.addressComp || f.tradeName.toUpperCase() }))} className={inputClass + " w-full"} />
+            </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <input placeholder="Inscrição Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " w-full sm:w-1/2"} />
+              <div className="flex-1">
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Inscricao Estadual (IE)</label>
+                <input placeholder="Numero da IE" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " w-full"} />
+              </div>
               <button
                 type="button"
                 onClick={() => setSefazModalOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors whitespace-nowrap self-end"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 Importar SEFAZ
@@ -408,26 +426,47 @@ export default function PartnerForm({
         {form.personType === "PJ" && (
           <div className="space-y-3">
             <div className="flex gap-2">
-              <input placeholder="CNPJ" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCnpj(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " flex-1"} />
-              <button type="button" onClick={handleLookupCnpj} disabled={lookingUpCnpj || form.document.replace(/\D/g, "").length !== 14} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50 transition-colors whitespace-nowrap">
+              <div className="flex-1">
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">CNPJ</label>
+                <input placeholder="00.000.000/0000-00" value={form.document} onChange={(e) => setForm((f) => ({ ...f, document: maskCnpj(e.target.value) }))} onBlur={() => checkDocumentDuplicate(form.document)} className={inputClass + " w-full"} />
+              </div>
+              <button type="button" onClick={handleLookupCnpj} disabled={lookingUpCnpj || form.document.replace(/\D/g, "").length !== 14} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50 transition-colors whitespace-nowrap self-end">
                 {lookingUpCnpj ? "Buscando..." : "Buscar CNPJ"}
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input placeholder="Razão Social *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
-              <input placeholder="Nome Fantasia" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: toTitleCase(f.tradeName) }))} className={inputClass + " w-full"} />
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Razao Social *</label>
+                <input placeholder="Ex: Empresa ABC Ltda" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Nome Fantasia</label>
+                <input placeholder="Ex: ABC Comercio" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: toTitleCase(f.tradeName) }))} className={inputClass + " w-full"} />
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input placeholder="Inscrição Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " w-full"} />
-              <input placeholder="Inscrição Municipal (IM)" value={form.im} onChange={(e) => setForm((f) => ({ ...f, im: e.target.value }))} className={inputClass + " w-full"} />
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Inscricao Estadual (IE)</label>
+                <input placeholder="Numero da IE" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " w-full"} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Inscricao Municipal (IM)</label>
+                <input placeholder="Numero da IM" value={form.im} onChange={(e) => setForm((f) => ({ ...f, im: e.target.value }))} className={inputClass + " w-full"} />
+              </div>
             </div>
           </div>
         )}
 
         {/* Phone + Email */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input placeholder="Telefone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: maskPhone(e.target.value) }))} className={inputClass + " w-full"} />
-          <input placeholder="Email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputClass + " w-full"} />
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Telefone</label>
+            <input placeholder="(00) 00000-0000" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: maskPhone(e.target.value) }))} className={inputClass + " w-full"} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Email</label>
+            <input placeholder="email@exemplo.com" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputClass + " w-full"} />
+          </div>
         </div>
 
         {/* TECNICO access info */}
@@ -443,18 +482,39 @@ export default function PartnerForm({
           <p className="text-xs font-medium text-slate-500 mb-3 uppercase tracking-wide">Endereço</p>
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input placeholder="CEP" value={form.cep} onChange={(e) => setForm((f) => ({ ...f, cep: maskCep(e.target.value) }))} onBlur={handleCepBlur} className={inputClass + " w-full"} />
-              <input placeholder="Endereco" value={form.addressStreet} onChange={(e) => setForm((f) => ({ ...f, addressStreet: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))} className={inputClass + " w-full"} />
-              <input placeholder="Número" value={form.addressNumber} onChange={(e) => setForm((f) => ({ ...f, addressNumber: e.target.value }))} className={inputClass + " w-full"} />
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">CEP</label>
+                <input placeholder="00000-000" value={form.cep} onChange={(e) => setForm((f) => ({ ...f, cep: maskCep(e.target.value) }))} onBlur={handleCepBlur} className={inputClass + " w-full"} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Logradouro</label>
+                <input placeholder="Rua, Av, Rod..." value={form.addressStreet} onChange={(e) => setForm((f) => ({ ...f, addressStreet: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))} className={inputClass + " w-full"} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Numero</label>
+                <input placeholder="S/N" value={form.addressNumber} onChange={(e) => setForm((f) => ({ ...f, addressNumber: e.target.value }))} className={inputClass + " w-full"} />
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <input placeholder="Complemento" value={form.addressComp} onChange={(e) => setForm((f) => ({ ...f, addressComp: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))} className={inputClass + " w-full"} />
-              <input placeholder="Bairro" value={form.neighborhood} onChange={(e) => setForm((f) => ({ ...f, neighborhood: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))} className={inputClass + " w-full"} />
-              <input placeholder="Cidade" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, city: toTitleCase(f.city) }))} className={inputClass + " w-full"} />
-              <select value={form.state} onChange={(e) => { const uf = e.target.value; setForm((f) => ({ ...f, state: uf, ie: f.ie ? maskIE(f.ie, uf) : "" })); }} className={inputClass + " w-full"}>
-                <option value="">UF</option>
-                {STATES.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
-              </select>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Complemento</label>
+                <input placeholder="Apto, Sala..." value={form.addressComp} onChange={(e) => setForm((f) => ({ ...f, addressComp: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))} className={inputClass + " w-full"} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Bairro</label>
+                <input placeholder="Bairro" value={form.neighborhood} onChange={(e) => setForm((f) => ({ ...f, neighborhood: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))} className={inputClass + " w-full"} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Cidade</label>
+                <input placeholder="Cidade" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, city: toTitleCase(f.city) }))} className={inputClass + " w-full"} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">UF</label>
+                <select value={form.state} onChange={(e) => { const uf = e.target.value; setForm((f) => ({ ...f, state: uf, ie: f.ie ? maskIE(f.ie, uf) : "" })); }} className={inputClass + " w-full"}>
+                  <option value="">UF</option>
+                  {STATES.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         </div>

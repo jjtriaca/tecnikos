@@ -84,25 +84,42 @@ export class NfseEmissionService {
 
     const grossCents = entry.grossCents || 0;
 
+    // Build client address
+    const enderecoCliente = partner
+      ? [partner.addressStreet, partner.addressNumber, partner.neighborhood, partner.city, partner.state].filter(Boolean).join(', ')
+      : '';
+
     // Variable map
     const vars: Record<string, string> = {
+      // Cliente/Tomador
       '{nome_cliente}': partner?.name || '',
       '{documento_cliente}': partner?.document || '',
+      '{ie_cliente}': partner?.ie || '',
+      '{im_cliente}': partner?.im || '',
+      '{razao_social_cliente}': partner?.name || '',
+      '{nome_fantasia_cliente}': partner?.tradeName || '',
+      '{endereco_cliente}': enderecoCliente,
+      '{telefone_cliente}': partner?.phone || '',
+      '{email_cliente}': partner?.email || '',
+      // OS
       '{codigo_os}': so?.code || '',
       '{titulo_os}': so?.title || '',
+      '{nome_tecnico}': tech?.name || '',
+      '{endereco_servico}': endereco,
+      // Nota
       '{valor_total}': `R$ ${(grossCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       '{numero_nfse}': '', // filled after emission
       '{data_emissao}': brDate.toLocaleDateString('pt-BR'),
-      '{nome_empresa}': company.name || '',
-      '{cnpj_empresa}': company.cnpj || '',
-      '{im_empresa}': nfseConfig?.inscricaoMunicipal || company.im || '',
       '{codigo_servico}': nfseConfig?.itemListaServico || '',
       '{aliquota_iss}': nfseConfig?.aliquotaIss != null ? String(nfseConfig.aliquotaIss).replace('.', ',') : '',
       '{valor_iss}': nfseConfig?.aliquotaIss != null
         ? `R$ ${(grossCents / 100 * nfseConfig.aliquotaIss / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
         : '',
-      '{nome_tecnico}': tech?.name || '',
-      '{endereco_servico}': endereco,
+      // Prestador
+      '{nome_empresa}': company.name || '',
+      '{cnpj_empresa}': company.cnpj || '',
+      '{ie_empresa}': company.ie || '',
+      '{im_empresa}': nfseConfig?.inscricaoMunicipal || company.im || '',
     };
 
     let result = template;
