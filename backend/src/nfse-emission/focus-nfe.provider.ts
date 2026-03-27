@@ -41,6 +41,7 @@ export interface FocusNfseRequest {
     aliquota: number;
     base_calculo?: number;
     codigo_municipio?: string;
+    informacoes_complementares?: string;
   };
 }
 
@@ -82,6 +83,8 @@ export interface FocusNfsenRequest {
   percentual_total_tributos_federais?: string;
   percentual_total_tributos_estaduais?: string;
   percentual_total_tributos_municipais?: string;
+  // Informações complementares (texto livre no PDF)
+  informacoes_complementares?: string;
   // Informações de Obra (obrigatório para cTribNac 07.02.xx, 07.04.xx, etc.)
   codigo_obra?: string;           // CNO - Cadastro Nacional de Obras
   logradouro_obra?: string;

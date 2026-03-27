@@ -56,6 +56,8 @@ export class EmitNfseDto {
   @IsOptional() @IsString() serviceCodeId?: string;
   // NBS selecionado na emissao
   @IsOptional() @IsString() codigoNbs?: string;
+  // Informacoes complementares (texto livre no PDF)
+  @IsOptional() @IsString() infComplementares?: string;
 }
 
 export class CreateNfseServiceCodeDto {

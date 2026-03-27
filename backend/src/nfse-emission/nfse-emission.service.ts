@@ -568,6 +568,8 @@ export class NfseEmissionService {
           percentual_total_tributos_estaduais: '0.00',
           percentual_total_tributos_municipais: String(aliquota || 0),
         } : {}),
+        // Informações complementares
+        ...(dto.infComplementares ? { informacoes_complementares: dto.infComplementares } : {}),
         // Campos de obra (obrigatório para cTribNac 07.02.xx, 07.04.xx, etc.)
         ...(isObra && obra ? {
           codigo_obra: obra.cno?.replace(/\D/g, '') || '',
@@ -618,6 +620,7 @@ export class NfseEmissionService {
           aliquota,
           base_calculo: baseCalculo,
           codigo_municipio: dto.codigoMunicipioServico || config.codigoMunicipio || undefined,
+          ...(dto.infComplementares ? { informacoes_complementares: dto.infComplementares } : {}),
         },
       } as FocusNfseRequest;
     }
@@ -648,6 +651,7 @@ export class NfseEmissionService {
       discriminacao: dto.discriminacao,
       codigoMunicipioServico: dto.codigoMunicipioServico || config.codigoMunicipio,
       naturezaOperacao: dto.naturezaOperacao || config.naturezaOperacao,
+      infComplementares: dto.infComplementares || undefined,
       obraId: isObra ? dto.obraId : undefined,
     };
 

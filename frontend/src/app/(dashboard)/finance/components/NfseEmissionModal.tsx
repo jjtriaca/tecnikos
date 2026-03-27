@@ -178,6 +178,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [tomadorUf, setTomadorUf] = useState("");
   const [tomadorCep, setTomadorCep] = useState("");
   const [discriminacao, setDiscriminacao] = useState("");
+  const [infComplementares, setInfComplementares] = useState("");
   const [aliquotaIss, setAliquotaIss] = useState("");
   const [issRetido, setIssRetido] = useState(false);
 
@@ -401,6 +402,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         codigoCnae: preview.servico.codigoCnae,
         codigoTributarioMunicipio: preview.servico.codigoTributarioMunicipio,
         discriminacao,
+        ...(infComplementares ? { infComplementares } : {}),
         naturezaOperacao: preview.servico.naturezaOperacao,
         codigoMunicipioServico: preview.servico.codigoMunicipioServico,
       });
@@ -876,6 +878,16 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                           value={discriminacao}
                           onChange={(e) => setDiscriminacao(e.target.value)}
                           rows={3}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Informacoes Complementares</label>
+                        <textarea
+                          value={infComplementares}
+                          onChange={(e) => setInfComplementares(e.target.value)}
+                          rows={2}
+                          placeholder="Ex: ISS retido na fonte, dados bancarios, referencia a OS..."
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
                         />
                       </div>

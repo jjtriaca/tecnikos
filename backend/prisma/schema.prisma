@@ -1572,6 +1572,7 @@ model NfseEmission {
   discriminacao         String?
   codigoMunicipioServico String?
   naturezaOperacao      String?
+  infComplementares     String?
   // XML e PDF
   xmlUrl                String?   // URL do XML no Focus NFe
   pdfUrl                String?   // URL do DANFSe no Focus NFe
