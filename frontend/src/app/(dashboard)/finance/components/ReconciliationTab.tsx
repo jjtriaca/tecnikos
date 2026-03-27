@@ -148,6 +148,7 @@ function ConciliationModal({
 }) {
   const { toast } = useToast();
   const [candidates, setCandidates] = useState<any[]>([]);
+  const [cardFeeRates, setCardFeeRates] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [matching, setMatching] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -155,33 +156,77 @@ function ConciliationModal({
   // Card transaction breakdown state
   const [liquidCents, setLiquidCents] = useState(0);
   const [taxCents, setTaxCents] = useState(0);
+  const [detectedBrand, setDetectedBrand] = useState("");
+  const [detectedType, setDetectedType] = useState("");
 
   const isCard = line ? isCardTransaction(line.description) : false;
+
+  // Detect brand from description
+  function detectCardBrand(desc: string): { brand: string; type: string } {
+    const upper = desc.toUpperCase();
+    let brand = "";
+    if (upper.includes("MASTER")) brand = "MASTERCARD";
+    else if (upper.includes("VISA")) brand = "VISA";
+    else if (upper.includes("ELO")) brand = "ELO";
+    else if (upper.includes("HIPER")) brand = "HIPERCARD";
+    else if (upper.includes("AMEX")) brand = "AMEX";
+    else brand = "OUTRO";
+
+    let type = "CREDITO";
+    if (upper.includes("DEBITO") || upper.includes("DEBIT")) type = "DEBITO";
+
+    return { brand, type };
+  }
 
   useEffect(() => {
     if (!open || !line) return;
     setSearch("");
     setLoading(true);
 
-    // For card transactions, initialize liquid = bank amount, tax = 0
-    if (isCardTransaction(line.description)) {
+    const isCardTx = isCardTransaction(line.description);
+
+    // For card transactions, detect brand and fetch fee rates
+    if (isCardTx) {
+      const { brand, type: cardType } = detectCardBrand(line.description);
+      setDetectedBrand(brand);
+      setDetectedType(cardType);
       setLiquidCents(Math.abs(line.amountCents));
       setTaxCents(0);
     }
 
-    // Fetch both PAID and PENDING entries for reconciliation
+    // Fetch entries, card fee rates in parallel
     const type = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
     Promise.all([
       api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50`).catch(() => ({ data: [] })),
       api.get<any>(`/finance/entries?status=PENDING&type=${type}&limit=50`).catch(() => ({ data: [] })),
+      isCardTx ? api.get<any[]>("/finance/card-fee-rates").catch(() => []) : Promise.resolve([]),
     ])
-      .then(([paidRes, pendingRes]) => {
+      .then(([paidRes, pendingRes, feeRates]) => {
         const paid = (paidRes.data || paidRes || []).map((e: any) => ({ ...e, _fromStatus: "PAID" }));
         const pending = (pendingRes.data || pendingRes || []).map((e: any) => ({ ...e, _fromStatus: "PENDING" }));
-        // Deduplicate by id (in case)
         const map = new Map<string, any>();
         [...paid, ...pending].forEach((e) => { if (!map.has(e.id)) map.set(e.id, e); });
         setCandidates(Array.from(map.values()));
+        setCardFeeRates(feeRates || []);
+
+        // Auto-calculate tax from fee rates if card
+        if (isCardTx && feeRates && feeRates.length > 0) {
+          const { brand, type: cardType } = detectCardBrand(line.description);
+          const rate = (feeRates as any[]).find((r: any) =>
+            r.brand?.toUpperCase() === brand.toUpperCase() &&
+            r.type?.toUpperCase() === cardType.toUpperCase() &&
+            r.isActive
+          );
+          if (rate) {
+            const bankAmount = Math.abs(line.amountCents);
+            // Bank deposited = bruto * (1 - fee/100), so bruto = deposited / (1 - fee/100)
+            const feePercent = rate.feePercent || 0;
+            const bruto = Math.round(bankAmount / (1 - feePercent / 100));
+            const tax = bruto - bankAmount;
+            setLiquidCents(bankAmount);
+            setTaxCents(tax);
+          }
+        }
       })
       .catch(() => setCandidates([]))
       .finally(() => setLoading(false));
@@ -265,7 +310,19 @@ function ConciliationModal({
           {/* Card breakdown section */}
           {isCard && (
             <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50/50 p-3">
-              <p className="text-xs font-semibold text-purple-800 mb-2">Detalhamento Cartao</p>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-xs font-semibold text-purple-800">Detalhamento Cartao</p>
+                {detectedBrand && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
+                    {detectedBrand} {detectedType}
+                  </span>
+                )}
+                {taxCents > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
+                    Taxa: {((taxCents / (liquidCents + taxCents)) * 100).toFixed(2)}%
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[10px] font-medium text-slate-500 mb-1">Valor Liquido (depositado)</label>
@@ -360,7 +417,11 @@ function ConciliationModal({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400">{entry.partner?.name || "—"} • Venc: {formatDate(entry.dueDate)}</p>
+                      <p className="text-xs text-slate-400">
+                        {entry.partner?.name || "—"} • Venc: {formatDate(entry.dueDate)}
+                        {entry.paymentMethod && <span className="ml-1 text-slate-500">• {entry.paymentMethod.replace(/_/g, " ")}</span>}
+                        {entry.cardBrand && <span className="ml-1 px-1 py-0.5 rounded bg-purple-100 text-purple-700 text-[9px] font-medium">{entry.cardBrand}</span>}
+                      </p>
                     </div>
                     <div className="flex items-center gap-3 ml-3">
                       <div className="text-right">
