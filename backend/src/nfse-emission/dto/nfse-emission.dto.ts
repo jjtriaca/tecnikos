@@ -39,6 +39,7 @@ export class EmitNfseDto {
   @IsOptional() @IsString() tomadorCodigoMunicipio?: string;
   @IsOptional() @IsString() tomadorUf?: string;
   @IsOptional() @IsString() tomadorCep?: string;
+  @IsOptional() @IsString() tomadorCaepf?: string; // CAEPF - Produtor Rural
   // Serviço (pode sobrescrever os padrões da config)
   @IsInt() @Min(1) valorServicosCents: number;
   @IsOptional() @IsNumber() aliquotaIss?: number;

@@ -59,6 +59,7 @@ export interface FocusNfsenRequest {
   // Tomador
   cnpj_tomador?: string;
   cpf_tomador?: string;
+  caepf_tomador?: string;  // CAEPF - Produtor Rural PF
   razao_social_tomador: string;
   codigo_municipio_tomador?: number;
   cep_tomador?: string;

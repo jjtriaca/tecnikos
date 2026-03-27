@@ -315,6 +315,7 @@ model Partner {
   documentType  String?  // "CPF", "CNPJ"
   ie            String?  // Inscrição Estadual
   im            String?  // Inscrição Municipal
+  caepf         String?  // CAEPF - Cadastro de Atividade Econômica PF (Produtor Rural)
   ieStatus      String?  // "ATIVA", "INATIVA", "NAO_HABILITADO"
   ieLastCheck   DateTime?
 

@@ -23,6 +23,7 @@ export type Partner = {
   documentType: string | null;
   ie: string | null;
   im: string | null;
+  caepf: string | null;
   ieStatus: string | null;
   isRuralProducer: boolean;
   rating: number;

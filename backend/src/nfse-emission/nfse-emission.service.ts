@@ -101,6 +101,7 @@ export class NfseEmissionService {
       '{endereco_cliente}': enderecoCliente,
       '{telefone_cliente}': partner?.phone || '',
       '{email_cliente}': partner?.email || '',
+      '{caepf_cliente}': partner?.caepf || '',
       // OS
       '{codigo_os}': so?.code || '',
       '{titulo_os}': so?.title || '',
@@ -420,6 +421,8 @@ export class NfseEmissionService {
         uf: tomador?.state || '',
         cep: tomador?.cep || '',
         city: tomador?.city || '',
+        caepf: tomador?.caepf || '',
+        isRuralProducer: tomador?.isRuralProducer || false,
       },
       // Serviço
       servico: {
@@ -621,6 +624,7 @@ export class NfseEmissionService {
         // Tomador
         cnpj_tomador: tomadorDoc.length === 14 ? tomadorDoc : undefined,
         cpf_tomador: tomadorDoc.length === 11 ? tomadorDoc : undefined,
+        caepf_tomador: dto.tomadorCaepf?.replace(/\D/g, '') || undefined,
         razao_social_tomador: dto.tomadorRazaoSocial || '',
         codigo_municipio_tomador: tomadorMunicipioNum || undefined,
         cep_tomador: (dto.tomadorCep || '').replace(/\D/g, '') || undefined,

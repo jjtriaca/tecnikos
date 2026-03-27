@@ -41,6 +41,7 @@ const EMPTY_FORM = {
   documentType: "CNPJ" as string,
   ie: "",
   im: "",
+  caepf: "",
   isRuralProducer: false,
   phone: "",
   email: "",
@@ -88,6 +89,7 @@ export default function PartnerForm({
         documentType: editingPartner.documentType || (editingPartner.personType === "PJ" ? "CNPJ" : "CPF"),
         ie: editingPartner.ie ? maskIE(editingPartner.ie, editingPartner.state || "") : "",
         im: editingPartner.im || "",
+        caepf: editingPartner.caepf || "",
         isRuralProducer: editingPartner.isRuralProducer,
         phone: editingPartner.phone || "",
         email: editingPartner.email || "",
@@ -405,19 +407,25 @@ export default function PartnerForm({
               <label className="block text-[11px] font-medium text-slate-500 mb-1">Nome da Propriedade / Fazenda</label>
               <input placeholder="Ex: Fazenda Agua Limpa" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: f.tradeName.toUpperCase(), addressComp: f.addressComp || f.tradeName.toUpperCase() }))} className={inputClass + " w-full"} />
             </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Inscricao Estadual (IE)</label>
-                <input placeholder="Numero da IE" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " w-full"} />
+                <div className="flex gap-2">
+                  <input placeholder="Numero da IE" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " flex-1"} />
+                  <button
+                    type="button"
+                    onClick={() => setSefazModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors whitespace-nowrap"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    SEFAZ
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setSefazModalOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors whitespace-nowrap self-end"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                Importar SEFAZ
-              </button>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">CAEPF (Propriedade Rural)</label>
+                <input placeholder="Ex: 123.456.789/0001" value={form.caepf} onChange={(e) => setForm((f) => ({ ...f, caepf: e.target.value.replace(/\D/g, "").slice(0, 14).replace(/(\d{3})(\d{3})(\d{3})(\d{0,4})/, "$1.$2.$3/$4") }))} className={inputClass + " w-full"} />
+              </div>
             </div>
           </div>
         )}

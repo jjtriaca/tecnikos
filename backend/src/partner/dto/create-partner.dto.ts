@@ -53,6 +53,10 @@ export class CreatePartnerDto {
 
   @IsOptional()
   @IsString()
+  caepf?: string;
+
+  @IsOptional()
+  @IsString()
   ieStatus?: string;
 
   @IsOptional()

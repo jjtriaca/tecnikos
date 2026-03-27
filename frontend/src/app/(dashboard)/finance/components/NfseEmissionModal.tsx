@@ -43,6 +43,8 @@ interface NfsePreview {
     uf: string;
     cep: string;
     city: string;
+    caepf?: string;
+    isRuralProducer?: boolean;
   };
   servico: {
     valorServicosCents: number;
@@ -177,6 +179,8 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [tomadorCodigoMunicipio, setTomadorCodigoMunicipio] = useState("");
   const [tomadorUf, setTomadorUf] = useState("");
   const [tomadorCep, setTomadorCep] = useState("");
+  const [tomadorCaepf, setTomadorCaepf] = useState("");
+  const [tomadorIsRural, setTomadorIsRural] = useState(false);
   const [discriminacao, setDiscriminacao] = useState("");
   const [infComplementares, setInfComplementares] = useState("");
   const [aliquotaIss, setAliquotaIss] = useState("");
@@ -259,6 +263,8 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       setTomadorCodigoMunicipio(data.tomador.codigoMunicipio);
       setTomadorUf(data.tomador.uf);
       setTomadorCep(data.tomador.cep);
+      setTomadorCaepf(data.tomador.caepf || "");
+      setTomadorIsRural(data.tomador.isRuralProducer || false);
       setDiscriminacao(data.servico.discriminacao);
       setAliquotaIss(String(data.servico.aliquotaIss || ""));
       setIssRetido(data.servico.issRetido);
@@ -400,6 +406,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         tomadorCodigoMunicipio,
         tomadorUf,
         tomadorCep,
+        ...(tomadorCaepf ? { tomadorCaepf } : {}),
         valorServicosCents: preview.servico.valorServicosCents,
         aliquotaIss: aliquotaIss ? parseFloat(aliquotaIss.replace(",", ".")) : undefined,
         issRetido,
@@ -710,6 +717,23 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                       </div>
                     </div>
                   </div>
+
+                  {/* CAEPF (Produtor Rural) */}
+                  {tomadorIsRural && (
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-green-700 text-xs font-semibold">🌾 Produtor Rural</span>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-6">
+                          <label className="block text-xs font-medium text-slate-600 mb-1">CAEPF (Propriedade Rural)</label>
+                          <input type="text" value={tomadorCaepf} onChange={(e) => setTomadorCaepf(e.target.value)}
+                            placeholder="000.000.000/0000"
+                            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Servico (editavel) */}
                   <div className="rounded-lg border border-slate-200 p-4">

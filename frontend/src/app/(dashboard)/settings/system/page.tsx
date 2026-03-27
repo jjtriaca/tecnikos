@@ -526,6 +526,7 @@ const NFSE_VARIABLES = [
   { var: "{endereco_cliente}", label: "Endereco Cliente", desc: "Endereco completo do tomador" },
   { var: "{telefone_cliente}", label: "Telefone Cliente", desc: "Telefone do tomador" },
   { var: "{email_cliente}", label: "Email Cliente", desc: "Email do tomador" },
+  { var: "{caepf_cliente}", label: "CAEPF Cliente", desc: "CAEPF da propriedade rural do tomador" },
   // OS
   { var: "{codigo_os}", label: "Codigo OS", desc: "Ex: OS-00046" },
   { var: "{titulo_os}", label: "Titulo OS", desc: "Titulo da ordem de servico" },
@@ -618,6 +619,7 @@ function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v:
                 .replace(/\{endereco_cliente\}/g, "Rua das Flores, 123, Centro, Primavera do Leste/MT")
                 .replace(/\{telefone_cliente\}/g, "(66) 99876-5432")
                 .replace(/\{email_cliente\}/g, "maria@email.com")
+                .replace(/\{caepf_cliente\}/g, "123.456.789/0001")
                 .replace(/\{codigo_os\}/g, "OS-00123")
                 .replace(/\{titulo_os\}/g, "Instalacao de Ar-Condicionado")
                 .replace(/\{nome_tecnico\}/g, "Carlos Eduardo Mendes")
