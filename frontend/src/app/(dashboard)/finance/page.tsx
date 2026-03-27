@@ -1320,7 +1320,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                   <label className="block text-xs font-medium text-slate-600 mb-1">Conta/Caixa</label>
                   <select value={batchAccountId} onChange={(e) => setBatchAccountId(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
                     <option value="">Nenhuma (nao atualizar saldo)</option>
-                    {activeAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} — {formatCurrency(a.currentBalanceCents)}</option>)}
+                    {activeAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"})</option>)}
                   </select>
                 </div>
               )}
@@ -1520,7 +1520,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                     <option value="">Nenhuma (nao atualizar saldo)</option>
                     {activeAccounts.map((a) => (
                       <option key={a.id} value={a.id}>
-                        {a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"}) — {formatCurrency(a.currentBalanceCents)}
+                        {a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"})
                       </option>
                     ))}
                   </select>
