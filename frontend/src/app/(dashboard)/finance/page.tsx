@@ -552,6 +552,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   });
   const [stmtDateTo, setStmtDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [stmtLoading, setStmtLoading] = useState(false);
+  const [stmtAccountFilter, setStmtAccountFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -746,8 +747,11 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
       label: "Extrato Consolidado",
       content: (() => {
         let runningBalance = 0;
-        const rows = statementData.length > 0
-          ? [...statementData].reverse().map((row) => {
+        const filtered = stmtAccountFilter === "all"
+          ? statementData
+          : statementData.filter((r) => r.cashAccountName === stmtAccountFilter);
+        const rows = filtered.length > 0
+          ? [...filtered].reverse().map((row) => {
               runningBalance += row.amountCents;
               return { ...row, balance: runningBalance };
             }).reverse()
@@ -762,6 +766,13 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
               <label className="text-xs text-slate-500">Até</label>
               <input type="date" value={stmtDateTo} onChange={(e) => setStmtDateTo(e.target.value)}
                 className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+              <select value={stmtAccountFilter} onChange={(e) => setStmtAccountFilter(e.target.value)}
+                className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 outline-none">
+                <option value="all">Todas as contas</option>
+                {dashData?.cashAccounts?.map((a: any) => (
+                  <option key={a.id} value={a.name}>{a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"})</option>
+                ))}
+              </select>
               <button onClick={reloadStatement} disabled={stmtLoading}
                 className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">
                 {stmtLoading ? "..." : "Filtrar"}
