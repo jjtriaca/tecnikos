@@ -95,6 +95,48 @@ export function maskPhone(v: string): string {
   return d.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2");
 }
 
+// ========== Inscrição Estadual Masks by State ==========
+
+const IE_MASKS: Record<string, { maxDigits: number; mask: (d: string) => string }> = {
+  AC: { maxDigits: 13, mask: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{3})(\d{0,2})/, "$1.$2.$3/$4-$5") },
+  AL: { maxDigits: 9, mask: (d) => d.replace(/(\d{9})/, "$1") },
+  AP: { maxDigits: 9, mask: (d) => d.replace(/(\d{9})/, "$1") },
+  AM: { maxDigits: 9, mask: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, "$1.$2.$3-$4") },
+  BA: { maxDigits: 9, mask: (d) => d.length <= 8
+    ? d.replace(/(\d{6})(\d{0,2})/, "$1-$2")
+    : d.replace(/(\d{7})(\d{0,2})/, "$1-$2") },
+  CE: { maxDigits: 9, mask: (d) => d.replace(/(\d{8})(\d{0,1})/, "$1-$2") },
+  DF: { maxDigits: 13, mask: (d) => d.replace(/(\d{3})(\d{7})(\d{3})/, "$1.$2.$3") },
+  ES: { maxDigits: 9, mask: (d) => d.replace(/(\d{8})(\d{0,1})/, "$1-$2") },
+  GO: { maxDigits: 9, mask: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, "$1.$2.$3-$4") },
+  MA: { maxDigits: 9, mask: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, "$1.$2.$3-$4") },
+  MT: { maxDigits: 11, mask: (d) => d.replace(/(\d{10})(\d{0,1})/, "$1-$2") },
+  MS: { maxDigits: 9, mask: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, "$1.$2.$3-$4") },
+  MG: { maxDigits: 13, mask: (d) => d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,4})/, "$1.$2.$3/$4") },
+  PA: { maxDigits: 9, mask: (d) => d.replace(/(\d{2})(\d{6})(\d{0,1})/, "$1-$2-$3") },
+  PB: { maxDigits: 9, mask: (d) => d.replace(/(\d{8})(\d{0,1})/, "$1-$2") },
+  PR: { maxDigits: 10, mask: (d) => d.replace(/(\d{3})(\d{5})(\d{0,2})/, "$1.$2-$3") },
+  PE: { maxDigits: 9, mask: (d) => d.replace(/(\d{7})(\d{0,2})/, "$1-$2") },
+  PI: { maxDigits: 9, mask: (d) => d.replace(/(\d{8})(\d{0,1})/, "$1-$2") },
+  RJ: { maxDigits: 8, mask: (d) => d.replace(/(\d{2})(\d{3})(\d{2})(\d{0,1})/, "$1.$2.$3-$4") },
+  RN: { maxDigits: 10, mask: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, "$1.$2.$3-$4") },
+  RS: { maxDigits: 10, mask: (d) => d.replace(/(\d{3})(\d{0,7})/, "$1/$2") },
+  RO: { maxDigits: 14, mask: (d) => d.replace(/(\d{3})(\d{5})(\d{0,1})/, "$1.$2-$3") },
+  RR: { maxDigits: 9, mask: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, "$1.$2.$3-$4") },
+  SC: { maxDigits: 9, mask: (d) => d.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3") },
+  SP: { maxDigits: 12, mask: (d) => d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3.$4") },
+  SE: { maxDigits: 9, mask: (d) => d.replace(/(\d{8})(\d{0,1})/, "$1-$2") },
+  TO: { maxDigits: 11, mask: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, "$1.$2.$3-$4") },
+};
+
+/** Mask Inscrição Estadual based on state (UF). If no state, just limit to 14 digits. */
+export function maskIE(v: string, uf?: string): string {
+  const d = v.replace(/\D/g, "");
+  if (!uf || !IE_MASKS[uf]) return d.slice(0, 14);
+  const { maxDigits, mask } = IE_MASKS[uf];
+  return mask(d.slice(0, maxDigits));
+}
+
 // CNPJ Lookup - BrasilAPI primary, ReceitaWS fallback
 export async function lookupCnpj(cnpj: string): Promise<{
   razaoSocial: string;

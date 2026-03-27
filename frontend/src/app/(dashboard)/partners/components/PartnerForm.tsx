@@ -9,6 +9,7 @@ import {
   maskCpf,
   maskCep,
   maskPhone,
+  maskIE,
   lookupCnpj,
   lookupCep,
   toTitleCase,
@@ -389,7 +390,7 @@ export default function PartnerForm({
             </div>
             <input placeholder="Nome da Propriedade / Fazenda" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: f.tradeName.toUpperCase(), addressComp: f.addressComp || f.tradeName.toUpperCase() }))} className={inputClass + " w-full"} />
             <div className="flex flex-col sm:flex-row gap-2">
-              <input placeholder="Inscricao Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: e.target.value }))} className={inputClass + " w-full sm:w-1/2"} />
+              <input placeholder="Inscrição Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " w-full sm:w-1/2"} />
               <button
                 type="button"
                 onClick={() => setSefazModalOpen(true)}
@@ -416,7 +417,7 @@ export default function PartnerForm({
               <input placeholder="Nome Fantasia" value={form.tradeName} onChange={(e) => setForm((f) => ({ ...f, tradeName: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, tradeName: toTitleCase(f.tradeName) }))} className={inputClass + " w-full"} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input placeholder="Inscrição Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: e.target.value }))} className={inputClass + " w-full"} />
+              <input placeholder="Inscrição Estadual (IE)" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " w-full"} />
               <input placeholder="Inscrição Municipal (IM)" value={form.im} onChange={(e) => setForm((f) => ({ ...f, im: e.target.value }))} className={inputClass + " w-full"} />
             </div>
           </div>

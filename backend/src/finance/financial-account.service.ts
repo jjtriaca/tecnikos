@@ -91,22 +91,36 @@ export class FinancialAccountService {
   }
 
   async findAll(companyId: string, type?: string) {
-    const where: any = { companyId, deletedAt: null, level: 1 };
+    // Fetch ALL accounts (groups + subgroups) in a single query to avoid
+    // issues with Prisma relation include on self-referential models in
+    // tenant schemas. Build the tree manually.
+    const where: any = { companyId, deletedAt: null };
     if (type) where.type = type;
 
-    const groups = await this.prisma.financialAccount.findMany({
+    const allAccounts = await this.prisma.financialAccount.findMany({
       where,
-      include: {
-        children: {
-          where: { deletedAt: null },
-          orderBy: { sortOrder: 'asc' },
-          include: { _count: { select: { entries: true } } },
-        },
-      },
+      include: { _count: { select: { entries: true } } },
       orderBy: { sortOrder: 'asc' },
     });
 
-    return groups;
+    // Separate groups (level 1) and subgroups (level 2)
+    const groups = allAccounts.filter(a => a.level === 1);
+    const subgroups = allAccounts.filter(a => a.level === 2);
+
+    // Build a parentId -> children map
+    const childrenMap = new Map<string, typeof subgroups>();
+    for (const sub of subgroups) {
+      if (!sub.parentId) continue;
+      const list = childrenMap.get(sub.parentId) || [];
+      list.push(sub);
+      childrenMap.set(sub.parentId, list);
+    }
+
+    // Attach children to each group
+    return groups.map(g => ({
+      ...g,
+      children: childrenMap.get(g.id) || [],
+    }));
   }
 
   async findPostable(companyId: string, type?: string) {
