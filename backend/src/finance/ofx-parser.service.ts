@@ -1,5 +1,4 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { XMLParser } from 'fast-xml-parser';
 
 export interface OfxTransaction {
   fitId: string;
@@ -13,71 +12,52 @@ export interface OfxTransaction {
 @Injectable()
 export class OfxParserService {
   /**
-   * Parse OFX file content and extract transactions
+   * Parse OFX file content and extract transactions.
+   * Uses regex-based extraction instead of XML parser to handle SGML-style OFX reliably.
    */
   parse(content: string): OfxTransaction[] {
     try {
-      // OFX files have SGML headers before the XML — strip them
-      const xmlStart = content.indexOf('<OFX');
-      if (xmlStart === -1) {
+      // Find OFX content
+      const ofxStart = content.indexOf('<OFX');
+      if (ofxStart === -1) {
         throw new BadRequestException('Arquivo OFX inválido: tag <OFX> não encontrada.');
       }
+      const ofxContent = content.substring(ofxStart);
 
-      let xmlContent = content.substring(xmlStart);
-
-      // OFX SGML uses self-closing tags without slash: <TAG>value
-      // We need to close unclosed tags for the XML parser to work
-      // Strategy: replace <TAG>value<NEXTTAG> patterns
-      xmlContent = this.fixSgmlTags(xmlContent);
-
-      const parser = new XMLParser({
-        ignoreAttributes: false,
-        isArray: (name) => name === 'STMTTRN',
-        trimValues: true,
-      });
-
-      const parsed = parser.parse(xmlContent);
-
-      // Navigate to transaction list
-      // OFX structure: OFX > BANKMSGSRSV1 > STMTTRNRS > STMTRS > BANKTRANLIST > STMTTRN[]
-      const stmtrs =
-        parsed?.OFX?.BANKMSGSRSV1?.STMTTRNRS?.STMTRS ??
-        parsed?.OFX?.CREDITCARDMSGSRSV1?.CCSTMTTRNRS?.CCSTMTRS;
-
-      if (!stmtrs) {
-        throw new BadRequestException('Arquivo OFX não contém dados de extrato bancário.');
-      }
-
-      const tranList = stmtrs.BANKTRANLIST;
-      if (!tranList || !tranList.STMTTRN) {
+      // Extract all STMTTRN blocks using regex (handles both SGML and XML styles)
+      const transactionBlocks = this.extractBlocks(ofxContent, 'STMTTRN');
+      if (transactionBlocks.length === 0) {
+        // Try to find BANKTRANLIST to verify OFX structure
+        if (!ofxContent.includes('BANKTRANLIST') && !ofxContent.includes('CCSTMTRS')) {
+          throw new BadRequestException('Arquivo OFX não contém dados de extrato bancário.');
+        }
         return [];
       }
 
       const transactions: OfxTransaction[] = [];
-      const stmtTrns = Array.isArray(tranList.STMTTRN) ? tranList.STMTTRN : [tranList.STMTTRN];
 
-      for (const trn of stmtTrns) {
-        const fitId = String(trn.FITID || '');
-        const dateStr = String(trn.DTPOSTED || '');
-        const amount = parseFloat(trn.TRNAMT || '0');
-        const memo = String(trn.MEMO || trn.NAME || '');
-        const checkNum = trn.CHECKNUM ? String(trn.CHECKNUM) : undefined;
-        const refNum = trn.REFNUM ? String(trn.REFNUM) : undefined;
+      for (const block of transactionBlocks) {
+        const fitId = this.extractValue(block, 'FITID');
+        const dateStr = this.extractValue(block, 'DTPOSTED');
+        const amountStr = this.extractValue(block, 'TRNAMT');
+        const memo = this.extractValue(block, 'MEMO') || this.extractValue(block, 'NAME') || '';
+        const checkNum = this.extractValue(block, 'CHECKNUM') || undefined;
+        const refNum = this.extractValue(block, 'REFNUM') || undefined;
 
-        // Parse OFX date format: YYYYMMDD[HHmmss[.XXX]]
+        if (!fitId) continue;
+
         const transactionDate = this.parseOfxDate(dateStr);
+        const amount = parseFloat(amountStr || '0');
         const amountCents = Math.round(amount * 100);
 
-        if (fitId) {
-          transactions.push({
-            fitId,
-            transactionDate,
-            amountCents,
-            description: memo.trim(),
-            checkNum,
-            refNum,
-          });
-        }
+        transactions.push({
+          fitId: fitId.trim(),
+          transactionDate,
+          amountCents,
+          description: memo.trim(),
+          checkNum,
+          refNum,
+        });
       }
 
       return transactions;
@@ -87,39 +67,67 @@ export class OfxParserService {
     }
   }
 
-  private parseOfxDate(dateStr: string): Date {
-    if (!dateStr || dateStr.length < 8) return new Date();
-    const year = parseInt(dateStr.substring(0, 4));
-    const month = parseInt(dateStr.substring(4, 6)) - 1;
-    const day = parseInt(dateStr.substring(6, 8));
-    let hours = 0, minutes = 0, seconds = 0;
-    if (dateStr.length >= 14) {
-      hours = parseInt(dateStr.substring(8, 10));
-      minutes = parseInt(dateStr.substring(10, 12));
-      seconds = parseInt(dateStr.substring(12, 14));
-    }
-    return new Date(year, month, day, hours, minutes, seconds);
+  /**
+   * Extract value of a tag from OFX content.
+   * Handles both SGML style (<TAG>value) and XML style (<TAG>value</TAG>).
+   */
+  private extractValue(content: string, tag: string): string {
+    // Try XML style first: <TAG>value</TAG>
+    const xmlRegex = new RegExp(`<${tag}>\\s*([^<]*?)\\s*</${tag}>`, 'i');
+    const xmlMatch = content.match(xmlRegex);
+    if (xmlMatch) return xmlMatch[1].trim();
+
+    // Try SGML style: <TAG>value\n or <TAG>value<NEXT_TAG>
+    const sgmlRegex = new RegExp(`<${tag}>\\s*([^<\\r\\n]+)`, 'i');
+    const sgmlMatch = content.match(sgmlRegex);
+    if (sgmlMatch) return sgmlMatch[1].trim();
+
+    return '';
   }
 
   /**
-   * Fix SGML-style tags by closing unclosed elements
+   * Extract all blocks between <tag> and </tag> markers.
    */
-  private fixSgmlTags(content: string): string {
-    // Known leaf elements in OFX that contain values (not nested)
-    const leafTags = [
-      'TRNTYPE', 'DTPOSTED', 'DTUSER', 'DTSTART', 'DTEND', 'TRNAMT',
-      'FITID', 'CHECKNUM', 'REFNUM', 'NAME', 'MEMO', 'BANKID',
-      'ACCTID', 'ACCTTYPE', 'BALAMT', 'DTASOF', 'CURDEF', 'CODE',
-      'SEVERITY', 'MESSAGE', 'TRNUID', 'CLIENTCOOKIE', 'SRVRTID',
-      'BRANCHID', 'DTSERVER', 'LANGUAGE', 'ORG', 'FID',
-    ];
+  private extractBlocks(content: string, tag: string): string[] {
+    const blocks: string[] = [];
+    const openTag = `<${tag}>`;
+    const closeTag = `</${tag}>`;
+    let pos = 0;
 
-    for (const tag of leafTags) {
-      // Match <TAG>value (no closing tag)
-      const regex = new RegExp(`<${tag}>([^<]*)(?!</${tag}>)`, 'gi');
-      content = content.replace(regex, `<${tag}>$1</${tag}>`);
+    while (true) {
+      const start = content.indexOf(openTag, pos);
+      if (start === -1) break;
+
+      const end = content.indexOf(closeTag, start);
+      if (end === -1) {
+        // SGML style: no closing tag. Find next STMTTRN or end of BANKTRANLIST
+        const nextOpen = content.indexOf(openTag, start + openTag.length);
+        const listEnd = content.indexOf('</BANKTRANLIST>', start);
+        const blockEnd = nextOpen !== -1 ? nextOpen : (listEnd !== -1 ? listEnd : content.length);
+        blocks.push(content.substring(start, blockEnd));
+        pos = blockEnd;
+      } else {
+        blocks.push(content.substring(start, end + closeTag.length));
+        pos = end + closeTag.length;
+      }
     }
 
-    return content;
+    return blocks;
+  }
+
+  private parseOfxDate(dateStr: string): Date {
+    if (!dateStr || dateStr.length < 8) return new Date();
+    // Remove timezone info like [-3:BRT]
+    const clean = dateStr.replace(/\[.*\]/, '').trim();
+    const year = parseInt(clean.substring(0, 4));
+    const month = parseInt(clean.substring(4, 6)) - 1;
+    const day = parseInt(clean.substring(6, 8));
+    let hours = 0, minutes = 0, seconds = 0;
+    if (clean.length >= 14) {
+      hours = parseInt(clean.substring(8, 10));
+      minutes = parseInt(clean.substring(10, 12));
+      seconds = parseInt(clean.substring(12, 14));
+    }
+    return new Date(year, month, day, hours, minutes, seconds);
   }
 }
