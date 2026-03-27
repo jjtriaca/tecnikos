@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, getAccessToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 
@@ -26,6 +26,9 @@ type SystemConfig = {
   evaluation: {
     requireGestorApproval: boolean;
     sendClientEvalLink: boolean;
+  };
+  pdf: {
+    osLayout: number;
   };
 };
 
@@ -402,12 +405,98 @@ export default function SystemConfigPage() {
         ))}
       </div>
 
+      {/* PDF Layout Section */}
+      <PdfLayoutSection
+        value={getValue("pdf", "osLayout") || 1}
+        onChange={(v: number) => setValue("pdf", "osLayout", v)}
+      />
+
       {/* Info footer */}
       <div className="mt-6 rounded-lg bg-slate-50 border border-slate-200 p-4">
         <p className="text-[11px] text-slate-400">
           Estas configuracoes afetam o comportamento do sistema para toda a empresa.
           Alteracoes sao aplicadas imediatamente apos salvar.
         </p>
+      </div>
+    </div>
+  );
+}
+
+const PDF_LAYOUTS = [
+  { id: 1, name: "Executivo", desc: "Limpo, linhas finas, tipografia elegante, total em caixa preta" },
+  { id: 2, name: "Corporativo", desc: "Header escuro, secoes em caixas com bordas, labels destacados" },
+  { id: 3, name: "Moderno", desc: "Faixa azul lateral, codigo grande, secoes com destaque colorido" },
+  { id: 4, name: "Minimalista", desc: "Ultra limpo, maximo branco, campos horizontais, sem caixas pesadas" },
+];
+
+function PdfLayoutSection({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [previewing, setPreviewing] = useState<number | null>(null);
+
+  async function handlePreview(layoutId: number) {
+    setPreviewing(layoutId);
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`/api/service-orders/pdf-preview?layout=${layoutId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Erro ao gerar preview");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      alert("Erro ao gerar preview do PDF");
+    } finally {
+      setPreviewing(null);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
+        <div className="flex items-center gap-2">
+          <span className="text-base">📄</span>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700">Layout do PDF — Ordem de Servico</h3>
+            <p className="text-[11px] text-slate-500">Escolha o modelo visual usado ao gerar PDF das OS</p>
+          </div>
+        </div>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {PDF_LAYOUTS.map((layout) => (
+          <div
+            key={layout.id}
+            className={`flex items-center justify-between px-5 py-3.5 cursor-pointer transition-colors ${value === layout.id ? "bg-blue-50/60" : "hover:bg-slate-50/50"}`}
+            onClick={() => onChange(layout.id)}
+          >
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${value === layout.id ? "border-blue-600" : "border-slate-300"}`}>
+                {value === layout.id && <div className="w-2 h-2 rounded-full bg-blue-600" />}
+              </div>
+              <div className="min-w-0">
+                <p className={`text-sm font-medium ${value === layout.id ? "text-blue-700" : "text-slate-700"}`}>
+                  {layout.name}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{layout.desc}</p>
+              </div>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); handlePreview(layout.id); }}
+              disabled={previewing === layout.id}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors disabled:opacity-50 flex-shrink-0"
+            >
+              {previewing === layout.id ? (
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+              ) : (
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+              Visualizar
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

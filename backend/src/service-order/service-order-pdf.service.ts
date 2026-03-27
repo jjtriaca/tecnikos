@@ -168,7 +168,17 @@ function drawFooter(doc: any, margin: number, pageW: number) {
 export class ServiceOrderPdfService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async generatePdf(serviceOrderId: string, companyId: string, layout = 1): Promise<Buffer> {
+  /** Load saved layout preference from system config */
+  private async getLayoutConfig(companyId: string): Promise<number> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cfg = (company?.systemConfig as any) || {};
+    return cfg?.pdf?.osLayout || 1;
+  }
+
+  async generatePdf(serviceOrderId: string, companyId: string): Promise<Buffer> {
     const so = await this.prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, companyId, deletedAt: null },
       include: {
@@ -180,6 +190,57 @@ export class ServiceOrderPdfService {
     });
     if (!so) throw new NotFoundException('OS não encontrada');
 
+    const layout = await this.getLayoutConfig(companyId);
+    return this.buildByLayout(so, layout);
+  }
+
+  /** Preview with dummy data but real company info (logo, name, etc.) */
+  async generatePreview(companyId: string, layout: number): Promise<Buffer> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+
+    const dummySo = {
+      code: 'OS-00123',
+      title: 'Instalação de Sistema de Climatização',
+      description: 'Instalação completa de ar-condicionado split 18.000 BTUs com tubulação de cobre e dreno.',
+      status: 'APROVADA',
+      createdAt: new Date(),
+      addressText: 'Rua das Palmeiras, 456 - Centro, São Paulo/SP',
+      scheduledStartAt: new Date(Date.now() + 2 * 86400000),
+      deadlineAt: new Date(Date.now() + 5 * 86400000),
+      valueCents: 285000,
+      notes: 'Cliente solicitou instalação no período da manhã. Levar escada articulada e furadeira.',
+      company,
+      clientPartner: {
+        name: 'Maria Fernanda da Silva',
+        document: '12345678901',
+        documentType: 'CPF',
+        phone: '11987654321',
+        email: 'maria.silva@email.com',
+        addressStreet: 'Av. Paulista',
+        addressNumber: '1578',
+        neighborhood: 'Bela Vista',
+        city: 'São Paulo',
+        state: 'SP',
+        cep: '01310-200',
+      },
+      assignedPartner: {
+        name: 'Carlos Eduardo Mendes',
+        phone: '11976543210',
+      },
+      items: [
+        { service: { name: 'Instalação Ar-Condicionado Split', unit: 'SV', priceCents: 45000 }, quantity: 1, unitPriceCents: 45000, unit: 'SV' },
+        { service: { name: 'Tubulação de Cobre (metro)', unit: 'MT', priceCents: 12000 }, quantity: 5, unitPriceCents: 12000, unit: 'MT' },
+        { service: { name: 'Suporte para Condensadora', unit: 'UN', priceCents: 18000 }, quantity: 1, unitPriceCents: 18000, unit: 'UN' },
+        { service: { name: 'Mão de Obra Instalação Elétrica', unit: 'HR', priceCents: 15000 }, quantity: 6, unitPriceCents: 15000, unit: 'HR' },
+        { service: { name: 'Material Elétrico (kit disjuntor + cabo)', unit: 'UN', priceCents: 32000 }, quantity: 1, unitPriceCents: 32000, unit: 'UN' },
+      ],
+    };
+
+    return this.buildByLayout(dummySo, layout);
+  }
+
+  private buildByLayout(so: any, layout: number): Promise<Buffer> {
     switch (layout) {
       case 2: return this.buildLayout2(so);
       case 3: return this.buildLayout3(so);

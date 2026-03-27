@@ -99,16 +99,31 @@ export class ServiceOrderController {
     return this.service.getActiveTokens(user.companyId);
   }
 
+  @Roles(UserRole.ADMIN)
+  @Get('pdf-preview')
+  async getPdfPreview(
+    @Query('layout') layout: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const layoutNum = parseInt(layout || '1') || 1;
+    const buffer = await this.pdfService.generatePreview(user.companyId, layoutNum);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="preview_layout_${layoutNum}.pdf"`,
+      'Content-Length': String(buffer.length),
+    });
+    res.end(buffer);
+  }
+
   @Get(':id/pdf')
   async getPdf(
     @Param('id') id: string,
-    @Query('layout') layout: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
     const so = await this.service.findOne(id, user.companyId);
-    const layoutNum = parseInt(layout || '1') || 1;
-    const buffer = await this.pdfService.generatePdf(id, user.companyId, layoutNum);
+    const buffer = await this.pdfService.generatePdf(id, user.companyId);
     const clientName = (so.clientPartner?.name || 'cliente')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-zA-Z0-9 ]/g, '')

@@ -259,6 +259,9 @@ export class CompanyService {
       journeyHoursDaily: 8,
       mealBreakMinMinutes: 60,
     },
+    pdf: {
+      osLayout: 1,
+    },
   };
 
   async getSystemConfig(companyId: string) {
