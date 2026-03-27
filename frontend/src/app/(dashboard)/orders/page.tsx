@@ -16,6 +16,7 @@ import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
 import { exportToCSV, fmtDate, fmtDateTime, fmtMoney, fmtStatus, type ExportColumn } from "@/lib/export-utils";
+import { getAccessToken } from "@/lib/api";
 import AgendaView from "@/components/os/AgendaView";
 import EarlyFinancialModal from "@/components/os/EarlyFinancialModal";
 
@@ -146,6 +147,7 @@ function ActionsDropdown({
   onDuplicate,
   onDelete,
   onEarlyFinancial,
+  onPdf,
   sysConfig,
 }: {
   order: ServiceOrder;
@@ -155,6 +157,7 @@ function ActionsDropdown({
   onDuplicate: (order: ServiceOrder) => void;
   onDelete: (order: ServiceOrder) => void;
   onEarlyFinancial: (order: ServiceOrder) => void;
+  onPdf: (order: ServiceOrder) => void;
   sysConfig: any;
 }) {
   const [open, setOpen] = useState(false);
@@ -219,6 +222,14 @@ function ActionsDropdown({
           >
             Ver detalhes
           </Link>
+
+          {/* Abrir PDF */}
+          <button
+            onClick={() => { setOpen(false); onPdf(order); }}
+            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Abrir PDF
+          </button>
 
           {/* Editar */}
           {canEdit && isEditable && (
@@ -298,6 +309,7 @@ function makeColumns(
   onDuplicate: (o: ServiceOrder) => void,
   onDelete: (o: ServiceOrder) => void,
   onEarlyFinancial: (o: ServiceOrder) => void,
+  onPdf: (o: ServiceOrder) => void,
   expandedAuditId: string | null,
   onToggleAudit: (id: string) => void,
   sysConfig: any,
@@ -438,6 +450,7 @@ function makeColumns(
             onDuplicate={onDuplicate}
             onDelete={onDelete}
             onEarlyFinancial={onEarlyFinancial}
+            onPdf={onPdf}
             sysConfig={sysConfig}
           />
         )}
@@ -500,6 +513,31 @@ export default function OrdersPage() {
     },
     (o) => setDeleteTarget(o),
     (o) => setEarlyFinancialTarget(o),
+    async (o) => {
+      try {
+        const token = getAccessToken();
+        const res = await fetch(`/api/service-orders/${o.id}/pdf`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => null);
+          throw new Error(errBody?.message || "Erro ao gerar PDF");
+        }
+        const cd = res.headers.get("content-disposition") || "";
+        const match = cd.match(/filename="?([^"]+)"?/);
+        const filename = match?.[1] || `${o.code || "OS"}.pdf`;
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } catch (err: any) {
+        toast(err?.message || "Erro ao gerar PDF", "error");
+      }
+    },
     expandedAuditId,
     (id) => setExpandedAuditId((prev) => (prev === id ? null : id)),
     sysConfig,

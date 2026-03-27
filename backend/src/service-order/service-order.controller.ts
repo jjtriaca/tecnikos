@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, Post, Delete, Put, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Delete, Put, Patch, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { ServiceOrderService } from './service-order.service';
+import { ServiceOrderPdfService } from './service-order-pdf.service';
 import { CreateServiceOrderDto } from './dto/create-service-order.dto';
 import { UpdateServiceOrderDto } from './dto/update-service-order.dto';
 import { UpdateServiceOrderStatusDto } from './dto/update-status.dto';
@@ -19,6 +21,7 @@ import { NotificationService } from '../notification/notification.service';
 export class ServiceOrderController {
   constructor(
     private readonly service: ServiceOrderService,
+    private readonly pdfService: ServiceOrderPdfService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -94,6 +97,28 @@ export class ServiceOrderController {
   @Get('active-tokens')
   activeTokens(@CurrentUser() user: AuthenticatedUser) {
     return this.service.getActiveTokens(user.companyId);
+  }
+
+  @Get(':id/pdf')
+  async getPdf(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const so = await this.service.findOne(id, user.companyId);
+    const buffer = await this.pdfService.generatePdf(id, user.companyId);
+    const clientName = (so.clientPartner?.name || 'cliente')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9 ]/g, '')
+      .replace(/\s+/g, '_')
+      .toUpperCase();
+    const filename = `${so.code || 'OS'}_${clientName}.pdf`;
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Length': String(buffer.length),
+    });
+    res.end(buffer);
   }
 
   @Get(':id')
