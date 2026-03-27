@@ -165,6 +165,12 @@ function buildColumns(): ColumnDefinition<NfseEmission>[] {
           </span>
         ) : null,
     },
+    {
+      id: "actions",
+      label: "Ações",
+      align: "right",
+      render: () => null as any, // injected at runtime
+    },
   ];
 }
 
@@ -509,9 +515,6 @@ export default function NfseSaidaPage() {
                   )}
                 </DraggableHeader>
               ))}
-              <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-right w-[80px]">
-                Ações
-              </th>
             </tr>
           </thead>
           <tbody>
@@ -523,12 +526,11 @@ export default function NfseSaidaPage() {
                       <div className="h-4 animate-pulse rounded bg-slate-100" />
                     </td>
                   ))}
-                  <td className="py-3 px-4"><div className="h-4 animate-pulse rounded bg-slate-100" /></td>
                 </tr>
               ))
             ) : emissions.length === 0 ? (
               <tr>
-                <td colSpan={orderedColumns.length + 1} className="py-16 text-center">
+                <td colSpan={orderedColumns.length} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <svg className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -554,24 +556,28 @@ export default function NfseSaidaPage() {
                       const tdStyle: React.CSSProperties = w
                         ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" }
                         : {};
+                      if (col.id === "actions") {
+                        return (
+                          <td key={col.id} style={tdStyle} className="py-3 px-4 text-right">
+                            <ActionsDropdown
+                              emission={emission}
+                              isLoading={isLoading}
+                              onDownloadPdf={() => handleDownloadPdf(emission)}
+                              onResendEmail={() => handleResendEmail(emission)}
+                              onRefreshStatus={() => handleRefreshStatus(emission)}
+                              onCancel={() => handleCancelOpen(emission)}
+                              onToggleDetails={() => setExpandedRow(isExpanded ? null : emission.id)}
+                              isExpanded={isExpanded}
+                            />
+                          </td>
+                        );
+                      }
                       return (
                         <td key={col.id} style={tdStyle} className={`py-3 px-4 ${col.className || ""}`}>
                           {col.render(emission)}
                         </td>
                       );
                     })}
-                    <td className="py-3 px-4 text-right">
-                      <ActionsDropdown
-                        emission={emission}
-                        isLoading={isLoading}
-                        onDownloadPdf={() => handleDownloadPdf(emission)}
-                        onResendEmail={() => handleResendEmail(emission)}
-                        onRefreshStatus={() => handleRefreshStatus(emission)}
-                        onCancel={() => handleCancelOpen(emission)}
-                        onToggleDetails={() => setExpandedRow(isExpanded ? null : emission.id)}
-                        isExpanded={isExpanded}
-                      />
-                    </td>
                   </tr>
                 );
               })
