@@ -1116,8 +1116,30 @@ export class FinanceService {
       },
     ]);
 
-    // 5) Merge, sort by date desc, take limit
-    const all = [...entryRows, ...transferRows]
+    // 5) Add initial balance rows for accounts with initialBalanceCents > 0
+    const cashAccounts = await this.prisma.cashAccount.findMany({
+      where: { companyId, deletedAt: null, isActive: true, initialBalanceCents: { gt: 0 } },
+      select: { id: true, name: true, type: true, initialBalanceCents: true, createdAt: true },
+    });
+    // Use dateFrom as the initial balance date, or first day of month
+    const initialDate = dateFrom ? new Date(dateFrom) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    initialDate.setHours(0, 0, 0, 0);
+    const initialRows = cashAccounts.map(acc => ({
+      id: `initial-${acc.id}`,
+      date: initialDate,
+      description: `Saldo inicial — ${acc.name}`,
+      type: 'CREDIT' as const,
+      amountCents: acc.initialBalanceCents,
+      category: null,
+      source: 'INITIAL_BALANCE',
+      partnerName: null,
+      paymentMethod: null,
+      cashAccountName: acc.name,
+      code: null,
+    }));
+
+    // 6) Merge, sort by date desc, take limit
+    const all = [...entryRows, ...transferRows, ...initialRows]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, limit);
 
