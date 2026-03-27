@@ -1,7 +1,15 @@
 # TAREFA ATUAL
 
-## Versao: v1.07.86
-## Ultima sessao: 159 (26/03/2026)
+## Versao: v1.07.87
+## Ultima sessao: 160 (27/03/2026)
+
+## CONCLUIDO (sessao 160) — Deploy v1.07.87
+
+### PDF de Ordem de Servico
+- Novo ServiceOrderPdfService: gera PDF com header empresa, dados cliente, detalhes OS, tabela itens, total, observacoes
+- Endpoint GET /service-orders/:id/pdf (autenticado, qualquer status)
+- Filename automatico: {CODIGO}_{NOME_CLIENTE}.pdf (ex: OS-00047_ALESSANDRA_PINHEIRO_COSTA_NASCIMENTO.pdf)
+- Botao "Abrir PDF" no menu de acoes (tres pontinhos) da lista de OS — disponivel para TODAS as OS
 
 ## CONCLUIDO (sessao 159) — Deploys v1.07.76 → v1.07.86 (11 deploys)
 

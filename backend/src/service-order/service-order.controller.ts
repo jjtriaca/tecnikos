@@ -102,11 +102,13 @@ export class ServiceOrderController {
   @Get(':id/pdf')
   async getPdf(
     @Param('id') id: string,
+    @Query('layout') layout: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
     const so = await this.service.findOne(id, user.companyId);
-    const buffer = await this.pdfService.generatePdf(id, user.companyId);
+    const layoutNum = parseInt(layout || '1') || 1;
+    const buffer = await this.pdfService.generatePdf(id, user.companyId, layoutNum);
     const clientName = (so.clientPartner?.name || 'cliente')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-zA-Z0-9 ]/g, '')

@@ -8,11 +8,6 @@ const PDFDocument = require('pdfkit');
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 
-const FONT_SIZE = 8;
-const FONT_SIZE_SM = 7;
-const FONT_SIZE_LG = 10;
-const FONT_SIZE_XL = 14;
-
 const STATUS_LABELS: Record<string, string> = {
   ABERTA: 'Aberta',
   OFERTADA: 'Ofertada',
@@ -30,35 +25,150 @@ function formatMoney(cents: number): string {
   return `R$ ${(cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function formatCnpj(cnpj: string | null | undefined): string {
-  if (!cnpj) return '';
-  const c = cnpj.replace(/\D/g, '');
+function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return phone;
+}
+
+function formatDoc(doc: string | null | undefined, type?: string | null): string {
+  if (!doc) return '';
+  const c = doc.replace(/\D/g, '');
   if (c.length === 14) {
-    return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+    return `CNPJ: ${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
   }
   if (c.length === 11) {
-    return `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`;
+    return `CPF: ${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`;
   }
-  return cnpj;
+  return `${type || 'Doc'}: ${doc}`;
 }
 
 function formatDate(date: Date | string | null): string {
   if (!date) return '';
-  const d = new Date(date);
-  return d.toLocaleDateString('pt-BR');
+  return new Date(date).toLocaleDateString('pt-BR');
 }
 
 function formatDateTime(date: Date | string | null): string {
   if (!date) return '';
-  const d = new Date(date);
-  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(date).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function loadLogo(company: any): Buffer | null {
+  const logoPath = company.logoUrl
+    ? path.resolve(UPLOAD_DIR, company.logoUrl.replace(/^\/uploads\//, ''))
+    : null;
+  if (logoPath && fs.existsSync(logoPath)) {
+    return fs.readFileSync(logoPath);
+  }
+  return null;
+}
+
+function buildAddress(obj: any): string {
+  return [
+    obj.addressStreet,
+    obj.addressNumber ? `, ${obj.addressNumber}` : '',
+    obj.neighborhood ? ` - ${obj.neighborhood}` : '',
+    obj.city ? `, ${obj.city}` : '',
+    obj.state ? `/${obj.state}` : '',
+    obj.cep ? ` - CEP: ${obj.cep}` : '',
+  ].join('').trim();
+}
+
+function buildClientAddress(client: any): string {
+  return [
+    client.addressStreet,
+    client.addressNumber ? `, ${client.addressNumber}` : '',
+    client.neighborhood ? ` - ${client.neighborhood}` : '',
+    client.city ? `, ${client.city}` : '',
+    client.state ? `/${client.state}` : '',
+  ].join('').trim();
+}
+
+// Helper: draw items table (shared across layouts)
+function drawItemsTable(doc: any, items: any[], y: number, margin: number, pageW: number, headerBg: string, headerText: string, accentColor: string): number {
+  if (items.length === 0) return y;
+
+  const cols = [
+    { label: '#', w: 22, align: 'center' },
+    { label: 'Descrição', w: 0, align: 'left' }, // fill remaining
+    { label: 'Unid.', w: 40, align: 'center' },
+    { label: 'Qtde', w: 40, align: 'right' },
+    { label: 'Valor Unit.', w: 70, align: 'right' },
+    { label: 'Total', w: 75, align: 'right' },
+  ];
+  const fixedW = cols.reduce((s, c) => s + c.w, 0);
+  cols[1].w = pageW - fixedW;
+
+  // Header
+  let x = margin;
+  doc.rect(margin, y, pageW, 15).fill(headerBg);
+  doc.fill(headerText).font('Helvetica-Bold').fontSize(7);
+  for (const col of cols) {
+    doc.text(col.label, x + 3, y + 4, { width: col.w - 6, align: col.align as any });
+    x += col.w;
+  }
+  y += 15;
+
+  // Rows
+  doc.font('Helvetica').fontSize(7);
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (y > doc.page.height - 100) { doc.addPage(); y = 30; }
+
+    if (i % 2 === 0) {
+      doc.rect(margin, y, pageW, 14).fill('#f9fafb');
+      doc.fill('#111827');
+    } else {
+      doc.fill('#111827');
+    }
+
+    x = margin;
+    const rowY = y + 3;
+    const description = item.service?.name || item.description || 'Serviço';
+    const unit = item.unit || item.service?.unit || 'un';
+    const qty = item.quantity || 1;
+    const unitPrice = item.unitPriceCents || item.service?.priceCents || 0;
+    const total = unitPrice * qty;
+
+    doc.text(String(i + 1), x + 3, rowY, { width: cols[0].w - 6, align: 'center' });
+    x += cols[0].w;
+    doc.text(description, x + 3, rowY, { width: cols[1].w - 6, align: 'left' });
+    x += cols[1].w;
+    doc.text(unit, x + 3, rowY, { width: cols[2].w - 6, align: 'center' });
+    x += cols[2].w;
+    doc.text(String(qty), x + 3, rowY, { width: cols[3].w - 6, align: 'right' });
+    x += cols[3].w;
+    doc.text(formatMoney(unitPrice), x + 3, rowY, { width: cols[4].w - 6, align: 'right' });
+    x += cols[4].w;
+    doc.font('Helvetica-Bold').text(formatMoney(total), x + 3, rowY, { width: cols[5].w - 6, align: 'right' });
+    doc.font('Helvetica');
+
+    y += 14;
+  }
+
+  doc.moveTo(margin, y).lineTo(margin + pageW, y).strokeColor('#d1d5db').lineWidth(0.5).stroke();
+  return y + 6;
+}
+
+// Helper: draw footer
+function drawFooter(doc: any, margin: number, pageW: number) {
+  const footerY = doc.page.height - 35;
+  doc.moveTo(margin, footerY - 3).lineTo(margin + pageW, footerY - 3).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+  doc.font('Helvetica').fontSize(6).fill('#9ca3af');
+  doc.text(`Gerado por Tecnikos em ${new Date().toLocaleString('pt-BR')}`, margin, footerY, { width: pageW, align: 'center' });
 }
 
 @Injectable()
 export class ServiceOrderPdfService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async generatePdf(serviceOrderId: string, companyId: string): Promise<Buffer> {
+  async generatePdf(serviceOrderId: string, companyId: string, layout = 1): Promise<Buffer> {
     const so = await this.prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, companyId, deletedAt: null },
       include: {
@@ -68,281 +178,534 @@ export class ServiceOrderPdfService {
         items: { include: { service: { select: { id: true, name: true, unit: true, priceCents: true } } } },
       },
     });
-
     if (!so) throw new NotFoundException('OS não encontrada');
-    return this.buildPdf(so);
+
+    switch (layout) {
+      case 2: return this.buildLayout2(so);
+      case 3: return this.buildLayout3(so);
+      case 4: return this.buildLayout4(so);
+      default: return this.buildLayout1(so);
+    }
   }
 
-  private buildPdf(so: any): Promise<Buffer> {
+  // ============================================================
+  // LAYOUT 1 — "Executivo"
+  // Limpo, linhas finas cinza, tipografia elegante, sem cores pesadas
+  // ============================================================
+  private buildLayout1(so: any): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 30 });
+      const margin = 40;
+      const doc = new PDFDocument({ size: 'A4', margin });
       const chunks: Buffer[] = [];
-      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('data', (c: Buffer) => chunks.push(c));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      const pageW = doc.page.width - 60;
+      const pageW = doc.page.width - margin * 2;
       const company = so.company;
       const client = so.clientPartner;
-      let y = 30;
+      const logo = loadLogo(company);
+      let y = margin;
 
-      // ---- Header: Company info + Logo ----
-      const logoPath = company.logoUrl
-        ? path.resolve(UPLOAD_DIR, company.logoUrl.replace(/^\/uploads\//, ''))
-        : null;
-
-      let logoBuffer: Buffer | null = null;
-      if (logoPath && fs.existsSync(logoPath)) {
-        logoBuffer = fs.readFileSync(logoPath);
+      // --- Header ---
+      if (logo) {
+        doc.image(logo, margin, y, { width: company.logoWidth || 90, height: company.logoHeight || 32 });
       }
 
-      if (logoBuffer) {
-        doc.image(logoBuffer, 30, y, {
-          width: company.logoWidth || 100,
-          height: company.logoHeight || 35,
-        });
-      }
+      const compX = 200;
+      doc.font('Helvetica-Bold').fontSize(11).fill('#111827');
+      doc.text(company.tradeName || company.name, compX, y, { width: pageW - 160 });
+      y = doc.y + 1;
+      doc.font('Helvetica').fontSize(7).fill('#6b7280');
+      const compAddr = buildAddress(company);
+      if (company.cnpj) { doc.text(`CNPJ: ${formatDoc(company.cnpj).replace(/^(CNPJ|CPF): /, '')}`, compX, y); y = doc.y; }
+      if (compAddr) { doc.text(compAddr, compX, y, { width: pageW - 160 }); y = doc.y; }
+      const compContacts = [company.phone ? `Tel: ${formatPhone(company.phone)}` : '', company.email || ''].filter(Boolean).join('  |  ');
+      if (compContacts) { doc.text(compContacts, compX, y); }
+      y = Math.max(doc.y, y) + 12;
 
-      // Company name + address (right side)
-      const companyX = 200;
-      doc.font('Helvetica-Bold').fontSize(FONT_SIZE_LG);
-      doc.text(company.tradeName || company.name, companyX, y, { width: pageW - 170 });
-      y = doc.y + 2;
-      doc.font('Helvetica').fontSize(FONT_SIZE_SM);
-      if (company.cnpj) {
-        doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, companyX, y);
-        y = doc.y + 1;
-      }
-      const addr = [
-        company.addressStreet,
-        company.addressNumber ? `, ${company.addressNumber}` : '',
-        company.neighborhood ? ` - ${company.neighborhood}` : '',
-        company.city ? `, ${company.city}` : '',
-        company.state ? ` - ${company.state}` : '',
-        company.cep ? ` | CEP: ${company.cep}` : '',
-      ].join('');
-      if (addr.trim()) {
-        doc.text(addr, companyX, y, { width: pageW - 170 });
-        y = doc.y + 1;
-      }
-      const contacts = [
-        company.phone ? `Tel: ${company.phone}` : '',
-        company.email ? `Email: ${company.email}` : '',
-      ].filter(Boolean).join(' | ');
-      if (contacts) {
-        doc.text(contacts, companyX, y, { width: pageW - 170 });
-      }
+      // --- Thin separator ---
+      doc.moveTo(margin, y).lineTo(margin + pageW, y).strokeColor('#d1d5db').lineWidth(0.5).stroke();
+      y += 10;
 
-      y = Math.max(doc.y, y) + 15;
-
-      // ---- Title Bar ----
+      // --- OS Code + Status badge ---
+      doc.font('Helvetica-Bold').fontSize(16).fill('#111827');
+      doc.text(`${so.code || 'OS'}`, margin, y);
       const statusLabel = STATUS_LABELS[so.status] || so.status;
-      doc.rect(30, y, pageW, 22).fill('#1e40af');
-      doc.fill('#ffffff').font('Helvetica-Bold').fontSize(FONT_SIZE_XL);
-      doc.text('ORDEM DE SERVIÇO', 35, y + 4, { width: pageW - 10 });
-      doc.fill('#ffffff').font('Helvetica').fontSize(FONT_SIZE);
-      doc.text(`${so.code || ''}  |  ${statusLabel}  |  ${formatDate(so.createdAt)}`, 35, y + 5, {
-        width: pageW - 10,
-        align: 'right',
-      });
+      doc.font('Helvetica').fontSize(8).fill('#6b7280');
+      doc.text(`${statusLabel}  |  ${formatDate(so.createdAt)}`, margin, y + 4, { width: pageW, align: 'right' });
+      y = doc.y + 8;
+
+      // --- Title ---
+      if (so.title) {
+        doc.font('Helvetica-Bold').fontSize(11).fill('#374151');
+        doc.text(so.title, margin, y, { width: pageW });
+        y = doc.y + 3;
+      }
+      if (so.description) {
+        doc.font('Helvetica').fontSize(8).fill('#4b5563');
+        doc.text(so.description, margin, y, { width: pageW });
+        y = doc.y + 6;
+      }
+
+      y += 4;
+
+      // --- Two-column info: Cliente | Detalhes ---
+      const colW = (pageW - 20) / 2;
+      const leftX = margin;
+      const rightX = margin + colW + 20;
+      const infoY = y;
+
+      // Left: Client
+      doc.font('Helvetica-Bold').fontSize(7).fill('#9ca3af');
+      doc.text('CLIENTE', leftX, infoY);
+      let ly = infoY + 11;
+      if (client) {
+        doc.font('Helvetica-Bold').fontSize(8.5).fill('#111827');
+        doc.text(client.name, leftX, ly, { width: colW }); ly = doc.y + 1;
+        doc.font('Helvetica').fontSize(7).fill('#4b5563');
+        if (client.document) { doc.text(formatDoc(client.document, client.documentType), leftX, ly, { width: colW }); ly = doc.y; }
+        if (client.phone) { doc.text(`Tel: ${formatPhone(client.phone)}`, leftX, ly, { width: colW }); ly = doc.y; }
+        if (client.email) { doc.text(client.email, leftX, ly, { width: colW }); ly = doc.y; }
+        const cAddr = buildClientAddress(client);
+        if (cAddr) { doc.text(cAddr, leftX, ly, { width: colW }); ly = doc.y; }
+      }
+
+      // Right: Details
+      doc.font('Helvetica-Bold').fontSize(7).fill('#9ca3af');
+      doc.text('DETALHES', rightX, infoY);
+      let ry = infoY + 11;
+      doc.font('Helvetica').fontSize(7.5).fill('#4b5563');
+      if (so.addressText) {
+        doc.font('Helvetica-Bold').fontSize(7).fill('#6b7280').text('Endereço do Serviço', rightX, ry, { width: colW }); ry = doc.y;
+        doc.font('Helvetica').fontSize(7.5).fill('#111827').text(so.addressText, rightX, ry, { width: colW }); ry = doc.y + 4;
+      }
+      if (so.assignedPartner?.name) {
+        doc.font('Helvetica-Bold').fontSize(7).fill('#6b7280').text('Técnico', rightX, ry); ry = doc.y;
+        doc.font('Helvetica').fontSize(7.5).fill('#111827').text(`${so.assignedPartner.name}${so.assignedPartner.phone ? '  |  ' + formatPhone(so.assignedPartner.phone) : ''}`, rightX, ry, { width: colW }); ry = doc.y + 4;
+      }
+      if (so.scheduledStartAt) {
+        doc.font('Helvetica-Bold').fontSize(7).fill('#6b7280').text('Agendamento', rightX, ry); ry = doc.y;
+        doc.font('Helvetica').fontSize(7.5).fill('#111827').text(formatDateTime(so.scheduledStartAt), rightX, ry); ry = doc.y + 4;
+      }
+      if (so.deadlineAt) {
+        doc.font('Helvetica-Bold').fontSize(7).fill('#6b7280').text('Prazo', rightX, ry); ry = doc.y;
+        doc.font('Helvetica').fontSize(7.5).fill('#111827').text(formatDate(so.deadlineAt), rightX, ry); ry = doc.y + 4;
+      }
+
+      y = Math.max(ly, ry) + 14;
+
+      // --- Items ---
+      y = drawItemsTable(doc, so.items || [], y, margin, pageW, '#f3f4f6', '#374151', '#111827');
+      y += 4;
+
+      // --- Total ---
+      const tX = margin + pageW - 180;
+      doc.rect(tX, y, 180, 22).fill('#111827');
+      doc.fill('#ffffff').font('Helvetica-Bold').fontSize(10);
+      doc.text('TOTAL:', tX + 8, y + 5, { width: 90, align: 'right' });
+      doc.text(formatMoney(so.valueCents || 0), tX + 105, y + 5, { width: 68, align: 'right' });
+      doc.fill('#000000');
       y += 30;
 
-      // ---- Client Info ----
-      if (client) {
-        doc.fill('#000000').font('Helvetica-Bold').fontSize(FONT_SIZE);
-        doc.text('CLIENTE', 30, y);
-        y = doc.y + 3;
-        doc.font('Helvetica').fontSize(FONT_SIZE);
-        doc.text(client.name, 30, y);
-        y = doc.y + 1;
-        if (client.document) {
-          doc.text(`${client.documentType || 'Doc'}: ${formatCnpj(client.document)}`, 30, y);
-          y = doc.y + 1;
-        }
-        const clientContacts = [
-          client.phone ? `Tel: ${client.phone}` : '',
-          client.email ? `Email: ${client.email}` : '',
-        ].filter(Boolean).join(' | ');
-        if (clientContacts) {
-          doc.text(clientContacts, 30, y);
-          y = doc.y + 1;
-        }
-        const clientAddr = [
-          client.addressStreet,
-          client.addressNumber ? `, ${client.addressNumber}` : '',
-          client.neighborhood ? ` - ${client.neighborhood}` : '',
-          client.city ? `, ${client.city}` : '',
-          client.state ? ` - ${client.state}` : '',
-        ].filter(Boolean).join('');
-        if (clientAddr.trim()) {
-          doc.text(`Endereço: ${clientAddr}`, 30, y, { width: pageW });
-          y = doc.y + 1;
-        }
-        y += 8;
-      }
-
-      // ---- OS Details ----
-      doc.fill('#000000').font('Helvetica-Bold').fontSize(FONT_SIZE);
-      doc.text('DETALHES DA OS', 30, y);
-      y = doc.y + 3;
-      doc.font('Helvetica').fontSize(FONT_SIZE);
-
-      // Title
-      if (so.title) {
-        doc.font('Helvetica-Bold').fontSize(FONT_SIZE_LG);
-        doc.text(so.title, 30, y, { width: pageW });
-        y = doc.y + 3;
-        doc.font('Helvetica').fontSize(FONT_SIZE);
-      }
-
-      // Description
-      if (so.description) {
-        doc.text(so.description, 30, y, { width: pageW });
-        y = doc.y + 5;
-      }
-
-      // Address
-      if (so.addressText) {
-        doc.font('Helvetica-Bold').text('Endereço: ', 30, y, { continued: true });
-        doc.font('Helvetica').text(so.addressText);
-        y = doc.y + 2;
-      }
-
-      // Technician
-      if (so.assignedPartner?.name) {
-        doc.font('Helvetica-Bold').text('Técnico: ', 30, y, { continued: true });
-        doc.font('Helvetica').text(so.assignedPartner.name);
-        y = doc.y + 2;
-      }
-
-      // Scheduling
-      if (so.scheduledStartAt) {
-        doc.font('Helvetica-Bold').text('Agendamento: ', 30, y, { continued: true });
-        doc.font('Helvetica').text(formatDateTime(so.scheduledStartAt));
-        y = doc.y + 2;
-      }
-
-      // Deadline
-      if (so.deadlineAt) {
-        doc.font('Helvetica-Bold').text('Prazo: ', 30, y, { continued: true });
-        doc.font('Helvetica').text(formatDate(so.deadlineAt));
-        y = doc.y + 2;
-      }
-
-      y += 8;
-
-      // ---- Items Table ----
-      const items = so.items || [];
-      if (items.length > 0) {
-        doc.fill('#000000').font('Helvetica-Bold').fontSize(FONT_SIZE);
-        doc.text('ITENS / SERVIÇOS', 30, y);
-        y = doc.y + 5;
-
-        const cols = [
-          { label: '#', w: 25, align: 'center' },
-          { label: 'Descrição', w: 230, align: 'left' },
-          { label: 'Unid.', w: 45, align: 'center' },
-          { label: 'Qtde', w: 45, align: 'right' },
-          { label: 'Valor Unit.', w: 75, align: 'right' },
-          { label: 'Total', w: 85, align: 'right' },
-        ];
-
-        // Adjust last column to fill remaining width
-        const usedW = cols.reduce((s, c) => s + c.w, 0);
-        if (usedW < pageW) cols[cols.length - 1].w += pageW - usedW;
-
-        // Table header
-        let x = 30;
-        doc.rect(30, y, pageW, 16).fill('#f1f5f9');
-        doc.fill('#334155').font('Helvetica-Bold').fontSize(FONT_SIZE_SM);
-        for (const col of cols) {
-          doc.text(col.label, x + 2, y + 4, { width: col.w - 4, align: col.align as any });
-          x += col.w;
-        }
-        y += 16;
-
-        // Table rows
-        doc.fill('#000000').font('Helvetica').fontSize(FONT_SIZE_SM);
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          if (y > doc.page.height - 120) {
-            doc.addPage();
-            y = 30;
-          }
-
-          if (i % 2 === 1) {
-            doc.rect(30, y, pageW, 14).fill('#f8fafc');
-            doc.fill('#000000');
-          }
-
-          x = 30;
-          const rowY = y + 3;
-          const description = item.service?.name || item.description || 'Serviço';
-          const unit = item.unit || item.service?.unit || 'un';
-          const qty = item.quantity || 1;
-          const unitPrice = item.unitPriceCents || item.service?.priceCents || 0;
-          const total = unitPrice * qty;
-
-          doc.text(String(i + 1), x + 2, rowY, { width: cols[0].w - 4, align: 'center' });
-          x += cols[0].w;
-
-          doc.text(description, x + 2, rowY, { width: cols[1].w - 4, align: 'left' });
-          x += cols[1].w;
-
-          doc.text(unit, x + 2, rowY, { width: cols[2].w - 4, align: 'center' });
-          x += cols[2].w;
-
-          doc.text(String(qty), x + 2, rowY, { width: cols[3].w - 4, align: 'right' });
-          x += cols[3].w;
-
-          doc.text(formatMoney(unitPrice), x + 2, rowY, { width: cols[4].w - 4, align: 'right' });
-          x += cols[4].w;
-
-          doc.font('Helvetica-Bold').text(formatMoney(total), x + 2, rowY, { width: cols[5].w - 4, align: 'right' });
-          doc.font('Helvetica');
-
-          y += 14;
-        }
-
-        // Table bottom line
-        doc.moveTo(30, y).lineTo(30 + pageW, y).stroke('#cbd5e1');
-        y += 8;
-      }
-
-      // ---- Total ----
-      const totalsX = 30 + pageW - 200;
-      doc.rect(totalsX, y, 200, 20).fill('#1e40af');
-      doc.fill('#ffffff').font('Helvetica-Bold').fontSize(FONT_SIZE_LG);
-      doc.text('TOTAL:', totalsX + 5, y + 4, { width: 110, align: 'right' });
-      doc.text(formatMoney(so.valueCents || 0), totalsX + 125, y + 4, { width: 70, align: 'right' });
-      doc.fill('#000000');
-      y += 28;
-
-      // ---- Notes ----
+      // --- Notes ---
       if (so.notes) {
-        if (y > doc.page.height - 100) {
-          doc.addPage();
-          y = 30;
-        }
-        doc.font('Helvetica-Bold').fontSize(FONT_SIZE);
-        doc.text('OBSERVAÇÕES', 30, y);
+        if (y > doc.page.height - 80) { doc.addPage(); y = margin; }
+        doc.font('Helvetica-Bold').fontSize(7).fill('#9ca3af').text('OBSERVAÇÕES', margin, y);
         y = doc.y + 3;
-        doc.font('Helvetica').fontSize(FONT_SIZE_SM);
-        doc.text(so.notes, 30, y, { width: pageW });
+        doc.font('Helvetica').fontSize(7.5).fill('#4b5563').text(so.notes, margin, y, { width: pageW });
         y = doc.y + 8;
       }
 
-      // ---- Footer ----
-      const footerY = doc.page.height - 40;
-      doc.moveTo(30, footerY - 5).lineTo(30 + pageW, footerY - 5).stroke('#e2e8f0');
-      doc.font('Helvetica').fontSize(6).fill('#94a3b8');
-      doc.text(
-        `Gerado por Tecnikos em ${new Date().toLocaleString('pt-BR')}`,
-        30,
-        footerY,
-        { width: pageW, align: 'center' },
-      );
+      drawFooter(doc, margin, pageW);
+      doc.end();
+    });
+  }
 
+  // ============================================================
+  // LAYOUT 2 — "Corporativo"
+  // Header escuro, secoes com bordas e labels, profissional
+  // ============================================================
+  private buildLayout2(so: any): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const margin = 35;
+      const doc = new PDFDocument({ size: 'A4', margin });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const pageW = doc.page.width - margin * 2;
+      const company = so.company;
+      const client = so.clientPartner;
+      const logo = loadLogo(company);
+      let y = margin;
+
+      // --- Dark header band ---
+      doc.rect(0, 0, doc.page.width, 80).fill('#1f2937');
+
+      // Logo
+      if (logo) {
+        doc.image(logo, margin, 15, { width: company.logoWidth || 80, height: company.logoHeight || 30 });
+      }
+
+      // Company info on header
+      const compX = 180;
+      doc.font('Helvetica-Bold').fontSize(12).fill('#ffffff');
+      doc.text(company.tradeName || company.name, compX, 18, { width: pageW - 140 });
+      doc.font('Helvetica').fontSize(7).fill('#d1d5db');
+      const headerInfo = [
+        company.cnpj ? `CNPJ: ${formatDoc(company.cnpj).replace(/^(CNPJ|CPF): /, '')}` : '',
+        company.phone ? formatPhone(company.phone) : '',
+        company.email || '',
+      ].filter(Boolean).join('  |  ');
+      doc.text(headerInfo, compX, doc.y + 1, { width: pageW - 140 });
+
+      // OS code on right side of header
+      doc.font('Helvetica-Bold').fontSize(18).fill('#ffffff');
+      doc.text(so.code || 'OS', margin, 16, { width: pageW, align: 'right' });
+      doc.font('Helvetica').fontSize(8).fill('#9ca3af');
+      doc.text(`${STATUS_LABELS[so.status] || so.status}  |  ${formatDate(so.createdAt)}`, margin, 38, { width: pageW, align: 'right' });
+
+      y = 95;
+
+      // --- Title ---
+      if (so.title) {
+        doc.font('Helvetica-Bold').fontSize(12).fill('#1f2937');
+        doc.text(so.title, margin, y, { width: pageW });
+        y = doc.y + 2;
+      }
+      if (so.description) {
+        doc.font('Helvetica').fontSize(8).fill('#4b5563');
+        doc.text(so.description, margin, y, { width: pageW });
+        y = doc.y + 4;
+      }
+      y += 8;
+
+      // --- Section: Client (boxed) ---
+      const sectionH1 = client ? 68 : 20;
+      doc.rect(margin, y, pageW, sectionH1).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+      doc.rect(margin, y, pageW, 14).fill('#f9fafb');
+      doc.font('Helvetica-Bold').fontSize(7).fill('#6b7280');
+      doc.text('CLIENTE', margin + 8, y + 4);
+      y += 18;
+
+      if (client) {
+        const col1X = margin + 8;
+        const col2X = margin + pageW / 2;
+        doc.font('Helvetica-Bold').fontSize(8.5).fill('#111827').text(client.name, col1X, y);
+        y = doc.y + 1;
+        doc.font('Helvetica').fontSize(7).fill('#4b5563');
+        if (client.document) doc.text(formatDoc(client.document, client.documentType), col1X, y);
+        const phoneY = y;
+        if (client.phone) { doc.text(`Tel: ${formatPhone(client.phone)}`, col2X, phoneY); }
+        y = doc.y + 1;
+        if (client.email) doc.text(client.email, col1X, y);
+        y = doc.y + 1;
+        const cAddr = buildClientAddress(client);
+        if (cAddr) doc.text(cAddr, col1X, y, { width: pageW - 16 });
+      }
+      y += 18;
+
+      // --- Section: Details (boxed) ---
+      const detailItems: [string, string][] = [];
+      if (so.addressText) detailItems.push(['Endereço do Serviço', so.addressText]);
+      if (so.assignedPartner?.name) detailItems.push(['Técnico', `${so.assignedPartner.name}${so.assignedPartner.phone ? '  |  ' + formatPhone(so.assignedPartner.phone) : ''}`]);
+      if (so.scheduledStartAt) detailItems.push(['Agendamento', formatDateTime(so.scheduledStartAt)]);
+      if (so.deadlineAt) detailItems.push(['Prazo', formatDate(so.deadlineAt)]);
+
+      if (detailItems.length > 0) {
+        const dH = 14 + detailItems.length * 22 + 6;
+        doc.rect(margin, y, pageW, dH).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+        doc.rect(margin, y, pageW, 14).fill('#f9fafb');
+        doc.font('Helvetica-Bold').fontSize(7).fill('#6b7280').text('DETALHES DA ORDEM DE SERVIÇO', margin + 8, y + 4);
+        y += 18;
+
+        for (const [label, value] of detailItems) {
+          doc.font('Helvetica-Bold').fontSize(7).fill('#9ca3af').text(label, margin + 8, y);
+          doc.font('Helvetica').fontSize(8).fill('#111827').text(value, margin + 8, doc.y + 1, { width: pageW - 16 });
+          y = doc.y + 6;
+        }
+        y += 8;
+      }
+
+      // --- Items ---
+      y = drawItemsTable(doc, so.items || [], y, margin, pageW, '#1f2937', '#ffffff', '#1f2937');
+      y += 4;
+
+      // Total
+      const tX = margin + pageW - 180;
+      doc.rect(tX, y, 180, 22).fill('#1f2937');
+      doc.fill('#ffffff').font('Helvetica-Bold').fontSize(10);
+      doc.text('TOTAL:', tX + 8, y + 5, { width: 90, align: 'right' });
+      doc.text(formatMoney(so.valueCents || 0), tX + 105, y + 5, { width: 68, align: 'right' });
+      doc.fill('#000000');
+      y += 30;
+
+      // Notes
+      if (so.notes) {
+        if (y > doc.page.height - 80) { doc.addPage(); y = margin; }
+        doc.rect(margin, y, pageW, 14).fill('#f9fafb');
+        doc.font('Helvetica-Bold').fontSize(7).fill('#6b7280').text('OBSERVAÇÕES', margin + 8, y + 4);
+        y += 18;
+        doc.font('Helvetica').fontSize(7.5).fill('#4b5563').text(so.notes, margin + 8, y, { width: pageW - 16 });
+        y = doc.y + 8;
+      }
+
+      drawFooter(doc, margin, pageW);
+      doc.end();
+    });
+  }
+
+  // ============================================================
+  // LAYOUT 3 — "Moderno"
+  // Faixa lateral esquerda colorida, secoes com titulos grandes, espaçoso
+  // ============================================================
+  private buildLayout3(so: any): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const margin = 40;
+      const doc = new PDFDocument({ size: 'A4', margin });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const pageW = doc.page.width - margin * 2;
+      const company = so.company;
+      const client = so.clientPartner;
+      const logo = loadLogo(company);
+      const ACCENT = '#2563eb';
+      let y = margin;
+
+      // --- Left accent stripe ---
+      doc.rect(0, 0, 5, doc.page.height).fill(ACCENT);
+
+      // --- Header ---
+      if (logo) {
+        doc.image(logo, margin, y, { width: company.logoWidth || 80, height: company.logoHeight || 30 });
+      }
+
+      // Company right-aligned
+      doc.font('Helvetica-Bold').fontSize(9).fill('#374151');
+      doc.text(company.tradeName || company.name, margin, y, { width: pageW, align: 'right' });
+      doc.font('Helvetica').fontSize(7).fill('#6b7280');
+      if (company.cnpj) doc.text(formatDoc(company.cnpj).replace(/^(CNPJ|CPF): /, 'CNPJ '), margin, doc.y, { width: pageW, align: 'right' });
+      const compAddr = buildAddress(company);
+      if (compAddr) doc.text(compAddr, margin, doc.y, { width: pageW, align: 'right' });
+      const compContacts = [company.phone ? formatPhone(company.phone) : '', company.email || ''].filter(Boolean).join('  |  ');
+      if (compContacts) doc.text(compContacts, margin, doc.y, { width: pageW, align: 'right' });
+
+      y = Math.max(doc.y, y) + 20;
+
+      // --- Big OS Code + Status ---
+      doc.font('Helvetica-Bold').fontSize(22).fill(ACCENT);
+      doc.text(so.code || 'OS', margin, y);
+      const codeBottom = doc.y;
+      doc.font('Helvetica').fontSize(9).fill('#6b7280');
+      doc.text('ORDEM DE SERVIÇO', margin, codeBottom + 1);
+      // Status right
+      doc.font('Helvetica-Bold').fontSize(9).fill('#374151');
+      doc.text(STATUS_LABELS[so.status] || so.status, margin, y + 4, { width: pageW, align: 'right' });
+      doc.font('Helvetica').fontSize(7).fill('#9ca3af');
+      doc.text(formatDate(so.createdAt), margin, y + 16, { width: pageW, align: 'right' });
+
+      y = codeBottom + 18;
+
+      // --- Accent line ---
+      doc.moveTo(margin, y).lineTo(margin + pageW, y).strokeColor(ACCENT).lineWidth(1.5).stroke();
+      y += 12;
+
+      // --- Title + description ---
+      if (so.title) {
+        doc.font('Helvetica-Bold').fontSize(11).fill('#111827');
+        doc.text(so.title, margin, y, { width: pageW });
+        y = doc.y + 2;
+      }
+      if (so.description) {
+        doc.font('Helvetica').fontSize(8).fill('#4b5563');
+        doc.text(so.description, margin, y, { width: pageW });
+        y = doc.y + 6;
+      }
+      y += 6;
+
+      // --- Info grid (2 col) ---
+      const colW = (pageW - 16) / 2;
+      const lX = margin;
+      const rX = margin + colW + 16;
+      const gridY = y;
+
+      // Col 1: Client
+      doc.font('Helvetica-Bold').fontSize(8).fill(ACCENT).text('Cliente', lX, gridY);
+      let ly = gridY + 12;
+      if (client) {
+        doc.font('Helvetica-Bold').fontSize(8.5).fill('#111827').text(client.name, lX, ly, { width: colW }); ly = doc.y + 1;
+        doc.font('Helvetica').fontSize(7).fill('#4b5563');
+        if (client.document) { doc.text(formatDoc(client.document, client.documentType), lX, ly, { width: colW }); ly = doc.y; }
+        if (client.phone) { doc.text(formatPhone(client.phone), lX, ly, { width: colW }); ly = doc.y; }
+        if (client.email) { doc.text(client.email, lX, ly, { width: colW }); ly = doc.y; }
+        const cAddr = buildClientAddress(client);
+        if (cAddr) { doc.text(cAddr, lX, ly, { width: colW }); ly = doc.y; }
+      }
+
+      // Col 2: Details
+      doc.font('Helvetica-Bold').fontSize(8).fill(ACCENT).text('Detalhes', rX, gridY);
+      let ry = gridY + 12;
+      doc.font('Helvetica').fontSize(7.5).fill('#4b5563');
+      const details: [string, string][] = [];
+      if (so.addressText) details.push(['Local', so.addressText]);
+      if (so.assignedPartner?.name) details.push(['Técnico', `${so.assignedPartner.name} ${so.assignedPartner.phone ? formatPhone(so.assignedPartner.phone) : ''}`]);
+      if (so.scheduledStartAt) details.push(['Agendamento', formatDateTime(so.scheduledStartAt)]);
+      if (so.deadlineAt) details.push(['Prazo', formatDate(so.deadlineAt)]);
+
+      for (const [label, val] of details) {
+        doc.font('Helvetica-Bold').fontSize(6.5).fill('#9ca3af').text(label, rX, ry);
+        doc.font('Helvetica').fontSize(7.5).fill('#111827').text(val, rX, doc.y, { width: colW }); ry = doc.y + 5;
+      }
+
+      y = Math.max(ly, ry) + 14;
+
+      // --- Items ---
+      y = drawItemsTable(doc, so.items || [], y, margin, pageW, ACCENT, '#ffffff', ACCENT);
+      y += 4;
+
+      // Total
+      const tX = margin + pageW - 180;
+      doc.rect(tX, y, 180, 22).fill(ACCENT);
+      doc.fill('#ffffff').font('Helvetica-Bold').fontSize(10);
+      doc.text('TOTAL:', tX + 8, y + 5, { width: 90, align: 'right' });
+      doc.text(formatMoney(so.valueCents || 0), tX + 105, y + 5, { width: 68, align: 'right' });
+      doc.fill('#000000');
+      y += 30;
+
+      // Notes
+      if (so.notes) {
+        if (y > doc.page.height - 80) { doc.addPage(); y = margin; doc.rect(0, 0, 5, doc.page.height).fill(ACCENT); }
+        doc.font('Helvetica-Bold').fontSize(8).fill(ACCENT).text('Observações', margin, y);
+        y = doc.y + 3;
+        doc.font('Helvetica').fontSize(7.5).fill('#4b5563').text(so.notes, margin, y, { width: pageW });
+        y = doc.y + 8;
+      }
+
+      drawFooter(doc, margin, pageW);
+      doc.end();
+    });
+  }
+
+  // ============================================================
+  // LAYOUT 4 — "Minimalista"
+  // Ultra limpo, muito branco, tipografia leve, sem caixas pesadas
+  // ============================================================
+  private buildLayout4(so: any): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const margin = 50;
+      const doc = new PDFDocument({ size: 'A4', margin });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const pageW = doc.page.width - margin * 2;
+      const company = so.company;
+      const client = so.clientPartner;
+      const logo = loadLogo(company);
+      let y = margin;
+
+      // --- Header: logo left, OS code right ---
+      if (logo) {
+        doc.image(logo, margin, y, { width: company.logoWidth || 70, height: company.logoHeight || 26 });
+      }
+
+      doc.font('Helvetica-Bold').fontSize(20).fill('#374151');
+      doc.text(so.code || 'OS', margin, y, { width: pageW, align: 'right' });
+      doc.font('Helvetica').fontSize(7).fill('#9ca3af');
+      doc.text('Ordem de Serviço', margin, doc.y, { width: pageW, align: 'right' });
+
+      y = Math.max(doc.y, y + 30) + 6;
+      doc.moveTo(margin, y).lineTo(margin + pageW, y).strokeColor('#e5e7eb').lineWidth(0.3).stroke();
+      y += 8;
+
+      // --- Company + Status line ---
+      doc.font('Helvetica').fontSize(7).fill('#9ca3af');
+      const compLine = [company.tradeName || company.name, company.cnpj ? formatDoc(company.cnpj).replace(/^(CNPJ|CPF): /, '') : '', company.phone ? formatPhone(company.phone) : ''].filter(Boolean).join('  |  ');
+      doc.text(compLine, margin, y, { width: pageW });
+      doc.text(`${STATUS_LABELS[so.status] || so.status}  |  ${formatDate(so.createdAt)}`, margin, y, { width: pageW, align: 'right' });
+      y = doc.y + 16;
+
+      // --- Title ---
+      if (so.title) {
+        doc.font('Helvetica-Bold').fontSize(13).fill('#111827');
+        doc.text(so.title, margin, y, { width: pageW });
+        y = doc.y + 3;
+      }
+      if (so.description) {
+        doc.font('Helvetica').fontSize(8).fill('#6b7280');
+        doc.text(so.description, margin, y, { width: pageW });
+        y = doc.y + 8;
+      }
+      y += 4;
+
+      // --- Horizontal detail cards ---
+      const drawField = (label: string, value: string, x: number, w: number) => {
+        doc.font('Helvetica').fontSize(6).fill('#9ca3af').text(label.toUpperCase(), x, y);
+        doc.font('Helvetica').fontSize(8).fill('#111827').text(value, x, doc.y + 1, { width: w });
+      };
+
+      // Row 1
+      const c3w = (pageW - 20) / 3;
+      if (client) {
+        drawField('Cliente', client.name, margin, c3w);
+        if (client.document) drawField('Documento', formatDoc(client.document, client.documentType).replace(/^(CNPJ|CPF): /, ''), margin + c3w + 10, c3w);
+        if (client.phone) drawField('Telefone', formatPhone(client.phone), margin + (c3w + 10) * 2, c3w);
+        y = doc.y + 8;
+      }
+
+      // Row 2
+      if (so.addressText) {
+        drawField('Endereço do Serviço', so.addressText, margin, pageW);
+        y = doc.y + 8;
+      }
+
+      // Row 3
+      const row3: [string, string][] = [];
+      if (so.assignedPartner?.name) row3.push(['Técnico', so.assignedPartner.name]);
+      if (so.scheduledStartAt) row3.push(['Agendamento', formatDateTime(so.scheduledStartAt)]);
+      if (so.deadlineAt) row3.push(['Prazo', formatDate(so.deadlineAt)]);
+      if (row3.length > 0) {
+        const rw = (pageW - (row3.length - 1) * 10) / row3.length;
+        row3.forEach(([label, val], i) => drawField(label, val, margin + i * (rw + 10), rw));
+        y = doc.y + 10;
+      }
+
+      y += 6;
+
+      // --- Thin separator ---
+      doc.moveTo(margin, y).lineTo(margin + pageW, y).strokeColor('#e5e7eb').lineWidth(0.3).stroke();
+      y += 10;
+
+      // --- Items ---
+      y = drawItemsTable(doc, so.items || [], y, margin, pageW, '#f3f4f6', '#374151', '#374151');
+      y += 6;
+
+      // Total — minimalist right-aligned
+      doc.font('Helvetica').fontSize(8).fill('#9ca3af');
+      doc.text('Total', margin, y, { width: pageW - 5, align: 'right' });
+      y = doc.y + 1;
+      doc.font('Helvetica-Bold').fontSize(14).fill('#111827');
+      doc.text(formatMoney(so.valueCents || 0), margin, y, { width: pageW - 5, align: 'right' });
+      y = doc.y + 16;
+
+      // Notes
+      if (so.notes) {
+        if (y > doc.page.height - 80) { doc.addPage(); y = margin; }
+        doc.moveTo(margin, y).lineTo(margin + pageW, y).strokeColor('#e5e7eb').lineWidth(0.3).stroke();
+        y += 8;
+        doc.font('Helvetica').fontSize(6).fill('#9ca3af').text('OBSERVAÇÕES', margin, y);
+        y = doc.y + 3;
+        doc.font('Helvetica').fontSize(7.5).fill('#4b5563').text(so.notes, margin, y, { width: pageW });
+        y = doc.y + 8;
+      }
+
+      drawFooter(doc, margin, pageW);
       doc.end();
     });
   }
