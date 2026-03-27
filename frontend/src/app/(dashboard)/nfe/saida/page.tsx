@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import FilterBar from "@/components/ui/FilterBar";
@@ -71,7 +71,7 @@ const FILTERS: FilterDefinition[] = [
     ],
   },
   { key: "dateFrom", label: "Data de", type: "date" },
-  { key: "dateTo", label: "Data ate", type: "date" },
+  { key: "dateTo", label: "Data até", type: "date" },
 ];
 
 /* ── Columns ───────────────────────────────────────── */
@@ -166,6 +166,95 @@ function buildColumns(): ColumnDefinition<NfseEmission>[] {
         ) : null,
     },
   ];
+}
+
+/* ── Actions Dropdown ─────────────────────────────── */
+
+function ActionsDropdown({
+  emission,
+  isLoading,
+  onDownloadPdf,
+  onResendEmail,
+  onRefreshStatus,
+  onCancel,
+  onToggleDetails,
+  isExpanded,
+}: {
+  emission: NfseEmission;
+  isLoading: boolean;
+  onDownloadPdf: () => void;
+  onResendEmail: () => void;
+  onRefreshStatus: () => void;
+  onCancel: () => void;
+  onToggleDetails: () => void;
+  isExpanded: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const toggle = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.right });
+    }
+    setOpen((v) => !v);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (btnRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onScroll = () => setOpen(false);
+    document.addEventListener("mousedown", onClickOutside);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
+
+  const isAuthorized = emission.status === "AUTHORIZED";
+  const isRetryable = emission.status === "PROCESSING" || emission.status === "ERROR" || emission.status === "CANCELLING";
+
+  const menuItem = (label: string, onClick: () => void, className = "text-slate-700 hover:bg-slate-50") => (
+    <button
+      key={label}
+      onClick={() => { setOpen(false); onClick(); }}
+      disabled={isLoading}
+      className={`w-full text-left px-3 py-2 text-sm disabled:opacity-50 ${className}`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        className="rounded border border-slate-300 px-2 py-1 text-sm font-bold text-slate-700 hover:bg-slate-100"
+      >
+        &#x22EF;
+      </button>
+      {open && (
+        <div
+          className="fixed z-50 min-w-[180px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          style={{ top: pos.top, left: pos.left, transform: "translateX(-100%)" }}
+        >
+          {isAuthorized && menuItem("Baixar PDF", onDownloadPdf)}
+          {isAuthorized && menuItem("Reenviar Email", onResendEmail)}
+          {isRetryable && menuItem("Consultar Status", onRefreshStatus)}
+          {(isAuthorized || isRetryable) && <div className="my-1 border-t border-slate-100" />}
+          {isAuthorized && menuItem("Cancelar NFS-e", onCancel, "text-red-600 hover:bg-red-50")}
+          {isAuthorized && <div className="my-1 border-t border-slate-100" />}
+          {menuItem(isExpanded ? "Fechar Detalhes" : "Detalhes", onToggleDetails)}
+        </div>
+      )}
+    </>
+  );
 }
 
 /* ── Page ──────────────────────────────────────────── */
@@ -420,8 +509,8 @@ export default function NfseSaidaPage() {
                   )}
                 </DraggableHeader>
               ))}
-              <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-right w-[140px]">
-                Acoes
+              <th className="py-3 px-4 text-xs font-semibold uppercase text-slate-600 text-right w-[80px]">
+                Ações
               </th>
             </tr>
           </thead>
@@ -472,74 +561,16 @@ export default function NfseSaidaPage() {
                       );
                     })}
                     <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {/* Refresh/Retry — for PROCESSING, ERROR or CANCELLING */}
-                        {(emission.status === "PROCESSING" || emission.status === "ERROR" || emission.status === "CANCELLING") && (
-                          <button
-                            onClick={() => handleRefreshStatus(emission)}
-                            disabled={isLoading}
-                            className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 disabled:opacity-50 transition-colors"
-                            title={emission.status === "ERROR" ? "Tentar novamente" : emission.status === "CANCELLING" ? "Confirmar cancelamento" : "Consultar status"}
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                          </button>
-                        )}
-
-                        {/* PDF Download — only AUTHORIZED */}
-                        {emission.status === "AUTHORIZED" && (
-                          <button
-                            onClick={() => handleDownloadPdf(emission)}
-                            disabled={isLoading}
-                            className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition-colors"
-                            title="Baixar PDF"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </button>
-                        )}
-
-                        {/* Resend Email — only AUTHORIZED */}
-                        {emission.status === "AUTHORIZED" && (
-                          <button
-                            onClick={() => handleResendEmail(emission)}
-                            disabled={isLoading}
-                            className="rounded-lg p-1.5 text-teal-600 hover:bg-teal-50 disabled:opacity-50 transition-colors"
-                            title="Reenviar email"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-                        )}
-
-                        {/* Cancel — only AUTHORIZED */}
-                        {emission.status === "AUTHORIZED" && (
-                          <button
-                            onClick={() => handleCancelOpen(emission)}
-                            disabled={isLoading}
-                            className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
-                            title="Cancelar NFS-e"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        )}
-
-                        {/* Expand Details */}
-                        <button
-                          onClick={() => setExpandedRow(isExpanded ? null : emission.id)}
-                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 transition-colors"
-                          title="Detalhes"
-                        >
-                          <svg className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                      </div>
+                      <ActionsDropdown
+                        emission={emission}
+                        isLoading={isLoading}
+                        onDownloadPdf={() => handleDownloadPdf(emission)}
+                        onResendEmail={() => handleResendEmail(emission)}
+                        onRefreshStatus={() => handleRefreshStatus(emission)}
+                        onCancel={() => handleCancelOpen(emission)}
+                        onToggleDetails={() => setExpandedRow(isExpanded ? null : emission.id)}
+                        isExpanded={isExpanded}
+                      />
                     </td>
                   </tr>
                 );

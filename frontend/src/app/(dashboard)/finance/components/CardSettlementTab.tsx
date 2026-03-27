@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import FilterBar from "@/components/ui/FilterBar";
@@ -82,7 +82,7 @@ const filterDefs: FilterDefinition[] = [
     ],
   },
   { key: "dateFrom", label: "De", type: "date" },
-  { key: "dateTo", label: "Ate", type: "date" },
+  { key: "dateTo", label: "Até", type: "date" },
 ];
 
 /* ── Spinner SVG ────────────────────────────────────────── */
@@ -104,6 +104,79 @@ function Spinner({ className = "h-4 w-4" }: { className?: string }) {
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
       />
     </svg>
+  );
+}
+
+/* ── ActionsDropdown ───────────────────────────────────── */
+
+function ActionsDropdown({
+  cs,
+  onSettle,
+}: {
+  cs: CardSettlement;
+  onSettle: (cs: CardSettlement) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (btnRef.current && btnRef.current.contains(e.target as Node)) return;
+      setOpen(false);
+    }
+    function handleScroll() {
+      setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [open]);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+    setOpen((v) => !v);
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        className="rounded border border-slate-300 px-2 py-1 text-sm font-bold text-slate-700 hover:bg-slate-100"
+      >
+        &#x22EF;
+      </button>
+      {open && (
+        <div
+          className="fixed z-50 min-w-[120px] rounded border border-slate-200 bg-white py-1 shadow-lg"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          {cs.status === "PENDING" ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+                onSettle(cs);
+              }}
+              className="w-full px-3 py-1.5 text-left text-sm text-green-700 hover:bg-slate-50"
+            >
+              Baixar
+            </button>
+          ) : (
+            <span className="block px-3 py-1.5 text-xs text-slate-400">—</span>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -403,31 +476,18 @@ export default function CardSettlementTab() {
     () => [
       {
         id: "acoes",
-        label: "Acoes",
+        label: "Ações",
         sortable: false,
         align: "center" as const,
-        render: (cs) => {
-          if (cs.status !== "PENDING") {
-            return <span className="text-xs text-slate-400">—</span>;
-          }
-          return (
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openSettleModal(cs);
-                }}
-                className="rounded-lg bg-green-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
-              >
-                Baixar
-              </button>
-            </div>
-          );
-        },
+        render: (cs) => (
+          <div className="flex items-center justify-center">
+            <ActionsDropdown cs={cs} onSettle={openSettleModal} />
+          </div>
+        ),
       },
       {
         id: "descricao",
-        label: "Descricao",
+        label: "Descrição",
         sortable: true,
         sortKey: "cardBrand",
         render: (cs) => {
@@ -478,7 +538,7 @@ export default function CardSettlementTab() {
       },
       {
         id: "liquido",
-        label: "Liquido",
+        label: "Líquido",
         sortable: true,
         sortKey: "expectedNetCents",
         align: "right" as const,

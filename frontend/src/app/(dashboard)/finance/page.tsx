@@ -1891,7 +1891,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   );
 }
 
-/* ── Entry Action Buttons ──────────────────────────────── */
+/* ── Entry Action Buttons (Dropdown) ──────────────────── */
 
 function EntryActions({
   entry,
@@ -1915,125 +1915,169 @@ function EntryActions({
   onEdit?: () => void;
 }) {
   const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (btnRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    }
+    function handleScroll() { setOpen(false); }
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [open]);
+
+  function toggle() {
+    if (open) { setOpen(false); return; }
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.right });
+    }
+    setOpen(true);
+  }
+
   if (loading) {
     return <span className="text-xs text-slate-400 animate-pulse">Processando...</span>;
   }
 
   const payLabel = type === "RECEIVABLE" ? "Receber" : "Pagar";
-  const statusButtons: { label: string; action: "PAID" | "CANCELLED" | "REVERSED"; className: string; title?: string }[] = [];
-
-  if (entry.status === "PENDING" || entry.status === "CONFIRMED") {
-    statusButtons.push(
-      { label: payLabel, action: "PAID", className: "text-green-600 hover:text-green-800", title: type === "RECEIVABLE" ? "Registrar recebimento efetuado" : "Registrar pagamento efetuado" },
-      { label: "Cancelar", action: "CANCELLED", className: "text-red-500 hover:text-red-700" },
-    );
-  } else if (entry.status === "PAID") {
-    statusButtons.push(
-      { label: "Estornar", action: "REVERSED", className: "text-orange-600 hover:text-orange-800", title: "Reverter pagamento e voltar para pendente" },
-    );
-  }
-
+  const isPendingOrConfirmed = entry.status === "PENDING" || entry.status === "CONFIRMED";
+  const isPaid = entry.status === "PAID";
   const isTerminal = entry.status === "CANCELLED" || entry.status === "PAID";
   const hasInstallments = entry.installmentCount && entry.installmentCount > 0;
 
-  return (
-    <div className="flex gap-1.5 flex-wrap">
-      {/* Status actions */}
-      {statusButtons.map((btn) => (
-        <button
-          key={btn.action}
-          onClick={() => onAction(btn.action)}
-          title={btn.title}
-          className={`text-xs font-medium ${btn.className} transition-colors`}
-        >
-          {btn.label}
-        </button>
-      ))}
+  // Build menu items
+  type MenuItem = { label: string; onClick: () => void; className?: string; separator?: false } | { separator: true };
+  const items: MenuItem[] = [];
 
-      {/* Edit (3rd position) */}
-      {onEdit && (
-        <button
-          onClick={onEdit}
-          className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-          title="Editar"
-        >
-          Editar
-        </button>
-      )}
+  // Primary action: Receber/Pagar
+  if (isPendingOrConfirmed) {
+    items.push({
+      label: payLabel,
+      onClick: () => onAction("PAID"),
+      className: "text-green-700 font-semibold",
+    });
+  }
 
-      {/* View installments (only if already has them) */}
-      {hasInstallments && (
-        <button
-          onClick={onViewInstallments}
-          className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
-          title="Ver parcelas"
-        >
-          Parcelas
-        </button>
-      )}
+  // Edit
+  if (onEdit) {
+    items.push({ label: "Editar", onClick: onEdit });
+  }
 
-      {/* Renegotiate — only for non-terminal entries */}
-      {!isTerminal && (
-        <button
-          onClick={onRenegotiate}
-          className="text-xs font-medium text-amber-600 hover:text-amber-800 transition-colors"
-          title="Renegociar"
-        >
-          Renegociar
-        </button>
-      )}
+  // View installments
+  if (hasInstallments) {
+    items.push({ label: "Parcelas", onClick: onViewInstallments, className: "text-purple-700" });
+  }
 
-      {/* NFS-e — download PDF when authorized */}
-      {type === "RECEIVABLE" && onEmitNfse && entry.nfseStatus === "AUTHORIZED" && entry.nfseEmissionId && (
-        <button
-          onClick={async () => {
-            try {
-              const token = getAccessToken();
-              const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/nfse-emission/emissions/${entry.nfseEmissionId}/pdf`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-              });
-              if (!res.ok) {
-                const errBody = await res.json().catch(() => null);
-                throw new Error(errBody?.message || "Erro ao baixar PDF");
-              }
-              const blob = await res.blob();
-              // Extract filename from Content-Disposition header
-              const cd = res.headers.get("content-disposition") || "";
-              const fnMatch = cd.match(/filename="?([^";\n]+)"?/);
-              const filename = fnMatch?.[1] || `NFS-e ${entry.nfseEmissionId}.pdf`;
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = filename;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              setTimeout(() => URL.revokeObjectURL(url), 10000);
-            } catch (err: any) {
-              toast(err?.message || "Erro ao baixar PDF da NFS-e.", "error");
+  // Renegotiate (non-terminal)
+  if (!isTerminal) {
+    items.push({ label: "Renegociar", onClick: onRenegotiate });
+  }
+
+  // NFS-e actions (RECEIVABLE only)
+  if (type === "RECEIVABLE" && onEmitNfse) {
+    if (entry.nfseStatus === "AUTHORIZED" && entry.nfseEmissionId) {
+      items.push({
+        label: "PDF NFS-e",
+        onClick: async () => {
+          try {
+            const token = getAccessToken();
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/nfse-emission/emissions/${entry.nfseEmissionId}/pdf`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (!res.ok) {
+              const errBody = await res.json().catch(() => null);
+              throw new Error(errBody?.message || "Erro ao baixar PDF");
             }
-          }}
-          className="text-xs font-medium text-green-600 hover:text-green-800 transition-colors"
-          title="Baixar PDF da NFS-e"
-        >
-          PDF NFS-e
-        </button>
-      )}
-      {type === "RECEIVABLE" && onEmitNfse && entry.nfseStatus !== "AUTHORIZED" && entry.nfseStatus !== "PROCESSING" && entry.status !== "CANCELLED" && (
-        <button
-          onClick={onEmitNfse}
-          className="text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
-          title="Emitir NFS-e"
-        >
-          NFS-e
-        </button>
-      )}
+            const blob = await res.blob();
+            const cd = res.headers.get("content-disposition") || "";
+            const fnMatch = cd.match(/filename="?([^";\n]+)"?/);
+            const filename = fnMatch?.[1] || `NFS-e ${entry.nfseEmissionId}.pdf`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+          } catch (err: any) {
+            toast(err?.message || "Erro ao baixar PDF da NFS-e.", "error");
+          }
+        },
+        className: "text-green-700",
+      });
+    }
+    if (entry.nfseStatus !== "AUTHORIZED" && entry.nfseStatus !== "PROCESSING" && entry.status !== "CANCELLED") {
+      items.push({ label: "Emitir NFS-e", onClick: onEmitNfse, className: "text-teal-700" });
+    }
+  }
 
-      {/* Show dash if terminal and no installments */}
-      {isTerminal && !hasInstallments && statusButtons.length === 0 && (
-        <span className="text-xs text-slate-400">—</span>
+  // Separator before destructive actions
+  const hasDestructive = isPaid || isPendingOrConfirmed;
+  if (hasDestructive && items.length > 0) {
+    items.push({ separator: true });
+  }
+
+  // Estornar (PAID only)
+  if (isPaid) {
+    items.push({ label: "Estornar", onClick: () => onAction("REVERSED"), className: "text-amber-600" });
+  }
+
+  // Cancelar (PENDING/CONFIRMED only)
+  if (isPendingOrConfirmed) {
+    items.push({ label: "Cancelar", onClick: () => onAction("CANCELLED"), className: "text-red-600" });
+  }
+
+  // Nothing to show
+  if (items.length === 0) {
+    return <span className="text-xs text-slate-400">&mdash;</span>;
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        className="rounded border border-slate-300 px-2 py-1 text-sm font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+        title="Ações"
+      >
+        &#x22EF;
+      </button>
+      {open && pos && (
+        <div
+          ref={dropRef}
+          className="fixed z-50 min-w-[160px] bg-white border border-slate-200 rounded-lg shadow-lg py-1"
+          style={{ top: pos.top, left: pos.left, transform: "translateX(-100%)" }}
+        >
+          {items.map((item, i) => {
+            if ("separator" in item && item.separator) {
+              return <div key={`sep-${i}`} className="my-1 border-t border-slate-100" />;
+            }
+            const mi = item as Exclude<MenuItem, { separator: true }>;
+            return (
+              <button
+                key={mi.label}
+                onClick={() => { setOpen(false); mi.onClick(); }}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors ${mi.className || "text-slate-700"}`}
+              >
+                {mi.label}
+              </button>
+            );
+          })}
+        </div>
       )}
-    </div>
+    </>
   );
 }
 
