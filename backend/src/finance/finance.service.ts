@@ -994,20 +994,65 @@ export class FinanceService {
       },
     });
 
-    // 3) Map entries to statement rows
-    const entryRows = entries.map((e) => ({
-      id: e.id,
-      date: e.paidAt ?? e.createdAt,
-      description: e.description || (e.type === 'RECEIVABLE' ? 'Recebimento' : 'Pagamento'),
-      type: e.type === 'RECEIVABLE' ? 'CREDIT' as const : 'DEBIT' as const,
-      amountCents: e.type === 'RECEIVABLE' ? e.netCents : -e.netCents,
-      category: e.financialAccount?.name ?? null,
-      source: e.type as string,
-      partnerName: e.partner?.name ?? null,
-      paymentMethod: e.paymentMethod ?? null,
-      cashAccountName: e.cashAccountRef?.name ?? null,
-      code: e.code ?? null,
-    }));
+    // 2b) Fetch card fee rates for tax calculation
+    const cardFeeRates = await this.prisma.cardFeeRate.findMany({
+      where: { companyId, isActive: true },
+    });
+
+    // Helper: find fee rate for a card entry
+    const findFeePercent = (pm: string | null, brand: string | null): number => {
+      if (!pm) return 0;
+      const type = pm === 'CARTAO_CREDITO' ? 'CREDITO' : pm === 'CARTAO_DEBITO' ? 'DEBITO' : '';
+      if (!type) return 0;
+      const rate = cardFeeRates.find(r =>
+        r.type.toUpperCase() === type &&
+        (brand ? r.brand.toUpperCase() === brand.toUpperCase() : true) &&
+        r.installmentFrom <= 1 && r.installmentTo >= 1
+      );
+      return rate?.feePercent ?? 0;
+    };
+
+    // 3) Map entries to statement rows (with card tax split)
+    const entryRows: any[] = [];
+    for (const e of entries) {
+      const isCard = e.paymentMethod?.startsWith('CARTAO');
+      const feePercent = isCard ? findFeePercent(e.paymentMethod, e.cardBrand) : 0;
+      const grossCents = e.type === 'RECEIVABLE' ? e.grossCents : e.netCents;
+      const taxCents = isCard && feePercent > 0 ? Math.round(grossCents * feePercent / 100) : 0;
+      const liquidCents = grossCents - taxCents;
+
+      // Main entry row (liquid amount for card, full amount otherwise)
+      entryRows.push({
+        id: e.id,
+        date: e.paidAt ?? e.createdAt,
+        description: e.description || (e.type === 'RECEIVABLE' ? 'Recebimento' : 'Pagamento'),
+        type: e.type === 'RECEIVABLE' ? 'CREDIT' as const : 'DEBIT' as const,
+        amountCents: e.type === 'RECEIVABLE' ? liquidCents : -liquidCents,
+        category: e.financialAccount?.name ?? null,
+        source: e.type as string,
+        partnerName: e.partner?.name ?? null,
+        paymentMethod: e.paymentMethod ?? null,
+        cashAccountName: e.cashAccountRef?.name ?? null,
+        code: e.code ?? null,
+      });
+
+      // Card tax as separate DEBIT row
+      if (taxCents > 0) {
+        entryRows.push({
+          id: `${e.id}-tax`,
+          date: e.paidAt ?? e.createdAt,
+          description: `Taxa cartão ${e.cardBrand || ''} (${feePercent}%) — ${e.description || ''}`.trim(),
+          type: 'DEBIT' as const,
+          amountCents: -taxCents,
+          category: 'Taxas de Cartão',
+          source: 'CARD_FEE',
+          partnerName: e.partner?.name ?? null,
+          paymentMethod: e.paymentMethod ?? null,
+          cashAccountName: e.cashAccountRef?.name ?? null,
+          code: null,
+        });
+      }
+    }
 
     // 4) Map transfers to TWO rows each (debit from source, credit to destination)
     const transferRows = transfers.flatMap((t) => [
