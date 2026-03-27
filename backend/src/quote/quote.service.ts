@@ -713,6 +713,20 @@ export class QuoteService {
     return os;
   }
 
+  async linkQuoteToOs(quoteId: string, serviceOrderId: string, companyId: string) {
+    const quote = await this.prisma.quote.findFirst({
+      where: { id: quoteId, companyId, deletedAt: null },
+    });
+    if (!quote) throw new NotFoundException('Orçamento não encontrado');
+    if (quote.serviceOrderId) throw new BadRequestException('Orçamento já vinculado a uma OS');
+
+    await this.prisma.quote.update({
+      where: { id: quoteId },
+      data: { serviceOrderId },
+    });
+    return { linked: true };
+  }
+
   async stats(companyId: string) {
     const counts = await this.prisma.quote.groupBy({
       by: ['status'],

@@ -175,6 +175,15 @@ export class QuoteController {
     return this.service.createOsFromQuote(id, user.companyId, user);
   }
 
+  @Post(':id/link-os')
+  async linkOs(
+    @Param('id') id: string,
+    @Body() body: { serviceOrderId: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.linkQuoteToOs(id, body.serviceOrderId, user.companyId);
+  }
+
   @Get(':id/pdf')
   async getPdf(
     @Param('id') id: string,

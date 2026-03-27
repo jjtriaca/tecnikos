@@ -160,9 +160,7 @@ export default function QuoteDetailPage() {
         router.push(`/quotes/${dup.id}/edit`);
         return;
       } else if (action === "create-os") {
-        const os = await api.post<{ id: string }>(`/quotes/${quoteId}/create-os`);
-        toast("OS criada a partir do orcamento!", "success");
-        router.push(`/orders/${os.id}`);
+        router.push(`/orders/new?fromQuote=${quoteId}`);
         return;
       }
       // Reload quote

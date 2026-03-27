@@ -406,15 +406,8 @@ export default function QuotesPage() {
     }
   };
 
-  const handleConvertToOs = async (q: Quote) => {
-    if (!confirm(`Converter orçamento ${q.code} em Ordem de Serviço?`)) return;
-    try {
-      const os = await api.post<{ id: string; code: string }>(`/quotes/${q.id}/create-os`);
-      toast(`OS ${os.code} criada com sucesso!`, "success");
-      router.push(`/orders/${os.id}`);
-    } catch (err: any) {
-      toast(err?.response?.data?.message || err?.message || "Erro ao converter", "error");
-    }
+  const handleConvertToOs = (q: Quote) => {
+    router.push(`/orders/new?fromQuote=${q.id}`);
   };
 
   // Inject action column render

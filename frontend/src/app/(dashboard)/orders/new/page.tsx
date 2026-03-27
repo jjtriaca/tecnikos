@@ -106,6 +106,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
   const { addDispatch } = useDispatch();
   const { toast } = useToast();
   const returnFromId = searchParams.get("returnFrom");
+  const fromQuoteId = searchParams.get("fromQuote");
   const [returnLoading, setReturnLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -500,6 +501,51 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
     return () => { cancelled = true; };
   }, [returnFromId]);
 
+  // Load quote data for "Convert quote to OS" pre-population
+  useEffect(() => {
+    if (!fromQuoteId) return;
+    let cancelled = false;
+    setReturnLoading(true);
+    (async () => {
+      try {
+        const quote = await api.get<any>(`/quotes/${fromQuoteId}`);
+        if (cancelled) return;
+
+        setForm(f => ({
+          ...f,
+          title: quote.title || "",
+          description: quote.description || "",
+        }));
+
+        // Pre-populate items from quote
+        if (quote.items?.length) {
+          const sorted = [...quote.items].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+          setServiceItems(sorted
+            .filter((item: any) => item.serviceId)
+            .map((item: any) => ({
+              serviceId: item.serviceId,
+              serviceName: item.description,
+              unit: item.unit || "SV",
+              unitPriceCents: item.unitPriceCents,
+              commissionBps: null,
+              quantity: item.quantity || 1,
+            }))
+          );
+        }
+
+        // Pre-select client
+        if (quote.clientPartnerId) {
+          try {
+            const client = await api.get<PartnerSummary>(`/partners/${quote.clientPartnerId}`);
+            if (!cancelled) setSelectedClient(client);
+          } catch { /* ignore */ }
+        }
+      } catch { /* ignore load errors */ }
+      finally { if (!cancelled) setReturnLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [fromQuoteId]);
+
   function onChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) {
@@ -830,6 +876,13 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
       } else {
         const result = await api.post<any>("/service-orders", payload);
 
+        // Link quote to created OS if converting from quote
+        if (fromQuoteId && result?.id) {
+          try {
+            await api.post(`/quotes/${fromQuoteId}/link-os`, { serviceOrderId: result.id });
+          } catch { /* non-blocking */ }
+        }
+
         // Tech Review Modal: workflow has techReviewScreen enabled
         if (result?._pendingReview) {
           setReviewModal({
@@ -949,7 +1002,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
 
       <div className="flex items-center gap-3 mb-6">
         <h1 className="text-2xl font-bold text-slate-900">
-          {isEditMode ? "Editar Ordem de Serviço" : returnFromId ? "Retorno de Atendimento" : "Nova Ordem de Serviço"}
+          {isEditMode ? "Editar Ordem de Serviço" : returnFromId ? "Retorno de Atendimento" : fromQuoteId ? "Nova OS (do Orçamento)" : "Nova Ordem de Serviço"}
         </h1>
         {isEditMode && status && (
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[status] || "bg-slate-100 text-slate-600"}`}>
