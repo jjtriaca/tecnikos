@@ -222,20 +222,8 @@ export class ReconciliationService {
       }
 
       if (sourceAccountId && sourceAccountId !== bankAccountId) {
-        const transferAmount = Math.abs(line.amountCents); // liquid amount deposited
-        // Create auto-transfer: source → bank
-        await this.prisma.accountTransfer.create({
-          data: {
-            companyId,
-            fromAccountId: sourceAccountId,
-            toAccountId: bankAccountId,
-            amountCents: transferAmount,
-            description: `Conciliação automática: ${line.description?.substring(0, 80) || 'Extrato bancário'}`,
-            transferDate: line.transactionDate,
-            createdByName: matchedByName,
-          },
-        });
-        // Update balances
+        const transferAmount = Math.abs(line.amountCents);
+        // Update balances directly (no separate transfer record — entry movement IS the transfer)
         await this.prisma.cashAccount.update({
           where: { id: sourceAccountId },
           data: { currentBalanceCents: { decrement: transferAmount } },
@@ -300,16 +288,6 @@ export class ReconciliationService {
           await this.prisma.financialEntry.update({
             where: { id: line.matchedEntryId },
             data: { cashAccountId: transitAccount.id },
-          });
-          // Delete the auto-transfer record
-          await this.prisma.accountTransfer.deleteMany({
-            where: {
-              companyId,
-              fromAccountId: transitAccount.id,
-              toAccountId: bankAccountId,
-              amountCents: transferAmount,
-              description: { startsWith: 'Conciliação automática' },
-            },
           });
         }
       }
