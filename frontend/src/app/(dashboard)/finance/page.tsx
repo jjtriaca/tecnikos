@@ -711,23 +711,33 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         const accounts = dashData.cashAccounts as { id: string; name: string; type: string; currentBalanceCents: number }[];
         const active = accounts.filter((a: any) => a.currentBalanceCents !== undefined);
         const total = active.reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
-        const caixas = active.filter((a: any) => a.type === "CAIXA").reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
-        const bancos = active.filter((a: any) => a.type === "BANCO").reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
+        const caixasList = active.filter((a: any) => a.type === "CAIXA");
+        const bancosList = active.filter((a: any) => a.type === "BANCO");
+        const cols = Math.min(1 + caixasList.length + bancosList.length, 4);
         return (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className={`grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-${cols}`}>
+            {/* Saldo Total */}
             <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-green-700">Saldo Total</span>
               <p className={`mt-1 text-lg font-bold ${total >= 0 ? "text-green-900" : "text-red-700"}`}>{formatCurrency(total)}</p>
               <p className="text-[10px] text-slate-400">{active.length} conta{active.length !== 1 ? "s" : ""} ativa{active.length !== 1 ? "s" : ""}</p>
             </div>
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
-              <span className="text-[11px] font-medium text-amber-700">Caixas</span>
-              <p className={`mt-1 text-lg font-bold ${caixas >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(caixas)}</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
-              <span className="text-[11px] font-medium text-blue-700">Bancos</span>
-              <p className={`mt-1 text-lg font-bold ${bancos >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(bancos)}</p>
-            </div>
+            {/* Each Caixa */}
+            {caixasList.map((a: any) => (
+              <div key={a.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+                <span className="text-[11px] font-medium text-amber-700">💰 {a.name}</span>
+                <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
+                <p className="text-[10px] text-slate-400">Caixa</p>
+              </div>
+            ))}
+            {/* Each Banco */}
+            {bancosList.map((a: any) => (
+              <div key={a.id} className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+                <span className="text-[11px] font-medium text-blue-700">🏦 {a.name}</span>
+                <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
+                <p className="text-[10px] text-slate-400">Banco</p>
+              </div>
+            ))}
           </div>
         );
       })() : null,

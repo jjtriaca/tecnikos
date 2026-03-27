@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsInt } from 'class-validator';
 
 export class MatchLineDto {
   @IsOptional()
@@ -12,4 +12,12 @@ export class MatchLineDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsInt()
+  liquidCents?: number;
+
+  @IsOptional()
+  @IsInt()
+  taxCents?: number;
 }

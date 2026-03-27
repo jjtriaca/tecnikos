@@ -187,6 +187,8 @@ export class ReconciliationService {
         matchedInstallmentId: dto.installmentId ?? null,
         matchedAt: new Date(),
         matchedByName,
+        matchedLiquidCents: dto.liquidCents ?? null,
+        matchedTaxCents: dto.taxCents ?? null,
         notes: dto.notes ?? null,
       },
     });

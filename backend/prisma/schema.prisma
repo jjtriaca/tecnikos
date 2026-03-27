@@ -1462,6 +1462,8 @@ model BankStatementLine {
   matchedInstallmentId  String?
   matchedAt             DateTime?
   matchedByName         String?
+  matchedLiquidCents    Int?              // Valor liquido confirmado pelo gestor
+  matchedTaxCents       Int?              // Taxa de cartao confirmada pelo gestor
   notes                 String?
   createdAt             DateTime            @default(now())
 

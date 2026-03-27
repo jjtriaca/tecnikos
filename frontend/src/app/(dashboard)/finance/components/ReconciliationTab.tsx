@@ -270,7 +270,12 @@ function ConciliationModal({
     if (!line) return;
     setMatching(entryId);
     try {
-      await api.post(`/finance/reconciliation/lines/${line.id}/match`, { entryId });
+      const body: any = { entryId };
+      if (isCard && (liquidCents > 0 || taxCents > 0)) {
+        body.liquidCents = liquidCents;
+        body.taxCents = taxCents;
+      }
+      await api.post(`/finance/reconciliation/lines/${line.id}/match`, body);
       toast("Conciliado com sucesso!", "success");
       onMatched();
     } catch (err: any) {

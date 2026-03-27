@@ -994,12 +994,21 @@ export class FinanceService {
       },
     });
 
-    // 2b) Fetch card fee rates for tax calculation
+    // 2b) Fetch reconciliation data for card entries (matched liquid/tax from gestor)
+    const entryIds = entries.filter(e => e.paymentMethod?.startsWith('CARTAO')).map(e => e.id);
+    const reconMatches = entryIds.length > 0
+      ? await this.prisma.bankStatementLine.findMany({
+          where: { matchedEntryId: { in: entryIds }, status: 'MATCHED' },
+          select: { matchedEntryId: true, matchedLiquidCents: true, matchedTaxCents: true, cashAccountId: true },
+          distinct: ['matchedEntryId'],
+        })
+      : [];
+    const reconMap = new Map(reconMatches.map(r => [r.matchedEntryId!, r]));
+
+    // 2c) Fetch card fee rates as fallback
     const cardFeeRates = await this.prisma.cardFeeRate.findMany({
       where: { companyId, isActive: true },
     });
-
-    // Helper: find fee rate for a card entry
     const findFeePercent = (pm: string | null, brand: string | null): number => {
       if (!pm) return 0;
       const type = pm === 'CARTAO_CREDITO' ? 'CREDITO' : pm === 'CARTAO_DEBITO' ? 'DEBITO' : '';
@@ -1012,16 +1021,39 @@ export class FinanceService {
       return rate?.feePercent ?? 0;
     };
 
+    // 2d) Fetch cash account names for recon matches
+    const reconAccountIds = [...new Set(reconMatches.filter(r => r.cashAccountId).map(r => r.cashAccountId))];
+    const reconAccounts = reconAccountIds.length > 0
+      ? await this.prisma.cashAccount.findMany({ where: { id: { in: reconAccountIds } }, select: { id: true, name: true } })
+      : [];
+    const reconAccountMap = new Map(reconAccounts.map(a => [a.id, a.name]));
+
     // 3) Map entries to statement rows (with card tax split)
     const entryRows: any[] = [];
     for (const e of entries) {
       const isCard = e.paymentMethod?.startsWith('CARTAO');
-      const feePercent = isCard ? findFeePercent(e.paymentMethod, e.cardBrand) : 0;
-      const grossCents = e.type === 'RECEIVABLE' ? e.grossCents : e.netCents;
-      const taxCents = isCard && feePercent > 0 ? Math.round(grossCents * feePercent / 100) : 0;
-      const liquidCents = grossCents - taxCents;
+      const recon = isCard ? reconMap.get(e.id) : undefined;
 
-      // Main entry row (liquid amount for card, full amount otherwise)
+      let liquidCents: number;
+      let taxCents: number;
+      let cashName = e.cashAccountRef?.name ?? null;
+
+      if (isCard && recon?.matchedLiquidCents != null && recon?.matchedTaxCents != null) {
+        // Use gestor-confirmed values from reconciliation
+        liquidCents = recon.matchedLiquidCents;
+        taxCents = recon.matchedTaxCents;
+        if (recon.cashAccountId) cashName = reconAccountMap.get(recon.cashAccountId) ?? cashName;
+      } else if (isCard) {
+        // Fallback: calculate from fee rates
+        const feePercent = findFeePercent(e.paymentMethod, e.cardBrand);
+        const gross = e.grossCents;
+        taxCents = feePercent > 0 ? Math.round(gross * feePercent / 100) : 0;
+        liquidCents = gross - taxCents;
+      } else {
+        liquidCents = e.type === 'RECEIVABLE' ? e.netCents : e.netCents;
+        taxCents = 0;
+      }
+
       entryRows.push({
         id: e.id,
         date: e.paidAt ?? e.createdAt,
@@ -1032,23 +1064,23 @@ export class FinanceService {
         source: e.type as string,
         partnerName: e.partner?.name ?? null,
         paymentMethod: e.paymentMethod ?? null,
-        cashAccountName: e.cashAccountRef?.name ?? null,
+        cashAccountName: cashName,
         code: e.code ?? null,
       });
 
-      // Card tax as separate DEBIT row
       if (taxCents > 0) {
+        const feePercent = findFeePercent(e.paymentMethod, e.cardBrand);
         entryRows.push({
           id: `${e.id}-tax`,
           date: e.paidAt ?? e.createdAt,
-          description: `Taxa cartão ${e.cardBrand || ''} (${feePercent}%) — ${e.description || ''}`.trim(),
+          description: `Taxa cartão ${e.cardBrand || ''} ${feePercent ? `(${feePercent}%)` : ''} — ${e.description || ''}`.trim(),
           type: 'DEBIT' as const,
           amountCents: -taxCents,
           category: 'Taxas de Cartão',
           source: 'CARD_FEE',
           partnerName: e.partner?.name ?? null,
           paymentMethod: e.paymentMethod ?? null,
-          cashAccountName: e.cashAccountRef?.name ?? null,
+          cashAccountName: cashName,
           code: null,
         });
       }
