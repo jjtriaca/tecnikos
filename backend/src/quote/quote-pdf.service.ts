@@ -41,9 +41,44 @@ function formatDate(date: Date | string | null): string {
   return d.toLocaleDateString('pt-BR');
 }
 
+function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return phone || '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return phone;
+}
+
+// Theme definitions per layout
+interface PdfTheme {
+  titleBarBg: string;
+  titleBarText: string;
+  tableHeaderBg: string;
+  tableHeaderText: string;
+  totalBg: string;
+  totalText: string;
+  sectionLabelColor: string;
+  accentColor: string;
+}
+
+const THEMES: Record<number, PdfTheme> = {
+  1: { titleBarBg: '#111827', titleBarText: '#ffffff', tableHeaderBg: '#f3f4f6', tableHeaderText: '#374151', totalBg: '#111827', totalText: '#ffffff', sectionLabelColor: '#9ca3af', accentColor: '#111827' },
+  2: { titleBarBg: '#1f2937', titleBarText: '#ffffff', tableHeaderBg: '#1f2937', tableHeaderText: '#ffffff', totalBg: '#1f2937', totalText: '#ffffff', sectionLabelColor: '#6b7280', accentColor: '#1f2937' },
+  3: { titleBarBg: '#5b8bc9', titleBarText: '#ffffff', tableHeaderBg: '#93b5e1', tableHeaderText: '#374151', totalBg: '#5b8bc9', totalText: '#ffffff', sectionLabelColor: '#4a7ab5', accentColor: '#5b8bc9' },
+  4: { titleBarBg: '#f3f4f6', titleBarText: '#374151', tableHeaderBg: '#f3f4f6', tableHeaderText: '#374151', totalBg: '#111827', totalText: '#ffffff', sectionLabelColor: '#9ca3af', accentColor: '#374151' },
+};
+
 @Injectable()
 export class QuotePdfService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async getLayoutConfig(companyId: string): Promise<number> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    return (company?.systemConfig as any)?.pdf?.osLayout || 1;
+  }
 
   async generatePdf(quoteId: string, companyId: string): Promise<Buffer> {
     const quote = await this.prisma.quote.findFirst({
@@ -58,7 +93,9 @@ export class QuotePdfService {
 
     if (!quote) throw new NotFoundException('Orçamento não encontrado');
 
-    const mainPdf = await this.buildPdf(quote);
+    const layout = await this.getLayoutConfig(companyId);
+    const theme = THEMES[layout] || THEMES[1];
+    const mainPdf = await this.buildPdf(quote, theme);
 
     // Merge with attachment PDFs if any
     const pdfAttachments = (quote.attachments || []).filter(
@@ -96,7 +133,7 @@ export class QuotePdfService {
     }
   }
 
-  private buildPdf(quote: any): Promise<Buffer> {
+  private buildPdf(quote: any, theme: PdfTheme): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 30 });
       const chunks: Buffer[] = [];
@@ -149,7 +186,7 @@ export class QuotePdfService {
         y = doc.y + 1;
       }
       const contacts = [
-        company.phone ? `Tel: ${company.phone}` : '',
+        company.phone ? `Tel: ${formatPhone(company.phone)}` : '',
         company.email ? `Email: ${company.email}` : '',
       ]
         .filter(Boolean)
@@ -161,10 +198,10 @@ export class QuotePdfService {
       y = Math.max(doc.y, y) + 15;
 
       // ---- Title Bar ----
-      doc.rect(30, y, pageW, 22).fill('#1e40af');
-      doc.fill('#ffffff').font('Helvetica-Bold').fontSize(FONT_SIZE_XL);
+      doc.rect(30, y, pageW, 22).fill(theme.titleBarBg);
+      doc.fill(theme.titleBarText).font('Helvetica-Bold').fontSize(FONT_SIZE_XL);
       doc.text('ORÇAMENTO', 35, y + 4, { width: pageW - 10 });
-      doc.fill('#ffffff').font('Helvetica').fontSize(FONT_SIZE);
+      doc.fill(theme.titleBarText).font('Helvetica').fontSize(FONT_SIZE);
       doc.text(`${quote.code || ''}  |  ${formatDate(quote.createdAt)}`, 35, y + 5, {
         width: pageW - 10,
         align: 'right',
@@ -183,7 +220,7 @@ export class QuotePdfService {
         y = doc.y + 1;
       }
       const clientContacts = [
-        client.phone ? `Tel: ${client.phone}` : '',
+        client.phone ? `Tel: ${formatPhone(client.phone)}` : '',
         client.email ? `Email: ${client.email}` : '',
       ]
         .filter(Boolean)
@@ -222,8 +259,8 @@ export class QuotePdfService {
 
       // Table header
       let x = 30;
-      doc.rect(30, y, pageW, 16).fill('#f1f5f9');
-      doc.fill('#334155').font('Helvetica-Bold').fontSize(FONT_SIZE_SM);
+      doc.rect(30, y, pageW, 16).fill(theme.tableHeaderBg);
+      doc.fill(theme.tableHeaderText).font('Helvetica-Bold').fontSize(FONT_SIZE_SM);
       for (const col of cols) {
         doc.text(col.label, x + 2, y + 4, {
           width: col.w - 4,
@@ -337,8 +374,8 @@ export class QuotePdfService {
       }
 
       // Total (bold, larger)
-      doc.rect(totalsX, y, 200, 20).fill('#1e40af');
-      doc.fill('#ffffff').font('Helvetica-Bold').fontSize(FONT_SIZE_LG);
+      doc.rect(totalsX, y, 200, 20).fill(theme.totalBg);
+      doc.fill(theme.totalText).font('Helvetica-Bold').fontSize(FONT_SIZE_LG);
       doc.text('TOTAL:', totalsX + 5, y + 4, { width: 110, align: 'right' });
       doc.text(formatMoney(quote.totalCents), totalsX + 125, y + 4, {
         width: 70,
