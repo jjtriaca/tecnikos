@@ -323,6 +323,15 @@ export class FinanceController {
     return this.reconciliationService.ignoreLine(lineId, user.companyId, notes);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/unignore')
+  unignoreLine(
+    @Param('lineId') lineId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.unignoreLine(lineId, user.companyId);
+  }
+
   /* ── Card Settlements (Baixa de Cartoes) ──────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

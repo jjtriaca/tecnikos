@@ -242,6 +242,26 @@ export class ReconciliationService {
   }
 
   /**
+   * Unignore a statement line (revert to UNMATCHED)
+   */
+  async unignoreLine(lineId: string, companyId: string) {
+    const line = await this.prisma.bankStatementLine.findUnique({
+      where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
+    });
+    if (!line || line.import.companyId !== companyId) {
+      throw new NotFoundException('Linha não encontrada.');
+    }
+    if (line.status !== 'IGNORED') {
+      throw new BadRequestException('Apenas linhas ignoradas podem ser revertidas.');
+    }
+    return this.prisma.bankStatementLine.update({
+      where: { id: lineId },
+      data: { status: 'UNMATCHED', notes: null },
+    });
+  }
+
+  /**
    * Ignore a statement line
    */
   async ignoreLine(lineId: string, companyId: string, notes?: string) {
