@@ -943,4 +943,90 @@ export class FinanceService {
       payableCents: Number(r.payableCents),
     }));
   }
+
+  /* ═══════════════════════════════════════════════════════════════
+     STATEMENT — Extrato Consolidado
+     ═══════════════════════════════════════════════════════════════ */
+
+  async getStatement(companyId: string, limit = 50) {
+    // 1) Fetch paid FinancialEntries
+    const entries = await this.prisma.financialEntry.findMany({
+      where: { companyId, status: 'PAID', deletedAt: null },
+      orderBy: { paidAt: 'desc' },
+      take: limit * 2, // fetch extra to merge with transfers
+      include: {
+        partner: { select: { name: true } },
+        financialAccount: { select: { name: true } },
+        cashAccountRef: { select: { name: true } },
+      },
+    });
+
+    // 2) Fetch account transfers
+    const transfers = await this.prisma.accountTransfer.findMany({
+      where: { companyId },
+      orderBy: { transferDate: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        amountCents: true,
+        description: true,
+        transferDate: true,
+        createdAt: true,
+        fromAccount: { select: { name: true } },
+        toAccount: { select: { name: true } },
+      },
+    });
+
+    // 3) Map entries to statement rows
+    const entryRows = entries.map((e) => ({
+      id: e.id,
+      date: e.paidAt ?? e.createdAt,
+      description: e.description || (e.type === 'RECEIVABLE' ? 'Recebimento' : 'Pagamento'),
+      type: e.type === 'RECEIVABLE' ? 'CREDIT' as const : 'DEBIT' as const,
+      amountCents: e.type === 'RECEIVABLE' ? e.netCents : -e.netCents,
+      category: e.financialAccount?.name ?? null,
+      source: e.type as string,
+      partnerName: e.partner?.name ?? null,
+      paymentMethod: e.paymentMethod ?? null,
+      cashAccountName: e.cashAccountRef?.name ?? null,
+      code: e.code ?? null,
+    }));
+
+    // 4) Map transfers to TWO rows each (debit from source, credit to destination)
+    const transferRows = transfers.flatMap((t) => [
+      {
+        id: `${t.id}-from`,
+        date: t.transferDate ?? t.createdAt,
+        description: t.description || `Transferência para ${t.toAccount.name}`,
+        type: 'DEBIT' as const,
+        amountCents: -t.amountCents,
+        category: null,
+        source: 'TRANSFER',
+        partnerName: null,
+        paymentMethod: 'TRANSFERENCIA',
+        cashAccountName: t.fromAccount.name,
+        code: null,
+      },
+      {
+        id: `${t.id}-to`,
+        date: t.transferDate ?? t.createdAt,
+        description: t.description || `Transferência de ${t.fromAccount.name}`,
+        type: 'CREDIT' as const,
+        amountCents: t.amountCents,
+        category: null,
+        source: 'TRANSFER',
+        partnerName: null,
+        paymentMethod: 'TRANSFERENCIA',
+        cashAccountName: t.toAccount.name,
+        code: null,
+      },
+    ]);
+
+    // 5) Merge, sort by date desc, take limit
+    const all = [...entryRows, ...transferRows]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, limit);
+
+    return all;
+  }
 }

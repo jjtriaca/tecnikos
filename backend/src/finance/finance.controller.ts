@@ -417,6 +417,17 @@ export class FinanceController {
     return this.cardFeeRateService.remove(id, user.companyId);
   }
 
+  /* ── Statement (Extrato Consolidado) ─────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('statement')
+  getStatement(
+    @Query('limit') limit: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.getStatement(user.companyId, limit ? parseInt(limit, 10) : 50);
+  }
+
   /* ── Dashboard Financeiro ────────────────────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

@@ -509,7 +509,7 @@ export default function FinancePage() {
    ══════════════════════════════════════════════════════════ */
 
 const SUMMARY_SECTIONS_KEY = "tecnikos_finance_summary_order_v2";
-const DEFAULT_SECTION_ORDER = ["kpi", "receber_pagar", "caixas_bancos"];
+const DEFAULT_SECTION_ORDER = ["kpi", "receber_pagar", "caixas_bancos", "extrato"];
 
 function loadSectionOrder(): string[] {
   try {
@@ -530,6 +530,7 @@ function loadSectionOrder(): string[] {
 function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void }) {
   const [data, setData] = useState<FinanceSummaryV2 | null>(null);
   const [dashData, setDashData] = useState<any>(null);
+  const [statementData, setStatementData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -544,9 +545,11 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
     Promise.all([
       api.get<FinanceSummaryV2>("/finance/summary-v2").catch(() => null),
       api.get(`/finance/dashboard?dateFrom=${first}&dateTo=${last}`).catch(() => null),
-    ]).then(([summary, dash]) => {
+      api.get<any[]>("/finance/statement?limit=50").catch(() => []),
+    ]).then(([summary, dash, statement]) => {
       setData(summary);
       setDashData(dash);
+      setStatementData(statement ?? []);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -699,6 +702,63 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
           </div>
         );
       })() : null,
+    },
+    extrato: {
+      label: "Extrato Consolidado",
+      content: (() => {
+        if (!statementData || statementData.length === 0) return null;
+        let runningBalance = 0;
+        const rows = [...statementData].reverse().map((row) => {
+          runningBalance += row.amountCents;
+          return { ...row, balance: runningBalance };
+        }).reverse();
+        return (
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Data</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Descrição</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Parceiro</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Plano de Contas</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Forma Pgto</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Conta</th>
+                    <th className="text-right px-3 py-2 text-xs font-semibold text-slate-600">Valor</th>
+                    <th className="text-right px-3 py-2 text-xs font-semibold text-slate-600">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row: any) => (
+                    <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                      <td className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">{formatDate(row.date)}</td>
+                      <td className="px-3 py-2 text-xs text-slate-800 max-w-[200px] truncate">
+                        {row.code && <span className="text-slate-400 mr-1">{row.code}</span>}
+                        {row.description}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-slate-600 max-w-[140px] truncate">{row.partnerName || "—"}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600 max-w-[140px] truncate">{row.category || "—"}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">{row.paymentMethod || "—"}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600 max-w-[120px] truncate">{row.cashAccountName || "—"}</td>
+                      <td className={`px-3 py-2 text-xs font-semibold text-right whitespace-nowrap ${row.type === "CREDIT" ? "text-green-700" : "text-red-600"}`}>
+                        {row.type === "CREDIT" ? "+" : ""}{formatCurrency(row.amountCents)}
+                      </td>
+                      <td className={`px-3 py-2 text-xs font-semibold text-right whitespace-nowrap ${row.balance >= 0 ? "text-slate-800" : "text-red-600"}`}>
+                        {formatCurrency(row.balance)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {statementData.length >= 50 && (
+              <div className="text-center py-2 text-xs text-slate-400 border-t border-slate-100">
+                Exibindo últimos 50 movimentos
+              </div>
+            )}
+          </div>
+        );
+      })(),
     },
   };
 
