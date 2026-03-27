@@ -107,6 +107,8 @@ export class NfseEmissionService {
       '{titulo_os}': so?.title || '',
       '{nome_tecnico}': tech?.name || '',
       '{endereco_servico}': endereco,
+      '{complemento_servico}': so?.addressComp || '',
+      '{descricao_os}': so?.description || '',
       // Nota
       '{valor_total}': `R$ ${(grossCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       '{numero_nfse}': '', // filled after emission

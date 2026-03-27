@@ -531,7 +531,9 @@ const NFSE_VARIABLES = [
   { var: "{codigo_os}", label: "Codigo OS", desc: "Ex: OS-00046" },
   { var: "{titulo_os}", label: "Titulo OS", desc: "Titulo da ordem de servico" },
   { var: "{nome_tecnico}", label: "Nome do Tecnico", desc: "Tecnico atribuido a OS" },
-  { var: "{endereco_servico}", label: "Endereco do Servico", desc: "Local onde o servico foi executado" },
+  { var: "{endereco_servico}", label: "Endereco do Servico", desc: "Endereco completo (rua, numero, bairro, cidade/UF)" },
+  { var: "{complemento_servico}", label: "Complemento Servico", desc: "Complemento do endereco do servico (fazenda, lote, etc)" },
+  { var: "{descricao_os}", label: "Descricao OS", desc: "Descricao detalhada da ordem de servico" },
   // Nota
   { var: "{valor_total}", label: "Valor Total", desc: "Valor total da NFS-e" },
   { var: "{numero_nfse}", label: "Numero NFS-e", desc: "Numero da nota emitida" },
@@ -624,6 +626,8 @@ function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v:
                 .replace(/\{titulo_os\}/g, "Instalacao de Ar-Condicionado")
                 .replace(/\{nome_tecnico\}/g, "Carlos Eduardo Mendes")
                 .replace(/\{endereco_servico\}/g, "Rua das Palmeiras, 456 - Centro, Sao Paulo/SP")
+                .replace(/\{complemento_servico\}/g, "Fazenda Agua Limpa - Lote 15")
+                .replace(/\{descricao_os\}/g, "Instalacao completa do sistema de climatizacao")
                 .replace(/\{valor_total\}/g, "R$ 2.850,00")
                 .replace(/\{numero_nfse\}/g, "54")
                 .replace(/\{data_emissao\}/g, "27/03/2026")
