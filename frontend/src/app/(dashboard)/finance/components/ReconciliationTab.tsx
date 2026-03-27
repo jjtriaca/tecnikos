@@ -884,20 +884,41 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
               <p className="text-xs text-slate-500 mt-1">Tem certeza que deseja desfazer a conciliacao desta transacao?</p>
             </div>
             <div className="px-5 py-3">
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
                 <p className="text-sm font-medium text-slate-800 truncate">{unmatchLine.description}</p>
                 <p className="text-xs text-slate-500">{formatDate(unmatchLine.transactionDate)}</p>
-                <p className={`text-sm font-bold ${unmatchLine.amountCents >= 0 ? "text-green-700" : "text-red-600"}`}>
-                  {formatCurrency(unmatchLine.amountCents)}
-                </p>
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-[10px] text-slate-500">Valor depositado</p>
+                    <p className={`text-sm font-bold ${unmatchLine.amountCents >= 0 ? "text-green-700" : "text-red-600"}`}>
+                      {formatCurrency(unmatchLine.amountCents)}
+                    </p>
+                  </div>
+                  {unmatchLine.matchedTaxCents > 0 && (
+                    <div>
+                      <p className="text-[10px] text-slate-500">Taxa cartao</p>
+                      <p className="text-sm font-bold text-amber-600">
+                        -{formatCurrency(unmatchLine.matchedTaxCents)}
+                      </p>
+                    </div>
+                  )}
+                  {unmatchLine.matchedLiquidCents > 0 && unmatchLine.matchedTaxCents > 0 && (
+                    <div>
+                      <p className="text-[10px] text-slate-500">Valor bruto</p>
+                      <p className="text-sm font-bold text-slate-700">
+                        {formatCurrency(unmatchLine.matchedLiquidCents + unmatchLine.matchedTaxCents)}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1">Acoes que serao revertidas:</p>
                 <ul className="text-xs text-slate-600 space-y-1">
-                  <li>• Transferencia automatica sera desfeita</li>
-                  <li>• Saldo do banco sera decrementado</li>
+                  <li>• Transferencia do banco sera revertida</li>
+                  <li>• Saldo do banco sera decrementado em {formatCurrency(Math.abs(unmatchLine.amountCents))}</li>
                   <li>• Valor retorna para Valores em Transito</li>
-                  <li>• Lancamento volta para conta original</li>
+                  <li>• Lancamento financeiro volta para conta original</li>
                 </ul>
               </div>
             </div>

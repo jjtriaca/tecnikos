@@ -159,6 +159,8 @@ export interface BankStatementLine {
   matchedInstallmentId?: string | null;
   matchedAt?: string | null;
   matchedByName?: string | null;
+  matchedLiquidCents?: number | null;
+  matchedTaxCents?: number | null;
   notes?: string | null;
   createdAt: string;
 }
