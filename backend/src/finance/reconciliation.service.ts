@@ -202,6 +202,44 @@ export class ReconciliationService {
       data: { matchedCount },
     });
 
+    // Auto-transfer from transit account to bank account (if entry has a different cashAccountId)
+    if (dto.entryId) {
+      const entry = await this.prisma.financialEntry.findUnique({
+        where: { id: dto.entryId },
+        select: { cashAccountId: true, netCents: true, grossCents: true, type: true },
+      });
+      const bankAccountId = line.cashAccountId; // from OFX import
+      if (entry?.cashAccountId && entry.cashAccountId !== bankAccountId) {
+        const transferAmount = Math.abs(line.amountCents); // liquid amount deposited
+        // Create auto-transfer: transit → bank
+        await this.prisma.accountTransfer.create({
+          data: {
+            companyId,
+            fromAccountId: entry.cashAccountId,
+            toAccountId: bankAccountId,
+            amountCents: transferAmount,
+            description: `Conciliação automática: ${line.description?.substring(0, 80) || 'Extrato bancário'}`,
+            transferDate: line.transactionDate,
+            createdByName: matchedByName,
+          },
+        });
+        // Update balances
+        await this.prisma.cashAccount.update({
+          where: { id: entry.cashAccountId },
+          data: { currentBalanceCents: { decrement: transferAmount } },
+        });
+        await this.prisma.cashAccount.update({
+          where: { id: bankAccountId },
+          data: { currentBalanceCents: { increment: transferAmount } },
+        });
+        // Update entry's cashAccountId to the bank
+        await this.prisma.financialEntry.update({
+          where: { id: dto.entryId },
+          data: { cashAccountId: bankAccountId },
+        });
+      }
+    }
+
     return updated;
   }
 
