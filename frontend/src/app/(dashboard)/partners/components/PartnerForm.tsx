@@ -86,7 +86,7 @@ export default function PartnerForm({
         tradeName: editingPartner.tradeName || "",
         document: editingPartner.document || "",
         documentType: editingPartner.documentType || (editingPartner.personType === "PJ" ? "CNPJ" : "CPF"),
-        ie: editingPartner.ie || "",
+        ie: editingPartner.ie ? maskIE(editingPartner.ie, editingPartner.state || "") : "",
         im: editingPartner.im || "",
         isRuralProducer: editingPartner.isRuralProducer,
         phone: editingPartner.phone || "",
@@ -188,6 +188,7 @@ export default function PartnerForm({
         neighborhood: result.bairro || f.neighborhood,
         city: result.municipio || f.city,
         state: result.uf || f.state,
+        ie: f.ie ? maskIE(f.ie, result.uf || f.state) : f.ie,
       }));
       toast("Dados do CNPJ preenchidos.", "success");
     } catch { toast("Erro ao consultar CNPJ.", "error"); }
@@ -198,7 +199,7 @@ export default function PartnerForm({
     setForm((f) => ({
       ...f,
       name: data.name ? toTitleCase(data.name) : f.name,
-      ie: data.ie || f.ie,
+      ie: data.ie ? maskIE(data.ie, data.state || f.state) : f.ie,
       cep: data.cep ? maskCep(data.cep) : f.cep,
       addressStreet: data.addressStreet ? toTitleCase(data.addressStreet) : f.addressStreet,
       addressNumber: data.addressNumber || f.addressNumber,
@@ -450,7 +451,7 @@ export default function PartnerForm({
               <input placeholder="Complemento" value={form.addressComp} onChange={(e) => setForm((f) => ({ ...f, addressComp: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, addressComp: toTitleCase(f.addressComp) }))} className={inputClass + " w-full"} />
               <input placeholder="Bairro" value={form.neighborhood} onChange={(e) => setForm((f) => ({ ...f, neighborhood: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, neighborhood: toTitleCase(f.neighborhood) }))} className={inputClass + " w-full"} />
               <input placeholder="Cidade" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, city: toTitleCase(f.city) }))} className={inputClass + " w-full"} />
-              <select value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} className={inputClass + " w-full"}>
+              <select value={form.state} onChange={(e) => { const uf = e.target.value; setForm((f) => ({ ...f, state: uf, ie: f.ie ? maskIE(f.ie, uf) : "" })); }} className={inputClass + " w-full"}>
                 <option value="">UF</option>
                 {STATES.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
               </select>
