@@ -1402,6 +1402,12 @@ export class ServiceOrderService {
       data: { deletedAt: new Date() },
     });
 
+    // Unlink any quote that references this OS so it can generate a new OS
+    await this.prisma.quote.updateMany({
+      where: { serviceOrderId: id, companyId },
+      data: { serviceOrderId: null },
+    });
+
     this.audit.log({
       companyId, entityType: 'SERVICE_ORDER', entityId: id,
       action: 'DELETED', actorType: 'USER', actorId: actor?.id, actorName: actor?.email,
