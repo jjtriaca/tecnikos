@@ -297,7 +297,7 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
     },
     {
       id: "category",
-      label: "Categoria",
+      label: "Plano de Contas",
       render: (e) =>
         e.financialAccount ? (
           <span className="text-xs text-slate-600 truncate block" title={`${e.financialAccount.code} - ${e.financialAccount.name}`}>
@@ -1534,16 +1534,16 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 </div>
               )}
 
-              {/* Categoria (Plano de Contas) */}
+              {/* Plano de Contas (Plano de Contas) */}
               {postableAccounts.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Categoria</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
                   <select
                     value={payAccountId}
                     onChange={(e) => setPayAccountId(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                   >
-                    <option value="">Sem categoria</option>
+                    <option value="">Selecione...</option>
                     {(() => {
                       const grouped = new Map<string, typeof postableAccounts>();
                       for (const acc of postableAccounts) {
@@ -1691,13 +1691,13 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Categoria</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
                 <select
                   value={formData.financialAccountId}
                   onChange={(e) => setFormData({ ...formData, financialAccountId: e.target.value })}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                 >
-                  <option value="">Sem categoria</option>
+                  <option value="">Selecione...</option>
                   {(() => {
                     const grouped = new Map<string, typeof postableAccounts>();
                     for (const acc of postableAccounts) {
@@ -1841,13 +1841,13 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Categoria</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
                 <select
                   value={editAccountId}
                   onChange={(e) => setEditAccountId(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                 >
-                  <option value="">Sem categoria</option>
+                  <option value="">Selecione...</option>
                   {(() => {
                     const grouped = new Map<string, typeof postableAccounts>();
                     for (const acc of postableAccounts) {
