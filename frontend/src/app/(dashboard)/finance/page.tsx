@@ -467,6 +467,7 @@ export default function FinancePage() {
   }, [typeParam, tabParam, visibleMainTabs]);
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [resumoKey, setResumoKey] = useState(0);
 
   // Sync when URL changes (e.g. browser back/forward)
   useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
@@ -487,7 +488,7 @@ export default function FinancePage() {
         {visibleMainTabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => { setActiveTab(tab.id); if (tab.id === "resumo") setResumoKey(k => k + 1); }}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.id
                 ? "border-blue-600 text-blue-700"
@@ -503,7 +504,7 @@ export default function FinancePage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === "resumo" && <SummaryTab onNavigateTab={setActiveTab} />}
+      {activeTab === "resumo" && <SummaryTab key={`resumo-${resumoKey}`} onNavigateTab={setActiveTab} />}
       {activeTab === "receber" && <EntriesTab type="RECEIVABLE" />}
       {activeTab === "pagar" && <EntriesTab type="PAYABLE" />}
       {activeTab === "parcelas" && <InstallmentsOverviewTab />}
