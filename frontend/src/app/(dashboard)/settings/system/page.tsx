@@ -457,8 +457,8 @@ function PdfLayoutSection({ value, onChange }: { value: number; onChange: (v: nu
         <div className="flex items-center gap-2">
           <span className="text-base">📄</span>
           <div>
-            <h3 className="text-sm font-semibold text-slate-700">Layout do PDF — Ordem de Servico</h3>
-            <p className="text-[11px] text-slate-500">Escolha o modelo visual usado ao gerar PDF das OS</p>
+            <h3 className="text-sm font-semibold text-slate-700">Layout do PDF — OS e Orcamentos</h3>
+            <p className="text-[11px] text-slate-500">Escolha o modelo visual usado ao gerar PDF das Ordens de Servico e Orcamentos</p>
           </div>
         </div>
       </div>
