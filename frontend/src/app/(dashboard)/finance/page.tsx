@@ -1941,7 +1941,7 @@ function EntryActions({
     if (open) { setOpen(false); return; }
     if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 4, left: r.right });
+      setPos({ top: r.bottom + 4, left: Math.max(8, r.right - 168) });
     }
     setOpen(true);
   }
@@ -2057,8 +2057,8 @@ function EntryActions({
       {open && pos && (
         <div
           ref={dropRef}
-          className="fixed z-50 min-w-[160px] bg-white border border-slate-200 rounded-lg shadow-lg py-1"
-          style={{ top: pos.top, left: pos.left, transform: "translateX(-100%)" }}
+          className="fixed z-50 w-[168px] bg-white border border-slate-200 rounded-lg shadow-lg py-1"
+          style={{ top: pos.top, left: pos.left }}
         >
           {items.map((item, i) => {
             if ("separator" in item && item.separator) {
