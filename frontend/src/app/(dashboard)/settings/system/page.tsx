@@ -22,6 +22,7 @@ type SystemConfig = {
     autoGenerateReceivable: boolean;
     autoGeneratePayable: boolean;
     defaultDueDays: number;
+    showBaixaCartoes: boolean;
   };
   evaluation: {
     requireGestorApproval: boolean;
@@ -128,6 +129,13 @@ const SECTIONS: SectionConfig[] = [
         label: "Prazo padrao de vencimento (dias)",
         description: "Quantidade de dias apos a aprovacao para o vencimento do lancamento financeiro",
         type: "number",
+      },
+      {
+        section: "financial",
+        key: "showBaixaCartoes",
+        label: "Exibir aba Baixa de Cartoes",
+        description: "Quando desligado, a baixa de cartoes e feita automaticamente pela conciliacao bancaria (importacao OFX/CSV). Ligue apenas se nao utiliza conciliacao por importacao.",
+        type: "toggle",
       },
     ],
   },

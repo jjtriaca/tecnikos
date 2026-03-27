@@ -123,6 +123,18 @@ function LineActionsDropdown({
 
 /* ── Conciliation Modal ───────────────────────────────── */
 
+const CARD_KEYWORDS = ["MASTER", "VISA", "ELO", "SICREDI DEBITO", "CREDITO", "DEBITO", "MASTERCARD", "HIPERCARD", "AMEX"];
+
+function isCardTransaction(description: string): boolean {
+  const upper = description.toUpperCase();
+  return CARD_KEYWORDS.some((kw) => upper.includes(kw));
+}
+
+/** Check if two amounts match within 1 cent tolerance */
+function amountsMatch(a: number, b: number): boolean {
+  return Math.abs(a - b) <= 1;
+}
+
 function ConciliationModal({
   open,
   line,
@@ -138,20 +150,76 @@ function ConciliationModal({
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [matching, setMatching] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  // Card transaction breakdown state
+  const [liquidCents, setLiquidCents] = useState(0);
+  const [taxCents, setTaxCents] = useState(0);
+
+  const isCard = line ? isCardTransaction(line.description) : false;
 
   useEffect(() => {
     if (!open || !line) return;
+    setSearch("");
     setLoading(true);
-    // Search for PAID financial entries (already received/paid, matching the bank statement)
-    const amountAbs = Math.abs(line.amountCents);
+
+    // For card transactions, initialize liquid = bank amount, tax = 0
+    if (isCardTransaction(line.description)) {
+      setLiquidCents(Math.abs(line.amountCents));
+      setTaxCents(0);
+    }
+
+    // Fetch both PAID and PENDING entries for reconciliation
     const type = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
-    api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50`)
-      .then((res) => {
-        setCandidates(res.data || []);
+    Promise.all([
+      api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50`).catch(() => ({ data: [] })),
+      api.get<any>(`/finance/entries?status=PENDING&type=${type}&limit=50`).catch(() => ({ data: [] })),
+    ])
+      .then(([paidRes, pendingRes]) => {
+        const paid = (paidRes.data || paidRes || []).map((e: any) => ({ ...e, _fromStatus: "PAID" }));
+        const pending = (pendingRes.data || pendingRes || []).map((e: any) => ({ ...e, _fromStatus: "PENDING" }));
+        // Deduplicate by id (in case)
+        const map = new Map<string, any>();
+        [...paid, ...pending].forEach((e) => { if (!map.has(e.id)) map.set(e.id, e); });
+        setCandidates(Array.from(map.values()));
       })
       .catch(() => setCandidates([]))
       .finally(() => setLoading(false));
   }, [open, line]);
+
+  /** Get the display amount for an entry (what would appear in the bank) */
+  function entryDisplayAmount(entry: any): number {
+    if (entry.type === "RECEIVABLE") {
+      // For receivables, bank shows net (after deductions) or gross
+      return entry.netCents || entry.grossCents;
+    }
+    return entry.netCents || entry.grossCents;
+  }
+
+  /** Sort candidates: exact matches first, then by date proximity */
+  function getSortedCandidates() {
+    if (!line) return candidates;
+    const lineAbs = Math.abs(line.amountCents);
+
+    let filtered = candidates;
+    if (search.trim()) {
+      const terms = search.toLowerCase().trim().split(/\s+/);
+      filtered = candidates.filter((e) => {
+        const haystack = `${e.code || ""} ${e.description || ""} ${e.partner?.name || ""}`.toLowerCase();
+        return terms.every((t) => haystack.includes(t));
+      });
+    }
+
+    return [...filtered].sort((a, b) => {
+      const aAmt = entryDisplayAmount(a);
+      const bAmt = entryDisplayAmount(b);
+      const aExact = amountsMatch(aAmt, lineAbs) ? 0 : 1;
+      const bExact = amountsMatch(bAmt, lineAbs) ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+      // Then by amount difference
+      return Math.abs(aAmt - lineAbs) - Math.abs(bAmt - lineAbs);
+    });
+  }
 
   async function handleMatch(entryId: string) {
     if (!line) return;
@@ -169,11 +237,22 @@ function ConciliationModal({
 
   if (!open || !line) return null;
 
+  const lineAbs = Math.abs(line.amountCents);
+  const sorted = getSortedCandidates();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        {/* Header */}
         <div className="px-5 py-4 border-b border-slate-200">
-          <h3 className="text-base font-semibold text-slate-800">Conciliar Transacao</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-slate-800">Conciliar Transacao</h3>
+            {isCard && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                Cartao
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
             {line.description} — <span className={line.amountCents >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
               {formatCurrency(line.amountCents)}
@@ -181,39 +260,130 @@ function ConciliationModal({
             {" "}em {formatDate(line.transactionDate)}
           </p>
         </div>
+
         <div className="flex-1 overflow-y-auto px-5 py-3">
+          {/* Card breakdown section */}
+          {isCard && (
+            <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50/50 p-3">
+              <p className="text-xs font-semibold text-purple-800 mb-2">Detalhamento Cartao</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Valor Liquido (depositado)</label>
+                  <input
+                    type="text"
+                    value={(liquidCents / 100).toFixed(2).replace(".", ",")}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value.replace(",", ".")) || 0;
+                      const cents = Math.round(val * 100);
+                      setLiquidCents(cents);
+                      // Recalculate tax if we have a bruto reference
+                      const bruto = liquidCents + taxCents;
+                      if (bruto > 0) setTaxCents(Math.max(0, bruto - cents));
+                    }}
+                    className="w-full rounded-lg border border-purple-300 px-2.5 py-1.5 text-sm font-semibold text-green-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Taxa do Cartao</label>
+                  <input
+                    type="text"
+                    value={(taxCents / 100).toFixed(2).replace(".", ",")}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value.replace(",", ".")) || 0;
+                      setTaxCents(Math.round(val * 100));
+                    }}
+                    className="w-full rounded-lg border border-purple-300 px-2.5 py-1.5 text-sm font-semibold text-amber-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Valor Bruto Original</label>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-800">
+                    {formatCurrency(liquidCents + taxCents)}
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-purple-600 mt-2">
+                O valor liquido deve corresponder ao valor do extrato ({formatCurrency(lineAbs)}). Ajuste a taxa se necessario.
+              </p>
+            </div>
+          )}
+
+          {/* Search bar */}
+          <div className="mb-3">
+            <input
+              type="text"
+              placeholder="Buscar lancamento por codigo, descricao ou parceiro..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
           <p className="text-xs font-medium text-slate-500 mb-2">
-            Lancamentos financeiros compativeis ({line.amountCents >= 0 ? "A Receber" : "A Pagar"}):
+            Lancamentos financeiros ({line.amountCents >= 0 ? "A Receber" : "A Pagar"}) — PAGOS e PENDENTES:
           </p>
           {loading ? (
             <div className="text-center py-6">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent mx-auto" />
             </div>
-          ) : candidates.length === 0 ? (
+          ) : sorted.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center">
               <p className="text-xs text-slate-400">Nenhum lancamento compativel encontrado.</p>
-              <p className="text-[10px] text-slate-400 mt-1">Verifique se existe um lancamento pendente com valor proximo.</p>
+              <p className="text-[10px] text-slate-400 mt-1">Verifique se existe um lancamento com valor proximo.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {candidates.map((entry: any) => (
-                <div key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-700 truncate">{entry.code} — {entry.description}</p>
-                    <p className="text-xs text-slate-400">{entry.partner?.name || "—"} • Venc: {formatDate(entry.dueDate)}</p>
+              {sorted.map((entry: any) => {
+                const amt = entryDisplayAmount(entry);
+                const isExactMatch = amountsMatch(amt, isCard ? (liquidCents + taxCents) : lineAbs);
+                const isPending = entry.status === "PENDING" || entry._fromStatus === "PENDING";
+                return (
+                  <div
+                    key={entry.id}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2 hover:bg-slate-50 transition-colors ${
+                      isExactMatch
+                        ? "border-green-400 bg-green-50/50 ring-1 ring-green-200"
+                        : "border-slate-200"
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-slate-700 truncate">{entry.code} — {entry.description}</p>
+                        {isExactMatch && (
+                          <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-green-100 text-green-700 border border-green-300 whitespace-nowrap">
+                            Sugerido
+                          </span>
+                        )}
+                        {isPending && (
+                          <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                            Pendente
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400">{entry.partner?.name || "—"} • Venc: {formatDate(entry.dueDate)}</p>
+                    </div>
+                    <div className="flex items-center gap-3 ml-3">
+                      <div className="text-right">
+                        <span className="text-sm font-semibold text-slate-800">{formatCurrency(amt)}</span>
+                        {isCard && entry.grossCents !== amt && (
+                          <p className="text-[10px] text-slate-400">Bruto: {formatCurrency(entry.grossCents)}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleMatch(entry.id)}
+                        disabled={!!matching}
+                        className={`px-3 py-1 text-xs font-medium text-white rounded-lg disabled:opacity-50 ${
+                          isExactMatch
+                            ? "bg-green-600 hover:bg-green-700"
+                            : "bg-blue-600 hover:bg-blue-700"
+                        }`}
+                      >
+                        {matching === entry.id ? "..." : "Conciliar"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 ml-3">
-                    <span className="text-sm font-semibold text-slate-800">{formatCurrency(entry.type === "RECEIVABLE" ? entry.grossCents : entry.netCents)}</span>
-                    <button
-                      onClick={() => handleMatch(entry.id)}
-                      disabled={!!matching}
-                      className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50"
-                    >
-                      {matching === entry.id ? "..." : "Conciliar"}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

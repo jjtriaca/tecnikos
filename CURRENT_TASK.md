@@ -1,7 +1,14 @@
 # TAREFA ATUAL
 
 ## Versao: v1.07.87
-## Ultima sessao: 160 (27/03/2026)
+## Ultima sessao: 161 (27/03/2026)
+
+## CONCLUIDO (sessao 161)
+
+### Toggle "Exibir aba Baixa de Cartoes" no Financeiro
+- Backend: adicionado `showBaixaCartoes: false` ao DEFAULT_SYSTEM_CONFIG.financial
+- Settings: novo toggle na secao Financeiro com label e descricao explicativa
+- Finance page: carrega systemConfig e filtra dinamicamente a aba "Baixa Cartoes" (oculta por padrao)
 
 ## CONCLUIDO (sessao 160) — Deploy v1.07.87
 

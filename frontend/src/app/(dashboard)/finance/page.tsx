@@ -444,12 +444,27 @@ export default function FinancePage() {
   const typeParam = searchParams.get("type");
   const tabParam = searchParams.get("tab");
 
+  const [sysConfig, setSysConfig] = useState<Record<string, any> | null>(null);
+
+  useEffect(() => {
+    api.get<Record<string, any>>("/companies/system-config")
+      .then(setSysConfig)
+      .catch(() => {});
+  }, []);
+
+  const visibleMainTabs = useMemo(() => {
+    if (!sysConfig) return MAIN_TABS.filter((t) => t.id !== "cartoes");
+    const show = sysConfig.financial?.showBaixaCartoes === true;
+    return show ? MAIN_TABS : MAIN_TABS.filter((t) => t.id !== "cartoes");
+  }, [sysConfig]);
+
   const initialTab = useMemo<TabId>(() => {
-    if (tabParam && [...MAIN_TABS, ...CADASTRO_TABS].some((t) => t.id === tabParam)) return tabParam as TabId;
+    const allTabs = [...visibleMainTabs, ...CADASTRO_TABS];
+    if (tabParam && allTabs.some((t) => t.id === tabParam)) return tabParam as TabId;
     if (typeParam === "RECEIVABLE") return "receber";
     if (typeParam === "PAYABLE") return "pagar";
     return "resumo";
-  }, [typeParam, tabParam]);
+  }, [typeParam, tabParam, visibleMainTabs]);
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
 
@@ -469,7 +484,7 @@ export default function FinancePage() {
 
       {/* Tab Navigation */}
       <div className="flex gap-1 mb-6 border-b border-slate-200">
-        {MAIN_TABS.map((tab) => (
+        {visibleMainTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}

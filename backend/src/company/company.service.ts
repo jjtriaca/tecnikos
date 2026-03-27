@@ -240,6 +240,7 @@ export class CompanyService {
       autoGenerateReceivable: true,
       autoGeneratePayable: true,
       defaultDueDays: 30,
+      showBaixaCartoes: false,
     },
     evaluation: {
       requireGestorApproval: true,
