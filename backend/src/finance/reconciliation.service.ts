@@ -258,6 +258,51 @@ export class ReconciliationService {
       throw new BadRequestException('Linha não está conciliada.');
     }
 
+    const bankAccountId = line.cashAccountId;
+    const transferAmount = Math.abs(line.amountCents);
+
+    // Revert the auto-transfer if entry was moved to the bank
+    if (line.matchedEntryId) {
+      const entry = await this.prisma.financialEntry.findUnique({
+        where: { id: line.matchedEntryId },
+        select: { cashAccountId: true },
+      });
+      // If entry is now pointing to bank, revert it to transit
+      if (entry?.cashAccountId === bankAccountId) {
+        // Find the transit account (the one that lost the money)
+        const transitAccount = await this.prisma.cashAccount.findFirst({
+          where: { companyId, deletedAt: null, isActive: true, name: { contains: 'ransit' } },
+          select: { id: true },
+        });
+        if (transitAccount) {
+          // Revert balances: bank -amount, transit +amount
+          await this.prisma.cashAccount.update({
+            where: { id: bankAccountId },
+            data: { currentBalanceCents: { decrement: transferAmount } },
+          });
+          await this.prisma.cashAccount.update({
+            where: { id: transitAccount.id },
+            data: { currentBalanceCents: { increment: transferAmount } },
+          });
+          // Move entry back to transit
+          await this.prisma.financialEntry.update({
+            where: { id: line.matchedEntryId },
+            data: { cashAccountId: transitAccount.id },
+          });
+          // Delete the auto-transfer record
+          await this.prisma.accountTransfer.deleteMany({
+            where: {
+              companyId,
+              fromAccountId: transitAccount.id,
+              toAccountId: bankAccountId,
+              amountCents: transferAmount,
+              description: { startsWith: 'Conciliação automática' },
+            },
+          });
+        }
+      }
+    }
+
     const updated = await this.prisma.bankStatementLine.update({
       where: { id: lineId },
       data: {
@@ -266,6 +311,8 @@ export class ReconciliationService {
         matchedInstallmentId: null,
         matchedAt: null,
         matchedByName: null,
+        matchedLiquidCents: null,
+        matchedTaxCents: null,
         notes: null,
       },
     });
