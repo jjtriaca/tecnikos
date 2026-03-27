@@ -776,16 +776,21 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
     }
   }
 
-  async function handleUnmatch(lineId: string) {
-    setActionLoading(lineId);
+  const [unmatchLine, setUnmatchLine] = useState<BankStatementLine | null>(null);
+  const [unmatchLoading, setUnmatchLoading] = useState(false);
+
+  async function confirmUnmatch() {
+    if (!unmatchLine) return;
+    setUnmatchLoading(true);
     try {
-      await api.post(`/finance/reconciliation/lines/${lineId}/unmatch`);
-      toast("Conciliacao desfeita.", "success");
+      await api.post(`/finance/reconciliation/lines/${unmatchLine.id}/unmatch`);
+      toast("Conciliacao desfeita. Saldos revertidos.", "success");
+      setUnmatchLine(null);
       await loadLines();
     } catch {
       toast("Erro ao desfazer conciliacao.", "error");
     } finally {
-      setActionLoading(null);
+      setUnmatchLoading(false);
     }
   }
 
@@ -857,7 +862,7 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
                             onConciliar={() => setMatchLine(line)}
                             onIgnore={() => handleIgnore(line.id)}
                             onUnignore={() => handleUnignore(line.id)}
-                            onUnmatch={() => handleUnmatch(line.id)}
+                            onUnmatch={() => setUnmatchLine(line)}
                           />
                         )
                       ) : col.render ? col.render(line) : null}
@@ -867,6 +872,46 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Unmatch Confirmation Modal */}
+      {unmatchLine && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h3 className="text-base font-semibold text-amber-700">Desfazer Conciliacao</h3>
+              <p className="text-xs text-slate-500 mt-1">Tem certeza que deseja desfazer a conciliacao desta transacao?</p>
+            </div>
+            <div className="px-5 py-3">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
+                <p className="text-sm font-medium text-slate-800 truncate">{unmatchLine.description}</p>
+                <p className="text-xs text-slate-500">{formatDate(unmatchLine.transactionDate)}</p>
+                <p className={`text-sm font-bold ${unmatchLine.amountCents >= 0 ? "text-green-700" : "text-red-600"}`}>
+                  {formatCurrency(unmatchLine.amountCents)}
+                </p>
+              </div>
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1">Acoes que serao revertidas:</p>
+                <ul className="text-xs text-slate-600 space-y-1">
+                  <li>• Transferencia automatica sera desfeita</li>
+                  <li>• Saldo do banco sera decrementado</li>
+                  <li>• Valor retorna para Valores em Transito</li>
+                  <li>• Lancamento volta para conta original</li>
+                </ul>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+              <button onClick={() => setUnmatchLine(null)} disabled={unmatchLoading}
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">
+                Cancelar
+              </button>
+              <button onClick={confirmUnmatch} disabled={unmatchLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg disabled:opacity-50">
+                {unmatchLoading ? "Desfazendo..." : "Confirmar"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

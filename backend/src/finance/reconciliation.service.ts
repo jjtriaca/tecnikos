@@ -202,20 +202,32 @@ export class ReconciliationService {
       data: { matchedCount },
     });
 
-    // Auto-transfer from transit account to bank account (if entry has a different cashAccountId)
+    // Auto-transfer from transit/source account to bank account on reconciliation
     if (dto.entryId) {
       const entry = await this.prisma.financialEntry.findUnique({
         where: { id: dto.entryId },
         select: { cashAccountId: true, netCents: true, grossCents: true, type: true },
       });
       const bankAccountId = line.cashAccountId; // from OFX import
-      if (entry?.cashAccountId && entry.cashAccountId !== bankAccountId) {
+
+      // Determine source account: entry's current account, or find transit account as fallback
+      let sourceAccountId = entry?.cashAccountId;
+      if (!sourceAccountId || sourceAccountId === bankAccountId) {
+        // Find the transit account
+        const transitAccount = await this.prisma.cashAccount.findFirst({
+          where: { companyId, deletedAt: null, isActive: true, name: { contains: 'ransit', mode: 'insensitive' } },
+          select: { id: true },
+        });
+        sourceAccountId = transitAccount?.id || null;
+      }
+
+      if (sourceAccountId && sourceAccountId !== bankAccountId) {
         const transferAmount = Math.abs(line.amountCents); // liquid amount deposited
-        // Create auto-transfer: transit → bank
+        // Create auto-transfer: source → bank
         await this.prisma.accountTransfer.create({
           data: {
             companyId,
-            fromAccountId: entry.cashAccountId,
+            fromAccountId: sourceAccountId,
             toAccountId: bankAccountId,
             amountCents: transferAmount,
             description: `Conciliação automática: ${line.description?.substring(0, 80) || 'Extrato bancário'}`,
@@ -225,7 +237,7 @@ export class ReconciliationService {
         });
         // Update balances
         await this.prisma.cashAccount.update({
-          where: { id: entry.cashAccountId },
+          where: { id: sourceAccountId },
           data: { currentBalanceCents: { decrement: transferAmount } },
         });
         await this.prisma.cashAccount.update({
