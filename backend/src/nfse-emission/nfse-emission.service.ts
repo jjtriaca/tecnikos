@@ -48,6 +48,70 @@ export class NfseEmissionService {
     return msg; // fallback: return original
   }
 
+  // ========== TEMPLATE RESOLUTION ==========
+
+  async resolveInfComplementares(companyId: string, financialEntryId: string): Promise<string> {
+    // Get company with system config
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) return '';
+    const cfg = (company.systemConfig as any) || {};
+    const template = cfg?.nfse?.infComplementaresTemplate || '';
+    if (!template) return '';
+
+    // Get financial entry + related data
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id: financialEntryId, companyId, deletedAt: null },
+      include: {
+        partner: true,
+        serviceOrder: { include: { assignedPartner: true } },
+      },
+    });
+    if (!entry) return template;
+
+    // Get NFS-e config for company data
+    const nfseConfig = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+
+    const so = entry.serviceOrder;
+    const partner = entry.partner;
+    const tech = so?.assignedPartner;
+    const now = new Date();
+    const brDate = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
+    // Build service address from OS
+    const endereco = so
+      ? [so.addressStreet, so.addressNumber, so.neighborhood, so.city, so.state].filter(Boolean).join(', ')
+      : '';
+
+    const grossCents = entry.grossCents || 0;
+
+    // Variable map
+    const vars: Record<string, string> = {
+      '{nome_cliente}': partner?.name || '',
+      '{documento_cliente}': partner?.document || '',
+      '{codigo_os}': so?.code || '',
+      '{titulo_os}': so?.title || '',
+      '{valor_total}': `R$ ${(grossCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      '{numero_nfse}': '', // filled after emission
+      '{data_emissao}': brDate.toLocaleDateString('pt-BR'),
+      '{nome_empresa}': company.name || '',
+      '{cnpj_empresa}': company.cnpj || '',
+      '{im_empresa}': nfseConfig?.inscricaoMunicipal || company.im || '',
+      '{codigo_servico}': nfseConfig?.itemListaServico || '',
+      '{aliquota_iss}': nfseConfig?.aliquotaIss != null ? String(nfseConfig.aliquotaIss).replace('.', ',') : '',
+      '{valor_iss}': nfseConfig?.aliquotaIss != null
+        ? `R$ ${(grossCents / 100 * nfseConfig.aliquotaIss / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        : '',
+      '{nome_tecnico}': tech?.name || '',
+      '{endereco_servico}': endereco,
+    };
+
+    let result = template;
+    for (const [key, val] of Object.entries(vars)) {
+      result = result.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), val);
+    }
+    return result;
+  }
+
   // ========== CONFIG ==========
 
   async getConfig(companyId: string) {

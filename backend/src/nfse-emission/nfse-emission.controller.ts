@@ -82,6 +82,16 @@ export class NfseEmissionController {
     return this.nfseService.deleteServiceCode(req.user.companyId, id);
   }
 
+  // ========== TEMPLATE ==========
+
+  @Get('resolve-template/:financialEntryId')
+  @Roles('ADMIN', 'FINANCEIRO', 'FISCAL')
+  @UseGuards(FiscalGuard)
+  async resolveTemplate(@Req() req: any, @Param('financialEntryId') financialEntryId: string) {
+    const text = await this.nfseService.resolveInfComplementares(req.user.companyId, financialEntryId);
+    return { infComplementares: text };
+  }
+
   // ========== PREVIEW ==========
 
   @Get('preview/:financialEntryId')

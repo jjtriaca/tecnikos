@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +29,9 @@ type SystemConfig = {
   };
   pdf: {
     osLayout: number;
+  };
+  nfse: {
+    infComplementaresTemplate: string;
   };
 };
 
@@ -411,6 +414,12 @@ export default function SystemConfigPage() {
         onChange={(v: number) => setValue("pdf", "osLayout", v)}
       />
 
+      {/* NFS-e Template Section */}
+      <NfseTemplateSection
+        value={getValue("nfse", "infComplementaresTemplate") || ""}
+        onChange={(v: string) => setValue("nfse", "infComplementaresTemplate", v)}
+      />
+
       {/* Info footer */}
       <div className="mt-6 rounded-lg bg-slate-50 border border-slate-200 p-4">
         <p className="text-[11px] text-slate-400">
@@ -497,6 +506,116 @@ function PdfLayoutSection({ value, onChange }: { value: number; onChange: (v: nu
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   NFS-E TEMPLATE SECTION
+   ══════════════════════════════════════════════════════════ */
+
+const NFSE_VARIABLES = [
+  { var: "{nome_cliente}", label: "Nome do Cliente", desc: "Razao social ou nome do tomador" },
+  { var: "{documento_cliente}", label: "CPF/CNPJ Cliente", desc: "Documento do tomador" },
+  { var: "{codigo_os}", label: "Codigo OS", desc: "Ex: OS-00046" },
+  { var: "{titulo_os}", label: "Titulo OS", desc: "Titulo da ordem de servico" },
+  { var: "{valor_total}", label: "Valor Total", desc: "Valor total da NFS-e" },
+  { var: "{numero_nfse}", label: "Numero NFS-e", desc: "Numero da nota emitida" },
+  { var: "{data_emissao}", label: "Data Emissao", desc: "Data de emissao da nota" },
+  { var: "{nome_empresa}", label: "Nome da Empresa", desc: "Razao social do prestador" },
+  { var: "{cnpj_empresa}", label: "CNPJ Empresa", desc: "CNPJ do prestador" },
+  { var: "{im_empresa}", label: "IM Empresa", desc: "Inscricao municipal do prestador" },
+  { var: "{codigo_servico}", label: "Codigo Servico", desc: "Codigo do item de servico LC 116" },
+  { var: "{aliquota_iss}", label: "Aliquota ISS", desc: "Aliquota do ISS em %" },
+  { var: "{valor_iss}", label: "Valor ISS", desc: "Valor do ISS calculado" },
+  { var: "{nome_tecnico}", label: "Nome do Tecnico", desc: "Tecnico atribuido a OS" },
+  { var: "{endereco_servico}", label: "Endereco do Servico", desc: "Local onde o servico foi executado" },
+];
+
+function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  function insertVariable(varName: string) {
+    const ta = textareaRef.current;
+    if (!ta) { onChange(value + varName); return; }
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const newValue = value.substring(0, start) + varName + value.substring(end);
+    onChange(newValue);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = start + varName.length;
+      ta.setSelectionRange(pos, pos);
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden mt-4">
+      <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🧾</span>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700">NFS-e — Informacoes Complementares</h3>
+            <p className="text-[11px] text-slate-500">
+              Template preenchido automaticamente ao emitir NFS-e. Use variaveis clicando nos chips abaixo.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 py-4 space-y-3">
+        <div>
+          <p className="text-[11px] font-medium text-slate-500 mb-2">Variaveis disponiveis (clique para inserir):</p>
+          <div className="flex flex-wrap gap-1.5">
+            {NFSE_VARIABLES.map((v) => (
+              <button
+                key={v.var}
+                type="button"
+                onClick={() => insertVariable(v.var)}
+                title={v.desc}
+                className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-green-100 hover:text-green-700 transition-colors border border-slate-200 hover:border-green-300"
+              >
+                <span className="text-slate-400">{`{}`}</span>
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={5}
+          placeholder={"Ex: Servico prestado conforme {titulo_os} para {nome_cliente} ({documento_cliente}).\nISS retido na fonte: {aliquota_iss}% sobre {valor_total}.\nPrestador: {nome_empresa} - CNPJ {cnpj_empresa} - IM {im_empresa}."}
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200 resize-y font-mono"
+        />
+
+        {value && (
+          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+            <p className="text-[10px] font-medium text-slate-400 mb-1">Pre-visualizacao (com dados de exemplo):</p>
+            <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
+              {value
+                .replace(/\{nome_cliente\}/g, "Maria Fernanda da Silva")
+                .replace(/\{documento_cliente\}/g, "123.456.789-01")
+                .replace(/\{codigo_os\}/g, "OS-00123")
+                .replace(/\{titulo_os\}/g, "Instalacao de Ar-Condicionado")
+                .replace(/\{valor_total\}/g, "R$ 2.850,00")
+                .replace(/\{numero_nfse\}/g, "54")
+                .replace(/\{data_emissao\}/g, "27/03/2026")
+                .replace(/\{nome_empresa\}/g, "SLS OBRAS LTDA")
+                .replace(/\{cnpj_empresa\}/g, "47.226.599/0001-40")
+                .replace(/\{im_empresa\}/g, "12345")
+                .replace(/\{codigo_servico\}/g, "14.01")
+                .replace(/\{aliquota_iss\}/g, "5,00")
+                .replace(/\{valor_iss\}/g, "R$ 142,50")
+                .replace(/\{nome_tecnico\}/g, "Carlos Eduardo Mendes")
+                .replace(/\{endereco_servico\}/g, "Rua das Palmeiras, 456 - Centro, Sao Paulo/SP")
+              }
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

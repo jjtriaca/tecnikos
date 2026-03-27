@@ -273,6 +273,11 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       // Set defaults from config
       setSendEmail(data.config.sendEmailToTomador);
       setSendWhatsApp(data.config.afterEmissionSendWhatsApp);
+      // Pre-fill infComplementares from template
+      try {
+        const tpl = await api.get<{ infComplementares: string }>(`/nfse-emission/resolve-template/${financialEntryId}`);
+        if (tpl.infComplementares) setInfComplementares(tpl.infComplementares);
+      } catch { /* template is optional */ }
     } catch (err: any) {
       setError(err?.message || "Erro ao carregar dados da NFS-e");
     } finally {

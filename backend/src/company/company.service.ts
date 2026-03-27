@@ -262,6 +262,9 @@ export class CompanyService {
     pdf: {
       osLayout: 1,
     },
+    nfse: {
+      infComplementaresTemplate: '',
+    },
   };
 
   async getSystemConfig(companyId: string) {
