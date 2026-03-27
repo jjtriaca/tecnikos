@@ -129,6 +129,11 @@ export class NfseEmissionService {
     for (const [key, val] of Object.entries(vars)) {
       result = result.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), val);
     }
+    // Sanitize: remove labels followed by empty values (e.g. "IE: " when IE is empty)
+    result = result
+      .replace(/\S+:\s*(?=\s|$)/g, '')   // remove "label: " with empty value
+      .replace(/\s{2,}/g, ' ')            // collapse multiple spaces
+      .trim();
     return result;
   }
 
