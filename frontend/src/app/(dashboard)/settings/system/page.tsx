@@ -444,11 +444,18 @@ export default function SystemConfigPage() {
         onChange={(v: string) => setValue("nfse", "infComplementaresTemplate", v)}
       />
 
-      {/* Info footer */}
-      <div className="mt-6 rounded-lg bg-slate-50 border border-slate-200 p-4">
+      {/* Save button at bottom + Info footer */}
+      <div className="mt-6 flex items-center justify-between">
+        {dirty ? (
+          <button onClick={handleSave} disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm">
+            {saving ? (
+              <><div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />Salvando...</>
+            ) : "Salvar Alteracoes"}
+          </button>
+        ) : <div />}
         <p className="text-[11px] text-slate-400">
           Estas configuracoes afetam o comportamento do sistema para toda a empresa.
-          Alteracoes sao aplicadas imediatamente apos salvar.
         </p>
       </div>
     </div>
@@ -552,6 +559,7 @@ const NFSE_VAR_GROUPS = [
       { var: "{razao_social_cliente}", label: "Razao Social", desc: "Razao social (PJ) ou nome (PF)" },
       { var: "{nome_fantasia_cliente}", label: "Nome Fantasia", desc: "Nome fantasia ou propriedade" },
       { var: "{endereco_cliente}", label: "Endereco", desc: "Endereco completo do tomador" },
+      { var: "{complemento_cliente}", label: "Complemento", desc: "Complemento do endereco (apto, sala, fazenda)" },
       { var: "{telefone_cliente}", label: "Telefone", desc: "Telefone do tomador" },
       { var: "{email_cliente}", label: "Email", desc: "Email do tomador" },
     ],
@@ -672,6 +680,7 @@ function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v:
                 .replace(/\{razao_social_cliente\}/g, "Maria Fernanda da Silva")
                 .replace(/\{nome_fantasia_cliente\}/g, "Fazenda Agua Limpa")
                 .replace(/\{endereco_cliente\}/g, "Rua das Flores, 123, Centro, Primavera do Leste/MT")
+                .replace(/\{complemento_cliente\}/g, "Apto 302, Bloco B")
                 .replace(/\{telefone_cliente\}/g, "(66) 99876-5432")
                 .replace(/\{email_cliente\}/g, "maria@email.com")
                 .replace(/\{caepf_cliente\}/g, "123.456.789/0001")

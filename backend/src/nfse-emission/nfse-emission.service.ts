@@ -99,6 +99,7 @@ export class NfseEmissionService {
       '{razao_social_cliente}': partner?.name || '',
       '{nome_fantasia_cliente}': partner?.tradeName || '',
       '{endereco_cliente}': enderecoCliente,
+      '{complemento_cliente}': partner?.addressComp || '',
       '{telefone_cliente}': partner?.phone || '',
       '{email_cliente}': partner?.email || '',
       '{caepf_cliente}': partner?.caepf || '',
