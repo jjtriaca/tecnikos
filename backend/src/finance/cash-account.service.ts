@@ -5,11 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { CreateCashAccountDto, UpdateCashAccountDto } from './dto/cash-account.dto';
 
 @Injectable()
 export class CashAccountService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly codeGenerator: CodeGeneratorService,
+  ) {}
 
   /**
    * List all cash accounts (not soft-deleted)
@@ -47,9 +51,11 @@ export class CashAccountService {
    */
   async create(companyId: string, dto: CreateCashAccountDto) {
     const initialBalance = dto.initialBalanceCents ?? 0;
+    const code = await this.codeGenerator.generateCode(companyId, 'CASH_ACCOUNT');
     return this.prisma.cashAccount.create({
       data: {
         companyId,
+        code,
         name: dto.name,
         type: dto.type,
         bankCode: dto.bankCode ?? null,

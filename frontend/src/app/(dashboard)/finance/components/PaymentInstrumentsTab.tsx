@@ -417,7 +417,7 @@ export default function PaymentInstrumentsTab() {
                     <option value="">Nenhuma</option>
                     {cashAccounts.map((ca) => (
                       <option key={ca.id} value={ca.id}>
-                        {ca.name} ({ca.type === "CAIXA" ? "Caixa" : "Banco"})
+                        {ca.name} ({ca.type === "BANCO" ? "Banco" : ca.type === "TRANSITO" ? "Transito" : "Caixa"})
                       </option>
                     ))}
                   </select>

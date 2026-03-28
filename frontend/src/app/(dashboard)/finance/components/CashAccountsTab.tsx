@@ -28,6 +28,7 @@ function formatDateTime(dateStr: string) {
 const ACCOUNT_TYPE_LABEL: Record<string, string> = {
   CAIXA: "Caixa",
   BANCO: "Banco",
+  TRANSITO: "Transito",
 };
 
 const BANK_ACCOUNT_TYPE_LABEL: Record<string, string> = {
@@ -47,7 +48,7 @@ const PIX_KEY_TYPE_LABEL: Record<string, string> = {
 
 interface AccountFormData {
   name: string;
-  type: "CAIXA" | "BANCO";
+  type: "CAIXA" | "BANCO" | "TRANSITO";
   bankCode: string;
   bankName: string;
   agency: string;
@@ -136,9 +137,11 @@ function BalanceSummary() {
   const totalBalance = activeAccounts.reduce((acc, a) => acc + a.currentBalanceCents, 0);
   const caixaBalance = activeAccounts.filter((a) => a.type === "CAIXA").reduce((acc, a) => acc + a.currentBalanceCents, 0);
   const bancoBalance = activeAccounts.filter((a) => a.type === "BANCO").reduce((acc, a) => acc + a.currentBalanceCents, 0);
+  const transitoBalance = activeAccounts.filter((a) => a.type === "TRANSITO").reduce((acc, a) => acc + a.currentBalanceCents, 0);
+  const hasTransito = activeAccounts.some((a) => a.type === "TRANSITO");
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div className={`grid grid-cols-1 gap-4 ${hasTransito ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
       <div className="rounded-xl border border-green-200 bg-green-50 p-5 shadow-sm">
         <span className="text-xs font-medium text-green-700">Saldo Total</span>
         <p className={`mt-1 text-2xl font-bold ${totalBalance >= 0 ? "text-green-900" : "text-red-700"}`}>
@@ -158,6 +161,14 @@ function BalanceSummary() {
           {formatCurrency(bancoBalance)}
         </p>
       </div>
+      {hasTransito && (
+        <div className="rounded-xl border border-purple-200 bg-purple-50 p-5 shadow-sm">
+          <span className="text-xs font-medium text-purple-700">Em Transito</span>
+          <p className={`mt-1 text-2xl font-bold ${transitoBalance >= 0 ? "text-purple-900" : "text-red-700"}`}>
+            {formatCurrency(transitoBalance)}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -171,6 +182,7 @@ function AccountsSection() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingCode, setEditingCode] = useState<string | null>(null);
   const [editingCurrentBalance, setEditingCurrentBalance] = useState(0);
   const [formData, setFormData] = useState<AccountFormData>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -201,6 +213,7 @@ function AccountsSection() {
 
   function openEditForm(acc: CashAccount) {
     setEditingId(acc.id);
+    setEditingCode(acc.code || null);
     setEditingCurrentBalance(acc.currentBalanceCents);
     setFormData({
       name: acc.name,
@@ -223,6 +236,7 @@ function AccountsSection() {
   function closeForm() {
     setShowForm(false);
     setEditingId(null);
+    setEditingCode(null);
     setFormData(EMPTY_FORM);
   }
 
@@ -342,11 +356,16 @@ function AccountsSection() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
+                    {acc.code && (
+                      <span className="text-xs font-mono text-slate-400">{acc.code}</span>
+                    )}
                     <span className="text-sm font-semibold text-slate-900">{acc.name}</span>
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border ${
-                      acc.type === "CAIXA"
-                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                        : "bg-blue-50 text-blue-700 border-blue-200"
+                      acc.type === "BANCO"
+                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                        : acc.type === "TRANSITO"
+                        ? "bg-purple-50 text-purple-700 border-purple-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200"
                     }`}>
                       {ACCOUNT_TYPE_LABEL[acc.type]}
                     </span>
@@ -405,15 +424,17 @@ function AccountsSection() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </button>
-                    <button
-                      onClick={() => setDeleteTarget(acc)}
-                      className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:text-red-600 hover:border-red-300 transition-colors"
-                      title="Excluir"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    {acc.type !== "TRANSITO" && (
+                      <button
+                        onClick={() => setDeleteTarget(acc)}
+                        className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:text-red-600 hover:border-red-300 transition-colors"
+                        title="Excluir"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -427,9 +448,16 @@ function AccountsSection() {
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeForm} />
           <div className="relative mx-4 w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl animate-scale-in max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">
-              {editingId ? "Editar Conta" : "Nova Conta"}
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900">
+                {editingId ? "Editar Conta" : "Nova Conta"}
+              </h3>
+              {editingId && editingCode && (
+                <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-mono font-semibold text-slate-600">
+                  {editingCode}
+                </span>
+              )}
+            </div>
             <div className="space-y-4">
               {/* Nome + Tipo */}
               <div className="grid grid-cols-3 gap-3">
@@ -446,14 +474,23 @@ function AccountsSection() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Tipo *</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as "CAIXA" | "BANCO" })}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                  >
-                    <option value="CAIXA">Caixa</option>
-                    <option value="BANCO">Banco</option>
-                  </select>
+                  {formData.type === "TRANSITO" ? (
+                    <input
+                      type="text"
+                      value="Transito"
+                      disabled
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 cursor-not-allowed"
+                    />
+                  ) : (
+                    <select
+                      value={formData.type}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value as "CAIXA" | "BANCO" })}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                    >
+                      <option value="CAIXA">Caixa</option>
+                      <option value="BANCO">Banco</option>
+                    </select>
+                  )}
                 </div>
               </div>
 

@@ -97,8 +97,9 @@ export interface PaymentMethod {
 export interface CashAccount {
   id: string;
   companyId: string;
+  code?: string | null;
   name: string;
-  type: 'CAIXA' | 'BANCO';
+  type: 'CAIXA' | 'BANCO' | 'TRANSITO';
   bankCode?: string | null;
   bankName?: string | null;
   agency?: string | null;

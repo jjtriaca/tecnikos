@@ -9,7 +9,8 @@ export type CodeEntity =
   | 'USER'
   | 'PRODUCT'
   | 'SERVICE'
-  | 'QUOTE';
+  | 'QUOTE'
+  | 'CASH_ACCOUNT';
 
 const ENTITY_PREFIX: Record<CodeEntity, string> = {
   PARTNER: 'PAR',
@@ -20,6 +21,7 @@ const ENTITY_PREFIX: Record<CodeEntity, string> = {
   PRODUCT: 'PRD',
   SERVICE: 'SRV',
   QUOTE: 'ORC',
+  CASH_ACCOUNT: 'CX',
 };
 
 const ENTITY_TABLE: Record<CodeEntity, string> = {
@@ -31,6 +33,7 @@ const ENTITY_TABLE: Record<CodeEntity, string> = {
   PRODUCT: 'Product',
   SERVICE: 'Service',
   QUOTE: 'Quote',
+  CASH_ACCOUNT: 'CashAccount',
 };
 
 @Injectable()

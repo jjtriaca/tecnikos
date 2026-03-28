@@ -552,7 +552,7 @@ function ImportSection() {
               <option value="">Selecione a conta...</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"})
+                  {a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : "Caixa"})
                 </option>
               ))}
             </select>

@@ -306,6 +306,22 @@ export class TenantService {
     }
 
     this.logger.log(`Schema "${schemaName}" created with ${enums.length} enums + ${tables.length} tables + ${fksRemapped} FKs remapped`);
+
+    // 5. Seed default TRANSITO cash account
+    try {
+      const existing: { id: string }[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM "${schemaName}"."CashAccount" WHERE type = 'TRANSITO' LIMIT 1`,
+      );
+      if (existing.length === 0) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO "${schemaName}"."CashAccount" (id, "companyId", code, name, type, "initialBalanceCents", "currentBalanceCents", "showInReceivables", "showInPayables", "isActive", "createdAt", "updatedAt")
+           VALUES (gen_random_uuid(), (SELECT id FROM "${schemaName}"."Company" LIMIT 1), 'CX-00001', 'Valores em Transito', 'TRANSITO', 0, 0, false, false, true, now(), now())`,
+        );
+        this.logger.log(`Created default TRANSITO account in "${schemaName}"`);
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to seed TRANSITO account in "${schemaName}": ${(err as Error).message}`);
+    }
   }
 
   /**

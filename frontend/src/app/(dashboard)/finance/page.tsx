@@ -715,7 +715,8 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         const total = active.reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
         const caixasList = active.filter((a: any) => a.type === "CAIXA");
         const bancosList = active.filter((a: any) => a.type === "BANCO");
-        const cols = Math.min(1 + caixasList.length + bancosList.length, 4);
+        const transitoList = active.filter((a: any) => a.type === "TRANSITO");
+        const cols = Math.min(1 + caixasList.length + bancosList.length + transitoList.length, 5);
         return (
           <div className={`grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-${cols}`}>
             {/* Saldo Total */}
@@ -738,6 +739,14 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 <span className="text-[11px] font-medium text-blue-700">🏦 {a.name}</span>
                 <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
                 <p className="text-[10px] text-slate-400">Banco</p>
+              </div>
+            ))}
+            {/* Each Transito */}
+            {transitoList.map((a: any) => (
+              <div key={a.id} className="rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+                <span className="text-[11px] font-medium text-purple-700">{a.name}</span>
+                <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-purple-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
+                <p className="text-[10px] text-slate-400">Em Transito</p>
               </div>
             ))}
           </div>
@@ -771,7 +780,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 outline-none">
                 <option value="all">Todas as contas</option>
                 {dashData?.cashAccounts?.map((a: any) => (
-                  <option key={a.id} value={a.name}>{a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"})</option>
+                  <option key={a.id} value={a.name}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : "Caixa"})</option>
                 ))}
               </select>
               <button onClick={reloadStatement} disabled={stmtLoading}
@@ -1445,7 +1454,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                   <label className="block text-xs font-medium text-slate-600 mb-1">Conta/Caixa</label>
                   <select value={batchAccountId} onChange={(e) => setBatchAccountId(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
                     <option value="">Nenhuma (nao atualizar saldo)</option>
-                    {activeAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"})</option>)}
+                    {activeAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : "Caixa"})</option>)}
                   </select>
                 </div>
               )}
@@ -1559,12 +1568,12 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                     setPaymentMethod(code);
                     setSelectedCardRateId("");
                     setSelectedInstrumentId("");
-                    // Auto-select account: DINHEIRO → CAIXA INTERNO, others → Valores em transito
+                    // Auto-select account: DINHEIRO → CAIXA INTERNO, others → Valores em Transito
                     if (code === "DINHEIRO") {
-                      const caixa = activeAccounts.find((a) => a.type === "CAIXA" && !a.name.toLowerCase().includes("transit"));
+                      const caixa = activeAccounts.find((a) => a.type === "CAIXA");
                       setSelectedAccountId(caixa?.id || "");
                     } else if (code) {
-                      const transit = activeAccounts.find((a) => a.name.toLowerCase().includes("transit"));
+                      const transit = activeAccounts.find((a) => a.type === "TRANSITO");
                       setSelectedAccountId(transit?.id || "");
                     }
                     // Load instruments for this payment method
@@ -1655,7 +1664,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                       .filter((a: any) => type === "RECEIVABLE" ? a.showInReceivables !== false : a.showInPayables !== false)
                       .map((a) => (
                       <option key={a.id} value={a.id}>
-                        {a.name} ({a.type === "CAIXA" ? "Caixa" : "Banco"})
+                        {a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : "Caixa"})
                       </option>
                     ))}
                   </select>

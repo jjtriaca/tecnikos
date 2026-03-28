@@ -213,9 +213,9 @@ export class ReconciliationService {
       // Determine source account: entry's current account, or find transit account as fallback
       let sourceAccountId = entry?.cashAccountId;
       if (!sourceAccountId || sourceAccountId === bankAccountId) {
-        // Find the transit account
+        // Find the transit account by type
         const transitAccount = await this.prisma.cashAccount.findFirst({
-          where: { companyId, deletedAt: null, isActive: true, name: { contains: 'ransit', mode: 'insensitive' } },
+          where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
           select: { id: true },
         });
         sourceAccountId = transitAccount?.id || null;
@@ -271,7 +271,7 @@ export class ReconciliationService {
       if (entry?.cashAccountId === bankAccountId) {
         // Find the transit account (the one that lost the money)
         const transitAccount = await this.prisma.cashAccount.findFirst({
-          where: { companyId, deletedAt: null, isActive: true, name: { contains: 'ransit', mode: 'insensitive' } },
+          where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
           select: { id: true },
         });
         if (transitAccount) {

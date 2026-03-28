@@ -64,6 +64,7 @@ enum InstallmentStatus {
 enum CashAccountType {
   CAIXA
   BANCO
+  TRANSITO
 }
 
 enum BankAccountType {
@@ -1379,8 +1380,9 @@ model PaymentInstrument {
 model CashAccount {
   id                  String           @id @default(uuid())
   companyId           String
+  code                String?          // CX-00001
   name                String           // "Caixa Principal", "Bradesco CC"
-  type                CashAccountType  // CAIXA | BANCO
+  type                CashAccountType  // CAIXA | BANCO | TRANSITO
   bankCode            String?          // "237"
   bankName            String?          // "Bradesco"
   agency              String?
