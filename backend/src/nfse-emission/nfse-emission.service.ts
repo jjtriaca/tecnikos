@@ -7,6 +7,29 @@ import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { randomUUID } from 'crypto';
 
+/** Format IE (Inscrição Estadual) by state */
+const IE_MASKS: Record<string, (d: string) => string> = {
+  MT: (d) => d.replace(/(\d{10})(\d{0,1})/, '$1-$2'),
+  SP: (d) => d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3.$4'),
+  MG: (d) => d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,4})/, '$1.$2.$3/$4'),
+  RJ: (d) => d.replace(/(\d{2})(\d{3})(\d{2})(\d{0,1})/, '$1.$2.$3-$4'),
+  PR: (d) => d.replace(/(\d{3})(\d{5})(\d{0,2})/, '$1.$2-$3'),
+  RS: (d) => d.replace(/(\d{3})(\d{0,7})/, '$1/$2'),
+  SC: (d) => d.replace(/(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3'),
+  GO: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, '$1.$2.$3-$4'),
+  BA: (d) => d.length <= 8 ? d.replace(/(\d{6})(\d{0,2})/, '$1-$2') : d.replace(/(\d{7})(\d{0,2})/, '$1-$2'),
+  MS: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, '$1.$2.$3-$4'),
+  AM: (d) => d.replace(/(\d{2})(\d{3})(\d{3})(\d{0,1})/, '$1.$2.$3-$4'),
+  CE: (d) => d.replace(/(\d{8})(\d{0,1})/, '$1-$2'),
+  PE: (d) => d.replace(/(\d{7})(\d{0,2})/, '$1-$2'),
+};
+function formatIE(ie?: string | null, uf?: string | null): string {
+  if (!ie) return '';
+  const d = ie.replace(/\D/g, '');
+  if (!uf || !IE_MASKS[uf]) return d;
+  return IE_MASKS[uf](d);
+}
+
 /** Retorna data/hora atual no fuso de Brasilia (UTC-3) em formato ISO sem 'Z'. */
 function brazilNow(): string {
   const now = new Date();
@@ -94,7 +117,7 @@ export class NfseEmissionService {
       // Cliente/Tomador
       '{nome_cliente}': partner?.name || '',
       '{documento_cliente}': partner?.document || '',
-      '{ie_cliente}': partner?.ie || '',
+      '{ie_cliente}': formatIE(partner?.ie, partner?.state),
       '{im_cliente}': partner?.im || '',
       '{razao_social_cliente}': partner?.name || '',
       '{nome_fantasia_cliente}': partner?.tradeName || '',
