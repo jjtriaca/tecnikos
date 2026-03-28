@@ -108,6 +108,7 @@ export interface CashAccount {
   pixKeyType?: 'CPF' | 'CNPJ' | 'EMAIL' | 'TELEFONE' | 'ALEATORIA' | null;
   pixKey?: string | null;
   initialBalanceCents: number;
+  initialBalanceDate?: string | null;
   currentBalanceCents: number;
   showInReceivables: boolean;
   showInPayables: boolean;

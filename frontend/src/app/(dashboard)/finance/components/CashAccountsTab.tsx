@@ -57,6 +57,7 @@ interface AccountFormData {
   pixKeyType: string;
   pixKey: string;
   initialBalanceCents: string;
+  initialBalanceDate: string;
   showInReceivables: boolean;
   showInPayables: boolean;
   isActive: boolean;
@@ -73,6 +74,7 @@ const EMPTY_FORM: AccountFormData = {
   pixKeyType: "",
   pixKey: "",
   initialBalanceCents: "0",
+  initialBalanceDate: "",
   showInReceivables: true,
   showInPayables: true,
   isActive: true,
@@ -226,6 +228,7 @@ function AccountsSection() {
       pixKeyType: acc.pixKeyType || "",
       pixKey: acc.pixKey || "",
       initialBalanceCents: (acc.initialBalanceCents / 100).toFixed(2).replace(".", ","),
+      initialBalanceDate: acc.initialBalanceDate ? acc.initialBalanceDate.substring(0, 10) : "",
       showInReceivables: acc.showInReceivables ?? true,
       showInPayables: acc.showInPayables ?? true,
       isActive: acc.isActive,
@@ -274,6 +277,11 @@ function AccountsSection() {
     if (!editingId || editingCurrentBalance === 0) {
       const val = parseFloat(formData.initialBalanceCents.replace(",", ".")) || 0;
       payload.initialBalanceCents = Math.round(val * 100);
+    }
+    if (formData.initialBalanceDate) {
+      payload.initialBalanceDate = formData.initialBalanceDate;
+    } else {
+      payload.initialBalanceDate = null;
     }
 
     try {
@@ -587,7 +595,7 @@ function AccountsSection() {
                 )}
               </div>
 
-              {/* Saldo inicial (only on create) + Ativo */}
+              {/* Saldo inicial (only on create) + Data + Ativo */}
               <div className="grid grid-cols-2 gap-3">
                 {(!editingId || editingCurrentBalance === 0) && (
                   <div>
@@ -603,6 +611,15 @@ function AccountsSection() {
                     />
                   </div>
                 )}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Data do Saldo Inicial</label>
+                  <input
+                    type="date"
+                    value={formData.initialBalanceDate}
+                    onChange={(e) => setFormData({ ...formData, initialBalanceDate: e.target.value })}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                </div>
                 <div className={`flex flex-col gap-2 pb-1 ${editingId ? "col-span-2" : ""}`}>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.isActive}

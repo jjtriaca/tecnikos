@@ -25,6 +25,7 @@ type SystemConfig = {
     showBaixaCartoes: boolean;
     lockAccountOnReceive: boolean;
     lockPlanOnReceive: boolean;
+    autoReconciliation: boolean;
   };
   evaluation: {
     requireGestorApproval: boolean;
@@ -151,6 +152,13 @@ const SECTIONS: SectionConfig[] = [
         key: "lockPlanOnReceive",
         label: "Travar plano de contas ao receber",
         description: "Impede edicao do plano de contas no recebimento. O padrao e Receita de Servicos (1100).",
+        type: "toggle",
+      },
+      {
+        section: "financial",
+        key: "autoReconciliation",
+        label: "Conciliacao automatica",
+        description: "Ao importar extrato (OFX/CSV), concilia automaticamente linhas que possuem correspondencia exata de valor e data com lancamentos pendentes ou pagos.",
         type: "toggle",
       },
     ],

@@ -1391,6 +1391,7 @@ model CashAccount {
   pixKeyType          PixKeyType?
   pixKey              String?
   initialBalanceCents Int              @default(0)
+  initialBalanceDate  DateTime?        // Data referente ao saldo inicial
   currentBalanceCents Int              @default(0)
   showInReceivables   Boolean          @default(true)  // Aparece em formas de recebimento
   showInPayables      Boolean          @default(true)  // Aparece em formas de pagamento

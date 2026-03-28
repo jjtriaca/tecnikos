@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsInt, IsEnum, Min } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, IsEnum, IsDateString } from 'class-validator';
 
 export class CreateCashAccountDto {
   @IsString()
@@ -38,6 +38,10 @@ export class CreateCashAccountDto {
   @IsOptional()
   @IsInt()
   initialBalanceCents?: number;
+
+  @IsOptional()
+  @IsDateString()
+  initialBalanceDate?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -104,4 +108,8 @@ export class UpdateCashAccountDto {
   @IsOptional()
   @IsInt()
   initialBalanceCents?: number;
+
+  @IsOptional()
+  @IsDateString()
+  initialBalanceDate?: string;
 }

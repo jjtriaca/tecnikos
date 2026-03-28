@@ -243,6 +243,7 @@ export class CompanyService {
       showBaixaCartoes: false,
       lockAccountOnReceive: true,
       lockPlanOnReceive: true,
+      autoReconciliation: false,
     },
     evaluation: {
       requireGestorApproval: true,

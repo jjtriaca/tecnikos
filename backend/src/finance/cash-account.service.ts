@@ -66,6 +66,7 @@ export class CashAccountService {
         pixKeyType: dto.pixKeyType ?? null,
         pixKey: dto.pixKey ?? null,
         initialBalanceCents: initialBalance,
+        initialBalanceDate: dto.initialBalanceDate ? new Date(dto.initialBalanceDate) : null,
         currentBalanceCents: initialBalance,
         isActive: dto.isActive ?? true,
       },
@@ -109,6 +110,9 @@ export class CashAccountService {
         ...(dto.showInReceivables !== undefined && { showInReceivables: dto.showInReceivables }),
         ...(dto.showInPayables !== undefined && { showInPayables: dto.showInPayables }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.initialBalanceDate !== undefined && {
+          initialBalanceDate: dto.initialBalanceDate ? new Date(dto.initialBalanceDate) : null,
+        }),
         ...initialBalanceUpdate,
       },
     });

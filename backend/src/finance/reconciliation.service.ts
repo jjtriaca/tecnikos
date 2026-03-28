@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,6 +11,8 @@ import { MatchLineDto } from './dto/reconciliation.dto';
 
 @Injectable()
 export class ReconciliationService {
+  private readonly logger = new Logger(ReconciliationService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ofxParser: OfxParserService,
@@ -44,7 +47,7 @@ export class ReconciliationService {
     }
 
     // Create import record and lines in a transaction
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const importRecord = await tx.bankStatementImport.create({
         data: {
           companyId,
@@ -128,6 +131,13 @@ export class ReconciliationService {
         skippedDuplicates: totalCount - lines.length,
       };
     });
+
+    // Auto-reconciliation (async, non-blocking)
+    this.tryAutoReconciliation(companyId, result.id, importedByName).catch((err) => {
+      this.logger.error(`Auto-reconciliation failed for import ${result.id}: ${err.message}`);
+    });
+
+    return result;
   }
 
   /**
@@ -384,5 +394,67 @@ export class ReconciliationService {
         notes: notes ?? null,
       },
     });
+  }
+
+  /**
+   * Auto-reconciliation: match imported lines with financial entries by exact amount
+   */
+  private async tryAutoReconciliation(companyId: string, importId: string, matchedByName: string) {
+    // Check if auto-reconciliation is enabled
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const config = (company?.systemConfig as Record<string, any>) || {};
+    if (!config?.financial?.autoReconciliation) return;
+
+    // Get unmatched lines from this import
+    const lines = await this.prisma.bankStatementLine.findMany({
+      where: { importId, status: 'UNMATCHED' },
+    });
+    if (lines.length === 0) return;
+
+    // Get paid entries assigned to transit account (most common reconciliation source)
+    const transitAccount = await this.prisma.cashAccount.findFirst({
+      where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
+      select: { id: true },
+    });
+
+    let autoMatchCount = 0;
+
+    for (const line of lines) {
+      const absAmount = Math.abs(line.amountCents);
+      const entryType = line.amountCents >= 0 ? 'RECEIVABLE' : 'PAYABLE';
+
+      // Find entries with exact amount match, same type, paid status
+      const candidates = await this.prisma.financialEntry.findMany({
+        where: {
+          companyId,
+          type: entryType,
+          status: 'PAID',
+          netCents: absAmount,
+          deletedAt: null,
+          // Only match entries that aren't already reconciled to a bank
+          ...(transitAccount ? { cashAccountId: transitAccount.id } : {}),
+        },
+        select: { id: true, paidAt: true },
+        orderBy: { paidAt: 'desc' },
+      });
+
+      if (candidates.length !== 1) continue; // Only auto-match when exactly 1 candidate (unambiguous)
+
+      const entry = candidates[0];
+
+      try {
+        await this.matchLine(line.id, companyId, { entryId: entry.id }, `${matchedByName} (auto)`);
+        autoMatchCount++;
+      } catch {
+        // Skip if match fails (e.g., already matched)
+      }
+    }
+
+    if (autoMatchCount > 0) {
+      this.logger.log(`Auto-reconciled ${autoMatchCount} lines for import ${importId}`);
+    }
   }
 }
