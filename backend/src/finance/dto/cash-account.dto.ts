@@ -58,8 +58,8 @@ export class UpdateCashAccountDto {
   name?: string;
 
   @IsOptional()
-  @IsEnum(['CAIXA', 'BANCO'])
-  type?: 'CAIXA' | 'BANCO';
+  @IsEnum(['CAIXA', 'BANCO', 'TRANSITO'])
+  type?: 'CAIXA' | 'BANCO' | 'TRANSITO';
 
   @IsOptional()
   @IsString()
