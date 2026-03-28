@@ -223,15 +223,29 @@ export class ReconciliationService {
 
       if (sourceAccountId && sourceAccountId !== bankAccountId) {
         const transferAmount = Math.abs(line.amountCents);
-        // Update balances directly (no separate transfer record — entry movement IS the transfer)
-        await this.prisma.cashAccount.update({
-          where: { id: sourceAccountId },
-          data: { currentBalanceCents: { decrement: transferAmount } },
-        });
-        await this.prisma.cashAccount.update({
-          where: { id: bankAccountId },
-          data: { currentBalanceCents: { increment: transferAmount } },
-        });
+        const isCredit = line.amountCents > 0; // credit = money INTO bank, debit = money OUT of bank
+
+        if (isCredit) {
+          // Credit (receivable): money moves Transit → Bank
+          await this.prisma.cashAccount.update({
+            where: { id: sourceAccountId },
+            data: { currentBalanceCents: { decrement: transferAmount } },
+          });
+          await this.prisma.cashAccount.update({
+            where: { id: bankAccountId },
+            data: { currentBalanceCents: { increment: transferAmount } },
+          });
+        } else {
+          // Debit (payable): money moves Bank → Transit (bank decreases, transit increases)
+          await this.prisma.cashAccount.update({
+            where: { id: bankAccountId },
+            data: { currentBalanceCents: { decrement: transferAmount } },
+          });
+          await this.prisma.cashAccount.update({
+            where: { id: sourceAccountId },
+            data: { currentBalanceCents: { increment: transferAmount } },
+          });
+        }
         // Update entry's cashAccountId to the bank
         await this.prisma.financialEntry.update({
           where: { id: dto.entryId },
@@ -275,15 +289,28 @@ export class ReconciliationService {
           select: { id: true },
         });
         if (transitAccount) {
-          // Revert balances: bank -amount, transit +amount
-          await this.prisma.cashAccount.update({
-            where: { id: bankAccountId },
-            data: { currentBalanceCents: { decrement: transferAmount } },
-          });
-          await this.prisma.cashAccount.update({
-            where: { id: transitAccount.id },
-            data: { currentBalanceCents: { increment: transferAmount } },
-          });
+          const isCredit = line.amountCents > 0;
+          if (isCredit) {
+            // Revert credit: bank -amount, transit +amount
+            await this.prisma.cashAccount.update({
+              where: { id: bankAccountId },
+              data: { currentBalanceCents: { decrement: transferAmount } },
+            });
+            await this.prisma.cashAccount.update({
+              where: { id: transitAccount.id },
+              data: { currentBalanceCents: { increment: transferAmount } },
+            });
+          } else {
+            // Revert debit: bank +amount, transit -amount
+            await this.prisma.cashAccount.update({
+              where: { id: bankAccountId },
+              data: { currentBalanceCents: { increment: transferAmount } },
+            });
+            await this.prisma.cashAccount.update({
+              where: { id: transitAccount.id },
+              data: { currentBalanceCents: { decrement: transferAmount } },
+            });
+          }
           // Move entry back to transit
           await this.prisma.financialEntry.update({
             where: { id: line.matchedEntryId },
