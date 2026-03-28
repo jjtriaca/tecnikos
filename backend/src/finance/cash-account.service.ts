@@ -106,6 +106,8 @@ export class CashAccountService {
         ...(dto.accountType !== undefined && { accountType: dto.accountType }),
         ...(dto.pixKeyType !== undefined && { pixKeyType: dto.pixKeyType }),
         ...(dto.pixKey !== undefined && { pixKey: dto.pixKey }),
+        ...(dto.showInReceivables !== undefined && { showInReceivables: dto.showInReceivables }),
+        ...(dto.showInPayables !== undefined && { showInPayables: dto.showInPayables }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
         ...initialBalanceUpdate,
       },
