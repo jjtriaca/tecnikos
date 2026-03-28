@@ -439,18 +439,29 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   }
 
   // ═══════════════════════════════════════════
-  // Load contacts when entering SEND phase
+  // Load contacts when entering SEND phase — fallback to partner email/phone
   useEffect(() => {
     if (phase !== "SEND" || !preview?.tomador?.partnerId) return;
     const pid = preview.tomador.partnerId;
-    api.get<any[]>(`/partners/${pid}/contacts?type=EMAIL`).then((data) => {
-      setEmailContacts(data || []);
-      if (data?.length > 0) setSelectedEmailContactId(data[0].id);
-    }).catch(() => {});
-    api.get<any[]>(`/partners/${pid}/contacts?type=WHATSAPP`).then((data) => {
-      setWhatsappContacts(data || []);
-      if (data?.length > 0) setSelectedWhatsappContactId(data[0].id);
-    }).catch(() => {});
+    Promise.all([
+      api.get<any[]>(`/partners/${pid}/contacts?type=EMAIL`).catch(() => []),
+      api.get<any[]>(`/partners/${pid}/contacts?type=WHATSAPP`).catch(() => []),
+      api.get<any>(`/partners/${pid}`).catch(() => null),
+    ]).then(([emails, whatsapps, partner]) => {
+      let emailList = emails || [];
+      let wpList = whatsapps || [];
+      // Fallback: add partner.email/phone as virtual contacts if not already in the list
+      if (partner?.email && !emailList.some((c: any) => c.value === partner.email)) {
+        emailList = [{ id: "_partner_email", value: partner.email, label: "Cadastro", type: "EMAIL" }, ...emailList];
+      }
+      if (partner?.phone && !wpList.some((c: any) => c.value === partner.phone)) {
+        wpList = [{ id: "_partner_phone", value: partner.phone, label: "Cadastro", type: "WHATSAPP" }, ...wpList];
+      }
+      setEmailContacts(emailList);
+      if (emailList.length > 0) setSelectedEmailContactId(emailList[0].id);
+      setWhatsappContacts(wpList);
+      if (wpList.length > 0) setSelectedWhatsappContactId(wpList[0].id);
+    });
   }, [phase, preview?.tomador?.partnerId]);
 
   // SEND phase: Send email and/or WhatsApp
