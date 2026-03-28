@@ -46,6 +46,7 @@ const PARTNER_FILTERS: FilterDefinition[] = [
     options: [
       { value: "PF", label: "Pessoa Física" },
       { value: "PJ", label: "Pessoa Jurídica" },
+      { value: "RURAL", label: "Produtor Rural" },
     ],
   },
 ];

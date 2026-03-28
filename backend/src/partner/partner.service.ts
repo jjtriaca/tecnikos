@@ -304,14 +304,24 @@ export class PartnerService {
       where.status = filters.status;
     }
     if (filters.personType) {
-      where.personType = filters.personType;
+      if (filters.personType === 'RURAL') {
+        where.personType = 'PF';
+        where.isRuralProducer = true;
+      } else {
+        where.personType = filters.personType;
+        if (filters.personType === 'PF') {
+          where.isRuralProducer = { not: true };
+        }
+      }
     }
     if (pagination?.search) {
       const searchClause = buildSearchWhere(pagination.search, [
         { field: 'name', mode: 'insensitive' },
+        { field: 'tradeName', mode: 'insensitive' },
         { field: 'document' },
         { field: 'email', mode: 'insensitive' },
         { field: 'phone' },
+        { field: 'code', mode: 'insensitive' },
       ]);
       if (searchClause) Object.assign(where, searchClause);
     }
