@@ -271,7 +271,7 @@ export class ReconciliationService {
       if (entry?.cashAccountId === bankAccountId) {
         // Find the transit account (the one that lost the money)
         const transitAccount = await this.prisma.cashAccount.findFirst({
-          where: { companyId, deletedAt: null, isActive: true, name: { contains: 'ransit' } },
+          where: { companyId, deletedAt: null, isActive: true, name: { contains: 'ransit', mode: 'insensitive' } },
           select: { id: true },
         });
         if (transitAccount) {
