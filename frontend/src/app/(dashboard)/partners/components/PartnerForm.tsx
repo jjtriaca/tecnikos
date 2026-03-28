@@ -380,7 +380,7 @@ export default function PartnerForm({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Nome Completo *</label>
-                <input placeholder="Ex: Maria Fernanda da Silva" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
+                <input placeholder="Ex: MARIA FERNANDA DA SILVA" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value.toUpperCase() }))} required className={inputClass + " w-full"} />
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">CPF</label>
@@ -396,7 +396,7 @@ export default function PartnerForm({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Nome Completo *</label>
-                <input placeholder="Ex: Joao Carlos Pereira" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
+                <input placeholder="Ex: JOAO CARLOS PEREIRA" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value.toUpperCase() }))} required className={inputClass + " w-full"} />
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">CPF</label>
@@ -445,7 +445,7 @@ export default function PartnerForm({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Razao Social *</label>
-                <input placeholder="Ex: Empresa ABC Ltda" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, name: toTitleCase(f.name) }))} required className={inputClass + " w-full"} />
+                <input placeholder="Ex: EMPRESA ABC LTDA" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value.toUpperCase() }))} required className={inputClass + " w-full"} />
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Nome Fantasia</label>

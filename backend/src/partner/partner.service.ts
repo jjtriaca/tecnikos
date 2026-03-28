@@ -449,6 +449,9 @@ export class PartnerService {
     if (rest.phone) rest.phone = this.sanitizePhone(rest.phone) as any;
     const createData: any = { companyId, ...rest };
 
+    // Force name uppercase
+    if (createData.name) createData.name = createData.name.toUpperCase();
+
     // Check for duplicate document
     if (data.document) {
       const duplicates = await this.checkDuplicateDocument(companyId, data.document);
@@ -538,6 +541,9 @@ export class PartnerService {
     const updateData: any = {};
     const beforeFields: Record<string, any> = {};
     const afterFields: Record<string, any> = {};
+
+    // Force name uppercase
+    if (rest.name) rest.name = rest.name.toUpperCase();
 
     for (const [key, value] of Object.entries(rest)) {
       if (value !== undefined && value !== (existing as any)[key]) {
