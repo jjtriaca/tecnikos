@@ -241,6 +241,8 @@ export class CompanyService {
       autoGeneratePayable: true,
       defaultDueDays: 30,
       showBaixaCartoes: false,
+      lockAccountOnReceive: true,
+      lockPlanOnReceive: true,
     },
     evaluation: {
       requireGestorApproval: true,

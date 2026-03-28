@@ -505,8 +505,8 @@ export default function FinancePage() {
 
       {/* Tab Content */}
       {activeTab === "resumo" && <SummaryTab key={`resumo-${resumoKey}`} onNavigateTab={setActiveTab} />}
-      {activeTab === "receber" && <EntriesTab type="RECEIVABLE" />}
-      {activeTab === "pagar" && <EntriesTab type="PAYABLE" />}
+      {activeTab === "receber" && <EntriesTab type="RECEIVABLE" sysConfig={sysConfig} />}
+      {activeTab === "pagar" && <EntriesTab type="PAYABLE" sysConfig={sysConfig} />}
       {activeTab === "parcelas" && <InstallmentsOverviewTab />}
       {activeTab === "cartoes" && <CardSettlementTab />}
       {activeTab === "contas" && <CashAccountsTab />}
@@ -871,7 +871,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
    TAB: ENTRIES (A Receber / A Pagar)
    ══════════════════════════════════════════════════════════ */
 
-function EntriesTab({ type }: { type: FinancialEntryType }) {
+function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?: Record<string, any> | null }) {
   const { user } = useAuth();
   const { fiscalEnabled } = useFiscalModule();
   const tp = useTableParams({ defaultSortBy: "createdAt", defaultSortOrder: "desc", defaultFilters: { status: "PENDING" } });
@@ -1013,9 +1013,22 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
   useEffect(() => {
     if (payAction?.entry.paymentMethod) {
       setPaymentMethod(payAction.entry.paymentMethod);
+      // Auto-select account based on payment method
+      const pm = payAction.entry.paymentMethod;
+      if (pm === "DINHEIRO" || pm === "CHEQUE") {
+        const caixa = activeAccounts.find((a) => a.type === "CAIXA");
+        setSelectedAccountId(caixa?.id || "");
+      } else if (!pm.startsWith("CARTAO")) {
+        const transit = activeAccounts.find((a) => a.type === "TRANSITO");
+        setSelectedAccountId(transit?.id || "");
+      }
     }
     if (payAction?.entry.financialAccount?.id) {
       setPayAccountId(payAction.entry.financialAccount.id);
+    } else if (payAction?.entry.type === "RECEIVABLE") {
+      // Auto-select "Receita de Servicos" (code 1100) for receivables
+      const receita = postableAccounts.find((a) => a.code === "1100");
+      setPayAccountId(receita?.id || "");
     } else {
       setPayAccountId("");
     }
@@ -1023,7 +1036,7 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
     if (payAction) {
       setPayDate(new Date().toISOString().slice(0, 10));
     }
-  }, [payAction]);
+  }, [payAction, activeAccounts, postableAccounts]);
 
   function openEditEntry(e: FinancialEntry) {
     setEditEntry(e);
@@ -1657,7 +1670,8 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                   <select
                     value={selectedAccountId}
                     onChange={(e) => setSelectedAccountId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                    disabled={sysConfig?.financial?.lockAccountOnReceive === true && payAction?.entry.type === "RECEIVABLE"}
+                    className={`w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${sysConfig?.financial?.lockAccountOnReceive === true && payAction?.entry.type === "RECEIVABLE" ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "bg-white"}`}
                   >
                     <option value="">Nenhuma (nao atualizar saldo)</option>
                     {activeAccounts
@@ -1678,14 +1692,15 @@ function EntriesTab({ type }: { type: FinancialEntryType }) {
                 </div>
               )}
 
-              {/* Plano de Contas (Plano de Contas) */}
+              {/* Plano de Contas */}
               {postableAccounts.length > 0 && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
                   <select
                     value={payAccountId}
                     onChange={(e) => setPayAccountId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                    disabled={sysConfig?.financial?.lockPlanOnReceive === true && payAction?.entry.type === "RECEIVABLE"}
+                    className={`w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${sysConfig?.financial?.lockPlanOnReceive === true && payAction?.entry.type === "RECEIVABLE" ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "bg-white"}`}
                   >
                     <option value="">Selecione...</option>
                     {(() => {

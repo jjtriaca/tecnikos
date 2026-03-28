@@ -23,6 +23,8 @@ type SystemConfig = {
     autoGeneratePayable: boolean;
     defaultDueDays: number;
     showBaixaCartoes: boolean;
+    lockAccountOnReceive: boolean;
+    lockPlanOnReceive: boolean;
   };
   evaluation: {
     requireGestorApproval: boolean;
@@ -135,6 +137,20 @@ const SECTIONS: SectionConfig[] = [
         key: "showBaixaCartoes",
         label: "Exibir aba Baixa de Cartoes",
         description: "Quando desligado, a baixa de cartoes e feita automaticamente pela conciliacao bancaria (importacao OFX/CSV). Ligue apenas se nao utiliza conciliacao por importacao.",
+        type: "toggle",
+      },
+      {
+        section: "financial",
+        key: "lockAccountOnReceive",
+        label: "Travar conta ao receber",
+        description: "Impede edicao da conta/caixa no recebimento. A conta e selecionada automaticamente pela forma de pagamento (Dinheiro/Cheque = Caixa, outros = Transito).",
+        type: "toggle",
+      },
+      {
+        section: "financial",
+        key: "lockPlanOnReceive",
+        label: "Travar plano de contas ao receber",
+        description: "Impede edicao do plano de contas no recebimento. O padrao e Receita de Servicos (1100).",
         type: "toggle",
       },
     ],
