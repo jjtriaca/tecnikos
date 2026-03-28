@@ -901,6 +901,29 @@ export class FinanceService {
       };
     };
 
+    // Transit account breakdown: credits (receivables) and debits (payables)
+    const transitAccount = cashAccounts.find((a: any) => a.type === 'TRANSITO');
+    let transitCredits = 0;
+    let transitDebits = 0;
+    if (transitAccount) {
+      const transitEntries = await this.prisma.financialEntry.findMany({
+        where: {
+          companyId,
+          cashAccountId: transitAccount.id,
+          status: 'PAID',
+          deletedAt: null,
+        },
+        select: { type: true, netCents: true },
+      });
+      for (const e of transitEntries) {
+        if (e.type === 'RECEIVABLE') {
+          transitCredits += e.netCents;
+        } else {
+          transitDebits += e.netCents;
+        }
+      }
+    }
+
     return {
       dre: {
         revenue: dre.revenue,
@@ -915,6 +938,7 @@ export class FinanceService {
       },
       cashFlow,
       cashAccounts,
+      transitBreakdown: { creditsCents: transitCredits, debitsCents: transitDebits },
       overdue,
       topAccounts: topAccounts.slice(0, 5),
       cardSettlements,

@@ -559,7 +559,21 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
+  // Card-level drag within caixas_bancos
+  const CARD_ORDER_KEY = "tecnikos_finance_card_order";
+  const [cardOrder, setCardOrder] = useState<string[]>([]);
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const [dragOverCardId, setDragOverCardId] = useState<string | null>(null);
+
   useEffect(() => { setSectionOrder(loadSectionOrder()); }, []);
+
+  // Load card order from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(CARD_ORDER_KEY);
+      if (stored) setCardOrder(JSON.parse(stored));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const now = new Date();
@@ -605,6 +619,32 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
     }
     setDraggingId(null);
     setDragOverId(null);
+  }
+
+  function handleCardDragStart(e: React.DragEvent, cardId: string) {
+    e.stopPropagation();
+    setDraggingCardId(cardId);
+    e.dataTransfer.effectAllowed = "move";
+  }
+  function handleCardDragEnter(e: React.DragEvent, cardId: string) {
+    e.stopPropagation();
+    if (draggingCardId && cardId !== draggingCardId) setDragOverCardId(cardId);
+  }
+  function handleCardDragEnd(e: React.DragEvent) {
+    e.stopPropagation();
+    if (draggingCardId && dragOverCardId && draggingCardId !== dragOverCardId) {
+      const newOrder = [...cardOrder];
+      const fromIdx = newOrder.indexOf(draggingCardId);
+      const toIdx = newOrder.indexOf(dragOverCardId);
+      if (fromIdx !== -1 && toIdx !== -1) {
+        newOrder.splice(fromIdx, 1);
+        newOrder.splice(toIdx, 0, draggingCardId);
+        setCardOrder(newOrder);
+        localStorage.setItem(CARD_ORDER_KEY, JSON.stringify(newOrder));
+      }
+    }
+    setDraggingCardId(null);
+    setDragOverCardId(null);
   }
 
   if (loading) {
@@ -713,40 +753,85 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         const accounts = dashData.cashAccounts as { id: string; name: string; type: string; currentBalanceCents: number }[];
         const active = accounts.filter((a: any) => a.currentBalanceCents !== undefined);
         const total = active.reduce((s: number, a: any) => s + a.currentBalanceCents, 0);
-        const caixasList = active.filter((a: any) => a.type === "CAIXA");
-        const bancosList = active.filter((a: any) => a.type === "BANCO");
-        const transitoList = active.filter((a: any) => a.type === "TRANSITO");
-        const cols = Math.min(1 + caixasList.length + bancosList.length + transitoList.length, 5);
+
+        // Build ordered card list
+        type CardDef = { id: string; render: () => React.ReactNode };
+        const allCards: CardDef[] = [];
+        allCards.push({ id: "_total", render: () => (
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <span className="text-[11px] font-medium text-green-700">Saldo Total</span>
+            <p className={`mt-1 text-lg font-bold ${total >= 0 ? "text-green-900" : "text-red-700"}`}>{formatCurrency(total)}</p>
+            <p className="text-[10px] text-slate-400">{active.length} conta{active.length !== 1 ? "s" : ""} ativa{active.length !== 1 ? "s" : ""}</p>
+          </div>
+        )});
+        for (const a of active.filter((a: any) => a.type === "CAIXA")) {
+          allCards.push({ id: a.id, render: () => (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+              <span className="text-[11px] font-medium text-amber-700">💰 {a.name}</span>
+              <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
+              <p className="text-[10px] text-slate-400">Caixa</p>
+            </div>
+          )});
+        }
+        for (const a of active.filter((a: any) => a.type === "BANCO")) {
+          allCards.push({ id: a.id, render: () => (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+              <span className="text-[11px] font-medium text-blue-700">🏦 {a.name}</span>
+              <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
+              <p className="text-[10px] text-slate-400">Banco</p>
+            </div>
+          )});
+        }
+        for (const a of active.filter((a: any) => a.type === "TRANSITO")) {
+          const tb = dashData.transitBreakdown as { creditsCents: number; debitsCents: number } | undefined;
+          allCards.push({ id: a.id, render: () => (
+            <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+              <span className="text-[11px] font-medium text-purple-700">{a.name}</span>
+              <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-purple-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
+              {tb && (
+                <div className="mt-1.5 flex gap-3">
+                  <span className="text-[10px] text-green-600">▲ {formatCurrency(tb.creditsCents)}</span>
+                  <span className="text-[10px] text-red-500">▼ {formatCurrency(tb.debitsCents)}</span>
+                </div>
+              )}
+              <p className="text-[10px] text-slate-400">Em Transito</p>
+            </div>
+          )});
+        }
+
+        // Apply saved card order
+        const orderedCards = cardOrder.length > 0
+          ? [...allCards].sort((a, b) => {
+              const ai = cardOrder.indexOf(a.id);
+              const bi = cardOrder.indexOf(b.id);
+              if (ai === -1 && bi === -1) return 0;
+              if (ai === -1) return 1;
+              if (bi === -1) return -1;
+              return ai - bi;
+            })
+          : allCards;
+
+        // Initialize card order if empty
+        if (cardOrder.length === 0 && allCards.length > 0) {
+          const ids = allCards.map(c => c.id);
+          setCardOrder(ids);
+          localStorage.setItem(CARD_ORDER_KEY, JSON.stringify(ids));
+        }
+
+        const cols = Math.min(orderedCards.length, 5);
         return (
           <div className={`grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-${cols}`}>
-            {/* Saldo Total */}
-            <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
-              <span className="text-[11px] font-medium text-green-700">Saldo Total</span>
-              <p className={`mt-1 text-lg font-bold ${total >= 0 ? "text-green-900" : "text-red-700"}`}>{formatCurrency(total)}</p>
-              <p className="text-[10px] text-slate-400">{active.length} conta{active.length !== 1 ? "s" : ""} ativa{active.length !== 1 ? "s" : ""}</p>
-            </div>
-            {/* Each Caixa */}
-            {caixasList.map((a: any) => (
-              <div key={a.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
-                <span className="text-[11px] font-medium text-amber-700">💰 {a.name}</span>
-                <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
-                <p className="text-[10px] text-slate-400">Caixa</p>
-              </div>
-            ))}
-            {/* Each Banco */}
-            {bancosList.map((a: any) => (
-              <div key={a.id} className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
-                <span className="text-[11px] font-medium text-blue-700">🏦 {a.name}</span>
-                <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
-                <p className="text-[10px] text-slate-400">Banco</p>
-              </div>
-            ))}
-            {/* Each Transito */}
-            {transitoList.map((a: any) => (
-              <div key={a.id} className="rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
-                <span className="text-[11px] font-medium text-purple-700">{a.name}</span>
-                <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-purple-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
-                <p className="text-[10px] text-slate-400">Em Transito</p>
+            {orderedCards.map((card) => (
+              <div
+                key={card.id}
+                draggable
+                onDragStart={(e) => handleCardDragStart(e, card.id)}
+                onDragEnter={(e) => handleCardDragEnter(e, card.id)}
+                onDragEnd={handleCardDragEnd}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                className={`transition-all ${draggingCardId === card.id ? "opacity-50 scale-95" : ""} ${dragOverCardId === card.id && draggingCardId ? "ring-2 ring-purple-400 ring-offset-1 rounded-xl" : ""}`}
+              >
+                {card.render()}
               </div>
             ))}
           </div>
