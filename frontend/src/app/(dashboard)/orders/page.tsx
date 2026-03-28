@@ -71,13 +71,19 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TERMINAL_STATUSES = ["CONCLUIDA", "APROVADA", "CANCELADA"];
 
+const STATUS_FILTER_OPTIONS = [
+  { value: "ABERTAS", label: "Abertas" },
+  { value: "APROVADAS", label: "Aprovadas" },
+  { value: "CANCELADAS", label: "Canceladas" },
+];
+
 const ORDER_FILTERS: FilterDefinition[] = [
   {
     key: "status",
     label: "Status",
     type: "select",
-    placeholder: "Todos os Status",
-    options: Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+    placeholder: "Todas",
+    options: STATUS_FILTER_OPTIONS,
   },
   { key: "dateFrom", label: "De", type: "date" },
   { key: "dateTo", label: "Até", type: "date" },
@@ -464,7 +470,7 @@ function makeColumns(
 }
 
 export default function OrdersPage() {
-  const tp = useTableParams({ defaultSortBy: "createdAt", defaultSortOrder: "desc" });
+  const tp = useTableParams({ defaultSortBy: "createdAt", defaultSortOrder: "desc", defaultFilters: { status: "ABERTAS" } });
   const router = useRouter();
   const { user: authUser } = useAuth();
   const { toast } = useToast();

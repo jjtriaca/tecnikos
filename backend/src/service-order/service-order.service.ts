@@ -507,7 +507,17 @@ export class ServiceOrderService {
         ],
       });
     }
-    if (filters?.status) where.status = filters.status;
+    if (filters?.status) {
+      if (filters.status === 'ABERTAS') {
+        where.status = { notIn: ['APROVADA', 'CANCELADA'] };
+      } else if (filters.status === 'APROVADAS') {
+        where.status = 'APROVADA';
+      } else if (filters.status === 'CANCELADAS') {
+        where.status = 'CANCELADA';
+      } else {
+        where.status = filters.status;
+      }
+    }
     if (filters?.dateFrom || filters?.dateTo) {
       where.createdAt = {};
       if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
