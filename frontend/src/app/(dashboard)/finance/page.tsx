@@ -856,7 +856,12 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         }
         // Payment type/instrument filter
         if (stmtPaymentType !== "all") {
-          filtered = filtered.filter((r) => r.paymentMethod === stmtPaymentType)
+          if (stmtPaymentType.startsWith("pi:")) {
+            const piName = stmtPaymentType.slice(3);
+            filtered = filtered.filter((r) => r.paymentInstrumentName === piName);
+          } else {
+            filtered = filtered.filter((r) => r.paymentMethod === stmtPaymentType);
+          }
         }
         const rows = filtered.length > 0
           ? [...filtered].reverse().map((row) => {
@@ -888,18 +893,26 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 <option value="CREDIT">Recebimento</option>
               </select>
               <select value={stmtPaymentType} onChange={(e) => setStmtPaymentType(e.target.value)}
-                className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 outline-none">
+                className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 outline-none min-w-[160px]">
                 <option value="all">Tipos</option>
-                {(() => {
-                  // Get unique payment methods from filtered data
-                  const methods = new Set<string>();
-                  statementData
-                    .filter((r) => stmtDirection === "all" || r.type === stmtDirection)
-                    .forEach((r) => { if (r.paymentMethod) methods.add(r.paymentMethod); });
-                  return Array.from(methods).sort().map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ));
-                })()}
+                {stmtInstruments.length > 0 && (
+                  <optgroup label="Meios de Pagamento">
+                    {stmtInstruments.map((pi: any) => (
+                      <option key={pi.id} value={`pi:${pi.name}`}>{pi.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Formas de Pagamento">
+                  {(() => {
+                    const methods = new Set<string>();
+                    statementData
+                      .filter((r) => stmtDirection === "all" || r.type === stmtDirection)
+                      .forEach((r) => { if (r.paymentMethod) methods.add(r.paymentMethod); });
+                    return Array.from(methods).sort().map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ));
+                  })()}
+                </optgroup>
               </select>
               <button onClick={reloadStatement} disabled={stmtLoading}
                 className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">

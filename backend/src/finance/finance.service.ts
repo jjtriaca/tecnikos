@@ -1010,6 +1010,7 @@ export class FinanceService {
         partner: { select: { name: true } },
         financialAccount: { select: { name: true } },
         cashAccountRef: { select: { name: true } },
+        paymentInstrumentRef: { select: { name: true } },
       },
     });
 
@@ -1102,6 +1103,7 @@ export class FinanceService {
         source: e.type as string,
         partnerName: e.partner?.name ?? null,
         paymentMethod: e.paymentMethod ?? null,
+        paymentInstrumentName: (e as any).paymentInstrumentRef?.name ?? null,
         cashAccountName: cashName,
         code: e.code ?? null,
       });
@@ -1118,6 +1120,7 @@ export class FinanceService {
           source: 'CARD_FEE',
           partnerName: e.partner?.name ?? null,
           paymentMethod: e.paymentMethod ?? null,
+          paymentInstrumentName: (e as any).paymentInstrumentRef?.name ?? null,
           cashAccountName: cashName,
           code: null,
         });
