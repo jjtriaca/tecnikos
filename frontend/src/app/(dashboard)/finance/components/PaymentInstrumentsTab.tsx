@@ -211,9 +211,9 @@ export default function PaymentInstrumentsTab() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-700">Instrumentos de Pagamento</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Meios de Pagamento</h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Cadastre os meios de pagamento especificos da empresa (cartoes, contas PIX, etc.)
+            Cadastre os meios de pagamento da empresa (cartoes, contas PIX, cheques, etc.)
           </p>
         </div>
         <button

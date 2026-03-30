@@ -129,4 +129,29 @@ export class ChangeEntryStatusDto {
   @IsOptional()
   @IsString()
   paymentInstrumentId?: string;
+
+  // Check (cheque) data fields
+  @IsOptional()
+  @IsString()
+  checkNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  checkBank?: string;
+
+  @IsOptional()
+  @IsString()
+  checkAgency?: string;
+
+  @IsOptional()
+  @IsString()
+  checkAccount?: string;
+
+  @IsOptional()
+  @IsString()
+  checkClearanceDate?: string;
+
+  @IsOptional()
+  @IsString()
+  checkHolder?: string;
 }

@@ -244,6 +244,7 @@ export class CompanyService {
       lockAccountOnReceive: true,
       lockPlanOnReceive: true,
       autoReconciliation: false,
+      allowDeleteEntry: false,
     },
     evaluation: {
       requireGestorApproval: true,

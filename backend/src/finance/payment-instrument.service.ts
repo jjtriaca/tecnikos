@@ -32,6 +32,7 @@ export class PaymentInstrumentService {
       where: { companyId, deletedAt: null, isActive: true },
       include: {
         paymentMethod: { select: { id: true, name: true, code: true } },
+        cashAccount: { select: { id: true, name: true, type: true } },
       },
       orderBy: { sortOrder: 'asc' },
     });

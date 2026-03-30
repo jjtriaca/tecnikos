@@ -26,6 +26,7 @@ type SystemConfig = {
     lockAccountOnReceive: boolean;
     lockPlanOnReceive: boolean;
     autoReconciliation: boolean;
+    allowDeleteEntry: boolean;
   };
   evaluation: {
     requireGestorApproval: boolean;
@@ -159,6 +160,13 @@ const SECTIONS: SectionConfig[] = [
         key: "autoReconciliation",
         label: "Conciliacao automatica",
         description: "Ao importar extrato (OFX/CSV), concilia automaticamente linhas que possuem correspondencia exata de valor e data com lancamentos pendentes ou pagos.",
+        type: "toggle",
+      },
+      {
+        section: "financial",
+        key: "allowDeleteEntry",
+        label: "Permitir excluir lancamentos",
+        description: "Quando ativado, exibe a opcao de excluir lancamentos financeiros no menu de acoes. A exclusao e permanente (soft delete).",
         type: "toggle",
       },
     ],

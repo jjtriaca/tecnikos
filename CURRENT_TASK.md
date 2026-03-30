@@ -51,5 +51,17 @@
 - Backend: nova `sendTechApprovalNotification` notifica tecnico da aprovacao
 - Canal EMAIL no notification.service ainda e MOCK (registro no banco, sem envio real) — TODO futuro
 
+### Toggle excluir lancamento financeiro
+- Novo toggle em Sistema > Financeiro: "Permitir excluir lancamentos" (default: OFF)
+- Botao "Excluir" no menu de acoes so aparece quando toggle ativo + status PENDING/CONFIRMED
+- Backend ja tinha DELETE /finance/entries/:id (soft delete) — agora acessivel pelo UI
+
+### Meios de Pagamento (Fase 1)
+- Tab "Instrumentos" renomeado para "Meios de Pagamento"
+- Modal Pagar: dropdown direto com instrumentos cadastrados, auto-preenche conta e metodo
+- Modal Receber cheque: campos numero, banco, agencia, conta, compensacao, titular
+- Schema: 6 campos de cheque no FinancialEntry + migration
+- Backend: DTO + Service para persistir/limpar cheque no PAID/REVERSED
+
 ## PENDENTE
-- (sem pendencias)
+- Fase 2: cheques de terceiros como meio de pagamento (controle estoque cheques)

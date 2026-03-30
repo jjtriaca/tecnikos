@@ -81,7 +81,7 @@ const MAIN_TABS: { id: TabId; label: string; icon: string }[] = [
 const CADASTRO_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
   { id: "formas", label: "Formas de Pagamento", icon: "💳" },
-  { id: "instrumentos", label: "Instrumentos", icon: "🏷️" },
+  { id: "instrumentos", label: "Meios de Pagamento", icon: "🏷️" },
   { id: "taxas", label: "Taxas de Cartao", icon: "%" },
   { id: "cobranca", label: "Regras de Cobrança", icon: "⚡" },
   { id: "plano", label: "Plano de Contas", icon: "📋" },
@@ -986,6 +986,16 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [availableInstruments, setAvailableInstruments] = useState<PaymentInstrument[]>([]);
   const [selectedInstrumentId, setSelectedInstrumentId] = useState("");
+  // All instruments for PAYABLE direct selection
+  const [allInstruments, setAllInstruments] = useState<any[]>([]);
+  const [showManualPayable, setShowManualPayable] = useState(false);
+  // Check (cheque) data fields
+  const [checkNumber, setCheckNumber] = useState("");
+  const [checkBank, setCheckBank] = useState("");
+  const [checkAgency, setCheckAgency] = useState("");
+  const [checkAccount, setCheckAccount] = useState("");
+  const [checkClearanceDate, setCheckClearanceDate] = useState("");
+  const [checkHolder, setCheckHolder] = useState("");
 
   // Report modal
   const [showReportModal, setShowReportModal] = useState(false);
@@ -1088,7 +1098,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     api.get<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>("/finance/accounts/postable")
       .then(setPostableAccounts)
       .catch(() => {});
-  }, []);
+    if (type === "PAYABLE") {
+      api.get<any[]>("/finance/payment-instruments/active")
+        .then(setAllInstruments)
+        .catch(() => setAllInstruments([]));
+    }
+  }, [type]);
 
   // State for category in pay modal
   const [payAccountId, setPayAccountId] = useState("");
@@ -1208,6 +1223,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       if (payAccountId && payAccountId !== (entry.financialAccount?.id || "")) {
         await api.patch(`/finance/entries/${entry.id}`, { financialAccountId: payAccountId });
       }
+      const isCheckPay = type === "RECEIVABLE" && !!selectedPM?.requiresCheckData;
+      if (isCheckPay && !checkNumber) {
+        toast("Preencha o numero do cheque.", "error");
+        setActionLoading(null);
+        return;
+      }
       await api.patch(`/finance/entries/${entry.id}/status`, {
         status: action,
         paymentMethod,
@@ -1216,6 +1237,14 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         cardFeeRateId: isCard ? selectedCardRateId : undefined,
         cashAccountId: isCard ? undefined : (selectedAccountId || undefined),
         paymentInstrumentId: selectedInstrumentId || undefined,
+        ...(isCheckPay && {
+          checkNumber: checkNumber || undefined,
+          checkBank: checkBank || undefined,
+          checkAgency: checkAgency || undefined,
+          checkAccount: checkAccount || undefined,
+          checkClearanceDate: checkClearanceDate || undefined,
+          checkHolder: checkHolder || undefined,
+        }),
       });
       const labels: Record<string, string> = { PAID: type === "RECEIVABLE" ? "recebida" : "paga" };
       toast(`Entrada ${labels[action]} com sucesso!`, "success");
@@ -1227,6 +1256,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       setPayAccountId("");
       setPayDate("");
       setAvailableInstruments([]);
+      setShowManualPayable(false);
+      setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder("");
       await loadEntries();
     } catch {
       toast("Erro ao atualizar status.", "error");
@@ -1470,6 +1501,20 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                             onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
                             onEmitNfse={fiscalEnabled && type === "RECEIVABLE" ? () => setNfseModal(e.id) : undefined}
                             onEdit={() => openEditEntry(e)}
+                            allowDelete={sysConfig?.financial?.allowDeleteEntry === true}
+                            onDelete={async () => {
+                              if (!confirm("Tem certeza que deseja excluir este lancamento? Esta acao nao pode ser desfeita.")) return;
+                              setActionLoading(e.id);
+                              try {
+                                await api.del(`/finance/entries/${e.id}`);
+                                toast("Lancamento excluido", "success");
+                                loadEntries();
+                              } catch (err: any) {
+                                toast(err?.message || "Erro ao excluir", "error");
+                              } finally {
+                                setActionLoading(null);
+                              }
+                            }}
                           />
                         </td>
                       );
@@ -1624,7 +1669,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       {/* Payment method modal */}
       {payAction && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); }} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); setShowManualPayable(false); setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder(""); }} />
           <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
             <div className="flex items-start gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
@@ -1655,6 +1700,47 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
               </div>
+
+              {/* PAYABLE: instrument-first dropdown */}
+              {type === "PAYABLE" && allInstruments.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Meio de Pagamento</label>
+                  <select
+                    value={selectedInstrumentId}
+                    onChange={(e) => {
+                      const piId = e.target.value;
+                      setSelectedInstrumentId(piId);
+                      if (!piId) {
+                        setShowManualPayable(true);
+                        setPaymentMethod("");
+                        setSelectedAccountId("");
+                      } else {
+                        setShowManualPayable(false);
+                        const pi = allInstruments.find((i: any) => i.id === piId);
+                        if (pi) {
+                          setPaymentMethod(pi.paymentMethod?.code || "");
+                          setSelectedAccountId(pi.cashAccount?.id || "");
+                        }
+                      }
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                  >
+                    <option value="">Selecao manual...</option>
+                    {allInstruments.map((pi: any) => {
+                      const code = pi.paymentMethod?.code || "";
+                      const icon = code.includes("CARTAO") || code.includes("CREDITO") || code.includes("DEBITO") ? "\uD83D\uDCB3" : code === "PIX" ? "\u26A1" : code === "DINHEIRO" ? "\uD83D\uDCB5" : code === "BOLETO" ? "\uD83D\uDCC4" : code === "TRANSFERENCIA" ? "\uD83D\uDD04" : code === "CHEQUE" ? "\uD83D\uDCDD" : "\uD83D\uDCB0";
+                      return (
+                        <option key={pi.id} value={pi.id}>
+                          {icon} {pi.name}{pi.cashAccount ? ` - ${pi.cashAccount.name}` : ""} ({pi.paymentMethod?.name || ""})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              {/* Payment method dropdown (RECEIVABLE always, PAYABLE only in manual mode) */}
+              {(type === "RECEIVABLE" || showManualPayable || allInstruments.length === 0) && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Forma de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"} *
@@ -1692,6 +1778,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   ))}
                 </select>
               </div>
+              )}
 
               {isCardPayment && (
                 <div>
@@ -1777,6 +1864,45 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 </div>
               )}
 
+              {/* Dados do cheque (only for RECEIVABLE + CHEQUE method) */}
+              {type === "RECEIVABLE" && activePMs.find((p) => p.code === paymentMethod)?.requiresCheckData && (
+                <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-medium text-amber-700">Dados do Cheque</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Numero do Cheque *</label>
+                      <input type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="000001" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Banco Emissor *</label>
+                      <input type="text" value={checkBank} onChange={(e) => setCheckBank(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="Bradesco" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Agencia</label>
+                      <input type="text" value={checkAgency} onChange={(e) => setCheckAgency(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="0001" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Conta</label>
+                      <input type="text" value={checkAccount} onChange={(e) => setCheckAccount(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="12345-6" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Compensacao</label>
+                      <input type="date" value={checkClearanceDate} onChange={(e) => setCheckClearanceDate(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Titular</label>
+                      <input type="text" value={checkHolder} onChange={(e) => setCheckHolder(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="Nome do titular" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Plano de Contas */}
               {postableAccounts.length > 0 && (
                 <div>
@@ -1839,7 +1965,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               </button>
               <button
                 onClick={handlePayConfirm}
-                disabled={!!actionLoading || !paymentMethod || !!(activePMs.find((p) => p.code === paymentMethod)?.requiresBrand && !selectedCardRateId)}
+                disabled={!!actionLoading || (!paymentMethod && !(type === "PAYABLE" && selectedInstrumentId)) || !!(type === "RECEIVABLE" && activePMs.find((p) => p.code === paymentMethod)?.requiresBrand && !selectedCardRateId)}
                 className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
                 {actionLoading ? (
@@ -2147,6 +2273,8 @@ function EntryActions({
   onRenegotiate,
   onEmitNfse,
   onEdit,
+  onDelete,
+  allowDelete,
 }: {
   entry: FinancialEntry;
   type: FinancialEntryType;
@@ -2157,6 +2285,8 @@ function EntryActions({
   onRenegotiate: () => void;
   onEmitNfse?: () => void;
   onEdit?: () => void;
+  onDelete?: () => void;
+  allowDelete?: boolean;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -2281,6 +2411,11 @@ function EntryActions({
   // Cancelar (PENDING/CONFIRMED only)
   if (isPendingOrConfirmed) {
     items.push({ label: "Cancelar", onClick: () => onAction("CANCELLED"), className: "text-red-600" });
+  }
+
+  // Excluir (only when system config allows)
+  if (allowDelete && onDelete && isPendingOrConfirmed) {
+    items.push({ label: "Excluir", onClick: onDelete, className: "text-red-700 font-semibold" });
   }
 
   // Nothing to show

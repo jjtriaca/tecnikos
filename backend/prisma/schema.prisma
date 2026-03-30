@@ -812,6 +812,14 @@ model FinancialEntry {
   paymentInstrumentId  String?           // FK para PaymentInstrument (instrumento especifico)
   batchPaymentId       String?           // Agrupamento de pagamentos em lote
 
+  // Dados do cheque (v2.3)
+  checkNumber          String?
+  checkBank            String?
+  checkAgency          String?
+  checkAccount         String?
+  checkClearanceDate   DateTime?
+  checkHolder          String?
+
   // Parcelas e Juros (v2.0)
   installmentCount    Int?              // Nro de parcelas (null = à vista)
   interestType        String?           // "SIMPLE" ou "COMPOUND"
