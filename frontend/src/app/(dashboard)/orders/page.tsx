@@ -261,7 +261,7 @@ function ActionsDropdown({
           )}
 
           {/* Lancar Financeiro Antecipado */}
-          {canEdit && isActive && order.status !== "ABERTA" && (
+          {canEdit && isActive && order.status !== "ABERTA" && !(order as any).ledger && (
             <button
               onClick={() => { setOpen(false); onEarlyFinancial(order); }}
               className="block w-full text-left px-3 py-2 text-sm text-green-700 hover:bg-green-50"

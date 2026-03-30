@@ -566,6 +566,7 @@ export class ServiceOrderService {
           assignedPartner: { select: { id: true, name: true, phone: true } },
           clientPartner: { select: { id: true, name: true } },
           workflowTemplate: { select: { id: true, name: true, steps: true } },
+          ledger: { select: { id: true } },
           _count: { select: { workflowStepLogs: true } },
         },
       }),
