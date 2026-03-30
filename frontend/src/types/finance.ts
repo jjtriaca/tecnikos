@@ -353,6 +353,8 @@ export interface PaymentInstrument {
   bankName?: string | null;
   cashAccountId?: string | null;
   details?: string | null;
+  billingClosingDay?: number | null;
+  billingDueDay?: number | null;
   isActive: boolean;
   sortOrder: number;
   createdAt: string;
