@@ -554,6 +554,9 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   const [stmtDateTo, setStmtDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [stmtLoading, setStmtLoading] = useState(false);
   const [stmtAccountFilter, setStmtAccountFilter] = useState("all");
+  const [stmtDirection, setStmtDirection] = useState("all"); // all, CREDIT (recebimento), DEBIT (pagamento)
+  const [stmtPaymentType, setStmtPaymentType] = useState("all"); // all or paymentMethod code
+  const [stmtInstruments, setStmtInstruments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -588,6 +591,8 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
       setDashData(dash);
       setStatementData(statement ?? []);
     }).finally(() => setLoading(false));
+    // Load instruments for type filter
+    api.get<any[]>("/finance/payment-instruments/active").then(setStmtInstruments).catch(() => {});
   }, []);
 
   const reloadStatement = useCallback(() => {
@@ -842,9 +847,17 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
       label: "Extrato Consolidado",
       content: (() => {
         let runningBalance = 0;
-        const filtered = stmtAccountFilter === "all"
+        let filtered = stmtAccountFilter === "all"
           ? statementData
           : statementData.filter((r) => r.cashAccountName === stmtAccountFilter);
+        // Direction filter
+        if (stmtDirection !== "all") {
+          filtered = filtered.filter((r) => r.type === stmtDirection);
+        }
+        // Payment type/instrument filter
+        if (stmtPaymentType !== "all") {
+          filtered = filtered.filter((r) => r.paymentMethod === stmtPaymentType)
+        }
         const rows = filtered.length > 0
           ? [...filtered].reverse().map((row) => {
               runningBalance += row.amountCents;
@@ -867,6 +880,26 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 {dashData?.cashAccounts?.map((a: any) => (
                   <option key={a.id} value={a.name}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : "Caixa"})</option>
                 ))}
+              </select>
+              <select value={stmtDirection} onChange={(e) => { setStmtDirection(e.target.value); setStmtPaymentType("all"); }}
+                className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 outline-none">
+                <option value="all">Todos</option>
+                <option value="DEBIT">Pagamento</option>
+                <option value="CREDIT">Recebimento</option>
+              </select>
+              <select value={stmtPaymentType} onChange={(e) => setStmtPaymentType(e.target.value)}
+                className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 outline-none">
+                <option value="all">Tipos</option>
+                {(() => {
+                  // Get unique payment methods from filtered data
+                  const methods = new Set<string>();
+                  statementData
+                    .filter((r) => stmtDirection === "all" || r.type === stmtDirection)
+                    .forEach((r) => { if (r.paymentMethod) methods.add(r.paymentMethod); });
+                  return Array.from(methods).sort().map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ));
+                })()}
               </select>
               <button onClick={reloadStatement} disabled={stmtLoading}
                 className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">

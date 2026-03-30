@@ -16,6 +16,8 @@ interface PIFormData {
   bankName: string;
   cashAccountId: string;
   details: string;
+  billingClosingDay: string;
+  billingDueDay: string;
   isActive: boolean;
   sortOrder: string;
 }
@@ -28,6 +30,8 @@ const EMPTY_FORM: PIFormData = {
   bankName: "",
   cashAccountId: "",
   details: "",
+  billingClosingDay: "",
+  billingDueDay: "",
   isActive: true,
   sortOrder: "0",
 };
@@ -103,6 +107,8 @@ export default function PaymentInstrumentsTab() {
       bankName: pi.bankName || "",
       cashAccountId: pi.cashAccountId || "",
       details: pi.details || "",
+      billingClosingDay: pi.billingClosingDay ? String(pi.billingClosingDay) : "",
+      billingDueDay: pi.billingDueDay ? String(pi.billingDueDay) : "",
       isActive: pi.isActive,
       sortOrder: String(pi.sortOrder),
     });
@@ -148,6 +154,8 @@ export default function PaymentInstrumentsTab() {
       bankName: formData.bankName.trim() || null,
       cashAccountId: formData.cashAccountId || null,
       details: formData.details.trim() || null,
+      billingClosingDay: formData.billingClosingDay ? parseInt(formData.billingClosingDay, 10) : null,
+      billingDueDay: formData.billingDueDay ? parseInt(formData.billingDueDay, 10) : null,
       isActive: formData.isActive,
       sortOrder: parseInt(formData.sortOrder, 10) || 0,
     };
@@ -423,6 +431,36 @@ export default function PaymentInstrumentsTab() {
                   </select>
                 </div>
               </div>
+
+              {/* Billing cycle (cards only) */}
+              {selectedPM?.requiresBrand && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Dia Fechamento Fatura</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={formData.billingClosingDay}
+                      onChange={(e) => setFormData({ ...formData, billingClosingDay: e.target.value })}
+                      placeholder="Ex: 15"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Dia Vencimento Fatura</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={formData.billingDueDay}
+                      onChange={(e) => setFormData({ ...formData, billingDueDay: e.target.value })}
+                      placeholder="Ex: 25"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Details + Order */}
               <div className="grid grid-cols-3 gap-3">

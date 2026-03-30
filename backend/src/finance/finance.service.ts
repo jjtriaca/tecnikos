@@ -686,6 +686,7 @@ export class FinanceService {
             companyId,
             netCents: entry.netCents,
             paidAt: data.paidAt,
+            paymentInstrumentId: entry.paymentInstrumentId || dto.paymentInstrumentId,
           }, {
             code: pm.code,
             feePercent,

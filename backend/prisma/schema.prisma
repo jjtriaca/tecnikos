@@ -1368,6 +1368,8 @@ model PaymentInstrument {
   bankName        String?   // Nome do banco (para transferencias/boletos)
   cashAccountId   String?   // FK -> CashAccount (vincular a conta bancaria)
   details         String?   // Informacoes adicionais
+  billingClosingDay Int?    // Dia do fechamento da fatura (1-31, cartoes)
+  billingDueDay     Int?    // Dia do vencimento da fatura (1-31, cartoes)
   isActive        Boolean   @default(true)
   sortOrder       Int       @default(0)
   createdAt       DateTime  @default(now())
@@ -1378,6 +1380,7 @@ model PaymentInstrument {
   paymentMethod    PaymentMethod    @relation(fields: [paymentMethodId], references: [id])
   cashAccount      CashAccount?     @relation(fields: [cashAccountId], references: [id])
   financialEntries FinancialEntry[]
+  cardSettlements  CardSettlement[]
 
   @@index([companyId, isActive])
   @@index([companyId, paymentMethodId])
@@ -1688,17 +1691,20 @@ model CardSettlement {
   settledByName       String?
   notes               String?
   cardFeeRateId       String?
+  paymentInstrumentId String?   // FK -> PaymentInstrument (facilita filtro por cartao)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  company          Company        @relation(fields: [companyId], references: [id])
-  financialEntry   FinancialEntry @relation(fields: [financialEntryId], references: [id])
-  cashAccount      CashAccount?   @relation(fields: [cashAccountId], references: [id])
-  cardFeeRate      CardFeeRate?   @relation(fields: [cardFeeRateId], references: [id])
+  company            Company            @relation(fields: [companyId], references: [id])
+  financialEntry     FinancialEntry     @relation(fields: [financialEntryId], references: [id])
+  cashAccount        CashAccount?       @relation(fields: [cashAccountId], references: [id])
+  cardFeeRate        CardFeeRate?       @relation(fields: [cardFeeRateId], references: [id])
+  paymentInstrument  PaymentInstrument? @relation(fields: [paymentInstrumentId], references: [id])
 
   @@index([companyId, status])
   @@index([companyId, expectedDate])
   @@index([financialEntryId])
+  @@index([companyId, paymentInstrumentId])
 }
 
 // ========== Taxas de Cartão ==========

@@ -21,7 +21,7 @@ export class CardSettlementService {
    */
   async createFromEntry(
     tx: any, // Prisma transaction client
-    entry: { id: string; companyId: string; netCents: number; paidAt: Date },
+    entry: { id: string; companyId: string; netCents: number; paidAt: Date; paymentInstrumentId?: string | null },
     pm: { code: string; feePercent: number; receivingDays: number; cardBrand?: string; cardFeeRateId?: string; installmentCount?: number },
   ) {
     const grossCents = entry.netCents;
@@ -48,6 +48,7 @@ export class CardSettlementService {
           paymentMethodCode: pm.code,
           cardBrand: pm.cardBrand || undefined,
           cardFeeRateId: pm.cardFeeRateId || undefined,
+          paymentInstrumentId: entry.paymentInstrumentId || undefined,
           grossCents: parcGross,
           feePercent: pm.feePercent,
           feeCents: parcFee,

@@ -63,5 +63,23 @@
 - Schema: 6 campos de cheque no FinancialEntry + migration
 - Backend: DTO + Service para persistir/limpar cheque no PAID/REVERSED
 
+### Contatos no modal de envio de orcamento
+- Modal "Orcamento Salvo" agora tem selecao de contatos padrao NFS-e
+- Lista WhatsApp/Email do PartnerContact + fallback partner.phone/email
+- "+ Novo WhatsApp" / "+ Novo email" com salvamento automatico
+
+### PDF orcamento — fix 404
+- Botao PDF tentava abrir rota publica inexistente (/q/{token}/pdf)
+- Corrigido: sempre usa endpoint autenticado /api/quotes/{id}/pdf
+
+### Fatura de cartao — vencimento + filtros no extrato
+- PaymentInstrument: novos campos billingClosingDay e billingDueDay
+- CardSettlement: denormalizado paymentInstrumentId para facilitar filtro
+- Backend: createFromEntry propaga paymentInstrumentId
+- Form instrumento: campos "Dia Fechamento Fatura" e "Dia Vencimento Fatura" (so cartoes)
+- Extrato Consolidado: filtros Direcao (Pagamento/Recebimento) + Tipo (forma de pagamento)
+- Tipo dinamico: mostra apenas formas de pagamento presentes nos dados filtrados
+
 ## PENDENTE
 - Fase 2: cheques de terceiros como meio de pagamento (controle estoque cheques)
+- Auto-ajuste de periodo do extrato ao selecionar cartao com billingClosingDay
