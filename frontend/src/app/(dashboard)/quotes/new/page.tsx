@@ -222,6 +222,58 @@ function NewQuotePage() {
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   const [sending, setSending] = useState(false);
+  // Contact selection for send modal (NFS-e pattern)
+  const [emailContacts, setEmailContacts] = useState<any[]>([]);
+  const [waContacts, setWaContacts] = useState<any[]>([]);
+  const [selEmailId, setSelEmailId] = useState("");
+  const [selWaId, setSelWaId] = useState("");
+  const [showNewEmail, setShowNewEmail] = useState(false);
+  const [showNewWa, setShowNewWa] = useState(false);
+  const [newEmailVal, setNewEmailVal] = useState("");
+  const [newEmailLabel, setNewEmailLabel] = useState("");
+  const [newWaVal, setNewWaVal] = useState("");
+  const [newWaLabel, setNewWaLabel] = useState("");
+
+  // Load contacts when send modal opens
+  useEffect(() => {
+    if (!showSendModal || !selectedClient?.id) return;
+    const pid = selectedClient.id;
+    Promise.all([
+      api.get<any[]>(`/partners/${pid}/contacts?type=EMAIL`).catch(() => []),
+      api.get<any[]>(`/partners/${pid}/contacts?type=WHATSAPP`).catch(() => []),
+    ]).then(([emails, wps]) => {
+      let emailList = emails || [];
+      let wpList = wps || [];
+      if (selectedClient.email && !emailList.some((c: any) => c.value === selectedClient.email)) {
+        emailList = [{ id: "_partner_email", value: selectedClient.email, label: "Cadastro", type: "EMAIL" }, ...emailList];
+      }
+      if (selectedClient.phone && !wpList.some((c: any) => c.value === selectedClient.phone)) {
+        wpList = [{ id: "_partner_phone", value: selectedClient.phone, label: "Cadastro", type: "WHATSAPP" }, ...wpList];
+      }
+      setEmailContacts(emailList);
+      setWaContacts(wpList);
+      if (emailList.length > 0) { setSelEmailId(emailList[0].id); setSendEmail(true); }
+      else setSendEmail(false);
+      if (wpList.length > 0) { setSelWaId(wpList[0].id); setSendWhatsApp(true); }
+      else setSendWhatsApp(false);
+    });
+  }, [showSendModal, selectedClient]);
+
+  async function handleSaveNewContact(type: string, value: string, label: string) {
+    if (!selectedClient?.id || !value) return;
+    try {
+      const c = await api.post<any>(`/partners/${selectedClient.id}/contacts`, { type, value, label: label || null });
+      if (type === "EMAIL") {
+        setEmailContacts((prev) => [c, ...prev]);
+        setSelEmailId(c.id);
+        setShowNewEmail(false); setNewEmailVal(""); setNewEmailLabel("");
+      } else {
+        setWaContacts((prev) => [c, ...prev]);
+        setSelWaId(c.id);
+        setShowNewWa(false); setNewWaVal(""); setNewWaLabel("");
+      }
+    } catch { /* ignore */ }
+  }
 
   // Submit
   async function handleSubmit() {
@@ -627,33 +679,74 @@ function NewQuotePage() {
 
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 mb-5">
               <div className="text-sm font-semibold text-slate-800">{selectedClient.name}</div>
-              {selectedClient.phone && <div className="text-xs text-slate-500 mt-1">Tel: {selectedClient.phone}</div>}
-              {selectedClient.email && <div className="text-xs text-slate-500">Email: {selectedClient.email}</div>}
               <div className="text-xs text-blue-600 font-medium mt-2">Valor: {formatCurrency(totalCents)}</div>
             </div>
 
-            <div className="space-y-3 mb-6">
-              {selectedClient.phone && (
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-green-50 hover:border-green-300 transition-colors">
-                  <input type="checkbox" checked={sendWhatsApp} onChange={e => setSendWhatsApp(e.target.checked)}
-                    className="h-5 w-5 rounded border-slate-300 text-green-600 focus:ring-green-500" />
-                  <svg className="h-5 w-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.612.638l4.728-1.396A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.24 0-4.318-.727-6.003-1.958l-.42-.313-3.07.907.844-3.183-.33-.434A9.96 9.96 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z"/></svg>
-                  <div>
-                    <div className="text-sm font-medium text-slate-800">WhatsApp</div>
-                    <div className="text-xs text-slate-500">{selectedClient.phone}</div>
-                  </div>
+            <div className="space-y-4 mb-6 rounded-lg border border-slate-200 p-4">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Enviar via</h4>
+
+              {/* WhatsApp */}
+              <div>
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={sendWhatsApp} onChange={e => setSendWhatsApp(e.target.checked)} className="rounded border-slate-300 text-green-600" />
+                  <span className="font-medium">WhatsApp</span>
                 </label>
-              )}
-              {selectedClient.email && (
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors">
-                  <input type="checkbox" checked={sendEmail} onChange={e => setSendEmail(e.target.checked)}
-                    className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                  <svg className="h-5 w-5 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                  <div>
-                    <div className="text-sm font-medium text-slate-800">E-mail</div>
-                    <div className="text-xs text-slate-500">{selectedClient.email}</div>
+                {sendWhatsApp && (
+                  <div className="ml-6 mt-1.5 space-y-1">
+                    {waContacts.map((c: any) => (
+                      <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <input type="radio" name="quote_wa" checked={selWaId === c.id} onChange={() => setSelWaId(c.id)} className="text-green-600" />
+                        <span className="text-slate-700">{c.value}</span>
+                        {c.label && <span className="text-slate-400">({c.label})</span>}
+                      </label>
+                    ))}
+                    {waContacts.length === 0 && !showNewWa && <p className="text-xs text-slate-400">Nenhum WhatsApp cadastrado</p>}
+                    {!showNewWa ? (
+                      <button type="button" onClick={() => setShowNewWa(true)} className="text-xs text-green-600 hover:text-green-800">+ Novo WhatsApp</button>
+                    ) : (
+                      <div className="flex gap-1.5 mt-1">
+                        <input type="tel" value={newWaVal} onChange={e => setNewWaVal(e.target.value)} placeholder="(00) 00000-0000" className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs" />
+                        <input type="text" value={newWaLabel} onChange={e => setNewWaLabel(e.target.value)} placeholder="Rotulo" className="w-24 rounded border border-slate-300 px-2 py-1 text-xs" />
+                        <button type="button" disabled={!newWaVal} onClick={() => handleSaveNewContact("WHATSAPP", newWaVal, newWaLabel)} className="px-2 py-1 text-xs bg-green-600 text-white rounded disabled:opacity-50">Salvar</button>
+                        <button type="button" onClick={() => { setShowNewWa(false); setNewWaVal(""); setNewWaLabel(""); }} className="px-1.5 py-1 text-xs text-slate-500">X</button>
+                      </div>
+                    )}
                   </div>
+                )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={sendEmail} onChange={e => setSendEmail(e.target.checked)} className="rounded border-slate-300 text-blue-600" />
+                  <span className="font-medium">E-mail</span>
                 </label>
+                {sendEmail && (
+                  <div className="ml-6 mt-1.5 space-y-1">
+                    {emailContacts.map((c: any) => (
+                      <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <input type="radio" name="quote_email" checked={selEmailId === c.id} onChange={() => setSelEmailId(c.id)} className="text-blue-600" />
+                        <span className="text-slate-700">{c.value}</span>
+                        {c.label && <span className="text-slate-400">({c.label})</span>}
+                      </label>
+                    ))}
+                    {emailContacts.length === 0 && !showNewEmail && <p className="text-xs text-slate-400">Nenhum email cadastrado</p>}
+                    {!showNewEmail ? (
+                      <button type="button" onClick={() => setShowNewEmail(true)} className="text-xs text-blue-600 hover:text-blue-800">+ Novo email</button>
+                    ) : (
+                      <div className="flex gap-1.5 mt-1">
+                        <input type="email" value={newEmailVal} onChange={e => setNewEmailVal(e.target.value)} placeholder="email@exemplo.com" className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs" />
+                        <input type="text" value={newEmailLabel} onChange={e => setNewEmailLabel(e.target.value)} placeholder="Rotulo" className="w-24 rounded border border-slate-300 px-2 py-1 text-xs" />
+                        <button type="button" disabled={!newEmailVal} onClick={() => handleSaveNewContact("EMAIL", newEmailVal, newEmailLabel)} className="px-2 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-50">Salvar</button>
+                        <button type="button" onClick={() => { setShowNewEmail(false); setNewEmailVal(""); setNewEmailLabel(""); }} className="px-1.5 py-1 text-xs text-slate-500">X</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {waContacts.length === 0 && emailContacts.length === 0 && (
+                <p className="text-[10px] text-amber-600 bg-amber-50 rounded px-2 py-1">Sem contato cadastrado — salve como rascunho e cadastre um contato no parceiro</p>
               )}
             </div>
 

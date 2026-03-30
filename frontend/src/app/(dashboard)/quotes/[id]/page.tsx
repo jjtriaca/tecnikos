@@ -274,14 +274,9 @@ export default function QuoteDetailPage() {
           </button>
           <button onClick={async () => {
               try {
-                // Use public endpoint if token available (works without auth)
-                if (quote.publicToken) {
-                  window.open(`/q/${quote.publicToken}/pdf`, "_blank");
-                  return;
-                }
                 const token = getAccessToken();
                 const res = await fetch(`/api/quotes/${quoteId}/pdf`, {
-                  headers: { Authorization: `Bearer ${token}` },
+                  headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 if (!res.ok) {
                   const errBody = await res.json().catch(() => null);
