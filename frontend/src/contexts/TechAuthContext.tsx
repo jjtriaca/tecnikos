@@ -121,7 +121,7 @@ export async function techApi<T = any>(
 }
 
 /* ── Layer 1: Cookie-based silent refresh ──────────────── */
-async function techSilentRefresh(): Promise<boolean> {
+export async function techSilentRefresh(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/tech-auth/refresh`, {
       method: "POST",
@@ -138,7 +138,7 @@ async function techSilentRefresh(): Promise<boolean> {
 }
 
 /* ── Layer 2: Device token recovery ────────────────────── */
-async function techDeviceRecover(): Promise<boolean> {
+export async function techDeviceRecover(): Promise<boolean> {
   const dt = getDeviceToken();
   if (!dt) return false;
   try {

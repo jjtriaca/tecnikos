@@ -508,15 +508,16 @@ export default function TechOrderDetailPage() {
     let lastPositionAt = Date.now();
     let lastDistanceM: number | null = null;
 
-    // Smart GPS interval: adapts based on online/offline + distance to target
+    // Smart GPS interval: uses block-configured interval when online,
+    // escalates by distance when offline to save battery
     function getEffectiveIntervalMs(): number {
-      if (navigator.onLine) return 5000; // Online: 5s always
+      if (navigator.onLine) return intervalMs; // Obey block config (default 30s)
       // Offline: escalonado por distancia
       const d = lastDistanceM;
-      if (d !== null && d < 500) return 30000;       // <500m: 30s
-      if (d !== null && d < 2000) return 120000;      // 500m-2km: 2min
-      if (d !== null && d < 10000) return 300000;     // 2-10km: 5min
-      return 600000;                                   // >10km: 10min
+      if (d !== null && d < 500) return Math.max(intervalMs, 30000);       // <500m: max(config, 30s)
+      if (d !== null && d < 2000) return Math.max(intervalMs, 120000);     // 500m-2km: max(config, 2min)
+      if (d !== null && d < 10000) return Math.max(intervalMs, 300000);    // 2-10km: max(config, 5min)
+      return Math.max(intervalMs, 600000);                                  // >10km: max(config, 10min)
     }
 
     v2GpsWatchRef.current = navigator.geolocation.watchPosition(
@@ -536,7 +537,7 @@ export default function TechOrderDetailPage() {
       {
         enableHighAccuracy: navigator.onLine || (lastDistanceM !== null && lastDistanceM < 500),
         timeout: 15000,
-        maximumAge: navigator.onLine ? 5000 : 60000,
+        maximumAge: navigator.onLine ? Math.min(intervalMs, 10000) : 60000,
       }
     );
 

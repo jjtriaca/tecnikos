@@ -125,14 +125,28 @@ export default function PhotoUpload({
     if (stepOrder !== undefined) qs += `&stepOrder=${stepOrder}`;
     if (blockId) qs += `&blockId=${encodeURIComponent(blockId)}`;
 
-    const headers: Record<string, string> = {};
-    const token = getTechAccessToken();
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const url = `${apiBase}/service-orders/${orderId}/attachments?${qs}`;
 
-    const res = await fetch(
-      `${apiBase}/service-orders/${orderId}/attachments?${qs}`,
-      { method: "POST", body: formData, headers, credentials: "include" },
-    );
+    const doUpload = async () => {
+      const headers: Record<string, string> = {};
+      const token = getTechAccessToken();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch(url, { method: "POST", body: formData, headers, credentials: "include" });
+    };
+
+    let res = await doUpload();
+
+    // 401: token expired — try refresh then retry once
+    if (res.status === 401) {
+      const { techSilentRefresh, techDeviceRecover } = await import("@/contexts/TechAuthContext");
+      let refreshed = await techSilentRefresh();
+      if (!refreshed) refreshed = await techDeviceRecover();
+      if (refreshed) {
+        formData.delete("file");
+        formData.append("file", file);
+        res = await doUpload();
+      }
+    }
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

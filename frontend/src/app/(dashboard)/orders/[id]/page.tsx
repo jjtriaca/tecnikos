@@ -1110,9 +1110,38 @@ export default function OrderDetailPage() {
                 </span>
               );
 
+              // Pre-fetch evaluations to merge with status events
+              const gestorEval = order.evaluations?.find(e => e.evaluatorType === "GESTOR" && e.score > 0);
+              const clientEval = order.evaluations?.find(e => e.evaluatorType === "CLIENTE" && e.score > 0);
+
               const timelineRows = postEvents.map((ev) => {
                 const p = ev.payload || {};
                 const isApproval = ev.type === "STATUS_CHANGE" && p.to === "APROVADA";
+
+                // If this is the approval status event AND there's a gestor eval, merge them into one row
+                if (isApproval && gestorEval) {
+                  return (
+                    <div key={ev.id}>
+                      <div className="flex items-center gap-2 py-1 border-b border-slate-50">
+                        <span className="flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] bg-yellow-100 text-yellow-600">★</span>
+                        <span className="w-28 flex-shrink-0 text-[11px] font-medium text-yellow-700 truncate">
+                          Aprovada
+                        </span>
+                        <span className="flex-1 min-w-0">{renderStars(gestorEval.score)}</span>
+                        <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                          {new Date(ev.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                        <span className="w-32 flex-shrink-0 hidden md:block" />
+                      </div>
+                      {gestorEval.comment && (
+                        <div className="ml-6 pl-2 pb-1 border-b border-slate-50">
+                          <p className="text-[10px] text-slate-500 italic">&ldquo;{gestorEval.comment}&rdquo;</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 return (
                   <div key={ev.id}>
                     <div className="flex items-center gap-2 py-1 border-b border-slate-50">
@@ -1126,9 +1155,6 @@ export default function OrderDetailPage() {
                             {STATUS_LABELS[p.to] || p.to}
                           </span>
                         ) : p.blockName || ""}
-                        {isApproval && p.score && (
-                          <span className="ml-1.5 text-yellow-600">⭐ {p.score}/5</span>
-                        )}
                       </span>
                       <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
                         {new Date(ev.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
@@ -1137,18 +1163,13 @@ export default function OrderDetailPage() {
                         {p.gps ? `📍 ${Number(p.gps.lat).toFixed(4)}, ${Number(p.gps.lng).toFixed(4)}` : ""}
                       </span>
                     </div>
-                    {isApproval && p.comment && (
-                      <div className="ml-6 pl-2 pb-1 border-b border-slate-50">
-                        <p className="text-[10px] text-slate-500 italic">&ldquo;{p.comment}&rdquo;</p>
-                      </div>
-                    )}
                   </div>
                 );
               });
 
-              // Gestor evaluation row (separate from status change, shows full details)
-              const gestorEval = order.evaluations?.find(e => e.evaluatorType === "GESTOR" && e.score > 0);
-              if (gestorEval) {
+              // Gestor evaluation row — only if NOT already merged into approval status event
+              const hasApprovalEvent = postEvents.some(ev => ev.type === "STATUS_CHANGE" && ev.payload?.to === "APROVADA");
+              if (gestorEval && !hasApprovalEvent) {
                 timelineRows.push(
                   <div key={`gestor-eval-${gestorEval.id}`}>
                     <div className="flex items-center gap-2 py-1 border-b border-slate-50">
@@ -1173,7 +1194,6 @@ export default function OrderDetailPage() {
 
               // Client evaluation notification status + evaluation
               const evalNotif = order.notifications?.find(n => n.type === "EVALUATION_REQUEST");
-              const clientEval = order.evaluations?.find(e => e.evaluatorType === "CLIENTE" && e.score > 0);
 
               if (evalNotif) {
                 const ds = DELIVERY_LABELS[(evalNotif as any).deliveryStatus || evalNotif.status] || DELIVERY_LABELS.PENDING;
@@ -1205,7 +1225,7 @@ export default function OrderDetailPage() {
                     <div className="flex items-center gap-2 py-1 border-b border-slate-50">
                       <span className="flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0 text-[8px] bg-purple-100 text-purple-600">★</span>
                       <span className="w-28 flex-shrink-0 text-[11px] font-medium text-purple-700 truncate">
-                        Aval. Cliente
+                        Nota Cliente
                       </span>
                       <span className="flex-1 min-w-0">{renderStars(clientEval.score)}</span>
                       <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">

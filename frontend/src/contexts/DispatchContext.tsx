@@ -247,7 +247,9 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
   // Per-dispatch detail polling (faster updates for GPS/notifications)
   useEffect(() => {
     const activeDispatches = dispatches.filter(
-      (d) => !TERMINAL_STATUSES.includes(d.osStatus || "") && d.enRouteAt,
+      (d) =>
+        !TERMINAL_STATUSES.includes(d.osStatus || "") &&
+        (d.enRouteAt || (d.notificationStatus !== "SENT" && d.notificationStatus !== "FAILED" && d.whatsappStatus !== "DELIVERED" && d.whatsappStatus !== "READ")),
     );
     if (activeDispatches.length === 0) {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }

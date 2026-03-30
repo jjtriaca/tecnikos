@@ -1818,8 +1818,9 @@ export class ServiceOrderService {
       },
     });
     if (!so) throw new NotFoundException('OS não encontrada');
-    if (TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)) {
-      throw new BadRequestException('OS já está em status terminal');
+    // Allow preview for APROVADA (workflow may auto-approve before manager evaluates)
+    if (so.status === ServiceOrderStatus.CANCELADA) {
+      throw new BadRequestException('OS está cancelada');
     }
     if (so.ledger) {
       throw new BadRequestException('OS já foi finalizada (repasse já existe)');
@@ -1904,8 +1905,9 @@ export class ServiceOrderService {
       },
     });
     if (!so) throw new NotFoundException('OS não encontrada');
-    if (TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)) {
-      throw new BadRequestException('OS já está em status terminal');
+    // Allow finalize for APROVADA (workflow may auto-approve before manager finalizes)
+    if (so.status === ServiceOrderStatus.CANCELADA) {
+      throw new BadRequestException('OS está cancelada');
     }
     if (so.ledger) {
       throw new BadRequestException('OS já foi finalizada');
