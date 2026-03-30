@@ -290,7 +290,14 @@ export class ServiceOrderController {
   @Post(':id/approve-and-finalize')
   approveAndFinalize(
     @Param('id') id: string,
-    @Body() body: { score: number; comment?: string; receivableDueDate?: string; payableDueDate?: string; receivableAccountId?: string; payableAccountId?: string },
+    @Body() body: {
+      score: number; comment?: string;
+      receivableDueDate?: string; payableDueDate?: string;
+      receivableAccountId?: string; payableAccountId?: string;
+      skipReceivable?: boolean; skipPayable?: boolean;
+      clientPhone?: string; clientEmail?: string; clientChannels?: string[];
+      techPhone?: string; techEmail?: string; techChannels?: string[];
+    },
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.approveAndFinalize(id, user.companyId, user, body);

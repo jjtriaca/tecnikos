@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.08.47
-## Ultima sessao: 166 (28/03/2026)
+## Versao: v1.08.48
+## Ultima sessao: 167 (30/03/2026)
 
 ## CONCLUIDO (sessao 167)
 
@@ -39,6 +39,17 @@
 - Fix: quando existe avaliação do gestor + evento APROVADA, faz merge em 1 linha "Aprovada ★★★★★"
 - Aval. Gestor como linha separada só aparece se não há evento APROVADA (caso raro)
 - Label "Aval. Cliente" renomeado para "Nota Cliente" (distinguir da notificação "Aval. Cliente")
+
+### Modal Aprovacao — Contatos para notificacao (padrao NFS-e)
+- Modal agora mostra secao "Notificacoes" com contatos de Cliente e Tecnico
+- Checkboxes Email/WhatsApp com lista de contatos do PartnerContact + fallback partner.phone/email
+- Opcao "+ Novo email" / "+ Novo WhatsApp" salva no PartnerContact via API
+- Backend: `finalizePreview` retorna `clientContact` e `techContact` (partnerId, name, phone, email)
+- Backend: `approveAndFinalize` aceita clientPhone/Email/Channels + techPhone/Email/Channels
+- Backend: atualiza Partner.phone/email se novos valores fornecidos
+- Backend: `generateAndSendEvaluationLink` agora multi-canal (WhatsApp + Email)
+- Backend: nova `sendTechApprovalNotification` notifica tecnico da aprovacao
+- Canal EMAIL no notification.service ainda e MOCK (registro no banco, sem envio real) — TODO futuro
 
 ## PENDENTE
 - (sem pendencias)

@@ -1812,8 +1812,8 @@ export class ServiceOrderService {
       where: { id, companyId, deletedAt: null },
       include: {
         company: true,
-        assignedPartner: { select: { id: true, name: true } },
-        clientPartner: { select: { id: true, name: true } },
+        assignedPartner: { select: { id: true, name: true, phone: true, email: true } },
+        clientPartner: { select: { id: true, name: true, phone: true, email: true } },
         ledger: true,
       },
     });
@@ -1891,6 +1891,18 @@ export class ServiceOrderService {
       isReturn,
       returnPaidToTech,
       entries,
+      clientContact: so.clientPartner ? {
+        partnerId: so.clientPartner.id,
+        name: so.clientPartner.name,
+        phone: (so.clientPartner as any).phone || null,
+        email: (so.clientPartner as any).email || null,
+      } : null,
+      techContact: so.assignedPartner ? {
+        partnerId: so.assignedPartner.id,
+        name: so.assignedPartner.name,
+        phone: (so.assignedPartner as any).phone || null,
+        email: (so.assignedPartner as any).email || null,
+      } : null,
     };
   }
 
@@ -2176,6 +2188,13 @@ export class ServiceOrderService {
       payableAccountId?: string;
       skipReceivable?: boolean;
       skipPayable?: boolean;
+      // Contact fields for notifications
+      clientPhone?: string;
+      clientEmail?: string;
+      clientChannels?: string[];
+      techPhone?: string;
+      techEmail?: string;
+      techChannels?: string[];
     },
   ) {
     const so = await this.prisma.serviceOrder.findFirst({
@@ -2361,10 +2380,44 @@ export class ServiceOrderService {
       data: { status: 'APROVADA', oldStatus: so.status, valueCents: so.valueCents, title: so.title },
     });
 
-    // Client evaluation link
+    // Update partner contacts if new values provided
+    const contactUpdates: Promise<any>[] = [];
+    if (data.clientPhone && so.clientPartnerId) {
+      contactUpdates.push(
+        this.prisma.partner.update({ where: { id: so.clientPartnerId }, data: { phone: data.clientPhone } }).catch(() => {}),
+      );
+    }
+    if (data.clientEmail && so.clientPartnerId) {
+      contactUpdates.push(
+        this.prisma.partner.update({ where: { id: so.clientPartnerId }, data: { email: data.clientEmail } }).catch(() => {}),
+      );
+    }
+    if (data.techPhone && so.assignedPartnerId) {
+      contactUpdates.push(
+        this.prisma.partner.update({ where: { id: so.assignedPartnerId }, data: { phone: data.techPhone } }).catch(() => {}),
+      );
+    }
+    if (data.techEmail && so.assignedPartnerId) {
+      contactUpdates.push(
+        this.prisma.partner.update({ where: { id: so.assignedPartnerId }, data: { email: data.techEmail } }).catch(() => {}),
+      );
+    }
+    if (contactUpdates.length > 0) await Promise.all(contactUpdates);
+
+    // Client evaluation link — send via selected channels
     if (so.assignedPartnerId && so.clientPartnerId && this.evaluationService) {
-      this.generateAndSendEvaluationLink(id, so.assignedPartnerId, companyId, so.title, so.clientPartnerId)
-        .catch(() => {});
+      this.generateAndSendEvaluationLink(
+        id, so.assignedPartnerId, companyId, so.title, so.clientPartnerId,
+        data.clientPhone, data.clientEmail, data.clientChannels,
+      ).catch(() => {});
+    }
+
+    // Technician approval notification — send via selected channels
+    if (so.assignedPartnerId && this.notifications) {
+      this.sendTechApprovalNotification(
+        id, companyId, so.title,
+        data.techPhone, data.techEmail, data.techChannels,
+      ).catch(() => {});
     }
 
     return result;
@@ -2376,6 +2429,9 @@ export class ServiceOrderService {
     companyId: string,
     osTitle: string,
     clientPartnerId: string,
+    phone?: string,
+    email?: string,
+    channels?: string[],
   ) {
     const token = await this.evaluationService!.generateClientEvaluationToken(
       serviceOrderId, technicianId, companyId,
@@ -2384,21 +2440,75 @@ export class ServiceOrderService {
     const baseUrl = process.env.FRONTEND_URL || 'https://tecnikos.com.br';
     const evaluationLink = `${baseUrl}/rate/${token}`;
 
-    // Get client phone for notification
+    // Resolve contact: use provided values or fallback to partner record
     const client = await this.prisma.partner.findUnique({
       where: { id: clientPartnerId },
-      select: { phone: true, name: true },
+      select: { phone: true, email: true, name: true },
     });
 
-    if (client?.phone && this.notifications) {
+    const effectivePhone = phone || client?.phone;
+    const effectiveEmail = email || client?.email;
+    const effectiveChannels = channels && channels.length > 0
+      ? channels
+      : (effectivePhone ? ['WHATSAPP'] : []); // Fallback: WhatsApp if phone exists
+
+    const message = `Olá ${client?.name || ''}! O serviço "${osTitle}" foi concluído. Avalie o atendimento: ${evaluationLink}`;
+
+    if (effectiveChannels.includes('WHATSAPP') && effectivePhone && this.notifications) {
       await this.notifications.send({
         companyId,
         serviceOrderId,
         channel: 'WHATSAPP',
-        recipientPhone: client.phone,
-        message: `Olá ${client.name || ''}! O serviço "${osTitle}" foi concluído. Avalie o atendimento: ${evaluationLink}`,
+        recipientPhone: effectivePhone,
+        message,
         type: 'EVALUATION_REQUEST',
         forceTemplate: true,
+      });
+    }
+
+    if (effectiveChannels.includes('EMAIL') && effectiveEmail && this.notifications) {
+      await this.notifications.send({
+        companyId,
+        serviceOrderId,
+        channel: 'EMAIL',
+        recipientEmail: effectiveEmail,
+        message,
+        type: 'EVALUATION_REQUEST',
+      });
+    }
+  }
+
+  private async sendTechApprovalNotification(
+    serviceOrderId: string,
+    companyId: string,
+    osTitle: string,
+    phone?: string,
+    email?: string,
+    channels?: string[],
+  ) {
+    if (!channels || channels.length === 0) return;
+    const message = `A OS "${osTitle}" foi aprovada pelo gestor.`;
+
+    if (channels.includes('WHATSAPP') && phone) {
+      await this.notifications!.send({
+        companyId,
+        serviceOrderId,
+        channel: 'WHATSAPP',
+        recipientPhone: phone,
+        message,
+        type: 'WORKFLOW_AUTO',
+        forceTemplate: true,
+      });
+    }
+
+    if (channels.includes('EMAIL') && email) {
+      await this.notifications!.send({
+        companyId,
+        serviceOrderId,
+        channel: 'EMAIL',
+        recipientEmail: email,
+        message,
+        type: 'WORKFLOW_AUTO',
       });
     }
   }
