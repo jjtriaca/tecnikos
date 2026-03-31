@@ -54,7 +54,7 @@ export default function WorkflowBlockNode({ block, isSelected, isFirst, isLast, 
       subtitle = block.config?.recipient || "";
     }
   }
-  if (block.type === "PHOTO") subtitle = `Min: ${block.config?.minPhotos || 1} foto(s)`;
+  if (block.type === "PHOTO") subtitle = block.config?.required === false ? "Opcional" : `Min: ${block.config?.minPhotos || 1} foto(s)`;
   if (block.type === "CHECKLIST") subtitle = `${block.config?.items?.length || 0} itens`;
   if (block.type === "FORM") subtitle = `${block.config?.fields?.length || 0} campos`;
   if (block.type === "MATERIALS") subtitle = `Min: ${block.config?.minItems || 1} material(is)`;

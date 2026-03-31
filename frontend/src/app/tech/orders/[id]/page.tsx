@@ -1418,6 +1418,7 @@ function V2BlockAction({
         return false;
       }
       case "PHOTO": {
+        if (c.required === false) return false; // Optional photo — never block
         const minPhotos = c.minPhotos || 1;
         const blockPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP" && a.blockId === block.id);
         // Fallback for legacy photos without blockId
@@ -1486,17 +1487,22 @@ function V2BlockAction({
 
         {/* PHOTO */}
         {block.type === "PHOTO" && (() => {
-          const minPhotos = c.minPhotos || 1;
+          const isOptional = c.required === false;
+          const minPhotos = isOptional ? 0 : (c.minPhotos || 1);
           const blockPhotos = attachments.filter((a) => a.type === "WORKFLOW_STEP" && a.blockId === block.id);
           // Fallback: count untagged photos for backward compat (before blockId was added)
           const photoCount = blockPhotos.length > 0 ? blockPhotos.length
             : attachments.filter((a) => a.type === "WORKFLOW_STEP" && !a.blockId).length;
           return (
             <div className="space-y-2">
-              <p className="text-xs text-slate-600">{c.label || "Tire uma foto"}{minPhotos > 1 ? ` (minimo ${minPhotos} fotos)` : ""}</p>
+              <p className="text-xs text-slate-600">
+                {c.label || "Tire uma foto"}
+                {!isOptional && minPhotos > 1 ? ` (minimo ${minPhotos} fotos)` : ""}
+                {isOptional ? " (opcional)" : ""}
+              </p>
               <PhotoUpload orderId={order.id} type="WORKFLOW_STEP" blockId={block.id} attachments={attachments}
                 onUpload={(att) => setAttachments((prev) => [...prev, att])} apiFetch={techApi} label="📸 Tirar foto" />
-              {minPhotos > 1 && (
+              {!isOptional && minPhotos > 1 && (
                 <p className={`text-xs font-medium ${photoCount >= minPhotos ? "text-green-600" : "text-amber-600"}`}>
                   {photoCount}/{minPhotos} foto{minPhotos > 1 ? "s" : ""}
                   {photoCount >= minPhotos ? " ✓" : ""}

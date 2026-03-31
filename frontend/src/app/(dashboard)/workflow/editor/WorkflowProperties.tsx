@@ -585,8 +585,15 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           <>
             <Label>Label</Label>
             <Input value={cfg.label || ""} onChange={(v) => updateConfig("label", v)} placeholder="Ex: Foto do equipamento" />
-            <Label>Minimo de fotos</Label>
-            <Input type="number" value={cfg.minPhotos || 1} onChange={(v) => updateConfig("minPhotos", parseInt(v) || 1)} />
+            <div className="mt-1">
+              <Checkbox checked={cfg.required !== false} onChange={(v) => updateConfig("required", v)} label="Foto obrigatoria" />
+            </div>
+            {cfg.required !== false && (
+              <>
+                <Label>Minimo de fotos</Label>
+                <Input type="number" value={cfg.minPhotos || 1} onChange={(v) => updateConfig("minPhotos", parseInt(v) || 1)} />
+              </>
+            )}
             <Label>Tipo</Label>
             <Select value={cfg.photoType || "GERAL"} onChange={(v) => updateConfig("photoType", v)} options={[
               { value: "ANTES", label: "Antes do servico" },

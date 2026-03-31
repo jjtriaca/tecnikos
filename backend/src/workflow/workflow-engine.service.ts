@@ -1700,6 +1700,11 @@ export class WorkflowEngineService {
         break;
 
       case 'PHOTO': {
+        // Photo required check (skip if config.required === false)
+        if (c.required === false) {
+          // Optional photo block — allow advancing without photo
+          break;
+        }
         if (!dto.photoUrl)
           throw new BadRequestException(
             `"${block.name}" requer uma foto`,
