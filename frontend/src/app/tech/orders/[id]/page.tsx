@@ -1127,6 +1127,10 @@ export default function TechOrderDetailPage() {
               v2MaterialNote={v2MaterialNote}
               setV2MaterialNote={setV2MaterialNote}
               materialNameRef={materialNameRef}
+              rescheduleReason={rescheduleReason}
+              setRescheduleReason={setRescheduleReason}
+              rescheduleDate={rescheduleDate}
+              setRescheduleDate={setRescheduleDate}
               onAdvance={handleAdvanceBlockV2}
               proximityDistance={proximityDistance}
             />
@@ -1383,6 +1387,8 @@ function V2BlockAction({
   v2FormFields, setV2FormFields,
   v2MaterialItems, setV2MaterialItems, v2MaterialDraft, setV2MaterialDraft,
   v2MaterialNote, setV2MaterialNote, materialNameRef,
+  rescheduleReason, setRescheduleReason,
+  rescheduleDate, setRescheduleDate,
   onAdvance,
   proximityDistance,
 }: {
@@ -1411,6 +1417,10 @@ function V2BlockAction({
   v2MaterialNote: string;
   setV2MaterialNote: (s: string) => void;
   materialNameRef: React.RefObject<HTMLInputElement | null>;
+  rescheduleReason: string;
+  setRescheduleReason: (s: string) => void;
+  rescheduleDate: string;
+  setRescheduleDate: (s: string) => void;
   onAdvance: () => void;
   proximityDistance: number | null;
 }) {
