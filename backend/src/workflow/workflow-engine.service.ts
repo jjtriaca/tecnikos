@@ -616,6 +616,33 @@ export class WorkflowEngineService {
         });
       }
 
+      // Se RESCHEDULE, update data agendamento + limpar timestamps
+      if (block.type === 'RESCHEDULE' && dto.responseData?.scheduledDate) {
+        await tx.serviceOrder.update({
+          where: { id: so.id },
+          data: {
+            scheduledStartAt: new Date(dto.responseData.scheduledDate),
+            enRouteAt: null,
+            arrivedAt: null,
+            startedAt: null,
+            completedAt: null,
+          },
+        });
+        await tx.serviceOrderEvent.create({
+          data: {
+            companyId,
+            serviceOrderId: so.id,
+            type: 'RESCHEDULE',
+            actorType: 'TECH',
+            actorId: technicianId,
+            payload: {
+              reason: dto.responseData.reason || block.config?.reason || 'Reagendamento',
+              scheduledDate: dto.responseData.scheduledDate,
+            },
+          },
+        });
+      }
+
       const clientTs = dto.clientTimestamp ? new Date(dto.clientTimestamp) : undefined;
 
       await tx.workflowStepLog.create({
@@ -1798,7 +1825,7 @@ export class WorkflowEngineService {
         break;
 
       case 'RESCHEDULE': {
-        // Reschedule: tech provides reason + new date, engine clears timestamps
+        // Reschedule: tech provides reason + new date
         const reqReason = c.requireReason !== false;
         if (reqReason && !dto.responseData?.reason) {
           throw new BadRequestException(`"${block.name}" requer o motivo do reagendamento`);
@@ -1806,31 +1833,7 @@ export class WorkflowEngineService {
         if (!dto.responseData?.scheduledDate) {
           throw new BadRequestException(`"${block.name}" requer a nova data de agendamento`);
         }
-        // Update OS with new scheduled date and clear cycle timestamps
-        await this.prisma.serviceOrder.update({
-          where: { id: serviceOrderId },
-          data: {
-            scheduledStartAt: new Date(dto.responseData.scheduledDate),
-            enRouteAt: null,
-            arrivedAt: null,
-            startedAt: null,
-            completedAt: null,
-          },
-        });
-        // Record reschedule event
-        await this.prisma.serviceOrderEvent.create({
-          data: {
-            companyId,
-            serviceOrderId,
-            type: 'RESCHEDULE',
-            actorType: 'TECH',
-            payload: {
-              reason: dto.responseData.reason || c.reason || 'Reagendamento',
-              scheduledDate: dto.responseData.scheduledDate,
-              blockId: block.id,
-            },
-          },
-        });
+        // Actual reschedule logic is handled in advanceBlockV2 after validation
         break;
       }
 
