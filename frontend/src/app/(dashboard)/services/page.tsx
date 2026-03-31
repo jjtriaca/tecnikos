@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import ReactDOM from "react-dom";
 import { api } from "@/lib/api";
 import { toTitleCase } from "@/lib/brazil-utils";
 import { useToast } from "@/components/ui/Toast";
@@ -272,9 +273,9 @@ function ActionsDropdown({
       >
         &#x22EF;
       </button>
-      {open && (
+      {open && typeof document !== "undefined" && ReactDOM.createPortal(
         <div
-          className="fixed z-50 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          className="fixed z-[9999] min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
           style={{ top: pos.top, left: pos.left }}
         >
           <button
@@ -296,7 +297,8 @@ function ActionsDropdown({
           >
             Excluir
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
