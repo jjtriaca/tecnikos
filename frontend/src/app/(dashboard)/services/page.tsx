@@ -258,7 +258,7 @@ function ActionsDropdown({
     e.stopPropagation();
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left - 100 });
+      setPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 150) });
     }
     setOpen(!open);
   }
@@ -790,11 +790,13 @@ export default function ServicesPage() {
                         style={{ width: columnWidths[col.id], textAlign: col.id === "actions" ? "center" : col.align || "left" }}
                       >
                         {col.id === "actions" ? (
-                          <ActionsDropdown
-                            onEdit={() => openEditForm(service)}
-                            onDuplicate={() => handleDuplicate(service)}
-                            onDelete={() => setDeleteTarget(service)}
-                          />
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <ActionsDropdown
+                              onEdit={() => openEditForm(service)}
+                              onDuplicate={() => handleDuplicate(service)}
+                              onDelete={() => setDeleteTarget(service)}
+                            />
+                          </div>
                         ) : (
                           col.render(service)
                         )}
