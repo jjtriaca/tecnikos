@@ -843,7 +843,7 @@ export default function TechOrderDetailPage() {
         break;
       case "RESCHEDULE":
         body.responseData = {
-          reason: rescheduleReason.trim() || c.reason || "Reagendamento",
+          reason: rescheduleReason.trim() || block.config?.reason || "Reagendamento",
           scheduledDate: rescheduleDate,
         };
         break;
