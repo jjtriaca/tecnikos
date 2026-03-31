@@ -128,7 +128,7 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 /* Block types that the technician interacts with */
-const INTERACTIVE_TYPES = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "MATERIALS", "ACTION_BUTTONS", "ARRIVAL_QUESTION"]);
+const INTERACTIVE_TYPES = new Set(["STEP", "PHOTO", "NOTE", "GPS", "QUESTION", "CHECKLIST", "SIGNATURE", "FORM", "MATERIALS", "ACTION_BUTTONS", "ARRIVAL_QUESTION", "RESCHEDULE"]);
 
 function formatCurrency(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", {
@@ -259,6 +259,10 @@ export default function TechOrderDetailPage() {
   const [v2GpsDenied, setV2GpsDenied] = useState(false);
   const [v2FormFields, setV2FormFields] = useState<Record<string, string>>({});
 
+  // RESCHEDULE block state
+  const [rescheduleReason, setRescheduleReason] = useState("");
+  const [rescheduleDate, setRescheduleDate] = useState("");
+
   // MATERIALS block state
   const [v2MaterialItems, setV2MaterialItems] = useState<{ name: string; qty: number }[]>([]);
   const [v2MaterialDraft, setV2MaterialDraft] = useState({ name: "", qty: "" });
@@ -342,6 +346,8 @@ export default function TechOrderDetailPage() {
     setV2MaterialItems([]);
     setV2MaterialDraft({ name: "", qty: "" });
     setV2MaterialNote("");
+    setRescheduleReason("");
+    setRescheduleDate("");
     // Stop continuous GPS tracking from previous block
     if (v2GpsWatchRef.current !== null) {
       navigator.geolocation.clearWatch(v2GpsWatchRef.current);
@@ -834,6 +840,12 @@ export default function TechOrderDetailPage() {
         break;
       case "ARRIVAL_QUESTION":
         body.responseData = { selectedMinutes: parseInt(v2AnswerRef.current) || 0 };
+        break;
+      case "RESCHEDULE":
+        body.responseData = {
+          reason: rescheduleReason.trim() || c.reason || "Reagendamento",
+          scheduledDate: rescheduleDate,
+        };
         break;
     }
 
@@ -1453,6 +1465,11 @@ function V2BlockAction({
         if (c.noteRequired && !v2MaterialNote.trim()) return true;
         return false;
       }
+      case "RESCHEDULE": {
+        if (!rescheduleDate) return true;
+        if (c.requireReason !== false && !rescheduleReason.trim()) return true;
+        return false;
+      }
       default:
         return false;
     }
@@ -2046,6 +2063,38 @@ function V2BlockAction({
             </div>
           );
         })()}
+
+        {/* RESCHEDULE */}
+        {block.type === "RESCHEDULE" && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-600">Reagendar esta OS para outra data</p>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Nova data e hora *
+              </label>
+              <input
+                type="datetime-local"
+                value={rescheduleDate}
+                onChange={(e) => setRescheduleDate(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+              />
+            </div>
+            {c.requireReason !== false && (
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Motivo *
+                </label>
+                <textarea
+                  value={rescheduleReason}
+                  onChange={(e) => setRescheduleReason(e.target.value)}
+                  placeholder={c.reason || "Descreva o motivo do reagendamento..."}
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none"
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Advance button — driven by block config, hidden for auto-advance types */}

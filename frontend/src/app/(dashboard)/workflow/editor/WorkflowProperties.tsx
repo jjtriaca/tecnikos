@@ -1300,8 +1300,12 @@ export default function WorkflowProperties({ block, onChange }: Props) {
         {/* RESCHEDULE */}
         {block.type === "RESCHEDULE" && (
           <>
-            <Label>Motivo do reagendamento</Label>
-            <TextArea value={cfg.reason || ""} onChange={(v) => updateConfig("reason", v)} placeholder="Motivo..." />
+            <div className="space-y-2">
+              <Checkbox checked={cfg.requireReason !== false} onChange={(v) => updateConfig("requireReason", v)} label="Motivo obrigatorio" />
+              <Checkbox checked={cfg.requireDate !== false} onChange={(v) => updateConfig("requireDate", v)} label="Data de reagendamento obrigatoria" />
+            </div>
+            <Label>Motivo padrao (pre-preenchido)</Label>
+            <TextArea value={cfg.reason || ""} onChange={(v) => updateConfig("reason", v)} placeholder="Ex: Cliente solicitou reagendamento" />
           </>
         )}
       </div>

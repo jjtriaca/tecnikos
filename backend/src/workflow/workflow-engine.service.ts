@@ -73,6 +73,7 @@ const ACTIONABLE_TYPES = new Set([
   'ACTION_BUTTONS',
   'ARRIVAL_QUESTION',
   'PROXIMITY_TRIGGER',
+  'RESCHEDULE',
 ]);
 
 /* ── Helpers ── */
@@ -1795,6 +1796,43 @@ export class WorkflowEngineService {
       case 'STATUS':
         // STATUS manual: nenhuma validacao necessaria — tech confirmou clicando o botao
         break;
+
+      case 'RESCHEDULE': {
+        // Reschedule: tech provides reason + new date, engine clears timestamps
+        const reqReason = c.requireReason !== false;
+        if (reqReason && !dto.responseData?.reason) {
+          throw new BadRequestException(`"${block.name}" requer o motivo do reagendamento`);
+        }
+        if (!dto.responseData?.scheduledDate) {
+          throw new BadRequestException(`"${block.name}" requer a nova data de agendamento`);
+        }
+        // Update OS with new scheduled date and clear cycle timestamps
+        await this.prisma.serviceOrder.update({
+          where: { id: serviceOrderId },
+          data: {
+            scheduledStartAt: new Date(dto.responseData.scheduledDate),
+            enRouteAt: null,
+            arrivedAt: null,
+            startedAt: null,
+            completedAt: null,
+          },
+        });
+        // Record reschedule event
+        await this.prisma.serviceOrderEvent.create({
+          data: {
+            companyId,
+            serviceOrderId,
+            type: 'RESCHEDULE',
+            actorType: 'TECH',
+            payload: {
+              reason: dto.responseData.reason || c.reason || 'Reagendamento',
+              scheduledDate: dto.responseData.scheduledDate,
+              blockId: block.id,
+            },
+          },
+        });
+        break;
+      }
 
       case 'CONDITION':
         if (

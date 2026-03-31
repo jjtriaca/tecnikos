@@ -170,20 +170,25 @@ function BranchRenderer({
       {branchBlocks.length > 0 && (
         <Connector onClick={() => onInsertAfter(branchBlocks[branchBlocks.length - 1].id)} />
       )}
-      {/* Show "Fim" indicator when branch terminates (doesn't merge back) */}
+      {/* Show "Fim" indicator only when branch truly terminates the workflow (no merge back) */}
       {branchBlocks.length > 0 && (() => {
         const lastBlock = branchBlocks[branchBlocks.length - 1];
         const lastNext = lastBlock.next;
-        // Branch terminates if: next is null, or next points to END block, or next !== mergeId
         const nextBlock = lastNext ? findBlock(blocks, lastNext) : null;
-        const terminates = !lastNext || (nextBlock?.type === "END") || (lastNext !== mergeId && !nextBlock);
-        if (!terminates) return null;
-        return (
-          <div className="flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 mt-0.5">
-            <span className="text-[10px]">⏹️</span>
-            <span className="text-[10px] font-semibold text-slate-500">Fim</span>
-          </div>
-        );
+        // Branch merges back if it connects to the mergeId (parent's next block)
+        if (lastNext && lastNext === mergeId) return null;
+        // Branch continues if it connects to a valid block that's not END
+        if (nextBlock && nextBlock.type !== "END") return null;
+        // Only show "Fim" if there's truly no continuation
+        if (!lastNext || (nextBlock?.type === "END") || !nextBlock) {
+          return (
+            <div className="flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 mt-0.5">
+              <span className="text-[10px]">⏹️</span>
+              <span className="text-[10px] font-semibold text-slate-500">Fim</span>
+            </div>
+          );
+        }
+        return null;
       })()}
     </div>
   );
