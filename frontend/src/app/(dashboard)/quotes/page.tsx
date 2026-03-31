@@ -139,7 +139,7 @@ function ActionsDropdown({
   const canEdit = ["RASCUNHO", "ENVIADO"].includes(quote.status);
   const canSend = quote.status === "RASCUNHO";
   const canDelete = quote.status === "RASCUNHO";
-  const canConvertToOs = ["APROVADO", "ENVIADO"].includes(quote.status) && !quote.serviceOrder;
+  const canConvertToOs = ["RASCUNHO", "APROVADO", "ENVIADO"].includes(quote.status) && !quote.serviceOrder;
 
   return (
     <div ref={wrapperRef}>
