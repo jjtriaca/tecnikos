@@ -279,21 +279,21 @@ function ActionsDropdown({
           style={{ top: pos.top, left: pos.left }}
         >
           <button
-            onClick={(e) => { e.stopPropagation(); setOpen(false); onEdit(); }}
-            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); setTimeout(onEdit, 0); }}
+            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer"
           >
             Editar
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); setOpen(false); onDuplicate(); }}
-            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); setTimeout(onDuplicate, 0); }}
+            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer"
           >
             Duplicar
           </button>
           <div className="my-1 border-t border-slate-200" />
           <button
-            onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }}
-            className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
+            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); setTimeout(onDelete, 0); }}
+            className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50 cursor-pointer"
           >
             Excluir
           </button>
@@ -399,6 +399,7 @@ export default function ServicesPage() {
       isActive: service.isActive,
     });
     setShowForm(true);
+    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 100);
   }
 
   async function handleSave() {
