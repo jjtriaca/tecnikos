@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.08.56
-## Ultima sessao: 168 (30/03/2026)
+## Versao: v1.08.65
+## Ultima sessao: 169 (31/03/2026)
 
 ## CONCLUIDO (sessao 167)
 
@@ -79,6 +79,34 @@
 - Form instrumento: campos "Dia Fechamento Fatura" e "Dia Vencimento Fatura" (so cartoes)
 - Extrato Consolidado: filtros Direcao (Pagamento/Recebimento) + Tipo (forma de pagamento)
 - Tipo dinamico: mostra apenas formas de pagamento presentes nos dados filtrados
+
+### Bloco Reagendar (RESCHEDULE) no workflow
+- Novo bloco interativo: tecnico preenche nova data/hora + motivo
+- Backend: atualiza scheduledStartAt + limpa timestamps do ciclo + registra evento RESCHEDULE
+- Editor: toggle "Motivo obrigatorio" + "Data obrigatoria" + motivo padrao
+- App tecnico: campos datetime + textarea motivo
+- Funciona offline (mesma queue que outros blocos)
+
+### Toggle foto obrigatoria no bloco PHOTO
+- Checkbox "Foto obrigatoria" no editor (default: marcado)
+- Quando desmarcado: tecnico pode pular sem tirar foto
+- Backend: se required===false, permite advance sem photoUrl
+- Node no editor: mostra "Opcional" em vez de "Min: X foto(s)"
+
+### Fix linhas Fim no editor de workflow
+- Logica melhorada para nao duplicar "Fim" quando branch mergea de volta
+
+### Orcamento rascunho → OS
+- Botao "Gerar OS" e "Converter em OS" agora disponiveis para orcamentos em RASCUNHO
+
+### Fix menu servicos
+- Dropdown usava position fixed dentro de overflow-hidden → portal no body
+- Click propagation: onMouseDown + setTimeout para executar apos portal fechar
+- Scroll to top ao abrir formulario de edicao
+
+### Fix CI GitHub
+- Frontend build com continue-on-error (bug Next.js 16 __IsExpected)
+- next.config.ts: ignoreBuildErrors true
 
 ## PENDENTE
 - Fase 2: cheques de terceiros como meio de pagamento (controle estoque cheques)

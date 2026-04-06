@@ -315,8 +315,8 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
             ),
           );
         } catch {
-          // OS might have been deleted — remove from dispatches
-          setDispatches((prev) => prev.filter((p) => p.osId !== d.osId));
+          // Network error or transient failure — do NOT remove the dispatch
+          // The loadDispatches sync (every 30s) will handle removal if the OS is truly gone
         }
       }
     };
