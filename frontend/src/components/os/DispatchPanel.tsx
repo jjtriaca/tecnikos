@@ -17,12 +17,9 @@ const AUTO_GRID_THRESHOLD = 4; // auto-grid when >= this many cards
 
 // ── Helpers ──
 
-function getCenterStart(index: number, total?: number) {
+function getCenterStart(index: number) {
   if (typeof window === "undefined") return { x: 200, y: 100 };
-  // Auto-grid for many cards
-  if (total != null && total >= AUTO_GRID_THRESHOLD) {
-    return calculateGridPositions(total)[index] || { x: 200, y: 100 };
-  }
+  // Always cascade: each card offset from the previous
   const centerX = Math.round(window.innerWidth / 2 - CARD_W / 2);
   const centerY = Math.max(40, Math.round(window.innerHeight * 0.1));
   return {
@@ -850,11 +847,11 @@ export default function DispatchPanel() {
 
   // "Organizar" — redistribute all cards into grid with animation
   const handleOrganize = useCallback(() => {
-    const gridPos = calculateGridPositions(dispatches.length);
     const newPositions: PositionMap = {};
     dispatches.forEach((d, i) => {
-      newPositions[d.osId] = gridPos[i];
-      saveCardPosition(d.osId, gridPos[i].x, gridPos[i].y);
+      const pos = getCenterStart(i);
+      newPositions[d.osId] = pos;
+      saveCardPosition(d.osId, pos.x, pos.y);
     });
     setOrganizing(true);
     setPositions(newPositions);
