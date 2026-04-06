@@ -218,10 +218,10 @@ export class NotificationService {
    * Get dispatch status for a service order (notification + WhatsApp delivery status).
    */
   async getDispatchStatus(serviceOrderId: string, companyId: string) {
-    // Prefer the latest SENT notification (most relevant for dispatch panel).
-    // Falls back to latest overall if none sent (may be FAILED/PENDING).
+    // Prefer the latest successfully sent notification (SENT, DELIVERED, or READ).
+    // Falls back to latest overall if none found (may be FAILED/PENDING).
     let notification = await this.prisma.notification.findFirst({
-      where: { serviceOrderId, companyId, status: 'SENT' },
+      where: { serviceOrderId, companyId, status: { in: ['SENT', 'DELIVERED', 'READ'] } },
       orderBy: { createdAt: 'desc' },
     });
     if (!notification) {

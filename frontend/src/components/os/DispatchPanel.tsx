@@ -108,9 +108,10 @@ function MessageStatus({ d }: { d: DispatchState }) {
     );
   }
   const wa = d.whatsappStatus?.toUpperCase();
-  if (wa === "READ") return <span className="text-[11px] text-blue-600 font-medium">✓✓ Lida</span>;
-  if (wa === "DELIVERED") return <span className="text-[11px] text-slate-500">✓✓ Entregue</span>;
-  if (d.notificationStatus === "SENT" || wa === "SENT") return <span className="text-[11px] text-slate-500">✓ Enviada</span>;
+  const ns = d.notificationStatus?.toUpperCase();
+  if (wa === "READ" || ns === "READ") return <span className="text-[11px] text-blue-600 font-medium">✓✓ Lida</span>;
+  if (wa === "DELIVERED" || ns === "DELIVERED") return <span className="text-[11px] text-slate-500">✓✓ Entregue</span>;
+  if (ns === "SENT" || wa === "SENT") return <span className="text-[11px] text-slate-500">✓ Enviada</span>;
   // No notification exists at all
   if (!d.notificationId && d.notificationStatus === "PENDING") {
     return <span className="text-[11px] text-slate-400">Sem notificação</span>;
