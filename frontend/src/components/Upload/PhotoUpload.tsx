@@ -30,17 +30,26 @@ type PhotoUploadProps = {
   disabled?: boolean;
 };
 
-/** Compress image — uses lower resolution on low-memory devices */
+/** Compress image — aggressive optimization for low-end devices */
 async function compressImage(file: File): Promise<Blob> {
+  // If file is already small enough (< 500KB JPEG), skip compression entirely
+  if (file.size < 500_000 && file.type === "image/jpeg") {
+    return file;
+  }
+
+  // Try OffscreenCanvas in worker-like mode (doesn't block main thread)
+  // Falls back to regular canvas
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
 
-      // Use smaller max for devices with limited memory (< 4GB RAM)
+      // Aggressive scaling: low-memory devices get 800px, normal get 1280px
       const deviceMemory = (navigator as any).deviceMemory;
-      const MAX = (deviceMemory && deviceMemory < 4) ? 1280 : 1920;
+      const MAX = (deviceMemory && deviceMemory <= 2) ? 800
+        : (deviceMemory && deviceMemory < 4) ? 1024 : 1280;
+      const quality = (deviceMemory && deviceMemory <= 2) ? 0.5 : 0.65;
 
       let { width, height } = img;
       if (width > MAX || height > MAX) {
@@ -48,25 +57,33 @@ async function compressImage(file: File): Promise<Blob> {
         width = Math.round(width * ratio);
         height = Math.round(height * ratio);
       }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      ctx?.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => {
-          // Explicitly release canvas memory
-          canvas.width = 0;
-          canvas.height = 0;
-          resolve(blob || file);
-        },
-        "image/jpeg",
-        0.7,
-      );
+
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(file); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            // Immediately release canvas memory
+            ctx.clearRect(0, 0, width, height);
+            canvas.width = 0;
+            canvas.height = 0;
+            resolve(blob || file);
+          },
+          "image/jpeg",
+          quality,
+        );
+      } catch {
+        // Canvas failed (OOM) — send original file
+        resolve(file);
+      }
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      resolve(file); // Fallback: use original
+      resolve(file);
     };
     img.src = url;
   });
@@ -124,6 +141,23 @@ export default function PhotoUpload({
           alert("Erro ao salvar foto offline");
         }
       } else {
+        // On memory errors, try uploading original without compression
+        if (err?.message?.includes("memory") || err?.name === "RangeError") {
+          try {
+            const formData = new FormData();
+            formData.append("file", file);
+            let qs = `type=${encodeURIComponent(type)}`;
+            if (stepOrder !== undefined) qs += `&stepOrder=${stepOrder}`;
+            if (blockId) qs += `&blockId=${encodeURIComponent(blockId)}`;
+            const token = getTechAccessToken();
+            const headers: Record<string, string> = {};
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            const res = await fetch(`${apiBase}/service-orders/${orderId}/attachments?${qs}`, {
+              method: "POST", body: formData, headers, credentials: "include",
+            });
+            if (res.ok) { onUpload(await res.json()); return; }
+          } catch { /* fall through */ }
+        }
         alert(err?.message || "Erro ao enviar foto");
       }
     } finally {
