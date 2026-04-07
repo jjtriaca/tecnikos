@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.08.69
-## Ultima sessao: 171 (07/04/2026)
+## Versao: v1.08.73
+## Ultima sessao: 172 (07/04/2026)
 
 ## CONCLUIDO (sessao 167)
 
@@ -108,13 +108,32 @@
 - Frontend build com continue-on-error (bug Next.js 16 __IsExpected)
 - next.config.ts: ignoreBuildErrors true
 
-## CONCLUIDO (sessao 171)
+## CONCLUIDO (sessao 172)
 
 ### Fix pagina em branco no PDF (orcamento + OS)
 - Bug: PDFKit adicionava pagina em branco ao renderizar rodape em `pageHeight - 35`
-- Causa: y do rodape ficava abaixo da margem inferior, triggering auto-pagination
-- Fix: `drawFooter()` desativa temporariamente `page.margins.bottom = 0` antes de escrever
-- Corrigido em ambos: `quote-pdf.service.ts` e `service-order-pdf.service.ts`
+- Fix: `drawFooter()` desativa temporariamente `page.margins.bottom = 0`
+- Corrigido em: `quote-pdf.service.ts` e `service-order-pdf.service.ts`
+
+### Fix envio WhatsApp orcamento ignora contato selecionado
+- Bug: modal de envio coletava contato mas enviava so boolean; backend usava `clientPartner.phone`
+- Fix: frontend envia `whatsappPhone`/`emailAddress` do contato selecionado
+- Backend: `send()` e `sendEmailInternal()` aceitam override de telefone/email via DTO
+
+### Pagina de detalhe do parceiro (404)
+- "Ver detalhes" navegava para `/partners/{id}` que nao existia
+- Criado `partners/[id]/page.tsx` com PartnerForm carregado
+
+### Fix DeviceToken schema errado (FK violation)
+- Bug: `deviceToken` faltava na lista `TENANT_MODEL_DELEGATES` do PrismaService
+- Todas operacoes DeviceToken iam pro schema `public` em vez do tenant
+- Causava FK violation ao criar token (partnerId nao existe no public)
+- PWA perdia sessao pois device-recover buscava no schema errado
+
+### Fix OTP login tecnico — telefone sem prefixo 55
+- Bug: todos tecnicos tinham telefone sem `55` (ex: `66999861230`)
+- `normalizePhone` adicionava `55` → busca por `5566999861230` nao encontrava
+- Fix: `requestOtp` e `loginWithOtp` tentam ambas variantes (com/sem 55)
 
 ## PENDENTE
 - Fase 2: cheques de terceiros como meio de pagamento (controle estoque cheques)

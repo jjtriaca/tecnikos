@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { getTechAccessToken } from "@/contexts/TechAuthContext";
 import { saveOfflinePhoto } from "@/lib/offline/db";
 
@@ -30,14 +30,18 @@ type PhotoUploadProps = {
   disabled?: boolean;
 };
 
-/** Compress image to max 1920px and JPEG quality 0.7 */
+/** Compress image — uses lower resolution on low-memory devices */
 async function compressImage(file: File): Promise<Blob> {
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const MAX = 1920;
+
+      // Use smaller max for devices with limited memory (< 4GB RAM)
+      const deviceMemory = (navigator as any).deviceMemory;
+      const MAX = (deviceMemory && deviceMemory < 4) ? 1280 : 1920;
+
       let { width, height } = img;
       if (width > MAX || height > MAX) {
         const ratio = Math.min(MAX / width, MAX / height);
@@ -50,7 +54,12 @@ async function compressImage(file: File): Promise<Blob> {
       const ctx = canvas.getContext("2d");
       ctx?.drawImage(img, 0, 0, width, height);
       canvas.toBlob(
-        (blob) => resolve(blob || file),
+        (blob) => {
+          // Explicitly release canvas memory
+          canvas.width = 0;
+          canvas.height = 0;
+          resolve(blob || file);
+        },
         "image/jpeg",
         0.7,
       );
@@ -81,6 +90,14 @@ export default function PhotoUpload({
   // Local object URLs for offline photos (cleaned up on unmount)
   const localUrlsRef = useRef<string[]>([]);
 
+  // Cleanup object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      localUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      localUrlsRef.current = [];
+    };
+  }, []);
+
   const filtered = attachments.filter(
     (a) => a.type === type
       && (stepOrder === undefined || a.stepOrder === stepOrder)
@@ -94,10 +111,8 @@ export default function PhotoUpload({
     setUploading(true);
     try {
       if (navigator.onLine) {
-        // Online: upload immediately (existing behavior)
         await uploadOnline(file);
       } else {
-        // Offline: save to IndexedDB and show locally
         await saveOffline(file);
       }
     } catch (err: any) {
@@ -118,8 +133,11 @@ export default function PhotoUpload({
   }
 
   async function uploadOnline(file: File) {
+    // Compress before uploading to save bandwidth and memory
+    const compressed = await compressImage(file);
+
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", new File([compressed], file.name || `photo_${Date.now()}.jpg`, { type: "image/jpeg" }));
 
     let qs = `type=${encodeURIComponent(type)}`;
     if (stepOrder !== undefined) qs += `&stepOrder=${stepOrder}`;
@@ -142,8 +160,6 @@ export default function PhotoUpload({
       let refreshed = await techSilentRefresh();
       if (!refreshed) refreshed = await techDeviceRecover();
       if (refreshed) {
-        formData.delete("file");
-        formData.append("file", file);
         res = await doUpload();
       }
     }
@@ -204,6 +220,7 @@ export default function PhotoUpload({
                 src={att.isOffline ? att.url : `${apiBase}${att.url}`}
                 alt={att.fileName}
                 className="h-20 w-20 rounded-xl object-cover border border-slate-200"
+                loading="lazy"
               />
               {att.isOffline && (
                 <div className="absolute bottom-0.5 right-0.5 h-4 w-4 rounded-full bg-amber-500 flex items-center justify-center">
