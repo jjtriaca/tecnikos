@@ -1244,10 +1244,22 @@ export class NfseEmissionService {
     // Only check for RECEIVABLE entries
     if (entry.type !== 'RECEIVABLE') return { requiresNfse: false, behavior: 'IGNORE', nfseStatus: entry.nfseStatus };
 
+    // Check if this entry OR its parent (renegotiation source) has NFS-e authorized
+    let effectiveNfseStatus = entry.nfseStatus;
+    if (effectiveNfseStatus !== 'AUTHORIZED' && entry.parentEntryId) {
+      const parent = await this.prisma.financialEntry.findFirst({
+        where: { id: entry.parentEntryId, deletedAt: null },
+        select: { nfseStatus: true },
+      });
+      if (parent?.nfseStatus === 'AUTHORIZED') {
+        effectiveNfseStatus = 'AUTHORIZED';
+      }
+    }
+
     return {
-      requiresNfse: entry.nfseStatus !== 'AUTHORIZED',
+      requiresNfse: effectiveNfseStatus !== 'AUTHORIZED',
       behavior: config.receiveWithoutNfse, // WARN | BLOCK | IGNORE
-      nfseStatus: entry.nfseStatus,
+      nfseStatus: effectiveNfseStatus,
     };
   }
 
