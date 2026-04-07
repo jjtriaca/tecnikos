@@ -526,6 +526,12 @@ export default function TechOrderDetailPage() {
       return Math.max(intervalMs, 600000);                                  // >10km: max(config, 10min)
     }
 
+    // Start background keep-alive (silent audio + wake lock) to prevent Android from suspending the tab
+    let keepalive: { stop: () => void } | null = null;
+    import("@/lib/background-keepalive").then(({ startBackgroundKeepAlive }) => {
+      keepalive = startBackgroundKeepAlive();
+    }).catch(() => {});
+
     v2GpsWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         lastPositionAt = Date.now();
@@ -547,11 +553,33 @@ export default function TechOrderDetailPage() {
       }
     );
 
+    // Backup: setInterval + getCurrentPosition in case watchPosition stops firing (background)
+    const backupInterval = setInterval(() => {
+      const silentMs = Date.now() - lastPositionAt;
+      // If watchPosition hasn't fired in 2x the interval, force a getCurrentPosition
+      if (silentMs > intervalMs * 2) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            lastPositionAt = Date.now();
+            setV2GpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            setV2GpsDenied(false);
+            const now = Date.now();
+            if (now - lastSentAt >= getEffectiveIntervalMs()) {
+              lastSentAt = now;
+              sendPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? undefined, pos.coords.heading ?? undefined);
+            }
+          },
+          () => {},
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: intervalMs }
+        );
+      }
+    }, intervalMs);
+
     // Health check: detect GPS disabled mid-tracking (watchPosition may silently stop)
     const healthCheckInterval = setInterval(() => {
       const silentMs = Date.now() - lastPositionAt;
-      // If no position for 3x the interval (or min 30s), GPS is likely disabled
-      const thresholdMs = Math.max(30000, intervalMs * 3);
+      // If no position for 5x the interval (or min 60s), GPS is likely disabled
+      const thresholdMs = Math.max(60000, intervalMs * 5);
       if (silentMs > thresholdMs) {
         setV2GpsDenied(true);
         setV2GpsLoading(false);
@@ -560,7 +588,6 @@ export default function TechOrderDetailPage() {
 
     v2GpsHealthRef.current = healthCheckInterval;
 
-    // Also send position immediately on first capture
     // Send first position immediately
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -570,6 +597,12 @@ export default function TechOrderDetailPage() {
       () => {},
       { enableHighAccuracy: cfg.highAccuracy !== false, timeout: 10000 }
     );
+
+    // Cleanup: stop keepalive + backup interval when effect is re-run or unmounted
+    return () => {
+      keepalive?.stop();
+      clearInterval(backupInterval);
+    };
   }, [currentBlockId]);
 
   // GPS pontual: auto-advance once coords are captured
