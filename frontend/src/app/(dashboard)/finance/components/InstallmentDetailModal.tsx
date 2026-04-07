@@ -23,7 +23,10 @@ const dateFmt = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-dig
 
 function formatCents(cents: number): string { return currencyFmt.format(cents / 100); }
 function formatDate(iso: string): string { return dateFmt.format(new Date(iso)); }
-function toInputDate(iso: string): string { return new Date(iso).toISOString().slice(0, 10); }
+function toInputDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 /* ── Dropdown menu (portal) ── */
 function ActionMenu({ children, items }: { children: React.ReactNode; items: { label: string; onClick: () => void; danger?: boolean }[] }) {
@@ -51,7 +54,7 @@ function ActionMenu({ children, items }: { children: React.ReactNode; items: { l
     <>
       <button ref={btnRef} onClick={toggle} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
         <svg className="h-4 w-4 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
-          <circle cx="10" cy="4" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="10" cy="16" r="1.5" />
+          <circle cx="4" cy="10" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="16" cy="10" r="1.5" />
         </svg>
       </button>
       {open && typeof document !== "undefined" && (

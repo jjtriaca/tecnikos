@@ -40,7 +40,8 @@ export class InstallmentService {
       totalCents: number;
       status: 'PENDING';
     }> = [];
-    const firstDue = new Date(dto.firstDueDate);
+    // Append T12:00:00 to avoid timezone shift when input is YYYY-MM-DD
+    const firstDue = new Date(dto.firstDueDate.includes('T') ? dto.firstDueDate : `${dto.firstDueDate}T12:00:00`);
 
     for (let i = 0; i < count; i++) {
       const dueDate = new Date(firstDue);
@@ -181,7 +182,8 @@ export class InstallmentService {
 
     const updateData: any = {};
     if (data.dueDate) {
-      updateData.dueDate = new Date(data.dueDate);
+      // Append T12:00:00 to avoid timezone shift (input is YYYY-MM-DD)
+      updateData.dueDate = new Date(data.dueDate.includes('T') ? data.dueDate : `${data.dueDate}T12:00:00`);
       // Reset overdue status if new date is in the future
       const today = new Date();
       today.setHours(0, 0, 0, 0);
