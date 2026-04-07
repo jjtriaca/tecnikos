@@ -355,11 +355,17 @@ function NewQuotePage() {
     if (!savedQuoteId) return;
     setSending(true);
     try {
+      const selWaContact = waContacts.find((c: any) => c.id === selWaId);
+      const selEmailContact = emailContacts.find((c: any) => c.id === selEmailId);
+      const waPhone = selWaContact?.value || selectedClient?.phone;
+      const emailAddr = selEmailContact?.value || selectedClient?.email;
       await api.post(`/quotes/${savedQuoteId}/send`, {
-        sendWhatsApp: sendWhatsApp && !!selectedClient?.phone,
-        sendEmail: sendEmail && !!selectedClient?.email,
+        sendWhatsApp: sendWhatsApp && !!waPhone,
+        sendEmail: sendEmail && !!emailAddr,
+        whatsappPhone: sendWhatsApp ? waPhone : undefined,
+        emailAddress: sendEmail ? emailAddr : undefined,
       });
-      const methods = [sendWhatsApp && selectedClient?.phone && "WhatsApp", sendEmail && selectedClient?.email && "Email"].filter(Boolean).join(" e ");
+      const methods = [sendWhatsApp && waPhone && "WhatsApp", sendEmail && emailAddr && "Email"].filter(Boolean).join(" e ");
       toast(methods ? `Orcamento enviado via ${methods}!` : "Orcamento enviado!", "success");
     } catch (err: any) {
       toast(err?.response?.data?.message || "Erro ao enviar orcamento", "error");

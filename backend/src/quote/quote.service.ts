@@ -405,13 +405,14 @@ export class QuoteService {
 
     const sentChannels: string[] = [];
 
-    if (dto.sendWhatsApp && quote.clientPartner.phone) {
+    const waPhone = dto.whatsappPhone || quote.clientPartner.phone;
+    if (dto.sendWhatsApp && waPhone) {
       const clientName = quote.clientPartner.name.split(' ')[0];
       try {
         await this.notifications.send({
           companyId,
           channel: 'WHATSAPP',
-          recipientPhone: quote.clientPartner.phone,
+          recipientPhone: waPhone,
           message: `Prezado(a) ${clientName}, seu orçamento ${quote.code} no valor de ${formatMoney(quote.totalCents)} está disponível para aprovação.`,
           type: 'QUOTE_SENT',
           templateName: 'orcamento_enviado_v2',
@@ -425,9 +426,9 @@ export class QuoteService {
       }
     }
 
-    if (dto.sendEmail && quote.clientPartner.email) {
+    if (dto.sendEmail && (dto.emailAddress || quote.clientPartner.email)) {
       try {
-        await this.sendEmailInternal(quote, publicUrl);
+        await this.sendEmailInternal(quote, publicUrl, dto.emailAddress);
         sentChannels.push('EMAIL');
       } catch (err) {
         this.logger.warn(`Failed to send email for quote ${id}: ${err.message}`);
@@ -1057,9 +1058,10 @@ export class QuoteService {
 
   // ---- Send Email ----
 
-  private async sendEmailInternal(quote: any, publicUrl: string) {
+  private async sendEmailInternal(quote: any, publicUrl: string, overrideEmail?: string) {
     if (!this.emailService) throw new BadRequestException('Serviço de email não configurado');
-    if (!quote.clientPartner?.email) throw new BadRequestException('Cliente não possui email cadastrado');
+    const recipientEmail = overrideEmail || quote.clientPartner?.email;
+    if (!recipientEmail) throw new BadRequestException('Cliente não possui email cadastrado');
 
     const formatMoney = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
 
@@ -1114,7 +1116,7 @@ export class QuoteService {
 
     await this.emailService.sendEmail(
       quote.companyId,
-      quote.clientPartner.email,
+      recipientEmail,
       `Orçamento ${quote.code} — ${quote.title}`,
       html,
     );

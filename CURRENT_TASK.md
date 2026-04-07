@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.08.67
-## Ultima sessao: 170 (06/04/2026)
+## Versao: v1.08.69
+## Ultima sessao: 171 (07/04/2026)
 
 ## CONCLUIDO (sessao 167)
 
@@ -107,6 +107,14 @@
 ### Fix CI GitHub
 - Frontend build com continue-on-error (bug Next.js 16 __IsExpected)
 - next.config.ts: ignoreBuildErrors true
+
+## CONCLUIDO (sessao 171)
+
+### Fix pagina em branco no PDF (orcamento + OS)
+- Bug: PDFKit adicionava pagina em branco ao renderizar rodape em `pageHeight - 35`
+- Causa: y do rodape ficava abaixo da margem inferior, triggering auto-pagination
+- Fix: `drawFooter()` desativa temporariamente `page.margins.bottom = 0` antes de escrever
+- Corrigido em ambos: `quote-pdf.service.ts` e `service-order-pdf.service.ts`
 
 ## PENDENTE
 - Fase 2: cheques de terceiros como meio de pagamento (controle estoque cheques)

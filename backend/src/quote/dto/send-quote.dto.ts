@@ -16,4 +16,12 @@ export class SendQuoteDto {
   @IsOptional()
   @IsBoolean()
   sendEmail?: boolean;
+
+  @IsOptional()
+  @IsString()
+  whatsappPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  emailAddress?: string;
 }
