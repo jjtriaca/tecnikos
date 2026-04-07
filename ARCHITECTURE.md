@@ -46,6 +46,7 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 |--------|-----------------|-------------------|
 | FinanceModule | A receber, a pagar, parcelas, contas | FinanceService |
 | QuoteModule | Orcamentos + PDF + aprovacao | QuoteService |
+| BoletoModule | Emissao de boletos bancarios (multi-banco) | BoletoService, BoletoConfigService |
 
 ### Fiscal
 | Modulo | Responsabilidade | Service principal |

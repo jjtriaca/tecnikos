@@ -39,6 +39,7 @@ import { ChatIAModule } from './chat-ia/chat-ia.module';
 import { SuggestionModule } from './suggestion/suggestion.module';
 import { QuoteModule } from './quote/quote.module';
 import { VerificationModule } from './verification/verification.module';
+import { BoletoModule } from './boleto/boleto.module';
 
 import { RequestLoggerMiddleware } from './common/logger/request-logger.middleware';
 import { AuditModule } from './common/audit/audit.module';
@@ -96,6 +97,7 @@ import { VerificationGuard } from './auth/guards/verification.guard';
     SuggestionModule,
     QuoteModule,
     VerificationModule,
+    BoletoModule,
   ],
   providers: [
     // Sentry global exception filter — captures all unhandled errors

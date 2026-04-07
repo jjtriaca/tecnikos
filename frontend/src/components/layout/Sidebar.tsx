@@ -150,6 +150,7 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Usuários", href: "/users" },
     { label: "Fluxo de Atendimento", href: "/workflow" },
     { label: "Notificações", href: "/notifications" },
+    { label: "Boleto Bancário", href: "/settings/boleto" },
   ] },
   { label: "SaaS Admin", href: "/ctrl-zr8k2x", icon: icons.saas, roles: ["ADMIN"], hidden: true, children: [
     { label: "Dashboard SaaS", href: "/ctrl-zr8k2x" },

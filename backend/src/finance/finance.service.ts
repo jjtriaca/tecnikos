@@ -401,6 +401,7 @@ export class FinanceService {
           serviceOrder: { select: { id: true, title: true, status: true } },
           partner: { select: { id: true, name: true } },
           financialAccount: { select: { id: true, code: true, name: true } },
+          parentEntry: { select: { id: true, nfseStatus: true, nfseEmissionId: true } },
         },
       }),
       this.prisma.financialEntry.count({ where }),
@@ -790,6 +791,9 @@ export class FinanceService {
           dueDate: dto.firstDueDate ? new Date(dto.firstDueDate) : entry.dueDate,
           notes: dto.notes,
           parentEntryId: id,
+          // Herdar NFS-e do entry pai (renegociacao nao reemite nota)
+          nfseStatus: entry.nfseStatus,
+          nfseEmissionId: entry.nfseEmissionId,
           installmentCount: dto.installmentCount ?? null,
           interestType: dto.interestType ?? entry.interestType,
           interestRateMonthly: dto.interestRateMonthly ?? entry.interestRateMonthly,

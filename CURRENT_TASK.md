@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.08.73
-## Ultima sessao: 172 (07/04/2026)
+## Versao: v1.08.83
+## Ultima sessao: 173 (07/04/2026)
 
 ## CONCLUIDO (sessao 167)
 
@@ -134,6 +134,80 @@
 - Bug: todos tecnicos tinham telefone sem `55` (ex: `66999861230`)
 - `normalizePhone` adicionava `55` → busca por `5566999861230` nao encontrava
 - Fix: `requestOtp` e `loginWithOtp` tentam ambas variantes (com/sem 55)
+
+### PhotoUpload — otimizacao memoria para celulares fracos
+- Compressao via `createImageBitmap` com resize nativo (zero full-decode)
+- Leitura de dimensoes via header JPEG/PNG (32KB, sem decodificar imagem)
+- OffscreenCanvas preferido, fallback canvas regular, fallback envio original
+- Object URLs revogados no unmount, canvas limpo apos uso
+- ~5MB por foto em vez de ~100MB
+
+### Background GPS keepalive para PWA
+- Audio silencioso em loop impede Chrome Android de suspender tab em background
+- Wake Lock API impede tela de desligar durante tracking
+- setInterval backup com getCurrentPosition se watchPosition parar
+- Cleanup automatico quando bloco GPS termina
+
+### Modal aprovacao — ocultar financeiro ja lancado
+- `finalizePreview` agora verifica se ja existem entries (hasExistingReceivable/Payable)
+- Frontend oculta cards de lancamento que ja existem
+
+### Pagina detalhe parceiro
+- Criado `partners/[id]/page.tsx` — "Ver detalhes" agora funciona
+
+### Parcelas — edicao inline de datas + menu acoes
+- Coluna ACOES como primeira (menu `...` horizontal padrao)
+- Data de vencimento editavel inline (input date direto na tabela)
+- Botao "Salvar datas (N)" no header salva todas mudancas de uma vez
+- Backend: `PATCH /finance/installments/:id` com dueDate e amountCents
+- Fix timezone: `T12:00:00` na criacao e edicao de parcelas
+
+### Fix NFS-e check em renegociacao
+- Bug: entry renegociado nao herda nfseStatus do original
+- `checkNfseBeforePayment` agora verifica tambem o parentEntryId
+- Se pai tem AUTHORIZED, renegociacao e considerada OK
+
+## EM ANDAMENTO (sessao 173)
+
+### Sistema de Boleto Bancario — Fase 1: Estrutura Base
+- Schema: BoletoStatus enum, BoletoConfig model, Boleto model + relacoes
+- TENANT_MODEL_DELEGATES: boletoConfig, boleto adicionados
+- Provider interface abstrata (BoletoProvider) com factory pattern
+- Providers implementados: Inter (077), Sicredi (748)
+- BoletoConfigService: CRUD + encryption AES-256-GCM (padrao NfseConfig)
+- BoletoService: criar boleto, registrar no banco, cancelar, consultar, download PDF, webhook, reconciliacao
+- BoletoController: 13 endpoints autenticados + webhook publico
+- BoletoCronService: marcar vencidos diariamente 7AM
+- BoletoModule registrado no AppModule
+- Frontend: pagina settings/boleto com 5 steps (banco, credenciais, teste, defaults, comportamento)
+- Sidebar: link "Boleto Bancario" adicionado em Configuracoes
+- Migration SQL criada manualmente (shadow DB issue)
+- Backend + Frontend compilam sem erros
+
+### Sistema de Boleto Bancario — Fase 4: Integracao Financeiro
+- Tipos TypeScript: Boleto, BoletoStatusType, BOLETO_STATUS_CONFIG em types/finance.ts
+- BoletoStatusBadge: badge colorido por status (9 estados)
+- BoletoGenerationModal: gerar boleto de entry com opcao "Gerar e Registrar" ou "Rascunho"
+- BoletoDetailModal: detalhes completos, linha digitavel (copiar), codigo barras, PIX, PDF, acoes
+- Tabela financeiro: coluna "Boleto" com badge para RECEIVABLE + acoes "Gerar Boleto" / "Ver Boleto"
+- Carregamento automatico de boletos ao listar entries RECEIVABLE
+
+### Fix NFS-e status em entries renegociadas/parceladas
+- Bug: entry filha de renegociacao nao herdava nfseStatus do pai
+- Menu mostrava "Emitir NFS-e" em vez de "PDF NFS-e" quando pai ja tinha nota autorizada
+- Fix backend: `renegotiate()` agora propaga nfseStatus + nfseEmissionId para entry filha
+- Fix backend: `findEntries()` agora inclui `parentEntry.nfseStatus/nfseEmissionId` no response
+- Fix frontend: funcao `resolveNfse()` faz fallback para parentEntry quando entry nao tem nfseStatus
+- Coluna NFS-e e menu de acoes agora usam `resolveNfse()` para resolver status efetivo
+- `checkNfseBeforePayment` ja tinha fallback para parentEntry (sem mudanca)
+
+### Boleto — Pendente para proximas sessoes
+- Teste real com sandbox Sicredi (banco escolhido pelo Juliano)
+- Provider Sicredi ajuste fino com API real
+- Auto-geracao quando autoRegisterOnEntry=true
+- Regua de cobranca: actionType BOLETO
+- Providers adicionais (BB, Itau, Sicoob, Bradesco, Santander, Caixa)
+- Wizard ChatIA para config boleto
 
 ## PENDENTE
 - Fase 2: cheques de terceiros como meio de pagamento (controle estoque cheques)

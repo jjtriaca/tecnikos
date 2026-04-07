@@ -257,6 +257,59 @@ export const ENTRY_TYPE_CONFIG: Record<FinancialEntryType, { label: string; icon
   PAYABLE:    { label: 'A Pagar',   icon: '📤' },
 };
 
+/* Boleto Bancario */
+
+export type BoletoStatusType = 'DRAFT' | 'REGISTERING' | 'REGISTERED' | 'REJECTED' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'PROTESTED' | 'WRITTEN_OFF';
+
+export interface Boleto {
+  id: string;
+  companyId: string;
+  boletoConfigId: string;
+  financialEntryId?: string | null;
+  installmentId?: string | null;
+  partnerId?: string | null;
+  nossoNumero: string;
+  seuNumero?: string | null;
+  linhaDigitavel?: string | null;
+  codigoBarras?: string | null;
+  pixCopiaECola?: string | null;
+  amountCents: number;
+  interestCents: number;
+  penaltyCents: number;
+  discountCents: number;
+  paidAmountCents?: number | null;
+  issueDate: string;
+  dueDate: string;
+  paidAt?: string | null;
+  cancelledAt?: string | null;
+  registeredAt?: string | null;
+  payerName: string;
+  payerDocument: string;
+  payerDocumentType: string;
+  status: BoletoStatusType;
+  bankProtocol?: string | null;
+  errorMessage?: string | null;
+  pdfUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  partner?: { id: string; name: string; document: string } | null;
+  financialEntry?: { id: string; code: string; type: string; grossCents: number } | null;
+  installment?: { id: string; installmentNumber: number; amountCents: number; dueDate: string; status: string } | null;
+  boletoConfig?: { bankCode: string; bankName: string } | null;
+}
+
+export const BOLETO_STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
+  DRAFT:       { label: 'Rascunho',    color: 'text-slate-500',  bgColor: 'bg-slate-50',  borderColor: 'border-slate-200' },
+  REGISTERING: { label: 'Registrando', color: 'text-amber-700',  bgColor: 'bg-amber-50',  borderColor: 'border-amber-200' },
+  REGISTERED:  { label: 'Registrado',  color: 'text-blue-700',   bgColor: 'bg-blue-50',   borderColor: 'border-blue-200' },
+  REJECTED:    { label: 'Rejeitado',   color: 'text-red-700',    bgColor: 'bg-red-50',    borderColor: 'border-red-200' },
+  PAID:        { label: 'Pago',        color: 'text-green-700',  bgColor: 'bg-green-50',  borderColor: 'border-green-200' },
+  OVERDUE:     { label: 'Vencido',     color: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' },
+  CANCELLED:   { label: 'Cancelado',   color: 'text-slate-500',  bgColor: 'bg-slate-50',  borderColor: 'border-slate-200' },
+  PROTESTED:   { label: 'Protestado',  color: 'text-red-800',    bgColor: 'bg-red-100',   borderColor: 'border-red-300' },
+  WRITTEN_OFF: { label: 'Baixado',     color: 'text-slate-600',  bgColor: 'bg-slate-100', borderColor: 'border-slate-300' },
+};
+
 /* Card Settlement (Baixa de Cartoes) */
 
 export type CardSettlementStatus = 'PENDING' | 'SETTLED' | 'CANCELLED';

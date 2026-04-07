@@ -108,6 +108,18 @@ enum QuoteItemType {
   LABOR
 }
 
+enum BoletoStatus {
+  DRAFT          // Criado localmente, nao registrado no banco
+  REGISTERING    // Enviado para API do banco, aguardando confirmacao
+  REGISTERED     // Registrado com sucesso no banco
+  REJECTED       // Banco rejeitou o registro
+  PAID           // Pagamento confirmado (webhook ou manual)
+  OVERDUE        // Vencido e nao pago
+  CANCELLED      // Cancelado no banco
+  PROTESTED      // Protestado (cartorio)
+  WRITTEN_OFF    // Baixado
+}
+
 model Company {
   id        String   @id @default(uuid())
   name      String   // Razão Social
@@ -223,6 +235,8 @@ model Company {
   checklistResponses   ChecklistResponse[]
   pushSubscriptions    PushSubscription[]
   deviceTokens         DeviceToken[]
+  boletoConfig         BoletoConfig?
+  boletos              Boleto[]
 }
 
 model User {
@@ -363,6 +377,7 @@ model Partner {
   contacts              PartnerContact[]
   deviceTokens          DeviceToken[]
   workDays              WorkDay[]
+  boletos               Boleto[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -866,6 +881,7 @@ model FinancialEntry {
   installments       FinancialInstallment[]
   cardSettlements    CardSettlement[]
   nfseEntradaLinks   NfseEntradaEntryLink[]
+  boletos            Boleto[]
 
   @@unique([companyId, code])
   @@index([companyId, type, status])
@@ -898,6 +914,7 @@ model FinancialInstallment {
   updatedAt         DateTime          @updatedAt
 
   financialEntry FinancialEntry @relation(fields: [financialEntryId], references: [id])
+  boletos        Boleto[]
 
   @@unique([financialEntryId, installmentNumber])
   @@index([financialEntryId])
@@ -1418,6 +1435,7 @@ model CashAccount {
   financialEntries    FinancialEntry[]
   cardSettlements     CardSettlement[]
   paymentInstruments  PaymentInstrument[]
+  boletoConfigs       BoletoConfig[]
 
   @@index([companyId, isActive])
   @@index([companyId, type])
@@ -2667,6 +2685,148 @@ model QuoteAttachment {
   quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   @@index([quoteId])
+}
+
+// ========== Boleto Bancario (Cobranca) ==========
+
+model BoletoConfig {
+  id                    String   @id @default(uuid())
+  companyId             String   @unique
+
+  // Banco
+  bankCode              String   // "077" Inter, "748" Sicredi, "001" BB, etc.
+  bankName              String   // "Inter", "Sicredi", "Banco do Brasil"
+  cashAccountId         String?  // FK -> CashAccount vinculada
+
+  // Credenciais (AES-256-GCM via EncryptionService)
+  clientId              String?  // OAuth2 client_id (encrypted)
+  clientSecret          String?  // OAuth2 client_secret (encrypted)
+  apiKey                String?  // API key (encrypted)
+  certificateBase64     String?  // Certificado mTLS PFX/PEM base64 (encrypted)
+  certificatePassword   String?  // Senha do certificado (encrypted)
+
+  // Config banco-especifica (extensivel)
+  bankSpecificConfig    Json?    // { "contaCorrente": "12345", "posto": "08", "cooperativa": "0101" }
+
+  // Ambiente
+  environment           String   @default("SANDBOX") // SANDBOX | PRODUCTION
+
+  // Dados do convenio
+  convenio              String?  // Numero do convenio/beneficiario
+  carteira              String?  // Carteira (ex: "109", "17", "1")
+  especie               String   @default("R$")
+  especieDoc            String   @default("DM") // DM=Duplicata Mercantil, DS=Duplicata de Servico
+  aceite                String   @default("N")  // N=Nao aceito, S=Aceito
+
+  // Defaults de juros/multa/desconto
+  defaultInterestType       String?  // VALOR_DIA | PERCENTUAL_MES
+  defaultInterestValue      Float?   // Valor em R$ ou % conforme tipo
+  defaultPenaltyPercent     Float?   // Multa % (ex: 2.0)
+  defaultDiscountType       String?  // VALOR_FIXO | PERCENTUAL
+  defaultDiscountValue      Float?
+  defaultDiscountDaysBefore Int?     // Dias antes do vencimento para desconto
+
+  // Instrucoes padrao impressas no boleto
+  defaultInstructions1  String?
+  defaultInstructions2  String?
+  defaultInstructions3  String?
+
+  // Comportamento
+  autoRegisterOnEntry   Boolean  @default(false) // Auto-registrar boleto ao criar RECEIVABLE
+  nextNossoNumero       Int      @default(1)     // Contador sequencial nosso numero
+
+  // Webhook
+  webhookSecret         String?  // Secret para validacao de webhook (encrypted)
+
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id])
+  cashAccount CashAccount? @relation(fields: [cashAccountId], references: [id])
+  boletos     Boleto[]
+
+  @@index([companyId])
+}
+
+model Boleto {
+  id                    String       @id @default(uuid())
+  companyId             String
+  boletoConfigId        String
+
+  // Links com financeiro
+  financialEntryId      String?
+  installmentId         String?      // FK -> FinancialInstallment (parcela especifica)
+  partnerId             String?      // Sacado (pagador)
+
+  // Identificacao do boleto
+  nossoNumero           String       // Nosso numero (atribuido por nos)
+  seuNumero             String?      // Numero de referencia do cliente
+  linhaDigitavel        String?      // Linha digitavel (retornada pelo banco)
+  codigoBarras          String?      // Codigo de barras (retornado pelo banco)
+  pixCopiaECola         String?      // PIX copia-e-cola (boleto hibrido)
+
+  // Valores
+  amountCents           Int          // Valor nominal
+  interestCents         Int          @default(0)
+  penaltyCents          Int          @default(0)
+  discountCents         Int          @default(0)
+  paidAmountCents       Int?         // Valor efetivamente pago
+
+  // Datas
+  issueDate             DateTime     // Data de emissao
+  dueDate               DateTime     // Data de vencimento
+  paidAt                DateTime?
+  cancelledAt           DateTime?
+  registeredAt          DateTime?    // Quando o banco confirmou registro
+
+  // Dados do sacado (denormalizados para API do banco)
+  payerName             String
+  payerDocument         String       // CPF ou CNPJ
+  payerDocumentType     String       // CPF | CNPJ
+  payerAddress          String?
+  payerCity             String?
+  payerState            String?
+  payerCep              String?
+
+  // Status
+  status                BoletoStatus @default(DRAFT)
+  bankProtocol          String?      // Protocolo/ID retornado pelo banco
+  bankResponse          Json?        // Resposta completa do banco (debug)
+  errorMessage          String?
+
+  // PDF
+  pdfUrl                String?      // URL ou path do PDF do boleto
+
+  // Config de juros/multa deste boleto especifico
+  interestType          String?      // VALOR_DIA | PERCENTUAL_MES
+  interestValue         Float?
+  penaltyPercent        Float?
+  discountType          String?
+  discountValue         Float?
+  discountDeadline      DateTime?
+
+  // Instrucoes impressas
+  instructions1         String?
+  instructions2         String?
+  instructions3         String?
+
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  company        Company               @relation(fields: [companyId], references: [id])
+  boletoConfig   BoletoConfig          @relation(fields: [boletoConfigId], references: [id])
+  financialEntry FinancialEntry?       @relation(fields: [financialEntryId], references: [id])
+  installment    FinancialInstallment? @relation(fields: [installmentId], references: [id])
+  partner        Partner?              @relation(fields: [partnerId], references: [id])
+
+  @@unique([companyId, nossoNumero, boletoConfigId])
+  @@index([companyId, status])
+  @@index([financialEntryId])
+  @@index([installmentId])
+  @@index([dueDate, status])
+  @@index([partnerId])
+  @@index([boletoConfigId])
 }
 
 // SaaS analytics events (lightweight tracking)

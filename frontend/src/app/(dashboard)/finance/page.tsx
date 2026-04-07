@@ -27,11 +27,14 @@ import type {
   PaymentInstrument,
   CardFeeRate,
 } from "@/types/finance";
-import { ENTRY_STATUS_CONFIG, NFSE_STATUS_CONFIG } from "@/types/finance";
+import { ENTRY_STATUS_CONFIG, NFSE_STATUS_CONFIG, BOLETO_STATUS_CONFIG, Boleto } from "@/types/finance";
 import GenerateInstallmentsModal from "./components/GenerateInstallmentsModal";
 import InstallmentDetailModal from "./components/InstallmentDetailModal";
 import RenegotiationModal from "./components/RenegotiationModal";
 import NfseEmissionModal from "./components/NfseEmissionModal";
+import BoletoGenerationModal from "./components/BoletoGenerationModal";
+import BoletoDetailModal from "./components/BoletoDetailModal";
+import BoletoStatusBadge from "./components/BoletoStatusBadge";
 import CollectionRulesTab from "./components/CollectionRulesTab";
 import PaymentMethodsTab from "./components/PaymentMethodsTab";
 import PaymentInstrumentsTab from "./components/PaymentInstrumentsTab";
@@ -232,6 +235,14 @@ function paymentMethodLabel(method?: string, brand?: string) {
   return label;
 }
 
+/** Resolve NFS-e status: usa proprio ou herda do parentEntry (renegociacao) */
+function resolveNfse(entry: FinancialEntry): { status: string; emissionId: string | null } {
+  if (entry.nfseStatus) return { status: entry.nfseStatus, emissionId: entry.nfseEmissionId || null };
+  const parent = (entry as any).parentEntry;
+  if (parent?.nfseStatus) return { status: parent.nfseStatus, emissionId: parent.nfseEmissionId || null };
+  return { status: "NOT_ISSUED", emissionId: null };
+}
+
 /* ── Entry Columns ─────────────────────────────────────── */
 
 function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<FinancialEntry>[] {
@@ -361,13 +372,26 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       id: "nfseStatus",
       label: "NFS-e",
       render: (e) => {
-        const st = e.nfseStatus || "NOT_ISSUED";
+        const { status: st } = resolveNfse(e);
         const cfg = NFSE_STATUS_CONFIG[st] || NFSE_STATUS_CONFIG.NOT_ISSUED;
         return (
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${cfg.color} ${cfg.bgColor} ${cfg.borderColor}`}>
             {cfg.label}
           </span>
         );
+      },
+    });
+  }
+
+  // Boleto column only for RECEIVABLE
+  if (type === "RECEIVABLE") {
+    cols.push({
+      id: "boletoStatus",
+      label: "Boleto",
+      render: (e) => {
+        const boleto = (e as any)._boleto;
+        if (!boleto) return <span className="text-xs text-slate-400">—</span>;
+        return <BoletoStatusBadge status={boleto.status} />;
       },
     });
   }
@@ -1062,6 +1086,11 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const [nfseModal, setNfseModal] = useState<string | null>(null); // financialEntryId
   const [nfseWarnEntry, setNfseWarnEntry] = useState<{ entry: FinancialEntry; action: "PAID" } | null>(null);
 
+  // Boleto modals
+  const [boletoGenEntry, setBoletoGenEntry] = useState<FinancialEntry | null>(null);
+  const [boletoDetail, setBoletoDetail] = useState<Boleto | null>(null);
+  const [entryBoletos, setEntryBoletos] = useState<Record<string, Boleto | null>>({});
+
   // Edit entry modal
   const [editEntry, setEditEntry] = useState<FinancialEntry | null>(null);
   const [editDesc, setEditDesc] = useState("");
@@ -1129,6 +1158,26 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);
+
+  // Load boleto status for RECEIVABLE entries
+  useEffect(() => {
+    if (type !== "RECEIVABLE" || entries.length === 0) return;
+    const loadBoletos = async () => {
+      const map: Record<string, Boleto | null> = {};
+      for (const entry of entries) {
+        try {
+          const boletos = await api.get<Boleto[]>(`/boleto/by-entry/${entry.id}`);
+          // Use the most relevant boleto (first non-terminal, or most recent)
+          const active = boletos.find((b) => !["CANCELLED", "REJECTED", "WRITTEN_OFF"].includes(b.status));
+          map[entry.id] = active || boletos[0] || null;
+        } catch {
+          map[entry.id] = null;
+        }
+      }
+      setEntryBoletos(map);
+    };
+    loadBoletos();
+  }, [entries, type]);
 
   // Load active payment methods and accounts for dropdowns
   useEffect(() => {
@@ -1488,7 +1537,9 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               </tr>
             </thead>
             <tbody>
-              {entries.map((e) => (
+              {entries.map((rawE) => {
+                const e = type === "RECEIVABLE" ? { ...rawE, _boleto: entryBoletos[rawE.id] || null } as any : rawE;
+                return (
                 <tr key={e.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${selectedIds.has(e.id) ? "bg-blue-50" : ""}`}>
                   <td className="py-2 px-2 w-8">
                     {(e.status === "PENDING" || e.status === "CONFIRMED") && (
@@ -1546,6 +1597,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                             onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
                             onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
                             onEmitNfse={fiscalEnabled && type === "RECEIVABLE" ? () => setNfseModal(e.id) : undefined}
+                            onBoletoGenerate={type === "RECEIVABLE" && e.status !== "PAID" && !entryBoletos[e.id] ? () => setBoletoGenEntry(e) : undefined}
+                            onBoletoView={type === "RECEIVABLE" && entryBoletos[e.id] ? () => setBoletoDetail(entryBoletos[e.id]!) : undefined}
                             onEdit={() => openEditEntry(e)}
                             allowDelete={sysConfig?.financial?.allowDeleteEntry === true}
                             onDelete={async () => {
@@ -1572,7 +1625,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                     );
                   })}
                 </tr>
-              ))}
+              ); })}
             </tbody>
             {totals.sumNetCents > 0 && (
               <tfoot>
@@ -2232,6 +2285,30 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         />
       )}
 
+      {/* Boleto Generation Modal */}
+      {boletoGenEntry && (
+        <BoletoGenerationModal
+          entry={boletoGenEntry}
+          onClose={() => setBoletoGenEntry(null)}
+          onSuccess={() => { setBoletoGenEntry(null); loadEntries(); }}
+        />
+      )}
+
+      {/* Boleto Detail Modal */}
+      {boletoDetail && (
+        <BoletoDetailModal
+          boleto={boletoDetail}
+          onClose={() => setBoletoDetail(null)}
+          onRefresh={async () => {
+            try {
+              const updated = await api.get<Boleto>(`/boleto/${boletoDetail.id}`);
+              setBoletoDetail(updated);
+              loadEntries();
+            } catch { setBoletoDetail(null); }
+          }}
+        />
+      )}
+
       {/* Financial Report Modal */}
       <FinancialReportModal
         open={showReportModal}
@@ -2318,6 +2395,8 @@ function EntryActions({
   onViewInstallments,
   onRenegotiate,
   onEmitNfse,
+  onBoletoGenerate,
+  onBoletoView,
   onEdit,
   onDelete,
   allowDelete,
@@ -2330,6 +2409,8 @@ function EntryActions({
   onViewInstallments: () => void;
   onRenegotiate: () => void;
   onEmitNfse?: () => void;
+  onBoletoGenerate?: () => void;
+  onBoletoView?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   allowDelete?: boolean;
@@ -2404,15 +2485,16 @@ function EntryActions({
     items.push({ label: "Renegociar", onClick: onRenegotiate });
   }
 
-  // NFS-e actions (RECEIVABLE only)
+  // NFS-e actions (RECEIVABLE only) — resolve herda nfseStatus do parentEntry
   if (type === "RECEIVABLE" && onEmitNfse) {
-    if (entry.nfseStatus === "AUTHORIZED" && entry.nfseEmissionId) {
+    const nfse = resolveNfse(entry);
+    if (nfse.status === "AUTHORIZED" && nfse.emissionId) {
       items.push({
         label: "PDF NFS-e",
         onClick: async () => {
           try {
             const token = getAccessToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/nfse-emission/emissions/${entry.nfseEmissionId}/pdf`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/nfse-emission/emissions/${nfse.emissionId}/pdf`, {
               headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!res.ok) {
@@ -2422,7 +2504,7 @@ function EntryActions({
             const blob = await res.blob();
             const cd = res.headers.get("content-disposition") || "";
             const fnMatch = cd.match(/filename="?([^";\n]+)"?/);
-            const filename = fnMatch?.[1] || `NFS-e ${entry.nfseEmissionId}.pdf`;
+            const filename = fnMatch?.[1] || `NFS-e ${nfse.emissionId}.pdf`;
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -2438,8 +2520,18 @@ function EntryActions({
         className: "text-green-700",
       });
     }
-    if (entry.nfseStatus !== "AUTHORIZED" && entry.nfseStatus !== "PROCESSING" && entry.status !== "CANCELLED") {
+    if (nfse.status !== "AUTHORIZED" && nfse.status !== "PROCESSING" && entry.status !== "CANCELLED") {
       items.push({ label: "Emitir NFS-e", onClick: onEmitNfse, className: "text-teal-700" });
+    }
+  }
+
+  // Boleto actions (RECEIVABLE only)
+  if (type === "RECEIVABLE" && entry.status !== "CANCELLED") {
+    if (onBoletoView) {
+      items.push({ label: "Ver Boleto", onClick: onBoletoView, className: "text-blue-700" });
+    }
+    if (onBoletoGenerate && !onBoletoView) {
+      items.push({ label: "Gerar Boleto", onClick: onBoletoGenerate, className: "text-indigo-700" });
     }
   }
 

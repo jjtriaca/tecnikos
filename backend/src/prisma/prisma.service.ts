@@ -42,6 +42,7 @@ const TENANT_MODEL_DELEGATES = new Set([
   'codeCounter', 'chatIAConversation', 'chatIAMessage', 'quote', 'quoteItem',
   'quoteAttachment', 'checklistResponse', 'pushSubscription',
   'nfseServiceCode', 'partnerContact', 'suggestion', 'deviceToken',
+  'boletoConfig', 'boleto',
 ]);
 
 /**
