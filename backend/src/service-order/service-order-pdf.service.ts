@@ -160,8 +160,12 @@ function drawItemsTable(doc: any, items: any[], y: number, margin: number, pageW
 function drawFooter(doc: any, margin: number, pageW: number) {
   const footerY = doc.page.height - 35;
   doc.moveTo(margin, footerY - 3).lineTo(margin + pageW, footerY - 3).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+  // Temporarily disable bottom margin to prevent PDFKit from auto-adding a blank page
+  const origBottom = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
   doc.font('Helvetica').fontSize(6).fill('#9ca3af');
   doc.text(`Gerado por Tecnikos em ${new Date().toLocaleString('pt-BR')}`, margin, footerY, { width: pageW, align: 'center' });
+  doc.page.margins.bottom = origBottom;
 }
 
 @Injectable()
