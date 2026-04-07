@@ -104,11 +104,12 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
       const payDefault = accounts.find(a => a.code === "2100");
       setReceivableAccountId(recDefault?.id || "");
       setPayableAccountId(payDefault?.id || "");
+      // Don't offer to launch entries that already exist
       if (!autoLaunch) {
         const recEntry = data?.entries?.find((e: any) => e.type === "RECEIVABLE" && e.grossCents > 0);
         const payEntry = data?.entries?.find((e: any) => e.type === "PAYABLE" && e.netCents > 0);
-        setLaunchReceivable(!!recEntry);
-        setLaunchPayable(!!payEntry);
+        setLaunchReceivable(!!recEntry && !data?.hasExistingReceivable);
+        setLaunchPayable(!!payEntry && !data?.hasExistingPayable);
       }
 
       // Load contacts for client and tech
@@ -181,9 +182,11 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
 
   if (!open) return null;
 
-  const recEntry = preview?.entries?.find(e => e.type === "RECEIVABLE");
+  const recEntryRaw = preview?.entries?.find(e => e.type === "RECEIVABLE");
   const payEntryRaw = preview?.entries?.find(e => e.type === "PAYABLE");
-  const payEntry = payEntryRaw && payEntryRaw.netCents > 0 ? payEntryRaw : null;
+  // Hide entries that already exist in the system
+  const recEntry = recEntryRaw && !(preview as any)?.hasExistingReceivable ? recEntryRaw : null;
+  const payEntry = payEntryRaw && payEntryRaw.netCents > 0 && !(preview as any)?.hasExistingPayable ? payEntryRaw : null;
   const noFinancial = !recEntry && !payEntry;
 
   function getSelectedContact(contacts: ContactRecord[], selectedId: string): string | undefined {

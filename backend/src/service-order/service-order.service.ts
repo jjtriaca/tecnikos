@@ -1839,6 +1839,14 @@ export class ServiceOrderService {
       } catch { /* no workflow progress = no issue */ }
     }
 
+    // Check if financial entries already exist for this OS
+    const existingFinancial = await this.prisma.financialEntry.findMany({
+      where: { serviceOrderId: id, deletedAt: null },
+      select: { id: true, type: true, status: true, grossCents: true, netCents: true },
+    });
+    const hasExistingReceivable = existingFinancial.some(e => e.type === 'RECEIVABLE');
+    const hasExistingPayable = existingFinancial.some(e => e.type === 'PAYABLE');
+
     // Calculate financial entries preview
     const grossCents = so.valueCents;
     const effectiveBps = so.commissionBps ?? 0;
@@ -1892,6 +1900,8 @@ export class ServiceOrderService {
       isReturn,
       returnPaidToTech,
       entries,
+      hasExistingReceivable,
+      hasExistingPayable,
       clientContact: so.clientPartner ? {
         partnerId: so.clientPartner.id,
         name: so.clientPartner.name,
