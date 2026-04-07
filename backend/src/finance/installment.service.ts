@@ -161,6 +161,50 @@ export class InstallmentService {
   }
 
   /**
+   * Update installment (dueDate, amountCents)
+   */
+  async updateInstallment(installmentId: string, companyId: string, data: { dueDate?: string; amountCents?: number }) {
+    const installment = await this.prisma.financialInstallment.findFirst({
+      where: { id: installmentId },
+      include: { financialEntry: true },
+    });
+    if (!installment) throw new NotFoundException('Parcela nao encontrada');
+    if (installment.financialEntry.companyId !== companyId) {
+      throw new NotFoundException('Parcela nao encontrada');
+    }
+    if (installment.status === 'PAID') {
+      throw new BadRequestException('Parcela ja paga nao pode ser editada');
+    }
+    if (installment.status === 'CANCELLED') {
+      throw new BadRequestException('Parcela cancelada nao pode ser editada');
+    }
+
+    const updateData: any = {};
+    if (data.dueDate) {
+      updateData.dueDate = new Date(data.dueDate);
+      // Reset overdue status if new date is in the future
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (updateData.dueDate >= today && installment.status === 'OVERDUE') {
+        updateData.status = 'PENDING';
+      }
+    }
+    if (data.amountCents !== undefined && data.amountCents > 0) {
+      updateData.amountCents = data.amountCents;
+      updateData.totalCents = data.amountCents + installment.interestCents + installment.penaltyCents;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('Nenhum dado para atualizar');
+    }
+
+    return this.prisma.financialInstallment.update({
+      where: { id: installmentId },
+      data: updateData,
+    });
+  }
+
+  /**
    * Calculate and apply interest on overdue installments
    * Called by the collection cron job daily
    */

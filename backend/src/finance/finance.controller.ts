@@ -615,6 +615,17 @@ export class FinanceController {
     return this.installmentService.cancelInstallment(id, user.companyId, notes);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('installments/:id')
+  updateInstallment(
+    @Param('id') id: string,
+    @Body('dueDate') dueDate: string | undefined,
+    @Body('amountCents') amountCents: number | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.installmentService.updateInstallment(id, user.companyId, { dueDate, amountCents });
+  }
+
   /* ── v2.00 — Renegotiation ─────────────────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
