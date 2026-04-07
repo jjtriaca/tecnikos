@@ -31,11 +31,42 @@ type PhotoUploadProps = {
 };
 
 /**
+ * Read JPEG/PNG dimensions from file header without decoding the image.
+ * Uses only a few KB of memory regardless of image size.
+ */
+async function getImageDimensions(file: File): Promise<{ w: number; h: number } | null> {
+  try {
+    const header = new Uint8Array(await file.slice(0, 32_000).arrayBuffer());
+    // PNG: dimensions at bytes 16-23
+    if (header[0] === 0x89 && header[1] === 0x50) {
+      const w = (header[16] << 24) | (header[17] << 16) | (header[18] << 8) | header[19];
+      const h = (header[20] << 24) | (header[21] << 16) | (header[22] << 8) | header[23];
+      return { w, h };
+    }
+    // JPEG: scan for SOF marker (0xFFC0-0xFFC3)
+    if (header[0] === 0xFF && header[1] === 0xD8) {
+      let i = 2;
+      while (i < header.length - 9) {
+        if (header[i] !== 0xFF) { i++; continue; }
+        const marker = header[i + 1];
+        if (marker >= 0xC0 && marker <= 0xC3) {
+          const h = (header[i + 5] << 8) | header[i + 6];
+          const w = (header[i + 7] << 8) | header[i + 8];
+          return { w, h };
+        }
+        const len = (header[i + 2] << 8) | header[i + 3];
+        i += 2 + len;
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+/**
  * Compress image using createImageBitmap with native resize.
- * This avoids loading the full-resolution image into JS memory — the browser
- * decodes and resizes in native code using ~10x less RAM than Image+Canvas.
- * Fallback: if createImageBitmap resize is not supported, uses canvas with small dimensions.
- * Last resort: sends original file uncompressed.
+ * Zero full-resolution decode: reads dimensions from file header, then
+ * createImageBitmap decodes directly at target resolution (~5MB instead of ~50MB).
+ * Fallback chain: header+bitmap → bitmap probe → upload original.
  */
 async function compressImage(file: File): Promise<Blob> {
   // Skip if already small enough
@@ -45,86 +76,63 @@ async function compressImage(file: File): Promise<Blob> {
   const QUALITY = 0.65;
 
   try {
-    // Strategy 1: createImageBitmap with native resize (most memory efficient)
-    // Get original dimensions — briefly decodes but .close() frees immediately
-    const probe = await createImageBitmap(file);
-    const origW = probe.width;
-    const origH = probe.height;
-    probe.close(); // Free full bitmap immediately
+    // Read dimensions from file header (zero decode, ~32KB read)
+    let w: number, h: number;
+    const dims = await getImageDimensions(file);
+    if (dims) {
+      w = dims.w; h = dims.h;
+    } else {
+      // Fallback: brief decode to get dimensions
+      const probe = await createImageBitmap(file);
+      w = probe.width; h = probe.height;
+      probe.close();
+    }
 
-    let w = origW, h = origH;
     if (w > MAX || h > MAX) {
       const ratio = Math.min(MAX / w, MAX / h);
       w = Math.round(w * ratio);
       h = Math.round(h * ratio);
     }
 
-    // Decode at target resolution — browser resizes during decode (low memory)
-    const bmp = await createImageBitmap(file, { resizeWidth: w, resizeHeight: h, resizeQuality: "medium" });
+    // Decode at target resolution only — never loads full image into memory
+    const bmp = await createImageBitmap(file, {
+      resizeWidth: w, resizeHeight: h, resizeQuality: "medium",
+    });
 
-    // Use OffscreenCanvas if available (avoids DOM allocation)
+    // Export to JPEG blob
+    let blob: Blob | null = null;
+
+    // Prefer OffscreenCanvas (no DOM, lower memory)
     if (typeof OffscreenCanvas !== "undefined") {
-      const oc = new OffscreenCanvas(w, h);
-      const ctx = oc.getContext("2d");
+      try {
+        const oc = new OffscreenCanvas(w, h);
+        const ctx = oc.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(bmp, 0, 0);
+          blob = await oc.convertToBlob({ type: "image/jpeg", quality: QUALITY });
+        }
+      } catch { /* fall to regular canvas */ }
+    }
+
+    if (!blob) {
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
       if (ctx) {
         ctx.drawImage(bmp, 0, 0);
-        bmp.close();
-        const blob = await oc.convertToBlob({ type: "image/jpeg", quality: QUALITY });
-        return blob;
+        blob = await new Promise<Blob | null>((resolve) => {
+          c.toBlob((b) => resolve(b), "image/jpeg", QUALITY);
+        });
+        c.width = 0; c.height = 0; // free canvas
       }
     }
 
-    // Fallback: regular canvas with resized bitmap (still low memory since bitmap is small)
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.drawImage(bmp, 0, 0);
-      bmp.close();
-      return await new Promise<Blob>((resolve) => {
-        canvas.toBlob(
-          (blob) => { canvas.width = 0; canvas.height = 0; resolve(blob || file); },
-          "image/jpeg", QUALITY,
-        );
-      });
-    }
-    bmp.close();
+    bmp.close(); // free bitmap
+    return blob || file;
   } catch {
-    // createImageBitmap resize not supported or OOM — try legacy canvas with tiny size
-    try {
-      return await compressLegacy(file, 800, 0.5);
-    } catch { /* fall through */ }
+    // Everything failed — send original file
+    return file;
   }
-
-  return file; // Last resort: send original
-}
-
-/** Legacy canvas compression fallback (for browsers without createImageBitmap resize) */
-function compressLegacy(file: File, max: number, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      let { width: w, height: h } = img;
-      if (w > max || h > max) {
-        const r = Math.min(max / w, max / h);
-        w = Math.round(w * r);
-        h = Math.round(h * r);
-      }
-      try {
-        const c = document.createElement("canvas");
-        c.width = w; c.height = h;
-        const ctx = c.getContext("2d");
-        if (!ctx) { resolve(file); return; }
-        ctx.drawImage(img, 0, 0, w, h);
-        c.toBlob((blob) => { c.width = 0; c.height = 0; resolve(blob || file); }, "image/jpeg", quality);
-      } catch { reject(new Error("Canvas OOM")); }
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
-    img.src = url;
-  });
 }
 
 export default function PhotoUpload({
@@ -291,6 +299,9 @@ export default function PhotoUpload({
               <img
                 src={att.isOffline ? att.url : `${apiBase}${att.url}`}
                 alt={att.fileName}
+                width={80}
+                height={80}
+                decoding="async"
                 className="h-20 w-20 rounded-xl object-cover border border-slate-200"
                 loading="lazy"
               />
