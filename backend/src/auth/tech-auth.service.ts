@@ -71,9 +71,15 @@ export class TechAuthService {
     const phoneNorm = normalizePhone(phone);
     if (!phoneNorm) throw new BadRequestException('Telefone inválido');
 
+    // Try normalized (with 55) and without country code (some records stored without 55)
+    const phoneVariants = [phoneNorm];
+    if (phoneNorm.startsWith('55') && phoneNorm.length >= 12) {
+      phoneVariants.push(phoneNorm.slice(2)); // without country code
+    }
+
     const tech = await this.prisma.partner.findFirst({
       where: {
-        phone: phoneNorm,
+        phone: { in: phoneVariants },
         deletedAt: null,
         partnerTypes: { has: 'TECNICO' },
       },
@@ -96,9 +102,14 @@ export class TechAuthService {
     const phoneNorm = normalizePhone(phone);
     if (!phoneNorm) throw new BadRequestException('Telefone inválido');
 
+    const phoneVariants = [phoneNorm];
+    if (phoneNorm.startsWith('55') && phoneNorm.length >= 12) {
+      phoneVariants.push(phoneNorm.slice(2));
+    }
+
     const tech = await this.prisma.partner.findFirst({
       where: {
-        phone: phoneNorm,
+        phone: { in: phoneVariants },
         deletedAt: null,
         partnerTypes: { has: 'TECNICO' },
       },
