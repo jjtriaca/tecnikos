@@ -41,7 +41,7 @@ const TENANT_MODEL_DELEGATES = new Set([
   'nfseEntrada', 'service', 'fiscalPeriod', 'emailConfig', 'technicianContract',
   'codeCounter', 'chatIAConversation', 'chatIAMessage', 'quote', 'quoteItem',
   'quoteAttachment', 'checklistResponse', 'pushSubscription',
-  'nfseServiceCode', 'partnerContact', 'suggestion',
+  'nfseServiceCode', 'partnerContact', 'suggestion', 'deviceToken',
 ]);
 
 /**
