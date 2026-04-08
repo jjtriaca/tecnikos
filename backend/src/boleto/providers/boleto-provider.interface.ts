@@ -137,6 +137,7 @@ export interface BoletoProvider {
     credentials: BoletoProviderCredentials,
     nossoNumero: string,
     bankProtocol?: string,
+    linhaDigitavel?: string,
   ): Promise<Buffer>;
 
   /** Parsear payload de webhook do banco em evento normalizado */

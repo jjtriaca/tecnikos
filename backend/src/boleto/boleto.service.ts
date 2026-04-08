@@ -417,7 +417,7 @@ export class BoletoService {
     if (!provider) throw new BadRequestException(`Provider ${config.bankCode} nao encontrado`);
 
     const credentials = this.configService.getDecryptedCredentials(config);
-    return provider.downloadPdf(credentials, boleto.nossoNumero, boleto.bankProtocol || undefined);
+    return provider.downloadPdf(credentials, boleto.nossoNumero, boleto.bankProtocol || undefined, boleto.linhaDigitavel || undefined);
   }
 
   // ========== WEBHOOK ==========
