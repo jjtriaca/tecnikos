@@ -262,6 +262,22 @@ export class FinanceController {
   /* ── Reconciliation ──────────────────────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('reconciliation/statements')
+  findReconciliationStatements(@CurrentUser() user: AuthenticatedUser) {
+    return this.reconciliationService.findStatements(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('reconciliation/statements/:statementId/lines')
+  findStatementLines(
+    @Param('statementId') statementId: string,
+    @Query('status') status: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.findStatementLines(statementId, user.companyId, status);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Get('reconciliation/imports')
   findReconciliationImports(@CurrentUser() user: AuthenticatedUser) {
     return this.reconciliationService.findImports(user.companyId);

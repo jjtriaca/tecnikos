@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import type { CashAccount, BankStatementImport, BankStatementLine, StatementLineStatus } from "@/types/finance";
+import type { CashAccount, BankStatement, BankStatementLine, StatementLineStatus } from "@/types/finance";
 import DraggableHeader from "@/components/ui/DraggableHeader";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { ColumnDefinition } from "@/lib/types/table";
@@ -831,10 +831,15 @@ export default function ReconciliationTab() {
   return (
     <div className="space-y-8">
       <ImportSection />
-      <ImportsHistorySection />
+      <StatementsSection />
     </div>
   );
 }
+
+const MONTH_NAMES_PT = [
+  "", "Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
 
 /* ══════════════════════════════════════════════════════════
    SECTION 1: IMPORT
@@ -955,18 +960,20 @@ function ImportSection() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   SECTION 2: IMPORTS HISTORY + LINES
+   SECTION 2: MONTHLY STATEMENTS + LINES
    ══════════════════════════════════════════════════════════ */
 
-function ImportsHistorySection() {
-  const [imports, setImports] = useState<BankStatementImport[]>([]);
+function StatementsSection() {
+  const [statements, setStatements] = useState<BankStatement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedImport, setSelectedImport] = useState<BankStatementImport | null>(null);
+  const [selectedStatement, setSelectedStatement] = useState<BankStatement | null>(null);
 
-  const loadImports = useCallback(async () => {
+  const loadStatements = useCallback(async () => {
     try {
-      const result = await api.get<BankStatementImport[]>("/finance/reconciliation/imports");
-      setImports(result);
+      const result = await api.get<BankStatement[]>("/finance/reconciliation/statements");
+      setStatements(result);
+      // Keep the currently selected statement in sync with refreshed data (counts may change)
+      setSelectedStatement((prev) => prev ? result.find((s) => s.id === prev.id) || null : null);
     } catch {
       /* ignore */
     } finally {
@@ -975,16 +982,29 @@ function ImportsHistorySection() {
   }, []);
 
   useEffect(() => {
-    loadImports();
+    loadStatements();
     // Listen for new imports
-    const handler = () => { loadImports(); };
+    const handler = () => { loadStatements(); };
     window.addEventListener("reconciliation-imported", handler);
     return () => window.removeEventListener("reconciliation-imported", handler);
-  }, [loadImports]);
+  }, [loadStatements]);
+
+  // Group by account for display (account → list of statements ordered newest first)
+  const byAccount = new Map<string, { accountName: string; statements: BankStatement[] }>();
+  for (const s of statements) {
+    const key = s.cashAccountId;
+    if (!byAccount.has(key)) {
+      byAccount.set(key, {
+        accountName: s.cashAccount?.name || "Conta",
+        statements: [],
+      });
+    }
+    byAccount.get(key)!.statements.push(s);
+  }
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-slate-700 mb-3">Importacoes</h3>
+      <h3 className="text-sm font-semibold text-slate-700 mb-3">Extratos mensais</h3>
 
       {loading ? (
         <div className="space-y-2">
@@ -992,51 +1012,66 @@ function ImportsHistorySection() {
             <div key={i} className="h-16 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
           ))}
         </div>
-      ) : imports.length === 0 ? (
+      ) : statements.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
           <div className="text-3xl mb-2">🔄</div>
-          <p className="text-sm text-slate-500">Nenhuma importacao realizada.</p>
-          <p className="text-xs text-slate-400 mt-1">Importe um extrato OFX ou CSV para iniciar a conciliacao.</p>
+          <p className="text-sm text-slate-500">Nenhum extrato importado.</p>
+          <p className="text-xs text-slate-400 mt-1">Importe um OFX ou CSV para iniciar a conciliacao.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {imports.map((imp) => (
-            <div
-              key={imp.id}
-              onClick={() => setSelectedImport(selectedImport?.id === imp.id ? null : imp)}
-              className={`rounded-xl border bg-white p-4 shadow-sm cursor-pointer transition-colors hover:shadow-md ${
-                selectedImport?.id === imp.id ? "border-blue-400 ring-1 ring-blue-200" : "border-slate-200"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-slate-900">{imp.fileName}</span>
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border ${
-                      imp.fileType === "OFX"
-                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    }`}>
-                      {imp.fileType}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                    <span>{formatDateTime(imp.importedAt)}</span>
-                    <span>por {imp.importedByName}</span>
-                  </div>
-                </div>
-                <div className="text-right ml-4">
-                  <p className="text-sm font-medium text-slate-700">{imp.matchedCount}/{imp.lineCount}</p>
-                  <p className="text-[10px] text-slate-400">conciliados</p>
-                  {imp.lineCount > 0 && (
-                    <div className="mt-1 h-1.5 w-20 rounded-full bg-slate-200 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-green-500 transition-all"
-                        style={{ width: `${(imp.matchedCount / imp.lineCount) * 100}%` }}
-                      />
+        <div className="space-y-5">
+          {[...byAccount.values()].map((group) => (
+            <div key={group.statements[0].cashAccountId}>
+              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                {group.accountName}
+              </h4>
+              <div className="space-y-2">
+                {group.statements.map((s) => {
+                  const isSelected = selectedStatement?.id === s.id;
+                  const pct = s.lineCount > 0 ? (s.matchedCount / s.lineCount) * 100 : 0;
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setSelectedStatement(isSelected ? null : s)}
+                      className={`rounded-xl border bg-white p-4 shadow-sm cursor-pointer transition-colors hover:shadow-md ${
+                        isSelected ? "border-blue-400 ring-1 ring-blue-200" : "border-slate-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-slate-900">
+                              {MONTH_NAMES_PT[s.periodMonth]} / {s.periodYear}
+                            </span>
+                            {pct === 100 && (
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">
+                                100% conciliado
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                            {s.lastFileName && <span className="truncate max-w-[300px]">Ultimo arquivo: {s.lastFileName}</span>}
+                            {s.lastImportAt && <span>{formatDateTime(s.lastImportAt)}</span>}
+                            {s.lastImportByName && <span>por {s.lastImportByName}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="text-sm font-medium text-slate-700">{s.matchedCount}/{s.lineCount}</p>
+                          <p className="text-[10px] text-slate-400">conciliados</p>
+                          {s.lineCount > 0 && (
+                            <div className="mt-1 h-1.5 w-20 rounded-full bg-slate-200 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-green-500 transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -1044,9 +1079,9 @@ function ImportsHistorySection() {
       )}
 
       {/* Lines detail */}
-      {selectedImport && (
+      {selectedStatement && (
         <div className="mt-4">
-          <LinesDetail importData={selectedImport} />
+          <LinesDetail statement={selectedStatement} onChanged={loadStatements} />
         </div>
       )}
     </div>
@@ -1057,7 +1092,7 @@ function ImportsHistorySection() {
    LINES DETAIL VIEW
    ══════════════════════════════════════════════════════════ */
 
-function LinesDetail({ importData }: { importData: BankStatementImport }) {
+function LinesDetail({ statement, onChanged }: { statement: BankStatement; onChanged?: () => void }) {
   const [lines, setLines] = useState<BankStatementLine[]>([]);
   const [allLinesForPair, setAllLinesForPair] = useState<BankStatementLine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1103,11 +1138,11 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
       const qs = statusFilter !== "all" ? `?status=${statusFilter}` : "";
       const [result, allResult] = await Promise.all([
         api.get<BankStatementLine[]>(
-          `/finance/reconciliation/imports/${importData.id}/lines${qs}`,
+          `/finance/reconciliation/statements/${statement.id}/lines${qs}`,
         ),
         statusFilter !== "all"
           ? api.get<BankStatementLine[]>(
-              `/finance/reconciliation/imports/${importData.id}/lines`,
+              `/finance/reconciliation/statements/${statement.id}/lines`,
             )
           : Promise.resolve(null as any),
       ]);
@@ -1118,18 +1153,23 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
     } finally {
       setLoading(false);
     }
-  }, [importData.id, statusFilter]);
+  }, [statement.id, statusFilter]);
 
   useEffect(() => {
     loadLines();
   }, [loadLines]);
+
+  const refreshAll = useCallback(async () => {
+    await loadLines();
+    onChanged?.();
+  }, [loadLines, onChanged]);
 
   async function handleIgnore(lineId: string) {
     setActionLoading(lineId);
     try {
       await api.post(`/finance/reconciliation/lines/${lineId}/ignore`);
       toast("Linha ignorada.", "success");
-      await loadLines();
+      await refreshAll();
     } catch {
       toast("Erro ao ignorar linha.", "error");
     } finally {
@@ -1142,7 +1182,7 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
     try {
       await api.post(`/finance/reconciliation/lines/${lineId}/unignore`);
       toast("Linha restaurada.", "success");
-      await loadLines();
+      await refreshAll();
     } catch {
       toast("Erro ao restaurar linha.", "error");
     } finally {
@@ -1160,7 +1200,7 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
       await api.post(`/finance/reconciliation/lines/${unmatchLine.id}/unmatch`);
       toast("Conciliacao desfeita. Saldos revertidos.", "success");
       setUnmatchLine(null);
-      await loadLines();
+      await refreshAll();
     } catch {
       toast("Erro ao desfazer conciliacao.", "error");
     } finally {
@@ -1172,7 +1212,10 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
     <div>
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-semibold text-slate-700">
-          Transacoes — {importData.fileName}
+          Transacoes — {MONTH_NAMES_PT[statement.periodMonth]} / {statement.periodYear}
+          {statement.cashAccount?.name && (
+            <span className="ml-2 text-xs font-normal text-slate-500">({statement.cashAccount.name})</span>
+          )}
         </h4>
         <div className="flex gap-1">
           {(["all", "UNMATCHED", "MATCHED", "IGNORED"] as const).map((f) => (
@@ -1316,7 +1359,7 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
         open={!!matchLine}
         line={matchLine}
         onClose={() => setMatchLine(null)}
-        onMatched={() => { setMatchLine(null); loadLines(); }}
+        onMatched={() => { setMatchLine(null); refreshAll(); }}
       />
 
       {/* Refund Pair Modal */}
@@ -1325,7 +1368,7 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
         line={refundLine}
         allLines={allLinesForPair}
         onClose={() => setRefundLine(null)}
-        onMatched={() => { setRefundLine(null); loadLines(); }}
+        onMatched={() => { setRefundLine(null); refreshAll(); }}
       />
     </div>
   );

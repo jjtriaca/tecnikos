@@ -169,6 +169,18 @@
 
 ## EM ANDAMENTO (sessao 174)
 
+### Conciliacao — Extrato mensal por conta (antes: arquivo por arquivo)
+- Problema: cada import OFX criava um card separado com progresso isolado (0/11, 1/29) — ao importar incrementalmente a UI virava uma bagunca de arquivos
+- Solucao: novo model BankStatement = 1 por conta+mes. Imports passam a alimentar o extrato mensal correspondente (com merge automatico dentro do mesmo mes). Mes novo abre extrato novo.
+- Schema: novo model BankStatement (cashAccountId, periodYear, periodMonth, lineCount, matchedCount, lastFileName, lastImportAt, lastImportByName) com unique (cashAccountId, year, month). BankStatementLine e BankStatementImport ganharam statementId FK
+- Migration: 20260410180000_bank_statement_monthly com data migration — agrupa linhas existentes por conta+mes (usando transactionDate em America/Sao_Paulo), cria BankStatements retroativamente, vincula linhas e imports, recalcula contadores
+- Backend: ReconciliationService.importFile refatorado — agrupa transacoes por mes (Brazilian timezone), faz find-or-create de BankStatement por periodo, append de linhas, atualiza lastFileName/lastImportAt sobrescrevendo pelo mais recente. 1 import pode tocar varios statements se arquivo cruza meses
+- Backend: novos endpoints GET /reconciliation/statements e GET /reconciliation/statements/:id/lines. Antigos (/imports) mantidos por compat
+- Backend: helper recalcCounts() usado em todas as mutacoes (matchLine, unmatchLine, matchAsRefund, ignoreLine, unignoreLine) para manter lineCount/matchedCount do statement sincronizado
+- Frontend: StatementsSection substitui ImportsHistorySection — agrupa extratos por conta, cada card mostra "Marco / 2026" + "Ultimo arquivo: extrato.ofx" + progresso N/M + badge "100% conciliado"
+- Frontend: LinesDetail agora recebe statement em vez de importData, titulo muda para "Transacoes — Marco / 2026 (Sicredi 0001-40)", fetch usa novo endpoint /statements/:id/lines
+- Frontend: callback onChanged propaga atualizacoes do LinesDetail de volta ao StatementsSection para manter progresso em tempo real ao conciliar
+
 ### Conciliacao — PIX indevido + Devolucao (estorno de terceiro)
 - Caso: cliente manda PIX errado (sem OS) e empresa devolve; sobram 2 linhas no extrato sem FIN para casar
 - Schema: BankStatementLine ganhou refundPairLineId (self-FK) + isRefund; FinancialEntry ganhou refundPairEntryId + isRefundEntry

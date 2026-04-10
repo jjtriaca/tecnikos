@@ -146,6 +146,29 @@ export interface BankStatementImport {
 
 export type StatementLineStatus = 'UNMATCHED' | 'MATCHED' | 'IGNORED';
 
+export interface BankStatement {
+  id: string;
+  companyId: string;
+  cashAccountId: string;
+  periodYear: number;
+  periodMonth: number;
+  lineCount: number;
+  matchedCount: number;
+  lastImportAt?: string | null;
+  lastImportByName?: string | null;
+  lastFileName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  cashAccount?: {
+    id: string;
+    name: string;
+    bankName?: string | null;
+    bankCode?: string | null;
+    accountNumber?: string | null;
+    agency?: string | null;
+  };
+}
+
 export interface BankStatementLine {
   id: string;
   importId: string;

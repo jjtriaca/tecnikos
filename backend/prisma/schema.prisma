@@ -1441,6 +1441,7 @@ model CashAccount {
   transfersFrom       AccountTransfer[]   @relation("TransferFrom")
   transfersTo         AccountTransfer[]   @relation("TransferTo")
   statementLines      BankStatementLine[]
+  bankStatements      BankStatement[]
   financialEntries    FinancialEntry[]
   cardSettlements     CardSettlement[]
   paymentInstruments  PaymentInstrument[]
@@ -1473,10 +1474,38 @@ model AccountTransfer {
 
 // ========== Conciliacao Bancaria (v2.2) ==========
 
+// Extrato mensal por conta (v1.08.87).
+// Um statement agrupa todas as linhas de uma conta em um mes especifico.
+// Imports sao puros registros de auditoria (quem importou qual arquivo quando)
+// e alimentam o statement correspondente ao mes das transacoes.
+model BankStatement {
+  id              String   @id @default(uuid())
+  companyId       String
+  cashAccountId   String
+  periodYear      Int      // ex: 2026
+  periodMonth     Int      // 1..12
+  lineCount       Int      @default(0)
+  matchedCount    Int      @default(0)
+  lastImportAt    DateTime?
+  lastImportByName String?
+  lastFileName    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  cashAccount CashAccount           @relation(fields: [cashAccountId], references: [id])
+  lines       BankStatementLine[]
+  imports     BankStatementImport[]
+
+  @@unique([cashAccountId, periodYear, periodMonth])
+  @@index([companyId, cashAccountId])
+  @@index([periodYear, periodMonth])
+}
+
 model BankStatementImport {
   id              String   @id @default(uuid())
   companyId       String
   cashAccountId   String
+  statementId     String?  // v1.08.87 — extrato ao qual este import contribuiu (1 import pode tocar varios statements se arquivo cruza meses)
   fileName        String
   fileType        String   // "OFX" | "CSV"
   importedAt      DateTime @default(now())
@@ -1484,15 +1513,18 @@ model BankStatementImport {
   lineCount       Int      @default(0)
   matchedCount    Int      @default(0)
 
-  lines BankStatementLine[]
+  lines     BankStatementLine[]
+  statement BankStatement?       @relation(fields: [statementId], references: [id])
 
   @@index([companyId])
   @@index([cashAccountId])
+  @@index([statementId])
 }
 
 model BankStatementLine {
   id                    String              @id @default(uuid())
   importId              String
+  statementId           String?             // v1.08.87 — extrato mensal ao qual a linha pertence
   cashAccountId         String
   transactionDate       DateTime
   description           String
@@ -1514,6 +1546,7 @@ model BankStatementLine {
   createdAt             DateTime            @default(now())
 
   import      BankStatementImport @relation(fields: [importId], references: [id])
+  statement   BankStatement?      @relation(fields: [statementId], references: [id])
   cashAccount CashAccount         @relation(fields: [cashAccountId], references: [id])
 
   // Self-relation para par de estorno
@@ -1521,6 +1554,7 @@ model BankStatementLine {
   refundPairReverse     BankStatementLine[]  @relation("RefundPair")
 
   @@index([importId])
+  @@index([statementId])
   @@index([cashAccountId, transactionDate])
   @@index([status])
   @@index([refundPairLineId])

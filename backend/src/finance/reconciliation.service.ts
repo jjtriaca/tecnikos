@@ -22,7 +22,25 @@ export class ReconciliationService {
   ) {}
 
   /**
-   * Import a bank statement file (OFX or CSV)
+   * Extract year/month in Brazil timezone (America/Sao_Paulo).
+   * Used to partition transactions into monthly statements.
+   */
+  private getBrazilianPeriod(date: Date): { year: number; month: number } {
+    // Brazil is UTC-3 (no DST since 2019). Shift by -3h then read UTC components.
+    const shifted = new Date(date.getTime() - 3 * 60 * 60 * 1000);
+    return {
+      year: shifted.getUTCFullYear(),
+      month: shifted.getUTCMonth() + 1, // 1..12
+    };
+  }
+
+  /**
+   * Import a bank statement file (OFX or CSV).
+   *
+   * v1.08.87: file lines are now partitioned into monthly statements (BankStatement).
+   * Lines from the same account in the same month are merged into an existing statement
+   * instead of creating a new import per file. The import record is kept as an audit log
+   * of file uploads.
    */
   async importFile(
     companyId: string,
@@ -48,21 +66,8 @@ export class ReconciliationService {
       throw new BadRequestException('Nenhuma transação encontrada no arquivo.');
     }
 
-    // Create import record and lines in a transaction
     const result = await this.prisma.$transaction(async (tx) => {
-      const importRecord = await tx.bankStatementImport.create({
-        data: {
-          companyId,
-          cashAccountId,
-          fileName,
-          fileType,
-          importedByName,
-          lineCount: totalCount,
-          matchedCount: 0,
-        },
-      });
-
-      // Check for duplicate FITIDs if OFX
+      // 1. Dedup by FITID across the entire cashAccount (not per-import)
       let existingFitIds = new Set<string>();
       if (isOfx && ofxTransactions.length > 0) {
         const fitIds = ofxTransactions.map((t) => t.fitId).filter(Boolean);
@@ -75,62 +80,138 @@ export class ReconciliationService {
         }
       }
 
-      type LineData = {
-        importId: string;
-        cashAccountId: string;
+      // 2. Get the list of transactions to insert (after dedup)
+      type Tx = {
         transactionDate: Date;
         description: string;
         amountCents: number;
         fitId: string | null;
         checkNum: string | null;
         refNum: string | null;
-        status: 'UNMATCHED';
       };
+      const newTxs: Tx[] = isOfx
+        ? ofxTransactions
+            .filter((t) => !existingFitIds.has(t.fitId))
+            .map((t) => ({
+              transactionDate: t.transactionDate,
+              description: t.description,
+              amountCents: t.amountCents,
+              fitId: t.fitId,
+              checkNum: t.checkNum ?? null,
+              refNum: t.refNum ?? null,
+            }))
+        : csvTransactions.map((t) => ({
+            transactionDate: t.transactionDate,
+            description: t.description,
+            amountCents: t.amountCents,
+            fitId: null,
+            checkNum: null,
+            refNum: null,
+          }));
 
-      let lines: LineData[];
+      // 3. Group by monthly period (Brazil timezone)
+      const byPeriod = new Map<string, { year: number; month: number; txs: Tx[] }>();
+      for (const t of newTxs) {
+        const { year, month } = this.getBrazilianPeriod(t.transactionDate);
+        const key = `${year}-${month}`;
+        if (!byPeriod.has(key)) byPeriod.set(key, { year, month, txs: [] });
+        byPeriod.get(key)!.txs.push(t);
+      }
 
-      if (isOfx) {
-        lines = ofxTransactions
-          .filter((t) => !existingFitIds.has(t.fitId))
-          .map((t) => ({
+      // 4. Create the audit import record
+      const importRecord = await tx.bankStatementImport.create({
+        data: {
+          companyId,
+          cashAccountId,
+          fileName,
+          fileType,
+          importedByName,
+          lineCount: newTxs.length,
+          matchedCount: 0,
+        },
+      });
+
+      // 5. For each period, find or create the BankStatement and insert lines
+      const touchedStatements: Array<{ id: string; lineCountDelta: number }> = [];
+      let primaryStatementId: string | null = null;
+      let primaryStatementCount = 0;
+
+      for (const { year, month, txs } of byPeriod.values()) {
+        // Find or create statement
+        let statement = await tx.bankStatement.findUnique({
+          where: {
+            cashAccountId_periodYear_periodMonth: {
+              cashAccountId,
+              periodYear: year,
+              periodMonth: month,
+            },
+          },
+        });
+
+        if (!statement) {
+          statement = await tx.bankStatement.create({
+            data: {
+              companyId,
+              cashAccountId,
+              periodYear: year,
+              periodMonth: month,
+              lineCount: 0,
+              matchedCount: 0,
+              lastImportAt: new Date(),
+              lastImportByName: importedByName,
+              lastFileName: fileName,
+            },
+          });
+        }
+
+        // Insert lines for this statement
+        await tx.bankStatementLine.createMany({
+          data: txs.map((t) => ({
             importId: importRecord.id,
+            statementId: statement!.id,
             cashAccountId,
             transactionDate: t.transactionDate,
             description: t.description,
             amountCents: t.amountCents,
             fitId: t.fitId,
-            checkNum: t.checkNum ?? null,
-            refNum: t.refNum ?? null,
+            checkNum: t.checkNum,
+            refNum: t.refNum,
             status: 'UNMATCHED' as const,
-          }));
-      } else {
-        lines = csvTransactions.map((t) => ({
-          importId: importRecord.id,
-          cashAccountId,
-          transactionDate: t.transactionDate,
-          description: t.description,
-          amountCents: t.amountCents,
-          fitId: null,
-          checkNum: null,
-          refNum: null,
-          status: 'UNMATCHED' as const,
-        }));
+          })),
+        });
+
+        // Update statement: bump lineCount, refresh last* (overwrite fileName)
+        await tx.bankStatement.update({
+          where: { id: statement.id },
+          data: {
+            lineCount: { increment: txs.length },
+            lastImportAt: new Date(),
+            lastImportByName: importedByName,
+            lastFileName: fileName,
+          },
+        });
+
+        touchedStatements.push({ id: statement.id, lineCountDelta: txs.length });
+        if (txs.length > primaryStatementCount) {
+          primaryStatementCount = txs.length;
+          primaryStatementId = statement.id;
+        }
       }
 
-      if (lines.length > 0) {
-        await tx.bankStatementLine.createMany({ data: lines });
+      // 6. Link the import to its primary statement (largest contribution)
+      if (primaryStatementId) {
+        await tx.bankStatementImport.update({
+          where: { id: importRecord.id },
+          data: { statementId: primaryStatementId },
+        });
       }
-
-      // Update line count to reflect actual inserted (minus duplicates)
-      await tx.bankStatementImport.update({
-        where: { id: importRecord.id },
-        data: { lineCount: lines.length },
-      });
 
       return {
         ...importRecord,
-        lineCount: lines.length,
-        skippedDuplicates: totalCount - lines.length,
+        statementId: primaryStatementId,
+        lineCount: newTxs.length,
+        skippedDuplicates: totalCount - newTxs.length,
+        touchedStatementCount: touchedStatements.length,
       };
     });
 
@@ -143,7 +224,97 @@ export class ReconciliationService {
   }
 
   /**
-   * List all imports for a company
+   * List all monthly statements for a company, grouped by cash account.
+   * Used in the main reconciliation view (instead of listing import files).
+   */
+  async findStatements(companyId: string) {
+    return this.prisma.bankStatement.findMany({
+      where: { companyId },
+      orderBy: [
+        { periodYear: 'desc' },
+        { periodMonth: 'desc' },
+        { cashAccountId: 'asc' },
+      ],
+      include: {
+        cashAccount: {
+          select: { id: true, name: true, bankName: true, bankCode: true, accountNumber: true, agency: true },
+        },
+      },
+      take: 100,
+    });
+  }
+
+  /**
+   * List statement lines for a given BankStatement (monthly extrato).
+   * Wraps findLines() with statement-based filtering.
+   */
+  async findStatementLines(statementId: string, companyId: string, status?: string) {
+    const statement = await this.prisma.bankStatement.findFirst({
+      where: { id: statementId, companyId },
+    });
+    if (!statement) throw new NotFoundException('Extrato não encontrado.');
+
+    const where: Record<string, unknown> = { statementId };
+    if (status) where.status = status;
+
+    const lines = await this.prisma.bankStatementLine.findMany({
+      where,
+      orderBy: { transactionDate: 'desc' },
+    });
+
+    // Reuse pair suggestion logic from findLines
+    const allLines = status
+      ? await this.prisma.bankStatementLine.findMany({
+          where: { statementId },
+          orderBy: { transactionDate: 'desc' },
+        })
+      : lines;
+
+    return this.attachPairSuggestions(lines, allLines);
+  }
+
+  /**
+   * Attach refund pair suggestions (virtual field) to lines.
+   * Extracted so findLines() and findStatementLines() can share the logic.
+   */
+  private attachPairSuggestions(
+    lines: any[],
+    allLines: any[],
+  ) {
+    const unmatched = allLines.filter((l) => l.status === 'UNMATCHED');
+    const suggestions = new Map<string, string>();
+    for (const a of unmatched) {
+      if (suggestions.has(a.id)) continue;
+      let best: { id: string; score: number } | null = null;
+      for (const b of unmatched) {
+        if (b.id === a.id) continue;
+        if (suggestions.has(b.id)) continue;
+        if ((a.amountCents > 0) === (b.amountCents > 0)) continue;
+        if (Math.abs(Math.abs(a.amountCents) - Math.abs(b.amountCents)) > 1) continue;
+        const daysApart = Math.abs(
+          (new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()) /
+            (1000 * 60 * 60 * 24),
+        );
+        if (daysApart > 60) continue;
+        const nameScore = this.counterpartyNameSimilarity(a.description, b.description);
+        const score = daysApart - nameScore * 10;
+        if (!best || score < best.score) {
+          best = { id: b.id, score };
+        }
+      }
+      if (best) {
+        suggestions.set(a.id, best.id);
+        suggestions.set(best.id, a.id);
+      }
+    }
+    return lines.map((l) => ({
+      ...l,
+      suggestedPairLineId: suggestions.get(l.id) || null,
+    }));
+  }
+
+  /**
+   * List all imports for a company (audit log of file uploads)
    */
   async findImports(companyId: string) {
     return this.prisma.bankStatementImport.findMany({
@@ -155,11 +326,7 @@ export class ReconciliationService {
 
   /**
    * List statement lines for an import, enriched with refund pair suggestions.
-   *
-   * For each UNMATCHED line, tries to find a candidate "paired" line in the same
-   * import that looks like a refund: opposite sign, same absolute value, similar
-   * counterparty name, within 60 days. Returns `suggestedPairLineId` as a virtual
-   * field so the frontend can show a "Possivel estorno" badge.
+   * Kept for backward compatibility — the new flow uses findStatementLines.
    */
   async findLines(importId: string, companyId: string, status?: string) {
     // Verify the import belongs to this company
@@ -176,8 +343,6 @@ export class ReconciliationService {
       orderBy: { transactionDate: 'desc' },
     });
 
-    // Also fetch ALL lines of the import (not just filtered) to detect pairs even
-    // when user filters by status. Pair detection uses only UNMATCHED candidates.
     const allLines = status
       ? await this.prisma.bankStatementLine.findMany({
           where: { importId },
@@ -185,45 +350,7 @@ export class ReconciliationService {
         })
       : lines;
 
-    const unmatched = allLines.filter((l) => l.status === 'UNMATCHED');
-
-    // Build pair suggestions (symmetric map): for each unmatched line, find best
-    // candidate with opposite sign, same absolute value, similar name, <60 days apart.
-    const suggestions = new Map<string, string>(); // lineId -> suggestedPairId
-    for (const a of unmatched) {
-      if (suggestions.has(a.id)) continue; // already paired
-      let best: { id: string; score: number } | null = null;
-      for (const b of unmatched) {
-        if (b.id === a.id) continue;
-        if (suggestions.has(b.id)) continue;
-        // Opposite sign
-        if ((a.amountCents > 0) === (b.amountCents > 0)) continue;
-        // Same absolute value (tolerance 1 cent)
-        if (Math.abs(Math.abs(a.amountCents) - Math.abs(b.amountCents)) > 1) continue;
-        // Within 60 days
-        const daysApart = Math.abs(
-          (new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()) /
-            (1000 * 60 * 60 * 24),
-        );
-        if (daysApart > 60) continue;
-        // Score: lower is better. Name similarity bonus, date penalty.
-        const nameScore = this.counterpartyNameSimilarity(a.description, b.description);
-        const score = daysApart - nameScore * 10;
-        if (!best || score < best.score) {
-          best = { id: b.id, score };
-        }
-      }
-      if (best) {
-        suggestions.set(a.id, best.id);
-        suggestions.set(best.id, a.id); // symmetric
-      }
-    }
-
-    // Attach suggestedPairLineId (virtual) to each returned line
-    return lines.map((l) => ({
-      ...l,
-      suggestedPairLineId: suggestions.get(l.id) || null,
-    }));
+    return this.attachPairSuggestions(lines, allLines);
   }
 
   /**
@@ -234,6 +361,30 @@ export class ReconciliationService {
    * and "DEVOLUCAO PIX-PIX_DEB 01768906106 CATIUCIA L SECHI PATRICIO".
    * We strip the prefix/codes and compare the rest (usually the name).
    */
+  /**
+   * Recalculate matchedCount on both the import and the statement that a line belongs to.
+   * Call after any mutation that changes a line's status.
+   */
+  private async recalcCounts(tx: any, importId: string, statementId: string | null) {
+    const importMatched = await tx.bankStatementLine.count({
+      where: { importId, status: 'MATCHED' },
+    });
+    await tx.bankStatementImport.update({
+      where: { id: importId },
+      data: { matchedCount: importMatched },
+    });
+    if (statementId) {
+      const [lineCount, matchedCount] = await Promise.all([
+        tx.bankStatementLine.count({ where: { statementId } }),
+        tx.bankStatementLine.count({ where: { statementId, status: 'MATCHED' } }),
+      ]);
+      await tx.bankStatement.update({
+        where: { id: statementId },
+        data: { lineCount, matchedCount },
+      });
+    }
+  }
+
   private counterpartyNameSimilarity(a: string, b: string): number {
     const clean = (s: string) =>
       s
@@ -283,14 +434,7 @@ export class ReconciliationService {
       },
     });
 
-    // Update matched count on import
-    const matchedCount = await this.prisma.bankStatementLine.count({
-      where: { importId: line.importId, status: 'MATCHED' },
-    });
-    await this.prisma.bankStatementImport.update({
-      where: { id: line.importId },
-      data: { matchedCount },
-    });
+    await this.recalcCounts(this.prisma, line.importId, line.statementId);
 
     // Auto-transfer from transit/source account to bank account on reconciliation
     if (dto.entryId) {
@@ -493,16 +637,13 @@ export class ReconciliationService {
         },
       });
 
-      // Update matchedCount on both imports (could be same import)
-      const importIds = Array.from(new Set([entryLine.importId, exitLine.importId]));
-      for (const impId of importIds) {
-        const matchedCount = await tx.bankStatementLine.count({
-          where: { importId: impId, status: 'MATCHED' },
-        });
-        await tx.bankStatementImport.update({
-          where: { id: impId },
-          data: { matchedCount },
-        });
+      // Update matchedCount on both imports and statements
+      const pairs = Array.from(new Set([
+        `${entryLine.importId}|${entryLine.statementId || ''}`,
+        `${exitLine.importId}|${exitLine.statementId || ''}`,
+      ])).map((s) => s.split('|'));
+      for (const [impId, stmtId] of pairs) {
+        await this.recalcCounts(tx, impId, stmtId || null);
       }
 
       return { receivable, payable, entryLineId: entryLine.id, exitLineId: exitLine.id };
@@ -577,16 +718,13 @@ export class ReconciliationService {
             notes: null,
           },
         });
-        // Update matchedCount on import(s)
-        const importIds = Array.from(new Set([line.importId, pairLine?.importId].filter(Boolean) as string[]));
-        for (const impId of importIds) {
-          const matchedCount = await tx.bankStatementLine.count({
-            where: { importId: impId, status: 'MATCHED' },
-          });
-          await tx.bankStatementImport.update({
-            where: { id: impId },
-            data: { matchedCount },
-          });
+        // Update matchedCount on imports + statements
+        const pairs = Array.from(new Set([
+          `${line.importId}|${line.statementId || ''}`,
+          pairLine ? `${pairLine.importId}|${pairLine.statementId || ''}` : null,
+        ].filter(Boolean) as string[])).map((s) => s.split('|'));
+        for (const [impId, stmtId] of pairs) {
+          await this.recalcCounts(tx, impId, stmtId || null);
         }
       });
       return { id: line.id, status: 'UNMATCHED' as const, unmatchedRefundPair: true };
@@ -654,13 +792,7 @@ export class ReconciliationService {
       },
     });
 
-    const matchedCount = await this.prisma.bankStatementLine.count({
-      where: { importId: line.importId, status: 'MATCHED' },
-    });
-    await this.prisma.bankStatementImport.update({
-      where: { id: line.importId },
-      data: { matchedCount },
-    });
+    await this.recalcCounts(this.prisma, line.importId, line.statementId);
 
     return updated;
   }
@@ -679,10 +811,12 @@ export class ReconciliationService {
     if (line.status !== 'IGNORED') {
       throw new BadRequestException('Apenas linhas ignoradas podem ser revertidas.');
     }
-    return this.prisma.bankStatementLine.update({
+    const updated = await this.prisma.bankStatementLine.update({
       where: { id: lineId },
       data: { status: 'UNMATCHED', notes: null },
     });
+    await this.recalcCounts(this.prisma, line.importId, line.statementId);
+    return updated;
   }
 
   /**
@@ -697,13 +831,15 @@ export class ReconciliationService {
       throw new NotFoundException('Linha não encontrada.');
     }
 
-    return this.prisma.bankStatementLine.update({
+    const updated = await this.prisma.bankStatementLine.update({
       where: { id: lineId },
       data: {
         status: 'IGNORED',
         notes: notes ?? null,
       },
     });
+    await this.recalcCounts(this.prisma, line.importId, line.statementId);
+    return updated;
   }
 
   /**
