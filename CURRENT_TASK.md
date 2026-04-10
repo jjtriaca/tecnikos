@@ -169,6 +169,15 @@
 
 ## EM ANDAMENTO (sessao 174)
 
+### Fix tenant-migrator — NOT NULL sem default em tabela populada (v1.08.88)
+- Incidente no deploy v1.08.87: migration `20260410180000_bank_statement_monthly` rodou no schema public mas falhou silenciosamente no tenant_sls
+- Causa: TenantMigratorService.addColumn tentou `ALTER TABLE ... ADD COLUMN statementId TEXT NOT NULL` em tabela com 40 linhas. Postgres rejeitou. Erro foi capturado como warn e o deploy continuou
+- Resultado: BankStatement table vazia no tenant, UI "Nenhum extrato importado", coluna statementId ausente em BankStatementLine
+- Fix manual: rodado script `fix-tenant-statements.sql` em producao (popula BankStatement, backfill statementId, recalcula contadores). 40 linhas preservadas, 1 conciliacao intacta
+- Fix do codigo: `addColumn` agora detecta NOT NULL sem default + tabela populada, adiciona como NULLABLE e emite warning LOUD instruindo backfill manual + SET NOT NULL
+- Memory: `memory/tenant-migrator-not-null-gotcha.md` com detalhes do incidente e licao aprendida
+- CLAUDE.md: adicionada regra "Migrations Prisma em Multi-Tenant" com checklist
+
 ### Conciliacao — Extrato mensal por conta (antes: arquivo por arquivo)
 - Problema: cada import OFX criava um card separado com progresso isolado (0/11, 1/29) — ao importar incrementalmente a UI virava uma bagunca de arquivos
 - Solucao: novo model BankStatement = 1 por conta+mes. Imports passam a alimentar o extrato mensal correspondente (com merge automatico dentro do mesmo mes). Mes novo abre extrato novo.

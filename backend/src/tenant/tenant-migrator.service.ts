@@ -243,6 +243,11 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
 
   /**
    * Add a missing column to a tenant schema table.
+   *
+   * Special case: NOT NULL columns without DEFAULT on populated tables will fail
+   * (Postgres rejects with "column contains null values"). In that case, we retry
+   * as NULLABLE and emit a LOUD warning so the developer knows manual backfill
+   * + SET NOT NULL is required. This prevents silent migration failures.
    */
   private async addColumn(schemaName: string, col: ColumnInfo) {
     const isArray = col.dataType === 'ARRAY';
@@ -261,7 +266,7 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
       sqlType = this.mapDataType(col);
     }
 
-    const nullable = col.isNullable === 'YES' ? '' : ' NOT NULL';
+    const isNotNull = col.isNullable === 'NO';
 
     // Build default clause
     let defaultClause = '';
@@ -279,10 +284,32 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
       defaultClause = ` DEFAULT ${defaultVal}`;
     }
 
+    // If NOT NULL without default, check if table has rows. If so, adding NOT NULL
+    // will fail — we add as NULLABLE and require manual backfill.
+    const hasDefault = defaultClause !== '';
+    let rowCount = 0;
+    if (isNotNull && !hasDefault) {
+      const result = await this.rawPrisma.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT COUNT(*)::bigint AS count FROM "${schemaName}"."${col.tableName}"`,
+      );
+      rowCount = Number(result[0]?.count ?? 0);
+    }
+
+    const forceNullable = isNotNull && !hasDefault && rowCount > 0;
+    const nullable = (isNotNull && !forceNullable) ? ' NOT NULL' : '';
+
     const sql = `ALTER TABLE "${schemaName}"."${col.tableName}" ADD COLUMN IF NOT EXISTS "${col.columnName}" ${sqlType}${nullable}${defaultClause}`;
 
     this.logger.debug(`Running: ${sql}`);
     await this.rawPrisma.$executeRawUnsafe(sql);
+
+    if (forceNullable) {
+      this.logger.warn(
+        `[TENANT-MIGRATOR] ⚠️  Column "${col.tableName}"."${col.columnName}" added as NULLABLE in "${schemaName}" ` +
+        `(was NOT NULL in public but table has ${rowCount} rows). MANUAL BACKFILL REQUIRED: ` +
+        `populate the column, then run ALTER TABLE "${schemaName}"."${col.tableName}" ALTER COLUMN "${col.columnName}" SET NOT NULL;`,
+      );
+    }
   }
 
   /**
