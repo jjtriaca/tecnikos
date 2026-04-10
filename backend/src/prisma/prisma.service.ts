@@ -36,7 +36,7 @@ const TENANT_MODEL_DELEGATES = new Set([
   'sefazConfig', 'sefazDocument', 'pendingWorkflowWait', 'auditLog',
   'executionPause', 'technicianLocationLog', 'whatsAppConfig', 'whatsAppMessage',
   'paymentMethod', 'paymentInstrument', 'cashAccount', 'accountTransfer',
-  'bankStatementImport', 'bankStatementLine', 'nfseConfig', 'nfseEmission',
+  'bankStatement', 'bankStatementImport', 'bankStatementLine', 'nfseConfig', 'nfseEmission',
   'obra', 'serviceAddress', 'cardSettlement', 'cardFeeRate', 'financialAccount',
   'nfseEntrada', 'service', 'fiscalPeriod', 'emailConfig', 'technicianContract',
   'codeCounter', 'chatIAConversation', 'chatIAMessage', 'quote', 'quoteItem',

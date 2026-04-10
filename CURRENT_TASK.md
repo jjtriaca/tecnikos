@@ -169,6 +169,13 @@
 
 ## EM ANDAMENTO (sessao 174)
 
+### Fix bankStatement nao registrado em TENANT_MODEL_DELEGATES (v1.08.89)
+- Apos v1.08.88 a UI ainda mostrava "Nenhum extrato importado"
+- Logs confirmaram que GET /finance/reconciliation/statements retornava 200 em 7ms mas resposta vazia
+- Causa: o model novo `bankStatement` nao foi adicionado ao Set TENANT_MODEL_DELEGATES em PrismaService. Resultado: queries iam pro schema `public` (vazio) em vez de `tenant_sls`
+- Fix: adicionado `bankStatement` ao TENANT_MODEL_DELEGATES logo antes de `bankStatementImport`
+- Regra obrigatoria: SEMPRE adicionar models novos ao TENANT_MODEL_DELEGATES quando eles sao por-tenant
+
 ### Fix tenant-migrator — NOT NULL sem default em tabela populada (v1.08.88)
 - Incidente no deploy v1.08.87: migration `20260410180000_bank_statement_monthly` rodou no schema public mas falhou silenciosamente no tenant_sls
 - Causa: TenantMigratorService.addColumn tentou `ALTER TABLE ... ADD COLUMN statementId TEXT NOT NULL` em tabela com 40 linhas. Postgres rejeitou. Erro foi capturado como warn e o deploy continuou

@@ -93,10 +93,11 @@ Ao trabalhar com Meta (WhatsApp) ou Focus NFe:
 
 ### Migrations Prisma em Multi-Tenant (CRITICO)
 - Multi-tenant e schema-per-tenant: Prisma `migrate deploy` so roda no `public`. `TenantMigratorService` sincroniza a estrutura nos tenants via `information_schema` + `ADD COLUMN IF NOT EXISTS`
-- **REGRA:** NAO adicionar coluna NOT NULL sem default em tabela ja populada — vai falhar silenciosamente nos tenants (pos sync ajusta o log com warning, mas nao preenche dado)
+- **REGRA 1:** NAO adicionar coluna NOT NULL sem default em tabela ja populada — vai falhar silenciosamente nos tenants (pos sync ajusta o log com warning, mas nao preenche dado)
 - **Receita certa:** (1) adicionar coluna como NULLABLE na migration; (2) data migration backfill no SQL da migration; (3) ALTER COLUMN SET NOT NULL no final
 - **Se o backfill depende de logica do tenant:** escrever um script SQL separado que itera por `SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tenant_%'` e roda manualmente apos deploy
-- Ver `memory/tenant-migrator-not-null-gotcha.md` — incidente v1.08.87
+- **REGRA 2:** todo NOVO model Prisma que e por-tenant DEVE ser adicionado ao Set `TENANT_MODEL_DELEGATES` em `backend/src/prisma/prisma.service.ts`. Sem isso, queries vao pro schema public (vazio) e dados do tenant somem silenciosamente. Checklist ao criar um model novo: (1) schema.prisma; (2) migration SQL; (3) TENANT_MODEL_DELEGATES; (4) testar com tenant real
+- Ver `memory/tenant-migrator-not-null-gotcha.md` — incidentes v1.08.87/88/89
 
 ### Convencoes Gerais
 - Commits: conventional commits (feat:, fix:, release:)

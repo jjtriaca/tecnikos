@@ -47,6 +47,14 @@ Assim o ALTER nunca falha silenciosamente. O dev ve o warning e sabe que precisa
 
 **Script de fix usado no incidente:** `fix-tenant-statements.sql` (na raiz do repo). Pode ser reusado como template para futuros incidentes similares.
 
+## Incidente relacionado: bankStatement nao registrado em TENANT_MODEL_DELEGATES (v1.08.89)
+
+Apos o fix de v1.08.88, a UI ainda mostrava "Nenhum extrato importado". Logs confirmavam GET /finance/reconciliation/statements retornando 200 em 7ms mas vazio. Causa: `bankStatement` (novo model) nao estava no Set `TENANT_MODEL_DELEGATES` em `prisma.service.ts`.
+
+O PrismaService usa um Proxy que, quando ha contexto de tenant, redireciona chamadas para o client do tenant APENAS se o nome do model estiver no Set. `bankStatement` fora do Set = queries vao pra schema public (vazio) em vez de tenant_sls (com dados).
+
+**Regra obrigatoria:** ao criar qualquer model Prisma novo que seja por-tenant (99% dos casos), adicionar no Set `TENANT_MODEL_DELEGATES` logo no mesmo PR. Faz parte do checklist de criar model.
+
 ## Como verificar se ha drift entre public e tenants
 
 ```sql
