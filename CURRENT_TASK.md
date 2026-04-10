@@ -167,7 +167,39 @@
 - `checkNfseBeforePayment` agora verifica tambem o parentEntryId
 - Se pai tem AUTHORIZED, renegociacao e considerada OK
 
-## EM ANDAMENTO (sessao 173)
+## EM ANDAMENTO (sessao 174)
+
+### Conciliacao — PIX indevido + Devolucao (estorno de terceiro)
+- Caso: cliente manda PIX errado (sem OS) e empresa devolve; sobram 2 linhas no extrato sem FIN para casar
+- Schema: BankStatementLine ganhou refundPairLineId (self-FK) + isRefund; FinancialEntry ganhou refundPairEntryId + isRefundEntry
+- Migration manual: 20260410140000_add_refund_pair_fields
+- Backend: ReconciliationService.matchAsRefund(lineId, pairedLineId) — valida sinais opostos + mesmo valor, cria 2 FIN tecnicos (RECEIVABLE PAID + PAYABLE PAID) com isRefundEntry=true, linka via refundPairEntryId, marca ambas as linhas como MATCHED com refundPairLineId cross + isRefund=true
+- Backend: auto-deteccao de pares no findLines — para cada UNMATCHED busca candidato com sinal oposto, mesmo valor absoluto (tol 1c), <60 dias de distancia e nome da contraparte similar (extrai tokens do description ignorando RECEBIMENTO/DEVOLUCAO/PIX/numeros). Retorna suggestedPairLineId como campo virtual
+- Backend: unmatchLine detecta isRefund e desfaz o par inteiro (apaga os 2 FIN tecnicos + reseta as 2 linhas)
+- Endpoint: POST /finance/reconciliation/lines/:lineId/match-as-refund { pairedLineId, counterpartyName?, notes? }
+- Frontend: nova acao "Conciliar como devolucao" no menu da linha (roxa) com tag "par detectado" quando tem sugestao
+- Frontend: RefundPairModal novo — lista candidates (sinal oposto + mesmo valor + UNMATCHED), destaca "Par sugerido", campo de observacao, cria par ao confirmar
+- Frontend: badge "Possivel estorno" na coluna descricao quando linha UNMATCHED tem suggestedPairLineId; badge "Estorno" quando MATCHED com isRefund
+- Frontend: loadLines agora busca tambem todas as linhas (sem filtro de status) quando ha filtro ativo, para alimentar o RefundPairModal sem precisar refazer requisicao
+- Efeito liquido no caixa: zero. Efeito contabil: 2 FIN tecnicos rastreados com isRefundEntry=true, filtravel no DRE/MRR
+
+### Fix conciliacao cartao — taxa nao bate com extrato
+- Bug: modal calculava `bruto = liquido / (1 - taxa%)` usando a taxa configurada, desconectado do lancamento. Produzia bruto teorico (ex: R$ 5.262,86) que nao bate com o entry real (R$ 5.260,00). A taxa salva era ficticia
+- Causa raiz: operadora nunca cobra exatamente o % configurado; a taxa real so e conhecida quando se casa o lancamento com o deposito
+- Fix ReconciliationTab: taxa agora derivada do entry selecionado (`tax = entry.gross - bank.amount`), nao do rate teorico
+- Auto-selecao: ao abrir modal, busca o melhor candidate (entry cuja taxa implicita mais se aproxima da configurada, tolerancia 1.5%)
+- Row click: clicar em qualquer linha seleciona aquele entry e recalcula breakdown
+- Sort cartao: candidates ordenados por proximidade da taxa implicita com a taxa configurada
+- Display: badges separados "Config: 1.55%" e "Real: 1.50%", com cores verde/vermelho conforme divergencia
+- Alerta de divergencia: quando diferenca > 0.05pp, mostra warning amarelo com data da ultima atualizacao da taxa + botao "Atualizar para X%" que faz PATCH direto em /finance/card-fee-rates/{id}
+- `matchedRate` state armazena o objeto completo (id, feePercent, updatedAt) para exibicao e update inline
+- `manualOverride` state evita sobrescrita quando usuario edita os campos
+
+### Descricao completa na tabela de transacoes (extrato)
+- Coluna "Descricao" da tabela de transacoes ficava truncada em 300px com "..."
+- Fix: removido `truncate` e `max-w-[300px]`, adicionado `break-words` e fonte `text-[11px]` para caber tudo sem aumentar altura
+
+
 
 ### Sistema de Boleto Bancario — Fase 1: Estrutura Base
 - Schema: BoletoStatus enum, BoletoConfig model, Boleto model + relacoes

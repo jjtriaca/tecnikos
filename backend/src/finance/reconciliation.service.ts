@@ -7,7 +7,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
-import { MatchLineDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto } from './dto/reconciliation.dto';
+import { CodeGeneratorService } from '../common/code-generator.service';
 
 @Injectable()
 export class ReconciliationService {
@@ -17,6 +18,7 @@ export class ReconciliationService {
     private readonly prisma: PrismaService,
     private readonly ofxParser: OfxParserService,
     private readonly csvParser: CsvParserService,
+    private readonly codeGenerator: CodeGeneratorService,
   ) {}
 
   /**
@@ -152,7 +154,12 @@ export class ReconciliationService {
   }
 
   /**
-   * List statement lines for an import
+   * List statement lines for an import, enriched with refund pair suggestions.
+   *
+   * For each UNMATCHED line, tries to find a candidate "paired" line in the same
+   * import that looks like a refund: opposite sign, same absolute value, similar
+   * counterparty name, within 60 days. Returns `suggestedPairLineId` as a virtual
+   * field so the frontend can show a "Possivel estorno" badge.
    */
   async findLines(importId: string, companyId: string, status?: string) {
     // Verify the import belongs to this company
@@ -164,10 +171,83 @@ export class ReconciliationService {
     const where: Record<string, unknown> = { importId };
     if (status) where.status = status;
 
-    return this.prisma.bankStatementLine.findMany({
+    const lines = await this.prisma.bankStatementLine.findMany({
       where,
       orderBy: { transactionDate: 'desc' },
     });
+
+    // Also fetch ALL lines of the import (not just filtered) to detect pairs even
+    // when user filters by status. Pair detection uses only UNMATCHED candidates.
+    const allLines = status
+      ? await this.prisma.bankStatementLine.findMany({
+          where: { importId },
+          orderBy: { transactionDate: 'desc' },
+        })
+      : lines;
+
+    const unmatched = allLines.filter((l) => l.status === 'UNMATCHED');
+
+    // Build pair suggestions (symmetric map): for each unmatched line, find best
+    // candidate with opposite sign, same absolute value, similar name, <60 days apart.
+    const suggestions = new Map<string, string>(); // lineId -> suggestedPairId
+    for (const a of unmatched) {
+      if (suggestions.has(a.id)) continue; // already paired
+      let best: { id: string; score: number } | null = null;
+      for (const b of unmatched) {
+        if (b.id === a.id) continue;
+        if (suggestions.has(b.id)) continue;
+        // Opposite sign
+        if ((a.amountCents > 0) === (b.amountCents > 0)) continue;
+        // Same absolute value (tolerance 1 cent)
+        if (Math.abs(Math.abs(a.amountCents) - Math.abs(b.amountCents)) > 1) continue;
+        // Within 60 days
+        const daysApart = Math.abs(
+          (new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()) /
+            (1000 * 60 * 60 * 24),
+        );
+        if (daysApart > 60) continue;
+        // Score: lower is better. Name similarity bonus, date penalty.
+        const nameScore = this.counterpartyNameSimilarity(a.description, b.description);
+        const score = daysApart - nameScore * 10;
+        if (!best || score < best.score) {
+          best = { id: b.id, score };
+        }
+      }
+      if (best) {
+        suggestions.set(a.id, best.id);
+        suggestions.set(best.id, a.id); // symmetric
+      }
+    }
+
+    // Attach suggestedPairLineId (virtual) to each returned line
+    return lines.map((l) => ({
+      ...l,
+      suggestedPairLineId: suggestions.get(l.id) || null,
+    }));
+  }
+
+  /**
+   * Extract the counterparty name token from a bank statement description and
+   * return a similarity score [0..1] between two descriptions.
+   *
+   * Bank lines look like "RECEBIMENTO PIX-PIX_CRED 01768906106 CATIUCIA L SECHI PATRICIO"
+   * and "DEVOLUCAO PIX-PIX_DEB 01768906106 CATIUCIA L SECHI PATRICIO".
+   * We strip the prefix/codes and compare the rest (usually the name).
+   */
+  private counterpartyNameSimilarity(a: string, b: string): number {
+    const clean = (s: string) =>
+      s
+        .toUpperCase()
+        .replace(/RECEBIMENTO|DEVOLUCAO|PAGAMENTO|PIX[_-]?(CRED|DEB)?|[0-9]/g, ' ')
+        .replace(/[^A-Z ]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length >= 3);
+    const tokensA = new Set(clean(a));
+    const tokensB = new Set(clean(b));
+    if (tokensA.size === 0 || tokensB.size === 0) return 0;
+    let shared = 0;
+    for (const t of tokensA) if (tokensB.has(t)) shared++;
+    return shared / Math.max(tokensA.size, tokensB.size);
   }
 
   /**
@@ -268,7 +348,188 @@ export class ReconciliationService {
   }
 
   /**
-   * Unmatch (revert) a matched line
+   * Match a pair of statement lines as a PIX refund (entry indevida + devolucao).
+   *
+   * Used when a third party sends money by mistake and the company refunds it
+   * without any OS/FIN involved. Creates two technical entries (RECEIVABLE + PAYABLE),
+   * both flagged as `isRefundEntry`, linked together and to the bank lines, so the
+   * cash movement is fully traceable in accounting without polluting MRR/metrics.
+   */
+  async matchAsRefund(
+    lineId: string,
+    companyId: string,
+    dto: MatchAsRefundDto,
+    matchedByName: string,
+  ) {
+    // 1. Load both lines with their imports
+    const [lineA, lineB] = await Promise.all([
+      this.prisma.bankStatementLine.findUnique({
+        where: { id: lineId },
+        include: { import: { select: { companyId: true } } },
+      }),
+      this.prisma.bankStatementLine.findUnique({
+        where: { id: dto.pairedLineId },
+        include: { import: { select: { companyId: true } } },
+      }),
+    ]);
+
+    if (!lineA || lineA.import.companyId !== companyId) {
+      throw new NotFoundException('Linha não encontrada.');
+    }
+    if (!lineB || lineB.import.companyId !== companyId) {
+      throw new NotFoundException('Linha par não encontrada.');
+    }
+    if (lineA.id === lineB.id) {
+      throw new BadRequestException('Linha não pode ser par dela mesma.');
+    }
+    if (lineA.status !== 'UNMATCHED' || lineB.status !== 'UNMATCHED') {
+      throw new BadRequestException('Ambas as linhas devem estar pendentes.');
+    }
+
+    // 2. Validate: opposite signs, same absolute value (tolerance 1 cent)
+    const signA = lineA.amountCents > 0;
+    const signB = lineB.amountCents > 0;
+    if (signA === signB) {
+      throw new BadRequestException(
+        'As linhas devem ter sinais opostos (uma entrada e uma saida).',
+      );
+    }
+    const amtA = Math.abs(lineA.amountCents);
+    const amtB = Math.abs(lineB.amountCents);
+    if (Math.abs(amtA - amtB) > 1) {
+      throw new BadRequestException(
+        'As linhas devem ter o mesmo valor absoluto para formar um par de estorno.',
+      );
+    }
+
+    // 3. Identify entry (credit) and exit (debit) lines
+    const entryLine = signA ? lineA : lineB;
+    const exitLine = signA ? lineB : lineA;
+    const amount = amtA;
+
+    const counterparty =
+      dto.counterpartyName?.trim() || this.extractCounterparty(entryLine.description);
+    const descReceivable = `Recebimento PIX indevido${counterparty ? ` - ${counterparty}` : ''}`;
+    const descPayable = `Devolucao PIX indevido${counterparty ? ` - ${counterparty}` : ''}`;
+
+    // 4. Generate codes (outside transaction — CodeCounter has its own locking)
+    const codeReceivable = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+    const codePayable = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+
+    // 5. Transaction: create entries + mark lines matched + link pair
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Create RECEIVABLE entry (money in, already paid)
+      const receivable = await tx.financialEntry.create({
+        data: {
+          companyId,
+          code: codeReceivable,
+          type: 'RECEIVABLE',
+          status: 'PAID',
+          description: descReceivable,
+          grossCents: amount,
+          netCents: amount,
+          paidAt: entryLine.transactionDate,
+          confirmedAt: new Date(),
+          dueDate: entryLine.transactionDate,
+          cashAccountId: entryLine.cashAccountId,
+          paymentMethod: 'PIX',
+          isRefundEntry: true,
+          notes: dto.notes || null,
+        },
+      });
+
+      // Create PAYABLE entry (money out, already paid)
+      const payable = await tx.financialEntry.create({
+        data: {
+          companyId,
+          code: codePayable,
+          type: 'PAYABLE',
+          status: 'PAID',
+          description: descPayable,
+          grossCents: amount,
+          netCents: amount,
+          paidAt: exitLine.transactionDate,
+          confirmedAt: new Date(),
+          dueDate: exitLine.transactionDate,
+          cashAccountId: exitLine.cashAccountId,
+          paymentMethod: 'PIX',
+          isRefundEntry: true,
+          refundPairEntryId: receivable.id,
+          notes: dto.notes || null,
+        },
+      });
+
+      // Back-link receivable -> payable
+      await tx.financialEntry.update({
+        where: { id: receivable.id },
+        data: { refundPairEntryId: payable.id },
+      });
+
+      // Mark entry line MATCHED against receivable
+      await tx.bankStatementLine.update({
+        where: { id: entryLine.id },
+        data: {
+          status: 'MATCHED',
+          matchedEntryId: receivable.id,
+          matchedAt: new Date(),
+          matchedByName,
+          refundPairLineId: exitLine.id,
+          isRefund: true,
+          notes: dto.notes || null,
+        },
+      });
+
+      // Mark exit line MATCHED against payable
+      await tx.bankStatementLine.update({
+        where: { id: exitLine.id },
+        data: {
+          status: 'MATCHED',
+          matchedEntryId: payable.id,
+          matchedAt: new Date(),
+          matchedByName,
+          refundPairLineId: entryLine.id,
+          isRefund: true,
+          notes: dto.notes || null,
+        },
+      });
+
+      // Update matchedCount on both imports (could be same import)
+      const importIds = Array.from(new Set([entryLine.importId, exitLine.importId]));
+      for (const impId of importIds) {
+        const matchedCount = await tx.bankStatementLine.count({
+          where: { importId: impId, status: 'MATCHED' },
+        });
+        await tx.bankStatementImport.update({
+          where: { id: impId },
+          data: { matchedCount },
+        });
+      }
+
+      return { receivable, payable, entryLineId: entryLine.id, exitLineId: exitLine.id };
+    });
+
+    return result;
+  }
+
+  /**
+   * Extract the counterparty name from a PIX/bank description.
+   * Strips common prefixes, CPFs, and IDs, returning the remainder (usually the name).
+   */
+  private extractCounterparty(description: string): string {
+    return description
+      .toUpperCase()
+      .replace(/RECEBIMENTO|DEVOLUCAO|PAGAMENTO|PIX[_-]?(CRED|DEB)?|TRANSFERENCIA|TED|DOC/g, ' ')
+      .replace(/\d{6,}/g, ' ') // strip long numbers (CPF, IDs)
+      .replace(/[^A-Z ]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 3)
+      .join(' ')
+      .trim();
+  }
+
+  /**
+   * Unmatch (revert) a matched line. For refund pairs, unmatches BOTH lines and
+   * deletes the two technical entries that were created.
    */
   async unmatchLine(lineId: string, companyId: string) {
     const line = await this.prisma.bankStatementLine.findUnique({
@@ -280,6 +541,55 @@ export class ReconciliationService {
     }
     if (line.status !== 'MATCHED') {
       throw new BadRequestException('Linha não está conciliada.');
+    }
+
+    // Refund pair: unmatch both lines + delete both technical entries
+    if (line.isRefund && line.refundPairLineId) {
+      const pairLine = await this.prisma.bankStatementLine.findUnique({
+        where: { id: line.refundPairLineId },
+      });
+      await this.prisma.$transaction(async (tx) => {
+        // Delete technical entries (not soft delete — they never existed outside this pair)
+        const entryIds = [line.matchedEntryId, pairLine?.matchedEntryId].filter(Boolean) as string[];
+        if (entryIds.length > 0) {
+          // Break circular FK first
+          await tx.financialEntry.updateMany({
+            where: { id: { in: entryIds } },
+            data: { refundPairEntryId: null },
+          });
+          await tx.financialEntry.deleteMany({
+            where: { id: { in: entryIds }, isRefundEntry: true, companyId },
+          });
+        }
+        // Reset both lines
+        await tx.bankStatementLine.updateMany({
+          where: { id: { in: [line.id, ...(pairLine ? [pairLine.id] : [])] } },
+          data: {
+            status: 'UNMATCHED',
+            matchedEntryId: null,
+            matchedInstallmentId: null,
+            matchedAt: null,
+            matchedByName: null,
+            matchedLiquidCents: null,
+            matchedTaxCents: null,
+            refundPairLineId: null,
+            isRefund: false,
+            notes: null,
+          },
+        });
+        // Update matchedCount on import(s)
+        const importIds = Array.from(new Set([line.importId, pairLine?.importId].filter(Boolean) as string[]));
+        for (const impId of importIds) {
+          const matchedCount = await tx.bankStatementLine.count({
+            where: { importId: impId, status: 'MATCHED' },
+          });
+          await tx.bankStatementImport.update({
+            where: { id: impId },
+            data: { matchedCount },
+          });
+        }
+      });
+      return { id: line.id, status: 'UNMATCHED' as const, unmatchedRefundPair: true };
     }
 
     const bankAccountId = line.cashAccountId;

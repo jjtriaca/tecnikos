@@ -21,3 +21,16 @@ export class MatchLineDto {
   @IsInt()
   taxCents?: number;
 }
+
+export class MatchAsRefundDto {
+  @IsString()
+  pairedLineId: string;
+
+  @IsOptional()
+  @IsString()
+  counterpartyName?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}

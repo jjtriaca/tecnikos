@@ -857,6 +857,10 @@ model FinancialEntry {
   // Obra vinculada (v1.00.88)
   obraId              String?
 
+  // Estorno/Devolucao PIX indevido (v1.08.86)
+  refundPairEntryId   String?           // Par do lancamento de estorno (RECEIVABLE <-> PAYABLE)
+  isRefundEntry       Boolean @default(false) // Lancamento tecnico de estorno (nao afeta MRR/metricas)
+
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   deletedAt        DateTime?
@@ -877,6 +881,10 @@ model FinancialEntry {
   renegotiatedTo     FinancialEntry?        @relation("RenegotiationTarget", fields: [renegotiatedToId], references: [id])
   renegotiationSource FinancialEntry[]      @relation("RenegotiationTarget")
 
+  // Self-relation para par de estorno/devolucao
+  refundPairEntry    FinancialEntry?        @relation("RefundPairEntry", fields: [refundPairEntryId], references: [id])
+  refundPairReverse  FinancialEntry[]       @relation("RefundPairEntry")
+
   // Parcelas
   installments       FinancialInstallment[]
   cardSettlements    CardSettlement[]
@@ -891,6 +899,7 @@ model FinancialEntry {
   @@index([dueDate])
   @@index([parentEntryId])
   @@index([nfseEmissionId])
+  @@index([refundPairEntryId])
   @@index([financialAccountId])
 }
 
@@ -1499,14 +1508,22 @@ model BankStatementLine {
   matchedLiquidCents    Int?              // Valor liquido confirmado pelo gestor
   matchedTaxCents       Int?              // Taxa de cartao confirmada pelo gestor
   notes                 String?
+  // Estorno/Devolucao PIX indevido (v1.08.86)
+  refundPairLineId      String?           // Par da linha de estorno (entrada <-> saida)
+  isRefund              Boolean @default(false) // Marcada como estorno/devolucao
   createdAt             DateTime            @default(now())
 
   import      BankStatementImport @relation(fields: [importId], references: [id])
   cashAccount CashAccount         @relation(fields: [cashAccountId], references: [id])
 
+  // Self-relation para par de estorno
+  refundPairLine        BankStatementLine?   @relation("RefundPair", fields: [refundPairLineId], references: [id])
+  refundPairReverse     BankStatementLine[]  @relation("RefundPair")
+
   @@index([importId])
   @@index([cashAccountId, transactionDate])
   @@index([status])
+  @@index([refundPairLineId])
 }
 
 // ========== NFS-e Emissão (v3.0) ==========

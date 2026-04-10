@@ -30,12 +30,14 @@ function formatDateTime(dateStr: string) {
 function LineActionsDropdown({
   line,
   onConciliar,
+  onConciliarRefund,
   onIgnore,
   onUnignore,
   onUnmatch,
 }: {
   line: BankStatementLine;
   onConciliar: () => void;
+  onConciliarRefund: () => void;
   onIgnore: () => void;
   onUnignore: () => void;
   onUnmatch: () => void;
@@ -89,6 +91,15 @@ function LineActionsDropdown({
                 className="block w-full text-left px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
               >
                 Conciliar
+              </button>
+              <button
+                onClick={() => { setOpen(false); onConciliarRefund(); }}
+                className="block w-full text-left px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-50"
+              >
+                Conciliar como devolucao
+                {line.suggestedPairLineId && (
+                  <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">par detectado</span>
+                )}
               </button>
               <div className="my-1 border-t border-slate-100" />
               <button
@@ -158,6 +169,11 @@ function ConciliationModal({
   const [taxCents, setTaxCents] = useState(0);
   const [detectedBrand, setDetectedBrand] = useState("");
   const [detectedType, setDetectedType] = useState("");
+  const [configFeePercent, setConfigFeePercent] = useState(0);
+  const [matchedRate, setMatchedRate] = useState<any>(null); // full CardFeeRate matched (id, feePercent, updatedAt, ...)
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [manualOverride, setManualOverride] = useState(false);
+  const [updatingRate, setUpdatingRate] = useState(false);
 
   const isCard = line ? isCardTransaction(line.description) : false;
 
@@ -182,16 +198,20 @@ function ConciliationModal({
     if (!open || !line) return;
     setSearch("");
     setLoading(true);
+    setSelectedEntryId(null);
+    setManualOverride(false);
 
     const isCardTx = isCardTransaction(line.description);
+    const bankAmount = Math.abs(line.amountCents);
 
     // For card transactions, detect brand and fetch fee rates
     if (isCardTx) {
       const { brand, type: cardType } = detectCardBrand(line.description);
       setDetectedBrand(brand);
       setDetectedType(cardType);
-      setLiquidCents(Math.abs(line.amountCents));
+      setLiquidCents(bankAmount);
       setTaxCents(0);
+      setConfigFeePercent(0);
     }
 
     // Fetch entries, card fee rates in parallel
@@ -206,31 +226,96 @@ function ConciliationModal({
         const pending = (pendingRes.data || pendingRes || []).map((e: any) => ({ ...e, _fromStatus: "PENDING" }));
         const map = new Map<string, any>();
         [...paid, ...pending].forEach((e) => { if (!map.has(e.id)) map.set(e.id, e); });
-        setCandidates(Array.from(map.values()));
+        const allCandidates = Array.from(map.values());
+        setCandidates(allCandidates);
         setCardFeeRates(feeRates || []);
 
-        // Auto-calculate tax from fee rates if card
-        if (isCardTx && feeRates && feeRates.length > 0) {
+        // Card breakdown auto-setup
+        if (isCardTx) {
           const { brand, type: cardType } = detectCardBrand(line.description);
-          const rate = (feeRates as any[]).find((r: any) =>
+          const rate = (feeRates as any[] || []).find((r: any) =>
             r.brand?.toUpperCase() === brand.toUpperCase() &&
             r.type?.toUpperCase() === cardType.toUpperCase() &&
             r.isActive
           );
-          if (rate) {
-            const bankAmount = Math.abs(line.amountCents);
-            // Bank deposited = bruto * (1 - fee/100), so bruto = deposited / (1 - fee/100)
-            const feePercent = rate.feePercent || 0;
-            const bruto = Math.round(bankAmount / (1 - feePercent / 100));
-            const tax = bruto - bankAmount;
+          const configRate = rate?.feePercent || 0;
+          setConfigFeePercent(configRate);
+          setMatchedRate(rate || null);
+
+          // Find best candidate: entry whose implied fee rate is closest to configured rate.
+          // Implied rate = (entry.gross - bank.amount) / entry.gross * 100
+          // This reflects what the card operator ACTUALLY withheld, not the theoretical value.
+          let best: any = null;
+          let bestScore = Infinity;
+          for (const e of allCandidates) {
+            const gross = e.grossCents || 0;
+            if (gross <= bankAmount) continue;       // tax must be positive
+            if (gross > bankAmount * 1.2) continue;  // reject entries with >20% implied fee (obviously not this one)
+            const impliedRate = ((gross - bankAmount) / gross) * 100;
+            const score = configRate > 0 ? Math.abs(impliedRate - configRate) : impliedRate;
+            if (score < bestScore) {
+              bestScore = score;
+              best = e;
+            }
+          }
+
+          // Auto-select best candidate if its implied rate is within 1.5% of configured rate.
+          // This is the REAL fix: use the entry's gross as the source of truth, not the theoretical
+          // bank.amount / (1 - configRate/100), which ignores the actual fee the operator charged.
+          if (best && (configRate === 0 || bestScore <= 1.5)) {
+            const realTax = best.grossCents - bankAmount;
             setLiquidCents(bankAmount);
-            setTaxCents(tax);
+            setTaxCents(realTax);
+            setSelectedEntryId(best.id);
+          } else if (configRate > 0) {
+            // Fallback: no good candidate, use theoretical calc from configured rate
+            const bruto = Math.round(bankAmount / (1 - configRate / 100));
+            setLiquidCents(bankAmount);
+            setTaxCents(bruto - bankAmount);
           }
         }
       })
       .catch(() => setCandidates([]))
       .finally(() => setLoading(false));
   }, [open, line]);
+
+  /** Select a candidate entry: recompute breakdown from entry's gross (real fee). */
+  function selectEntry(entry: any) {
+    if (!line) return;
+    const bank = Math.abs(line.amountCents);
+    const gross = entry.grossCents || 0;
+    if (gross <= 0) return;
+    const tax = Math.max(0, gross - bank);
+    setLiquidCents(bank);
+    setTaxCents(tax);
+    setSelectedEntryId(entry.id);
+    setManualOverride(false);
+  }
+
+  /** Update the configured card fee rate to match the real implied rate. */
+  async function updateConfiguredRate() {
+    if (!matchedRate?.id) return;
+    const bruto = liquidCents + taxCents;
+    if (bruto <= 0 || taxCents <= 0) return;
+    const newRate = Number(((taxCents / bruto) * 100).toFixed(4));
+    if (!window.confirm(
+      `Atualizar a taxa "${matchedRate.description || `${matchedRate.brand} ${matchedRate.type}`}" ` +
+      `de ${matchedRate.feePercent.toFixed(2)}% para ${newRate.toFixed(2)}%?`
+    )) return;
+    setUpdatingRate(true);
+    try {
+      const updated = await api.patch<any>(`/finance/card-fee-rates/${matchedRate.id}`, {
+        feePercent: newRate,
+      });
+      setMatchedRate(updated);
+      setConfigFeePercent(updated.feePercent);
+      toast(`Taxa atualizada para ${newRate.toFixed(2)}%`, "success");
+    } catch (err: any) {
+      toast(err?.response?.data?.message || "Erro ao atualizar taxa.", "error");
+    } finally {
+      setUpdatingRate(false);
+    }
+  }
 
   /** Get the display amount for an entry (what would appear in the bank) */
   function entryDisplayAmount(entry: any): number {
@@ -252,6 +337,26 @@ function ConciliationModal({
       filtered = candidates.filter((e) => {
         const haystack = `${e.code || ""} ${e.description || ""} ${e.partner?.name || ""}`.toLowerCase();
         return terms.every((t) => haystack.includes(t));
+      });
+    }
+
+    // Card transactions: sort by proximity of implied fee rate to configured rate.
+    // This reflects the REAL fee the operator charged, not a theoretical value.
+    if (isCard) {
+      return [...filtered].sort((a, b) => {
+        const aGross = a.grossCents || 0;
+        const bGross = b.grossCents || 0;
+        // Compute implied fee rate for each candidate (or 999 if invalid)
+        const aImplied = aGross > lineAbs && aGross <= lineAbs * 1.2
+          ? ((aGross - lineAbs) / aGross) * 100
+          : 999;
+        const bImplied = bGross > lineAbs && bGross <= lineAbs * 1.2
+          ? ((bGross - lineAbs) / bGross) * 100
+          : 999;
+        // Score by distance to configured rate (or raw implied if no config)
+        const aScore = configFeePercent > 0 ? Math.abs(aImplied - configFeePercent) : aImplied;
+        const bScore = configFeePercent > 0 ? Math.abs(bImplied - configFeePercent) : bImplied;
+        return aScore - bScore;
       });
     }
 
@@ -313,62 +418,108 @@ function ConciliationModal({
 
         <div className="flex-1 overflow-y-auto px-5 py-3">
           {/* Card breakdown section */}
-          {isCard && (
-            <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50/50 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-xs font-semibold text-purple-800">Detalhamento Cartao</p>
-                {detectedBrand && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
-                    {detectedBrand} {detectedType}
-                  </span>
-                )}
-                {taxCents > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
-                    Taxa: {((taxCents / (liquidCents + taxCents)) * 100).toFixed(2)}%
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Valor Liquido (depositado)</label>
-                  <input
-                    type="text"
-                    value={(liquidCents / 100).toFixed(2).replace(".", ",")}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value.replace(",", ".")) || 0;
-                      const cents = Math.round(val * 100);
-                      setLiquidCents(cents);
-                      // Recalculate tax if we have a bruto reference
-                      const bruto = liquidCents + taxCents;
-                      if (bruto > 0) setTaxCents(Math.max(0, bruto - cents));
-                    }}
-                    className="w-full rounded-lg border border-purple-300 px-2.5 py-1.5 text-sm font-semibold text-green-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none bg-white"
-                  />
+          {isCard && (() => {
+            const bruto = liquidCents + taxCents;
+            const realRate = bruto > 0 && taxCents > 0 ? (taxCents / bruto) * 100 : 0;
+            const hasDivergence = configFeePercent > 0 && realRate > 0
+              && Math.abs(realRate - configFeePercent) > 0.05;
+            const rateUpdatedAt = matchedRate?.updatedAt ? new Date(matchedRate.updatedAt) : null;
+            return (
+              <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50/50 p-3">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <p className="text-xs font-semibold text-purple-800">Detalhamento Cartao</p>
+                  {detectedBrand && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
+                      {detectedBrand} {detectedType}
+                    </span>
+                  )}
+                  {configFeePercent > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                      hasDivergence ? "bg-slate-100 text-slate-600" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      Config: {configFeePercent.toFixed(2)}%
+                    </span>
+                  )}
+                  {realRate > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                      hasDivergence ? "bg-red-100 text-red-700 border border-red-200" : "bg-green-100 text-green-700 border border-green-200"
+                    }`}>
+                      Real: {realRate.toFixed(2)}%
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Taxa do Cartao</label>
-                  <input
-                    type="text"
-                    value={(taxCents / 100).toFixed(2).replace(".", ",")}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value.replace(",", ".")) || 0;
-                      setTaxCents(Math.round(val * 100));
-                    }}
-                    className="w-full rounded-lg border border-purple-300 px-2.5 py-1.5 text-sm font-semibold text-amber-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Valor Bruto Original</label>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-800">
-                    {formatCurrency(liquidCents + taxCents)}
+
+                {/* Divergence alert with last update + update button */}
+                {hasDivergence && matchedRate?.id && (
+                  <div className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 flex items-start gap-2">
+                    <span className="text-amber-600 text-sm leading-none mt-0.5">&#9888;</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-amber-800">
+                        Taxa real diverge da configurada em {Math.abs(realRate - configFeePercent).toFixed(2)} pontos.
+                      </p>
+                      {rateUpdatedAt && (
+                        <p className="text-[10px] text-amber-700 mt-0.5">
+                          Taxa cadastrada atualizada em {formatDateTime(rateUpdatedAt.toISOString())}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={updateConfiguredRate}
+                      disabled={updatingRate}
+                      className="text-[10px] font-semibold px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+                      title="Atualizar a taxa cadastrada para o valor real detectado"
+                    >
+                      {updatingRate ? "Salvando..." : `Atualizar para ${realRate.toFixed(2)}%`}
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-500 mb-1">Valor Liquido (depositado)</label>
+                    <input
+                      type="text"
+                      value={(liquidCents / 100).toFixed(2).replace(".", ",")}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value.replace(",", ".")) || 0;
+                        const cents = Math.round(val * 100);
+                        setLiquidCents(cents);
+                        setManualOverride(true);
+                        // Recalculate tax if we have a bruto reference
+                        const currentBruto = liquidCents + taxCents;
+                        if (currentBruto > 0) setTaxCents(Math.max(0, currentBruto - cents));
+                      }}
+                      className="w-full rounded-lg border border-purple-300 px-2.5 py-1.5 text-sm font-semibold text-green-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-500 mb-1">Taxa do Cartao</label>
+                    <input
+                      type="text"
+                      value={(taxCents / 100).toFixed(2).replace(".", ",")}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value.replace(",", ".")) || 0;
+                        setTaxCents(Math.round(val * 100));
+                        setManualOverride(true);
+                      }}
+                      className="w-full rounded-lg border border-purple-300 px-2.5 py-1.5 text-sm font-semibold text-amber-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-500 mb-1">Valor Bruto Original</label>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-800">
+                      {formatCurrency(bruto)}
+                    </div>
                   </div>
                 </div>
+                <p className="text-[10px] text-purple-600 mt-2">
+                  {selectedEntryId
+                    ? "Taxa calculada a partir do lancamento selecionado abaixo."
+                    : `O valor liquido deve corresponder ao valor do extrato (${formatCurrency(lineAbs)}). Selecione o lancamento abaixo para calcular a taxa real.`}
+                </p>
               </div>
-              <p className="text-[10px] text-purple-600 mt-2">
-                O valor liquido deve corresponder ao valor do extrato ({formatCurrency(lineAbs)}). Ajuste a taxa se necessario.
-              </p>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Search bar */}
           <div className="mb-3">
@@ -398,12 +549,18 @@ function ConciliationModal({
               {sorted.map((entry: any) => {
                 const amt = entryDisplayAmount(entry);
                 const isExactMatch = amountsMatch(amt, isCard ? (liquidCents + taxCents) : lineAbs);
+                const isSelected = isCard && selectedEntryId === entry.id;
                 const isPending = entry.status === "PENDING" || entry._fromStatus === "PENDING";
                 return (
                   <div
                     key={entry.id}
+                    onClick={() => isCard && selectEntry(entry)}
                     className={`flex items-center justify-between rounded-lg border px-3 py-2 hover:bg-slate-50 transition-colors ${
-                      isExactMatch
+                      isCard ? "cursor-pointer" : ""
+                    } ${
+                      isSelected
+                        ? "border-blue-400 bg-blue-50/50 ring-1 ring-blue-200"
+                        : isExactMatch
                         ? "border-green-400 bg-green-50/50 ring-1 ring-green-200"
                         : "border-slate-200"
                     }`}
@@ -411,9 +568,13 @@ function ConciliationModal({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-slate-700 truncate">{entry.code} — {entry.description}</p>
-                        {isExactMatch && (
-                          <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-green-100 text-green-700 border border-green-300 whitespace-nowrap">
-                            Sugerido
+                        {(isSelected || (!isCard && isExactMatch)) && (
+                          <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${
+                            isSelected
+                              ? "bg-blue-100 text-blue-700 border border-blue-300"
+                              : "bg-green-100 text-green-700 border border-green-300"
+                          }`}>
+                            {isSelected ? "Selecionado" : "Sugerido"}
                           </span>
                         )}
                         {isPending && (
@@ -436,10 +597,15 @@ function ConciliationModal({
                         )}
                       </div>
                       <button
-                        onClick={() => handleMatch(entry.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Card: always recompute breakdown from this entry's gross before matching
+                          if (isCard && !manualOverride) selectEntry(entry);
+                          handleMatch(entry.id);
+                        }}
                         disabled={!!matching}
                         className={`px-3 py-1 text-xs font-medium text-white rounded-lg disabled:opacity-50 ${
-                          isExactMatch
+                          isSelected || isExactMatch
                             ? "bg-green-600 hover:bg-green-700"
                             : "bg-blue-600 hover:bg-blue-700"
                         }`}
@@ -456,6 +622,194 @@ function ConciliationModal({
         <div className="px-5 py-3 border-t border-slate-200 flex justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">
             Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Refund Pair Modal ────────────────────────────────── */
+
+function RefundPairModal({
+  open,
+  line,
+  allLines,
+  onClose,
+  onMatched,
+}: {
+  open: boolean;
+  line: BankStatementLine | null;
+  allLines: BankStatementLine[];
+  onClose: () => void;
+  onMatched: () => void;
+}) {
+  const { toast } = useToast();
+  const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [matching, setMatching] = useState(false);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (open && line) {
+      setSelectedPairId(line.suggestedPairLineId || null);
+      setNotes("");
+      setSearch("");
+    }
+  }, [open, line]);
+
+  if (!open || !line) return null;
+
+  const lineAbs = Math.abs(line.amountCents);
+  const wantPositive = line.amountCents < 0; // if this is a debit, we want a credit pair
+
+  // Filter candidates: opposite sign, same absolute value (tolerance 1 cent), UNMATCHED
+  const candidates = allLines
+    .filter((l) => l.id !== line.id)
+    .filter((l) => l.status === "UNMATCHED")
+    .filter((l) => wantPositive ? l.amountCents > 0 : l.amountCents < 0)
+    .filter((l) => Math.abs(Math.abs(l.amountCents) - lineAbs) <= 1)
+    .filter((l) => {
+      if (!search.trim()) return true;
+      return l.description.toLowerCase().includes(search.toLowerCase());
+    })
+    .sort((a, b) => {
+      // Suggested pair first, then by date proximity
+      if (a.id === line.suggestedPairLineId) return -1;
+      if (b.id === line.suggestedPairLineId) return 1;
+      const aDays = Math.abs(new Date(a.transactionDate).getTime() - new Date(line.transactionDate).getTime());
+      const bDays = Math.abs(new Date(b.transactionDate).getTime() - new Date(line.transactionDate).getTime());
+      return aDays - bDays;
+    });
+
+  async function handleMatch() {
+    if (!line || !selectedPairId) return;
+    setMatching(true);
+    try {
+      await api.post(`/finance/reconciliation/lines/${line.id}/match-as-refund`, {
+        pairedLineId: selectedPairId,
+        notes: notes.trim() || undefined,
+      });
+      toast("Par de estorno conciliado! Lancamentos tecnicos criados.", "success");
+      onMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || "Erro ao conciliar par.", "error");
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-slate-800">Conciliar como devolucao (estorno)</h3>
+            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+              PIX indevido
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {line.description} — <span className={line.amountCents >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
+              {formatCurrency(line.amountCents)}
+            </span>
+            {" "}em {formatDate(line.transactionDate)}
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          <div className="mb-3 rounded-lg border border-purple-200 bg-purple-50/50 p-3">
+            <p className="text-xs text-purple-800">
+              <strong>Como funciona:</strong> ao selecionar a linha par, o sistema cria automaticamente
+              dois lancamentos tecnicos (1 Recebimento + 1 Devolucao) marcados como estorno,
+              vinculados entre si. Efeito liquido no caixa: zero. Rastro contabil preservado.
+            </p>
+          </div>
+
+          <div className="mb-3">
+            <input
+              type="text"
+              placeholder="Buscar por descricao..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none"
+            />
+          </div>
+
+          <p className="text-xs font-medium text-slate-500 mb-2">
+            Linhas candidatas ({wantPositive ? "entradas" : "saidas"}) com mesmo valor:
+          </p>
+
+          {candidates.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center">
+              <p className="text-xs text-slate-400">Nenhuma linha compativel encontrada.</p>
+              <p className="text-[10px] text-slate-400 mt-1">
+                Precisa ser uma linha pendente, com sinal oposto e mesmo valor ({formatCurrency(lineAbs)}).
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {candidates.map((c) => {
+                const isSelected = selectedPairId === c.id;
+                const isSuggested = c.id === line.suggestedPairLineId;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => setSelectedPairId(c.id)}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
+                      isSelected
+                        ? "border-purple-400 bg-purple-50/70 ring-1 ring-purple-200"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-slate-700 truncate">{c.description}</p>
+                        {isSuggested && (
+                          <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-300 whitespace-nowrap">
+                            Par sugerido
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        {formatDate(c.transactionDate)}
+                      </p>
+                    </div>
+                    <div className="ml-3">
+                      <span className={`text-sm font-semibold ${c.amountCents >= 0 ? "text-green-700" : "text-red-700"}`}>
+                        {formatCurrency(c.amountCents)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedPairId && (
+            <div className="mt-3">
+              <label className="block text-[10px] font-medium text-slate-500 mb-1">Observacao (opcional)</label>
+              <input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Ex: Cliente pagou errado, devolvido conforme solicitado"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">
+            Cancelar
+          </button>
+          <button
+            onClick={handleMatch}
+            disabled={!selectedPairId || matching}
+            className="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+          >
+            {matching ? "Conciliando..." : "Conciliar par de estorno"}
           </button>
         </div>
       </div>
@@ -705,19 +1059,31 @@ function ImportsHistorySection() {
 
 function LinesDetail({ importData }: { importData: BankStatementImport }) {
   const [lines, setLines] = useState<BankStatementLine[]>([]);
+  const [allLinesForPair, setAllLinesForPair] = useState<BankStatementLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [matchLine, setMatchLine] = useState<BankStatementLine | null>(null);
+  const [refundLine, setRefundLine] = useState<BankStatementLine | null>(null);
   const { toast } = useToast();
 
   const RECON_COLUMNS: ColumnDefinition<BankStatementLine>[] = [
     { id: "actions", label: "Ações", render: () => null as any },
     { id: "date", label: "Data", sortable: true, render: (l) => <span className="text-slate-700 whitespace-nowrap">{formatDate(l.transactionDate)}</span> },
     { id: "description", label: "Descrição", render: (l) => (
-      <span className="text-slate-700 truncate block max-w-[300px]" title={l.description}>
+      <span className="text-[11px] text-slate-700 break-words block" title={l.description}>
         {l.description}
         {l.fitId && <span className="ml-1 text-[10px] text-slate-400">[{l.fitId}]</span>}
+        {l.suggestedPairLineId && l.status === "UNMATCHED" && (
+          <span className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-purple-100 text-purple-700 border border-purple-300 whitespace-nowrap align-middle">
+            Possivel estorno
+          </span>
+        )}
+        {l.isRefund && l.status === "MATCHED" && (
+          <span className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-purple-100 text-purple-700 border border-purple-300 whitespace-nowrap align-middle">
+            Estorno
+          </span>
+        )}
       </span>
     )},
     { id: "value", label: "Valor", sortable: true, align: "right", render: (l) => (
@@ -735,10 +1101,18 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
     try {
       setLoading(true);
       const qs = statusFilter !== "all" ? `?status=${statusFilter}` : "";
-      const result = await api.get<BankStatementLine[]>(
-        `/finance/reconciliation/imports/${importData.id}/lines${qs}`,
-      );
+      const [result, allResult] = await Promise.all([
+        api.get<BankStatementLine[]>(
+          `/finance/reconciliation/imports/${importData.id}/lines${qs}`,
+        ),
+        statusFilter !== "all"
+          ? api.get<BankStatementLine[]>(
+              `/finance/reconciliation/imports/${importData.id}/lines`,
+            )
+          : Promise.resolve(null as any),
+      ]);
       setLines(result);
+      setAllLinesForPair(allResult || result);
     } catch {
       /* ignore */
     } finally {
@@ -860,6 +1234,7 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
                           <LineActionsDropdown
                             line={line}
                             onConciliar={() => setMatchLine(line)}
+                            onConciliarRefund={() => setRefundLine(line)}
                             onIgnore={() => handleIgnore(line.id)}
                             onUnignore={() => handleUnignore(line.id)}
                             onUnmatch={() => setUnmatchLine(line)}
@@ -942,6 +1317,15 @@ function LinesDetail({ importData }: { importData: BankStatementImport }) {
         line={matchLine}
         onClose={() => setMatchLine(null)}
         onMatched={() => { setMatchLine(null); loadLines(); }}
+      />
+
+      {/* Refund Pair Modal */}
+      <RefundPairModal
+        open={!!refundLine}
+        line={refundLine}
+        allLines={allLinesForPair}
+        onClose={() => setRefundLine(null)}
+        onMatched={() => { setRefundLine(null); loadLines(); }}
       />
     </div>
   );

@@ -164,6 +164,11 @@ export interface BankStatementLine {
   matchedLiquidCents?: number | null;
   matchedTaxCents?: number | null;
   notes?: string | null;
+  // Refund pair (v1.08.86): PIX indevido + devolucao
+  refundPairLineId?: string | null;
+  isRefund?: boolean | null;
+  // Virtual field from backend: suggested pair for auto-detection
+  suggestedPairLineId?: string | null;
   createdAt: string;
 }
 

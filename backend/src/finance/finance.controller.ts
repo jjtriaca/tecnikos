@@ -30,7 +30,7 @@ import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-me
 import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
 import { CreateCashAccountDto, UpdateCashAccountDto } from './dto/cash-account.dto';
 import { CreateTransferDto } from './dto/transfer.dto';
-import { MatchLineDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto } from './dto/reconciliation.dto';
 
 @ApiTags('Finance')
 @Controller('finance')
@@ -302,6 +302,16 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reconciliationService.matchLine(lineId, user.companyId, dto, user.email);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/match-as-refund')
+  matchAsRefund(
+    @Param('lineId') lineId: string,
+    @Body() dto: MatchAsRefundDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.matchAsRefund(lineId, user.companyId, dto, user.email);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
