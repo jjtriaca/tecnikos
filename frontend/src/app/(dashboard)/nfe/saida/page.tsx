@@ -202,7 +202,12 @@ function ActionsDropdown({
   const toggle = () => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.right });
+      const menuHeight = 220;
+      const fitsBelow = rect.bottom + menuHeight < window.innerHeight;
+      setPos({
+        top: fitsBelow ? rect.bottom + 4 : rect.top - menuHeight - 4,
+        left: rect.right,
+      });
     }
     setOpen((v) => !v);
   };

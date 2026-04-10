@@ -17,7 +17,13 @@ function EmojiPicker({ value, onChange }: { value: string; onChange: (v: string)
   const handleOpen = () => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: Math.max(4, rect.right - 200) });
+      // Emoji picker grid is roughly 260px tall
+      const menuHeight = 260;
+      const fitsBelow = rect.bottom + menuHeight < window.innerHeight;
+      setPos({
+        top: fitsBelow ? rect.bottom + 4 : rect.top - menuHeight - 4,
+        left: Math.max(4, rect.right - 200),
+      });
     }
     setOpen(!open);
   };

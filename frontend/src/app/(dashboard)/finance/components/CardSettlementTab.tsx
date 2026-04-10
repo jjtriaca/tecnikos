@@ -141,7 +141,12 @@ function ActionsDropdown({
     e.stopPropagation();
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left });
+      const menuHeight = 180;
+      const fitsBelow = rect.bottom + menuHeight < window.innerHeight;
+      setPos({
+        top: fitsBelow ? rect.bottom + 4 : rect.top - menuHeight - 4,
+        left: rect.left,
+      });
     }
     setOpen((v) => !v);
   }

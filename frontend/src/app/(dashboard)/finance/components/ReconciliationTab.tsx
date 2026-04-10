@@ -50,9 +50,20 @@ function LineActionsDropdown({
   useEffect(() => {
     if (open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 168) });
+      // Estimate dropdown height based on which items are rendered for this line status.
+      // Each menu button is ~36px (py-2 + text-sm), separator ~9px, wrapper py-1 = 8px total.
+      const itemCount = line.status === "UNMATCHED" ? 3 : 1;
+      const hasSeparator = line.status === "UNMATCHED";
+      const estHeight = 8 + itemCount * 36 + (hasSeparator ? 9 : 0);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      // Open upward if not enough room below (leave 12px breathing room)
+      const openUp = spaceBelow < estHeight + 12;
+      setPos({
+        top: openUp ? rect.top - estHeight - 4 : rect.bottom + 4,
+        left: Math.max(8, rect.right - 168),
+      });
     }
-  }, [open]);
+  }, [open, line.status]);
 
   useEffect(() => {
     if (!open) return;
