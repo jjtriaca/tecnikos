@@ -264,9 +264,9 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
         return { client: false, address: false, services: false, techMode: true, title: false };
       case "ATRIBUIDA":
       case "AJUSTE":
-        return { client: true, address: true, services: status === "AJUSTE" ? false : true, techMode: true, title: false };
+        return { client: true, address: true, services: false, techMode: true, title: false };
       case "EM_EXECUCAO":
-        return { client: true, address: true, services: true, techMode: true, title: true };
+        return { client: true, address: true, services: false, techMode: true, title: true };
       default: // ABERTA
         return { client: false, address: false, services: false, techMode: false, title: false };
     }
