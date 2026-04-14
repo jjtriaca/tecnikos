@@ -1,7 +1,32 @@
 # TAREFA ATUAL
 
-## Versao: v1.08.95
+## Versao: v1.08.96
 ## Ultima sessao: 175 (14/04/2026)
+
+## Fase 5 — Conciliacao consistente (v1.08.96) ✅
+### Auto-pagar PENDING ao conciliar
+- Schema: FinancialEntry.autoMarkedPaid Boolean default false — marca entries PAID via match para reverter corretamente no unmatch
+- Migration 20260414190000 (coluna nullable com default, 0 risco multi-tenant)
+- matchLine: se entry.status = PENDING/CONFIRMED, muda para PAID, paidAt = line.transactionDate, cashAccountId = banco da linha, marca autoMarkedPaid=true; atualiza saldo do banco diretamente (sem auto-transfer de transito); entry PAID mantem fluxo tradicional (auto-transfer TRANSITO->banco). Bloqueia entries CANCELLED
+- matchAsCardInvoice: mesma logica per-entry do grupo; entries PENDING no grupo viram PAID individualmente (autoMarkedPaid=true), entries PAID so ganham invoiceMatchLineId
+- unmatchLine 1-para-1: detecta autoMarkedPaid, reverte entry para PENDING, limpa paidAt/cashAccountId/autoMarkedPaid, decrementa saldo do banco
+- unmatchLine cardInvoice: particiona entries do grupo em autoPaidIds vs outherIds, reverte os autoPaidIds para PENDING e apenas remove vinculo dos ja-PAID-antes; retorna revertedPending count
+- Findcandidates agora aceita status IN [PAID, PENDING, CONFIRMED], com OR em paidAt OR dueDate para cobrir entries ainda nao pagos
+
+### Plano de contas obrigatorio na conciliacao
+- companyUsesChartOfAccounts(companyId): checa se ha FinancialAccount ativo com allowPosting
+- matchLine: se empresa usa, valida entry.financialAccountId (ou dto.financialAccountId); bloqueia BadRequest se ausente; entries isRefundEntry sao isentos
+- matchAsCardInvoice: aceita entryAccountAssignments[] no DTO; valida planos informados (ativo, allowPosting); bloqueia se entry sem plano e sem atribuicao; aplica atribuicoes no update de cada entry
+- DTO: MatchLineDto ganha financialAccountId; MatchCardInvoiceDto ganha entryAccountAssignments: EntryAccountAssignmentDto[]
+
+### Frontend
+- ConciliationModal: carrega /finance/financial-accounts em paralelo; filtra isActive+allowPosting; state accountAssignments (Record<entryId,accountId>); inline select em cada candidate sem plano (borda ambar destacada); badge verde "Plano: X" quando entry ja tem; needsChartAccount desabilita botao "Conciliar" com tooltip; handleMatch envia financialAccountId no body; toast adaptado "Conciliado e marcado como PAGO!" se entry era PENDING
+- CardInvoiceMatchModal: state accountAssignments + bulkAccountId; barra "⚠ N sem plano" com select + botao "Aplicar a todos" que popula os assignments; select inline abaixo da row de cada entry selecionado sem plano; badge "sera marcado como pago" para entries PENDING selecionados; entriesMissingAccount.length bloqueia botao final com tooltip; handleMatch envia entryAccountAssignments[]; toast adaptado com contagem de PENDING
+
+### Multi-tenant
+- Empresa sem plano de contas configurado: campo some, nenhuma validacao bloqueia (progressive disclosure)
+- Empresa com plano: obrigatorio na conciliacao, auto-pagamento respeita isolamento por companyId
+- Entries isRefundEntry (tecnicos) dispensam plano
 
 ## EM ANDAMENTO (sessao 175) — Cartao de credito como conta virtual
 

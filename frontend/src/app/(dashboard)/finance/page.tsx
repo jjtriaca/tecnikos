@@ -827,6 +827,17 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
             </div>
           )});
         }
+        for (const a of active.filter((a: any) => a.type === "CARTAO_CREDITO")) {
+          const debt = Math.abs(a.currentBalanceCents);
+          const hasDebt = a.currentBalanceCents < 0;
+          allCards.push({ id: a.id, render: () => (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+              <span className="text-[11px] font-medium text-rose-700">&#128179; {a.name}</span>
+              <p className={`mt-1 text-lg font-bold ${hasDebt ? "text-rose-900" : "text-slate-500"}`}>{formatCurrency(debt)}</p>
+              <p className="text-[10px] text-slate-400">{hasDebt ? "Em aberto" : "Fatura quitada"}</p>
+            </div>
+          )});
+        }
 
         // Apply saved card order
         const orderedCards = cardOrder.length > 0
