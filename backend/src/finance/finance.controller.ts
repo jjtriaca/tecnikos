@@ -30,7 +30,7 @@ import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-me
 import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
 import { CreateCashAccountDto, UpdateCashAccountDto } from './dto/cash-account.dto';
 import { CreateTransferDto } from './dto/transfer.dto';
-import { MatchLineDto, MatchAsRefundDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto } from './dto/reconciliation.dto';
 
 @ApiTags('Finance')
 @Controller('finance')
@@ -328,6 +328,34 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reconciliationService.matchAsRefund(lineId, user.companyId, dto, user.email);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('reconciliation/card-invoice-candidates')
+  cardInvoiceCandidates(
+    @Query('paymentInstrumentIds') paymentInstrumentIds: string,
+    @Query('fromDate') fromDate: string | undefined,
+    @Query('toDate') toDate: string | undefined,
+    @Query('includeAlreadyMatched') includeAlreadyMatched: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const ids = (paymentInstrumentIds || '').split(',').map((s) => s.trim()).filter(Boolean);
+    return this.reconciliationService.findCardInvoiceCandidates(user.companyId, {
+      paymentInstrumentIds: ids,
+      fromDate,
+      toDate,
+      includeAlreadyMatched: includeAlreadyMatched === 'true',
+    });
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/match-card-invoice')
+  matchAsCardInvoice(
+    @Param('lineId') lineId: string,
+    @Body() dto: MatchCardInvoiceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.matchAsCardInvoice(lineId, user.companyId, dto, user.email);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

@@ -862,6 +862,9 @@ model FinancialEntry {
   refundPairEntryId   String?           // Par do lancamento de estorno (RECEIVABLE <-> PAYABLE)
   isRefundEntry       Boolean @default(false) // Lancamento tecnico de estorno (nao afeta MRR/metricas)
 
+  // Fatura de cartao conciliada N-para-1 (v1.08.95)
+  invoiceMatchLineId  String?           // Se preenchido, este entry integra a fatura conciliada com a BankStatementLine X
+
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   deletedAt        DateTime?
@@ -886,6 +889,9 @@ model FinancialEntry {
   refundPairEntry    FinancialEntry?        @relation("RefundPairEntry", fields: [refundPairEntryId], references: [id])
   refundPairReverse  FinancialEntry[]       @relation("RefundPairEntry")
 
+  // Fatura de cartao (N entries conciliados em 1 linha do extrato)
+  invoiceMatchLine   BankStatementLine?     @relation("CardInvoiceMatch", fields: [invoiceMatchLineId], references: [id])
+
   // Parcelas
   installments       FinancialInstallment[]
   cardSettlements    CardSettlement[]
@@ -902,6 +908,7 @@ model FinancialEntry {
   @@index([nfseEmissionId])
   @@index([refundPairEntryId])
   @@index([financialAccountId])
+  @@index([invoiceMatchLineId])
 }
 
 // ========== Parcelas Financeiras (v2.0) ==========
@@ -1544,6 +1551,8 @@ model BankStatementLine {
   // Estorno/Devolucao PIX indevido (v1.08.86)
   refundPairLineId      String?           // Par da linha de estorno (entrada <-> saida)
   isRefund              Boolean @default(false) // Marcada como estorno/devolucao
+  // Fatura de cartao conciliada N-para-1 (v1.08.95)
+  isCardInvoice         Boolean @default(false) // Linha representa fatura de cartao com N entries vinculados
   createdAt             DateTime            @default(now())
 
   import      BankStatementImport @relation(fields: [importId], references: [id])
@@ -1553,6 +1562,9 @@ model BankStatementLine {
   // Self-relation para par de estorno
   refundPairLine        BankStatementLine?   @relation("RefundPair", fields: [refundPairLineId], references: [id])
   refundPairReverse     BankStatementLine[]  @relation("RefundPair")
+
+  // Entries agrupados em fatura de cartao
+  cardInvoiceEntries    FinancialEntry[]     @relation("CardInvoiceMatch")
 
   @@index([importId])
   @@index([statementId])

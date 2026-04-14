@@ -1,7 +1,39 @@
 # TAREFA ATUAL
 
-## Versao: v1.08.83
-## Ultima sessao: 173 (07/04/2026)
+## Versao: v1.08.94
+## Ultima sessao: 175 (14/04/2026)
+
+## EM ANDAMENTO (sessao 175) — Cartao de credito como conta virtual
+
+### Decisao arquitetural
+Cartao de credito vira CashAccount virtual (tipo novo CARTAO_CREDITO). Pagar compra com cartao debita titulo e credita na conta-cartao (acumula divida). Pagar fatura = transferencia banco->cartao (zera divida). Mesma abordagem de Omie/ContaAzul/QuickBooks.
+
+### Fase 1 — cardLast4 no dropdown (v1.08.93) ✅
+- Dropdown "Meio de Pagamento" exibe "Master Ueslei •••• 1234 (Credito)"
+- Filtro de tipo no extrato consolidado mostra os 4 digitos
+- Form de cadastro de PaymentInstrument ja tinha campo cardLast4; exibicao no dropdown foi ajustada
+
+### Fase 2 — Conta virtual CARTAO_CREDITO (v1.08.94) ✅
+- Enum CashAccountType ganhou CARTAO_CREDITO (migration 20260414160000)
+- PaymentInstrumentService.create: se PaymentMethod.code e "CARTAO_CREDITO"/"CREDITO"/etc., cria CashAccount virtual automaticamente e vincula via cashAccountId
+- PaymentInstrumentService.update: sincroniza nome/ativo da conta virtual; se trocar tipo (credito<->outro), cria/desativa conta
+- PaymentInstrumentService.remove: soft-deleta a conta virtual junto
+- ensureVirtualCardAccounts(companyId): backfill idempotente rodado em findAll/findActive — migra cartoes existentes (Master Ueslei, Visa Juliano) para ter sua propria conta virtual
+- Frontend PaymentInstrumentsTab: form esconde "Vincular Conta" para cartao credito (substitui por alerta informativo); dropdown de conta nao mostra CARTAO_CREDITO (usuario escolhe conta manualmente quando nao-credito)
+- Frontend CashAccountsTab: badge rosa 💳 "Cartao"; saldo exibido como "Em aberto"/"Fatura quitada" (negativo=divida, zero=quitado); botoes Editar/Excluir ocultos para CARTAO_CREDITO; legend "Gerenciado em Meios de Pagamento"
+- Frontend finance/page.tsx: labels de tipo atualizados para incluir "Cartao"
+
+### Fase 3 — Dashboard de cartoes + pagar fatura (PENDENTE)
+- Card destacado "Cartoes em aberto" com lista: nome, •••• 1234, valor devedor, dias ate fechamento
+- Botao "Pagar fatura" 1-click: modal pre-preenchido com valor e conta de origem, cria transferencia banco->cartao
+
+### Fase 4 — Conciliacao N-para-1 no extrato (PENDENTE)
+- Linha do extrato "FATURA MASTERCARD R$ 3.500" → usuario escolhe o(s) cartao(oes) → sistema lista compras em aberto no periodo → marca checkboxes → soma precisa bater com valor da linha → concilia tudo
+
+### Efeitos colaterais ao testar Fase 2
+- Ao abrir a tela "Meios de Pagamento" pela primeira vez apos v1.08.94: backfill cria contas virtuais para cartoes existentes (Master Ueslei, Visa Juliano). Aparecem na tela "Contas Caixa/Banco" com badge 💳 Cartao e saldo R$ 0,00 (Fatura quitada) porque ainda nao foi feita nenhuma compra movimentando a nova conta
+- Pagamentos anteriores com cartao que estao hoje em "VALORES EM TRANSITO" NAO foram migrados — continuam onde estao. Nova arquitetura so afeta pagamentos dali em diante
+- Se precisar migrar historico, fazer SQL manual decidindo caso a caso (arriscado mexer em dados financeiros)
 
 ## CONCLUIDO (sessao 167)
 

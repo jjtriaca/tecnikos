@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsArray, ArrayNotEmpty } from 'class-validator';
 
 export class MatchLineDto {
   @IsOptional()
@@ -29,6 +29,17 @@ export class MatchAsRefundDto {
   @IsOptional()
   @IsString()
   counterpartyName?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class MatchCardInvoiceDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  entryIds!: string[];
 
   @IsOptional()
   @IsString()

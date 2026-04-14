@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
-import { MatchLineDto, MatchAsRefundDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto } from './dto/reconciliation.dto';
 import { CodeGeneratorService } from '../common/code-generator.service';
 
 @Injectable()
@@ -669,6 +669,157 @@ export class ReconciliationService {
   }
 
   /**
+   * Lista compras pagas com os cartoes informados no periodo, candidatas a compor
+   * uma fatura conciliada com a linha do extrato.
+   *
+   * Filtra por `paymentInstrumentId` (nao por cashAccount), o que permite incluir
+   * tambem pagamentos historicos anteriores a migracao pra conta-cartao virtual.
+   */
+  async findCardInvoiceCandidates(
+    companyId: string,
+    params: {
+      paymentInstrumentIds: string[];
+      fromDate?: string;
+      toDate?: string;
+      includeAlreadyMatched?: boolean;
+    },
+  ) {
+    const { paymentInstrumentIds, fromDate, toDate, includeAlreadyMatched } = params;
+    if (!paymentInstrumentIds || paymentInstrumentIds.length === 0) {
+      return { entries: [], totalCents: 0 };
+    }
+
+    const where: Record<string, unknown> = {
+      companyId,
+      deletedAt: null,
+      status: 'PAID',
+      type: 'PAYABLE',
+      paymentInstrumentId: { in: paymentInstrumentIds },
+    };
+    if (!includeAlreadyMatched) {
+      where.invoiceMatchLineId = null;
+    }
+    if (fromDate || toDate) {
+      const range: Record<string, Date> = {};
+      if (fromDate) range.gte = new Date(`${fromDate}T00:00:00.000-03:00`);
+      if (toDate) range.lte = new Date(`${toDate}T23:59:59.999-03:00`);
+      where.paidAt = range;
+    }
+
+    const entries = await this.prisma.financialEntry.findMany({
+      where,
+      orderBy: [{ paidAt: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        netCents: true,
+        grossCents: true,
+        paidAt: true,
+        dueDate: true,
+        paymentInstrumentId: true,
+        invoiceMatchLineId: true,
+        cashAccountId: true,
+        partner: { select: { id: true, name: true } },
+        paymentInstrumentRef: { select: { id: true, name: true, cardLast4: true } },
+      },
+    });
+
+    const totalCents = entries.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+    return { entries, totalCents };
+  }
+
+  /**
+   * Concilia uma linha do extrato com N entries (fatura de cartao).
+   * A soma dos entries tem que bater com o valor absoluto da linha.
+   */
+  async matchAsCardInvoice(
+    lineId: string,
+    companyId: string,
+    dto: MatchCardInvoiceDto,
+    matchedByName: string,
+  ) {
+    const line = await this.prisma.bankStatementLine.findUnique({
+      where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
+    });
+    if (!line || line.import.companyId !== companyId) {
+      throw new NotFoundException('Linha não encontrada.');
+    }
+    if (line.status === 'MATCHED') {
+      throw new BadRequestException('Linha já está conciliada.');
+    }
+    if (line.amountCents >= 0) {
+      throw new BadRequestException('Apenas linhas de débito (valor negativo) podem ser conciliadas como fatura de cartão.');
+    }
+    if (!dto.entryIds || dto.entryIds.length === 0) {
+      throw new BadRequestException('Selecione ao menos um lançamento.');
+    }
+
+    const entries = await this.prisma.financialEntry.findMany({
+      where: {
+        id: { in: dto.entryIds },
+        companyId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        status: true,
+        type: true,
+        netCents: true,
+        grossCents: true,
+        paymentInstrumentId: true,
+        invoiceMatchLineId: true,
+      },
+    });
+
+    if (entries.length !== dto.entryIds.length) {
+      throw new BadRequestException('Um ou mais lançamentos não foram encontrados.');
+    }
+
+    for (const e of entries) {
+      if (e.status !== 'PAID') {
+        throw new BadRequestException(`Lançamento ${e.id} não está como PAGO — não pode compor fatura.`);
+      }
+      if (e.invoiceMatchLineId && e.invoiceMatchLineId !== lineId) {
+        throw new BadRequestException(`Lançamento ${e.id} já está vinculado a outra fatura conciliada.`);
+      }
+      if (!e.paymentInstrumentId) {
+        throw new BadRequestException(`Lançamento ${e.id} não tem instrumento de pagamento — não pode compor fatura.`);
+      }
+    }
+
+    const entriesTotal = entries.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+    const lineAbs = Math.abs(line.amountCents);
+    const diff = Math.abs(entriesTotal - lineAbs);
+    // Tolerancia de 1 centavo (arredondamento)
+    if (diff > 1) {
+      throw new BadRequestException(
+        `Soma dos lançamentos (R$ ${(entriesTotal / 100).toFixed(2)}) não bate com valor da fatura (R$ ${(lineAbs / 100).toFixed(2)}). Diferença: R$ ${(diff / 100).toFixed(2)}.`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.financialEntry.updateMany({
+        where: { id: { in: dto.entryIds }, companyId },
+        data: { invoiceMatchLineId: lineId },
+      });
+      const updated = await tx.bankStatementLine.update({
+        where: { id: lineId },
+        data: {
+          status: 'MATCHED',
+          isCardInvoice: true,
+          matchedAt: new Date(),
+          matchedByName,
+          notes: dto.notes ?? null,
+        },
+      });
+      await this.recalcCounts(tx, line.importId, line.statementId);
+      return { ...updated, entriesCount: dto.entryIds.length, entriesTotalCents: entriesTotal };
+    });
+  }
+
+  /**
    * Unmatch (revert) a matched line. For refund pairs, unmatches BOTH lines and
    * deletes the two technical entries that were created.
    */
@@ -682,6 +833,28 @@ export class ReconciliationService {
     }
     if (line.status !== 'MATCHED') {
       throw new BadRequestException('Linha não está conciliada.');
+    }
+
+    // Fatura de cartao: desfaz o grupo (zera invoiceMatchLineId dos entries)
+    if (line.isCardInvoice) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.financialEntry.updateMany({
+          where: { invoiceMatchLineId: lineId, companyId },
+          data: { invoiceMatchLineId: null },
+        });
+        await tx.bankStatementLine.update({
+          where: { id: lineId },
+          data: {
+            status: 'UNMATCHED',
+            isCardInvoice: false,
+            matchedAt: null,
+            matchedByName: null,
+            notes: null,
+          },
+        });
+        await this.recalcCounts(tx, line.importId, line.statementId);
+      });
+      return { id: line.id, status: 'UNMATCHED' as const, unmatchedCardInvoice: true };
     }
 
     // Refund pair: unmatch both lines + delete both technical entries

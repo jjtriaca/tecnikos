@@ -31,6 +31,7 @@ function LineActionsDropdown({
   line,
   onConciliar,
   onConciliarRefund,
+  onConciliarCardInvoice,
   onIgnore,
   onUnignore,
   onUnmatch,
@@ -38,6 +39,7 @@ function LineActionsDropdown({
   line: BankStatementLine;
   onConciliar: () => void;
   onConciliarRefund: () => void;
+  onConciliarCardInvoice: () => void;
   onIgnore: () => void;
   onUnignore: () => void;
   onUnmatch: () => void;
@@ -47,23 +49,23 @@ function LineActionsDropdown({
   const btnRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
+  // Fatura de cartao so aparece para linhas de debito
+  const isDebit = line.amountCents < 0;
+
   useEffect(() => {
     if (open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      // Estimate dropdown height based on which items are rendered for this line status.
-      // Each menu button is ~36px (py-2 + text-sm), separator ~9px, wrapper py-1 = 8px total.
-      const itemCount = line.status === "UNMATCHED" ? 3 : 1;
+      const itemCount = line.status === "UNMATCHED" ? (isDebit ? 4 : 3) : 1;
       const hasSeparator = line.status === "UNMATCHED";
       const estHeight = 8 + itemCount * 36 + (hasSeparator ? 9 : 0);
       const spaceBelow = window.innerHeight - rect.bottom;
-      // Open upward if not enough room below (leave 12px breathing room)
       const openUp = spaceBelow < estHeight + 12;
       setPos({
         top: openUp ? rect.top - estHeight - 4 : rect.bottom + 4,
-        left: Math.max(8, rect.right - 168),
+        left: Math.max(8, rect.right - 200),
       });
     }
-  }, [open, line.status]);
+  }, [open, line.status, isDebit]);
 
   useEffect(() => {
     if (!open) return;
@@ -92,7 +94,7 @@ function LineActionsDropdown({
       </button>
       {open && pos && (
         <div
-          className="fixed z-50 min-w-[168px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg text-left"
+          className="fixed z-50 min-w-[200px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg text-left"
           style={{ top: pos.top, left: pos.left }}
         >
           {line.status === "UNMATCHED" && (
@@ -112,6 +114,14 @@ function LineActionsDropdown({
                   <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">par detectado</span>
                 )}
               </button>
+              {isDebit && (
+                <button
+                  onClick={() => { setOpen(false); onConciliarCardInvoice(); }}
+                  className="block w-full text-left px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
+                >
+                  &#128179; Conciliar fatura de cartao
+                </button>
+              )}
               <div className="my-1 border-t border-slate-100" />
               <button
                 onClick={() => { setOpen(false); onIgnore(); }}
@@ -828,6 +838,342 @@ function RefundPairModal({
   );
 }
 
+/* ── Card Invoice Match Modal (fatura de cartao N-para-1) ── */
+
+interface CardInstrument {
+  id: string;
+  name: string;
+  cardLast4?: string | null;
+  cardBrand?: string | null;
+  billingClosingDay?: number | null;
+  paymentMethod?: { code?: string | null; name?: string | null } | null;
+}
+
+interface CardInvoiceEntry {
+  id: string;
+  code: string | null;
+  description: string | null;
+  netCents: number;
+  grossCents: number;
+  paidAt: string | null;
+  dueDate: string | null;
+  paymentInstrumentId: string | null;
+  invoiceMatchLineId: string | null;
+  partner: { id: string; name: string } | null;
+  paymentInstrumentRef: { id: string; name: string; cardLast4: string | null } | null;
+}
+
+function CardInvoiceMatchModal({
+  open,
+  line,
+  onClose,
+  onMatched,
+}: {
+  open: boolean;
+  line: BankStatementLine | null;
+  onClose: () => void;
+  onMatched: () => void;
+}) {
+  const { toast } = useToast();
+  const [instruments, setInstruments] = useState<CardInstrument[]>([]);
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [candidates, setCandidates] = useState<CardInvoiceEntry[]>([]);
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
+  const [notes, setNotes] = useState("");
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [matching, setMatching] = useState(false);
+
+  // Load credit card instruments when modal opens
+  useEffect(() => {
+    if (!open) return;
+    setSelectedEntryIds(new Set());
+    setCandidates([]);
+    setNotes("");
+    // Default date window: 40 dias antes da data da linha do extrato
+    if (line) {
+      const end = new Date(line.transactionDate);
+      const start = new Date(end);
+      start.setDate(start.getDate() - 40);
+      setFromDate(start.toISOString().substring(0, 10));
+      setToDate(end.toISOString().substring(0, 10));
+    }
+    api.get<CardInstrument[]>("/finance/payment-instruments")
+      .then((data) => {
+        const credit = (data || []).filter((i) => {
+          const code = (i.paymentMethod?.code || "").toUpperCase();
+          return code === "CARTAO_CREDITO" || code === "CREDITO" || code === "CREDIT_CARD" || code === "CREDIT";
+        });
+        setInstruments(credit);
+        // Pre-seleciona todos (usuario geralmente tem poucos cartoes)
+        setSelectedCardIds(new Set(credit.map((i) => i.id)));
+      })
+      .catch(() => toast("Erro ao carregar cartoes", "error"));
+  }, [open, line, toast]);
+
+  // Auto-load candidates when filter changes
+  useEffect(() => {
+    if (!open || !line || selectedCardIds.size === 0 || !fromDate || !toDate) {
+      setCandidates([]);
+      return;
+    }
+    setLoadingCandidates(true);
+    const ids = Array.from(selectedCardIds).join(",");
+    api.get<{ entries: CardInvoiceEntry[]; totalCents: number }>(
+      `/finance/reconciliation/card-invoice-candidates?paymentInstrumentIds=${ids}&fromDate=${fromDate}&toDate=${toDate}`,
+    )
+      .then((data) => setCandidates(data.entries || []))
+      .catch(() => toast("Erro ao buscar compras", "error"))
+      .finally(() => setLoadingCandidates(false));
+  }, [open, line, selectedCardIds, fromDate, toDate, toast]);
+
+  if (!open || !line) return null;
+
+  const lineAbs = Math.abs(line.amountCents);
+  const selectedEntries = candidates.filter((e) => selectedEntryIds.has(e.id));
+  const selectedTotal = selectedEntries.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+  const diff = lineAbs - selectedTotal;
+  const matches = Math.abs(diff) <= 1;
+
+  function toggleCard(id: string) {
+    const next = new Set(selectedCardIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedCardIds(next);
+  }
+
+  function toggleEntry(id: string) {
+    const next = new Set(selectedEntryIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedEntryIds(next);
+  }
+
+  function selectAll() {
+    const available = candidates.filter((e) => !e.invoiceMatchLineId);
+    setSelectedEntryIds(new Set(available.map((e) => e.id)));
+  }
+
+  function clearAll() {
+    setSelectedEntryIds(new Set());
+  }
+
+  async function handleMatch() {
+    if (!line || !matches || selectedEntryIds.size === 0) return;
+    setMatching(true);
+    try {
+      await api.post(`/finance/reconciliation/lines/${line.id}/match-card-invoice`, {
+        entryIds: Array.from(selectedEntryIds),
+        notes: notes || undefined,
+      });
+      toast(`Fatura conciliada: ${selectedEntryIds.size} compra(s) vinculada(s).`, "success");
+      onMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao conciliar fatura.", "error");
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl flex flex-col max-h-[90vh]">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h3 className="text-base font-semibold text-rose-700">&#128179; Conciliar fatura de cartao</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Selecione o(s) cartao(oes) e as compras que compoem esta fatura. A soma precisa bater com o valor do extrato.
+          </p>
+        </div>
+
+        {/* Linha do extrato */}
+        <div className="px-5 py-3 bg-rose-50/50 border-b border-slate-200">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-slate-800 truncate">{line.description}</p>
+              <p className="text-xs text-slate-500">{formatDate(line.transactionDate)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-slate-500">Valor da fatura</p>
+              <p className="text-lg font-bold text-rose-700">{formatCurrency(lineAbs)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Filtros */}
+        <div className="px-5 py-3 border-b border-slate-200 space-y-3">
+          <div>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1.5">Cartoes que compoem a fatura</label>
+            {instruments.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">Nenhum cartao de credito cadastrado.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {instruments.map((inst) => (
+                  <button
+                    key={inst.id}
+                    onClick={() => toggleCard(inst.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      selectedCardIds.has(inst.id)
+                        ? "bg-rose-100 border-rose-300 text-rose-800"
+                        : "bg-white border-slate-300 text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    &#128179; {inst.name}{inst.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${inst.cardLast4}` : ""}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-slate-600 mb-1">De</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-slate-600 mb-1">Ate</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Lista de candidatos */}
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-medium text-slate-600 uppercase">Compras no periodo ({candidates.length})</p>
+            <div className="flex items-center gap-2">
+              <button onClick={selectAll} className="text-[11px] text-rose-600 hover:text-rose-700 font-medium">Selecionar todas</button>
+              <span className="text-slate-300">|</span>
+              <button onClick={clearAll} className="text-[11px] text-slate-500 hover:text-slate-700">Limpar</button>
+            </div>
+          </div>
+
+          {loadingCandidates ? (
+            <p className="text-center text-xs text-slate-400 py-6">Carregando...</p>
+          ) : candidates.length === 0 ? (
+            <p className="text-center text-xs text-slate-400 py-6">
+              {selectedCardIds.size === 0
+                ? "Selecione ao menos um cartao."
+                : "Nenhuma compra encontrada no periodo."}
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {candidates.map((entry) => {
+                const amount = entry.netCents || entry.grossCents || 0;
+                const alreadyMatched = !!entry.invoiceMatchLineId;
+                const selected = selectedEntryIds.has(entry.id);
+                return (
+                  <label
+                    key={entry.id}
+                    className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
+                      alreadyMatched
+                        ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200"
+                        : selected
+                        ? "bg-rose-50 border-rose-300"
+                        : "bg-white border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={alreadyMatched}
+                      onChange={() => toggleEntry(entry.id)}
+                      className="w-4 h-4 accent-rose-600"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {entry.code && <span className="text-[10px] font-mono text-slate-400">{entry.code}</span>}
+                        <span className="text-sm font-medium text-slate-800 truncate">
+                          {entry.partner?.name || entry.description || "—"}
+                        </span>
+                        {alreadyMatched && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">ja conciliado</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
+                        {entry.paidAt && <span>Pago: {formatDate(entry.paidAt)}</span>}
+                        {entry.paymentInstrumentRef && (
+                          <span>
+                            &#128179; {entry.paymentInstrumentRef.name}
+                            {entry.paymentInstrumentRef.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${entry.paymentInstrumentRef.cardLast4}` : ""}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 tabular-nums">{formatCurrency(amount)}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Resumo e soma */}
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase">Selecionados</p>
+              <p className="text-sm font-bold text-slate-800">{selectedEntryIds.size}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase">Soma</p>
+              <p className="text-sm font-bold text-slate-800">{formatCurrency(selectedTotal)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase">Diferenca</p>
+              <p className={`text-sm font-bold ${matches && selectedEntryIds.size > 0 ? "text-green-700" : "text-red-600"}`}>
+                {diff === 0 ? "R$ 0,00 \u2713" : formatCurrency(diff)}
+              </p>
+            </div>
+          </div>
+          {!matches && selectedEntryIds.size > 0 && (
+            <p className="text-[11px] text-center text-red-600 mt-2">
+              {diff > 0
+                ? `Faltam ${formatCurrency(diff)} — selecione mais compras.`
+                : `Excede em ${formatCurrency(-diff)} — remova alguma(s).`}
+            </p>
+          )}
+        </div>
+
+        {/* Observacao */}
+        <div className="px-5 py-2 border-t border-slate-200">
+          <input
+            type="text"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Observacao (opcional)"
+            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+          <button onClick={onClose} disabled={matching}
+            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">
+            Cancelar
+          </button>
+          <button
+            onClick={handleMatch}
+            disabled={matching || !matches || selectedEntryIds.size === 0}
+            className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {matching ? "Conciliando..." : "Conciliar fatura"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const STATUS_CONFIG: Record<StatementLineStatus, { label: string; color: string; bg: string; border: string }> = {
   UNMATCHED: { label: "Pendente", color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200" },
   MATCHED: { label: "Conciliado", color: "text-green-700", bg: "bg-green-50", border: "border-green-200" },
@@ -1111,6 +1457,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [matchLine, setMatchLine] = useState<BankStatementLine | null>(null);
   const [refundLine, setRefundLine] = useState<BankStatementLine | null>(null);
+  const [cardInvoiceLine, setCardInvoiceLine] = useState<BankStatementLine | null>(null);
   const { toast } = useToast();
 
   const RECON_COLUMNS: ColumnDefinition<BankStatementLine>[] = [
@@ -1289,6 +1636,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
                             line={line}
                             onConciliar={() => setMatchLine(line)}
                             onConciliarRefund={() => setRefundLine(line)}
+                            onConciliarCardInvoice={() => setCardInvoiceLine(line)}
                             onIgnore={() => handleIgnore(line.id)}
                             onUnignore={() => handleUnignore(line.id)}
                             onUnmatch={() => setUnmatchLine(line)}
@@ -1380,6 +1728,14 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
         allLines={allLinesForPair}
         onClose={() => setRefundLine(null)}
         onMatched={() => { setRefundLine(null); refreshAll(); }}
+      />
+
+      {/* Card Invoice Modal (fatura de cartao N-para-1) */}
+      <CardInvoiceMatchModal
+        open={!!cardInvoiceLine}
+        line={cardInvoiceLine}
+        onClose={() => setCardInvoiceLine(null)}
+        onMatched={() => { setCardInvoiceLine(null); refreshAll(); }}
       />
     </div>
   );
