@@ -787,26 +787,26 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         type CardDef = { id: string; render: () => React.ReactNode };
         const allCards: CardDef[] = [];
         allCards.push({ id: "_total", render: () => (
-          <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+          <div className="rounded-lg border border-green-200 bg-green-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
             <span className="text-[11px] font-medium text-green-700">Saldo Total</span>
-            <p className={`mt-1 text-lg font-bold ${total >= 0 ? "text-green-900" : "text-red-700"}`}>{formatCurrency(total)}</p>
+            <p className={`mt-0.5 text-lg font-bold ${total >= 0 ? "text-green-900" : "text-red-700"}`}>{formatCurrency(total)}</p>
             <p className="text-[10px] text-slate-400">{active.length} conta{active.length !== 1 ? "s" : ""} ativa{active.length !== 1 ? "s" : ""}</p>
           </div>
         )});
         for (const a of active.filter((a: any) => a.type === "CAIXA")) {
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-amber-700">💰 {a.name}</span>
-              <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
+              <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
               <p className="text-[10px] text-slate-400">Caixa</p>
             </div>
           )});
         }
         for (const a of active.filter((a: any) => a.type === "BANCO")) {
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-blue-700">🏦 {a.name}</span>
-              <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
+              <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
               <p className="text-[10px] text-slate-400">Banco</p>
             </div>
           )});
@@ -814,9 +814,9 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         for (const a of active.filter((a: any) => a.type === "TRANSITO")) {
           const tb = dashData.transitBreakdown as { creditsCents: number; debitsCents: number } | undefined;
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <div className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-purple-700">{a.name}</span>
-              <p className={`mt-1 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-purple-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
+              <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-purple-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
               {tb && (
                 <div className="mt-1.5 flex gap-3">
                   <span className="text-[10px] text-green-600">▲ {formatCurrency(tb.creditsCents)}</span>
@@ -831,9 +831,9 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
           const debt = Math.abs(a.currentBalanceCents);
           const hasDebt = a.currentBalanceCents < 0;
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-rose-700">&#128179; {a.name}</span>
-              <p className={`mt-1 text-lg font-bold ${hasDebt ? "text-rose-900" : "text-slate-500"}`}>{formatCurrency(debt)}</p>
+              <p className={`mt-0.5 text-lg font-bold ${hasDebt ? "text-rose-900" : "text-slate-500"}`}>{formatCurrency(debt)}</p>
               <p className="text-[10px] text-slate-400">{hasDebt ? "Em aberto" : "Fatura quitada"}</p>
             </div>
           )});
@@ -858,9 +858,9 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
           localStorage.setItem(CARD_ORDER_KEY, JSON.stringify(ids));
         }
 
-        const cols = Math.min(orderedCards.length, 5);
+        const cols = Math.min(orderedCards.length, 8);
         return (
-          <div className={`grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-${cols}`}>
+          <div className={`grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-${cols}`}>
             {orderedCards.map((card) => (
               <div
                 key={card.id}
