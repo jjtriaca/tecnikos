@@ -922,7 +922,9 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 {stmtInstruments.length > 0 && (
                   <optgroup label="Meios de Pagamento">
                     {stmtInstruments.map((pi: any) => (
-                      <option key={pi.id} value={`pi:${pi.name}`}>{pi.name}</option>
+                      <option key={pi.id} value={`pi:${pi.name}`}>
+                        {pi.name}{pi.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${pi.cardLast4}` : ""}
+                      </option>
                     ))}
                   </optgroup>
                 )}
@@ -1827,10 +1829,14 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                     <option value="">Selecao manual...</option>
                     {allInstruments.map((pi: any) => {
                       const code = pi.paymentMethod?.code || "";
-                      const icon = code.includes("CARTAO") || code.includes("CREDITO") || code.includes("DEBITO") ? "\uD83D\uDCB3" : code === "PIX" ? "\u26A1" : code === "DINHEIRO" ? "\uD83D\uDCB5" : code === "BOLETO" ? "\uD83D\uDCC4" : code === "TRANSFERENCIA" ? "\uD83D\uDD04" : code === "CHEQUE" ? "\uD83D\uDCDD" : "\uD83D\uDCB0";
+                      const isCard = code.includes("CARTAO") || code.includes("CREDITO") || code.includes("DEBITO");
+                      const icon = isCard ? "\uD83D\uDCB3" : code === "PIX" ? "\u26A1" : code === "DINHEIRO" ? "\uD83D\uDCB5" : code === "BOLETO" ? "\uD83D\uDCC4" : code === "TRANSFERENCIA" ? "\uD83D\uDD04" : code === "CHEQUE" ? "\uD83D\uDCDD" : "\uD83D\uDCB0";
+                      const last4 = isCard && pi.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${pi.cardLast4}` : "";
+                      const methodShort = code === "CARTAO_CREDITO" ? "Credito" : code === "CARTAO_DEBITO" ? "Debito" : (pi.paymentMethod?.name || "");
+                      const suffix = isCard ? ` (${methodShort})` : (pi.cashAccount ? ` - ${pi.cashAccount.name}` : ` (${methodShort})`);
                       return (
                         <option key={pi.id} value={pi.id}>
-                          {icon} {pi.name}{pi.cashAccount ? ` - ${pi.cashAccount.name}` : ""} ({pi.paymentMethod?.name || ""})
+                          {icon} {pi.name}{last4}{suffix}
                         </option>
                       );
                     })}
