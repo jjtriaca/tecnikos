@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## Versao: v1.08.94
+## Versao: v1.08.95
 ## Ultima sessao: 175 (14/04/2026)
 
 ## EM ANDAMENTO (sessao 175) — Cartao de credito como conta virtual
@@ -27,8 +27,20 @@ Cartao de credito vira CashAccount virtual (tipo novo CARTAO_CREDITO). Pagar com
 - Card destacado "Cartoes em aberto" com lista: nome, •••• 1234, valor devedor, dias ate fechamento
 - Botao "Pagar fatura" 1-click: modal pre-preenchido com valor e conta de origem, cria transferencia banco->cartao
 
-### Fase 4 — Conciliacao N-para-1 no extrato (PENDENTE)
-- Linha do extrato "FATURA MASTERCARD R$ 3.500" → usuario escolhe o(s) cartao(oes) → sistema lista compras em aberto no periodo → marca checkboxes → soma precisa bater com valor da linha → concilia tudo
+### Fase 4 — Conciliacao N-para-1 no extrato (v1.08.95) ✅
+- Schema: FinancialEntry.invoiceMatchLineId (FK opcional -> BankStatementLine) + index; BankStatementLine.isCardInvoice bool default false
+- Migration 20260414170000 com FK ON DELETE SET NULL + index (TenantMigratorService propaga sem risco — apenas colunas nullable/com default)
+- Backend: ReconciliationService.findCardInvoiceCandidates(companyId, {paymentInstrumentIds, fromDate, toDate, includeAlreadyMatched}) — filtra entries PAID por paymentInstrumentId (estavel, pega historico anterior a Fase 2)
+- Backend: ReconciliationService.matchAsCardInvoice(lineId, dto {entryIds, notes}) — valida status UNMATCHED + linha de debito + soma dos entries === |line.amountCents| (tol 1c) + entries PAID sem grupo previo; transacao: seta invoiceMatchLineId nos entries, line.status=MATCHED + isCardInvoice=true + matchedByName, recalcCounts
+- Backend: unmatchLine deteta isCardInvoice e reverte o grupo (zera invoiceMatchLineId de todos os entries) antes do fluxo refund pair
+- Controller: GET /finance/reconciliation/card-invoice-candidates + POST /finance/reconciliation/lines/:lineId/match-card-invoice
+- Frontend: LineActionsDropdown ganha acao "💳 Conciliar fatura de cartao" (rosa), so aparece em linhas UNMATCHED de debito (amountCents<0); itemCount ajustado para calculo de altura do popup
+- Frontend: novo CardInvoiceMatchModal — carrega PaymentInstruments de credito (filtra por code), multi-select chips de cartao, range de datas (default: 40 dias antes da data da linha), auto-fetch candidates via GET endpoint; lista com checkbox, "Selecionar todas"/"Limpar", soma vs valor da fatura com indicador visual (verde ✓ quando bate, vermelho com delta caso contrario), botao "Conciliar fatura" so habilita com match exato, desabilita entries ja em outra fatura
+- ReconciliationTab: novo state cardInvoiceLine, passa para LineActionsDropdown onConciliarCardInvoice, renderiza modal no fim do componente
+
+### Fase 3 — Dashboard de cartoes + pagar fatura (PENDENTE — adiada a pedido)
+- Card destacado "Cartoes em aberto" com lista: nome, •••• 1234, valor devedor, dias ate fechamento
+- Botao "Pagar fatura" 1-click: modal pre-preenchido com valor e conta de origem, cria transferencia banco->cartao
 
 ### Efeitos colaterais ao testar Fase 2
 - Ao abrir a tela "Meios de Pagamento" pela primeira vez apos v1.08.94: backfill cria contas virtuais para cartoes existentes (Master Ueslei, Visa Juliano). Aparecem na tela "Contas Caixa/Banco" com badge 💳 Cartao e saldo R$ 0,00 (Fatura quitada) porque ainda nao foi feita nenhuma compra movimentando a nova conta

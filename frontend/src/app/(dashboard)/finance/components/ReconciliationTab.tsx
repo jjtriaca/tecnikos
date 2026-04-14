@@ -167,6 +167,14 @@ function amountsMatch(a: number, b: number): boolean {
   return Math.abs(a - b) <= 1;
 }
 
+interface FinancialAccountOption {
+  id: string;
+  code: string | null;
+  name: string;
+  isActive: boolean;
+  allowPosting: boolean;
+}
+
 function ConciliationModal({
   open,
   line,
@@ -184,6 +192,8 @@ function ConciliationModal({
   const [loading, setLoading] = useState(false);
   const [matching, setMatching] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [financialAccounts, setFinancialAccounts] = useState<FinancialAccountOption[]>([]);
+  const [accountAssignments, setAccountAssignments] = useState<Record<string, string>>({});
 
   // Card transaction breakdown state
   const [liquidCents, setLiquidCents] = useState(0);
@@ -235,14 +245,20 @@ function ConciliationModal({
       setConfigFeePercent(0);
     }
 
-    // Fetch entries, card fee rates in parallel
+    // Reset plano de contas na abertura
+    setAccountAssignments({});
+
+    // Fetch entries, card fee rates, planos de contas in parallel
     const type = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
     Promise.all([
       api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50`).catch(() => ({ data: [] })),
       api.get<any>(`/finance/entries?status=PENDING&type=${type}&limit=50`).catch(() => ({ data: [] })),
       isCardTx ? api.get<any[]>("/finance/card-fee-rates").catch(() => []) : Promise.resolve([]),
+      api.get<FinancialAccountOption[]>("/finance/financial-accounts").catch(() => []),
     ])
-      .then(([paidRes, pendingRes, feeRates]) => {
+      .then(([paidRes, pendingRes, feeRates, allAccounts]) => {
+        const postableAccounts = (allAccounts || []).filter((a) => a.isActive && a.allowPosting);
+        setFinancialAccounts(postableAccounts);
         const paid = (paidRes.data || paidRes || []).map((e: any) => ({ ...e, _fromStatus: "PAID" }));
         const pending = (pendingRes.data || pendingRes || []).map((e: any) => ({ ...e, _fromStatus: "PENDING" }));
         const map = new Map<string, any>();
@@ -392,8 +408,21 @@ function ConciliationModal({
     });
   }
 
+  /** Entry precisa de plano: empresa usa plano e entry nao tem nem recebeu atribuicao. */
+  function needsChartAccount(entry: any): boolean {
+    if (financialAccounts.length === 0) return false;
+    if (entry.financialAccountId) return false;
+    if (entry.isRefundEntry) return false;
+    return !accountAssignments[entry.id];
+  }
+
   async function handleMatch(entryId: string) {
     if (!line) return;
+    const entry = candidates.find((c) => c.id === entryId);
+    if (entry && needsChartAccount(entry)) {
+      toast("Escolha o plano de contas do lançamento antes de conciliar.", "error");
+      return;
+    }
     setMatching(entryId);
     try {
       const body: any = { entryId };
@@ -401,8 +430,12 @@ function ConciliationModal({
         body.liquidCents = liquidCents;
         body.taxCents = taxCents;
       }
+      if (accountAssignments[entryId]) {
+        body.financialAccountId = accountAssignments[entryId];
+      }
+      const wasPending = entry?.status === "PENDING" || entry?._fromStatus === "PENDING";
       await api.post(`/finance/reconciliation/lines/${line.id}/match`, body);
-      toast("Conciliado com sucesso!", "success");
+      toast(wasPending ? "Conciliado e marcado como PAGO!" : "Conciliado com sucesso!", "success");
       onMatched();
     } catch (err: any) {
       toast(err?.response?.data?.message || "Erro ao conciliar.", "error");
@@ -609,6 +642,38 @@ function ConciliationModal({
                         {entry.paymentMethod && <span className="ml-1 text-slate-500">• {entry.paymentMethod.replace(/_/g, " ")}</span>}
                         {entry.cardBrand && <span className="ml-1 px-1 py-0.5 rounded bg-purple-100 text-purple-700 text-[9px] font-medium">{entry.cardBrand}</span>}
                       </p>
+                      {/* Plano de Contas — campo so aparece quando a empresa usa plano e o entry precisa */}
+                      {financialAccounts.length > 0 && !entry.isRefundEntry && (
+                        <div className="mt-1.5" onClick={(e) => e.stopPropagation()}>
+                          {entry.financialAccountId ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-500">
+                              <span className="w-1 h-1 rounded-full bg-green-500" />
+                              Plano: {
+                                (entry.financialAccount?.name) ||
+                                (financialAccounts.find((a) => a.id === entry.financialAccountId)?.name) ||
+                                "Definido"
+                              }
+                            </span>
+                          ) : (
+                            <select
+                              value={accountAssignments[entry.id] || ""}
+                              onChange={(ev) => setAccountAssignments((prev) => ({ ...prev, [entry.id]: ev.target.value }))}
+                              className={`w-full text-[11px] rounded border px-2 py-1 focus:outline-none focus:ring-1 ${
+                                accountAssignments[entry.id]
+                                  ? "border-slate-300 bg-white focus:border-blue-500 focus:ring-blue-500"
+                                  : "border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-500"
+                              }`}
+                            >
+                              <option value="">⚠ Escolha o plano de contas...</option>
+                              {financialAccounts.map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.code ? `${a.code} — ` : ""}{a.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 ml-3">
                       <div className="text-right">
@@ -624,8 +689,9 @@ function ConciliationModal({
                           if (isCard && !manualOverride) selectEntry(entry);
                           handleMatch(entry.id);
                         }}
-                        disabled={!!matching}
-                        className={`px-3 py-1 text-xs font-medium text-white rounded-lg disabled:opacity-50 ${
+                        disabled={!!matching || needsChartAccount(entry)}
+                        title={needsChartAccount(entry) ? "Escolha o plano de contas antes de conciliar" : undefined}
+                        className={`px-3 py-1 text-xs font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
                           isSelected || isExactMatch
                             ? "bg-green-600 hover:bg-green-700"
                             : "bg-blue-600 hover:bg-blue-700"
@@ -857,10 +923,14 @@ interface CardInvoiceEntry {
   grossCents: number;
   paidAt: string | null;
   dueDate: string | null;
+  status?: string | null;
   paymentInstrumentId: string | null;
   invoiceMatchLineId: string | null;
+  financialAccountId: string | null;
+  isRefundEntry?: boolean;
   partner: { id: string; name: string } | null;
   paymentInstrumentRef: { id: string; name: string; cardLast4: string | null } | null;
+  financialAccount?: { id: string; name: string } | null;
 }
 
 function CardInvoiceMatchModal({
@@ -876,6 +946,9 @@ function CardInvoiceMatchModal({
 }) {
   const { toast } = useToast();
   const [instruments, setInstruments] = useState<CardInstrument[]>([]);
+  const [financialAccounts, setFinancialAccounts] = useState<FinancialAccountOption[]>([]);
+  const [accountAssignments, setAccountAssignments] = useState<Record<string, string>>({});
+  const [bulkAccountId, setBulkAccountId] = useState("");
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -885,12 +958,14 @@ function CardInvoiceMatchModal({
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [matching, setMatching] = useState(false);
 
-  // Load credit card instruments when modal opens
+  // Load credit card instruments + plano de contas when modal opens
   useEffect(() => {
     if (!open) return;
     setSelectedEntryIds(new Set());
     setCandidates([]);
     setNotes("");
+    setAccountAssignments({});
+    setBulkAccountId("");
     // Default date window: 40 dias antes da data da linha do extrato
     if (line) {
       const end = new Date(line.transactionDate);
@@ -899,17 +974,20 @@ function CardInvoiceMatchModal({
       setFromDate(start.toISOString().substring(0, 10));
       setToDate(end.toISOString().substring(0, 10));
     }
-    api.get<CardInstrument[]>("/finance/payment-instruments")
-      .then((data) => {
-        const credit = (data || []).filter((i) => {
+    Promise.all([
+      api.get<CardInstrument[]>("/finance/payment-instruments").catch(() => []),
+      api.get<FinancialAccountOption[]>("/finance/financial-accounts").catch(() => []),
+    ])
+      .then(([instrumentsData, accountsData]) => {
+        const credit = (instrumentsData || []).filter((i) => {
           const code = (i.paymentMethod?.code || "").toUpperCase();
           return code === "CARTAO_CREDITO" || code === "CREDITO" || code === "CREDIT_CARD" || code === "CREDIT";
         });
         setInstruments(credit);
-        // Pre-seleciona todos (usuario geralmente tem poucos cartoes)
         setSelectedCardIds(new Set(credit.map((i) => i.id)));
+        setFinancialAccounts((accountsData || []).filter((a) => a.isActive && a.allowPosting));
       })
-      .catch(() => toast("Erro ao carregar cartoes", "error"));
+      .catch(() => toast("Erro ao carregar dados", "error"));
   }, [open, line, toast]);
 
   // Auto-load candidates when filter changes
@@ -959,15 +1037,44 @@ function CardInvoiceMatchModal({
     setSelectedEntryIds(new Set());
   }
 
+  // Quais entries selecionados ainda precisam de plano (empresa usa + entry nao tem + sem atribuicao)
+  const entriesMissingAccount = selectedEntries.filter(
+    (e) => financialAccounts.length > 0 && !e.isRefundEntry && !e.financialAccountId && !accountAssignments[e.id],
+  );
+  // Entries selecionados que ainda estao PENDING — serao auto-pagos
+  const pendingCount = selectedEntries.filter((e) => e.status === "PENDING" || e.status === "CONFIRMED").length;
+
+  function applyBulkAccount() {
+    if (!bulkAccountId) return;
+    const nextAssign = { ...accountAssignments };
+    for (const e of selectedEntries) {
+      if (!e.isRefundEntry && !e.financialAccountId && !accountAssignments[e.id]) {
+        nextAssign[e.id] = bulkAccountId;
+      }
+    }
+    setAccountAssignments(nextAssign);
+  }
+
   async function handleMatch() {
     if (!line || !matches || selectedEntryIds.size === 0) return;
+    if (entriesMissingAccount.length > 0) {
+      toast(`Faltam planos de contas em ${entriesMissingAccount.length} lançamento(s).`, "error");
+      return;
+    }
     setMatching(true);
     try {
+      const assignmentsPayload = Object.entries(accountAssignments)
+        .filter(([entryId, accId]) => selectedEntryIds.has(entryId) && accId)
+        .map(([entryId, financialAccountId]) => ({ entryId, financialAccountId }));
       await api.post(`/finance/reconciliation/lines/${line.id}/match-card-invoice`, {
         entryIds: Array.from(selectedEntryIds),
         notes: notes || undefined,
+        entryAccountAssignments: assignmentsPayload.length > 0 ? assignmentsPayload : undefined,
       });
-      toast(`Fatura conciliada: ${selectedEntryIds.size} compra(s) vinculada(s).`, "success");
+      const msg = pendingCount > 0
+        ? `Fatura conciliada: ${selectedEntryIds.size} compra(s), ${pendingCount} marcada(s) como PAGAS.`
+        : `Fatura conciliada: ${selectedEntryIds.size} compra(s) vinculada(s).`;
+      toast(msg, "success");
       onMatched();
     } catch (err: any) {
       toast(err?.response?.data?.message || err?.message || "Erro ao conciliar fatura.", "error");
@@ -1057,6 +1164,32 @@ function CardInvoiceMatchModal({
             </div>
           </div>
 
+          {/* Bulk: aplicar plano a todos os selecionados sem categoria */}
+          {financialAccounts.length > 0 && entriesMissingAccount.length > 0 && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+              <span className="text-[11px] text-amber-800 whitespace-nowrap">⚠ {entriesMissingAccount.length} sem plano:</span>
+              <select
+                value={bulkAccountId}
+                onChange={(e) => setBulkAccountId(e.target.value)}
+                className="flex-1 text-[11px] rounded border border-amber-400 bg-white px-2 py-1 focus:outline-none focus:ring-1 focus:border-amber-500"
+              >
+                <option value="">Escolha um plano...</option>
+                {financialAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.code ? `${a.code} — ` : ""}{a.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={applyBulkAccount}
+                disabled={!bulkAccountId}
+                className="text-[11px] font-medium text-white bg-amber-600 hover:bg-amber-700 rounded px-3 py-1 disabled:opacity-50 whitespace-nowrap"
+              >
+                Aplicar a todos
+              </button>
+            </div>
+          )}
+
           {loadingCandidates ? (
             <p className="text-center text-xs text-slate-400 py-6">Carregando...</p>
           ) : candidates.length === 0 ? (
@@ -1071,46 +1204,73 @@ function CardInvoiceMatchModal({
                 const amount = entry.netCents || entry.grossCents || 0;
                 const alreadyMatched = !!entry.invoiceMatchLineId;
                 const selected = selectedEntryIds.has(entry.id);
+                const isPending = entry.status === "PENDING" || entry.status === "CONFIRMED";
+                const needsAccount = financialAccounts.length > 0 && !entry.isRefundEntry && !entry.financialAccountId && !accountAssignments[entry.id];
                 return (
-                  <label
+                  <div
                     key={entry.id}
-                    className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
+                    className={`rounded-lg border transition-colors ${
                       alreadyMatched
-                        ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200"
+                        ? "opacity-50 bg-slate-50 border-slate-200"
                         : selected
-                        ? "bg-rose-50 border-rose-300"
+                        ? (needsAccount ? "bg-amber-50 border-amber-400" : "bg-rose-50 border-rose-300")
                         : "bg-white border-slate-200 hover:bg-slate-50"
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      disabled={alreadyMatched}
-                      onChange={() => toggleEntry(entry.id)}
-                      className="w-4 h-4 accent-rose-600"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {entry.code && <span className="text-[10px] font-mono text-slate-400">{entry.code}</span>}
-                        <span className="text-sm font-medium text-slate-800 truncate">
-                          {entry.partner?.name || entry.description || "—"}
-                        </span>
-                        {alreadyMatched && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">ja conciliado</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
-                        {entry.paidAt && <span>Pago: {formatDate(entry.paidAt)}</span>}
-                        {entry.paymentInstrumentRef && (
-                          <span>
-                            &#128179; {entry.paymentInstrumentRef.name}
-                            {entry.paymentInstrumentRef.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${entry.paymentInstrumentRef.cardLast4}` : ""}
+                    <label className={`flex items-center gap-3 px-3 py-2 ${alreadyMatched ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        disabled={alreadyMatched}
+                        onChange={() => toggleEntry(entry.id)}
+                        className="w-4 h-4 accent-rose-600"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {entry.code && <span className="text-[10px] font-mono text-slate-400">{entry.code}</span>}
+                          <span className="text-sm font-medium text-slate-800 truncate">
+                            {entry.partner?.name || entry.description || "—"}
                           </span>
-                        )}
+                          {isPending && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">sera marcado como pago</span>
+                          )}
+                          {alreadyMatched && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">ja conciliado</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500 flex-wrap">
+                          {entry.paidAt && <span>Pago: {formatDate(entry.paidAt)}</span>}
+                          {!entry.paidAt && entry.dueDate && <span>Vence: {formatDate(entry.dueDate)}</span>}
+                          {entry.paymentInstrumentRef && (
+                            <span>
+                              &#128179; {entry.paymentInstrumentRef.name}
+                              {entry.paymentInstrumentRef.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${entry.paymentInstrumentRef.cardLast4}` : ""}
+                            </span>
+                          )}
+                          {entry.financialAccount && (
+                            <span className="text-green-600">Plano: {entry.financialAccount.name}</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <span className="text-sm font-bold text-slate-700 tabular-nums">{formatCurrency(amount)}</span>
-                  </label>
+                      <span className="text-sm font-bold text-slate-700 tabular-nums">{formatCurrency(amount)}</span>
+                    </label>
+                    {selected && needsAccount && (
+                      <div className="px-3 pb-2 pl-10">
+                        <select
+                          value={accountAssignments[entry.id] || ""}
+                          onChange={(ev) => setAccountAssignments((prev) => ({ ...prev, [entry.id]: ev.target.value }))}
+                          className="w-full text-[11px] rounded border border-amber-400 bg-amber-50 px-2 py-1 focus:outline-none focus:ring-1 focus:border-amber-500 focus:ring-amber-500"
+                        >
+                          <option value="">⚠ Escolha o plano de contas...</option>
+                          {financialAccounts.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.code ? `${a.code} — ` : ""}{a.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -1163,7 +1323,8 @@ function CardInvoiceMatchModal({
           </button>
           <button
             onClick={handleMatch}
-            disabled={matching || !matches || selectedEntryIds.size === 0}
+            disabled={matching || !matches || selectedEntryIds.size === 0 || entriesMissingAccount.length > 0}
+            title={entriesMissingAccount.length > 0 ? `Faltam planos de contas em ${entriesMissingAccount.length} lançamento(s)` : undefined}
             className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {matching ? "Conciliando..." : "Conciliar fatura"}

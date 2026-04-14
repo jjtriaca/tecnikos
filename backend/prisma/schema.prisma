@@ -865,6 +865,9 @@ model FinancialEntry {
   // Fatura de cartao conciliada N-para-1 (v1.08.95)
   invoiceMatchLineId  String?           // Se preenchido, este entry integra a fatura conciliada com a BankStatementLine X
 
+  // Conciliacao auto-pagou este entry (estava PENDING e virou PAID no match) — flag para reverter corretamente no unmatch (v1.08.96)
+  autoMarkedPaid      Boolean @default(false)
+
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   deletedAt        DateTime?

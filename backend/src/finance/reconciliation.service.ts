@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
-import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto } from './dto/reconciliation.dto';
 import { CodeGeneratorService } from '../common/code-generator.service';
 
 @Injectable()
@@ -402,7 +402,21 @@ export class ReconciliationService {
   }
 
   /**
-   * Match a statement line to an entry or installment
+   * Retorna true se a empresa tem plano de contas configurado (ao menos 1 conta ativa que aceita postagem).
+   * Usado para decidir se a validacao de financialAccountId na conciliacao e obrigatoria.
+   */
+  private async companyUsesChartOfAccounts(companyId: string): Promise<boolean> {
+    const count = await this.prisma.financialAccount.count({
+      where: { companyId, isActive: true, allowPosting: true, deletedAt: null },
+    });
+    return count > 0;
+  }
+
+  /**
+   * Match a statement line to an entry or installment.
+   * Se a entry estiver PENDING, e marcada automaticamente como PAID (consistencia com extrato bancario
+   * — se o valor saiu do banco, a conta foi paga). Flag entry.autoMarkedPaid permite reverter no unmatch.
+   * Valida financialAccountId se a empresa tem plano de contas configurado.
    */
   async matchLine(lineId: string, companyId: string, dto: MatchLineDto, matchedByName: string) {
     const line = await this.prisma.bankStatementLine.findUnique({
@@ -420,75 +434,155 @@ export class ReconciliationService {
       throw new BadRequestException('Informe o lançamento ou parcela para conciliar.');
     }
 
-    const updated = await this.prisma.bankStatementLine.update({
-      where: { id: lineId },
-      data: {
-        status: 'MATCHED',
-        matchedEntryId: dto.entryId ?? null,
-        matchedInstallmentId: dto.installmentId ?? null,
-        matchedAt: new Date(),
-        matchedByName,
-        matchedLiquidCents: dto.liquidCents ?? null,
-        matchedTaxCents: dto.taxCents ?? null,
-        notes: dto.notes ?? null,
-      },
-    });
-
-    await this.recalcCounts(this.prisma, line.importId, line.statementId);
-
-    // Auto-transfer from transit/source account to bank account on reconciliation
-    if (dto.entryId) {
-      const entry = await this.prisma.financialEntry.findUnique({
-        where: { id: dto.entryId },
-        select: { cashAccountId: true, netCents: true, grossCents: true, type: true },
-      });
-      const bankAccountId = line.cashAccountId; // from OFX import
-
-      // Determine source account: entry's current account, or find transit account as fallback
-      let sourceAccountId = entry?.cashAccountId;
-      if (!sourceAccountId || sourceAccountId === bankAccountId) {
-        // Find the transit account by type
-        const transitAccount = await this.prisma.cashAccount.findFirst({
-          where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
-          select: { id: true },
-        });
-        sourceAccountId = transitAccount?.id || null;
-      }
-
-      if (sourceAccountId && sourceAccountId !== bankAccountId) {
-        const transferAmount = Math.abs(line.amountCents);
-        const isCredit = line.amountCents > 0; // credit = money INTO bank, debit = money OUT of bank
-
-        if (isCredit) {
-          // Credit (receivable): money moves Transit → Bank
-          await this.prisma.cashAccount.update({
-            where: { id: sourceAccountId },
-            data: { currentBalanceCents: { decrement: transferAmount } },
-          });
-          await this.prisma.cashAccount.update({
-            where: { id: bankAccountId },
-            data: { currentBalanceCents: { increment: transferAmount } },
-          });
-        } else {
-          // Debit (payable): money moves Bank → Transit (bank decreases, transit increases)
-          await this.prisma.cashAccount.update({
-            where: { id: bankAccountId },
-            data: { currentBalanceCents: { decrement: transferAmount } },
-          });
-          await this.prisma.cashAccount.update({
-            where: { id: sourceAccountId },
-            data: { currentBalanceCents: { increment: transferAmount } },
-          });
-        }
-        // Update entry's cashAccountId to the bank
-        await this.prisma.financialEntry.update({
+    // Carrega o entry (se informado) para decidir auto-pay + validacoes
+    const entryBefore = dto.entryId
+      ? await this.prisma.financialEntry.findUnique({
           where: { id: dto.entryId },
-          data: { cashAccountId: bankAccountId },
-        });
+          select: {
+            id: true,
+            companyId: true,
+            deletedAt: true,
+            status: true,
+            type: true,
+            netCents: true,
+            grossCents: true,
+            cashAccountId: true,
+            financialAccountId: true,
+            isRefundEntry: true,
+          },
+        })
+      : null;
+
+    if (dto.entryId) {
+      if (!entryBefore || entryBefore.companyId !== companyId || entryBefore.deletedAt) {
+        throw new NotFoundException('Lançamento não encontrado.');
+      }
+      if (entryBefore.status === 'CANCELLED') {
+        throw new BadRequestException('Lançamento cancelado não pode ser conciliado.');
       }
     }
 
-    return updated;
+    // Validacao de plano de contas (se empresa usa e entry nao e tecnico/refund)
+    const usesChart = await this.companyUsesChartOfAccounts(companyId);
+    let financialAccountIdToSet: string | null = null;
+
+    if (entryBefore && !entryBefore.isRefundEntry && usesChart) {
+      // Se DTO passou, valida e usa. Senao, exige que entry ja tenha.
+      if (dto.financialAccountId) {
+        const fa = await this.prisma.financialAccount.findFirst({
+          where: { id: dto.financialAccountId, companyId, isActive: true, allowPosting: true, deletedAt: null },
+          select: { id: true },
+        });
+        if (!fa) {
+          throw new BadRequestException('Plano de contas inválido ou inativo.');
+        }
+        financialAccountIdToSet = dto.financialAccountId;
+      } else if (!entryBefore.financialAccountId) {
+        throw new BadRequestException('Informe o plano de contas do lançamento antes de conciliar.');
+      }
+    }
+
+    const bankAccountId = line.cashAccountId;
+    const transferAmount = Math.abs(line.amountCents);
+    const tsLog = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Atualiza a linha do extrato
+      const updated = await tx.bankStatementLine.update({
+        where: { id: lineId },
+        data: {
+          status: 'MATCHED',
+          matchedEntryId: dto.entryId ?? null,
+          matchedInstallmentId: dto.installmentId ?? null,
+          matchedAt: new Date(),
+          matchedByName,
+          matchedLiquidCents: dto.liquidCents ?? null,
+          matchedTaxCents: dto.taxCents ?? null,
+          notes: dto.notes ?? null,
+        },
+      });
+
+      await this.recalcCounts(tx, line.importId, line.statementId);
+
+      // 2. Processa o entry (auto-pay ou transfer existente)
+      if (entryBefore) {
+        const wasPending = entryBefore.status === 'PENDING' || entryBefore.status === 'CONFIRMED';
+        const entryUpdate: Record<string, unknown> = {};
+
+        // Aplica plano de contas se definido via DTO
+        if (financialAccountIdToSet) {
+          entryUpdate.financialAccountId = financialAccountIdToSet;
+        }
+
+        if (wasPending) {
+          // PENDING -> PAID. Cash account vai direto pro banco (o dinheiro ja saiu/entrou no banco).
+          entryUpdate.status = 'PAID';
+          entryUpdate.paidAt = line.transactionDate;
+          entryUpdate.cashAccountId = bankAccountId;
+          entryUpdate.autoMarkedPaid = true;
+          const logLine = `[${tsLog}] PAGO via conciliação bancária (linha ${line.id.substring(0, 8)})`;
+          entryUpdate.notes = logLine;
+
+          // Atualiza saldo do banco diretamente (sem auto-transfer de transito)
+          await tx.cashAccount.update({
+            where: { id: bankAccountId },
+            data: { currentBalanceCents: { increment: line.amountCents } },
+          });
+
+          await tx.financialEntry.update({
+            where: { id: entryBefore.id },
+            data: entryUpdate,
+          });
+        } else {
+          // Entry ja PAID — aplica so o plano (se veio) e faz o auto-transfer tradicional TRANSITO->banco
+          if (Object.keys(entryUpdate).length > 0) {
+            await tx.financialEntry.update({
+              where: { id: entryBefore.id },
+              data: entryUpdate,
+            });
+          }
+
+          // Determine source account: entry's current account, or find transit account as fallback
+          let sourceAccountId = entryBefore.cashAccountId;
+          if (!sourceAccountId || sourceAccountId === bankAccountId) {
+            const transitAccount = await tx.cashAccount.findFirst({
+              where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
+              select: { id: true },
+            });
+            sourceAccountId = transitAccount?.id || null;
+          }
+
+          if (sourceAccountId && sourceAccountId !== bankAccountId) {
+            const isCredit = line.amountCents > 0;
+            if (isCredit) {
+              await tx.cashAccount.update({
+                where: { id: sourceAccountId },
+                data: { currentBalanceCents: { decrement: transferAmount } },
+              });
+              await tx.cashAccount.update({
+                where: { id: bankAccountId },
+                data: { currentBalanceCents: { increment: transferAmount } },
+              });
+            } else {
+              await tx.cashAccount.update({
+                where: { id: bankAccountId },
+                data: { currentBalanceCents: { decrement: transferAmount } },
+              });
+              await tx.cashAccount.update({
+                where: { id: sourceAccountId },
+                data: { currentBalanceCents: { increment: transferAmount } },
+              });
+            }
+            await tx.financialEntry.update({
+              where: { id: entryBefore.id },
+              data: { cashAccountId: bankAccountId },
+            });
+          }
+        }
+      }
+
+      return updated;
+    });
   }
 
   /**
@@ -692,7 +786,8 @@ export class ReconciliationService {
     const where: Record<string, unknown> = {
       companyId,
       deletedAt: null,
-      status: 'PAID',
+      // PAID (historico), PENDING/CONFIRMED (nao pago ainda — sera auto-pago ao conciliar)
+      status: { in: ['PAID', 'PENDING', 'CONFIRMED'] },
       type: 'PAYABLE',
       paymentInstrumentId: { in: paymentInstrumentIds },
     };
@@ -700,10 +795,14 @@ export class ReconciliationService {
       where.invoiceMatchLineId = null;
     }
     if (fromDate || toDate) {
+      // Usa paidAt para entries PAID; dueDate para PENDING/CONFIRMED (ainda nao pagos)
       const range: Record<string, Date> = {};
       if (fromDate) range.gte = new Date(`${fromDate}T00:00:00.000-03:00`);
       if (toDate) range.lte = new Date(`${toDate}T23:59:59.999-03:00`);
-      where.paidAt = range;
+      where.OR = [
+        { paidAt: range },
+        { AND: [{ paidAt: null }, { dueDate: range }] },
+      ];
     }
 
     const entries = await this.prisma.financialEntry.findMany({
@@ -717,11 +816,15 @@ export class ReconciliationService {
         grossCents: true,
         paidAt: true,
         dueDate: true,
+        status: true,
+        isRefundEntry: true,
         paymentInstrumentId: true,
         invoiceMatchLineId: true,
         cashAccountId: true,
+        financialAccountId: true,
         partner: { select: { id: true, name: true } },
         paymentInstrumentRef: { select: { id: true, name: true, cardLast4: true } },
+        financialAccount: { select: { id: true, name: true } },
       },
     });
 
@@ -770,6 +873,8 @@ export class ReconciliationService {
         grossCents: true,
         paymentInstrumentId: true,
         invoiceMatchLineId: true,
+        financialAccountId: true,
+        isRefundEntry: true,
       },
     });
 
@@ -777,15 +882,48 @@ export class ReconciliationService {
       throw new BadRequestException('Um ou mais lançamentos não foram encontrados.');
     }
 
+    // Indexa atribuicoes de plano de contas (se informadas)
+    const assignmentsByEntry = new Map<string, string>();
+    for (const a of dto.entryAccountAssignments || []) {
+      assignmentsByEntry.set(a.entryId, a.financialAccountId);
+    }
+
+    // Validacao do plano de contas (se empresa usa)
+    const usesChart = await this.companyUsesChartOfAccounts(companyId);
+    const accountIdsToValidate = Array.from(new Set(
+      [...assignmentsByEntry.values()].filter(Boolean),
+    ));
+    if (accountIdsToValidate.length > 0) {
+      const validAccounts = await this.prisma.financialAccount.findMany({
+        where: {
+          id: { in: accountIdsToValidate },
+          companyId,
+          isActive: true,
+          allowPosting: true,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (validAccounts.length !== accountIdsToValidate.length) {
+        throw new BadRequestException('Um ou mais planos de contas informados são inválidos ou inativos.');
+      }
+    }
+
     for (const e of entries) {
-      if (e.status !== 'PAID') {
-        throw new BadRequestException(`Lançamento ${e.id} não está como PAGO — não pode compor fatura.`);
+      if (e.status === 'CANCELLED') {
+        throw new BadRequestException(`Lançamento ${e.id} está cancelado — não pode compor fatura.`);
       }
       if (e.invoiceMatchLineId && e.invoiceMatchLineId !== lineId) {
         throw new BadRequestException(`Lançamento ${e.id} já está vinculado a outra fatura conciliada.`);
       }
       if (!e.paymentInstrumentId) {
         throw new BadRequestException(`Lançamento ${e.id} não tem instrumento de pagamento — não pode compor fatura.`);
+      }
+      // Validacao de plano: se empresa usa e entry nao tem e nao foi passado no DTO, bloqueia
+      if (usesChart && !e.isRefundEntry && !e.financialAccountId && !assignmentsByEntry.has(e.id)) {
+        throw new BadRequestException(
+          `Lançamento ${e.id} não tem plano de contas definido. Informe antes de conciliar.`,
+        );
       }
     }
 
@@ -799,11 +937,28 @@ export class ReconciliationService {
       );
     }
 
+    const tsLog = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
     return this.prisma.$transaction(async (tx) => {
-      await tx.financialEntry.updateMany({
-        where: { id: { in: dto.entryIds }, companyId },
-        data: { invoiceMatchLineId: lineId },
-      });
+      // Atualiza cada entry individualmente (plano, status, autoMarkedPaid se PENDING)
+      for (const e of entries) {
+        const entryUpdate: Record<string, unknown> = { invoiceMatchLineId: lineId };
+        if (assignmentsByEntry.has(e.id)) {
+          entryUpdate.financialAccountId = assignmentsByEntry.get(e.id)!;
+        }
+        const wasPending = e.status === 'PENDING' || e.status === 'CONFIRMED';
+        if (wasPending) {
+          entryUpdate.status = 'PAID';
+          entryUpdate.paidAt = line.transactionDate;
+          entryUpdate.autoMarkedPaid = true;
+          entryUpdate.notes = `[${tsLog}] PAGO via fatura de cartão conciliada (linha ${line.id.substring(0, 8)})`;
+        }
+        await tx.financialEntry.update({
+          where: { id: e.id },
+          data: entryUpdate,
+        });
+      }
+
       const updated = await tx.bankStatementLine.update({
         where: { id: lineId },
         data: {
@@ -835,13 +990,35 @@ export class ReconciliationService {
       throw new BadRequestException('Linha não está conciliada.');
     }
 
-    // Fatura de cartao: desfaz o grupo (zera invoiceMatchLineId dos entries)
+    // Fatura de cartao: desfaz o grupo (zera invoiceMatchLineId; reverte status de entries auto-pagos)
     if (line.isCardInvoice) {
+      const groupEntries = await this.prisma.financialEntry.findMany({
+        where: { invoiceMatchLineId: lineId, companyId },
+        select: { id: true, autoMarkedPaid: true },
+      });
+      const autoPaidIds = groupEntries.filter((e) => e.autoMarkedPaid).map((e) => e.id);
+      const otherIds = groupEntries.filter((e) => !e.autoMarkedPaid).map((e) => e.id);
+
       await this.prisma.$transaction(async (tx) => {
-        await tx.financialEntry.updateMany({
-          where: { invoiceMatchLineId: lineId, companyId },
-          data: { invoiceMatchLineId: null },
-        });
+        // Entries que o match auto-marcou como PAID: volta pra PENDING + limpa campos de pagamento
+        if (autoPaidIds.length > 0) {
+          await tx.financialEntry.updateMany({
+            where: { id: { in: autoPaidIds }, companyId },
+            data: {
+              invoiceMatchLineId: null,
+              status: 'PENDING',
+              paidAt: null,
+              autoMarkedPaid: false,
+            },
+          });
+        }
+        // Entries que ja estavam PAID antes do match: so remove o vinculo com a fatura
+        if (otherIds.length > 0) {
+          await tx.financialEntry.updateMany({
+            where: { id: { in: otherIds }, companyId },
+            data: { invoiceMatchLineId: null },
+          });
+        }
         await tx.bankStatementLine.update({
           where: { id: lineId },
           data: {
@@ -854,7 +1031,7 @@ export class ReconciliationService {
         });
         await this.recalcCounts(tx, line.importId, line.statementId);
       });
-      return { id: line.id, status: 'UNMATCHED' as const, unmatchedCardInvoice: true };
+      return { id: line.id, status: 'UNMATCHED' as const, unmatchedCardInvoice: true, revertedPending: autoPaidIds.length };
     }
 
     // Refund pair: unmatch both lines + delete both technical entries
@@ -906,15 +1083,30 @@ export class ReconciliationService {
     const bankAccountId = line.cashAccountId;
     const transferAmount = Math.abs(line.amountCents);
 
-    // Revert the auto-transfer if entry was moved to the bank
+    // Revert the auto-transfer if entry was moved to the bank (or auto-pay PENDING->PAID)
     if (line.matchedEntryId) {
       const entry = await this.prisma.financialEntry.findUnique({
         where: { id: line.matchedEntryId },
-        select: { cashAccountId: true },
+        select: { cashAccountId: true, autoMarkedPaid: true },
       });
-      // If entry is now pointing to bank, revert it to transit
-      if (entry?.cashAccountId === bankAccountId) {
-        // Find the transit account (the one that lost the money)
+
+      if (entry?.autoMarkedPaid) {
+        // Match auto-pagou (PENDING -> PAID): volta entry pra PENDING, limpa campos, reverte saldo do banco
+        await this.prisma.cashAccount.update({
+          where: { id: bankAccountId },
+          data: { currentBalanceCents: { decrement: line.amountCents } },
+        });
+        await this.prisma.financialEntry.update({
+          where: { id: line.matchedEntryId },
+          data: {
+            status: 'PENDING',
+            paidAt: null,
+            cashAccountId: null,
+            autoMarkedPaid: false,
+          },
+        });
+      } else if (entry?.cashAccountId === bankAccountId) {
+        // Entry ja estava PAID antes do match: desfaz o auto-transfer tradicional (banco <-> transito)
         const transitAccount = await this.prisma.cashAccount.findFirst({
           where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
           select: { id: true },
@@ -922,7 +1114,6 @@ export class ReconciliationService {
         if (transitAccount) {
           const isCredit = line.amountCents > 0;
           if (isCredit) {
-            // Revert credit: bank -amount, transit +amount
             await this.prisma.cashAccount.update({
               where: { id: bankAccountId },
               data: { currentBalanceCents: { decrement: transferAmount } },
@@ -932,7 +1123,6 @@ export class ReconciliationService {
               data: { currentBalanceCents: { increment: transferAmount } },
             });
           } else {
-            // Revert debit: bank +amount, transit -amount
             await this.prisma.cashAccount.update({
               where: { id: bankAccountId },
               data: { currentBalanceCents: { increment: transferAmount } },
@@ -942,7 +1132,6 @@ export class ReconciliationService {
               data: { currentBalanceCents: { decrement: transferAmount } },
             });
           }
-          // Move entry back to transit
           await this.prisma.financialEntry.update({
             where: { id: line.matchedEntryId },
             data: { cashAccountId: transitAccount.id },
