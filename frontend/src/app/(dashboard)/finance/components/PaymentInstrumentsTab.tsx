@@ -90,6 +90,7 @@ export default function PaymentInstrumentsTab() {
   // Determine if selected payment method requires brand (card)
   const selectedPM = paymentMethods.find((p) => p.id === formData.paymentMethodId);
   const isCard = !!selectedPM?.requiresBrand;
+  const isCreditCard = !!selectedPM && /CREDITO|CREDIT/i.test(selectedPM.code || "");
 
   function openNewForm() {
     setEditingId(null);
@@ -404,33 +405,39 @@ export default function PaymentInstrumentsTab() {
               )}
 
               {/* Bank / Cash account */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Banco</label>
-                  <input
-                    type="text"
-                    value={formData.bankName}
-                    onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                    placeholder="Ex: Bradesco"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                  />
+              {isCreditCard ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  <span className="font-medium">Conta virtual automatica:</span> o sistema cria e gerencia uma conta "Cartao {formData.name || "..."}" para acumular o saldo devedor da fatura. Voce paga a fatura via transferencia da sua conta bancaria.
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Vincular Conta</label>
-                  <select
-                    value={formData.cashAccountId}
-                    onChange={(e) => setFormData({ ...formData, cashAccountId: e.target.value })}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                  >
-                    <option value="">Nenhuma</option>
-                    {cashAccounts.map((ca) => (
-                      <option key={ca.id} value={ca.id}>
-                        {ca.name} ({ca.type === "BANCO" ? "Banco" : ca.type === "TRANSITO" ? "Transito" : "Caixa"})
-                      </option>
-                    ))}
-                  </select>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Banco</label>
+                    <input
+                      type="text"
+                      value={formData.bankName}
+                      onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                      placeholder="Ex: Bradesco"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Vincular Conta</label>
+                    <select
+                      value={formData.cashAccountId}
+                      onChange={(e) => setFormData({ ...formData, cashAccountId: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                    >
+                      <option value="">Nenhuma</option>
+                      {cashAccounts.filter((ca: any) => ca.type !== "CARTAO_CREDITO").map((ca) => (
+                        <option key={ca.id} value={ca.id}>
+                          {ca.name} ({ca.type === "BANCO" ? "Banco" : ca.type === "TRANSITO" ? "Transito" : "Caixa"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Billing cycle (cards only) */}
               {selectedPM?.requiresBrand && (

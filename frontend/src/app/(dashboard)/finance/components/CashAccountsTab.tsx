@@ -29,6 +29,7 @@ const ACCOUNT_TYPE_LABEL: Record<string, string> = {
   CAIXA: "Caixa",
   BANCO: "Banco",
   TRANSITO: "Transito",
+  CARTAO_CREDITO: "Cartao",
 };
 
 const BANK_ACCOUNT_TYPE_LABEL: Record<string, string> = {
@@ -217,9 +218,11 @@ function AccountsSection() {
     setEditingId(acc.id);
     setEditingCode(acc.code || null);
     setEditingCurrentBalance(acc.currentBalanceCents);
+    // Contas virtuais de cartao nao abrem no form (botao editar ja esta oculto na UI)
+    if (acc.type === "CARTAO_CREDITO") return;
     setFormData({
       name: acc.name,
-      type: acc.type,
+      type: acc.type as "CAIXA" | "BANCO" | "TRANSITO",
       bankCode: acc.bankCode || "",
       bankName: acc.bankName || "",
       agency: acc.agency || "",
@@ -373,9 +376,11 @@ function AccountsSection() {
                         ? "bg-blue-50 text-blue-700 border-blue-200"
                         : acc.type === "TRANSITO"
                         ? "bg-purple-50 text-purple-700 border-purple-200"
+                        : acc.type === "CARTAO_CREDITO"
+                        ? "bg-rose-50 text-rose-700 border-rose-200"
                         : "bg-amber-50 text-amber-700 border-amber-200"
                     }`}>
-                      {ACCOUNT_TYPE_LABEL[acc.type]}
+                      {acc.type === "CARTAO_CREDITO" ? "\uD83D\uDCB3 " : ""}{ACCOUNT_TYPE_LABEL[acc.type]}
                     </span>
                     {!acc.isActive && (
                       <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-500">
@@ -402,10 +407,23 @@ function AccountsSection() {
                 <div className="flex items-center gap-3 shrink-0">
                   {/* Balance */}
                   <div className="text-right">
-                    <p className={`text-lg font-bold ${acc.currentBalanceCents >= 0 ? "text-green-700" : "text-red-700"}`}>
-                      {formatCurrency(acc.currentBalanceCents)}
-                    </p>
-                    <p className="text-[10px] text-slate-400">Saldo atual</p>
+                    {acc.type === "CARTAO_CREDITO" ? (
+                      <>
+                        <p className={`text-lg font-bold ${acc.currentBalanceCents < 0 ? "text-rose-700" : "text-slate-500"}`}>
+                          {formatCurrency(Math.abs(acc.currentBalanceCents))}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          {acc.currentBalanceCents < 0 ? "Em aberto" : "Fatura quitada"}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className={`text-lg font-bold ${acc.currentBalanceCents >= 0 ? "text-green-700" : "text-red-700"}`}>
+                          {formatCurrency(acc.currentBalanceCents)}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Saldo atual</p>
+                      </>
+                    )}
                   </div>
 
                   {/* Actions */}
@@ -423,16 +441,21 @@ function AccountsSection() {
                         }`}
                       />
                     </button>
-                    <button
-                      onClick={() => openEditForm(acc)}
-                      className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
-                      title="Editar"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    {acc.type !== "TRANSITO" && (
+                    {acc.type !== "CARTAO_CREDITO" && (
+                      <button
+                        onClick={() => openEditForm(acc)}
+                        className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                        title="Editar"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                    )}
+                    {acc.type === "CARTAO_CREDITO" && (
+                      <span className="text-[10px] text-slate-400 italic px-2">Gerenciado em Meios de Pagamento</span>
+                    )}
+                    {acc.type !== "TRANSITO" && acc.type !== "CARTAO_CREDITO" && (
                       <button
                         onClick={() => setDeleteTarget(acc)}
                         className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:text-red-600 hover:border-red-300 transition-colors"

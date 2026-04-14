@@ -99,7 +99,7 @@ export interface CashAccount {
   companyId: string;
   code?: string | null;
   name: string;
-  type: 'CAIXA' | 'BANCO' | 'TRANSITO';
+  type: 'CAIXA' | 'BANCO' | 'TRANSITO' | 'CARTAO_CREDITO';
   bankCode?: string | null;
   bankName?: string | null;
   agency?: string | null;

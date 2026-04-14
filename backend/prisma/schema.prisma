@@ -65,6 +65,7 @@ enum CashAccountType {
   CAIXA
   BANCO
   TRANSITO
+  CARTAO_CREDITO
 }
 
 enum BankAccountType {
