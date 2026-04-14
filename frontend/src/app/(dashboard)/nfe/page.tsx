@@ -8,6 +8,7 @@ import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
 import DraggableHeader from "@/components/ui/DraggableHeader";
 import Pagination from "@/components/ui/Pagination";
+import ActionsMenu from "@/components/ui/ActionsMenu";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
@@ -1467,100 +1468,36 @@ export default function NfePage() {
                         const w = sefazColumnWidths[col.id];
                         const tdStyle: React.CSSProperties = w ? { width: w, minWidth: w, maxWidth: w, overflow: "hidden" } : {};
                         if (col.id === "actions") {
+                          const isBusy = importingDocId === doc.id || ignoringDocId === doc.id || manifestingDocId === doc.id || revertingDocId === doc.id;
+                          const canImport = doc.schema === "procNFe" && doc.status === "FETCHED";
+                          const canIgnore = doc.status === "FETCHED";
+                          const canInitialManifest = doc.schema !== "resEvento" && doc.nfeKey && !doc.manifestType && doc.status !== "IGNORED";
+                          const canFollowUpManifest = doc.manifestType && !["confirmacao", "desconhecimento", "nao_realizada"].includes(doc.manifestType) && doc.status !== "IGNORED";
+                          const canRevert = doc.status === "IMPORTED" && doc.nfeImportId;
+                          const hasFile = doc.schema === "procNFe";
+                          const promptNaoRealizada = () => {
+                            const just = prompt("Justificativa (minimo 15 caracteres):");
+                            if (just && just.length >= 15) handleManifestDoc(doc.id, "nao_realizada", just);
+                            else if (just) toast("Justificativa deve ter no minimo 15 caracteres.", "error");
+                          };
                           return (
-                            <td key="actions" style={tdStyle} className="py-2 px-2">
-                              <div className="flex items-center gap-0.5 flex-wrap">
-                                {doc.schema === "procNFe" && doc.status === "FETCHED" && (
-                                  <button
-                                    onClick={() => handleImportDoc(doc.id)}
-                                    disabled={importingDocId === doc.id}
-                                    className="rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
-                                  >
-                                    {importingDocId === doc.id ? (
-                                      <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-green-300 border-t-green-700" />
-                                    ) : (
-                                      "Importar"
-                                    )}
-                                  </button>
-                                )}
-                                {doc.status === "FETCHED" && (
-                                  <button
-                                    onClick={() => handleIgnoreDoc(doc.id)}
-                                    disabled={ignoringDocId === doc.id}
-                                    className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
-                                  >
-                                    {ignoringDocId === doc.id ? (
-                                      <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-                                    ) : (
-                                      "Ignorar"
-                                    )}
-                                  </button>
-                                )}
-                                {doc.schema !== "resEvento" && doc.nfeKey && !doc.manifestType && doc.status !== "IGNORED" && (
-                                  <div className="relative" data-manifest-menu>
-                                    <button
-                                      onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
-                                      disabled={manifestingDocId === doc.id}
-                                      className="rounded border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 hover:bg-cyan-100 transition-colors disabled:opacity-50"
-                                    >
-                                      {manifestingDocId === doc.id ? (
-                                        <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-cyan-300 border-t-cyan-700" />
-                                      ) : (
-                                        "Manifestar"
-                                      )}
-                                    </button>
-                                    {manifestMenuDocId === doc.id && (
-                                      <div className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-slate-200 bg-white shadow-lg py-0.5">
-                                        <button onClick={() => handleManifestDoc(doc.id, "ciencia")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-cyan-50">Ciencia da Operacao</button>
-                                        <button onClick={() => handleManifestDoc(doc.id, "confirmacao")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-green-50">Confirmacao da Operacao</button>
-                                        <button onClick={() => handleManifestDoc(doc.id, "desconhecimento")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-amber-50">Desconhecimento da Operacao</button>
-                                        <button onClick={() => { const just = prompt("Justificativa (minimo 15 caracteres):"); if (just && just.length >= 15) { handleManifestDoc(doc.id, "nao_realizada", just); } else if (just) { toast("Justificativa deve ter no minimo 15 caracteres.", "error"); } }} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-red-50">Nao Realizada</button>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                                {doc.manifestType && !["confirmacao", "desconhecimento", "nao_realizada"].includes(doc.manifestType) && doc.status !== "IGNORED" && (
-                                  <div className="relative" data-manifest-menu>
-                                    <button
-                                      onClick={() => manifestMenuDocId === doc.id ? setManifestMenuDocId(null) : setManifestMenuDocId(doc.id)}
-                                      disabled={manifestingDocId === doc.id}
-                                      className="rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 hover:bg-teal-100 transition-colors disabled:opacity-50"
-                                    >
-                                      {manifestingDocId === doc.id ? (
-                                        <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-teal-300 border-t-teal-700" />
-                                      ) : (
-                                        "Confirmar"
-                                      )}
-                                    </button>
-                                    {manifestMenuDocId === doc.id && (
-                                      <div className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-slate-200 bg-white shadow-lg py-0.5">
-                                        <button onClick={() => handleManifestDoc(doc.id, "confirmacao")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-green-50">Confirmacao da Operacao</button>
-                                        <button onClick={() => handleManifestDoc(doc.id, "desconhecimento")} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-amber-50">Desconhecimento da Operacao</button>
-                                        <button onClick={() => { const just = prompt("Justificativa (minimo 15 caracteres):"); if (just && just.length >= 15) { handleManifestDoc(doc.id, "nao_realizada", just); } else if (just) { toast("Justificativa deve ter no minimo 15 caracteres.", "error"); } }} className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-700 hover:bg-red-50">Nao Realizada</button>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                                {doc.status === "IMPORTED" && doc.nfeImportId && (
-                                  <button
-                                    onClick={() => handleRevertSefazDoc(doc)}
-                                    disabled={revertingDocId === doc.id}
-                                    className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
-                                  >
-                                    {revertingDocId === doc.id ? (
-                                      <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-red-300 border-t-red-700" />
-                                    ) : (
-                                      "Reverter"
-                                    )}
-                                  </button>
-                                )}
-                                {doc.schema === "procNFe" && (
-                                  <>
-                                    <button onClick={() => handleDownloadFile(doc.id, "xml")} className="rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors" title="Baixar XML">XML</button>
-                                    <button onClick={() => handleOpenDanfe(doc.id)} className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors" title="Visualizar DANFE">PDF</button>
-                                  </>
-                                )}
-                              </div>
+                            <td key="actions" style={tdStyle} className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
+                              <ActionsMenu
+                                items={[
+                                  canImport && { label: "Importar", onClick: () => handleImportDoc(doc.id), variant: "success", disabled: isBusy },
+                                  canIgnore && { label: "Ignorar", onClick: () => handleIgnoreDoc(doc.id), variant: "default", disabled: isBusy },
+                                  canInitialManifest && { label: "Ciencia da Operacao", onClick: () => handleManifestDoc(doc.id, "ciencia"), variant: "info", disabled: isBusy, divider: true },
+                                  canInitialManifest && { label: "Confirmacao da Operacao", onClick: () => handleManifestDoc(doc.id, "confirmacao"), variant: "success", disabled: isBusy },
+                                  canInitialManifest && { label: "Desconhecimento da Operacao", onClick: () => handleManifestDoc(doc.id, "desconhecimento"), variant: "warning", disabled: isBusy },
+                                  canInitialManifest && { label: "Nao Realizada", onClick: promptNaoRealizada, variant: "danger", disabled: isBusy },
+                                  canFollowUpManifest && { label: "Confirmacao da Operacao", onClick: () => handleManifestDoc(doc.id, "confirmacao"), variant: "success", disabled: isBusy, divider: true },
+                                  canFollowUpManifest && { label: "Desconhecimento da Operacao", onClick: () => handleManifestDoc(doc.id, "desconhecimento"), variant: "warning", disabled: isBusy },
+                                  canFollowUpManifest && { label: "Nao Realizada", onClick: promptNaoRealizada, variant: "danger", disabled: isBusy },
+                                  canRevert && { label: "Reverter", onClick: () => handleRevertSefazDoc(doc), variant: "danger", disabled: isBusy, divider: true },
+                                  hasFile && { label: "Baixar XML", onClick: () => handleDownloadFile(doc.id, "xml"), variant: "purple", divider: true },
+                                  hasFile && { label: "Visualizar DANFE (PDF)", onClick: () => handleOpenDanfe(doc.id), variant: "danger" },
+                                ]}
+                              />
                             </td>
                           );
                         }

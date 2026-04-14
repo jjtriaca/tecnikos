@@ -7,6 +7,7 @@ import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
 import DraggableHeader from "@/components/ui/DraggableHeader";
 import Pagination from "@/components/ui/Pagination";
+import ActionsMenu from "@/components/ui/ActionsMenu";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
@@ -713,39 +714,20 @@ export default function NfseEntradaPage() {
                         const w = columnWidths[col.id];
                         const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflowWrap: "break-word", wordBreak: "break-word" } : {};
                         if (col.id === "actions") {
+                          const canImport = entry.status === "ACTIVE" && !entry.financialEntryId;
+                          const canRevert = entry.status === "ACTIVE" && !!entry.financialEntryId;
+                          const hasDoc = !!(entry.hasXml || entry.focusSource);
                           return (
-                            <td key="actions" style={tdStyle} className="py-3 px-4">
-                              <div className="flex items-center gap-1 flex-wrap">
-                                {/* Import / Revert */}
-                                {entry.status === "ACTIVE" && !entry.financialEntryId && (
-                                  <button onClick={(e) => { e.stopPropagation(); openProcessModal(entry); }} className="text-blue-600 hover:text-blue-700 text-[10px] font-medium hover:underline">
-                                    Importar
-                                  </button>
-                                )}
-                                {entry.status === "ACTIVE" && entry.financialEntryId && (
-                                  <button onClick={(e) => { e.stopPropagation(); handleRevert(entry.id); }} className="text-amber-600 hover:text-amber-700 text-[10px] font-medium hover:underline">
-                                    Reverter
-                                  </button>
-                                )}
-                                {/* XML */}
-                                {(entry.hasXml || entry.focusSource) && (
-                                  <button onClick={(e) => { e.stopPropagation(); openDocument(entry.id, "xml"); }} className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors" title="Ver XML">
-                                    XML
-                                  </button>
-                                )}
-                                {/* PDF */}
-                                {(entry.hasXml || entry.focusSource) && (
-                                  <button onClick={(e) => { e.stopPropagation(); openDocument(entry.id, "pdf"); }} className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 hover:bg-red-100 transition-colors" title="Ver PDF">
-                                    PDF
-                                  </button>
-                                )}
-                                {/* Cancel */}
-                                {entry.status === "ACTIVE" && !entry.financialEntryId && (
-                                  <button onClick={(e) => { e.stopPropagation(); handleCancel(entry.id); }} className="text-red-400 hover:text-red-600 text-[10px]" title="Cancelar">
-                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                  </button>
-                                )}
-                              </div>
+                            <td key="actions" style={tdStyle} className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                              <ActionsMenu
+                                items={[
+                                  canImport && { label: "Importar", onClick: () => openProcessModal(entry), variant: "primary" },
+                                  canRevert && { label: "Reverter", onClick: () => handleRevert(entry.id), variant: "warning" },
+                                  hasDoc && { label: "Ver XML", onClick: () => openDocument(entry.id, "xml"), variant: "success" },
+                                  hasDoc && { label: "Ver PDF", onClick: () => openDocument(entry.id, "pdf"), variant: "danger" },
+                                  canImport && { label: "Cancelar", onClick: () => handleCancel(entry.id), variant: "danger", divider: true },
+                                ]}
+                              />
                             </td>
                           );
                         }
