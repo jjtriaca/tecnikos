@@ -1089,7 +1089,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   // New entry modal
   const [showNewForm, setShowNewForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "" });
+  const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "" });
   const [selectedPartner, setSelectedPartner] = useState<PartnerSummary | null>(null);
   const [postableAccounts, setPostableAccounts] = useState<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>([]);
 
@@ -1449,8 +1449,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       toast("Informe um valor válido.", "error");
       return;
     }
-    if (!formData.paymentMethod) {
-      toast("Selecione a forma de pagamento.", "error");
+    if (!formData.paymentMethod && !formData.paymentInstrumentId) {
+      toast("Selecione o meio de pagamento.", "error");
       return;
     }
     setSaving(true);
@@ -1464,10 +1464,11 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         notes: formData.notes || undefined,
         financialAccountId: formData.financialAccountId || undefined,
         paymentMethod: formData.paymentMethod || undefined,
+        paymentInstrumentId: formData.paymentInstrumentId || undefined,
       });
       toast("Entrada criada com sucesso!", "success");
       setShowNewForm(false);
-      setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "" });
+      setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "" });
       setSelectedPartner(null);
       await loadEntries();
     } catch {
@@ -2199,16 +2200,33 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Forma de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"} *</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Meio de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"} *</label>
                 <select
-                  value={formData.paymentMethod}
-                  onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                  value={formData.paymentInstrumentId}
+                  onChange={(e) => {
+                    const piId = e.target.value;
+                    const pi = allInstruments.find((i: any) => i.id === piId);
+                    setFormData({
+                      ...formData,
+                      paymentInstrumentId: piId,
+                      paymentMethod: pi?.paymentMethod?.code || "",
+                    });
+                  }}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                 >
                   <option value="">Selecione...</option>
-                  {activePMs.map((m) => (
-                    <option key={m.code} value={m.code}>{m.name}</option>
-                  ))}
+                  {allInstruments.map((pi: any) => {
+                    const code = pi.paymentMethod?.code || "";
+                    const isCardInst = code.includes("CARTAO") || code.includes("CREDITO") || code.includes("DEBITO");
+                    const icon = isCardInst ? "\uD83D\uDCB3" : code === "PIX" ? "\u26A1" : code === "DINHEIRO" ? "\uD83D\uDCB5" : code === "BOLETO" ? "\uD83D\uDCC4" : code === "TRANSFERENCIA" ? "\uD83D\uDD04" : code === "CHEQUE" ? "\uD83D\uDCDD" : "\uD83D\uDCB0";
+                    const last4 = isCardInst && pi.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${pi.cardLast4}` : "";
+                    const autoBadge = pi.autoMarkPaid ? " \u26A1" : "";
+                    return (
+                      <option key={pi.id} value={pi.id}>
+                        {icon} {pi.name}{last4}{autoBadge}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <div>
@@ -2251,7 +2269,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               <button
                 onClick={() => {
                   setShowNewForm(false);
-                  setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "" });
+                  setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "" });
                   setSelectedPartner(null);
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
