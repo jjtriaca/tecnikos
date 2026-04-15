@@ -106,6 +106,17 @@ export class SefazDfeController {
     return this.service.fetchDistDFe(user.companyId);
   }
 
+  /* ── Fetch NFe por chave de acesso (recupera notas que o sync pulou) ── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
+  @Post('fetch-by-key')
+  fetchByKey(
+    @Body() body: { nfeKey: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.fetchNfeByKey(user.companyId, body.nfeKey, user.email);
+  }
+
   /* ── List Documents (paginated + filtered) ───────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FISCAL)

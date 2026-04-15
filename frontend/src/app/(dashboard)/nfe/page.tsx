@@ -778,6 +778,37 @@ export default function NfePage() {
     }
   }
 
+  const [showKeyLookupModal, setShowKeyLookupModal] = useState(false);
+  const [keyLookupInput, setKeyLookupInput] = useState("");
+  const [keyLookupLoading, setKeyLookupLoading] = useState(false);
+
+  async function handleFetchByKey() {
+    const cleanKey = keyLookupInput.replace(/\D/g, "");
+    if (cleanKey.length !== 44) {
+      toast("Chave de acesso precisa ter 44 dígitos.", "error");
+      return;
+    }
+    setKeyLookupLoading(true);
+    try {
+      const res = await api.post<{ created: boolean; emitterName: string | null; nfeKey: string }>(
+        "/nfe/sefaz/fetch-by-key",
+        { nfeKey: cleanKey },
+      );
+      if (res.created) {
+        toast(`NFe ${cleanKey.slice(-9, -1)} de ${res.emitterName || "emitente desconhecido"} importada com sucesso!`, "success");
+      } else {
+        toast("Essa NFe já estava cadastrada no sistema.", "info");
+      }
+      setShowKeyLookupModal(false);
+      setKeyLookupInput("");
+      loadSefazDocs();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao buscar NFe.", "error");
+    } finally {
+      setKeyLookupLoading(false);
+    }
+  }
+
   async function handleUploadCertificate() {
     if (!certFile) {
       toast("Selecione um arquivo de certificado.", "error");
@@ -1371,6 +1402,16 @@ export default function NfePage() {
                 </label>
               </div>
               <button
+                onClick={() => setShowKeyLookupModal(true)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                title="Buscar NFe especifica por chave de acesso (para notas que o sync nao puxou)"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Buscar por chave
+              </button>
+              <button
                 onClick={handleFetchNow}
                 disabled={fetching}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -1389,6 +1430,58 @@ export default function NfePage() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Buscar NFe por Chave de Acesso */}
+        {showKeyLookupModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl mx-4">
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Buscar NFe por chave de acesso</h3>
+              <p className="text-xs text-slate-500 mb-4">
+                Use quando o sync do SEFAZ pulou alguma nota. Informe os 44 dígitos da chave de acesso
+                (encontrados abaixo do código de barras no DANFE).
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Chave de acesso *</label>
+                  <input
+                    type="text"
+                    value={keyLookupInput}
+                    onChange={(e) => setKeyLookupInput(e.target.value.replace(/[^\d\s]/g, ""))}
+                    placeholder="0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    autoFocus
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    {keyLookupInput.replace(/\D/g, "").length} / 44 dígitos
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  onClick={() => { setShowKeyLookupModal(false); setKeyLookupInput(""); }}
+                  disabled={keyLookupLoading}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleFetchByKey}
+                  disabled={keyLookupLoading || keyLookupInput.replace(/\D/g, "").length !== 44}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {keyLookupLoading ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Buscando...
+                    </>
+                  ) : (
+                    "Buscar no SEFAZ"
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}

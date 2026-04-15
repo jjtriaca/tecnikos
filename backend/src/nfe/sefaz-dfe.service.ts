@@ -993,6 +993,66 @@ export class SefazDfeService implements OnModuleInit {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
+     fetchNfeByKey — Busca uma NFe especifica por chave de acesso via
+     Focus NFe (usado quando o sync do DistDFe pulou a nota ou ela nao
+     foi puxada ainda). Cria um SefazDocument local pra aparecer no
+     portal de manifestacao normalmente.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async fetchNfeByKey(companyId: string, nfeKey: string, byName: string): Promise<{
+    created: boolean;
+    sefazDocumentId: string;
+    nfeKey: string;
+    emitterName: string | null;
+  }> {
+    // Valida chave
+    const cleanKey = (nfeKey || '').replace(/\D/g, '');
+    if (cleanKey.length !== 44) {
+      throw new BadRequestException('Chave de acesso inválida — precisa ter 44 dígitos.');
+    }
+
+    // Ja existe?
+    const existing = await this.prisma.sefazDocument.findFirst({
+      where: { companyId, nfeKey: cleanKey },
+      select: { id: true, emitterName: true },
+    });
+    if (existing) {
+      return { created: false, sefazDocumentId: existing.id, nfeKey: cleanKey, emitterName: existing.emitterName };
+    }
+
+    // Busca XML via Focus NFe (endpoint /v2/nfes_recebidas/{chave}.xml)
+    const { token, environment } = await this.getFocusNfeCredentials(companyId);
+    const xml = await this.focusNfe.downloadNfeXml(token, environment, cleanKey);
+    if (!xml || xml.length < 100) {
+      throw new BadRequestException(
+        'NFe não encontrada no Focus NFe. Verifique se a chave está correta e se a nota foi emitida contra esta empresa.',
+      );
+    }
+
+    // Parse + persist
+    const parsed = this.parseSefazDocument(xml, '', 'procNFe');
+    const syntheticNsu = `MANUAL-${cleanKey}`.substring(0, 50);
+    const doc = await this.prisma.sefazDocument.create({
+      data: {
+        companyId,
+        nsu: syntheticNsu,
+        schema: 'procNFe',
+        nfeKey: cleanKey,
+        emitterCnpj: parsed.emitterCnpj,
+        emitterName: parsed.emitterName,
+        issueDate: parsed.issueDate,
+        nfeValue: parsed.nfeValue,
+        situacao: parsed.situacao,
+        xmlContent: xml,
+        status: 'FETCHED',
+      },
+    });
+
+    this.logger.log(`NFe ${cleanKey} importada manualmente por ${byName} (emitente: ${parsed.emitterName})`);
+    return { created: true, sefazDocumentId: doc.id, nfeKey: cleanKey, emitterName: parsed.emitterName };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
      tryDownloadFullXml — Attempt to download procNFe XML after ciência
      ═══════════════════════════════════════════════════════════════════ */
 
