@@ -30,6 +30,20 @@ const SEFAZ_URLS = {
   HOMOLOGATION: 'https://hom1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx',
 };
 
+// Ambiente Nacional — usado pra eventos de manifestação do destinatário (MDe)
+const SEFAZ_EVENTO_URLS = {
+  PRODUCTION: 'https://www1.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx',
+  HOMOLOGATION: 'https://hom1.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx',
+};
+
+// tpEvento pra cada tipo de manifestação
+const MANIFEST_EVENT_TYPES: Record<string, { tpEvento: string; descEvento: string; requiresJustificativa: boolean }> = {
+  ciencia: { tpEvento: '210210', descEvento: 'Ciencia da Operacao', requiresJustificativa: false },
+  confirmacao: { tpEvento: '210200', descEvento: 'Confirmacao da Operacao', requiresJustificativa: false },
+  desconhecimento: { tpEvento: '210220', descEvento: 'Desconhecimento da Operacao', requiresJustificativa: false },
+  nao_realizada: { tpEvento: '210240', descEvento: 'Operacao nao Realizada', requiresJustificativa: true },
+};
+
 /* ══════════════════════════════════════════════════════════════════════
    Types
    ══════════════════════════════════════════════════════════════════════ */
@@ -972,11 +986,8 @@ export class SefazDfeService implements OnModuleInit {
       throw new BadRequestException('Justificativa é obrigatória para este tipo de manifestação');
     }
 
-    // Get Focus NFe token from NfseConfig
-    const { token, environment } = await this.getFocusNfeCredentials(companyId);
-
-    // Call Focus NFe API
-    const result = await this.focusNfe.manifestNfe(token, environment, doc.nfeKey, tipo, justificativa);
+    // Manifestação direto na SEFAZ (NFeRecepcaoEvento4) com certificado digital da empresa
+    const result = await this.manifestEventSefaz(companyId, doc.nfeKey, tipo, justificativa);
 
     // Update document
     const updated = await this.prisma.sefazDocument.update({
@@ -987,15 +998,17 @@ export class SefazDfeService implements OnModuleInit {
       },
     });
 
-    this.logger.log(`Manifest OK: doc=${sefazDocId} key=${doc.nfeKey} type=${tipo}`);
+    this.logger.log(`Manifest OK: doc=${sefazDocId} key=${doc.nfeKey} type=${tipo} protocolo=${result.protocolo ?? '-'}`);
 
-    // After ciência, try to download full XML if not already available
-    if (tipo === 'ciencia' && !doc.xmlContent) {
+    // Apos ciência, tenta baixar o procNFe via consChNFe (SEFAZ direto — sem Focus)
+    if (tipo === 'ciencia' && doc.schema !== 'procNFe') {
       // Schedule XML download attempt (may not be available immediately)
-      setTimeout(() => this.tryDownloadFullXml(companyId, sefazDocId, doc.nfeKey!), 5000);
+      setTimeout(() => this.tryDownloadFullXmlViaSefaz(companyId, sefazDocId, doc.nfeKey!).catch((err) => {
+        this.logger.warn(`Falha ao baixar procNFe apos ciencia: ${err.message}`);
+      }), 5000);
     }
 
-    return { ...updated, focusResult: result };
+    return { ...updated, sefazResult: result };
   }
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -1107,7 +1120,237 @@ export class SefazDfeService implements OnModuleInit {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     tryDownloadFullXml — Attempt to download procNFe XML after ciência
+     manifestEventSefaz — Envia evento de manifestacao do destinatario (MDe)
+     direto para o ambiente nacional da SEFAZ (NFeRecepcaoEvento4), assinado
+     com o certificado digital da empresa.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private async manifestEventSefaz(
+    companyId: string,
+    nfeKey: string,
+    tipo: 'ciencia' | 'confirmacao' | 'desconhecimento' | 'nao_realizada',
+    justificativa?: string,
+  ): Promise<{ cStat: string; xMotivo: string; protocolo?: string; nProt?: string }> {
+    const eventCfg = MANIFEST_EVENT_TYPES[tipo];
+    if (!eventCfg) throw new BadRequestException(`Tipo de manifestação invalido: ${tipo}`);
+
+    if (eventCfg.requiresJustificativa) {
+      const j = (justificativa || '').trim();
+      if (j.length < 15 || j.length > 255) {
+        throw new BadRequestException('Justificativa precisa ter entre 15 e 255 caracteres.');
+      }
+    }
+
+    const config = await this.prisma.sefazConfig.findUnique({ where: { companyId } });
+    if (!config) throw new BadRequestException('Configuração SEFAZ nao encontrada.');
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company?.cnpj) throw new BadRequestException('Empresa sem CNPJ cadastrado.');
+
+    const certPem = this.encryption.decrypt(config.pfxBase64);
+    const keyPem = this.encryption.decrypt(config.pfxPassword);
+    const cnpjOnly = company.cnpj.replace(/\D/g, '').padStart(14, '0');
+    const tpAmb = config.environment === 'HOMOLOGATION' ? '2' : '1';
+
+    // Monta infEvento (elemento a ser assinado) — compacto (sem espacos/newlines) pra canonicalizacao consistente
+    const now = new Date();
+    const tzOffsetMin = -now.getTimezoneOffset();
+    const sign = tzOffsetMin >= 0 ? '+' : '-';
+    const abs = Math.abs(tzOffsetMin);
+    const tz = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+    const dhEvento = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}${tz}`;
+
+    const nSeqEvento = '1';
+    const idInfEvento = `ID${eventCfg.tpEvento}${nfeKey}${nSeqEvento.padStart(2, '0')}`;
+
+    const detEventoInner = eventCfg.requiresJustificativa
+      ? `<descEvento>${eventCfg.descEvento}</descEvento><xJust>${this.escapeXml(justificativa!.trim())}</xJust>`
+      : `<descEvento>${eventCfg.descEvento}</descEvento>`;
+
+    const infEvento = `<infEvento Id="${idInfEvento}"><cOrgao>91</cOrgao><tpAmb>${tpAmb}</tpAmb><CNPJ>${cnpjOnly}</CNPJ><chNFe>${nfeKey}</chNFe><dhEvento>${dhEvento}</dhEvento><tpEvento>${eventCfg.tpEvento}</tpEvento><nSeqEvento>${nSeqEvento}</nSeqEvento><verEvento>1.00</verEvento><detEvento versao="1.00">${detEventoInner}</detEvento></infEvento>`;
+
+    // Assina o infEvento usando XML-DSig (RSA-SHA1 + C14N)
+    const signatureXml = this.signXmlElement(infEvento, idInfEvento, certPem, keyPem);
+
+    const evento = `<evento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">${infEvento}${signatureXml}</evento>`;
+    const envEvento = `<?xml version="1.0" encoding="UTF-8"?><envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00"><idLote>${Date.now()}</idLote>${evento}</envEvento>`;
+
+    // Envia via SOAP NFeRecepcaoEvento4
+    const response = await this.callRecepcaoEventoSoap(certPem, keyPem, envEvento, config.environment);
+
+    this.logger.log(`SEFAZ evento ${tipo} response: cStat=${response.cStat} xMotivo=${response.xMotivo} protocolo=${response.protocolo ?? '-'}`);
+
+    if (response.cStat !== '128' && response.cStat !== '135' && response.cStat !== '136') {
+      // 128 = Lote processado; 135 = Evento registrado; 136 = Evento registrado mas vinculado a NFe
+      throw new BadRequestException(
+        `SEFAZ rejeitou a manifestação. cStat=${response.cStat} — ${response.xMotivo || 'sem motivo'}`,
+      );
+    }
+
+    return response;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     signXmlElement — Gera bloco <Signature> para o elemento informado.
+     Implementa XML-DSig (RSA-SHA1) com canonicalizacao simplificada.
+     O XML de entrada deve estar em formato COMPACTO (sem quebras nem
+     espacos entre tags) pra canonicalizacao ficar consistente.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private signXmlElement(xmlElement: string, refId: string, certPem: string, keyPem: string): string {
+    // 1. Digest SHA-1 do elemento (canonicalizado como ja esta — compacto)
+    const md1 = forge.md.sha1.create();
+    md1.update(xmlElement, 'utf8');
+    const digestValue = forge.util.encode64(md1.digest().getBytes());
+
+    // 2. Monta SignedInfo (tambem compacto)
+    const signedInfo = `<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></CanonicalizationMethod><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></SignatureMethod><Reference URI="#${refId}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></Transform><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></Transform></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></DigestMethod><DigestValue>${digestValue}</DigestValue></Reference></SignedInfo>`;
+
+    // 3. Assina SignedInfo com RSA-SHA1
+    const privateKey = forge.pki.privateKeyFromPem(keyPem);
+    const md2 = forge.md.sha1.create();
+    md2.update(signedInfo, 'utf8');
+    const signatureValue = forge.util.encode64(privateKey.sign(md2));
+
+    // 4. Extrai certificado base64 sem headers PEM
+    const certMatch = certPem.match(/-----BEGIN CERTIFICATE-----\s*([\s\S]+?)\s*-----END CERTIFICATE-----/);
+    const certBase64 = certMatch ? certMatch[1].replace(/\s+/g, '') : '';
+
+    return `<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">${signedInfo}<SignatureValue>${signatureValue}</SignatureValue><KeyInfo><X509Data><X509Certificate>${certBase64}</X509Certificate></X509Data></KeyInfo></Signature>`;
+  }
+
+  private escapeXml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     callRecepcaoEventoSoap — POST SOAP para NFeRecepcaoEvento4 com envelope ja assinado
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private callRecepcaoEventoSoap(
+    certPem: string,
+    keyPem: string,
+    envEventoXml: string,
+    environment: string,
+  ): Promise<{ cStat: string; xMotivo: string; protocolo?: string; nProt?: string }> {
+    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${envEventoXml}</nfeDadosMsg>
+  </soap12:Body>
+</soap12:Envelope>`;
+
+    const url = environment === 'HOMOLOGATION' ? SEFAZ_EVENTO_URLS.HOMOLOGATION : SEFAZ_EVENTO_URLS.PRODUCTION;
+    const parsedUrl = new URL(url);
+
+    this.logger.log(`SEFAZ Evento SOAP → ${url} | envelope length=${soapEnvelope.length}`);
+
+    return new Promise((resolve, reject) => {
+      const options: https.RequestOptions = {
+        hostname: parsedUrl.hostname,
+        port: 443,
+        path: parsedUrl.pathname,
+        method: 'POST',
+        cert: certPem,
+        key: keyPem,
+        headers: {
+          'Content-Type': 'application/soap+xml;charset=UTF-8',
+          'Content-Length': Buffer.byteLength(soapEnvelope, 'utf-8'),
+        },
+        timeout: 30000,
+      };
+
+      const req = https.request(options, (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf-8');
+          this.logger.log(`SEFAZ Evento HTTP ${res.statusCode} | body length=${body.length}`);
+          if (body.length < 3000) this.logger.log(`SEFAZ Evento response: ${body}`);
+
+          try {
+            const parsed = this.xmlParser.parse(body);
+            const envelope = parsed['soap:Envelope'] ?? parsed['soap12:Envelope'] ?? parsed;
+            const soapBody = envelope['soap:Body'] ?? envelope['soap12:Body'] ?? envelope;
+            const resp = soapBody?.nfeResultMsg ?? soapBody;
+            const retEnvEvento = resp?.retEnvEvento ?? resp;
+
+            const cStatLote = String(retEnvEvento?.cStat ?? '');
+            const xMotivoLote = String(retEnvEvento?.xMotivo ?? '');
+
+            // Se o lote foi processado, busca retorno do evento individual
+            const retEvento = retEnvEvento?.retEvento;
+            const retEventoItem = Array.isArray(retEvento) ? retEvento[0] : retEvento;
+            const infEventoRet = retEventoItem?.infEvento;
+            if (infEventoRet) {
+              const cStatEv = String(infEventoRet.cStat ?? cStatLote);
+              const xMotivoEv = String(infEventoRet.xMotivo ?? xMotivoLote);
+              const nProt = infEventoRet.nProt ? String(infEventoRet.nProt) : undefined;
+              resolve({ cStat: cStatEv, xMotivo: xMotivoEv, protocolo: nProt, nProt });
+            } else {
+              resolve({ cStat: cStatLote, xMotivo: xMotivoLote });
+            }
+          } catch (err) {
+            reject(new Error(`Erro ao processar resposta SEFAZ evento: ${err.message}`));
+          }
+        });
+      });
+
+      req.on('error', (err) => reject(new Error(`Erro de conexao SEFAZ evento: ${err.message}`)));
+      req.on('timeout', () => { req.destroy(); reject(new Error('Timeout SEFAZ evento (30s)')); });
+      req.write(soapEnvelope);
+      req.end();
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     tryDownloadFullXmlViaSefaz — Busca procNFe direto no SEFAZ via consChNFe
+     (usado apos ciencia — substitui o download via Focus).
+     ═══════════════════════════════════════════════════════════════════ */
+
+  private async tryDownloadFullXmlViaSefaz(companyId: string, sefazDocId: string, nfeKey: string) {
+    const config = await this.prisma.sefazConfig.findUnique({ where: { companyId } });
+    if (!config) return;
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company?.cnpj || !company.state) return;
+
+    const cUFAutor = UF_IBGE[company.state.toUpperCase()];
+    if (!cUFAutor) return;
+
+    const certPem = this.encryption.decrypt(config.pfxBase64);
+    const keyPem = this.encryption.decrypt(config.pfxPassword);
+    const cnpjOnly = company.cnpj.replace(/\D/g, '');
+    const tpAmb = config.environment === 'HOMOLOGATION' ? '2' : '1';
+
+    const response = await this.callSefazSoap(
+      certPem, keyPem, cnpjOnly, cUFAutor, nfeKey, tpAmb, config.environment, 'consChNFe',
+    );
+
+    if (response.cStat !== '138' || response.docZips.length === 0) {
+      this.logger.log(`procNFe ainda nao disponivel apos ciencia: key=${nfeKey} cStat=${response.cStat}`);
+      return;
+    }
+
+    for (const doc of response.docZips) {
+      const parsed = this.parseSefazDocument(doc.xml, doc.nsu, doc.schema);
+      if (parsed.schema === 'procNFe' && parsed.nfeKey === nfeKey) {
+        await this.prisma.sefazDocument.update({
+          where: { id: sefazDocId },
+          data: {
+            xmlContent: doc.xml,
+            schema: 'procNFe',
+            emitterName: parsed.emitterName || undefined,
+            nfeValue: parsed.nfeValue || undefined,
+          },
+        });
+        this.logger.log(`procNFe baixado via SEFAZ apos ciencia: key=${nfeKey}`);
+        return;
+      }
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     tryDownloadFullXml — Attempt to download procNFe XML after ciência (LEGADO - Focus)
      ═══════════════════════════════════════════════════════════════════ */
 
   private async tryDownloadFullXml(companyId: string, sefazDocId: string, nfeKey: string) {
