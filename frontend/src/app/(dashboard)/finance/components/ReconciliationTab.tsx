@@ -7,6 +7,18 @@ import type { CashAccount, BankStatement, BankStatementLine, StatementLineStatus
 import DraggableHeader from "@/components/ui/DraggableHeader";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { ColumnDefinition } from "@/lib/types/table";
+import LookupField from "@/components/ui/LookupField";
+import type { LookupFetcher, LookupFetcherResult } from "@/components/ui/SearchLookupModal";
+
+/* ── Partner Lookup (shared) ────────────────────────────── */
+
+type PartnerSummary = { id: string; name: string; document: string | null };
+
+const partnerFetcher: LookupFetcher<PartnerSummary> = async (search, page, signal) => {
+  const params = new URLSearchParams({ page: String(page), limit: "20" });
+  if (search) params.set("search", search);
+  return api.get<LookupFetcherResult<PartnerSummary>>(`/partners?${params.toString()}`, { signal });
+};
 
 /* ── Helpers ────────────────────────────────────────────── */
 
@@ -175,6 +187,267 @@ interface FinancialAccountOption {
   allowPosting: boolean;
 }
 
+/* ── Quick Create Entry Modal (inline) ────────────────────
+ * Abre sobre o ConciliationModal. Cria FinancialEntry com dados
+ * pre-preenchidos do extrato e concilia automaticamente na sequencia.
+ * ------------------------------------------------------------ */
+
+interface PaymentInstrumentOption {
+  id: string;
+  name: string;
+  cashAccountId: string | null;
+  autoMarkPaid: boolean;
+}
+
+function QuickCreateEntryModal({
+  open,
+  line,
+  financialAccounts,
+  onClose,
+  onCreatedAndMatched,
+}: {
+  open: boolean;
+  line: BankStatementLine | null;
+  financialAccounts: FinancialAccountOption[];
+  onClose: () => void;
+  onCreatedAndMatched: () => void;
+}) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [partner, setPartner] = useState<PartnerSummary | null>(null);
+  const [description, setDescription] = useState("");
+  const [grossReais, setGrossReais] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [financialAccountId, setFinancialAccountId] = useState("");
+  const [paymentInstrumentId, setPaymentInstrumentId] = useState("");
+  const [paymentInstruments, setPaymentInstruments] = useState<PaymentInstrumentOption[]>([]);
+
+  const entryType: "RECEIVABLE" | "PAYABLE" = line && line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
+  const isoDate = (d: string) => {
+    // d: "2026-04-15" -> "2026-04-15T12:00:00" (timezone-safe: meio-dia local)
+    if (!d) return undefined;
+    return `${d}T12:00:00`;
+  };
+
+  // Pre-fill on open
+  useEffect(() => {
+    if (!open || !line) return;
+    const abs = Math.abs(line.amountCents);
+    setGrossReais((abs / 100).toFixed(2).replace(".", ","));
+    setDescription(line.description || "");
+    setDueDate(line.transactionDate.slice(0, 10));
+    setPartner(null);
+    setFinancialAccountId("");
+    setPaymentInstrumentId("");
+
+    // Load payment instruments for this direction
+    const direction = entryType === "RECEIVABLE" ? "RECEIVE" : "PAY";
+    api
+      .get<PaymentInstrumentOption[]>(`/finance/payment-instruments/active?direction=${direction}`)
+      .then((list) => setPaymentInstruments(list || []))
+      .catch(() => setPaymentInstruments([]));
+  }, [open, line, entryType]);
+
+  if (!open || !line) return null;
+
+  const grossCents = Math.round((parseFloat(grossReais.replace(",", ".")) || 0) * 100);
+  const needsChartAccount = financialAccounts.length > 0 && !financialAccountId;
+  const canSave = partner && grossCents > 0 && !needsChartAccount && !saving;
+
+  async function handleSave() {
+    if (!line || !partner) return;
+    setSaving(true);
+    try {
+      // 1. Cria o entry com status PENDING (nao PAID — o match vai marcar PAID com a data correta do banco)
+      const createBody: any = {
+        type: entryType,
+        partnerId: partner.id,
+        description: description || line.description,
+        grossCents,
+        dueDate: isoDate(dueDate),
+      };
+      if (financialAccountId) createBody.financialAccountId = financialAccountId;
+      if (paymentInstrumentId) createBody.paymentInstrumentId = paymentInstrumentId;
+
+      const created = await api.post<any>("/finance/entries", createBody);
+      const entryId = created?.id || created?.entry?.id || created?.data?.id;
+      if (!entryId) throw new Error("Nao recebi ID do lancamento criado");
+
+      // 2. Concilia a linha com o entry recem-criado
+      const matchBody: any = { entryId };
+      if (financialAccountId) matchBody.financialAccountId = financialAccountId;
+      await api.post(`/finance/reconciliation/lines/${line.id}/match`, matchBody);
+
+      toast("Lancamento criado e conciliado com sucesso!", "success");
+      onCreatedAndMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao criar lancamento.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const lineAbs = Math.abs(line.amountCents);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h3 className="text-base font-semibold text-slate-800">
+            Novo lancamento a {entryType === "RECEIVABLE" ? "receber" : "pagar"}
+          </h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Pre-preenchido do extrato. Ao salvar, o lancamento e criado e ja conciliado com a transacao.
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {/* Bank line preview */}
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-600">
+            <div className="flex items-center justify-between">
+              <span className="truncate">{line.description}</span>
+              <span className={`font-semibold ml-2 ${line.amountCents >= 0 ? "text-green-700" : "text-red-700"}`}>
+                {formatCurrency(line.amountCents)}
+              </span>
+            </div>
+            <div className="text-slate-400 mt-0.5">Data: {formatDate(line.transactionDate)}</div>
+          </div>
+
+          {/* Partner */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Parceiro <span className="text-red-500">*</span>
+            </label>
+            <LookupField<PartnerSummary>
+              placeholder="Buscar parceiro (cliente/fornecedor)..."
+              modalTitle="Selecionar parceiro"
+              modalPlaceholder="Nome ou CNPJ/CPF"
+              value={partner}
+              displayValue={(p) => p.name}
+              onChange={setPartner}
+              fetcher={partnerFetcher}
+              keyExtractor={(p) => p.id}
+              renderItem={(p) => (
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-slate-800">{p.name}</span>
+                  {p.document && <span className="text-[11px] text-slate-500">{p.document}</span>}
+                </div>
+              )}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Descricao</label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descricao do lancamento"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
+          {/* Gross + Due Date */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Valor <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={grossReais}
+                onChange={(e) => setGrossReais(e.target.value)}
+                placeholder="0,00"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              />
+              {grossCents > 0 && grossCents !== lineAbs && (
+                <p className="text-[10px] text-amber-600 mt-1">
+                  Diferente do extrato ({formatCurrency(lineAbs)})
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Vencimento</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Plano de contas */}
+          {financialAccounts.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Plano de contas <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={financialAccountId}
+                onChange={(e) => setFinancialAccountId(e.target.value)}
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
+                  needsChartAccount
+                    ? "border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-500"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
+              >
+                <option value="">Selecione um plano...</option>
+                {financialAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.code ? `${a.code} — ` : ""}{a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Meio de pagamento (opcional) */}
+          {paymentInstruments.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Meio de pagamento (opcional)</label>
+              <select
+                value={paymentInstrumentId}
+                onChange={(e) => setPaymentInstrumentId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              >
+                <option value="">—</option>
+                {paymentInstruments.map((pi) => (
+                  <option key={pi.id} value={pi.id}>{pi.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!canSave}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            title={
+              !partner ? "Selecione um parceiro" :
+              grossCents <= 0 ? "Informe o valor" :
+              needsChartAccount ? "Escolha o plano de contas" :
+              undefined
+            }
+          >
+            {saving ? "Salvando..." : "Criar e conciliar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ConciliationModal({
   open,
   line,
@@ -194,6 +467,7 @@ function ConciliationModal({
   const [search, setSearch] = useState("");
   const [financialAccounts, setFinancialAccounts] = useState<FinancialAccountOption[]>([]);
   const [accountAssignments, setAccountAssignments] = useState<Record<string, string>>({});
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
   // Card transaction breakdown state
   const [liquidCents, setLiquidCents] = useState(0);
@@ -635,9 +909,19 @@ function ConciliationModal({
             />
           </div>
 
-          <p className="text-xs font-medium text-slate-500 mb-2">
-            Lancamentos financeiros ({line.amountCents >= 0 ? "A Receber" : "A Pagar"}) — PAGOS e PENDENTES:
-          </p>
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <p className="text-xs font-medium text-slate-500">
+              Lancamentos financeiros ({line.amountCents >= 0 ? "A Receber" : "A Pagar"}) — PAGOS e PENDENTES:
+            </p>
+            <button
+              onClick={() => setQuickCreateOpen(true)}
+              className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md px-2 py-1 flex items-center gap-1 whitespace-nowrap"
+              title="Criar um novo lancamento com os dados do extrato ja preenchidos"
+            >
+              <span className="text-base leading-none">+</span>
+              Criar novo lancamento
+            </button>
+          </div>
           {loading ? (
             <div className="text-center py-6">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent mx-auto" />
@@ -761,6 +1045,18 @@ function ConciliationModal({
           </button>
         </div>
       </div>
+
+      {/* Sub-modal: criar lancamento com dados pre-preenchidos do extrato */}
+      <QuickCreateEntryModal
+        open={quickCreateOpen}
+        line={line}
+        financialAccounts={financialAccounts}
+        onClose={() => setQuickCreateOpen(false)}
+        onCreatedAndMatched={() => {
+          setQuickCreateOpen(false);
+          onMatched(); // fecha modal de conciliacao e recarrega a lista
+        }}
+      />
     </div>
   );
 }
