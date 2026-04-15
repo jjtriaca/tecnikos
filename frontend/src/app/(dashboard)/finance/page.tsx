@@ -1323,7 +1323,9 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       return;
     }
     const selectedPM = activePMs.find((p) => p.code === paymentMethod);
-    if (selectedPM?.requiresBrand && !selectedCardRateId) {
+    // Se o usuario selecionou um PaymentInstrument especifico (ex: Master Ueslei), ja temos
+    // o cartao — nao precisa de CardFeeRate separado. Taxa vem de PaymentInstrumentFeeRate.
+    if (selectedPM?.requiresBrand && !selectedInstrumentId && !selectedCardRateId) {
       toast("Selecione o cartao.", "error");
       return;
     }
@@ -1903,13 +1905,17 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               </div>
               )}
 
-              {isCardPayment && (
+              {/* Dropdown CardFeeRate so aparece quando:
+                    - e cartao (isCardPayment)
+                    - E usuario NAO selecionou um PaymentInstrument especifico (o instrumento ja tem suas proprias taxas)
+                  Fallback pra tenants que ainda nao cadastraram instrumentos */}
+              {isCardPayment && !selectedInstrumentId && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Cartao *</label>
                   {filteredCardRates.length === 0 ? (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
                       <p className="font-medium">Nenhum cartao cadastrado para {cardType === "DEBITO" ? "debito" : "credito"}.</p>
-                      <p className="mt-1">Cadastre as taxas na aba <strong>Cadastros</strong> → <strong>Taxas de Cartao</strong>.</p>
+                      <p className="mt-1">Cadastre as taxas em <strong>Meios de Pagamento e Recebimento</strong> (secao Taxas de parcelamento).</p>
                     </div>
                   ) : (
                     <select
@@ -2088,7 +2094,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               </button>
               <button
                 onClick={handlePayConfirm}
-                disabled={!!actionLoading || (!paymentMethod && !(type === "PAYABLE" && selectedInstrumentId)) || !!(type === "RECEIVABLE" && activePMs.find((p) => p.code === paymentMethod)?.requiresBrand && !selectedCardRateId)}
+                disabled={!!actionLoading || (!paymentMethod && !selectedInstrumentId) || !!(type === "RECEIVABLE" && !selectedInstrumentId && activePMs.find((p) => p.code === paymentMethod)?.requiresBrand && !selectedCardRateId)}
                 className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
                 {actionLoading ? (
