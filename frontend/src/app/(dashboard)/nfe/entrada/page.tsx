@@ -179,6 +179,8 @@ export default function NfseEntradaPage() {
   const [financeMode, setFinanceMode] = useState<"LINK" | "CREATE" | "NONE">("CREATE");
   const [processDueDate, setProcessDueDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentInstrumentId, setPaymentInstrumentId] = useState("");
+  const [activePIs, setActivePIs] = useState<any[]>([]);
   const [processAccountId, setProcessAccountId] = useState("");
   const [activePMs, setActivePMs] = useState<{ id: string; code: string; name: string }[]>([]);
   const [postableAccounts, setPostableAccounts] = useState<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>([]);
@@ -391,6 +393,8 @@ export default function NfseEntradaPage() {
     // Load payment methods + accounts + linkable entries
     api.get<{ id: string; code: string; name: string }[]>("/finance/payment-methods/active")
       .then(setActivePMs).catch(() => setActivePMs([]));
+    api.get<any[]>("/finance/payment-instruments/active?direction=PAYABLE")
+      .then(setActivePIs).catch(() => setActivePIs([]));
     api.get<typeof postableAccounts>("/finance/accounts/postable")
       .then(setPostableAccounts).catch(() => setPostableAccounts([]));
     // Load linkable entries for this NFS-e
@@ -434,6 +438,7 @@ export default function NfseEntradaPage() {
           createEntry: financeMode === "CREATE",
           dueDate: financeMode === "CREATE" ? (processDueDate || undefined) : undefined,
           paymentMethod: financeMode === "CREATE" ? (paymentMethod || undefined) : undefined,
+          paymentInstrumentId: financeMode === "CREATE" ? (paymentInstrumentId || undefined) : undefined,
           financialAccountId: financeMode === "CREATE" ? (processAccountId || undefined) : undefined,
           linkedEntryIds: financeMode === "LINK" ? Array.from(selectedLinkIds) : undefined,
         },
@@ -966,10 +971,30 @@ export default function NfseEntradaPage() {
                     {financeMode === "CREATE" && (
                       <>
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
-                          <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pagamento *</label>
-                          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Meio de Pagamento *</label>
+                          <select
+                            value={paymentInstrumentId}
+                            onChange={(e) => {
+                              const piId = e.target.value;
+                              const pi = activePIs.find((i: any) => i.id === piId);
+                              setPaymentInstrumentId(piId);
+                              setPaymentMethod(pi?.paymentMethod?.code || "");
+                            }}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                          >
                             <option value="">Selecione...</option>
-                            {activePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+                            {activePIs.map((pi: any) => {
+                              const code = pi.paymentMethod?.code || "";
+                              const isCardInst = code.includes("CARTAO") || code.includes("CREDITO") || code.includes("DEBITO");
+                              const icon = isCardInst ? "\uD83D\uDCB3" : code === "PIX" ? "\u26A1" : code === "DINHEIRO" ? "\uD83D\uDCB5" : code === "BOLETO" ? "\uD83D\uDCC4" : code === "TRANSFERENCIA" ? "\uD83D\uDD04" : code === "CHEQUE" ? "\uD83D\uDCDD" : "\uD83D\uDCB0";
+                              const last4 = isCardInst && pi.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${pi.cardLast4}` : "";
+                              const autoBadge = pi.autoMarkPaid ? " \u26A1" : "";
+                              return (
+                                <option key={pi.id} value={pi.id}>
+                                  {icon} {pi.name}{last4}{autoBadge}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
                         <div className="rounded-xl border border-slate-200 bg-white p-5">

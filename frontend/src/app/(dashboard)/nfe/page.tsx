@@ -672,8 +672,10 @@ export default function NfePage() {
   const [createFinancialEntry, setCreateFinancialEntry] = useState(true);
   const [financeDueDate, setFinanceDueDate] = useState("");
   const [financePaymentMethod, setFinancePaymentMethod] = useState("");
+  const [financePaymentInstrumentId, setFinancePaymentInstrumentId] = useState("");
   const [financeAccountId, setFinanceAccountId] = useState("");
   const [nfeActivePMs, setNfeActivePMs] = useState<{ id: string; code: string; name: string }[]>([]);
+  const [nfePaymentInstruments, setNfePaymentInstruments] = useState<any[]>([]);
   const [nfePostableAccounts, setNfePostableAccounts] = useState<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>([]);
 
   // Duplicatas parsed from XML
@@ -884,9 +886,11 @@ export default function NfePage() {
       setCreateFinancialEntry(true);
       setFinanceDueDate(result.issueDate ? result.issueDate.split("T")[0] : "");
       setFinancePaymentMethod("");
+      setFinancePaymentInstrumentId("");
       setFinanceAccountId("");
       // Load payment methods and postable accounts
       api.get<{ id: string; code: string; name: string }[]>("/finance/payment-methods/active").then(setNfeActivePMs).catch(() => setNfeActivePMs([]));
+      api.get<any[]>("/finance/payment-instruments/active?direction=PAYABLE").then(setNfePaymentInstruments).catch(() => setNfePaymentInstruments([]));
       api.get<typeof nfePostableAccounts>("/finance/accounts/postable").then(setNfePostableAccounts).catch(() => setNfePostableAccounts([]));
       setStep(2);
       setWizardStartStep(2);
@@ -1134,8 +1138,10 @@ export default function NfePage() {
       setCreateFinancialEntry(true);
       setFinanceDueDate(result.issueDate ? result.issueDate.split("T")[0] : "");
       setFinancePaymentMethod("");
+      setFinancePaymentInstrumentId("");
       setFinanceAccountId("");
       api.get<{ id: string; code: string; name: string }[]>("/finance/payment-methods/active").then(setNfeActivePMs).catch(() => setNfeActivePMs([]));
+      api.get<any[]>("/finance/payment-instruments/active?direction=PAYABLE").then(setNfePaymentInstruments).catch(() => setNfePaymentInstruments([]));
       api.get<typeof nfePostableAccounts>("/finance/accounts/postable").then(setNfePostableAccounts).catch(() => setNfePostableAccounts([]));
       toast("XML processado com sucesso!", "success");
     } catch (err: any) {
@@ -1249,6 +1255,7 @@ export default function NfePage() {
           createEntry: createFinancialEntry,
           dueDate: financeDueDate || undefined,
           paymentMethod: financePaymentMethod || undefined,
+          paymentInstrumentId: financePaymentInstrumentId || undefined,
           financialAccountId: financeAccountId || undefined,
           installments: parsedDuplicatas.length > 0
             ? parsedDuplicatas.map((d) => ({
@@ -2517,12 +2524,32 @@ export default function NfePage() {
                     {/* Duplicatas or manual due date (only if creating entry) */}
                     {createFinancialEntry && (
                       <>
-                        {/* Forma de pagamento */}
+                        {/* Meio de pagamento (PaymentInstrument) */}
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
-                          <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pagamento *</label>
-                          <select value={financePaymentMethod} onChange={(e) => setFinancePaymentMethod(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Meio de Pagamento *</label>
+                          <select
+                            value={financePaymentInstrumentId}
+                            onChange={(e) => {
+                              const piId = e.target.value;
+                              const pi = nfePaymentInstruments.find((i: any) => i.id === piId);
+                              setFinancePaymentInstrumentId(piId);
+                              setFinancePaymentMethod(pi?.paymentMethod?.code || "");
+                            }}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                          >
                             <option value="">Selecione...</option>
-                            {nfeActivePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+                            {nfePaymentInstruments.map((pi: any) => {
+                              const code = pi.paymentMethod?.code || "";
+                              const isCardInst = code.includes("CARTAO") || code.includes("CREDITO") || code.includes("DEBITO");
+                              const icon = isCardInst ? "\uD83D\uDCB3" : code === "PIX" ? "\u26A1" : code === "DINHEIRO" ? "\uD83D\uDCB5" : code === "BOLETO" ? "\uD83D\uDCC4" : code === "TRANSFERENCIA" ? "\uD83D\uDD04" : code === "CHEQUE" ? "\uD83D\uDCDD" : "\uD83D\uDCB0";
+                              const last4 = isCardInst && pi.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${pi.cardLast4}` : "";
+                              const autoBadge = pi.autoMarkPaid ? " \u26A1" : "";
+                              return (
+                                <option key={pi.id} value={pi.id}>
+                                  {icon} {pi.name}{last4}{autoBadge}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
 
@@ -2653,7 +2680,7 @@ export default function NfePage() {
                     </button>
                     <button
                       onClick={() => setStep(5)}
-                      disabled={createFinancialEntry && (!financePaymentMethod || !financeAccountId)}
+                      disabled={createFinancialEntry && ((!financePaymentMethod && !financePaymentInstrumentId) || !financeAccountId)}
                       className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Proximo
