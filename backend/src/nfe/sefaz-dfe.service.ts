@@ -1251,6 +1251,8 @@ export class SefazDfeService implements OnModuleInit {
     this.logger.log(`SEFAZ Evento SOAP → ${url} | envelope length=${soapEnvelope.length}`);
 
     return new Promise((resolve, reject) => {
+      // SOAP 1.2 exige action como parametro do Content-Type (RecepcaoEvento4)
+      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF';
       const options: https.RequestOptions = {
         hostname: parsedUrl.hostname,
         port: 443,
@@ -1259,7 +1261,7 @@ export class SefazDfeService implements OnModuleInit {
         cert: certPem,
         key: keyPem,
         headers: {
-          'Content-Type': 'application/soap+xml;charset=UTF-8',
+          'Content-Type': `application/soap+xml;charset=UTF-8;action="${soapAction}"`,
           'Content-Length': Buffer.byteLength(soapEnvelope, 'utf-8'),
         },
         timeout: 30000,
