@@ -1512,6 +1512,9 @@ model AccountTransfer {
   fromAccount CashAccount @relation("TransferFrom", fields: [fromAccountId], references: [id])
   toAccount   CashAccount @relation("TransferTo", fields: [toAccountId], references: [id])
 
+  // Transferencias criadas via conciliacao bancaria (depositos em dinheiro, etc)
+  matchedBankLines BankStatementLine[] @relation("TransferMatch")
+
   @@index([companyId, transferDate])
   @@index([fromAccountId])
   @@index([toAccountId])
@@ -1590,6 +1593,8 @@ model BankStatementLine {
   isRefund              Boolean @default(false) // Marcada como estorno/devolucao
   // Fatura de cartao conciliada N-para-1 (v1.08.95)
   isCardInvoice         Boolean @default(false) // Linha representa fatura de cartao com N entries vinculados
+  // Conciliacao como transferencia entre contas (deposito em dinheiro, etc) (v1.09.44)
+  transferMatchId       String?  // FK para AccountTransfer criada via conciliacao
   createdAt             DateTime            @default(now())
 
   import      BankStatementImport @relation(fields: [importId], references: [id])
@@ -1603,11 +1608,15 @@ model BankStatementLine {
   // Entries agrupados em fatura de cartao
   cardInvoiceEntries    FinancialEntry[]     @relation("CardInvoiceMatch")
 
+  // Transferencia vinculada (quando linha foi conciliada como deposito/transferencia)
+  transferMatch         AccountTransfer?     @relation("TransferMatch", fields: [transferMatchId], references: [id])
+
   @@index([importId])
   @@index([statementId])
   @@index([cashAccountId, transactionDate])
   @@index([status])
   @@index([refundPairLineId])
+  @@index([transferMatchId])
 }
 
 // ========== NFS-e Emissão (v3.0) ==========

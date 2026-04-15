@@ -67,3 +67,25 @@ export class MatchCardInvoiceDto {
   @Type(() => EntryAccountAssignmentDto)
   entryAccountAssignments?: EntryAccountAssignmentDto[];
 }
+
+/**
+ * Concilia uma linha do extrato criando uma AccountTransfer
+ * (deposito em dinheiro, transferencia entre contas, etc).
+ * O sistema cria a transferencia entre a conta externa (sourceAccountId)
+ * e a conta do extrato (line.cashAccountId), respeitando o sinal do amountCents.
+ */
+export class MatchAsTransferDto {
+  // Conta externa — a OUTRA ponta da transferencia (a conta do extrato e inferida pela linha).
+  // Se linha e credito (amount > 0): source = conta de origem (ex: Caixa) -> destino = conta do extrato
+  // Se linha e debito (amount < 0): source = conta de destino -> origem e a conta do extrato
+  @IsString()
+  sourceAccountId!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}

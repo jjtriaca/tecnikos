@@ -44,6 +44,7 @@ function LineActionsDropdown({
   onConciliar,
   onConciliarRefund,
   onConciliarCardInvoice,
+  onConciliarTransfer,
   onIgnore,
   onUnignore,
   onUnmatch,
@@ -52,6 +53,7 @@ function LineActionsDropdown({
   onConciliar: () => void;
   onConciliarRefund: () => void;
   onConciliarCardInvoice: () => void;
+  onConciliarTransfer: () => void;
   onIgnore: () => void;
   onUnignore: () => void;
   onUnmatch: () => void;
@@ -67,7 +69,8 @@ function LineActionsDropdown({
   useEffect(() => {
     if (open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      const itemCount = line.status === "UNMATCHED" ? (isDebit ? 4 : 3) : 1;
+      // UNMATCHED: Conciliar + Devolucao + Transferencia + [Fatura cartao se debito] + sep + Ignorar
+      const itemCount = line.status === "UNMATCHED" ? (isDebit ? 5 : 4) : 1;
       const hasSeparator = line.status === "UNMATCHED";
       const estHeight = 8 + itemCount * 36 + (hasSeparator ? 9 : 0);
       const spaceBelow = window.innerHeight - rect.bottom;
@@ -134,6 +137,13 @@ function LineActionsDropdown({
                   &#128179; Conciliar fatura de cartao
                 </button>
               )}
+              <button
+                onClick={() => { setOpen(false); onConciliarTransfer(); }}
+                className="block w-full text-left px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                title="Deposito em dinheiro, saque, transferencia entre contas proprias"
+              >
+                &#8644; Conciliar como transferencia
+              </button>
               <div className="my-1 border-t border-slate-100" />
               <button
                 onClick={() => { setOpen(false); onIgnore(); }}
@@ -1794,6 +1804,176 @@ const STATUS_CONFIG: Record<StatementLineStatus, { label: string; color: string;
 };
 
 /* ══════════════════════════════════════════════════════════
+   TRANSFER MATCH MODAL
+   Concilia linha como transferencia entre contas (deposito em dinheiro, saque, etc).
+   Pede apenas a outra conta (origem ou destino, conforme o sinal).
+   ══════════════════════════════════════════════════════════ */
+
+interface CashAccountOption {
+  id: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+  currentBalanceCents?: number;
+}
+
+function TransferMatchModal({
+  open,
+  line,
+  onClose,
+  onMatched,
+}: {
+  open: boolean;
+  line: BankStatementLine | null;
+  onClose: () => void;
+  onMatched: () => void;
+}) {
+  const { toast } = useToast();
+  const [accounts, setAccounts] = useState<CashAccountOption[]>([]);
+  const [sourceAccountId, setSourceAccountId] = useState("");
+  const [description, setDescription] = useState("");
+  const [matching, setMatching] = useState(false);
+
+  const isCredit = line ? line.amountCents > 0 : false;
+  const amount = line ? Math.abs(line.amountCents) : 0;
+
+  useEffect(() => {
+    if (!open || !line) return;
+    setSourceAccountId("");
+    setDescription(isCredit
+      ? `Depósito em ${line.description}`
+      : `Saque de ${line.description}`);
+
+    // Carrega contas ativas EXCETO a propria conta do extrato
+    api
+      .get<CashAccountOption[]>("/finance/cash-accounts")
+      .then((list) => {
+        const filtered = (list || []).filter((a) => a.isActive && a.id !== line.cashAccountId);
+        setAccounts(filtered);
+      })
+      .catch(() => setAccounts([]));
+  }, [open, line, isCredit]);
+
+  if (!open || !line) return null;
+
+  async function handleMatch() {
+    if (!line || !sourceAccountId) return;
+    setMatching(true);
+    try {
+      await api.post(`/finance/reconciliation/lines/${line.id}/match-as-transfer`, {
+        sourceAccountId,
+        description: description.trim() || undefined,
+      });
+      toast("Transferencia criada e linha conciliada!", "success");
+      onMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao conciliar transferencia.", "error");
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h3 className="text-base font-semibold text-slate-800">
+            &#8644; Conciliar como transferência
+          </h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Use para depósitos em dinheiro, saques e transferências entre suas próprias contas. Cria uma transferência entre contas e não gera receita/despesa.
+          </p>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          {/* Bank line preview */}
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-600">
+            <div className="flex items-center justify-between">
+              <span className="truncate">{line.description}</span>
+              <span className={`font-semibold ml-2 ${isCredit ? "text-green-700" : "text-red-700"}`}>
+                {formatCurrency(line.amountCents)}
+              </span>
+            </div>
+            <div className="text-slate-400 mt-0.5">{formatDate(line.transactionDate)}</div>
+          </div>
+
+          {/* Explicacao da direcao */}
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] text-blue-800">
+            {isCredit ? (
+              <>
+                <strong>Dinheiro entrou</strong> na conta do extrato. Selecione de qual outra conta ele saiu
+                (ex: Caixa, quando você depositou dinheiro físico no banco).
+              </>
+            ) : (
+              <>
+                <strong>Dinheiro saiu</strong> da conta do extrato. Selecione para qual outra conta foi
+                (ex: Caixa, quando você sacou dinheiro do banco).
+              </>
+            )}
+          </div>
+
+          {/* Source account */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              {isCredit ? "Conta de origem (de onde saiu)" : "Conta de destino (para onde foi)"} <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={sourceAccountId}
+              onChange={(e) => setSourceAccountId(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            >
+              <option value="">Selecione uma conta...</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {typeof a.currentBalanceCents === "number"
+                    ? ` (${formatCurrency(a.currentBalanceCents)})`
+                    : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Descrição</label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descrição da transferência"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
+          {/* Valor preview */}
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 border border-slate-200">
+            Valor da transferência: <strong>{formatCurrency(amount)}</strong>
+          </div>
+        </div>
+
+        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={matching}
+            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleMatch}
+            disabled={!sourceAccountId || matching}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {matching ? "Salvando..." : "Criar transferência e conciliar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
    RECONCILIATION TAB
    ══════════════════════════════════════════════════════════ */
 
@@ -2071,6 +2251,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
   const [matchLine, setMatchLine] = useState<BankStatementLine | null>(null);
   const [refundLine, setRefundLine] = useState<BankStatementLine | null>(null);
   const [cardInvoiceLine, setCardInvoiceLine] = useState<BankStatementLine | null>(null);
+  const [transferLine, setTransferLine] = useState<BankStatementLine | null>(null);
   const { toast } = useToast();
 
   const RECON_COLUMNS: ColumnDefinition<BankStatementLine>[] = [
@@ -2250,6 +2431,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
                             onConciliar={() => setMatchLine(line)}
                             onConciliarRefund={() => setRefundLine(line)}
                             onConciliarCardInvoice={() => setCardInvoiceLine(line)}
+                            onConciliarTransfer={() => setTransferLine(line)}
                             onIgnore={() => handleIgnore(line.id)}
                             onUnignore={() => handleUnignore(line.id)}
                             onUnmatch={() => setUnmatchLine(line)}
@@ -2349,6 +2531,14 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
         line={cardInvoiceLine}
         onClose={() => setCardInvoiceLine(null)}
         onMatched={() => { setCardInvoiceLine(null); refreshAll(); }}
+      />
+
+      {/* Transfer Match Modal (deposito em dinheiro, transferencia entre contas) */}
+      <TransferMatchModal
+        open={!!transferLine}
+        line={transferLine}
+        onClose={() => setTransferLine(null)}
+        onMatched={() => { setTransferLine(null); refreshAll(); }}
       />
     </div>
   );

@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
-import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto, MatchAsTransferDto } from './dto/reconciliation.dto';
 import { CodeGeneratorService } from '../common/code-generator.service';
 
 @Injectable()
@@ -1030,6 +1030,117 @@ export class ReconciliationService {
   }
 
   /**
+   * matchAsTransfer — Concilia linha do extrato criando uma AccountTransfer.
+   * Uso: depositos em dinheiro (Caixa -> Banco), saques (Banco -> Caixa), transferencias entre contas proprias.
+   *
+   * Logica de direcao (respeita o sinal da linha):
+   *  - line.amountCents > 0 (credito): dinheiro ENTROU na conta do extrato.
+   *    -> transfer: sourceAccountId (origem externa) -> line.cashAccountId (conta do extrato)
+   *    -> saldo: source -= amount, target += amount
+   *  - line.amountCents < 0 (debito): dinheiro SAIU da conta do extrato.
+   *    -> transfer: line.cashAccountId (conta do extrato) -> sourceAccountId (destino externo)
+   *    -> saldo: source (extrato) -= amount, target (externo) += amount
+   */
+  async matchAsTransfer(
+    lineId: string,
+    companyId: string,
+    dto: MatchAsTransferDto,
+    matchedByName: string,
+  ) {
+    const line = await this.prisma.bankStatementLine.findUnique({
+      where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
+    });
+    if (!line || line.import.companyId !== companyId) {
+      throw new NotFoundException('Linha não encontrada.');
+    }
+    if (line.status !== 'UNMATCHED') {
+      throw new BadRequestException('Apenas linhas não conciliadas podem ser conciliadas como transferência.');
+    }
+    if (!dto.sourceAccountId) {
+      throw new BadRequestException('Conta de origem/destino da transferência é obrigatória.');
+    }
+    if (dto.sourceAccountId === line.cashAccountId) {
+      throw new BadRequestException('A conta de origem deve ser diferente da conta do extrato.');
+    }
+
+    // Valida que a outra conta existe, pertence a empresa e esta ativa
+    const otherAccount = await this.prisma.cashAccount.findFirst({
+      where: { id: dto.sourceAccountId, companyId, deletedAt: null },
+      select: { id: true, name: true, isActive: true, type: true },
+    });
+    if (!otherAccount) {
+      throw new NotFoundException('Conta de origem/destino não encontrada.');
+    }
+    if (!otherAccount.isActive) {
+      throw new BadRequestException('Conta de origem/destino está inativa.');
+    }
+
+    const absAmount = Math.abs(line.amountCents);
+    if (absAmount <= 0) {
+      throw new BadRequestException('Valor da linha inválido.');
+    }
+
+    // Direcao da transferencia conforme sinal da linha
+    const isCredit = line.amountCents > 0;
+    const fromAccountId = isCredit ? dto.sourceAccountId : line.cashAccountId;
+    const toAccountId = isCredit ? line.cashAccountId : dto.sourceAccountId;
+
+    const description = dto.description?.trim()
+      || (isCredit
+        ? `Depósito / transferência recebida (${line.description})`
+        : `Saque / transferência enviada (${line.description})`);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Cria a AccountTransfer
+      const transfer = await tx.accountTransfer.create({
+        data: {
+          companyId,
+          fromAccountId,
+          toAccountId,
+          amountCents: absAmount,
+          description,
+          transferDate: line.transactionDate,
+          createdByName: matchedByName,
+        },
+      });
+
+      // 2. Atualiza saldos das duas contas
+      await tx.cashAccount.update({
+        where: { id: fromAccountId },
+        data: { currentBalanceCents: { decrement: absAmount } },
+      });
+      await tx.cashAccount.update({
+        where: { id: toAccountId },
+        data: { currentBalanceCents: { increment: absAmount } },
+      });
+
+      // 3. Marca a linha como MATCHED vinculada a transferencia
+      const updatedLine = await tx.bankStatementLine.update({
+        where: { id: lineId },
+        data: {
+          status: 'MATCHED',
+          transferMatchId: transfer.id,
+          matchedAt: new Date(),
+          matchedByName,
+          notes: dto.notes ?? null,
+        },
+      });
+
+      await this.recalcCounts(tx, line.importId, line.statementId);
+
+      return { ...updatedLine, transfer };
+    });
+
+    this.logger.log(
+      `Linha ${lineId} conciliada como transferência: ${fromAccountId} -> ${toAccountId} ` +
+      `(R$${(absAmount / 100).toFixed(2)})`,
+    );
+
+    return result;
+  }
+
+  /**
    * Unmatch (revert) a matched line. For refund pairs, unmatches BOTH lines and
    * deletes the two technical entries that were created.
    */
@@ -1043,6 +1154,40 @@ export class ReconciliationService {
     }
     if (line.status !== 'MATCHED') {
       throw new BadRequestException('Linha não está conciliada.');
+    }
+
+    // Transferencia (deposito em dinheiro, etc): reverte saldos e deleta a AccountTransfer
+    if (line.transferMatchId) {
+      const transfer = await this.prisma.accountTransfer.findUnique({
+        where: { id: line.transferMatchId },
+      });
+      await this.prisma.$transaction(async (tx) => {
+        if (transfer) {
+          // Reverte saldos: origem recupera, destino perde
+          await tx.cashAccount.update({
+            where: { id: transfer.fromAccountId },
+            data: { currentBalanceCents: { increment: transfer.amountCents } },
+          });
+          await tx.cashAccount.update({
+            where: { id: transfer.toAccountId },
+            data: { currentBalanceCents: { decrement: transfer.amountCents } },
+          });
+          // Deleta a transfer (FK ON DELETE SET NULL limpa transferMatchId na linha, mas reescrevemos abaixo)
+          await tx.accountTransfer.delete({ where: { id: transfer.id } });
+        }
+        await tx.bankStatementLine.update({
+          where: { id: lineId },
+          data: {
+            status: 'UNMATCHED',
+            transferMatchId: null,
+            matchedAt: null,
+            matchedByName: null,
+            notes: null,
+          },
+        });
+        await this.recalcCounts(tx, line.importId, line.statementId);
+      });
+      return { id: line.id, status: 'UNMATCHED' as const, unmatchedTransfer: true };
     }
 
     // Fatura de cartao: desfaz o grupo (zera invoiceMatchLineId; reverte status de entries auto-pagos;

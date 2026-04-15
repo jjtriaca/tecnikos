@@ -30,7 +30,7 @@ import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-me
 import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
 import { CreateCashAccountDto, UpdateCashAccountDto } from './dto/cash-account.dto';
 import { CreateTransferDto } from './dto/transfer.dto';
-import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, MatchAsTransferDto } from './dto/reconciliation.dto';
 
 @ApiTags('Finance')
 @Controller('finance')
@@ -400,6 +400,18 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reconciliationService.matchAsCardInvoice(lineId, user.companyId, dto, user.email);
+  }
+
+  // Concilia linha como transferencia entre contas (deposito em dinheiro, saque, etc).
+  // Cria uma AccountTransfer e vincula a linha a ela.
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/match-as-transfer')
+  matchAsTransfer(
+    @Param('lineId') lineId: string,
+    @Body() dto: MatchAsTransferDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.matchAsTransfer(lineId, user.companyId, dto, user.email);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
