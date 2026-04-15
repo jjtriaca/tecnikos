@@ -1158,13 +1158,10 @@ export class SefazDfeService implements OnModuleInit {
     const cnpjOnly = company.cnpj.replace(/\D/g, '').padStart(14, '0');
     const tpAmb = config.environment === 'HOMOLOGATION' ? '2' : '1';
 
-    // Monta infEvento (elemento a ser assinado) — compacto (sem espacos/newlines) pra canonicalizacao consistente
+    // Monta infEvento — dhEvento em horario de Brasilia (-03:00) conforme leiaute NFe
     const now = new Date();
-    const tzOffsetMin = -now.getTimezoneOffset();
-    const sign = tzOffsetMin >= 0 ? '+' : '-';
-    const abs = Math.abs(tzOffsetMin);
-    const tz = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
-    const dhEvento = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}${tz}`;
+    const brasilia = new Date(now.getTime() - 3 * 3600 * 1000); // UTC - 3h
+    const dhEvento = `${brasilia.getUTCFullYear()}-${String(brasilia.getUTCMonth() + 1).padStart(2, '0')}-${String(brasilia.getUTCDate()).padStart(2, '0')}T${String(brasilia.getUTCHours()).padStart(2, '0')}:${String(brasilia.getUTCMinutes()).padStart(2, '0')}:${String(brasilia.getUTCSeconds()).padStart(2, '0')}-03:00`;
 
     const nSeqEvento = '1';
     const idInfEvento = `ID${eventCfg.tpEvento}${nfeKey}${nSeqEvento.padStart(2, '0')}`;
@@ -1178,8 +1175,9 @@ export class SefazDfeService implements OnModuleInit {
     // Assina o infEvento usando XML-DSig (RSA-SHA1 + C14N)
     const signatureXml = this.signXmlElement(infEvento, idInfEvento, certPem, keyPem);
 
-    const evento = `<evento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">${infEvento}${signatureXml}</evento>`;
-    const envEvento = `<?xml version="1.0" encoding="UTF-8"?><envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00"><idLote>${Date.now()}</idLote>${evento}</envEvento>`;
+    // Evento sem xmlns repetido (herda do envEvento) — canonicalizacao C14N exige namespaces unicos no contexto
+    const evento = `<evento versao="1.00">${infEvento}${signatureXml}</evento>`;
+    const envEvento = `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00"><idLote>${Date.now()}</idLote>${evento}</envEvento>`;
 
     // Envia via SOAP NFeRecepcaoEvento4
     const response = await this.callRecepcaoEventoSoap(certPem, keyPem, envEvento, config.environment);
@@ -1209,8 +1207,8 @@ export class SefazDfeService implements OnModuleInit {
     md1.update(xmlElement, 'utf8');
     const digestValue = forge.util.encode64(md1.digest().getBytes());
 
-    // 2. Monta SignedInfo (tambem compacto)
-    const signedInfo = `<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></CanonicalizationMethod><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></SignatureMethod><Reference URI="#${refId}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></Transform><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></Transform></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></DigestMethod><DigestValue>${digestValue}</DigestValue></Reference></SignedInfo>`;
+    // 2. Monta SignedInfo — inclui xmlns dsig, porque sera assinado separadamente do Signature pai
+    const signedInfo = `<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="#${refId}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>${digestValue}</DigestValue></Reference></SignedInfo>`;
 
     // 3. Assina SignedInfo com RSA-SHA1
     const privateKey = forge.pki.privateKeyFromPem(keyPem);
@@ -1222,7 +1220,8 @@ export class SefazDfeService implements OnModuleInit {
     const certMatch = certPem.match(/-----BEGIN CERTIFICATE-----\s*([\s\S]+?)\s*-----END CERTIFICATE-----/);
     const certBase64 = certMatch ? certMatch[1].replace(/\s+/g, '') : '';
 
-    return `<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">${signedInfo}<SignatureValue>${signatureValue}</SignatureValue><KeyInfo><X509Data><X509Certificate>${certBase64}</X509Certificate></X509Data></KeyInfo></Signature>`;
+    // Ao inserir no evento, o Signature usa o mesmo xmlns interno do SignedInfo (valido em XML-DSig)
+    return `<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">${signedInfo.replace(' xmlns="http://www.w3.org/2000/09/xmldsig#"', '')}<SignatureValue>${signatureValue}</SignatureValue><KeyInfo><X509Data><X509Certificate>${certBase64}</X509Certificate></X509Data></KeyInfo></Signature>`;
   }
 
   private escapeXml(s: string): string {
@@ -1242,14 +1241,8 @@ export class SefazDfeService implements OnModuleInit {
     // Remove declaracao XML interna (o SOAP envelope ja declara o XML)
     const envEventoInline = envEventoXml.replace(/<\?xml[^>]*\?>/i, '').trim();
 
-    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
-  <soap12:Body>
-    <nfeRecepcaoEvento xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">
-      <nfeDadosMsg>${envEventoInline}</nfeDadosMsg>
-    </nfeRecepcaoEvento>
-  </soap12:Body>
-</soap12:Envelope>`;
+    // Envelope COMPACTO (sem newlines) — SEFAZ as vezes e sensivel a whitespace entre elementos
+    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeRecepcaoEvento xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4"><nfeDadosMsg>${envEventoInline}</nfeDadosMsg></nfeRecepcaoEvento></soap12:Body></soap12:Envelope>`;
 
     const url = environment === 'HOMOLOGATION' ? SEFAZ_EVENTO_URLS.HOMOLOGATION : SEFAZ_EVENTO_URLS.PRODUCTION;
     const parsedUrl = new URL(url);
