@@ -1264,8 +1264,9 @@ export class SefazDfeService implements OnModuleInit {
     const envEventoInline = envEventoXml.replace(/<\?xml[^>]*\?>/i, '').trim();
 
     // Envelope COMPACTO (sem newlines) — SEFAZ as vezes e sensivel a whitespace entre elementos
-    // xmlns xsi/xsd incluidos conforme WSDL SEFAZ (alguns validadores exigem)
-    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeRecepcaoEvento xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4"><nfeDadosMsg>${envEventoInline}</nfeDadosMsg></nfeRecepcaoEvento></soap12:Body></soap12:Envelope>`;
+    // nfeDadosMsg EXIGE versaoDados="1.00" (atributo obrigatorio no WSDL).
+    // Sem isso, o .NET deserializer da SEFAZ quebra com NullReferenceException.
+    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeRecepcaoEvento xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4"><nfeDadosMsg versaoDados="1.00">${envEventoInline}</nfeDadosMsg></nfeRecepcaoEvento></soap12:Body></soap12:Envelope>`;
 
     const url = environment === 'HOMOLOGATION' ? SEFAZ_EVENTO_URLS.HOMOLOGATION : SEFAZ_EVENTO_URLS.PRODUCTION;
     const parsedUrl = new URL(url);
