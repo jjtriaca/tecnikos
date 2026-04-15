@@ -85,9 +85,10 @@ const CADASTRO_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
   // "Formas de Pagamento" (tipos genericos) escondido do menu principal em v1.08.100
   // — os tipos (PIX, Cartao Credito, Boleto, etc.) ja vem pre-configurados.
-  // Admin pode acessar via URL direta /finance?tab=formas se precisar customizar.
+  // "Taxas de Cartao" escondido em v1.09.04 — taxas agora sao embutidas em cada
+  // Meio de Pagamento (secao "Taxas de parcelamento" no form).
+  // Admin pode acessar via URL direta /finance?tab=formas ou /finance?tab=taxas se precisar customizar.
   { id: "instrumentos", label: "Meios de Pagamento e Recebimento", icon: "💳" },
-  { id: "taxas", label: "Taxas de Cartao", icon: "%" },
   { id: "cobranca", label: "Regras de Cobrança", icon: "⚡" },
   { id: "plano", label: "Plano de Contas", icon: "📋" },
 ];

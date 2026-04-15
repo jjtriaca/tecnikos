@@ -213,6 +213,7 @@ model Company {
   sefazDocuments       SefazDocument[]
   paymentMethods       PaymentMethod[]
   paymentInstruments   PaymentInstrument[]
+  paymentInstrumentFeeRates PaymentInstrumentFeeRate[]
   cashAccounts         CashAccount[]
   nfseConfig           NfseConfig?
   nfseEmissions        NfseEmission[]
@@ -1425,9 +1426,35 @@ model PaymentInstrument {
   cashAccount      CashAccount?     @relation(fields: [cashAccountId], references: [id])
   financialEntries FinancialEntry[]
   cardSettlements  CardSettlement[]
+  feeRates         PaymentInstrumentFeeRate[]
 
   @@index([companyId, isActive])
   @@index([companyId, paymentMethodId])
+}
+
+// ========== Taxas de Parcelamento por Meio de Pagamento (v1.09.04) ==========
+// Embute as taxas diretamente no meio de pagamento — substitui a tela generica
+// de "Taxas de Cartao" (CardFeeRate) pra quem quer tudo em 1 cadastro.
+
+model PaymentInstrumentFeeRate {
+  id                   String    @id @default(uuid())
+  companyId            String
+  paymentInstrumentId  String
+  installmentFrom      Int       // 1 para avista, 2 para inicio de faixa "2 a 6x"
+  installmentTo        Int       // 1 para avista, 6 para fim de faixa "2 a 6x"
+  feePercent           Float     // Ex: 2.77
+  receivingDays        Int?      // D+N (dias ate o dinheiro cair no banco)
+  sortOrder            Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  company              Company           @relation(fields: [companyId], references: [id])
+  paymentInstrument    PaymentInstrument @relation(fields: [paymentInstrumentId], references: [id])
+
+  @@index([companyId])
+  @@index([paymentInstrumentId])
+  @@index([paymentInstrumentId, installmentFrom, installmentTo])
 }
 
 // ========== Caixas e Contas Bancarias (v2.2) ==========

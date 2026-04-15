@@ -155,6 +155,7 @@ export class PaymentInstrumentService {
       include: {
         paymentMethod: { select: { id: true, name: true, code: true, requiresBrand: true } },
         cashAccount: { select: { id: true, name: true, bankName: true, type: true } },
+        feeRates: { where: { deletedAt: null }, orderBy: [{ installmentFrom: 'asc' }] },
       },
       orderBy: { sortOrder: 'asc' },
     });
@@ -171,6 +172,7 @@ export class PaymentInstrumentService {
       include: {
         paymentMethod: { select: { id: true, name: true, code: true } },
         cashAccount: { select: { id: true, name: true, type: true } },
+        feeRates: { where: { deletedAt: null }, orderBy: [{ installmentFrom: 'asc' }] },
       },
       orderBy: { sortOrder: 'asc' },
     });
@@ -191,6 +193,7 @@ export class PaymentInstrumentService {
       include: {
         paymentMethod: { select: { id: true, name: true, code: true } },
         cashAccount: { select: { id: true, name: true, type: true } },
+        feeRates: { where: { deletedAt: null }, orderBy: [{ installmentFrom: 'asc' }] },
       },
       orderBy: { sortOrder: 'asc' },
     });
@@ -199,6 +202,68 @@ export class PaymentInstrumentService {
   /**
    * List active instruments filtered by payment method
    */
+  /**
+   * Faz lookup da faixa de taxa aplicavel para (instrumento + parcelas).
+   * Retorna null se nao tiver faixa cadastrada cobrindo esse numero.
+   */
+  async lookupFeeRate(paymentInstrumentId: string, companyId: string, installments: number) {
+    return this.prisma.paymentInstrumentFeeRate.findFirst({
+      where: {
+        paymentInstrumentId,
+        companyId,
+        deletedAt: null,
+        installmentFrom: { lte: installments },
+        installmentTo: { gte: installments },
+      },
+      orderBy: [{ installmentFrom: 'desc' }],
+    });
+  }
+
+  /**
+   * Substitui as faixas de taxa do instrumento (replace atomico).
+   * Valida sobreposicoes e consistencia (from <= to).
+   */
+  private async replaceFeeRates(
+    tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0],
+    paymentInstrumentId: string,
+    companyId: string,
+    rates: { installmentFrom: number; installmentTo: number; feePercent: number; receivingDays?: number | null }[],
+  ): Promise<void> {
+    const sorted = [...rates].sort((a, b) => a.installmentFrom - b.installmentFrom);
+    for (let i = 0; i < sorted.length; i++) {
+      const r = sorted[i];
+      if (r.installmentFrom > r.installmentTo) {
+        throw new BadRequestException(
+          `Faixa invalida: parcela "de" (${r.installmentFrom}) maior que "ate" (${r.installmentTo}).`,
+        );
+      }
+      if (i > 0 && r.installmentFrom <= sorted[i - 1].installmentTo) {
+        throw new BadRequestException(
+          `Faixas se sobrepoem: ${sorted[i - 1].installmentFrom}-${sorted[i - 1].installmentTo} e ${r.installmentFrom}-${r.installmentTo}.`,
+        );
+      }
+    }
+
+    await tx.paymentInstrumentFeeRate.updateMany({
+      where: { paymentInstrumentId, companyId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+
+    if (rates.length > 0) {
+      await tx.paymentInstrumentFeeRate.createMany({
+        data: rates.map((r, idx) => ({
+          companyId,
+          paymentInstrumentId,
+          installmentFrom: r.installmentFrom,
+          installmentTo: r.installmentTo,
+          feePercent: r.feePercent,
+          receivingDays: r.receivingDays ?? null,
+          sortOrder: idx,
+        })),
+      });
+    }
+  }
+
   async findByMethod(companyId: string, paymentMethodId: string) {
     return this.prisma.paymentInstrument.findMany({
       where: { companyId, paymentMethodId, deletedAt: null, isActive: true },
@@ -266,7 +331,7 @@ export class PaymentInstrumentService {
       if (!ca) throw new NotFoundException('Conta caixa/banco não encontrada.');
     }
 
-    return this.prisma.paymentInstrument.create({
+    const created = await this.prisma.paymentInstrument.create({
       data: {
         companyId,
         paymentMethodId: dto.paymentMethodId,
@@ -286,9 +351,21 @@ export class PaymentInstrumentService {
         feePercent: dto.feePercent ?? null,
         receivingDays: dto.receivingDays ?? null,
       },
+    });
+
+    // Cria faixas de taxa se informadas (pode ser array vazio)
+    if (dto.feeRates) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.replaceFeeRates(tx, created.id, companyId, dto.feeRates || []);
+      });
+    }
+
+    return this.prisma.paymentInstrument.findUnique({
+      where: { id: created.id },
       include: {
         paymentMethod: { select: { id: true, name: true, code: true, requiresBrand: true } },
         cashAccount: { select: { id: true, name: true, bankName: true, type: true } },
+        feeRates: { where: { deletedAt: null }, orderBy: [{ installmentFrom: 'asc' }] },
       },
     });
   }
@@ -400,7 +477,7 @@ export class PaymentInstrumentService {
       effectiveCashAccountId = dto.cashAccountId || null;
     }
 
-    return this.prisma.paymentInstrument.update({
+    await this.prisma.paymentInstrument.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -420,9 +497,21 @@ export class PaymentInstrumentService {
         ...(dto.feePercent !== undefined && { feePercent: dto.feePercent }),
         ...(dto.receivingDays !== undefined && { receivingDays: dto.receivingDays }),
       },
+    });
+
+    // Substitui as faixas de taxa se informadas
+    if (dto.feeRates) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.replaceFeeRates(tx, id, companyId, dto.feeRates || []);
+      });
+    }
+
+    return this.prisma.paymentInstrument.findUnique({
+      where: { id },
       include: {
         paymentMethod: { select: { id: true, name: true, code: true, requiresBrand: true } },
         cashAccount: { select: { id: true, name: true, bankName: true, type: true } },
+        feeRates: { where: { deletedAt: null }, orderBy: [{ installmentFrom: 'asc' }] },
       },
     });
   }

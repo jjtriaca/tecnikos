@@ -10,6 +10,14 @@ import type { PaymentInstrument, PaymentMethod, CashAccount } from "@/types/fina
 
 type AccountOption = "none" | "existing" | "exclusive";
 
+/** Faixa de taxa de parcelamento (v1.09.04) */
+interface FeeRateRow {
+  installmentFrom: string; // string pra input controlado
+  installmentTo: string;
+  feePercent: string;
+  receivingDays: string;
+}
+
 interface PIFormData {
   name: string;
   paymentMethodId: string;
@@ -31,6 +39,8 @@ interface PIFormData {
   receivingDays: string;
   // Conta (v1.08.100)
   accountOption: AccountOption;
+  // Taxas embutidas (v1.09.04)
+  feeRates: FeeRateRow[];
 }
 
 const EMPTY_FORM: PIFormData = {
@@ -51,6 +61,7 @@ const EMPTY_FORM: PIFormData = {
   feePercent: "",
   receivingDays: "",
   accountOption: "none",
+  feeRates: [],
 };
 
 const CARD_BRANDS = ["Visa", "Mastercard", "Elo", "Hipercard", "American Express", "Outros"];
@@ -138,6 +149,14 @@ export default function PaymentInstrumentsTab() {
       feePercent: (pi as any).feePercent != null ? String((pi as any).feePercent) : "",
       receivingDays: (pi as any).receivingDays != null ? String((pi as any).receivingDays) : "",
       accountOption,
+      feeRates: Array.isArray((pi as any).feeRates)
+        ? (pi as any).feeRates.map((r: any) => ({
+            installmentFrom: String(r.installmentFrom ?? 1),
+            installmentTo: String(r.installmentTo ?? 1),
+            feePercent: r.feePercent != null ? String(r.feePercent).replace(".", ",") : "",
+            receivingDays: r.receivingDays != null ? String(r.receivingDays) : "",
+          }))
+        : [],
     });
     setShowForm(true);
   }
@@ -176,6 +195,32 @@ export default function PaymentInstrumentsTab() {
       return;
     }
 
+    // Valida faixas de taxa preenchidas
+    const validFeeRates = formData.feeRates
+      .map((r) => {
+        const from = parseInt(r.installmentFrom, 10);
+        const to = parseInt(r.installmentTo, 10);
+        const pct = parseFloat((r.feePercent || "").replace(",", "."));
+        const days = r.receivingDays ? parseInt(r.receivingDays, 10) : null;
+        if (!from || !to || isNaN(pct)) return null;
+        return { installmentFrom: from, installmentTo: to, feePercent: pct, receivingDays: days };
+      })
+      .filter((r): r is NonNullable<typeof r> => !!r);
+
+    // Valida sobreposicao local (frontend) antes de enviar
+    const sortedRates = [...validFeeRates].sort((a, b) => a.installmentFrom - b.installmentFrom);
+    for (let i = 0; i < sortedRates.length; i++) {
+      const r = sortedRates[i];
+      if (r.installmentFrom > r.installmentTo) {
+        toast(`Faixa ${r.installmentFrom}-${r.installmentTo}: inicio maior que fim.`, "error");
+        return;
+      }
+      if (i > 0 && r.installmentFrom <= sortedRates[i - 1].installmentTo) {
+        toast(`Faixas de taxa se sobrepoem (${sortedRates[i - 1].installmentFrom}-${sortedRates[i - 1].installmentTo} e ${r.installmentFrom}-${r.installmentTo}).`, "error");
+        return;
+      }
+    }
+
     setSaving(true);
     const effectiveCashAccountId = formData.accountOption === "existing" ? (formData.cashAccountId || null) : null;
     const createExclusive = formData.accountOption === "exclusive";
@@ -197,6 +242,7 @@ export default function PaymentInstrumentsTab() {
       autoMarkPaid: formData.autoMarkPaid,
       feePercent: formData.feePercent ? parseFloat(formData.feePercent.replace(",", ".")) : null,
       receivingDays: formData.receivingDays ? parseInt(formData.receivingDays, 10) : null,
+      feeRates: validFeeRates,
     };
 
     try {
@@ -628,6 +674,120 @@ export default function PaymentInstrumentsTab() {
                   </div>
                 )}
               </section>
+
+              {/* ═══ SECAO 4.5: Taxas de parcelamento (cartoes) ═══ */}
+              {selectedPM?.requiresBrand && (
+                <section>
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                    Taxas de parcelamento
+                  </h4>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
+                    <p className="text-[11px] text-slate-500">
+                      Adicione faixas de parcelamento com taxa e prazo (D+N). Ex: 1x a 1x (2,29% D+30), 2x a 6x (2,77% D+30).
+                    </p>
+
+                    {formData.feeRates.length > 0 && (
+                      <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 text-[10px] font-medium text-slate-500 uppercase pb-1 border-b border-slate-200">
+                        <span>De (parcela)</span>
+                        <span>Até</span>
+                        <span>Taxa %</span>
+                        <span>Prazo D+</span>
+                        <span></span>
+                      </div>
+                    )}
+
+                    {formData.feeRates.map((row, idx) => (
+                      <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-center">
+                        <input
+                          type="number"
+                          min={1}
+                          max={48}
+                          value={row.installmentFrom}
+                          onChange={(e) => {
+                            const next = [...formData.feeRates];
+                            next[idx] = { ...next[idx], installmentFrom: e.target.value };
+                            setFormData({ ...formData, feeRates: next });
+                          }}
+                          placeholder="1"
+                          className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          max={48}
+                          value={row.installmentTo}
+                          onChange={(e) => {
+                            const next = [...formData.feeRates];
+                            next[idx] = { ...next[idx], installmentTo: e.target.value };
+                            setFormData({ ...formData, feeRates: next });
+                          }}
+                          placeholder="1"
+                          className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                        />
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={row.feePercent}
+                          onChange={(e) => {
+                            const next = [...formData.feeRates];
+                            next[idx] = { ...next[idx], feePercent: e.target.value.replace(/[^0-9.,]/g, "") };
+                            setFormData({ ...formData, feeRates: next });
+                          }}
+                          placeholder="2,77"
+                          className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          max={120}
+                          value={row.receivingDays}
+                          onChange={(e) => {
+                            const next = [...formData.feeRates];
+                            next[idx] = { ...next[idx], receivingDays: e.target.value };
+                            setFormData({ ...formData, feeRates: next });
+                          }}
+                          placeholder="30"
+                          className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = formData.feeRates.filter((_, i) => i !== idx);
+                            setFormData({ ...formData, feeRates: next });
+                          }}
+                          className="rounded border border-slate-200 p-1 text-slate-400 hover:text-red-600 hover:border-red-300 transition-colors"
+                          title="Remover faixa"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const lastTo = formData.feeRates.length > 0
+                          ? parseInt(formData.feeRates[formData.feeRates.length - 1].installmentTo || "0", 10)
+                          : 0;
+                        const nextFrom = isNaN(lastTo) ? 1 : lastTo + 1;
+                        setFormData({
+                          ...formData,
+                          feeRates: [
+                            ...formData.feeRates,
+                            { installmentFrom: String(nextFrom), installmentTo: String(nextFrom), feePercent: "", receivingDays: "30" },
+                          ],
+                        });
+                      }}
+                      className="w-full rounded-lg border border-dashed border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+                    >
+                      + Adicionar faixa
+                    </button>
+                  </div>
+                </section>
+              )}
 
               {/* ═══ SECAO 5: Cartao de credito — ciclo de fatura ═══ */}
               {selectedPM?.requiresBrand && (

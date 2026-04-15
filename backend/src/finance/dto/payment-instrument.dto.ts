@@ -1,4 +1,27 @@
-import { IsString, IsOptional, IsBoolean, IsInt, IsNotEmpty, IsNumber, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, IsNotEmpty, IsNumber, Min, Max, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class FeeRateItemDto {
+  @IsInt()
+  @Min(1)
+  @Max(48)
+  installmentFrom!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(48)
+  installmentTo!: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  feePercent!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  receivingDays?: number;
+}
 
 export class CreatePaymentInstrumentDto {
   @IsString()
@@ -78,6 +101,13 @@ export class CreatePaymentInstrumentDto {
   @IsOptional()
   @IsBoolean()
   createExclusiveAccount?: boolean;
+
+  // Taxas de parcelamento embutidas (substitui cadastro separado de CardFeeRate)
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FeeRateItemDto)
+  feeRates?: FeeRateItemDto[];
 }
 
 export class UpdatePaymentInstrumentDto {
@@ -155,4 +185,10 @@ export class UpdatePaymentInstrumentDto {
   @IsOptional()
   @IsBoolean()
   createExclusiveAccount?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FeeRateItemDto)
+  feeRates?: FeeRateItemDto[];
 }
