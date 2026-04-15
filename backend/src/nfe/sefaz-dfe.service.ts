@@ -1070,7 +1070,8 @@ export class SefazDfeService implements OnModuleInit {
       );
     }
 
-    // Processa docs retornados — em geral 1 procNFe quando achado, mas pode vir tambem resEvento vinculados
+    // Processa docs retornados. Pode vir procNFe (completo) quando ja manifestada, ou so resNFe (resumo)
+    // quando ainda nao houve ciencia. Aceita ambos — resNFe continua funcional pra manifestacao.
     let created = 0;
     let mainDocId: string | null = null;
     let mainEmitter: string | null = null;
@@ -1080,12 +1081,12 @@ export class SefazDfeService implements OnModuleInit {
 
       const dupe = await this.prisma.sefazDocument.findFirst({
         where: { companyId, nfeKey: parsed.nfeKey, schema: parsed.schema },
-        select: { id: true },
+        select: { id: true, emitterName: true },
       });
       if (dupe) {
-        if (parsed.schema === 'procNFe' && !mainDocId) {
+        if ((parsed.schema === 'procNFe' || parsed.schema === 'resNFe') && !mainDocId) {
           mainDocId = dupe.id;
-          mainEmitter = parsed.emitterName;
+          mainEmitter = dupe.emitterName;
         }
         continue;
       }
@@ -1107,14 +1108,17 @@ export class SefazDfeService implements OnModuleInit {
         },
       });
       created++;
-      if (parsed.schema === 'procNFe') {
-        mainDocId = saved.id;
-        mainEmitter = parsed.emitterName;
+      if (parsed.schema === 'procNFe' || parsed.schema === 'resNFe') {
+        // Prefere procNFe; so sobrescreve mainDocId com resNFe se ainda nao tiver procNFe
+        if (!mainDocId || parsed.schema === 'procNFe') {
+          mainDocId = saved.id;
+          mainEmitter = parsed.emitterName;
+        }
       }
     }
 
     if (!mainDocId) {
-      throw new BadRequestException('NFe retornada pela SEFAZ não pôde ser processada (XML inválido ou sem procNFe).');
+      throw new BadRequestException('NFe retornada pela SEFAZ não pôde ser processada (XML inválido).');
     }
 
     this.logger.log(`NFe ${cleanKey} importada via SEFAZ direto por ${byName} — ${created} documento(s) criado(s)`);
