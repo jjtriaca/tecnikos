@@ -871,6 +871,7 @@ export class ReconciliationService {
         type: true,
         netCents: true,
         grossCents: true,
+        cashAccountId: true,
         paymentInstrumentId: true,
         invoiceMatchLineId: true,
         financialAccountId: true,
@@ -939,23 +940,77 @@ export class ReconciliationService {
 
     const tsLog = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
+    // Pre-computa destino de saldo por entry: usa cashAccountId (virtual do cartao)
+    // ou, se nao tiver (entries historicos pre-Fase 2), busca via paymentInstrument
+    const instrumentsToFetch = Array.from(new Set(
+      entries.filter((e) => !e.cashAccountId && e.paymentInstrumentId).map((e) => e.paymentInstrumentId as string),
+    ));
+    const instrumentAccounts = new Map<string, string | null>();
+    if (instrumentsToFetch.length > 0) {
+      const pis = await this.prisma.paymentInstrument.findMany({
+        where: { id: { in: instrumentsToFetch }, companyId },
+        select: { id: true, cashAccountId: true },
+      });
+      for (const pi of pis) instrumentAccounts.set(pi.id, pi.cashAccountId);
+    }
+
+    const resolveDestAccount = (e: { cashAccountId: string | null; paymentInstrumentId: string | null }): string | null => {
+      if (e.cashAccountId) return e.cashAccountId;
+      if (e.paymentInstrumentId) return instrumentAccounts.get(e.paymentInstrumentId) ?? null;
+      return null;
+    };
+
     return this.prisma.$transaction(async (tx) => {
-      // Atualiza cada entry individualmente (plano, status, autoMarkedPaid se PENDING)
+      // Creditos acumulados por conta destino — aplicados no final como transferencia consolidada
+      const creditByAccount = new Map<string, number>();
+
       for (const e of entries) {
+        const amount = e.netCents || e.grossCents || 0;
+        const destAccountId = resolveDestAccount(e);
+
         const entryUpdate: Record<string, unknown> = { invoiceMatchLineId: lineId };
         if (assignmentsByEntry.has(e.id)) {
           entryUpdate.financialAccountId = assignmentsByEntry.get(e.id)!;
         }
+
         const wasPending = e.status === 'PENDING' || e.status === 'CONFIRMED';
         if (wasPending) {
           entryUpdate.status = 'PAID';
           entryUpdate.paidAt = line.transactionDate;
           entryUpdate.autoMarkedPaid = true;
           entryUpdate.notes = `[${tsLog}] PAGO via fatura de cartão conciliada (linha ${line.id.substring(0, 8)})`;
+          // Se entry garante cashAccount destino, entra na conta virtual como divida (decrement)
+          if (destAccountId) {
+            await tx.cashAccount.update({
+              where: { id: destAccountId },
+              data: { currentBalanceCents: { decrement: amount } },
+            });
+            // entry tambem recebe a cashAccountId (pra refletir onde o dinheiro foi "contabilizado")
+            if (!e.cashAccountId) entryUpdate.cashAccountId = destAccountId;
+          }
         }
+
+        // Acumula credito pra conta destino (vai zerar divida na transferencia final)
+        if (destAccountId) {
+          creditByAccount.set(destAccountId, (creditByAccount.get(destAccountId) || 0) + amount);
+        }
+
         await tx.financialEntry.update({
           where: { id: e.id },
           data: entryUpdate,
+        });
+      }
+
+      // Transferencia consolidada: banco debita o total da linha, contas destino creditam
+      // o total de entries vinculados a elas (zera divida acumulada, ou compensa o decrement recem-aplicado)
+      await tx.cashAccount.update({
+        where: { id: line.cashAccountId },
+        data: { currentBalanceCents: { decrement: lineAbs } },
+      });
+      for (const [accountId, amount] of creditByAccount.entries()) {
+        await tx.cashAccount.update({
+          where: { id: accountId },
+          data: { currentBalanceCents: { increment: amount } },
         });
       }
 
@@ -990,17 +1045,68 @@ export class ReconciliationService {
       throw new BadRequestException('Linha não está conciliada.');
     }
 
-    // Fatura de cartao: desfaz o grupo (zera invoiceMatchLineId; reverte status de entries auto-pagos)
+    // Fatura de cartao: desfaz o grupo (zera invoiceMatchLineId; reverte status de entries auto-pagos;
+    // desfaz a transferencia de saldo banco->contas virtuais)
     if (line.isCardInvoice) {
       const groupEntries = await this.prisma.financialEntry.findMany({
         where: { invoiceMatchLineId: lineId, companyId },
-        select: { id: true, autoMarkedPaid: true },
+        select: { id: true, autoMarkedPaid: true, cashAccountId: true, paymentInstrumentId: true, netCents: true, grossCents: true },
       });
       const autoPaidIds = groupEntries.filter((e) => e.autoMarkedPaid).map((e) => e.id);
       const otherIds = groupEntries.filter((e) => !e.autoMarkedPaid).map((e) => e.id);
 
+      // Resolve conta destino por entry (pode ter fallback via instrument)
+      const instrumentsToFetch = Array.from(new Set(
+        groupEntries.filter((e) => !e.cashAccountId && e.paymentInstrumentId).map((e) => e.paymentInstrumentId as string),
+      ));
+      const instrumentAccounts = new Map<string, string | null>();
+      if (instrumentsToFetch.length > 0) {
+        const pis = await this.prisma.paymentInstrument.findMany({
+          where: { id: { in: instrumentsToFetch }, companyId },
+          select: { id: true, cashAccountId: true },
+        });
+        for (const pi of pis) instrumentAccounts.set(pi.id, pi.cashAccountId);
+      }
+      const resolveDestAccount = (e: { cashAccountId: string | null; paymentInstrumentId: string | null }): string | null => {
+        if (e.cashAccountId) return e.cashAccountId;
+        if (e.paymentInstrumentId) return instrumentAccounts.get(e.paymentInstrumentId) ?? null;
+        return null;
+      };
+
+      const lineAbs = Math.abs(line.amountCents);
+
       await this.prisma.$transaction(async (tx) => {
-        // Entries que o match auto-marcou como PAID: volta pra PENDING + limpa campos de pagamento
+        // 1. Reverte transferencia consolidada (banco += total, contas destino -= por entry)
+        await tx.cashAccount.update({
+          where: { id: line.cashAccountId },
+          data: { currentBalanceCents: { increment: lineAbs } },
+        });
+        for (const e of groupEntries) {
+          const amount = e.netCents || e.grossCents || 0;
+          const destAccountId = resolveDestAccount(e);
+          if (destAccountId) {
+            await tx.cashAccount.update({
+              where: { id: destAccountId },
+              data: { currentBalanceCents: { decrement: amount } },
+            });
+          }
+        }
+
+        // 2. Para entries que o match auto-marcou como PAID: re-incrementa destino (desfaz o decrement do match)
+        //    Isso deixa saldo liquido = 0 na destino pra esses entries
+        for (const e of groupEntries) {
+          if (!e.autoMarkedPaid) continue;
+          const amount = e.netCents || e.grossCents || 0;
+          const destAccountId = resolveDestAccount(e);
+          if (destAccountId) {
+            await tx.cashAccount.update({
+              where: { id: destAccountId },
+              data: { currentBalanceCents: { increment: amount } },
+            });
+          }
+        }
+
+        // 3. Reverte status + limpa campos nos entries auto-pagos
         if (autoPaidIds.length > 0) {
           await tx.financialEntry.updateMany({
             where: { id: { in: autoPaidIds }, companyId },
@@ -1012,7 +1118,7 @@ export class ReconciliationService {
             },
           });
         }
-        // Entries que ja estavam PAID antes do match: so remove o vinculo com a fatura
+        // 4. Entries que ja estavam PAID antes do match: so remove o vinculo com a fatura
         if (otherIds.length > 0) {
           await tx.financialEntry.updateMany({
             where: { id: { in: otherIds }, companyId },
