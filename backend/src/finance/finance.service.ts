@@ -247,14 +247,41 @@ export class FinanceService {
     // Auto-generate sequential code
     const code = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
 
-    // Se paymentInstrumentId foi informado, checa flag autoMarkPaid pra decidir se entry nasce PAID
+    // Decide se entry nasce PAID (autoMarkPaid) — olha primeiro pelo PaymentInstrument
+    // informado. Se veio apenas paymentMethod (code, ex: "DINHEIRO"), busca um Instrument
+    // ativo da empresa com esse code — assim wizards que usam codigo genérico
+    // (ex: import NFe) respeitam a flag do instrumento padrao.
     let autoPaidStatus: 'PAID' | undefined;
     let autoPaidCashAccountId: string | null | undefined;
     let autoPaidPaidAt: Date | undefined;
     let autoPaidFlag = false;
-    if (data.paymentInstrumentId) {
+    let resolvedInstrumentId: string | null = data.paymentInstrumentId || null;
+
+    if (!resolvedInstrumentId && data.paymentMethod) {
+      // Procura o PaymentMethod + Instrument padrao da empresa pra esse code
+      const pm = await this.prisma.paymentMethod.findFirst({
+        where: { companyId, code: data.paymentMethod, deletedAt: null, isActive: true },
+        select: { id: true },
+      });
+      if (pm) {
+        const defaultInstrument = await this.prisma.paymentInstrument.findFirst({
+          where: { companyId, paymentMethodId: pm.id, deletedAt: null, isActive: true },
+          orderBy: [{ autoMarkPaid: 'desc' }, { sortOrder: 'asc' }],
+          select: { id: true, autoMarkPaid: true, cashAccountId: true },
+        });
+        if (defaultInstrument) {
+          resolvedInstrumentId = defaultInstrument.id;
+          if (defaultInstrument.autoMarkPaid) {
+            autoPaidStatus = 'PAID';
+            autoPaidCashAccountId = defaultInstrument.cashAccountId;
+            autoPaidPaidAt = new Date();
+            autoPaidFlag = true;
+          }
+        }
+      }
+    } else if (resolvedInstrumentId) {
       const instrument = await this.prisma.paymentInstrument.findFirst({
-        where: { id: data.paymentInstrumentId, companyId, deletedAt: null, isActive: true },
+        where: { id: resolvedInstrumentId, companyId, deletedAt: null, isActive: true },
         select: { id: true, autoMarkPaid: true, cashAccountId: true },
       });
       if (instrument?.autoMarkPaid) {
@@ -281,7 +308,7 @@ export class FinanceService {
         notes: data.notes,
         financialAccountId: data.financialAccountId || undefined,
         paymentMethod: data.paymentMethod || undefined,
-        paymentInstrumentId: data.paymentInstrumentId || undefined,
+        paymentInstrumentId: resolvedInstrumentId || undefined,
         cashAccountId: (data.cashAccountId ?? autoPaidCashAccountId) || undefined,
         ...(autoPaidStatus && {
           status: autoPaidStatus,
