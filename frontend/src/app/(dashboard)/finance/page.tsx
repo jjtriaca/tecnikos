@@ -1221,19 +1221,43 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const [payAccountId, setPayAccountId] = useState("");
   const [payDate, setPayDate] = useState("");
 
+  /**
+   * Auto-seleciona a Conta/Caixa baseado no Meio de Pagamento.
+   * Prioridade:
+   *  1) cashAccountId do PaymentInstrument selecionado (se tem)
+   *  2) Primeiro PaymentInstrument ativo da empresa que corresponda ao code — usa seu cashAccountId
+   *  3) Fallback por tipo: DINHEIRO/CHEQUE → CAIXA; demais → TRANSITO; CARTAO → vazio (entra no fluxo de cartao)
+   */
+  const autoSelectAccount = useCallback((pmCode: string, instrumentId?: string) => {
+    // 1) Instrument especifico selecionado
+    if (instrumentId) {
+      const inst = allInstruments.find((i: any) => i.id === instrumentId);
+      if (inst?.cashAccount?.id) {
+        setSelectedAccountId(inst.cashAccount.id);
+        return;
+      }
+    }
+    // 2) Busca instrumento padrao por code na empresa
+    const instByCode = allInstruments.find((i: any) => (i.paymentMethod?.code || "") === pmCode);
+    if (instByCode?.cashAccount?.id) {
+      setSelectedAccountId(instByCode.cashAccount.id);
+      return;
+    }
+    // 3) Fallback por tipo
+    if (pmCode === "DINHEIRO" || pmCode === "CHEQUE") {
+      const caixa = activeAccounts.find((a) => a.type === "CAIXA");
+      setSelectedAccountId(caixa?.id || "");
+    } else if (pmCode && !pmCode.startsWith("CARTAO")) {
+      const transit = activeAccounts.find((a) => a.type === "TRANSITO");
+      setSelectedAccountId(transit?.id || "");
+    }
+  }, [allInstruments, activeAccounts]);
+
   // Pre-fill payment method, category, and date when opening pay modal
   useEffect(() => {
     if (payAction?.entry.paymentMethod) {
       setPaymentMethod(payAction.entry.paymentMethod);
-      // Auto-select account based on payment method
-      const pm = payAction.entry.paymentMethod;
-      if (pm === "DINHEIRO" || pm === "CHEQUE") {
-        const caixa = activeAccounts.find((a) => a.type === "CAIXA");
-        setSelectedAccountId(caixa?.id || "");
-      } else if (!pm.startsWith("CARTAO")) {
-        const transit = activeAccounts.find((a) => a.type === "TRANSITO");
-        setSelectedAccountId(transit?.id || "");
-      }
+      autoSelectAccount(payAction.entry.paymentMethod);
     }
     if (payAction?.entry.financialAccount?.id) {
       setPayAccountId(payAction.entry.financialAccount.id);
@@ -1838,8 +1862,9 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                         setShowManualPayable(false);
                         const pi = allInstruments.find((i: any) => i.id === piId);
                         if (pi) {
-                          setPaymentMethod(pi.paymentMethod?.code || "");
-                          setSelectedAccountId(pi.cashAccount?.id || "");
+                          const code = pi.paymentMethod?.code || "";
+                          setPaymentMethod(code);
+                          autoSelectAccount(code, piId);
                         }
                       }
                     }}
@@ -1877,14 +1902,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                     setPaymentMethod(code);
                     setSelectedCardRateId("");
                     setSelectedInstrumentId("");
-                    // Auto-select account: DINHEIRO → CAIXA INTERNO, others → Valores em Transito
-                    if (code === "DINHEIRO") {
-                      const caixa = activeAccounts.find((a) => a.type === "CAIXA");
-                      setSelectedAccountId(caixa?.id || "");
-                    } else if (code) {
-                      const transit = activeAccounts.find((a) => a.type === "TRANSITO");
-                      setSelectedAccountId(transit?.id || "");
-                    }
+                    // Auto-select Conta/Caixa — usa cashAccountId do PaymentInstrument padrao desse code
+                    autoSelectAccount(code);
                     // Load instruments for this payment method
                     const pm = activePMs.find((p) => p.code === code);
                     if (pm) {
