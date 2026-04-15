@@ -185,6 +185,28 @@ interface FinancialAccountOption {
   name: string;
   isActive: boolean;
   allowPosting: boolean;
+  parent?: { id: string; code: string | null; name: string } | null;
+}
+
+/** Renderiza <option>s agrupados por grupo pai (padrao system-wide). */
+function renderAccountOptions(accounts: FinancialAccountOption[]) {
+  const grouped = new Map<string, FinancialAccountOption[]>();
+  for (const acc of accounts) {
+    const parentName = acc.parent
+      ? `${acc.parent.code ? acc.parent.code + " - " : ""}${acc.parent.name}`
+      : "Sem grupo";
+    if (!grouped.has(parentName)) grouped.set(parentName, []);
+    grouped.get(parentName)!.push(acc);
+  }
+  return Array.from(grouped.entries()).map(([group, accs]) => (
+    <optgroup key={group} label={group}>
+      {accs.map((a) => (
+        <option key={a.id} value={a.id}>
+          {a.code ? `${a.code} — ` : ""}{a.name}
+        </option>
+      ))}
+    </optgroup>
+  ));
 }
 
 /* ── Quick Create Entry Modal (inline) ────────────────────
@@ -444,7 +466,7 @@ function QuickCreateEntryModal({
             </div>
           </div>
 
-          {/* Plano de contas */}
+          {/* Plano de contas — agrupado por grupo pai (padrao system-wide) */}
           {financialAccounts.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -460,11 +482,7 @@ function QuickCreateEntryModal({
                 }`}
               >
                 <option value="">Selecione um plano...</option>
-                {financialAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code ? `${a.code} — ` : ""}{a.name}
-                  </option>
-                ))}
+                {renderAccountOptions(financialAccounts)}
               </select>
             </div>
           )}
@@ -1098,11 +1116,7 @@ function ConciliationModal({
                               }`}
                             >
                               <option value="">⚠ Escolha o plano de contas...</option>
-                              {financialAccounts.map((a) => (
-                                <option key={a.id} value={a.id}>
-                                  {a.code ? `${a.code} — ` : ""}{a.name}
-                                </option>
-                              ))}
+                              {renderAccountOptions(financialAccounts)}
                             </select>
                           )}
                         </div>
@@ -1620,11 +1634,7 @@ function CardInvoiceMatchModal({
                 className="flex-1 text-[11px] rounded border border-amber-400 bg-white px-2 py-1 focus:outline-none focus:ring-1 focus:border-amber-500"
               >
                 <option value="">Escolha um plano...</option>
-                {financialAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code ? `${a.code} — ` : ""}{a.name}
-                  </option>
-                ))}
+                {renderAccountOptions(financialAccounts)}
               </select>
               <button
                 onClick={applyBulkAccount}
@@ -1708,11 +1718,7 @@ function CardInvoiceMatchModal({
                           className="w-full text-[11px] rounded border border-amber-400 bg-amber-50 px-2 py-1 focus:outline-none focus:ring-1 focus:border-amber-500 focus:ring-amber-500"
                         >
                           <option value="">⚠ Escolha o plano de contas...</option>
-                          {financialAccounts.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.code ? `${a.code} — ` : ""}{a.name}
-                            </option>
-                          ))}
+                          {renderAccountOptions(financialAccounts)}
                         </select>
                       </div>
                     )}
