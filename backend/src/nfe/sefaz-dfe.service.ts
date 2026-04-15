@@ -6,6 +6,7 @@ import * as https from 'https';
 import * as zlib from 'zlib';
 import * as forge from 'node-forge';
 import { XMLParser } from 'fast-xml-parser';
+import { SignedXml } from 'xml-crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
 import { NfeService } from './nfe.service';
@@ -1172,20 +1173,13 @@ export class SefazDfeService implements OnModuleInit {
 
     const infEvento = `<infEvento Id="${idInfEvento}"><cOrgao>91</cOrgao><tpAmb>${tpAmb}</tpAmb><CNPJ>${cnpjOnly}</CNPJ><chNFe>${nfeKey}</chNFe><dhEvento>${dhEvento}</dhEvento><tpEvento>${eventCfg.tpEvento}</tpEvento><nSeqEvento>${nSeqEvento}</nSeqEvento><verEvento>1.00</verEvento><detEvento versao="1.00">${detEventoInner}</detEvento></infEvento>`;
 
-    // Pro digest, o validador SEFAZ canonicaliza o infEvento COM os namespaces herdados do contexto pai.
-    // Como o infEvento estara dentro de <envEvento xmlns="http://www.portalfiscal.inf.br/nfe">, C14N 1.0
-    // adiciona esse xmlns quando extrai o elemento por URI. Incluimos ele ao calcular o digest.
-    const infEventoCanon = infEvento.replace(
-      '<infEvento ',
-      '<infEvento xmlns="http://www.portalfiscal.inf.br/nfe" ',
-    );
+    // Monta o evento completo (sem assinatura) pra xml-crypto processar
+    const eventoUnsigned = `<evento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">${infEvento}</evento>`;
 
-    // Assina o infEvento usando XML-DSig (RSA-SHA1 + C14N)
-    const signatureXml = this.signXmlElement(infEventoCanon, idInfEvento, certPem, keyPem);
+    // Assina via xml-crypto — C14N 1.0 formal, padrao SEFAZ NFe
+    const eventoSigned = this.signEventoXml(eventoUnsigned, idInfEvento, certPem, keyPem);
 
-    // Evento sem xmlns repetido (herda do envEvento)
-    const evento = `<evento versao="1.00">${infEvento}${signatureXml}</evento>`;
-    const envEvento = `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00"><idLote>${Date.now()}</idLote>${evento}</envEvento>`;
+    const envEvento = `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00"><idLote>${Date.now()}</idLote>${eventoSigned}</envEvento>`;
 
     // Envia via SOAP NFeRecepcaoEvento4
     const response = await this.callRecepcaoEventoSoap(certPem, keyPem, envEvento, config.environment);
@@ -1203,33 +1197,44 @@ export class SefazDfeService implements OnModuleInit {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     signXmlElement — Gera bloco <Signature> para o elemento informado.
-     Implementa XML-DSig (RSA-SHA1) com canonicalizacao simplificada.
-     O XML de entrada deve estar em formato COMPACTO (sem quebras nem
-     espacos entre tags) pra canonicalizacao ficar consistente.
+     signEventoXml — Assina o <evento> completo usando xml-crypto (C14N 1.0 formal).
+     A Signature e inserida DENTRO do <evento>, depois do <infEvento>, conforme leiaute NFe.
      ═══════════════════════════════════════════════════════════════════ */
 
-  private signXmlElement(xmlElement: string, refId: string, certPem: string, keyPem: string): string {
-    // 1. Digest SHA-1 do elemento (canonicalizado como ja esta — compacto)
-    const md1 = forge.md.sha1.create();
-    md1.update(xmlElement, 'utf8');
-    const digestValue = forge.util.encode64(md1.digest().getBytes());
-
-    // 2. Monta SignedInfo — inclui xmlns dsig, porque sera assinado separadamente do Signature pai
-    const signedInfo = `<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="#${refId}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>${digestValue}</DigestValue></Reference></SignedInfo>`;
-
-    // 3. Assina SignedInfo com RSA-SHA1
-    const privateKey = forge.pki.privateKeyFromPem(keyPem);
-    const md2 = forge.md.sha1.create();
-    md2.update(signedInfo, 'utf8');
-    const signatureValue = forge.util.encode64(privateKey.sign(md2));
-
-    // 4. Extrai certificado base64 sem headers PEM
+  private signEventoXml(eventoXml: string, refId: string, certPem: string, keyPem: string): string {
+    // Extrai certificado base64 sem headers PEM (pra KeyInfo)
     const certMatch = certPem.match(/-----BEGIN CERTIFICATE-----\s*([\s\S]+?)\s*-----END CERTIFICATE-----/);
     const certBase64 = certMatch ? certMatch[1].replace(/\s+/g, '') : '';
 
-    // Ao inserir no evento, o Signature usa o mesmo xmlns interno do SignedInfo (valido em XML-DSig)
-    return `<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">${signedInfo.replace(' xmlns="http://www.w3.org/2000/09/xmldsig#"', '')}<SignatureValue>${signatureValue}</SignatureValue><KeyInfo><X509Data><X509Certificate>${certBase64}</X509Certificate></X509Data></KeyInfo></Signature>`;
+    const sig = new SignedXml({
+      privateKey: keyPem,
+      publicCert: certPem,
+      signatureAlgorithm: 'http://www.w3.org/2000/09/xmldsig#rsa-sha1',
+      canonicalizationAlgorithm: 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+    });
+
+    sig.addReference({
+      xpath: `//*[@Id='${refId}']`,
+      digestAlgorithm: 'http://www.w3.org/2000/09/xmldsig#sha1',
+      transforms: [
+        'http://www.w3.org/2000/09/xmldsig#enveloped-signature',
+        'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+      ],
+    });
+
+    // KeyInfo com X509Certificate (leiaute SEFAZ exige X509Data)
+    sig.getKeyInfoContent = () =>
+      `<X509Data><X509Certificate>${certBase64}</X509Certificate></X509Data>`;
+
+    sig.computeSignature(eventoXml, {
+      prefix: '',
+      location: {
+        reference: `//*[@Id='${refId}']`,
+        action: 'after',
+      },
+    });
+
+    return sig.getSignedXml();
   }
 
   private escapeXml(s: string): string {
