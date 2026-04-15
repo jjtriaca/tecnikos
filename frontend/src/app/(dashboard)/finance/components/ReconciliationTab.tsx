@@ -222,6 +222,7 @@ function QuickCreateEntryModal({
   const [paymentInstrumentId, setPaymentInstrumentId] = useState("");
   const [paymentInstruments, setPaymentInstruments] = useState<PaymentInstrumentOption[]>([]);
   const [financialAccounts, setFinancialAccounts] = useState<FinancialAccountOption[]>(financialAccountsFromParent);
+  const [duplicateCandidates, setDuplicateCandidates] = useState<any[]>([]);
 
   const entryType: "RECEIVABLE" | "PAYABLE" = line && line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
   const isoDate = (d: string) => {
@@ -257,11 +258,39 @@ function QuickCreateEntryModal({
         setFinancialAccounts(financialAccountsFromParent.length > 0 ? financialAccountsFromParent : (list || []));
       })
       .catch(() => setFinancialAccounts(financialAccountsFromParent));
+
+    // Reset duplicates on open
+    setDuplicateCandidates([]);
   }, [open, line, entryType, financialAccountsFromParent]);
+
+  // Check for possible duplicates whenever partner + value are set.
+  // Criteria: same partner, same type, same grossCents, not already MATCHED to a bank line.
+  const grossCents = Math.round((parseFloat(grossReais.replace(",", ".")) || 0) * 100);
+  useEffect(() => {
+    if (!open || !partner || grossCents <= 0) {
+      setDuplicateCandidates([]);
+      return;
+    }
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      type: entryType,
+      partnerId: partner.id,
+      limit: "10",
+    });
+    api
+      .get<any>(`/finance/entries?${params.toString()}`, { signal: controller.signal })
+      .then((res) => {
+        const list = res?.data || res || [];
+        // Match by exact grossCents (tolerance 1 cent for rounding)
+        const dups = list.filter((e: any) => Math.abs((e.grossCents || 0) - grossCents) <= 1);
+        setDuplicateCandidates(dups);
+      })
+      .catch(() => setDuplicateCandidates([]));
+    return () => controller.abort();
+  }, [open, partner, grossCents, entryType]);
 
   if (!open || !line) return null;
 
-  const grossCents = Math.round((parseFloat(grossReais.replace(",", ".")) || 0) * 100);
   const needsChartAccount = financialAccounts.length > 0 && !financialAccountId;
   const canSave = partner && grossCents > 0 && !needsChartAccount && !saving;
 
@@ -302,6 +331,23 @@ function QuickCreateEntryModal({
         }
       }
       toast(err?.response?.data?.message || err?.message || "Erro ao criar lancamento.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** Conciliacao com um entry ja existente (botao "Usar este" na lista de duplicados) */
+  async function handleMatchExisting(existingEntryId: string) {
+    if (!line) return;
+    setSaving(true);
+    try {
+      const matchBody: any = { entryId: existingEntryId };
+      if (financialAccountId) matchBody.financialAccountId = financialAccountId;
+      await api.post(`/finance/reconciliation/lines/${line.id}/match`, matchBody);
+      toast("Linha conciliada com o lancamento existente!", "success");
+      onCreatedAndMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao conciliar.", "error");
     } finally {
       setSaving(false);
     }
@@ -439,6 +485,39 @@ function QuickCreateEntryModal({
               </select>
             </div>
           )}
+
+          {/* Alerta de possiveis duplicados */}
+          {duplicateCandidates.length > 0 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
+              <p className="text-xs font-semibold text-amber-800 mb-1.5">
+                &#9888; Ja existem {duplicateCandidates.length} lancamento(s) com este parceiro e valor
+              </p>
+              <p className="text-[11px] text-amber-700 mb-2">
+                Para evitar duplicacao, voce pode conciliar com um existente:
+              </p>
+              <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                {duplicateCandidates.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between gap-2 bg-white rounded px-2 py-1.5 border border-amber-200">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-slate-700 truncate">
+                        {e.code} — {e.description || "(sem descricao)"}
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        {e.status} • Venc: {e.dueDate ? formatDate(e.dueDate) : "—"} • {formatCurrency(e.grossCents || 0)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleMatchExisting(e.id)}
+                      disabled={saving}
+                      className="text-[11px] font-medium px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      Usar este
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
@@ -457,10 +536,11 @@ function QuickCreateEntryModal({
               !partner ? "Selecione um parceiro" :
               grossCents <= 0 ? "Informe o valor" :
               needsChartAccount ? "Escolha o plano de contas" :
+              duplicateCandidates.length > 0 ? "Ha possiveis duplicados — confira a lista acima" :
               undefined
             }
           >
-            {saving ? "Salvando..." : "Criar e conciliar"}
+            {saving ? "Salvando..." : duplicateCandidates.length > 0 ? "Criar mesmo assim" : "Criar e conciliar"}
           </button>
         </div>
       </div>
