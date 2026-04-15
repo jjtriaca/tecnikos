@@ -30,6 +30,73 @@ export class PaymentInstrumentService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * Garante que todo PaymentMethod ativo da empresa tenha pelo menos 1 PaymentInstrument
+   * correspondente. Idempotente — criado na migracao de v1.09.03 para nao perder "tipos"
+   * customizados (ex: "Master", "Visa 5x") que o usuario tinha na tela antiga de
+   * Formas de Pagamento (escondida na Fase 6).
+   */
+  private async ensureInstrumentsForAllMethods(companyId: string): Promise<void> {
+    const methods = await this.prisma.paymentMethod.findMany({
+      where: { companyId, isActive: true, deletedAt: null },
+      select: { id: true, name: true, code: true, sortOrder: true },
+    });
+    if (methods.length === 0) return;
+
+    // Busca todos os instrumentos existentes (ativos ou inativos) para evitar duplicatas
+    const existingInstruments = await this.prisma.paymentInstrument.findMany({
+      where: { companyId, deletedAt: null },
+      select: { paymentMethodId: true },
+    });
+    const methodsWithInstruments = new Set(existingInstruments.map((i) => i.paymentMethodId));
+
+    for (const pm of methods) {
+      if (methodsWithInstruments.has(pm.id)) continue;
+      // Defaults inteligentes pelo codigo
+      const code = (pm.code || '').toUpperCase();
+      const isCreditLocal = code === 'CARTAO_CREDITO' || code === 'CREDITO' || code === 'CREDIT_CARD' || code === 'CREDIT';
+      const autoMarkPaid = code === 'DINHEIRO' || code === 'PIX' || code === 'CARTAO_DEBITO' || code === 'DEBITO';
+
+      // Para cartao de credito (custom ou padrao): cria conta virtual automatica
+      let cashAccountId: string | null = null;
+      if (isCreditLocal) {
+        const virtualAccount = await this.prisma.cashAccount.create({
+          data: {
+            companyId,
+            name: buildExclusiveAccountName(pm.name, true),
+            type: 'CARTAO_CREDITO',
+            initialBalanceCents: 0,
+            currentBalanceCents: 0,
+            showInReceivables: false,
+            showInPayables: true,
+            isActive: true,
+          },
+        });
+        cashAccountId = virtualAccount.id;
+      }
+
+      await this.prisma.paymentInstrument.create({
+        data: {
+          companyId,
+          paymentMethodId: pm.id,
+          name: pm.name,
+          cardLast4: null,
+          cardBrand: null,
+          bankName: null,
+          cashAccountId,
+          details: null,
+          isActive: true,
+          sortOrder: pm.sortOrder ?? 0,
+          showInReceivables: !isCreditLocal, // cartao de credito: so pagamento
+          showInPayables: true,
+          autoMarkPaid,
+          feePercent: null,
+          receivingDays: null,
+        },
+      });
+    }
+  }
+
+  /**
    * Garante que todo PaymentInstrument de cartao de credito tenha uma CashAccount virtual
    * tipo CARTAO_CREDITO vinculada. Idempotente — rodado automaticamente a cada listagem
    * para migrar cadastros anteriores a Fase 2.
@@ -81,6 +148,7 @@ export class PaymentInstrumentService {
    * List all payment instruments for a company (not soft-deleted)
    */
   async findAll(companyId: string) {
+    await this.ensureInstrumentsForAllMethods(companyId);
     await this.ensureVirtualCardAccounts(companyId);
     return this.prisma.paymentInstrument.findMany({
       where: { companyId, deletedAt: null },
@@ -96,6 +164,7 @@ export class PaymentInstrumentService {
    * List only active instruments (for dropdowns)
    */
   async findActive(companyId: string) {
+    await this.ensureInstrumentsForAllMethods(companyId);
     await this.ensureVirtualCardAccounts(companyId);
     return this.prisma.paymentInstrument.findMany({
       where: { companyId, deletedAt: null, isActive: true },
@@ -112,6 +181,7 @@ export class PaymentInstrumentService {
    * Usado pelos dropdowns dos modais de lancamento.
    */
   async findActiveByDirection(companyId: string, direction: 'RECEIVABLE' | 'PAYABLE') {
+    await this.ensureInstrumentsForAllMethods(companyId);
     await this.ensureVirtualCardAccounts(companyId);
     const where: Record<string, unknown> = { companyId, deletedAt: null, isActive: true };
     if (direction === 'RECEIVABLE') where.showInReceivables = true;
