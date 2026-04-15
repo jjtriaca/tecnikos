@@ -56,9 +56,13 @@ export class PaymentInstrumentService {
       const isCreditLocal = code === 'CARTAO_CREDITO' || code === 'CREDITO' || code === 'CREDIT_CARD' || code === 'CREDIT';
       const autoMarkPaid = code === 'DINHEIRO' || code === 'PIX' || code === 'CARTAO_DEBITO' || code === 'DEBITO';
 
-      // Para cartao de credito (custom ou padrao): cria conta virtual automatica
+      // Defaults por tipo — cartao de credito generico (sem bandeira) = exclusivo pagamento
+      const defaultShowInReceivables = !isCreditLocal;
+      const defaultShowInPayables = true;
+
+      // Para cartao de credito EXCLUSIVO pra pagar: cria conta virtual automatica
       let cashAccountId: string | null = null;
-      if (isCreditLocal) {
+      if (isCreditLocal && defaultShowInPayables && !defaultShowInReceivables) {
         const virtualAccount = await this.prisma.cashAccount.create({
           data: {
             companyId,
@@ -86,8 +90,8 @@ export class PaymentInstrumentService {
           details: null,
           isActive: true,
           sortOrder: pm.sortOrder ?? 0,
-          showInReceivables: !isCreditLocal, // cartao de credito: so pagamento
-          showInPayables: true,
+          showInReceivables: defaultShowInReceivables,
+          showInPayables: defaultShowInPayables,
           autoMarkPaid,
           feePercent: null,
           receivingDays: null,
@@ -97,9 +101,12 @@ export class PaymentInstrumentService {
   }
 
   /**
-   * Garante que todo PaymentInstrument de cartao de credito tenha uma CashAccount virtual
-   * tipo CARTAO_CREDITO vinculada. Idempotente — rodado automaticamente a cada listagem
-   * para migrar cadastros anteriores a Fase 2.
+   * Garante que todo PaymentInstrument de cartao de credito USADO PRA PAGAMENTO tenha uma
+   * CashAccount virtual tipo CARTAO_CREDITO vinculada. Idempotente.
+   *
+   * REGRA: so cria conta virtual quando e cartao EXCLUSIVO pra pagar (showInPayables=true
+   * e showInReceivables=false). Cartoes de recebimento (maquininha) NAO tem conta virtual —
+   * o dinheiro vai pra Valores em Transito e depois cai no banco via conciliacao.
    */
   private async ensureVirtualCardAccounts(companyId: string): Promise<void> {
     const instruments = await this.prisma.paymentInstrument.findMany({
@@ -112,8 +119,9 @@ export class PaymentInstrumentService {
 
     for (const pi of instruments) {
       if (!isCreditCardMethod(pi.paymentMethod?.code)) continue;
+      // So cartao de pagamento exclusivo gera conta virtual automatica
+      if (!pi.showInPayables || pi.showInReceivables) continue;
       if (pi.cashAccount && pi.cashAccount.type === 'CARTAO_CREDITO') continue;
-      // Falta conta virtual ou aponta pra conta generica (ex: VALORES EM TRANSITO). Cria e religa.
       const virtualAccount = await this.prisma.cashAccount.create({
         data: {
           companyId,
@@ -425,10 +433,15 @@ export class PaymentInstrumentService {
     if (!pm) throw new NotFoundException('Forma de pagamento não encontrada.');
 
     const isCredit = isCreditCardMethod(pm.code);
+    // So cartao de credito EXCLUSIVO pra pagar gera conta virtual automaticamente.
+    // Cartoes de recebimento (maquininha) seguem accountOption do usuario (none/existing/exclusive).
+    const nextShowInReceivables = dto.showInReceivables ?? true;
+    const nextShowInPayables = dto.showInPayables ?? true;
+    const isCreditForPaymentOnly = isCredit && nextShowInPayables && !nextShowInReceivables;
     let effectiveCashAccountId: string | null = dto.cashAccountId ?? null;
 
-    if (isCredit) {
-      // Cartao de credito: sempre cria conta virtual propria (forca comportamento)
+    if (isCreditForPaymentOnly) {
+      // Cartao de credito exclusivo pra pagar: sempre cria conta virtual propria
       const virtualAccount = await this.prisma.cashAccount.create({
         data: {
           companyId,
@@ -551,17 +564,30 @@ export class PaymentInstrumentService {
 
     let effectiveCashAccountId: string | null | undefined = undefined;
 
-    if (wasCredit && !willBeCredit) {
-      // Deixou de ser credito: desativa a conta virtual antiga; usuario passa a informar conta manual
+    // Flags finais de direcao (considerando dto + estado atual)
+    const nextShowInReceivables = dto.showInReceivables ?? pi.showInReceivables;
+    const nextShowInPayables = dto.showInPayables ?? pi.showInPayables;
+    const wasCreditForPaymentOnly = wasCredit && pi.showInPayables && !pi.showInReceivables;
+    const willBeCreditForPaymentOnly = willBeCredit && nextShowInPayables && !nextShowInReceivables;
+
+    if (wasCreditForPaymentOnly && !willBeCreditForPaymentOnly) {
+      // Deixou de ser credito-exclusivo-de-pagamento: desativa conta virtual existente
+      // (pode ter virado credito-de-recebimento, ou mudou pra outro tipo)
       if (pi.cashAccountId) {
-        await this.prisma.cashAccount.update({
+        const virtAcc = await this.prisma.cashAccount.findUnique({
           where: { id: pi.cashAccountId },
-          data: { deletedAt: new Date(), isActive: false },
+          select: { type: true },
         });
+        if (virtAcc?.type === 'CARTAO_CREDITO') {
+          await this.prisma.cashAccount.update({
+            where: { id: pi.cashAccountId },
+            data: { deletedAt: new Date(), isActive: false },
+          });
+        }
       }
       effectiveCashAccountId = dto.cashAccountId ?? null;
-    } else if (!wasCredit && willBeCredit) {
-      // Virou credito: cria conta virtual nova
+    } else if (!wasCreditForPaymentOnly && willBeCreditForPaymentOnly && !pi.cashAccountId) {
+      // Virou credito-exclusivo-de-pagamento e ainda nao tem conta: cria virtual
       const newName = dto.name ?? pi.name;
       const virtualAccount = await this.prisma.cashAccount.create({
         data: {
@@ -576,8 +602,8 @@ export class PaymentInstrumentService {
         },
       });
       effectiveCashAccountId = virtualAccount.id;
-    } else if (willBeCredit && pi.cashAccountId) {
-      // Continua credito: sincroniza nome e estado ativo da conta virtual
+    } else if (willBeCreditForPaymentOnly && pi.cashAccountId) {
+      // Continua credito-exclusivo-de-pagamento: sincroniza nome e estado ativo da conta virtual
       const updates: Record<string, unknown> = {};
       if (dto.name !== undefined && dto.name !== pi.name) {
         updates.name = buildExclusiveAccountName(dto.name, true);
@@ -591,8 +617,7 @@ export class PaymentInstrumentService {
           data: updates,
         });
       }
-      // cashAccountId do instrumento permanece (credito nao aceita troca manual)
-    } else if (!willBeCredit && dto.createExclusiveAccount && !pi.cashAccountId) {
+    } else if (!willBeCreditForPaymentOnly && dto.createExclusiveAccount && !pi.cashAccountId) {
       // Nao-credito sem conta ainda, mas pediu conta exclusiva agora: cria
       const dedicatedAccount = await this.prisma.cashAccount.create({
         data: {

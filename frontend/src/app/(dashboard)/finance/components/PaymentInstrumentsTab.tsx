@@ -610,11 +610,14 @@ export default function PaymentInstrumentsTab() {
                   <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
                   Conta Caixa/Banco vinculada
                 </h4>
-                {isCreditCard ? (
+                {isCreditCard && formData.showInPayables && !formData.showInReceivables ? (
                   <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                    <span className="font-medium">💳 Cartao de credito — conta virtual automatica:</span>
+                    <span className="font-medium">💳 Cartao de credito de pagamento — conta virtual automatica:</span>
                     <p className="mt-0.5">
                       O sistema cria e gerencia uma conta "Cartao {formData.name || "..."}" para acumular o saldo devedor da fatura. Voce paga a fatura depois via transferencia da sua conta bancaria.
+                    </p>
+                    <p className="mt-1 text-[10px] italic">
+                      Para mudar: desmarque o checkbox "Pagamentos" ou marque "Recebimentos" na secao Direcao de uso.
                     </p>
                   </div>
                 ) : (
