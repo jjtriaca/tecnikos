@@ -1875,7 +1875,7 @@ export default function NfePage() {
       {/* ══════════════════════════════════════════════════════ */}
       {wizardOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl mx-4">
+          <div className="relative w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl mx-4">
             {/* Close button */}
             <button
               onClick={closeWizard}
@@ -2216,8 +2216,8 @@ export default function NfePage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-52">Acao</th>
-                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-36">Finalidade</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-56">Acao</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-40">Finalidade</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-10">#</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Codigo</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Descricao</th>
