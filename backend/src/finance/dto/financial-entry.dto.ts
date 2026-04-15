@@ -58,6 +58,18 @@ export class CreateFinancialEntryDto {
   @IsOptional()
   @IsString()
   paymentMethod?: string;
+
+  // Meio de pagamento/recebimento (instrumento) — quando preenchido, sistema:
+  //  (1) seta o campo paymentInstrumentId no entry
+  //  (2) se o instrumento tem autoMarkPaid=true, entry nasce com status PAID e cashAccount atualizado
+  @IsOptional()
+  @IsString()
+  paymentInstrumentId?: string;
+
+  // Conta caixa/banco — usado tanto em criacao PENDING (sem efeito no saldo ainda) quanto em autoMarkPaid (conta inicial)
+  @IsOptional()
+  @IsString()
+  cashAccountId?: string;
 }
 
 export class UpdateFinancialEntryDto {

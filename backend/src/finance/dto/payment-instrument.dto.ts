@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsInt, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, IsNotEmpty, IsNumber, Min, Max } from 'class-validator';
 
 export class CreatePaymentInstrumentDto {
   @IsString()
@@ -36,6 +36,48 @@ export class CreatePaymentInstrumentDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  billingClosingDay?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  billingDueDay?: number;
+
+  // Direcao do uso — pelo menos 1 precisa ser true (validado no service)
+  @IsOptional()
+  @IsBoolean()
+  showInReceivables?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  showInPayables?: boolean;
+
+  // Comportamento ao lancar
+  @IsOptional()
+  @IsBoolean()
+  autoMarkPaid?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  feePercent?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  receivingDays?: number;
+
+  // UX: quando true, backend cria CashAccount dedicada ao instrumento (ignora cashAccountId informado)
+  @IsOptional()
+  @IsBoolean()
+  createExclusiveAccount?: boolean;
 }
 
 export class UpdatePaymentInstrumentDto {
@@ -74,4 +116,43 @@ export class UpdatePaymentInstrumentDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  billingClosingDay?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  billingDueDay?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  showInReceivables?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  showInPayables?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  autoMarkPaid?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  feePercent?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  receivingDays?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  createExclusiveAccount?: boolean;
 }

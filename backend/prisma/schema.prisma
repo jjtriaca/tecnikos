@@ -1407,6 +1407,13 @@ model PaymentInstrument {
   details         String?   // Informacoes adicionais
   billingClosingDay Int?    // Dia do fechamento da fatura (1-31, cartoes)
   billingDueDay     Int?    // Dia do vencimento da fatura (1-31, cartoes)
+  // Direcao do uso — em qual tipo de lancamento este meio aparece (v1.08.100)
+  showInReceivables Boolean @default(true)  // aparece no dropdown de "A Receber"
+  showInPayables    Boolean @default(true)  // aparece no dropdown de "A Pagar"
+  // Comportamento ao lancar (v1.08.100)
+  autoMarkPaid     Boolean @default(false)  // Lancamento nasce como PAID (dinheiro/PIX instantaneo)
+  feePercent       Float?                    // Taxa % padrao aplicada (shortcut — pra casos simples sem tela de Taxas de Cartao)
+  receivingDays    Int?                      // Prazo de recebimento/compensacao em dias
   isActive        Boolean   @default(true)
   sortOrder       Int       @default(0)
   createdAt       DateTime  @default(now())

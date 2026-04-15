@@ -247,6 +247,24 @@ export class FinanceService {
     // Auto-generate sequential code
     const code = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
 
+    // Se paymentInstrumentId foi informado, checa flag autoMarkPaid pra decidir se entry nasce PAID
+    let autoPaidStatus: 'PAID' | undefined;
+    let autoPaidCashAccountId: string | null | undefined;
+    let autoPaidPaidAt: Date | undefined;
+    let autoPaidFlag = false;
+    if (data.paymentInstrumentId) {
+      const instrument = await this.prisma.paymentInstrument.findFirst({
+        where: { id: data.paymentInstrumentId, companyId, deletedAt: null, isActive: true },
+        select: { id: true, autoMarkPaid: true, cashAccountId: true },
+      });
+      if (instrument?.autoMarkPaid) {
+        autoPaidStatus = 'PAID';
+        autoPaidCashAccountId = instrument.cashAccountId;
+        autoPaidPaidAt = new Date();
+        autoPaidFlag = true;
+      }
+    }
+
     const entry = await this.prisma.financialEntry.create({
       data: {
         companyId,
@@ -263,6 +281,13 @@ export class FinanceService {
         notes: data.notes,
         financialAccountId: data.financialAccountId || undefined,
         paymentMethod: data.paymentMethod || undefined,
+        paymentInstrumentId: data.paymentInstrumentId || undefined,
+        cashAccountId: (data.cashAccountId ?? autoPaidCashAccountId) || undefined,
+        ...(autoPaidStatus && {
+          status: autoPaidStatus,
+          paidAt: autoPaidPaidAt,
+          autoMarkedPaid: autoPaidFlag,
+        }),
       },
       include: {
         serviceOrder: { select: { id: true, title: true, status: true } },
@@ -270,6 +295,15 @@ export class FinanceService {
         financialAccount: { select: { id: true, code: true, name: true } },
       },
     });
+
+    // Atualiza saldo da conta se auto-pay + tem cashAccount
+    if (autoPaidFlag && autoPaidCashAccountId) {
+      const delta = data.type === 'RECEIVABLE' ? netCents : -netCents;
+      await this.prisma.cashAccount.update({
+        where: { id: autoPaidCashAccountId },
+        data: { currentBalanceCents: { increment: delta } },
+      });
+    }
 
     // Auto-emit NFS-e if configured and entry is RECEIVABLE
     if (data.type === 'RECEIVABLE') {

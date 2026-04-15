@@ -83,8 +83,10 @@ const MAIN_TABS: { id: TabId; label: string; icon: string }[] = [
 
 const CADASTRO_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
-  { id: "formas", label: "Formas de Pagamento", icon: "💳" },
-  { id: "instrumentos", label: "Meios de Pagamento", icon: "🏷️" },
+  // "Formas de Pagamento" (tipos genericos) escondido do menu principal em v1.08.100
+  // — os tipos (PIX, Cartao Credito, Boleto, etc.) ja vem pre-configurados.
+  // Admin pode acessar via URL direta /finance?tab=formas se precisar customizar.
+  { id: "instrumentos", label: "Meios de Pagamento e Recebimento", icon: "💳" },
   { id: "taxas", label: "Taxas de Cartao", icon: "%" },
   { id: "cobranca", label: "Regras de Cobrança", icon: "⚡" },
   { id: "plano", label: "Plano de Contas", icon: "📋" },
@@ -1206,11 +1208,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     api.get<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>("/finance/accounts/postable")
       .then(setPostableAccounts)
       .catch(() => {});
-    if (type === "PAYABLE") {
-      api.get<any[]>("/finance/payment-instruments/active")
-        .then(setAllInstruments)
-        .catch(() => setAllInstruments([]));
-    }
+    // Filtra por direcao: A Pagar mostra so meios configurados para pagamento,
+    // A Receber mostra so os de recebimento. Backend aplica o filtro com showInReceivables/showInPayables.
+    const direction = type === "PAYABLE" ? "PAYABLE" : "RECEIVABLE";
+    api.get<any[]>(`/finance/payment-instruments/active?direction=${direction}`)
+      .then(setAllInstruments)
+      .catch(() => setAllInstruments([]));
   }, [type]);
 
   // State for category in pay modal
@@ -1813,10 +1816,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 />
               </div>
 
-              {/* PAYABLE: instrument-first dropdown */}
-              {type === "PAYABLE" && allInstruments.length > 0 && (
+              {/* Instrument-first dropdown (PAYABLE e RECEIVABLE) — mostra meios configurados pra direcao */}
+              {allInstruments.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Meio de Pagamento</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Meio de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"}
+                  </label>
                   <select
                     value={selectedInstrumentId}
                     onChange={(e) => {
@@ -1845,9 +1850,10 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                       const last4 = isCard && pi.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${pi.cardLast4}` : "";
                       const methodShort = code === "CARTAO_CREDITO" ? "Credito" : code === "CARTAO_DEBITO" ? "Debito" : (pi.paymentMethod?.name || "");
                       const suffix = isCard ? ` (${methodShort})` : (pi.cashAccount ? ` - ${pi.cashAccount.name}` : ` (${methodShort})`);
+                      const autoBadge = pi.autoMarkPaid ? " \u26A1" : "";
                       return (
                         <option key={pi.id} value={pi.id}>
-                          {icon} {pi.name}{last4}{suffix}
+                          {icon} {pi.name}{last4}{suffix}{autoBadge}
                         </option>
                       );
                     })}
@@ -1855,8 +1861,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 </div>
               )}
 
-              {/* Payment method dropdown (RECEIVABLE always, PAYABLE only in manual mode) */}
-              {(type === "RECEIVABLE" || showManualPayable || allInstruments.length === 0) && (
+              {/* Payment method dropdown manual (quando usuario seleciona "Selecao manual..." ou nao ha meios) */}
+              {(showManualPayable || allInstruments.length === 0) && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Forma de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"} *

@@ -146,7 +146,13 @@ export class FinanceController {
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Get('payment-instruments/active')
-  findActivePaymentInstruments(@CurrentUser() user: AuthenticatedUser) {
+  findActivePaymentInstruments(
+    @Query('direction') direction: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (direction === 'RECEIVABLE' || direction === 'PAYABLE') {
+      return this.paymentInstrumentService.findActiveByDirection(user.companyId, direction);
+    }
     return this.paymentInstrumentService.findActive(user.companyId);
   }
 

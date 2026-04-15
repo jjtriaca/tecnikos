@@ -8,6 +8,8 @@ import type { PaymentInstrument, PaymentMethod, CashAccount } from "@/types/fina
 
 /* ── Form data ────────────────────────────────────────── */
 
+type AccountOption = "none" | "existing" | "exclusive";
+
 interface PIFormData {
   name: string;
   paymentMethodId: string;
@@ -20,6 +22,15 @@ interface PIFormData {
   billingDueDay: string;
   isActive: boolean;
   sortOrder: string;
+  // Direcao (v1.08.100)
+  showInReceivables: boolean;
+  showInPayables: boolean;
+  // Comportamento (v1.08.100)
+  autoMarkPaid: boolean;
+  feePercent: string;
+  receivingDays: string;
+  // Conta (v1.08.100)
+  accountOption: AccountOption;
 }
 
 const EMPTY_FORM: PIFormData = {
@@ -34,6 +45,12 @@ const EMPTY_FORM: PIFormData = {
   billingDueDay: "",
   isActive: true,
   sortOrder: "0",
+  showInReceivables: true,
+  showInPayables: true,
+  autoMarkPaid: false,
+  feePercent: "",
+  receivingDays: "",
+  accountOption: "none",
 };
 
 const CARD_BRANDS = ["Visa", "Mastercard", "Elo", "Hipercard", "American Express", "Outros"];
@@ -100,6 +117,9 @@ export default function PaymentInstrumentsTab() {
 
   function openEditForm(pi: PaymentInstrument) {
     setEditingId(pi.id);
+    // Determinar accountOption: se pi tem cashAccount e e CARTAO_CREDITO = exclusive; se tem = existing; senao = none
+    const caType = (pi.cashAccount as any)?.type;
+    const accountOption: AccountOption = caType === "CARTAO_CREDITO" ? "exclusive" : pi.cashAccountId ? "existing" : "none";
     setFormData({
       name: pi.name,
       paymentMethodId: pi.paymentMethodId,
@@ -112,6 +132,12 @@ export default function PaymentInstrumentsTab() {
       billingDueDay: pi.billingDueDay ? String(pi.billingDueDay) : "",
       isActive: pi.isActive,
       sortOrder: String(pi.sortOrder),
+      showInReceivables: (pi as any).showInReceivables ?? true,
+      showInPayables: (pi as any).showInPayables ?? true,
+      autoMarkPaid: (pi as any).autoMarkPaid ?? false,
+      feePercent: (pi as any).feePercent != null ? String((pi as any).feePercent) : "",
+      receivingDays: (pi as any).receivingDays != null ? String((pi as any).receivingDays) : "",
+      accountOption,
     });
     setShowForm(true);
   }
@@ -145,20 +171,32 @@ export default function PaymentInstrumentsTab() {
       toast("Selecione a forma de pagamento.", "error");
       return;
     }
+    if (!formData.showInReceivables && !formData.showInPayables) {
+      toast("Marque ao menos uma direcao: recebimento ou pagamento.", "error");
+      return;
+    }
 
     setSaving(true);
+    const effectiveCashAccountId = formData.accountOption === "existing" ? (formData.cashAccountId || null) : null;
+    const createExclusive = formData.accountOption === "exclusive";
     const payload: Record<string, unknown> = {
       name: formData.name.trim(),
       paymentMethodId: formData.paymentMethodId,
       cardLast4: formData.cardLast4.trim() || null,
       cardBrand: formData.cardBrand || null,
       bankName: formData.bankName.trim() || null,
-      cashAccountId: formData.cashAccountId || null,
+      cashAccountId: effectiveCashAccountId,
+      createExclusiveAccount: createExclusive,
       details: formData.details.trim() || null,
       billingClosingDay: formData.billingClosingDay ? parseInt(formData.billingClosingDay, 10) : null,
       billingDueDay: formData.billingDueDay ? parseInt(formData.billingDueDay, 10) : null,
       isActive: formData.isActive,
       sortOrder: parseInt(formData.sortOrder, 10) || 0,
+      showInReceivables: formData.showInReceivables,
+      showInPayables: formData.showInPayables,
+      autoMarkPaid: formData.autoMarkPaid,
+      feePercent: formData.feePercent ? parseFloat(formData.feePercent.replace(",", ".")) : null,
+      receivingDays: formData.receivingDays ? parseInt(formData.receivingDays, 10) : null,
     };
 
     try {
@@ -220,16 +258,16 @@ export default function PaymentInstrumentsTab() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-700">Meios de Pagamento</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Meios de Pagamento e Recebimento</h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Cadastre os meios de pagamento da empresa (cartoes, contas PIX, cheques, etc.)
+            Cadastre aqui tudo que a empresa usa para receber ou pagar (cartoes, PIX, contas, cheques, boletos...)
           </p>
         </div>
         <button
           onClick={openNewForm}
           className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
         >
-          + Novo Instrumento
+          + Novo Meio
         </button>
       </div>
 
@@ -275,12 +313,29 @@ export default function PaymentInstrumentsTab() {
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
+                  <div className="mt-1 flex items-center gap-2 flex-wrap text-xs text-slate-500">
+                    {(pi as any).showInReceivables && (
+                      <span className="inline-flex items-center rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">
+                        ↓ Recebe
+                      </span>
+                    )}
+                    {(pi as any).showInPayables && (
+                      <span className="inline-flex items-center rounded-full bg-rose-50 border border-rose-200 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700">
+                        ↑ Paga
+                      </span>
+                    )}
+                    {(pi as any).autoMarkPaid && (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700" title="Lancamento nasce PAGO">
+                        ⚡ Baixa auto
+                      </span>
+                    )}
                     {pi.cardBrand && <span>Bandeira: {pi.cardBrand}</span>}
                     {pi.cardLast4 && <span>Final: {pi.cardLast4}</span>}
                     {pi.bankName && <span>Banco: {pi.bankName}</span>}
                     {pi.cashAccount && <span>Conta: {pi.cashAccount.name}</span>}
-                    {pi.details && <span className="text-slate-400">{pi.details}</span>}
+                    {(pi as any).feePercent != null && <span>Taxa: {(pi as any).feePercent}%</span>}
+                    {(pi as any).receivingDays != null && <span>D+{(pi as any).receivingDays}</span>}
+                    {pi.details && <span className="text-slate-400 truncate max-w-[200px]">{pi.details}</span>}
                   </div>
                 </div>
 
@@ -330,182 +385,353 @@ export default function PaymentInstrumentsTab() {
       {showForm && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeForm} />
-          <div className="relative mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl animate-scale-in max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">
-              {editingId ? "Editar Instrumento" : "Novo Instrumento de Pagamento"}
-            </h3>
-            <div className="space-y-4">
-              {/* Forma de Pagamento (tipo generico) */}
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Forma de Pagamento *</label>
-                <select
-                  value={formData.paymentMethodId}
-                  onChange={(e) => setFormData({ ...formData, paymentMethodId: e.target.value, cardBrand: "", cardLast4: "" })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                >
-                  <option value="">Selecione...</option>
-                  {paymentMethods.map((pm) => (
-                    <option key={pm.id} value={pm.id}>{pm.name}</option>
-                  ))}
-                </select>
-              </div>
+          <div className="relative mx-4 w-full max-w-2xl rounded-2xl bg-white shadow-xl animate-scale-in max-h-[92vh] flex flex-col">
+            <div className="px-6 pt-5 pb-3 border-b border-slate-200">
+              <h3 className="text-lg font-bold text-slate-900">
+                {editingId ? "Editar Meio" : "Novo Meio de Pagamento/Recebimento"}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Configure como este meio deve se comportar nos lancamentos financeiros.
+              </p>
+            </div>
 
-              {/* Nome */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-slate-600">Nome *</label>
-                  {formData.paymentMethodId && (
-                    <button
-                      type="button"
-                      onClick={autoName}
-                      className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+              {/* ═══ SECAO 1: Tipo e identificacao ═══ */}
+              <section>
+                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  Identificacao
+                </h4>
+                <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Tipo *</label>
+                    <select
+                      value={formData.paymentMethodId}
+                      onChange={(e) => setFormData({ ...formData, paymentMethodId: e.target.value, cardBrand: "", cardLast4: "" })}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                     >
-                      Gerar nome automatico
-                    </button>
+                      <option value="">Selecione o tipo (PIX, Cartao Credito, Boleto, ...)</option>
+                      {paymentMethods.map((pm) => (
+                        <option key={pm.id} value={pm.id}>{pm.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-slate-600">Nome *</label>
+                      {formData.paymentMethodId && (
+                        <button
+                          type="button"
+                          onClick={autoName}
+                          className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          Gerar nome automatico
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Ex: Master Ueslei, PIX CNPJ da empresa, Conta Sicredi"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      autoFocus
+                    />
+                  </div>
+
+                  {isCard && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Bandeira</label>
+                        <select
+                          value={formData.cardBrand}
+                          onChange={(e) => setFormData({ ...formData, cardBrand: e.target.value })}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                        >
+                          <option value="">Selecione...</option>
+                          {CARD_BRANDS.map((b) => (
+                            <option key={b} value={b}>{b}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Ultimos 4 digitos</label>
+                        <input
+                          type="text"
+                          maxLength={4}
+                          value={formData.cardLast4}
+                          onChange={(e) => setFormData({ ...formData, cardLast4: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                          placeholder="0104"
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ex: Mastercard Final 9767"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                  autoFocus
-                />
-              </div>
+              </section>
 
-              {/* Card fields (only if payment method requires brand) */}
-              {isCard && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Bandeira</label>
-                    <select
-                      value={formData.cardBrand}
-                      onChange={(e) => setFormData({ ...formData, cardBrand: e.target.value })}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                    >
-                      <option value="">Selecione...</option>
-                      {CARD_BRANDS.map((b) => (
-                        <option key={b} value={b}>{b}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Ultimos 4 digitos</label>
+              {/* ═══ SECAO 2: Direcao de uso ═══ */}
+              <section>
+                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Direcao de uso
+                </h4>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
+                  <p className="text-[11px] text-slate-500 mb-1">
+                    Em quais tipos de lancamento este meio aparece nos dropdowns:
+                  </p>
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
-                      type="text"
-                      maxLength={4}
-                      value={formData.cardLast4}
-                      onChange={(e) => setFormData({ ...formData, cardLast4: e.target.value.replace(/\D/g, "").slice(0, 4) })}
-                      placeholder="9767"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      type="checkbox"
+                      checked={formData.showInReceivables}
+                      onChange={(e) => setFormData({ ...formData, showInReceivables: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
                     />
-                  </div>
-                </div>
-              )}
-
-              {/* Bank / Cash account */}
-              {isCreditCard ? (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                  <span className="font-medium">Conta virtual automatica:</span> o sistema cria e gerencia uma conta "Cartao {formData.name || "..."}" para acumular o saldo devedor da fatura. Voce paga a fatura via transferencia da sua conta bancaria.
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Banco</label>
+                    <span className="text-sm text-slate-700">
+                      <span className="font-medium text-green-700">Recebimentos</span>
+                      <span className="text-xs text-slate-500 ml-1">— cliente paga a empresa</span>
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
-                      type="text"
-                      value={formData.bankName}
-                      onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                      placeholder="Ex: Bradesco"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      type="checkbox"
+                      checked={formData.showInPayables}
+                      onChange={(e) => setFormData({ ...formData, showInPayables: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Vincular Conta</label>
-                    <select
-                      value={formData.cashAccountId}
-                      onChange={(e) => setFormData({ ...formData, cashAccountId: e.target.value })}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                    >
-                      <option value="">Nenhuma</option>
-                      {cashAccounts.filter((ca: any) => ca.type !== "CARTAO_CREDITO").map((ca) => (
-                        <option key={ca.id} value={ca.id}>
-                          {ca.name} ({ca.type === "BANCO" ? "Banco" : ca.type === "TRANSITO" ? "Transito" : "Caixa"})
-                        </option>
-                      ))}
-                    </select>
+                    <span className="text-sm text-slate-700">
+                      <span className="font-medium text-rose-700">Pagamentos</span>
+                      <span className="text-xs text-slate-500 ml-1">— empresa paga fornecedor</span>
+                    </span>
+                  </label>
+                </div>
+              </section>
+
+              {/* ═══ SECAO 3: Comportamento ═══ */}
+              <section>
+                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  Comportamento ao lancar
+                </h4>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-3">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.autoMarkPaid}
+                      onChange={(e) => setFormData({ ...formData, autoMarkPaid: e.target.checked })}
+                      className="h-4 w-4 mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="text-sm text-slate-700">
+                      <span className="font-medium">Baixa automatica ao usar</span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Lancamento ja nasce como PAGO (recomendado para Dinheiro e PIX instantaneo). Desmarcar para cartoes e boletos que precisam conciliar com extrato.
+                      </p>
+                    </span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Taxa padrao (%)</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={formData.feePercent}
+                        onChange={(e) => setFormData({ ...formData, feePercent: e.target.value.replace(/[^0-9.,]/g, "") })}
+                        placeholder="Ex: 2,5"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-0.5">Atalho para taxas simples (cartoes).</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Prazo recebimento (dias)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={formData.receivingDays}
+                        onChange={(e) => setFormData({ ...formData, receivingDays: e.target.value })}
+                        placeholder="Ex: 30"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-0.5">D+N para cartoes/cheques.</p>
+                    </div>
                   </div>
                 </div>
-              )}
+              </section>
 
-              {/* Billing cycle (cards only) */}
+              {/* ═══ SECAO 4: Conta vinculada ═══ */}
+              <section>
+                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                  Conta Caixa/Banco vinculada
+                </h4>
+                {isCreditCard ? (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                    <span className="font-medium">💳 Cartao de credito — conta virtual automatica:</span>
+                    <p className="mt-0.5">
+                      O sistema cria e gerencia uma conta "Cartao {formData.name || "..."}" para acumular o saldo devedor da fatura. Voce paga a fatura depois via transferencia da sua conta bancaria.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="accountOption"
+                        checked={formData.accountOption === "none"}
+                        onChange={() => setFormData({ ...formData, accountOption: "none", cashAccountId: "" })}
+                        className="h-4 w-4 mt-0.5 border-slate-300 text-slate-600 focus:ring-slate-500"
+                      />
+                      <span className="text-sm text-slate-700">
+                        <span className="font-medium">Nenhuma conta</span>
+                        <p className="text-[11px] text-slate-500">Apenas identifica o meio; saldo fica em "Valores em Transito" do sistema.</p>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="accountOption"
+                        checked={formData.accountOption === "existing"}
+                        onChange={() => setFormData({ ...formData, accountOption: "existing" })}
+                        className="h-4 w-4 mt-0.5 border-slate-300 text-slate-600 focus:ring-slate-500"
+                      />
+                      <span className="text-sm text-slate-700 flex-1">
+                        <span className="font-medium">Usar conta existente</span>
+                        {formData.accountOption === "existing" && (
+                          <select
+                            value={formData.cashAccountId}
+                            onChange={(e) => setFormData({ ...formData, cashAccountId: e.target.value })}
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                          >
+                            <option value="">Selecione a conta...</option>
+                            {cashAccounts.filter((ca: any) => ca.type !== "CARTAO_CREDITO").map((ca) => (
+                              <option key={ca.id} value={ca.id}>
+                                {ca.name} ({ca.type === "BANCO" ? "Banco" : ca.type === "TRANSITO" ? "Transito" : "Caixa"})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="accountOption"
+                        checked={formData.accountOption === "exclusive"}
+                        onChange={() => setFormData({ ...formData, accountOption: "exclusive", cashAccountId: "" })}
+                        className="h-4 w-4 mt-0.5 border-slate-300 text-slate-600 focus:ring-slate-500"
+                      />
+                      <span className="text-sm text-slate-700">
+                        <span className="font-medium">Criar conta exclusiva</span>
+                        <p className="text-[11px] text-slate-500">Sistema cria uma nova conta dedicada, vinculada a este meio. Uso recomendado quando quer rastrear o saldo individualmente.</p>
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </section>
+
+              {/* ═══ SECAO 5: Cartao de credito — ciclo de fatura ═══ */}
               {selectedPM?.requiresBrand && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Dia Fechamento Fatura</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={31}
-                      value={formData.billingClosingDay}
-                      onChange={(e) => setFormData({ ...formData, billingClosingDay: e.target.value })}
-                      placeholder="Ex: 15"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                    />
+                <section>
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                    Ciclo de fatura do cartao
+                  </h4>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Banco emissor</label>
+                        <input
+                          type="text"
+                          value={formData.bankName}
+                          onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                          placeholder="Ex: Sicredi"
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Dia fechamento</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={31}
+                          value={formData.billingClosingDay}
+                          onChange={(e) => setFormData({ ...formData, billingClosingDay: e.target.value })}
+                          placeholder="15"
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Dia vencimento</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={31}
+                          value={formData.billingDueDay}
+                          onChange={(e) => setFormData({ ...formData, billingDueDay: e.target.value })}
+                          placeholder="25"
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Dia Vencimento Fatura</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={31}
-                      value={formData.billingDueDay}
-                      onChange={(e) => setFormData({ ...formData, billingDueDay: e.target.value })}
-                      placeholder="Ex: 25"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
+                </section>
               )}
 
-              {/* Details + Order */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Detalhes</label>
-                  <input
-                    type="text"
-                    value={formData.details}
-                    onChange={(e) => setFormData({ ...formData, details: e.target.value })}
-                    placeholder="Informacoes adicionais..."
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                  />
+              {/* ═══ SECAO 6: Outros ═══ */}
+              <section>
+                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                  Outros
+                </h4>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-3">
+                  {!isCard && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Banco (opcional)</label>
+                      <input
+                        type="text"
+                        value={formData.bankName}
+                        onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                        placeholder="Ex: Sicredi"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  )}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Detalhes</label>
+                      <input
+                        type="text"
+                        value={formData.details}
+                        onChange={(e) => setFormData({ ...formData, details: e.target.value })}
+                        placeholder="Observacao interna..."
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Ordem</label>
+                      <input
+                        type="number"
+                        value={formData.sortOrder}
+                        onChange={(e) => setFormData({ ...formData, sortOrder: e.target.value })}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isActive}
+                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-700">Ativo (aparece nos dropdowns)</span>
+                  </label>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Ordem</label>
-                  <input
-                    type="number"
-                    value={formData.sortOrder}
-                    onChange={(e) => setFormData({ ...formData, sortOrder: e.target.value })}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Ativo */}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-slate-700">Ativo</span>
-              </label>
+              </section>
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-2 mt-6">
+            <div className="border-t border-slate-200 px-6 py-3 flex justify-end gap-2">
               <button
                 onClick={closeForm}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
@@ -528,7 +754,7 @@ export default function PaymentInstrumentsTab() {
                 ) : editingId ? (
                   "Salvar Alteracoes"
                 ) : (
-                  "Criar Instrumento"
+                  "Criar Meio"
                 )}
               </button>
             </div>

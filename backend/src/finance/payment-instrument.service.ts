@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,7 +9,8 @@ import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/pa
 
 /**
  * Detecta se um PaymentMethod representa cartao de credito (vira conta virtual CARTAO_CREDITO).
- * Debito/PIX/dinheiro/etc. NAO geram conta virtual.
+ * Debito/PIX/dinheiro/etc. NAO geram conta virtual por padrao, mas podem via flag
+ * `createExclusiveAccount` no DTO.
  */
 function isCreditCardMethod(code: string | null | undefined): boolean {
   if (!code) return false;
@@ -16,11 +18,11 @@ function isCreditCardMethod(code: string | null | undefined): boolean {
   return c === 'CARTAO_CREDITO' || c === 'CREDITO' || c === 'CREDIT_CARD' || c === 'CREDIT';
 }
 
-function buildCardAccountName(instrumentName: string): string {
-  // Evita duplicar prefixo "Cartao" se o usuario ja nomeou assim
+function buildExclusiveAccountName(instrumentName: string, isCredit: boolean): string {
   const trimmed = instrumentName.trim();
-  if (/^cart[aã]o\b/i.test(trimmed)) return trimmed;
-  return `Cartao ${trimmed}`;
+  if (isCredit && /^cart[aã]o\b/i.test(trimmed)) return trimmed;
+  if (isCredit) return `Cartao ${trimmed}`;
+  return trimmed;
 }
 
 @Injectable()
@@ -48,7 +50,7 @@ export class PaymentInstrumentService {
       const virtualAccount = await this.prisma.cashAccount.create({
         data: {
           companyId,
-          name: buildCardAccountName(pi.name),
+          name: buildExclusiveAccountName(pi.name, true),
           type: 'CARTAO_CREDITO',
           initialBalanceCents: 0,
           currentBalanceCents: 0,
@@ -61,6 +63,17 @@ export class PaymentInstrumentService {
         where: { id: pi.id },
         data: { cashAccountId: virtualAccount.id },
       });
+    }
+  }
+
+  /**
+   * Normaliza e valida as flags de direcao. Pelo menos 1 dos dois precisa estar true.
+   */
+  private validateDirection(showInReceivables: boolean | undefined, showInPayables: boolean | undefined): void {
+    const r = showInReceivables ?? true;
+    const p = showInPayables ?? true;
+    if (!r && !p) {
+      throw new BadRequestException('Marque ao menos uma direcao: recebimento ou pagamento.');
     }
   }
 
@@ -95,6 +108,25 @@ export class PaymentInstrumentService {
   }
 
   /**
+   * Lista instrumentos ativos filtrando por direcao (A Receber / A Pagar).
+   * Usado pelos dropdowns dos modais de lancamento.
+   */
+  async findActiveByDirection(companyId: string, direction: 'RECEIVABLE' | 'PAYABLE') {
+    await this.ensureVirtualCardAccounts(companyId);
+    const where: Record<string, unknown> = { companyId, deletedAt: null, isActive: true };
+    if (direction === 'RECEIVABLE') where.showInReceivables = true;
+    else where.showInPayables = true;
+    return this.prisma.paymentInstrument.findMany({
+      where,
+      include: {
+        paymentMethod: { select: { id: true, name: true, code: true } },
+        cashAccount: { select: { id: true, name: true, type: true } },
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  /**
    * List active instruments filtered by payment method
    */
   async findByMethod(companyId: string, paymentMethodId: string) {
@@ -109,10 +141,13 @@ export class PaymentInstrumentService {
 
   /**
    * Create a payment instrument.
-   * Para cartoes de credito, cria automaticamente uma CashAccount virtual (tipo CARTAO_CREDITO)
-   * que vai acumular divida ate a fatura ser paga via transferencia bancaria.
+   * Regras:
+   * - Cartao de credito: SEMPRE cria CashAccount virtual tipo CARTAO_CREDITO (ignora cashAccountId e createExclusiveAccount=false)
+   * - Demais tipos: respeita createExclusiveAccount (true = cria CashAccount dedicada) ou cashAccountId informado
    */
   async create(companyId: string, dto: CreatePaymentInstrumentDto) {
+    this.validateDirection(dto.showInReceivables, dto.showInPayables);
+
     // Validate paymentMethod exists
     const pm = await this.prisma.paymentMethod.findFirst({
       where: { id: dto.paymentMethodId, companyId, deletedAt: null },
@@ -123,11 +158,11 @@ export class PaymentInstrumentService {
     let effectiveCashAccountId: string | null = dto.cashAccountId ?? null;
 
     if (isCredit) {
-      // Cartao de credito: ignora cashAccountId enviado e cria conta virtual propria
+      // Cartao de credito: sempre cria conta virtual propria (forca comportamento)
       const virtualAccount = await this.prisma.cashAccount.create({
         data: {
           companyId,
-          name: buildCardAccountName(dto.name),
+          name: buildExclusiveAccountName(dto.name, true),
           type: 'CARTAO_CREDITO',
           initialBalanceCents: 0,
           currentBalanceCents: 0,
@@ -137,6 +172,22 @@ export class PaymentInstrumentService {
         },
       });
       effectiveCashAccountId = virtualAccount.id;
+    } else if (dto.createExclusiveAccount) {
+      // Outros tipos com flag marcada: cria CashAccount dedicada tipo BANCO (utilitario)
+      const dedicatedAccount = await this.prisma.cashAccount.create({
+        data: {
+          companyId,
+          name: buildExclusiveAccountName(dto.name, false),
+          type: 'BANCO',
+          bankName: dto.bankName ?? null,
+          initialBalanceCents: 0,
+          currentBalanceCents: 0,
+          showInReceivables: dto.showInReceivables ?? true,
+          showInPayables: dto.showInPayables ?? true,
+          isActive: dto.isActive ?? true,
+        },
+      });
+      effectiveCashAccountId = dedicatedAccount.id;
     } else if (dto.cashAccountId) {
       // Demais tipos: valida conta informada manualmente
       const ca = await this.prisma.cashAccount.findFirst({
@@ -157,6 +208,13 @@ export class PaymentInstrumentService {
         details: dto.details ?? null,
         isActive: dto.isActive ?? true,
         sortOrder: dto.sortOrder ?? 0,
+        billingClosingDay: dto.billingClosingDay ?? null,
+        billingDueDay: dto.billingDueDay ?? null,
+        showInReceivables: dto.showInReceivables ?? true,
+        showInPayables: dto.showInPayables ?? true,
+        autoMarkPaid: dto.autoMarkPaid ?? false,
+        feePercent: dto.feePercent ?? null,
+        receivingDays: dto.receivingDays ?? null,
       },
       include: {
         paymentMethod: { select: { id: true, name: true, code: true, requiresBrand: true } },
@@ -176,6 +234,13 @@ export class PaymentInstrumentService {
     });
     if (!pi) throw new NotFoundException('Instrumento de pagamento não encontrado.');
     if (pi.companyId !== companyId) throw new ForbiddenException();
+
+    // Validate direction se algum foi enviado
+    if (dto.showInReceivables !== undefined || dto.showInPayables !== undefined) {
+      const nextReceivables = dto.showInReceivables ?? pi.showInReceivables;
+      const nextPayables = dto.showInPayables ?? pi.showInPayables;
+      this.validateDirection(nextReceivables, nextPayables);
+    }
 
     const currentMethodCode = pi.paymentMethod?.code;
     let targetMethodCode = currentMethodCode;
@@ -219,7 +284,7 @@ export class PaymentInstrumentService {
       const virtualAccount = await this.prisma.cashAccount.create({
         data: {
           companyId,
-          name: buildCardAccountName(newName),
+          name: buildExclusiveAccountName(newName, true),
           type: 'CARTAO_CREDITO',
           initialBalanceCents: 0,
           currentBalanceCents: 0,
@@ -233,7 +298,7 @@ export class PaymentInstrumentService {
       // Continua credito: sincroniza nome e estado ativo da conta virtual
       const updates: Record<string, unknown> = {};
       if (dto.name !== undefined && dto.name !== pi.name) {
-        updates.name = buildCardAccountName(dto.name);
+        updates.name = buildExclusiveAccountName(dto.name, true);
       }
       if (dto.isActive !== undefined && dto.isActive !== pi.isActive) {
         updates.isActive = dto.isActive;
@@ -245,6 +310,22 @@ export class PaymentInstrumentService {
         });
       }
       // cashAccountId do instrumento permanece (credito nao aceita troca manual)
+    } else if (!willBeCredit && dto.createExclusiveAccount && !pi.cashAccountId) {
+      // Nao-credito sem conta ainda, mas pediu conta exclusiva agora: cria
+      const dedicatedAccount = await this.prisma.cashAccount.create({
+        data: {
+          companyId,
+          name: buildExclusiveAccountName(dto.name ?? pi.name, false),
+          type: 'BANCO',
+          bankName: dto.bankName ?? pi.bankName ?? null,
+          initialBalanceCents: 0,
+          currentBalanceCents: 0,
+          showInReceivables: dto.showInReceivables ?? pi.showInReceivables,
+          showInPayables: dto.showInPayables ?? pi.showInPayables,
+          isActive: dto.isActive ?? pi.isActive,
+        },
+      });
+      effectiveCashAccountId = dedicatedAccount.id;
     } else if (dto.cashAccountId !== undefined) {
       effectiveCashAccountId = dto.cashAccountId || null;
     }
@@ -261,6 +342,13 @@ export class PaymentInstrumentService {
         ...(dto.details !== undefined && { details: dto.details || null }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
         ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+        ...(dto.billingClosingDay !== undefined && { billingClosingDay: dto.billingClosingDay }),
+        ...(dto.billingDueDay !== undefined && { billingDueDay: dto.billingDueDay }),
+        ...(dto.showInReceivables !== undefined && { showInReceivables: dto.showInReceivables }),
+        ...(dto.showInPayables !== undefined && { showInPayables: dto.showInPayables }),
+        ...(dto.autoMarkPaid !== undefined && { autoMarkPaid: dto.autoMarkPaid }),
+        ...(dto.feePercent !== undefined && { feePercent: dto.feePercent }),
+        ...(dto.receivingDays !== undefined && { receivingDays: dto.receivingDays }),
       },
       include: {
         paymentMethod: { select: { id: true, name: true, code: true, requiresBrand: true } },
