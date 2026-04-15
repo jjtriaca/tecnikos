@@ -1179,16 +1179,13 @@ export class SefazDfeService implements OnModuleInit {
     const infEvento = `<infEvento Id="${idInfEvento}"><cOrgao>91</cOrgao><tpAmb>${tpAmb}</tpAmb><CNPJ>${cnpjOnly}</CNPJ><chNFe>${nfeKey}</chNFe><dhEvento>${dhEvento}</dhEvento><tpEvento>${eventCfg.tpEvento}</tpEvento><nSeqEvento>${nSeqEvento}</nSeqEvento><verEvento>1.00</verEvento><detEvento versao="1.00">${detEventoInner}</detEvento></infEvento>`;
 
     // Monta o evento completo (sem assinatura) pra xml-crypto processar
-    // xmlns fica APENAS em <envEvento> — <evento> interno herda do pai (pynfe, uninfe, acbr fazem assim)
-    const eventoUnsigned = `<evento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">${infEvento}</evento>`;
+    // Padrao pynfe/acbr: xmlns="http://www.portalfiscal.inf.br/nfe" tanto em <envEvento> quanto em <evento>
+    const eventoUnsigned = `<evento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">${infEvento}</evento>`;
 
     // Assina via xml-crypto — C14N 1.0 formal, padrao SEFAZ NFe
     const eventoSigned = this.signEventoXml(eventoUnsigned, idInfEvento, certPem, keyPem);
 
-    // envEvento sem redundancia de xmlns — evento interno ja tem via heranca na construcao final
-    // Aqui removemos o xmlns do <evento> assinado pra evitar duplicacao na montagem final
-    const eventoSignedStripped = eventoSigned.replace(' xmlns="http://www.portalfiscal.inf.br/nfe"', '');
-    const envEvento = `<envEvento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${Date.now()}</idLote>${eventoSignedStripped}</envEvento>`;
+    const envEvento = `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00"><idLote>${Date.now()}</idLote>${eventoSigned}</envEvento>`;
 
     // Envia via SOAP NFeRecepcaoEvento4
     const response = await this.callRecepcaoEventoSoap(certPem, keyPem, envEvento, config.environment);
@@ -1275,10 +1272,9 @@ export class SefazDfeService implements OnModuleInit {
     this.logger.log(`SEFAZ Evento ENVELOPE: ${soapEnvelope}`);
 
     return new Promise((resolve, reject) => {
-      // SOAP 1.2 exige action como parametro do Content-Type (RecepcaoEvento4)
-      // SVAN (www1.nfe.fazenda.gov.br) expõe action "nfeRecepcaoEventoNF" — confirmado via resposta
-      // de erro "action not recognized" ao tentar sem NF. Fato testado em producao.
-      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF';
+      // SVAN (www1.nfe.fazenda.gov.br) expõe action "nfeRecepcaoEventoNF" — confirmado via
+      // resposta de erro "action not recognized" ao tentar sem NF. Fato testado em producao.
+      // Content-Type IGUAL ao distDFe (que funciona) — sem action param. SEFAZ deriva do wrapper.
       const options: https.RequestOptions = {
         hostname: parsedUrl.hostname,
         port: 443,
@@ -1287,8 +1283,9 @@ export class SefazDfeService implements OnModuleInit {
         cert: certPem,
         key: keyPem,
         headers: {
-          'Content-Type': `application/soap+xml;charset=UTF-8;action="${soapAction}"`,
+          'Content-Type': 'application/soap+xml;charset=UTF-8',
           'Content-Length': Buffer.byteLength(soapEnvelope, 'utf-8'),
+          'SOAPAction': '"http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF"',
         },
         timeout: 30000,
       };
