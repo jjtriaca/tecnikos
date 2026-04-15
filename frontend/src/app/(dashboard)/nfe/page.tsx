@@ -285,6 +285,7 @@ const MANIFEST_CONFIG: Record<string, { label: string; classes: string }> = {
   confirmacao: { label: "Confirmada", classes: "bg-green-50 text-green-700 border-green-200" },
   desconhecimento: { label: "Desconhecida", classes: "bg-amber-50 text-amber-700 border-amber-200" },
   nao_realizada: { label: "Nao Realizada", classes: "bg-red-50 text-red-700 border-red-200" },
+  prazo_expirado: { label: "Prazo Expirado", classes: "bg-slate-100 text-slate-600 border-slate-300" },
 };
 
 function ManifestBadge({ type }: { type: string | null }) {

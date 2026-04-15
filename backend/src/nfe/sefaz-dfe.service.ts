@@ -536,6 +536,14 @@ export class SefazDfeService implements OnModuleInit {
       },
     });
 
+    // Se auto-manifest esta habilitado, dispara apos o fetch (async, nao bloqueia o response).
+    // Assim o botao "Buscar Agora" manual tambem ativa a manifestacao automatica.
+    if (totalNewDocs > 0) {
+      this.autoManifestNewDocs(companyId).catch((err) => {
+        this.logger.warn(`Auto-manifest after manual fetch failed: ${err.message}`);
+      });
+    }
+
     return { newDocuments: totalNewDocs, lastNsu: currentNsu };
   }
 
@@ -1488,6 +1496,7 @@ export class SefazDfeService implements OnModuleInit {
       if (pendingDocs.length === 0) return;
 
       let manifested = 0;
+      let skippedExpired = 0;
       for (const doc of pendingDocs) {
         try {
           // Manifestacao via SEFAZ direto (nao passa pelo Focus)
@@ -1508,12 +1517,27 @@ export class SefazDfeService implements OnModuleInit {
           // Small delay between manifests to avoid rate limiting
           await new Promise(r => setTimeout(r, 1500));
         } catch (err) {
-          this.logger.warn(`Auto-manifest failed for key=${doc.nfeKey}: ${err.message}`);
+          const msg = (err as Error).message || '';
+          // cStat=596: nota com mais de 10 dias - SEFAZ bloqueia ciencia. Marca pra nao retentar.
+          if (msg.includes('cStat=596')) {
+            await this.prisma.sefazDocument.update({
+              where: { id: doc.id },
+              data: { manifestType: 'prazo_expirado' },
+            });
+            skippedExpired++;
+            this.logger.log(`Auto-manifest skipped (prazo expirado >10d): key=${doc.nfeKey}`);
+          } else {
+            this.logger.warn(`Auto-manifest failed for key=${doc.nfeKey}: ${msg}`);
+          }
+          // Delay pra nao estourar rate limit mesmo em caso de erro
+          await new Promise(r => setTimeout(r, 1500));
         }
       }
 
-      if (manifested > 0) {
-        this.logger.log(`Auto-manifested ciência for ${manifested} docs (company=${companyId})`);
+      if (manifested > 0 || skippedExpired > 0) {
+        this.logger.log(
+          `Auto-manifest ciência: ${manifested} sucessos, ${skippedExpired} fora do prazo (company=${companyId})`,
+        );
       }
     } catch (err) {
       this.logger.warn(`Auto-manifest error for company=${companyId}: ${err.message}`);
