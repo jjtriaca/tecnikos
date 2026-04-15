@@ -989,8 +989,10 @@ export class SefazDfeService implements OnModuleInit {
       throw new BadRequestException('Justificativa é obrigatória para este tipo de manifestação');
     }
 
-    // Manifestação direto na SEFAZ (NFeRecepcaoEvento4) com certificado digital da empresa
-    const result = await this.manifestEventSefaz(companyId, doc.nfeKey, tipo, justificativa);
+    // Manifestação via Focus NFe (mais estavel que SEFAZ direto pra esse tipo de evento)
+    // Consulta/DistDFe/fetch-by-key continuam SEFAZ direto — Focus só pra RecepcaoEvento
+    const { token, environment } = await this.getFocusNfeCredentials(companyId);
+    const result = await this.focusNfe.manifestNfe(token, environment, doc.nfeKey, tipo, justificativa);
 
     // Update document
     const updated = await this.prisma.sefazDocument.update({
@@ -1001,7 +1003,7 @@ export class SefazDfeService implements OnModuleInit {
       },
     });
 
-    this.logger.log(`Manifest OK: doc=${sefazDocId} key=${doc.nfeKey} type=${tipo} protocolo=${result.protocolo ?? '-'}`);
+    this.logger.log(`Manifest OK (via Focus): doc=${sefazDocId} key=${doc.nfeKey} type=${tipo} status=${result.status ?? '-'}`);
 
     // Apos ciência, tenta baixar o procNFe via consChNFe (SEFAZ direto — sem Focus)
     if (tipo === 'ciencia' && doc.schema !== 'procNFe') {
@@ -1011,7 +1013,7 @@ export class SefazDfeService implements OnModuleInit {
       }), 5000);
     }
 
-    return { ...updated, sefazResult: result };
+    return { ...updated, focusResult: result };
   }
 
   /* ═══════════════════════════════════════════════════════════════════

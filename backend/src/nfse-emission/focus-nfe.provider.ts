@@ -319,10 +319,20 @@ export class FocusNfeProvider {
     tipo: 'ciencia' | 'confirmacao' | 'desconhecimento' | 'nao_realizada',
     justificativa?: string,
   ): Promise<{ status: string; protocolo?: string; mensagem?: string }> {
-    const url = `${this.getBaseUrl(environment)}/v2/nfes_recebidas/${nfeKey}/manifesto`;
-    this.logger.log(`Manifesting NFe key=${nfeKey} type=${tipo} env=${environment}`);
+    // Endpoint oficial Focus NFe (v2 atual): /v2/nfes_recebidas/{chave}/ciencia (ou confirmacao, desconhecimento, operacao_nao_realizada)
+    const tipoToEndpoint: Record<string, string> = {
+      ciencia: 'ciencia',
+      confirmacao: 'confirmacao',
+      desconhecimento: 'desconhecimento',
+      nao_realizada: 'operacao_nao_realizada',
+    };
+    const endpoint = tipoToEndpoint[tipo];
+    if (!endpoint) throw new Error(`Tipo de manifestação invalido: ${tipo}`);
 
-    const body: any = { tipo };
+    const url = `${this.getBaseUrl(environment)}/v2/nfes_recebidas/${nfeKey}/${endpoint}`;
+    this.logger.log(`Manifesting NFe key=${nfeKey} type=${tipo} endpoint=${endpoint} env=${environment}`);
+
+    const body: any = {};
     if (justificativa) body.justificativa = justificativa;
 
     const response = await fetch(url, {
