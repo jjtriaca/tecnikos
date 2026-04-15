@@ -1179,12 +1179,16 @@ export class SefazDfeService implements OnModuleInit {
     const infEvento = `<infEvento Id="${idInfEvento}"><cOrgao>91</cOrgao><tpAmb>${tpAmb}</tpAmb><CNPJ>${cnpjOnly}</CNPJ><chNFe>${nfeKey}</chNFe><dhEvento>${dhEvento}</dhEvento><tpEvento>${eventCfg.tpEvento}</tpEvento><nSeqEvento>${nSeqEvento}</nSeqEvento><verEvento>1.00</verEvento><detEvento versao="1.00">${detEventoInner}</detEvento></infEvento>`;
 
     // Monta o evento completo (sem assinatura) pra xml-crypto processar
-    const eventoUnsigned = `<evento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">${infEvento}</evento>`;
+    // xmlns fica APENAS em <envEvento> — <evento> interno herda do pai (pynfe, uninfe, acbr fazem assim)
+    const eventoUnsigned = `<evento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">${infEvento}</evento>`;
 
     // Assina via xml-crypto — C14N 1.0 formal, padrao SEFAZ NFe
     const eventoSigned = this.signEventoXml(eventoUnsigned, idInfEvento, certPem, keyPem);
 
-    const envEvento = `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00"><idLote>${Date.now()}</idLote>${eventoSigned}</envEvento>`;
+    // envEvento sem redundancia de xmlns — evento interno ja tem via heranca na construcao final
+    // Aqui removemos o xmlns do <evento> assinado pra evitar duplicacao na montagem final
+    const eventoSignedStripped = eventoSigned.replace(' xmlns="http://www.portalfiscal.inf.br/nfe"', '');
+    const envEvento = `<envEvento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${Date.now()}</idLote>${eventoSignedStripped}</envEvento>`;
 
     // Envia via SOAP NFeRecepcaoEvento4
     const response = await this.callRecepcaoEventoSoap(certPem, keyPem, envEvento, config.environment);
@@ -1260,7 +1264,8 @@ export class SefazDfeService implements OnModuleInit {
     const envEventoInline = envEventoXml.replace(/<\?xml[^>]*\?>/i, '').trim();
 
     // Envelope COMPACTO (sem newlines) — SEFAZ as vezes e sensivel a whitespace entre elementos
-    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeRecepcaoEvento xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4"><nfeDadosMsg>${envEventoInline}</nfeDadosMsg></nfeRecepcaoEvento></soap12:Body></soap12:Envelope>`;
+    // xmlns xsi/xsd incluidos conforme WSDL SEFAZ (alguns validadores exigem)
+    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeRecepcaoEvento xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4"><nfeDadosMsg>${envEventoInline}</nfeDadosMsg></nfeRecepcaoEvento></soap12:Body></soap12:Envelope>`;
 
     const url = environment === 'HOMOLOGATION' ? SEFAZ_EVENTO_URLS.HOMOLOGATION : SEFAZ_EVENTO_URLS.PRODUCTION;
     const parsedUrl = new URL(url);
@@ -1270,9 +1275,9 @@ export class SefazDfeService implements OnModuleInit {
 
     return new Promise((resolve, reject) => {
       // SOAP 1.2 exige action como parametro do Content-Type (RecepcaoEvento4)
-      // SOAP Action correta conforme WSDL AN: nfeRecepcaoEvento (SEM sufixo "NF")
-      // Referencias: pynfe, uninfe, especificacao SEFAZ MOC 7.00 secao 5.7
-      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento';
+      // SVAN (www1.nfe.fazenda.gov.br) expõe action "nfeRecepcaoEventoNF" — confirmado via resposta
+      // de erro "action not recognized" ao tentar sem NF. Fato testado em producao.
+      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF';
       const options: https.RequestOptions = {
         hostname: parsedUrl.hostname,
         port: 443,
@@ -1293,19 +1298,36 @@ export class SefazDfeService implements OnModuleInit {
         res.on('end', () => {
           const body = Buffer.concat(chunks).toString('utf-8');
           this.logger.log(`SEFAZ Evento HTTP ${res.statusCode} | body length=${body.length}`);
-          if (body.length < 3000) this.logger.log(`SEFAZ Evento response: ${body}`);
+          if (body.length < 5000) this.logger.log(`SEFAZ Evento response: ${body}`);
+
+          // Detecta SOAP Fault em qualquer prefix (soap/soap12/env/SOAP-ENV/s)
+          const faultMatch = body.match(/<(?:[^>]+:)?Text[^>]*>([^<]+)<\/(?:[^>]+:)?Text>/i);
+          if (res.statusCode === 500 || body.includes('Fault')) {
+            const faultMsg = faultMatch?.[1] ?? 'SOAP Fault sem texto';
+            return reject(new Error(`SEFAZ SOAP Fault (HTTP ${res.statusCode}): ${faultMsg}`));
+          }
 
           try {
             const parsed = this.xmlParser.parse(body);
-            const envelope = parsed['soap:Envelope'] ?? parsed['soap12:Envelope'] ?? parsed;
-            const soapBody = envelope['soap:Body'] ?? envelope['soap12:Body'] ?? envelope;
-            // Envelope pode ter nfeRecepcaoEventoNFResponse (wrapper) → nfeResultMsg → retEnvEvento
+            // Traversa qualquer prefixo de Envelope/Body (soap, soap12, env, SOAP-ENV, s)
+            const envelope = parsed['soap:Envelope'] ?? parsed['soap12:Envelope']
+              ?? parsed['env:Envelope'] ?? parsed['SOAP-ENV:Envelope'] ?? parsed['s:Envelope']
+              ?? parsed['Envelope'] ?? parsed;
+            const soapBody = envelope['soap:Body'] ?? envelope['soap12:Body']
+              ?? envelope['env:Body'] ?? envelope['SOAP-ENV:Body'] ?? envelope['s:Body']
+              ?? envelope['Body'] ?? envelope;
+            // Response wrapper varia: nfeRecepcaoEventoResponse / nfeRecepcaoEventoNFResponse
             const methodResp = soapBody?.nfeRecepcaoEventoResponse ?? soapBody?.nfeRecepcaoEventoNFResponse ?? soapBody;
             const resp = methodResp?.nfeResultMsg ?? methodResp;
             const retEnvEvento = resp?.retEnvEvento ?? resp;
 
             const cStatLote = String(retEnvEvento?.cStat ?? '');
             const xMotivoLote = String(retEnvEvento?.xMotivo ?? '');
+
+            if (!cStatLote) {
+              // Log do objeto parseado pra debugar estrutura desconhecida
+              this.logger.warn(`SEFAZ Evento parse: cStat vazio. Parsed=${JSON.stringify(parsed).substring(0, 1000)}`);
+            }
 
             // Se o lote foi processado, busca retorno do evento individual
             const retEvento = retEnvEvento?.retEvento;
