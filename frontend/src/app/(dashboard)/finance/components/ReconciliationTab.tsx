@@ -202,7 +202,7 @@ interface PaymentInstrumentOption {
 function QuickCreateEntryModal({
   open,
   line,
-  financialAccounts,
+  financialAccounts: financialAccountsFromParent,
   onClose,
   onCreatedAndMatched,
 }: {
@@ -221,6 +221,7 @@ function QuickCreateEntryModal({
   const [financialAccountId, setFinancialAccountId] = useState("");
   const [paymentInstrumentId, setPaymentInstrumentId] = useState("");
   const [paymentInstruments, setPaymentInstruments] = useState<PaymentInstrumentOption[]>([]);
+  const [financialAccounts, setFinancialAccounts] = useState<FinancialAccountOption[]>(financialAccountsFromParent);
 
   const entryType: "RECEIVABLE" | "PAYABLE" = line && line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
   const isoDate = (d: string) => {
@@ -229,7 +230,7 @@ function QuickCreateEntryModal({
     return `${d}T12:00:00`;
   };
 
-  // Pre-fill on open
+  // Pre-fill on open + load payment instruments + reload chart of accounts
   useEffect(() => {
     if (!open || !line) return;
     const abs = Math.abs(line.amountCents);
@@ -241,12 +242,22 @@ function QuickCreateEntryModal({
     setPaymentInstrumentId("");
 
     // Load payment instruments for this direction
-    const direction = entryType === "RECEIVABLE" ? "RECEIVE" : "PAY";
+    // Endpoint espera direction=RECEIVABLE ou PAYABLE (bate com o entryType)
     api
-      .get<PaymentInstrumentOption[]>(`/finance/payment-instruments/active?direction=${direction}`)
+      .get<PaymentInstrumentOption[]>(`/finance/payment-instruments/active?direction=${entryType}`)
       .then((list) => setPaymentInstruments(list || []))
       .catch(() => setPaymentInstruments([]));
-  }, [open, line, entryType]);
+
+    // Reload financial accounts directly (don't rely only on parent) to guarantee we have fresh data
+    // Endpoint /finance/accounts/postable ja filtra allowPosting + isActive no backend
+    api
+      .get<FinancialAccountOption[]>("/finance/accounts/postable")
+      .then((list) => {
+        // Use parent's list if it has data; else use the just-loaded one
+        setFinancialAccounts(financialAccountsFromParent.length > 0 ? financialAccountsFromParent : (list || []));
+      })
+      .catch(() => setFinancialAccounts(financialAccountsFromParent));
+  }, [open, line, entryType, financialAccountsFromParent]);
 
   if (!open || !line) return null;
 
@@ -257,6 +268,7 @@ function QuickCreateEntryModal({
   async function handleSave() {
     if (!line || !partner) return;
     setSaving(true);
+    let createdEntryId: string | null = null;
     try {
       // 1. Cria o entry com status PENDING (nao PAID — o match vai marcar PAID com a data correta do banco)
       const createBody: any = {
@@ -270,17 +282,25 @@ function QuickCreateEntryModal({
       if (paymentInstrumentId) createBody.paymentInstrumentId = paymentInstrumentId;
 
       const created = await api.post<any>("/finance/entries", createBody);
-      const entryId = created?.id || created?.entry?.id || created?.data?.id;
-      if (!entryId) throw new Error("Nao recebi ID do lancamento criado");
+      createdEntryId = created?.id || created?.entry?.id || created?.data?.id;
+      if (!createdEntryId) throw new Error("Nao recebi ID do lancamento criado");
 
       // 2. Concilia a linha com o entry recem-criado
-      const matchBody: any = { entryId };
+      const matchBody: any = { entryId: createdEntryId };
       if (financialAccountId) matchBody.financialAccountId = financialAccountId;
       await api.post(`/finance/reconciliation/lines/${line.id}/match`, matchBody);
 
       toast("Lancamento criado e conciliado com sucesso!", "success");
       onCreatedAndMatched();
     } catch (err: any) {
+      // Rollback: se criamos o entry mas falhou o match, deletamos o entry pra nao deixar orfao
+      if (createdEntryId) {
+        try {
+          await api.del(`/finance/entries/${createdEntryId}`);
+        } catch {
+          // nao propaga erro do rollback — prioritario e mostrar o erro original
+        }
+      }
       toast(err?.response?.data?.message || err?.message || "Erro ao criar lancamento.", "error");
     } finally {
       setSaving(false);
@@ -530,11 +550,11 @@ function ConciliationModal({
       api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50`).catch(() => ({ data: [] })),
       api.get<any>(`/finance/entries?status=PENDING&type=${type}&limit=50`).catch(() => ({ data: [] })),
       isCardTx ? api.get<any[]>("/finance/card-fee-rates").catch(() => []) : Promise.resolve([]),
-      api.get<FinancialAccountOption[]>("/finance/financial-accounts").catch(() => []),
+      // Endpoint correto: /finance/accounts/postable (ja filtra allowPosting + isActive no backend)
+      api.get<FinancialAccountOption[]>("/finance/accounts/postable").catch(() => []),
     ])
-      .then(([paidRes, pendingRes, feeRates, allAccounts]) => {
-        const postableAccounts = (allAccounts || []).filter((a) => a.isActive && a.allowPosting);
-        setFinancialAccounts(postableAccounts);
+      .then(([paidRes, pendingRes, feeRates, postableAccounts]) => {
+        setFinancialAccounts(postableAccounts || []);
         const paid = (paidRes.data || paidRes || []).map((e: any) => ({ ...e, _fromStatus: "PAID" }));
         const pending = (pendingRes.data || pendingRes || []).map((e: any) => ({ ...e, _fromStatus: "PENDING" }));
         const map = new Map<string, any>();
@@ -1321,7 +1341,8 @@ function CardInvoiceMatchModal({
     }
     Promise.all([
       api.get<CardInstrument[]>("/finance/payment-instruments").catch(() => []),
-      api.get<FinancialAccountOption[]>("/finance/financial-accounts").catch(() => []),
+      // Endpoint correto: /finance/accounts/postable (ja filtra no backend)
+      api.get<FinancialAccountOption[]>("/finance/accounts/postable").catch(() => []),
     ])
       .then(([instrumentsData, accountsData]) => {
         const credit = (instrumentsData || []).filter((i) => {
@@ -1330,7 +1351,7 @@ function CardInvoiceMatchModal({
         });
         setInstruments(credit);
         setSelectedCardIds(new Set(credit.map((i) => i.id)));
-        setFinancialAccounts((accountsData || []).filter((a) => a.isActive && a.allowPosting));
+        setFinancialAccounts(accountsData || []);
       })
       .catch(() => toast("Erro ao carregar dados", "error"));
   }, [open, line, toast]);
