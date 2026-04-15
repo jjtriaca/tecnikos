@@ -1249,6 +1249,7 @@ export class SefazDfeService implements OnModuleInit {
     const parsedUrl = new URL(url);
 
     this.logger.log(`SEFAZ Evento SOAP → ${url} | envelope length=${soapEnvelope.length}`);
+    this.logger.log(`SEFAZ Evento ENVELOPE: ${soapEnvelope}`);
 
     return new Promise((resolve, reject) => {
       // SOAP 1.2 exige action como parametro do Content-Type (RecepcaoEvento4)
