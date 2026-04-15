@@ -1252,7 +1252,8 @@ export class SefazDfeService implements OnModuleInit {
 
     return new Promise((resolve, reject) => {
       // SOAP 1.2 exige action como parametro do Content-Type (RecepcaoEvento4)
-      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento';
+      // Wrapper XML: nfeRecepcaoEvento ; Action: nfeRecepcaoEventoNF (terminacao NF e particularidade do servico)
+      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF';
       const options: https.RequestOptions = {
         hostname: parsedUrl.hostname,
         port: 443,
