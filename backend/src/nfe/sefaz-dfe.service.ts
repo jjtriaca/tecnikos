@@ -1195,8 +1195,13 @@ export class SefazDfeService implements OnModuleInit {
 
     this.logger.log(`SEFAZ evento ${tipo} response: cStat=${response.cStat} xMotivo=${response.xMotivo} protocolo=${response.protocolo ?? '-'}`);
 
-    if (response.cStat !== '128' && response.cStat !== '135' && response.cStat !== '136') {
-      // 128 = Lote processado; 135 = Evento registrado; 136 = Evento registrado mas vinculado a NFe
+    // cStat do EVENTO individual (nao do lote):
+    // 135 = Evento registrado e vinculado a NF-e (sucesso)
+    // 136 = Evento registrado mas nao vinculado (NFe ainda nao chegou na base; sucesso funcional)
+    // 573 = Duplicidade de evento (ja manifestada anteriormente — tratado como sucesso idempotente)
+    // 128 = Lote processado (caso o parser nao tenha conseguido extrair o evento; fallback)
+    const successCodes = new Set(['128', '135', '136', '573']);
+    if (!successCodes.has(response.cStat)) {
       throw new BadRequestException(
         `SEFAZ rejeitou a manifestação. cStat=${response.cStat} — ${response.xMotivo || 'sem motivo'}`,
       );
@@ -1319,11 +1324,12 @@ export class SefazDfeService implements OnModuleInit {
             const soapBody = envelope['soap:Body'] ?? envelope['soap12:Body']
               ?? envelope['env:Body'] ?? envelope['SOAP-ENV:Body'] ?? envelope['s:Body']
               ?? envelope['Body'] ?? envelope;
-            // Response pode vir com ou sem wrapper dependendo da SEFAZ:
-            // padrao nfephp: soap:Body > nfeRecepcaoEventoResponse > nfeResultMsg > retEnvEvento
-            // as vezes: soap:Body > nfeResultMsg > retEnvEvento
-            // as vezes: soap:Body > retEnvEvento (direto)
-            const methodResp = soapBody?.nfeRecepcaoEventoResponse ?? soapBody;
+            // SEFAZ retorna: soap:Body > nfeRecepcaoEventoNFResult > retEnvEvento (confirmado em prod)
+            // Outras variantes documentadas em libs: nfeRecepcaoEventoResponse, nfeResultMsg
+            const methodResp = soapBody?.nfeRecepcaoEventoNFResult
+              ?? soapBody?.nfeRecepcaoEventoResponse
+              ?? soapBody?.nfeRecepcaoEventoResult
+              ?? soapBody;
             const resp = methodResp?.nfeResultMsg ?? methodResp;
             const retEnvEvento = resp?.retEnvEvento ?? resp;
 
