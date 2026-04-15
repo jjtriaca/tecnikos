@@ -1233,10 +1233,15 @@ export class SefazDfeService implements OnModuleInit {
     envEventoXml: string,
     environment: string,
   ): Promise<{ cStat: string; xMotivo: string; protocolo?: string; nProt?: string }> {
+    // Remove declaracao XML interna (o SOAP envelope ja declara o XML)
+    const envEventoInline = envEventoXml.replace(/<\?xml[^>]*\?>/i, '').trim();
+
     const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
   <soap12:Body>
-    <nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${envEventoXml}</nfeDadosMsg>
+    <nfeRecepcaoEventoNF xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">
+      <nfeDadosMsg>${envEventoInline}</nfeDadosMsg>
+    </nfeRecepcaoEventoNF>
   </soap12:Body>
 </soap12:Envelope>`;
 
@@ -1272,7 +1277,9 @@ export class SefazDfeService implements OnModuleInit {
             const parsed = this.xmlParser.parse(body);
             const envelope = parsed['soap:Envelope'] ?? parsed['soap12:Envelope'] ?? parsed;
             const soapBody = envelope['soap:Body'] ?? envelope['soap12:Body'] ?? envelope;
-            const resp = soapBody?.nfeResultMsg ?? soapBody;
+            // Envelope pode ter nfeRecepcaoEventoNFResponse (wrapper) → nfeResultMsg → retEnvEvento
+            const methodResp = soapBody?.nfeRecepcaoEventoNFResponse ?? soapBody?.nfeRecepcaoEventoResponse ?? soapBody;
+            const resp = methodResp?.nfeResultMsg ?? methodResp;
             const retEnvEvento = resp?.retEnvEvento ?? resp;
 
             const cStatLote = String(retEnvEvento?.cStat ?? '');
