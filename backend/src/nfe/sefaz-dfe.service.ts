@@ -989,10 +989,10 @@ export class SefazDfeService implements OnModuleInit {
       throw new BadRequestException('Justificativa é obrigatória para este tipo de manifestação');
     }
 
-    // Manifestação via Focus NFe (mais estavel que SEFAZ direto pra esse tipo de evento)
-    // Consulta/DistDFe/fetch-by-key continuam SEFAZ direto — Focus só pra RecepcaoEvento
-    const { token, environment } = await this.getFocusNfeCredentials(companyId);
-    const result = await this.focusNfe.manifestNfe(token, environment, doc.nfeKey, tipo, justificativa);
+    // Manifestação via SEFAZ direto (NFeRecepcaoEvento4 — Ambiente Nacional)
+    // Focus NFe nao pode manifestar porque nao tem as NFes no banco dele
+    // (nosso fluxo e via SEFAZ direto desde v1.08.96, nao passa pelo Focus)
+    const result = await this.manifestEventSefaz(companyId, doc.nfeKey, tipo, justificativa);
 
     // Update document
     const updated = await this.prisma.sefazDocument.update({
@@ -1003,9 +1003,12 @@ export class SefazDfeService implements OnModuleInit {
       },
     });
 
-    this.logger.log(`Manifest OK (via Focus): doc=${sefazDocId} key=${doc.nfeKey} type=${tipo} status=${result.status ?? '-'}`);
+    this.logger.log(
+      `Manifest OK (via SEFAZ): doc=${sefazDocId} key=${doc.nfeKey} type=${tipo} ` +
+      `cStat=${result.cStat} protocolo=${result.protocolo ?? '-'}`,
+    );
 
-    // Apos ciência, tenta baixar o procNFe via consChNFe (SEFAZ direto — sem Focus)
+    // Apos ciência, tenta baixar o procNFe via consChNFe (SEFAZ direto)
     if (tipo === 'ciencia' && doc.schema !== 'procNFe') {
       // Schedule XML download attempt (may not be available immediately)
       setTimeout(() => this.tryDownloadFullXmlViaSefaz(companyId, sefazDocId, doc.nfeKey!).catch((err) => {
@@ -1013,7 +1016,7 @@ export class SefazDfeService implements OnModuleInit {
       }), 5000);
     }
 
-    return { ...updated, focusResult: result };
+    return { ...updated, sefazResult: result };
   }
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -1267,8 +1270,9 @@ export class SefazDfeService implements OnModuleInit {
 
     return new Promise((resolve, reject) => {
       // SOAP 1.2 exige action como parametro do Content-Type (RecepcaoEvento4)
-      // Wrapper XML: nfeRecepcaoEvento ; Action: nfeRecepcaoEventoNF (terminacao NF e particularidade do servico)
-      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF';
+      // SOAP Action correta conforme WSDL AN: nfeRecepcaoEvento (SEM sufixo "NF")
+      // Referencias: pynfe, uninfe, especificacao SEFAZ MOC 7.00 secao 5.7
+      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento';
       const options: https.RequestOptions = {
         hostname: parsedUrl.hostname,
         port: 443,
@@ -1439,30 +1443,26 @@ export class SefazDfeService implements OnModuleInit {
 
       if (pendingDocs.length === 0) return;
 
-      const { token, environment } = await this.getFocusNfeCredentials(companyId);
-
       let manifested = 0;
       for (const doc of pendingDocs) {
         try {
-          await this.focusNfe.manifestNfe(token, environment, doc.nfeKey!, 'ciencia');
+          // Manifestacao via SEFAZ direto (nao passa pelo Focus)
+          await this.manifestEventSefaz(companyId, doc.nfeKey!, 'ciencia');
           await this.prisma.sefazDocument.update({
             where: { id: doc.id },
             data: { manifestType: 'ciencia', manifestedAt: new Date() },
           });
           manifested++;
 
-          // Try downloading the XML
-          const xml = await this.focusNfe.downloadNfeXml(token, environment, doc.nfeKey!);
-          if (xml && xml.length > 100) {
-            await this.prisma.sefazDocument.update({
-              where: { id: doc.id },
-              data: { xmlContent: xml, schema: 'procNFe' },
-            });
-            this.logger.log(`Auto-manifest + XML downloaded: key=${doc.nfeKey}`);
+          // Apos ciencia, tenta baixar procNFe via consChNFe (nao bloqueia se nao disponivel ainda)
+          try {
+            await this.tryDownloadFullXmlViaSefaz(companyId, doc.id, doc.nfeKey!);
+          } catch (xmlErr) {
+            this.logger.warn(`XML download after ciencia failed for key=${doc.nfeKey}: ${xmlErr.message}`);
           }
 
           // Small delay between manifests to avoid rate limiting
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 1500));
         } catch (err) {
           this.logger.warn(`Auto-manifest failed for key=${doc.nfeKey}: ${err.message}`);
         }

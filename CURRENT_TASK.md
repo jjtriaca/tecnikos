@@ -1,7 +1,14 @@
 # TAREFA ATUAL
 
-## Versao: v1.08.96
-## Ultima sessao: 175 (14/04/2026)
+## Versao: v1.09.31
+## Ultima sessao: 176 (15/04/2026)
+
+## Fix manifestacao Focus NFe — endpoint correto (v1.09.31) ✅
+- Bug: provider usava `/v2/nfes_recebidas/{chave}/ciencia` (e variantes por tipo) — retornava 404 "Endpoint nao encontrado"
+- Fix: Focus NFe v2 tem endpoint unico `/v2/nfes_recebidas/{chave}/manifesto` com `tipo` no body JSON
+- Body correto: `{ "tipo": "ciencia|confirmacao|desconhecimento|nao_realizada", "justificativa"?: "..." }`
+- Verificado em https://raw.githubusercontent.com/FocusNFe/api-doc/master/source/includes/_manifestacao.md
+- Flow: POST /manifesto retorna protocolo + status_sefaz; apos ciencia, sistema agenda download do procNFe via SEFAZ direto (consChNFe) com delay de 5s
 
 ## Fase 5 — Conciliacao consistente (v1.08.96) ✅
 ### Auto-pagar PENDING ao conciliar
