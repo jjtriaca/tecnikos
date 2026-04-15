@@ -88,8 +88,10 @@ export class SefazDfeService implements OnModuleInit {
     this.xmlParser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
-      // Disable auto number parsing — prevents CNPJ/chave NFe/NSU losing precision
-      numberParseOptions: { leadingZeros: false, hex: false, skipLike: /.*/ },
+      // Desabilita COMPLETAMENTE o parsing de numeros. Preserva strings literais pra CNPJ, chave NFe (44 digitos), NSU, valores monetarios, etc.
+      // fast-xml-parser sem `parseTagValue` converte numeros grandes pra notacao cientifica ("5.12603e+43"), quebrando chave NFe.
+      parseTagValue: false,
+      parseAttributeValue: false,
     });
   }
 
