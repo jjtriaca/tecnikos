@@ -417,19 +417,17 @@ export class SefazDfeService implements OnModuleInit {
         );
 
         if (response.cStat === '137' || response.cStat === '656') {
-          // 137 = Nenhum documento localizado
+          // 137 = Nenhum documento localizado (sincronizado)
           // 656 = Consumo indevido (rate limit)
           hasMore = false;
           if (response.cStat === '656') {
-            this.logger.warn(`SEFAZ rate limit for company ${companyId}: ${response.xMotivo}`);
+            // Rate limit: NAO avancar currentNsu. Se avancasse pro ultNSU retornado,
+            // os NSUs entre o currentNsu anterior e o retornado seriam perdidos porque
+            // a SEFAZ nao entrega docs na resposta de rate_limit. Preserva o NSU anterior
+            // pra proxima tentativa (apos 1h) retomar do ponto certo.
+            this.logger.warn(`SEFAZ rate limit for company ${companyId}: ${response.xMotivo} — preservando ultNSU=${currentNsu} (nao avancando)`);
             fetchStatus = 'RATE_LIMIT';
             lastError = response.xMotivo;
-            // Save ultNSU from rate limit response for subsequent requests
-            const rateLimitNsu = String(response.ultNSU).padStart(15, '0');
-            if (rateLimitNsu !== '000000000000000') {
-              currentNsu = rateLimitNsu;
-              this.logger.log(`Saving ultNSU from rate limit: ${currentNsu}`);
-            }
           } else {
             fetchStatus = totalNewDocs > 0 ? 'SUCCESS' : 'NO_DOCS';
           }
