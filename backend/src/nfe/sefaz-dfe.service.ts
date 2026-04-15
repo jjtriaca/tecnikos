@@ -1172,10 +1172,18 @@ export class SefazDfeService implements OnModuleInit {
 
     const infEvento = `<infEvento Id="${idInfEvento}"><cOrgao>91</cOrgao><tpAmb>${tpAmb}</tpAmb><CNPJ>${cnpjOnly}</CNPJ><chNFe>${nfeKey}</chNFe><dhEvento>${dhEvento}</dhEvento><tpEvento>${eventCfg.tpEvento}</tpEvento><nSeqEvento>${nSeqEvento}</nSeqEvento><verEvento>1.00</verEvento><detEvento versao="1.00">${detEventoInner}</detEvento></infEvento>`;
 
-    // Assina o infEvento usando XML-DSig (RSA-SHA1 + C14N)
-    const signatureXml = this.signXmlElement(infEvento, idInfEvento, certPem, keyPem);
+    // Pro digest, o validador SEFAZ canonicaliza o infEvento COM os namespaces herdados do contexto pai.
+    // Como o infEvento estara dentro de <envEvento xmlns="http://www.portalfiscal.inf.br/nfe">, C14N 1.0
+    // adiciona esse xmlns quando extrai o elemento por URI. Incluimos ele ao calcular o digest.
+    const infEventoCanon = infEvento.replace(
+      '<infEvento ',
+      '<infEvento xmlns="http://www.portalfiscal.inf.br/nfe" ',
+    );
 
-    // Evento sem xmlns repetido (herda do envEvento) — canonicalizacao C14N exige namespaces unicos no contexto
+    // Assina o infEvento usando XML-DSig (RSA-SHA1 + C14N)
+    const signatureXml = this.signXmlElement(infEventoCanon, idInfEvento, certPem, keyPem);
+
+    // Evento sem xmlns repetido (herda do envEvento)
     const evento = `<evento versao="1.00">${infEvento}${signatureXml}</evento>`;
     const envEvento = `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00"><idLote>${Date.now()}</idLote>${evento}</envEvento>`;
 
