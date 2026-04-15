@@ -1202,8 +1202,18 @@ export class SefazDfeService implements OnModuleInit {
     // 128 = Lote processado (caso o parser nao tenha conseguido extrair o evento; fallback)
     const successCodes = new Set(['128', '135', '136', '573']);
     if (!successCodes.has(response.cStat)) {
+      // Mensagem amigavel pra erros comuns
+      let hint = '';
+      if (response.cStat === '596' && tipo === 'ciencia') {
+        hint = ' A ciência só pode ser dada em até 10 dias após a emissão. ' +
+               'Para notas mais antigas, use "Confirmação da Operação" ou "Desconhecimento" diretamente (não têm esse prazo).';
+      } else if (response.cStat === '573') {
+        hint = ' Essa manifestação já foi registrada anteriormente.';
+      } else if (response.cStat === '229') {
+        hint = ' Certifique-se de que o CNPJ do destinatário na NFe é o da empresa que está manifestando.';
+      }
       throw new BadRequestException(
-        `SEFAZ rejeitou a manifestação. cStat=${response.cStat} — ${response.xMotivo || 'sem motivo'}`,
+        `SEFAZ rejeitou a manifestação. cStat=${response.cStat} — ${response.xMotivo || 'sem motivo'}.${hint}`,
       );
     }
 

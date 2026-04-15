@@ -1,14 +1,66 @@
 # TAREFA ATUAL
 
-## Versao: v1.09.31
+## Versao: v1.09.37
 ## Ultima sessao: 176 (15/04/2026)
 
-## Fix manifestacao Focus NFe — endpoint correto (v1.09.31) ✅
-- Bug: provider usava `/v2/nfes_recebidas/{chave}/ciencia` (e variantes por tipo) — retornava 404 "Endpoint nao encontrado"
-- Fix: Focus NFe v2 tem endpoint unico `/v2/nfes_recebidas/{chave}/manifesto` com `tipo` no body JSON
-- Body correto: `{ "tipo": "ciencia|confirmacao|desconhecimento|nao_realizada", "justificativa"?: "..." }`
-- Verificado em https://raw.githubusercontent.com/FocusNFe/api-doc/master/source/includes/_manifestacao.md
-- Flow: POST /manifesto retorna protocolo + status_sefaz; apos ciencia, sistema agenda download do procNFe via SEFAZ direto (consChNFe) com delay de 5s
+## Fix manifestacao SEFAZ direto — Envelope + URL + parser (v1.09.32-37) ✅
+Migrado de Focus NFe (que falhava com "documento fiscal não encontrado" pois nao tinha as NFes no banco dele)
+para SEFAZ direto via NFeRecepcaoEvento4. Processo foi iterativo ate descobrir 3 erros fundamentais:
+
+### Erro #1: URL errada (causa raiz do NullReferenceException)
+- Usavamos `www1.nfe.fazenda.gov.br` (endpoint do NFeDistribuicaoDFe, NAO do RecepcaoEvento4)
+- CORRETO: `www.nfe.fazenda.gov.br` (SEM o "1") pra producao
+- Homologacao continua `hom1.nfe.fazenda.gov.br`
+- Chave: o www1 aceitava o handshake SSL mas caia num handler diferente que nao deserializa evento — isso dava NullRef no .NET
+
+### Erro #2: Wrapper <nfeRecepcaoEvento> nao existe no NFe 4.00
+- Tinhamos `<soap:Body><nfeRecepcaoEvento><nfeDadosMsg>...`
+- CORRETO conforme nfephp/sped-nfe (referencia canonica PHP): `<soap:Body><nfeDadosMsg xmlns="...wsdl/NFeRecepcaoEvento4">...`
+- Sem wrapper. xmlns WSDL vai direto em `<nfeDadosMsg>`.
+
+### Erro #3: versaoDados nao existe em <nfeDadosMsg>
+- Removido — esse atributo nao faz parte do schema
+
+### Outros ajustes
+- Action de `nfeRecepcaoEventoNF` (do endpoint errado) pra `nfeRecepcaoEvento` (correto conforme WSDL)
+- Action vai no Content-Type (parametro), nao como header SOAPAction separado (SOAP 1.2 pattern)
+- Parser da resposta: wrapper real e `nfeRecepcaoEventoNFResult` (confirmado em prod), nao Response
+- Aceita cStat 135 (registrado), 136 (registrado sem vinculacao), 573 (duplicidade, idempotente), 128 (lote fallback)
+- Rejeicoes com mensagem SEFAZ real: 573 duplicidade, 596 fora do prazo de 10 dias, etc.
+
+### Estrutura final do envelope SEFAZ (funcionando em prod)
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:xsi="..." xmlns:xsd="..." xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">
+      <envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">
+        <idLote>{{timestamp}}</idLote>
+        <evento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">
+          <infEvento Id="ID{{tpEvento}}{{chNFe}}{{nSeqEvento.padStart(2,'0')}}">
+            <cOrgao>91</cOrgao> <!-- AN para MDe -->
+            <tpAmb>1</tpAmb>
+            <CNPJ>{{14 digits}}</CNPJ>
+            <chNFe>{{44 digits}}</chNFe>
+            <dhEvento>2026-04-15T18:23:47-03:00</dhEvento>
+            <tpEvento>210210</tpEvento> <!-- ciencia -->
+            <nSeqEvento>1</nSeqEvento>
+            <verEvento>1.00</verEvento>
+            <detEvento versao="1.00">
+              <descEvento>Ciencia da Operacao</descEvento> <!-- SEM acento -->
+              <xJust>...</xJust> <!-- apenas p/ 210240 -->
+            </detEvento>
+          </infEvento>
+          <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">...</Signature>
+        </evento>
+      </envEvento>
+    </nfeDadosMsg>
+  </soap12:Body>
+</soap12:Envelope>
+```
+Assinatura: xml-crypto C14N inclusive (xml-c14n-20010315), RSA-SHA1, SHA-1 digest.
+Certificado A1 PFX em X509Data > X509Certificate (cert folha, sem chain).
+Headers HTTP: Content-Type: `application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento"`
 
 ## Fase 5 — Conciliacao consistente (v1.08.96) ✅
 ### Auto-pagar PENDING ao conciliar
