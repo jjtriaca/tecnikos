@@ -32,8 +32,11 @@ const SEFAZ_URLS = {
 };
 
 // Ambiente Nacional — usado pra eventos de manifestação do destinatário (MDe)
+// ATENCAO: prod e "www" (SEM o "1"). "www1" e o endpoint do DistribuicaoDFe, nao do RecepcaoEvento4.
+// Usar "www1" aqui caia num handler diferente que nao deserializa evento -> NullReferenceException.
+// Referencia: wsnfe_4.00_mod55.xml do nfephp, NFAutorizador400.java do wmixvideo.
 const SEFAZ_EVENTO_URLS = {
-  PRODUCTION: 'https://www1.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx',
+  PRODUCTION: 'https://www.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx',
   HOMOLOGATION: 'https://hom1.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx',
 };
 
@@ -1260,10 +1263,12 @@ export class SefazDfeService implements OnModuleInit {
     // Remove declaracao XML interna (o SOAP envelope ja declara o XML)
     const envEventoInline = envEventoXml.replace(/<\?xml[^>]*\?>/i, '').trim();
 
-    // Envelope COMPACTO (sem newlines) — SEFAZ as vezes e sensivel a whitespace entre elementos
-    // nfeDadosMsg EXIGE versaoDados="1.00" (atributo obrigatorio no WSDL).
-    // Sem isso, o .NET deserializer da SEFAZ quebra com NullReferenceException.
-    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeRecepcaoEvento xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4"><nfeDadosMsg versaoDados="1.00">${envEventoInline}</nfeDadosMsg></nfeRecepcaoEvento></soap12:Body></soap12:Envelope>`;
+    // Envelope conforme padrao nfephp/sped-nfe (producao ha 10+ anos):
+    // - SEM wrapper <nfeRecepcaoEvento> (esse nao existe no NFe 4.00)
+    // - xmlns WSDL direto em <nfeDadosMsg>
+    // - SEM atributo versaoDados (nao existe nesse elemento)
+    // Referencia: Tools.php do nfephp/sped-nfe, SoapBase.php do nfephp/sped-common
+    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${envEventoInline}</nfeDadosMsg></soap12:Body></soap12:Envelope>`;
 
     const url = environment === 'HOMOLOGATION' ? SEFAZ_EVENTO_URLS.HOMOLOGATION : SEFAZ_EVENTO_URLS.PRODUCTION;
     const parsedUrl = new URL(url);
@@ -1272,9 +1277,10 @@ export class SefazDfeService implements OnModuleInit {
     this.logger.log(`SEFAZ Evento ENVELOPE: ${soapEnvelope}`);
 
     return new Promise((resolve, reject) => {
-      // SVAN (www1.nfe.fazenda.gov.br) expõe action "nfeRecepcaoEventoNF" — confirmado via
-      // resposta de erro "action not recognized" ao tentar sem NF. Fato testado em producao.
-      // Content-Type IGUAL ao distDFe (que funciona) — sem action param. SEFAZ deriva do wrapper.
+      // SOAP 1.2: action vai como parametro do Content-Type (NAO como header separado).
+      // Action correta conforme WSDL oficial: nfeRecepcaoEvento (SEM sufixo "NF").
+      // Sufixo "NF" era do endpoint errado (www1 = DistribuicaoDFe).
+      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento';
       const options: https.RequestOptions = {
         hostname: parsedUrl.hostname,
         port: 443,
@@ -1283,9 +1289,8 @@ export class SefazDfeService implements OnModuleInit {
         cert: certPem,
         key: keyPem,
         headers: {
-          'Content-Type': 'application/soap+xml;charset=UTF-8',
+          'Content-Type': `application/soap+xml;charset=UTF-8;action="${soapAction}"`,
           'Content-Length': Buffer.byteLength(soapEnvelope, 'utf-8'),
-          'SOAPAction': '"http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF"',
         },
         timeout: 30000,
       };
@@ -1314,8 +1319,11 @@ export class SefazDfeService implements OnModuleInit {
             const soapBody = envelope['soap:Body'] ?? envelope['soap12:Body']
               ?? envelope['env:Body'] ?? envelope['SOAP-ENV:Body'] ?? envelope['s:Body']
               ?? envelope['Body'] ?? envelope;
-            // Response wrapper varia: nfeRecepcaoEventoResponse / nfeRecepcaoEventoNFResponse
-            const methodResp = soapBody?.nfeRecepcaoEventoResponse ?? soapBody?.nfeRecepcaoEventoNFResponse ?? soapBody;
+            // Response pode vir com ou sem wrapper dependendo da SEFAZ:
+            // padrao nfephp: soap:Body > nfeRecepcaoEventoResponse > nfeResultMsg > retEnvEvento
+            // as vezes: soap:Body > nfeResultMsg > retEnvEvento
+            // as vezes: soap:Body > retEnvEvento (direto)
+            const methodResp = soapBody?.nfeRecepcaoEventoResponse ?? soapBody;
             const resp = methodResp?.nfeResultMsg ?? methodResp;
             const retEnvEvento = resp?.retEnvEvento ?? resp;
 
