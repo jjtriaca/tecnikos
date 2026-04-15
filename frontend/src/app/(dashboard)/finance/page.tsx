@@ -1367,13 +1367,16 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         setActionLoading(null);
         return;
       }
+      // RECEIVABLE com cartao: backend cria CardSettlement e gerencia a conta via settle
+      // PAYABLE com cartao ou nao-cartao: passa cashAccountId pra debitar saldo direto
+      const isReceivableCard = isCard && type === "RECEIVABLE";
       await api.patch(`/finance/entries/${entry.id}/status`, {
         status: action,
         paymentMethod,
         paidAt: payDate || undefined,
         cardBrand: isCard && selectedCardRate ? selectedCardRate.brand : undefined,
-        cardFeeRateId: isCard ? selectedCardRateId : undefined,
-        cashAccountId: isCard ? undefined : (selectedAccountId || undefined),
+        cardFeeRateId: isReceivableCard ? selectedCardRateId : undefined,
+        cashAccountId: isReceivableCard ? undefined : (selectedAccountId || undefined),
         paymentInstrumentId: selectedInstrumentId || undefined,
         ...(isCheckPay && {
           checkNumber: checkNumber || undefined,

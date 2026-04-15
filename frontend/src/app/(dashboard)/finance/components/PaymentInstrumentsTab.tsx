@@ -524,33 +524,76 @@ export default function PaymentInstrumentsTab() {
                   Direcao de uso
                 </h4>
                 <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
-                  <p className="text-[11px] text-slate-500 mb-1">
-                    Em quais tipos de lancamento este meio aparece nos dropdowns:
-                  </p>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.showInReceivables}
-                      onChange={(e) => setFormData({ ...formData, showInReceivables: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
-                    />
-                    <span className="text-sm text-slate-700">
-                      <span className="font-medium text-green-700">Recebimentos</span>
-                      <span className="text-xs text-slate-500 ml-1">— cliente paga a empresa</span>
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.showInPayables}
-                      onChange={(e) => setFormData({ ...formData, showInPayables: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-                    />
-                    <span className="text-sm text-slate-700">
-                      <span className="font-medium text-rose-700">Pagamentos</span>
-                      <span className="text-xs text-slate-500 ml-1">— empresa paga fornecedor</span>
-                    </span>
-                  </label>
+                  {isCard ? (
+                    // Cartao fisico: EXCLUSIVO — cartao da empresa SO paga, maquininha SO recebe
+                    <>
+                      <p className="text-[11px] text-slate-500 mb-1">
+                        Cartoes sao exclusivos — escolha <strong>uma</strong> direcao:
+                      </p>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="card-direction"
+                          checked={formData.showInReceivables && !formData.showInPayables}
+                          onChange={() => setFormData({ ...formData, showInReceivables: true, showInPayables: false })}
+                          className="h-4 w-4 border-slate-300 text-green-600 focus:ring-green-500"
+                        />
+                        <span className="text-sm text-slate-700">
+                          <span className="font-medium text-green-700">Recebimento</span>
+                          <span className="text-xs text-slate-500 ml-1">— maquininha (cliente paga a empresa)</span>
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="card-direction"
+                          checked={formData.showInPayables && !formData.showInReceivables}
+                          onChange={() => setFormData({ ...formData, showInReceivables: false, showInPayables: true })}
+                          className="h-4 w-4 border-slate-300 text-rose-600 focus:ring-rose-500"
+                        />
+                        <span className="text-sm text-slate-700">
+                          <span className="font-medium text-rose-700">Pagamento</span>
+                          <span className="text-xs text-slate-500 ml-1">— cartao da empresa (paga fornecedor)</span>
+                        </span>
+                      </label>
+                      {formData.showInReceivables && formData.showInPayables && (
+                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                          &#9888; Cartao nao pode ter as duas direcoes marcadas. Escolha uma acima.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    // Demais meios (PIX, Dinheiro, TED, Boleto, Cheque): podem ser ambos
+                    <>
+                      <p className="text-[11px] text-slate-500 mb-1">
+                        Em quais tipos de lancamento este meio aparece nos dropdowns:
+                      </p>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.showInReceivables}
+                          onChange={(e) => setFormData({ ...formData, showInReceivables: e.target.checked })}
+                          className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
+                        />
+                        <span className="text-sm text-slate-700">
+                          <span className="font-medium text-green-700">Recebimentos</span>
+                          <span className="text-xs text-slate-500 ml-1">— cliente paga a empresa</span>
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.showInPayables}
+                          onChange={(e) => setFormData({ ...formData, showInPayables: e.target.checked })}
+                          className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                        />
+                        <span className="text-sm text-slate-700">
+                          <span className="font-medium text-rose-700">Pagamentos</span>
+                          <span className="text-xs text-slate-500 ml-1">— empresa paga fornecedor</span>
+                        </span>
+                      </label>
+                    </>
+                  )}
                 </div>
               </section>
 
@@ -678,8 +721,8 @@ export default function PaymentInstrumentsTab() {
                 )}
               </section>
 
-              {/* ═══ SECAO 4.5: Taxas de parcelamento (cartoes) ═══ */}
-              {selectedPM?.requiresBrand && (
+              {/* ═══ SECAO 4.5: Taxas de parcelamento (cartoes — so faz sentido em recebimento) ═══ */}
+              {selectedPM?.requiresBrand && formData.showInReceivables && (
                 <section>
                   <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />

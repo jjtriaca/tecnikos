@@ -143,12 +143,23 @@ export class PaymentInstrumentService {
 
   /**
    * Normaliza e valida as flags de direcao. Pelo menos 1 dos dois precisa estar true.
+   * Para cartoes (requiresBrand), apenas 1 direcao e permitida — cartoes sao exclusivos por natureza
+   * (cartao da empresa so paga, maquininha so recebe).
    */
-  private validateDirection(showInReceivables: boolean | undefined, showInPayables: boolean | undefined): void {
+  private validateDirection(
+    showInReceivables: boolean | undefined,
+    showInPayables: boolean | undefined,
+    requiresBrand = false,
+  ): void {
     const r = showInReceivables ?? true;
     const p = showInPayables ?? true;
     if (!r && !p) {
       throw new BadRequestException('Marque ao menos uma direcao: recebimento ou pagamento.');
+    }
+    if (requiresBrand && r && p) {
+      throw new BadRequestException(
+        'Cartoes sao exclusivos — escolha apenas Recebimento (maquininha) OU Pagamento (cartao da empresa), nao ambos.',
+      );
     }
   }
 
@@ -424,13 +435,13 @@ export class PaymentInstrumentService {
    * - Demais tipos: respeita createExclusiveAccount (true = cria CashAccount dedicada) ou cashAccountId informado
    */
   async create(companyId: string, dto: CreatePaymentInstrumentDto) {
-    this.validateDirection(dto.showInReceivables, dto.showInPayables);
-
     // Validate paymentMethod exists
     const pm = await this.prisma.paymentMethod.findFirst({
       where: { id: dto.paymentMethodId, companyId, deletedAt: null },
     });
     if (!pm) throw new NotFoundException('Forma de pagamento não encontrada.');
+
+    this.validateDirection(dto.showInReceivables, dto.showInPayables, pm.requiresBrand);
 
     const isCredit = isCreditCardMethod(pm.code);
     // So cartao de credito EXCLUSIVO pra pagar gera conta virtual automaticamente.
@@ -534,7 +545,22 @@ export class PaymentInstrumentService {
     if (dto.showInReceivables !== undefined || dto.showInPayables !== undefined) {
       const nextReceivables = dto.showInReceivables ?? pi.showInReceivables;
       const nextPayables = dto.showInPayables ?? pi.showInPayables;
-      this.validateDirection(nextReceivables, nextPayables);
+      // Busca requiresBrand do metodo atual ou novo (se trocou)
+      let requiresBrand = false;
+      if (dto.paymentMethodId && dto.paymentMethodId !== pi.paymentMethodId) {
+        const pm = await this.prisma.paymentMethod.findUnique({
+          where: { id: dto.paymentMethodId },
+          select: { requiresBrand: true },
+        });
+        requiresBrand = !!pm?.requiresBrand;
+      } else {
+        const pm = await this.prisma.paymentMethod.findUnique({
+          where: { id: pi.paymentMethodId },
+          select: { requiresBrand: true },
+        });
+        requiresBrand = !!pm?.requiresBrand;
+      }
+      this.validateDirection(nextReceivables, nextPayables, requiresBrand);
     }
 
     const currentMethodCode = pi.paymentMethod?.code;

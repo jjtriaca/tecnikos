@@ -723,8 +723,9 @@ export class FinanceService {
           }
         }
 
-        if (isCardPayment) {
-          // Card payment: create card settlement (cash account updated at settle time)
+        if (isCardPayment && entry.type === 'RECEIVABLE') {
+          // RECEIVABLE com cartao (maquininha): cria CardSettlement (prazo + taxa) — cliente paga,
+          // operadora desconta taxa, empresa recebe liquido em D+N
           let feePercent = pm.feePercent || 0;
           let receivingDays = pm.receivingDays || 0;
           let cardBrand = dto.cardBrand;
@@ -758,6 +759,35 @@ export class FinanceService {
             installmentCount,
           });
           this.logger.log(`Card settlement created for entry ${entry.id}, method=${pm.code}, fee=${feePercent}%, days=${receivingDays}`);
+        } else if (isCardPayment && entry.type === 'PAYABLE') {
+          // PAYABLE com cartao (empresa paga fornecedor): acumula divida na conta vinculada ao
+          // cartao — NAO gera CardSettlement nem taxa (fornecedor nao desconta, fatura chega depois).
+          // Se o cartao tem conta virtual (CARTAO_CREDITO), debita saldo dela.
+          let destAccountId: string | null = dto.cashAccountId || entry.cashAccountId || null;
+          if (!destAccountId) {
+            const piId = dto.paymentInstrumentId || entry.paymentInstrumentId;
+            if (piId) {
+              const pi = await tx.paymentInstrument.findUnique({
+                where: { id: piId },
+                select: { cashAccountId: true },
+              });
+              destAccountId = pi?.cashAccountId || null;
+            }
+          }
+          if (destAccountId) {
+            await tx.cashAccount.update({
+              where: { id: destAccountId },
+              data: { currentBalanceCents: { decrement: entry.netCents } },
+            });
+            // Persiste o cashAccountId no entry (ja foi updated — aplica patch)
+            if (entry.cashAccountId !== destAccountId) {
+              await tx.financialEntry.update({
+                where: { id },
+                data: { cashAccountId: destAccountId },
+              });
+            }
+            this.logger.log(`Card PAYABLE: debited ${entry.netCents} cents from virtual account ${destAccountId} for entry ${entry.id}`);
+          }
         } else if (dto.cashAccountId) {
           // Immediate payment (PIX, Dinheiro, etc.): update cash account now
           const deltaCents = entry.type === 'RECEIVABLE' ? entry.netCents : -entry.netCents;
