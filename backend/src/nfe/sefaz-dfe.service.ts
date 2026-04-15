@@ -525,15 +525,25 @@ export class SefazDfeService implements OnModuleInit {
      callSefazSoap — Make SOAP call to SEFAZ DistribuiçãoDFe
      ═══════════════════════════════════════════════════════════════════ */
 
+  /**
+   * Envia SOAP ao SEFAZ. Modos suportados:
+   *  - distNSU: paginacao a partir do ultNSU (default)
+   *  - consChNFe: consulta direta por chave de acesso (44 digitos)
+   */
   private callSefazSoap(
     certPem: string,
     keyPem: string,
     cnpj: string,
     cUFAutor: number,
-    ultNsu: string,
+    ultNsuOrKey: string,
     tpAmb: string,
     environment: string,
+    mode: 'distNSU' | 'consChNFe' = 'distNSU',
   ): Promise<SoapResponse> {
+    const innerQuery = mode === 'consChNFe'
+      ? `<consChNFe><chNFe>${ultNsuOrKey}</chNFe></consChNFe>`
+      : `<distNSU><ultNSU>${String(ultNsuOrKey).padStart(15, '0')}</ultNSU></distNSU>`;
+
     const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
   <soap12:Body>
@@ -543,9 +553,7 @@ export class SefazDfeService implements OnModuleInit {
           <tpAmb>${tpAmb}</tpAmb>
           <cUFAutor>${cUFAutor}</cUFAutor>
           <CNPJ>${cnpj}</CNPJ>
-          <distNSU>
-            <ultNSU>${String(ultNsu).padStart(15, '0')}</ultNSU>
-          </distNSU>
+          ${innerQuery}
         </distDFeInt>
       </nfeDadosMsg>
     </nfeDistDFeInteresse>
@@ -555,7 +563,7 @@ export class SefazDfeService implements OnModuleInit {
     const url = environment === 'HOMOLOGATION' ? SEFAZ_URLS.HOMOLOGATION : SEFAZ_URLS.PRODUCTION;
     const parsedUrl = new URL(url);
 
-    this.logger.log(`SEFAZ SOAP → ${url} | CNPJ=${cnpj} | cUFAutor=${cUFAutor} | tpAmb=${tpAmb} | ultNSU=${ultNsu}`);
+    this.logger.log(`SEFAZ SOAP → ${url} | CNPJ=${cnpj} | cUFAutor=${cUFAutor} | tpAmb=${tpAmb} | mode=${mode} | param=${ultNsuOrKey}`);
 
     return new Promise<SoapResponse>((resolve, reject) => {
       const options: https.RequestOptions = {
@@ -1020,36 +1028,84 @@ export class SefazDfeService implements OnModuleInit {
       return { created: false, sefazDocumentId: existing.id, nfeKey: cleanKey, emitterName: existing.emitterName };
     }
 
-    // Busca XML via Focus NFe (endpoint /v2/nfes_recebidas/{chave}.xml)
-    const { token, environment } = await this.getFocusNfeCredentials(companyId);
-    const xml = await this.focusNfe.downloadNfeXml(token, environment, cleanKey);
-    if (!xml || xml.length < 100) {
+    // Consulta DIRETO na SEFAZ via DistribuicaoDFe com consChNFe (modo consulta por chave).
+    // Usa o mesmo certificado digital configurado em SefazConfig — independente do Focus.
+    const config = await this.prisma.sefazConfig.findUnique({ where: { companyId } });
+    if (!config) {
+      throw new BadRequestException('Configuração SEFAZ não encontrada. Suba o certificado digital primeiro.');
+    }
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company?.cnpj || !company.state) {
+      throw new BadRequestException('Empresa precisa ter CNPJ e UF cadastrados.');
+    }
+    const cUFAutor = UF_IBGE[company.state.toUpperCase()];
+    if (!cUFAutor) throw new BadRequestException(`UF "${company.state}" não reconhecida.`);
+
+    const certPem = this.encryption.decrypt(config.pfxBase64);
+    const keyPem = this.encryption.decrypt(config.pfxPassword);
+    const cnpjOnly = company.cnpj.replace(/\D/g, '');
+    const tpAmb = config.environment === 'HOMOLOGATION' ? '2' : '1';
+
+    this.logger.log(`Consultando NFe ${cleanKey} direto na SEFAZ (consChNFe) para ${byName}`);
+    const response = await this.callSefazSoap(
+      certPem, keyPem, cnpjOnly, cUFAutor, cleanKey, tpAmb, config.environment, 'consChNFe',
+    );
+
+    if (response.cStat !== '138' || response.docZips.length === 0) {
       throw new BadRequestException(
-        'NFe não encontrada no Focus NFe. Verifique se a chave está correta e se a nota foi emitida contra esta empresa.',
+        `SEFAZ não retornou a NFe. cStat=${response.cStat} — ${response.xMotivo || 'verifique se a chave está correta e se a nota foi emitida contra esta empresa'}.`,
       );
     }
 
-    // Parse + persist
-    const parsed = this.parseSefazDocument(xml, '', 'procNFe');
-    const syntheticNsu = `MANUAL-${cleanKey}`.substring(0, 50);
-    const doc = await this.prisma.sefazDocument.create({
-      data: {
-        companyId,
-        nsu: syntheticNsu,
-        schema: 'procNFe',
-        nfeKey: cleanKey,
-        emitterCnpj: parsed.emitterCnpj,
-        emitterName: parsed.emitterName,
-        issueDate: parsed.issueDate,
-        nfeValue: parsed.nfeValue,
-        situacao: parsed.situacao,
-        xmlContent: xml,
-        status: 'FETCHED',
-      },
-    });
+    // Processa docs retornados — em geral 1 procNFe quando achado, mas pode vir tambem resEvento vinculados
+    let created = 0;
+    let mainDocId: string | null = null;
+    let mainEmitter: string | null = null;
+    for (const doc of response.docZips) {
+      const parsed = this.parseSefazDocument(doc.xml, doc.nsu, doc.schema);
+      if (!parsed.nfeKey) continue;
 
-    this.logger.log(`NFe ${cleanKey} importada manualmente por ${byName} (emitente: ${parsed.emitterName})`);
-    return { created: true, sefazDocumentId: doc.id, nfeKey: cleanKey, emitterName: parsed.emitterName };
+      const dupe = await this.prisma.sefazDocument.findFirst({
+        where: { companyId, nfeKey: parsed.nfeKey, schema: parsed.schema },
+        select: { id: true },
+      });
+      if (dupe) {
+        if (parsed.schema === 'procNFe' && !mainDocId) {
+          mainDocId = dupe.id;
+          mainEmitter = parsed.emitterName;
+        }
+        continue;
+      }
+
+      const syntheticNsu = doc.nsu || `MANUAL-${cleanKey}-${parsed.schema}`.substring(0, 50);
+      const saved = await this.prisma.sefazDocument.create({
+        data: {
+          companyId,
+          nsu: syntheticNsu,
+          schema: parsed.schema,
+          nfeKey: parsed.nfeKey,
+          emitterCnpj: parsed.emitterCnpj,
+          emitterName: parsed.emitterName,
+          issueDate: parsed.issueDate,
+          nfeValue: parsed.nfeValue,
+          situacao: parsed.situacao,
+          xmlContent: parsed.schema === 'procNFe' ? doc.xml : null,
+          status: parsed.schema === 'resEvento' ? 'EVENT' : 'FETCHED',
+        },
+      });
+      created++;
+      if (parsed.schema === 'procNFe') {
+        mainDocId = saved.id;
+        mainEmitter = parsed.emitterName;
+      }
+    }
+
+    if (!mainDocId) {
+      throw new BadRequestException('NFe retornada pela SEFAZ não pôde ser processada (XML inválido ou sem procNFe).');
+    }
+
+    this.logger.log(`NFe ${cleanKey} importada via SEFAZ direto por ${byName} — ${created} documento(s) criado(s)`);
+    return { created: created > 0, sefazDocumentId: mainDocId, nfeKey: cleanKey, emitterName: mainEmitter };
   }
 
   /* ═══════════════════════════════════════════════════════════════════
