@@ -201,7 +201,9 @@ function ConciliationModal({
   const [detectedBrand, setDetectedBrand] = useState("");
   const [detectedType, setDetectedType] = useState("");
   const [configFeePercent, setConfigFeePercent] = useState(0);
-  const [matchedRate, setMatchedRate] = useState<any>(null); // full CardFeeRate matched (id, feePercent, updatedAt, ...)
+  // Taxa matcheada — fonte pode ser PaymentInstrumentFeeRate (nova) ou CardFeeRate (legado).
+  // matchedRate.source = "PIF" | "CFR" indica qual endpoint usar pra atualizar.
+  const [matchedRate, setMatchedRate] = useState<any>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
   const [updatingRate, setUpdatingRate] = useState(false);
@@ -316,7 +318,36 @@ function ConciliationModal({
       .finally(() => setLoading(false));
   }, [open, line]);
 
-  /** Select a candidate entry: recompute breakdown from entry's gross (real fee). */
+  /**
+   * Busca a taxa configurada pra um entry.
+   * 1) Preferencia: PaymentInstrumentFeeRate via entry.paymentInstrumentId (nova estrutura)
+   * 2) Fallback: CardFeeRate legado por brand+type (compat com tenants sem migracao rodada)
+   */
+  async function fetchRateForEntry(entry: any, brand: string, type: string, installments = 1): Promise<any> {
+    const piId = entry?.paymentInstrumentId || entry?.paymentInstrumentRef?.id;
+    if (piId) {
+      try {
+        const pif = await api.get<any>(
+          `/finance/payment-instruments/${piId}/fee-rate-lookup?installments=${installments}`,
+        );
+        if (pif && pif.id) {
+          return { ...pif, source: "PIF", brand, type };
+        }
+      } catch { /* ignore, cai no fallback */ }
+    }
+    // Fallback: CardFeeRate legado
+    const rate = (cardFeeRates || []).find((r: any) =>
+      r.brand?.toUpperCase() === brand.toUpperCase() &&
+      r.type?.toUpperCase() === type.toUpperCase() &&
+      (!r.installmentFrom || r.installmentFrom <= installments) &&
+      (!r.installmentTo || r.installmentTo >= installments) &&
+      r.isActive,
+    );
+    if (rate) return { ...rate, source: "CFR" };
+    return null;
+  }
+
+  /** Select a candidate entry: recompute breakdown from entry's gross (real fee) + re-busca taxa. */
   function selectEntry(entry: any) {
     if (!line) return;
     const bank = Math.abs(line.amountCents);
@@ -327,24 +358,42 @@ function ConciliationModal({
     setTaxCents(tax);
     setSelectedEntryId(entry.id);
     setManualOverride(false);
+
+    // Re-busca taxa se for cartao (prioriza PaymentInstrumentFeeRate do entry)
+    if (isCard && detectedBrand) {
+      const installments = entry.installmentCount || 1;
+      fetchRateForEntry(entry, detectedBrand, detectedType, installments)
+        .then((rate) => {
+          if (rate) {
+            setMatchedRate(rate);
+            setConfigFeePercent(rate.feePercent);
+          }
+        })
+        .catch(() => { /* mantem matchedRate atual */ });
+    }
   }
 
-  /** Update the configured card fee rate to match the real implied rate. */
+  /**
+   * Atualiza a taxa configurada pra bater com a taxa real cobrada.
+   * Usa o endpoint apropriado conforme origem (PIF = novo, CFR = legado).
+   */
   async function updateConfiguredRate() {
     if (!matchedRate?.id) return;
     const bruto = liquidCents + taxCents;
     if (bruto <= 0 || taxCents <= 0) return;
     const newRate = Number(((taxCents / bruto) * 100).toFixed(4));
+    const label = matchedRate.description
+      || (matchedRate.brand && matchedRate.type ? `${matchedRate.brand} ${matchedRate.type}` : "taxa configurada");
     if (!window.confirm(
-      `Atualizar a taxa "${matchedRate.description || `${matchedRate.brand} ${matchedRate.type}`}" ` +
-      `de ${matchedRate.feePercent.toFixed(2)}% para ${newRate.toFixed(2)}%?`
+      `Atualizar a taxa "${label}" de ${matchedRate.feePercent.toFixed(2)}% para ${newRate.toFixed(2)}%?`
     )) return;
     setUpdatingRate(true);
     try {
-      const updated = await api.patch<any>(`/finance/card-fee-rates/${matchedRate.id}`, {
-        feePercent: newRate,
-      });
-      setMatchedRate(updated);
+      const endpoint = matchedRate.source === "PIF"
+        ? `/finance/payment-instrument-fee-rates/${matchedRate.id}`
+        : `/finance/card-fee-rates/${matchedRate.id}`;
+      const updated = await api.patch<any>(endpoint, { feePercent: newRate });
+      setMatchedRate({ ...matchedRate, ...updated });
       setConfigFeePercent(updated.feePercent);
       toast(`Taxa atualizada para ${newRate.toFixed(2)}%`, "success");
     } catch (err: any) {

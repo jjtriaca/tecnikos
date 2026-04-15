@@ -203,6 +203,141 @@ export class PaymentInstrumentService {
    * List active instruments filtered by payment method
    */
   /**
+   * Atualiza uma faixa individual de taxa (usado pelo modal de conciliacao pra ajustar
+   * a taxa cadastrada quando a operadora cobra diferente do configurado).
+   */
+  async updateFeeRate(rateId: string, companyId: string, dto: { feePercent?: number; receivingDays?: number | null }) {
+    const rate = await this.prisma.paymentInstrumentFeeRate.findFirst({
+      where: { id: rateId, companyId, deletedAt: null },
+    });
+    if (!rate) throw new NotFoundException('Faixa de taxa não encontrada.');
+    return this.prisma.paymentInstrumentFeeRate.update({
+      where: { id: rateId },
+      data: {
+        ...(dto.feePercent !== undefined && { feePercent: dto.feePercent }),
+        ...(dto.receivingDays !== undefined && { receivingDays: dto.receivingDays }),
+      },
+    });
+  }
+
+  /**
+   * Migra CardFeeRate (cadastro antigo por bandeira+tipo) para PaymentInstrumentFeeRate
+   * (taxas embutidas no meio). Idempotente — roda sem efeito colateral se ja migrado.
+   *
+   * Estrategia:
+   *  1. Para cada (brand, type) com CardFeeRate ativo, acha ou cria 1 PaymentInstrument de recebimento
+   *  2. Copia cada faixa de CardFeeRate pro PaymentInstrumentFeeRate do meio correspondente
+   *  3. Nao duplica: se ja existe faixa com mesma (from, to) no meio, pula
+   */
+  async migrateCardFeeRates(companyId: string): Promise<{
+    instrumentsCreated: number;
+    instrumentsReused: number;
+    ratesCreated: number;
+    ratesSkipped: number;
+  }> {
+    const cardFeeRates = await this.prisma.cardFeeRate.findMany({
+      where: { companyId, isActive: true },
+    });
+    if (cardFeeRates.length === 0) {
+      return { instrumentsCreated: 0, instrumentsReused: 0, ratesCreated: 0, ratesSkipped: 0 };
+    }
+
+    // Busca PaymentMethods padrao
+    const [pmCredito, pmDebito] = await Promise.all([
+      this.prisma.paymentMethod.findFirst({ where: { companyId, code: 'CARTAO_CREDITO', deletedAt: null } }),
+      this.prisma.paymentMethod.findFirst({ where: { companyId, code: 'CARTAO_DEBITO', deletedAt: null } }),
+    ]);
+    if (!pmCredito || !pmDebito) {
+      throw new BadRequestException('PaymentMethods padrao (CARTAO_CREDITO/CARTAO_DEBITO) nao encontrados.');
+    }
+
+    // Agrupa por (brand, type) — um grupo = um meio
+    const groups = new Map<string, { brand: string; type: string; rates: typeof cardFeeRates }>();
+    for (const r of cardFeeRates) {
+      const key = `${r.brand}__${r.type}`;
+      const existing = groups.get(key);
+      if (existing) existing.rates.push(r);
+      else groups.set(key, { brand: r.brand, type: r.type, rates: [r] });
+    }
+
+    let instrumentsCreated = 0;
+    let instrumentsReused = 0;
+    let ratesCreated = 0;
+    let ratesSkipped = 0;
+
+    for (const group of groups.values()) {
+      const paymentMethodId = group.type === 'CREDITO' ? pmCredito.id : pmDebito.id;
+      const desiredName = `${group.brand} ${group.type === 'CREDITO' ? 'Credito' : 'Debito'}`;
+
+      // Procura um instrumento de recebimento com mesma bandeira+tipo
+      const existing = await this.prisma.paymentInstrument.findFirst({
+        where: {
+          companyId,
+          deletedAt: null,
+          paymentMethodId,
+          cardBrand: { equals: group.brand, mode: 'insensitive' },
+          showInReceivables: true,
+        },
+      });
+
+      let instrumentId: string;
+      if (existing) {
+        instrumentId = existing.id;
+        instrumentsReused++;
+      } else {
+        // Cria meio novo: recebimento, sem conta virtual (cartao de receber), sem auto-pay pra credito
+        const created = await this.prisma.paymentInstrument.create({
+          data: {
+            companyId,
+            paymentMethodId,
+            name: desiredName,
+            cardBrand: group.brand,
+            cardLast4: null,
+            showInReceivables: true,
+            showInPayables: false,
+            autoMarkPaid: group.type === 'DEBITO', // debito sai no ato
+            isActive: true,
+            sortOrder: 0,
+          },
+        });
+        instrumentId = created.id;
+        instrumentsCreated++;
+      }
+
+      // Para cada faixa do grupo, insere em PaymentInstrumentFeeRate se nao existir
+      for (const rate of group.rates) {
+        const existingRate = await this.prisma.paymentInstrumentFeeRate.findFirst({
+          where: {
+            companyId,
+            paymentInstrumentId: instrumentId,
+            installmentFrom: rate.installmentFrom,
+            installmentTo: rate.installmentTo,
+            deletedAt: null,
+          },
+        });
+        if (existingRate) {
+          ratesSkipped++;
+          continue;
+        }
+        await this.prisma.paymentInstrumentFeeRate.create({
+          data: {
+            companyId,
+            paymentInstrumentId: instrumentId,
+            installmentFrom: rate.installmentFrom,
+            installmentTo: rate.installmentTo,
+            feePercent: rate.feePercent,
+            receivingDays: rate.receivingDays,
+            sortOrder: rate.installmentFrom,
+          },
+        });
+        ratesCreated++;
+      }
+    }
+
+    return { instrumentsCreated, instrumentsReused, ratesCreated, ratesSkipped };
+  }
+
+  /**
    * Faz lookup da faixa de taxa aplicavel para (instrumento + parcelas).
    * Retorna null se nao tiver faixa cadastrada cobrindo esse numero.
    */

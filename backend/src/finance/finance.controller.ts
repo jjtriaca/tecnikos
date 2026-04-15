@@ -193,6 +193,44 @@ export class FinanceController {
     return this.paymentInstrumentService.remove(id, user.companyId);
   }
 
+  /**
+   * Migra CardFeeRate → PaymentInstrumentFeeRate (idempotente).
+   * Admin roda uma vez para "puxar" as taxas antigas pros novos meios.
+   */
+  @Roles(UserRole.ADMIN)
+  @Post('payment-instruments/migrate-card-fee-rates')
+  migrateCardFeeRates(@CurrentUser() user: AuthenticatedUser) {
+    return this.paymentInstrumentService.migrateCardFeeRates(user.companyId);
+  }
+
+  /**
+   * Lookup de taxa por (instrumento + parcelas). Usado pelo modal de conciliacao.
+   */
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('payment-instruments/:id/fee-rate-lookup')
+  lookupFeeRate(
+    @Param('id') id: string,
+    @Query('installments') installments: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const n = Math.max(1, parseInt(installments || '1', 10) || 1);
+    return this.paymentInstrumentService.lookupFeeRate(id, user.companyId, n);
+  }
+
+  /**
+   * Atualiza uma faixa de taxa individual (usado no modal de conciliacao quando o usuario
+   * clica "Atualizar para X%").
+   */
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('payment-instrument-fee-rates/:id')
+  updateFeeRate(
+    @Param('id') id: string,
+    @Body() dto: { feePercent?: number; receivingDays?: number | null },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentInstrumentService.updateFeeRate(id, user.companyId, dto);
+  }
+
   /* ── Cash Accounts ────────────────────────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
