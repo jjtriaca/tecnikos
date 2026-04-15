@@ -1239,9 +1239,9 @@ export class SefazDfeService implements OnModuleInit {
     const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
   <soap12:Body>
-    <nfeRecepcaoEventoNF xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">
+    <nfeRecepcaoEvento xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">
       <nfeDadosMsg>${envEventoInline}</nfeDadosMsg>
-    </nfeRecepcaoEventoNF>
+    </nfeRecepcaoEvento>
   </soap12:Body>
 </soap12:Envelope>`;
 
@@ -1252,7 +1252,7 @@ export class SefazDfeService implements OnModuleInit {
 
     return new Promise((resolve, reject) => {
       // SOAP 1.2 exige action como parametro do Content-Type (RecepcaoEvento4)
-      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF';
+      const soapAction = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento';
       const options: https.RequestOptions = {
         hostname: parsedUrl.hostname,
         port: 443,
@@ -1280,7 +1280,7 @@ export class SefazDfeService implements OnModuleInit {
             const envelope = parsed['soap:Envelope'] ?? parsed['soap12:Envelope'] ?? parsed;
             const soapBody = envelope['soap:Body'] ?? envelope['soap12:Body'] ?? envelope;
             // Envelope pode ter nfeRecepcaoEventoNFResponse (wrapper) → nfeResultMsg → retEnvEvento
-            const methodResp = soapBody?.nfeRecepcaoEventoNFResponse ?? soapBody?.nfeRecepcaoEventoResponse ?? soapBody;
+            const methodResp = soapBody?.nfeRecepcaoEventoResponse ?? soapBody?.nfeRecepcaoEventoNFResponse ?? soapBody;
             const resp = methodResp?.nfeResultMsg ?? methodResp;
             const retEnvEvento = resp?.retEnvEvento ?? resp;
 
