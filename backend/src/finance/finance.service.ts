@@ -1166,25 +1166,30 @@ export class FinanceService {
     const entryRows: any[] = [];
     for (const e of entries) {
       const isCard = e.paymentMethod?.startsWith('CARTAO');
-      const recon = isCard ? reconMap.get(e.id) : undefined;
+      // Taxa de cartao so se aplica a RECEBIMENTO (maquininha desconta do cliente).
+      // PAGAMENTO com cartao: empresa paga valor integral ao fornecedor; taxa cobrada pela operadora
+      // de cartao vem depois na fatura, nao por compra individual.
+      const isReceivableCard = isCard && e.type === 'RECEIVABLE';
+      const recon = isReceivableCard ? reconMap.get(e.id) : undefined;
 
       let liquidCents: number;
       let taxCents: number;
       let cashName = e.cashAccountRef?.name ?? null;
 
-      if (isCard && recon?.matchedLiquidCents != null && recon?.matchedTaxCents != null) {
+      if (isReceivableCard && recon?.matchedLiquidCents != null && recon?.matchedTaxCents != null) {
         // Use gestor-confirmed values from reconciliation
         liquidCents = recon.matchedLiquidCents;
         taxCents = recon.matchedTaxCents;
         if (recon.cashAccountId) cashName = reconAccountMap.get(recon.cashAccountId) ?? cashName;
-      } else if (isCard) {
-        // Fallback: calculate from fee rates
+      } else if (isReceivableCard) {
+        // Fallback: calculate from fee rates (apenas para recebimento)
         const feePercent = findFeePercent(e.paymentMethod, e.cardBrand);
         const gross = e.grossCents;
         taxCents = feePercent > 0 ? Math.round(gross * feePercent / 100) : 0;
         liquidCents = gross - taxCents;
       } else {
-        liquidCents = e.type === 'RECEIVABLE' ? e.netCents : e.netCents;
+        // PAYABLE com ou sem cartao, ou RECEIVABLE nao-cartao: valor integral, sem taxa
+        liquidCents = e.netCents;
         taxCents = 0;
       }
 
