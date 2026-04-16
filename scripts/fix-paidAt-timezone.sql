@@ -1,0 +1,39 @@
+SET search_path TO tenant_sls;
+BEGIN;
+
+-- Corrigir TODAS as paidAt para meio-dia (12:00) em vez de midnight UTC
+-- Isso evita que o filtro com -03:00 jogue a data pro dia anterior
+
+-- Entries que eu criei/alterei nesta sessao
+UPDATE "FinancialEntry"
+SET "paidAt" = DATE("paidAt") + INTERVAL '12 hours'
+WHERE code IN (
+  -- Parcelas (FIN-00374 a FIN-00430)
+  'FIN-00374','FIN-00375','FIN-00376','FIN-00377','FIN-00378',
+  'FIN-00379','FIN-00380','FIN-00381',
+  'FIN-00382','FIN-00383','FIN-00384','FIN-00385',
+  'FIN-00386','FIN-00387','FIN-00388','FIN-00389',
+  'FIN-00390','FIN-00391','FIN-00392','FIN-00393',
+  'FIN-00394',
+  'FIN-00395','FIN-00396','FIN-00397','FIN-00398','FIN-00399',
+  'FIN-00400','FIN-00401','FIN-00402','FIN-00403','FIN-00404','FIN-00405','FIN-00406','FIN-00407','FIN-00408','FIN-00409','FIN-00410',
+  'FIN-00411','FIN-00412','FIN-00413','FIN-00414','FIN-00415','FIN-00416','FIN-00417','FIN-00418','FIN-00419','FIN-00420','FIN-00421',
+  'FIN-00422','FIN-00423',
+  'FIN-00424',
+  'FIN-00425','FIN-00426','FIN-00427','FIN-00428','FIN-00429','FIN-00430',
+  -- Avulsas
+  'FIN-00431','FIN-00432','FIN-00433','FIN-00434','FIN-00435','FIN-00436','FIN-00437',
+  -- Corrigidas
+  'FIN-00008','FIN-00010','FIN-00013',
+  'FIN-00297','FIN-00298','FIN-00299','FIN-00300','FIN-00301','FIN-00302','FIN-00303','FIN-00304',
+  'FIN-00305','FIN-00306','FIN-00309','FIN-00310','FIN-00311','FIN-00312','FIN-00313','FIN-00314'
+)
+AND EXTRACT(HOUR FROM "paidAt") = 0;
+
+-- Verificacao
+SELECT COUNT(*) as total, MIN(TO_CHAR("paidAt", 'DD/MM HH24:MI')) as min_hora, MAX(TO_CHAR("paidAt", 'DD/MM HH24:MI')) as max_hora
+FROM "FinancialEntry"
+WHERE code >= 'FIN-00008' AND code <= 'FIN-00437'
+AND "paidAt" IS NOT NULL;
+
+COMMIT;

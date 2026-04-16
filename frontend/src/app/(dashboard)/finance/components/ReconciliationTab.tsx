@@ -1558,14 +1558,16 @@ function CardInvoiceMatchModal({
         setFinancialAccounts(accountsData || []);
 
         // Range baseado no billingClosingDay do primeiro cartao encontrado
+        // Ex: fechamento dia 25 → fatura abril cobre compras de ~22/02 a 25/03
+        // Usa margem de 3 dias antes do fechamento anterior pra pegar compras de final de mes
         if (line) {
           const closingDay = credit.find((i) => i.billingClosingDay)?.billingClosingDay || 25;
           const lineDate = new Date(line.transactionDate);
           // Dia de fechamento mais recente ANTES da data da linha
           const toD = new Date(lineDate.getFullYear(), lineDate.getMonth(), closingDay);
           if (toD >= lineDate) toD.setMonth(toD.getMonth() - 1);
-          // Dia de inicio = dia seguinte ao fechamento anterior
-          const fromD = new Date(toD.getFullYear(), toD.getMonth() - 1, closingDay + 1);
+          // Dia de inicio = fechamento anterior - 3 dias de margem (compras que entram na fatura)
+          const fromD = new Date(toD.getFullYear(), toD.getMonth() - 1, closingDay - 3);
           setFromDate(fromD.toISOString().substring(0, 10));
           setToDate(toD.toISOString().substring(0, 10));
         }
