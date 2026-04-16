@@ -684,8 +684,10 @@ function ConciliationModal({
     const type = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
     Promise.all([
       // excludeMatched=true remove entries ja conciliados com alguma linha do extrato (evita duplo match)
-      api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50&excludeMatched=true`).catch(() => ({ data: [] })),
-      api.get<any>(`/finance/entries?status=PENDING&type=${type}&limit=50&excludeMatched=true`).catch(() => ({ data: [] })),
+      // matchableForCashAccountId filtra entries em contas incompativeis: exclui pagos em dinheiro
+      // (conta CAIXA) ou em outro banco. So aceita: (a) sem conta, (b) mesmo banco da linha, (c) TRANSITO.
+      api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50&excludeMatched=true&matchableForCashAccountId=${line.cashAccountId}`).catch(() => ({ data: [] })),
+      api.get<any>(`/finance/entries?status=PENDING&type=${type}&limit=50&excludeMatched=true&matchableForCashAccountId=${line.cashAccountId}`).catch(() => ({ data: [] })),
       isCardTx ? api.get<any[]>("/finance/card-fee-rates").catch(() => []) : Promise.resolve([]),
       // Endpoint correto: /finance/accounts/postable (ja filtra allowPosting + isActive no backend)
       api.get<FinancialAccountOption[]>("/finance/accounts/postable").catch(() => []),

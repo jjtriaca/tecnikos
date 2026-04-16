@@ -636,6 +636,7 @@ export class FinanceController {
     @Query('partnerId') partnerId: string | undefined,
     @Query('nfseStatus') nfseStatus: string | undefined,
     @Query('excludeMatched') excludeMatched: string | undefined,
+    @Query('matchableForCashAccountId') matchableForCashAccountId: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.findEntries(user.companyId, type || 'RECEIVABLE', pagination, {
@@ -646,6 +647,7 @@ export class FinanceController {
       partnerId,
       nfseStatus,
       excludeMatched: excludeMatched === 'true',
+      matchableForCashAccountId,
     });
   }
 

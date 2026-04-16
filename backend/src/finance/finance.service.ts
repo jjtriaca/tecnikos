@@ -413,7 +413,7 @@ export class FinanceService {
     companyId: string,
     type: 'RECEIVABLE' | 'PAYABLE',
     pagination?: PaginationDto,
-    filters?: { status?: string; dateFrom?: string; dateTo?: string; dateType?: string; partnerId?: string; nfseStatus?: string; excludeMatched?: boolean },
+    filters?: { status?: string; dateFrom?: string; dateTo?: string; dateType?: string; partnerId?: string; nfseStatus?: string; excludeMatched?: boolean; matchableForCashAccountId?: string },
   ): Promise<PaginatedResult<any> & { totals?: { sumNetCents: number; sumGrossCents: number } }> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
@@ -445,6 +445,28 @@ export class FinanceService {
       where[dateField] = {};
       if (filters.dateFrom) where[dateField].gte = new Date(filters.dateFrom);
       if (filters.dateTo) where[dateField].lte = new Date(filters.dateTo + 'T23:59:59.999Z');
+    }
+
+    // Filtro por conta compativel com a linha do extrato sendo conciliada.
+    // Exclui entries pagos em DINHEIRO (conta tipo CAIXA) ou em outro banco.
+    // Aceita entries: (a) sem cashAccount (PENDING), (b) no banco da linha, (c) em conta TRANSITO.
+    if (filters?.matchableForCashAccountId) {
+      const targetAccount = await this.prisma.cashAccount.findUnique({
+        where: { id: filters.matchableForCashAccountId },
+        select: { id: true, type: true },
+      });
+      if (targetAccount) {
+        // IDs de todas as contas tipo TRANSITO da empresa (candidatas validas)
+        const transitAccounts = await this.prisma.cashAccount.findMany({
+          where: { companyId, type: 'TRANSITO', deletedAt: null },
+          select: { id: true },
+        });
+        const validAccountIds = [targetAccount.id, ...transitAccounts.map((a) => a.id)];
+        where.OR = [
+          { cashAccountId: null },
+          { cashAccountId: { in: validAccountIds } },
+        ];
+      }
     }
 
     // Exclui entries ja conciliados com o extrato:
