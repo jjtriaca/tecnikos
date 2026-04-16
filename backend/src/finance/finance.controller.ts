@@ -332,6 +332,22 @@ export class FinanceController {
     return this.reconciliationService.getStatementBalanceCompare(statementId, user.companyId);
   }
 
+  // Define manualmente o saldo oficial do banco (caso o OFX antigo nao tenha LEDGERBAL).
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('reconciliation/statements/:statementId/balance')
+  setManualStatementBalance(
+    @Param('statementId') statementId: string,
+    @Body() body: { balanceCents: number; balanceDate: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.setManualStatementBalance(
+      statementId,
+      user.companyId,
+      body.balanceCents,
+      new Date(body.balanceDate),
+    );
+  }
+
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Get('reconciliation/imports')
   findReconciliationImports(@CurrentUser() user: AuthenticatedUser) {

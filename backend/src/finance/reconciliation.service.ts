@@ -220,6 +220,46 @@ export class ReconciliationService {
         });
       }
 
+      // 7. Saldo do OFX (LEDGERBAL): garante atualizacao MESMO quando nao ha transacoes
+      //    novas (reimport do mesmo arquivo). Busca/cria o statement do periodo do saldo
+      //    e grava o valor.
+      if (isOfx && ofxResult?.statementBalanceCents != null && ofxResult?.statementBalanceDate) {
+        const balDate = ofxResult.statementBalanceDate;
+        const { year: balYear, month: balMonth } = this.getBrazilianPeriod(balDate);
+        let balStatement = await tx.bankStatement.findUnique({
+          where: {
+            cashAccountId_periodYear_periodMonth: {
+              cashAccountId,
+              periodYear: balYear,
+              periodMonth: balMonth,
+            },
+          },
+        });
+        if (!balStatement) {
+          balStatement = await tx.bankStatement.create({
+            data: {
+              companyId,
+              cashAccountId,
+              periodYear: balYear,
+              periodMonth: balMonth,
+              lineCount: 0,
+              matchedCount: 0,
+            },
+          });
+        }
+        await tx.bankStatement.update({
+          where: { id: balStatement.id },
+          data: {
+            statementBalanceCents: ofxResult.statementBalanceCents,
+            statementBalanceDate: balDate,
+          },
+        });
+        this.logger.log(
+          `Saldo OFX gravado em statement ${balStatement.id}: ` +
+          `R$${(ofxResult.statementBalanceCents / 100).toFixed(2)} em ${balDate.toISOString().slice(0, 10)}`,
+        );
+      }
+
       return {
         ...importRecord,
         statementId: primaryStatementId,
@@ -255,6 +295,29 @@ export class ReconciliationService {
         },
       },
       take: 100,
+    });
+  }
+
+  /**
+   * Seta manualmente o saldo oficial do banco para um BankStatement
+   * (casos onde o OFX antigo nao tinha LEDGERBAL ou o banco nao exporta esse campo).
+   */
+  async setManualStatementBalance(
+    statementId: string,
+    companyId: string,
+    balanceCents: number,
+    balanceDate: Date,
+  ) {
+    const statement = await this.prisma.bankStatement.findFirst({
+      where: { id: statementId, companyId },
+    });
+    if (!statement) throw new NotFoundException('Extrato não encontrado.');
+    return this.prisma.bankStatement.update({
+      where: { id: statementId },
+      data: {
+        statementBalanceCents: balanceCents,
+        statementBalanceDate: balanceDate,
+      },
     });
   }
 

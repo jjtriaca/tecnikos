@@ -2345,16 +2345,66 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
   const [cardInvoiceLine, setCardInvoiceLine] = useState<BankStatementLine | null>(null);
   const [transferLine, setTransferLine] = useState<BankStatementLine | null>(null);
   const [balanceCompare, setBalanceCompare] = useState<BalanceCompare | null>(null);
+  const [balanceModalOpen, setBalanceModalOpen] = useState(false);
+  const [balanceInputValue, setBalanceInputValue] = useState("");
+  const [balanceInputDate, setBalanceInputDate] = useState("");
+  const [balanceSaving, setBalanceSaving] = useState(false);
   const { toast } = useToast();
 
   // Carrega o comparativo de saldo (banco vs sistema) quando o statement muda
-  useEffect(() => {
+  const loadBalanceCompare = useCallback(() => {
     if (!statement?.id) return;
     api
       .get<BalanceCompare>(`/finance/reconciliation/statements/${statement.id}/balance-compare`)
       .then(setBalanceCompare)
       .catch(() => setBalanceCompare(null));
   }, [statement?.id]);
+
+  useEffect(() => {
+    loadBalanceCompare();
+  }, [loadBalanceCompare]);
+
+  // Abre o modal de informar saldo manual. Pre-preenche com valor atual (se houver)
+  // e data do ultimo dia do mes do extrato como padrao.
+  function openBalanceModal() {
+    if (balanceCompare?.bankBalanceCents != null) {
+      setBalanceInputValue((balanceCompare.bankBalanceCents / 100).toFixed(2).replace(".", ","));
+    } else {
+      setBalanceInputValue("");
+    }
+    if (balanceCompare?.bankBalanceDate) {
+      setBalanceInputDate(balanceCompare.bankBalanceDate.slice(0, 10));
+    } else {
+      // Default: ultimo dia do mes do extrato
+      const lastDay = new Date(statement.periodYear, statement.periodMonth, 0).getDate();
+      setBalanceInputDate(
+        `${statement.periodYear}-${String(statement.periodMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+      );
+    }
+    setBalanceModalOpen(true);
+  }
+
+  async function saveManualBalance() {
+    const cents = Math.round((parseFloat(balanceInputValue.replace(",", ".")) || 0) * 100);
+    if (!balanceInputDate) {
+      toast("Informe a data de referencia.", "error");
+      return;
+    }
+    setBalanceSaving(true);
+    try {
+      await api.patch(`/finance/reconciliation/statements/${statement.id}/balance`, {
+        balanceCents: cents,
+        balanceDate: `${balanceInputDate}T23:59:59.999-03:00`,
+      });
+      toast("Saldo do banco salvo!", "success");
+      setBalanceModalOpen(false);
+      loadBalanceCompare();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || "Erro ao salvar saldo.", "error");
+    } finally {
+      setBalanceSaving(false);
+    }
+  }
 
   const RECON_COLUMNS: ColumnDefinition<BankStatementLine>[] = [
     { id: "actions", label: "Ações", render: () => null as any },
@@ -2464,24 +2514,33 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
 
   return (
     <div>
-      {/* Card comparativo: saldo do banco (OFX) vs saldo calculado pelo sistema na mesma data */}
-      {balanceCompare?.hasBalance && balanceCompare.bankBalanceDate && (
+      {/* Card comparativo: saldo do banco (OFX ou manual) vs saldo calculado pelo sistema */}
+      {balanceCompare?.hasBalance && balanceCompare.bankBalanceDate ? (
         <div className={`mb-3 rounded-xl border p-3 ${
           balanceCompare.matches
             ? "border-green-200 bg-green-50/50"
             : "border-amber-300 bg-amber-50/70"
         }`}>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-semibold text-slate-700">
-              {balanceCompare.matches ? "\u2705" : "\u26A0\uFE0F"} Conferencia de saldo
-            </span>
-            <span className="text-[10px] text-slate-500">
-              Data de referencia: {formatDate(balanceCompare.bankBalanceDate)}
-            </span>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-700">
+                {balanceCompare.matches ? "\u2705" : "\u26A0\uFE0F"} Conferencia de saldo
+              </span>
+              <span className="text-[10px] text-slate-500">
+                Data de referencia: {formatDate(balanceCompare.bankBalanceDate)}
+              </span>
+            </div>
+            <button
+              onClick={openBalanceModal}
+              className="text-[10px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
+              title="Corrigir o saldo informado"
+            >
+              Editar
+            </button>
           </div>
           <div className="grid grid-cols-3 gap-3 text-sm">
             <div>
-              <p className="text-[10px] text-slate-500 mb-0.5">Saldo no banco (OFX)</p>
+              <p className="text-[10px] text-slate-500 mb-0.5">Saldo no banco</p>
               <p className="font-semibold text-slate-800">{formatCurrency(balanceCompare.bankBalanceCents!)}</p>
             </div>
             <div>
@@ -2506,6 +2565,76 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
               O saldo do sistema nao bate com o banco. Verifique se todos os lancamentos foram registrados e conciliados corretamente.
             </p>
           )}
+        </div>
+      ) : (
+        // Nao tem saldo cadastrado — oferece botao pra informar manualmente
+        <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-slate-700">Conferir saldo com o banco</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Informe o saldo oficial do banco na data de fechamento do mes para comparar com o sistema.
+            </p>
+          </div>
+          <button
+            onClick={openBalanceModal}
+            className="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 whitespace-nowrap"
+          >
+            Informar saldo
+          </button>
+        </div>
+      )}
+
+      {/* Modal de informar saldo manual */}
+      {balanceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h3 className="text-base font-semibold text-slate-800">Informar saldo do banco</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Digite o saldo que o banco mostra no final do dia de referencia.
+              </p>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Data de referencia</label>
+                <input
+                  type="date"
+                  value={balanceInputDate}
+                  onChange={(e) => setBalanceInputDate(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Saldo no banco (R$)</label>
+                <input
+                  type="text"
+                  value={balanceInputValue}
+                  onChange={(e) => setBalanceInputValue(e.target.value)}
+                  placeholder="0,00"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Valor positivo: dinheiro em conta. Negativo: conta em aberto.
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+              <button
+                onClick={() => setBalanceModalOpen(false)}
+                disabled={balanceSaving}
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveManualBalance}
+                disabled={balanceSaving}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+              >
+                {balanceSaving ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
