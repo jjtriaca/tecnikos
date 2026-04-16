@@ -690,36 +690,38 @@ export default function PaymentInstrumentsTab() {
                       <span className="text-sm text-slate-700 flex-1">
                         <span className="font-medium">Usar conta existente</span>
                         {formData.accountOption === "existing" && (
-                          <select
-                            value={formData.cashAccountId}
-                            onChange={(e) => setFormData({ ...formData, cashAccountId: e.target.value })}
-                            className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${
-                              !formData.cashAccountId
-                                ? "border-amber-400 bg-amber-50"
-                                : "border-slate-300 bg-white"
-                            }`}
-                          >
-                            <option value="">Selecione a conta...</option>
-                            {cashAccounts
-                              .filter((ca: any) => {
-                                if (ca.type === "CARTAO_CREDITO") return false;
-                                // Cartao de recebimento (maquininha): restringe a TRANSITO
-                                // — dinheiro so cai no banco apos a operadora liquidar (D+1/D+30).
-                                const isCardReceivable = selectedPM?.requiresBrand && formData.showInReceivables;
-                                if (isCardReceivable) return ca.type === "TRANSITO";
-                                return true;
-                              })
-                              .map((ca) => (
-                                <option key={ca.id} value={ca.id}>
-                                  {ca.name} ({ca.type === "BANCO" ? "Banco" : ca.type === "TRANSITO" ? "Transito" : "Caixa"})
-                                </option>
-                              ))}
-                          </select>
-                          {selectedPM?.requiresBrand && formData.showInReceivables && (
-                            <p className="mt-1 text-[10px] text-slate-500">
-                              Cartao de recebimento: conta fica em TRANSITO ate a operadora liquidar (D+1 debito, D+30 credito). A Baixa de Cartoes move do transito pro banco.
-                            </p>
-                          )}
+                          <>
+                            <select
+                              value={formData.cashAccountId}
+                              onChange={(e) => setFormData({ ...formData, cashAccountId: e.target.value })}
+                              className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${
+                                !formData.cashAccountId
+                                  ? "border-amber-400 bg-amber-50"
+                                  : "border-slate-300 bg-white"
+                              }`}
+                            >
+                              <option value="">Selecione a conta...</option>
+                              {cashAccounts
+                                .filter((ca: any) => {
+                                  if (ca.type === "CARTAO_CREDITO") return false;
+                                  // Cartao de recebimento (maquininha): restringe a TRANSITO
+                                  // — dinheiro so cai no banco apos a operadora liquidar (D+1/D+30).
+                                  const isCardReceivable = selectedPM?.requiresBrand && formData.showInReceivables;
+                                  if (isCardReceivable) return ca.type === "TRANSITO";
+                                  return true;
+                                })
+                                .map((ca) => (
+                                  <option key={ca.id} value={ca.id}>
+                                    {ca.name} ({ca.type === "BANCO" ? "Banco" : ca.type === "TRANSITO" ? "Transito" : "Caixa"})
+                                  </option>
+                                ))}
+                            </select>
+                            {selectedPM?.requiresBrand && formData.showInReceivables && (
+                              <p className="mt-1 text-[10px] text-slate-500">
+                                Cartao de recebimento: conta fica em TRANSITO ate a operadora liquidar (D+1 debito, D+30 credito). A Baixa de Cartoes move do transito pro banco.
+                              </p>
+                            )}
+                          </>
                         )}
                       </span>
                     </label>
