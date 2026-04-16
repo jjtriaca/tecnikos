@@ -292,6 +292,20 @@ export class FinanceService {
       }
     }
 
+    // Fallback: se autoMarkPaid=true mas instrumento nao tem conta vinculada E dto tambem nao passou,
+    // usa a conta de TRANSITO (padrao system-wide). UI oferece a opcao "Nenhuma conta -> Valores em Transito",
+    // entao precisamos garantir que o saldo nao fique orfao.
+    if (autoPaidFlag && !autoPaidCashAccountId && !data.cashAccountId) {
+      const transitAccount = await this.prisma.cashAccount.findFirst({
+        where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
+        select: { id: true },
+      });
+      if (transitAccount) {
+        autoPaidCashAccountId = transitAccount.id;
+        this.logger.log(`Entry ${code}: autoMarkPaid sem conta vinculada -> fallback TRANSITO (${transitAccount.id})`);
+      }
+    }
+
     const entry = await this.prisma.financialEntry.create({
       data: {
         companyId,
