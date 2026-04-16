@@ -551,26 +551,45 @@ function QuickCreateEntryModal({
               <p className="text-[11px] text-amber-700 mb-2">
                 Para evitar duplicacao, voce pode conciliar com um existente:
               </p>
-              <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                {duplicateCandidates.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between gap-2 bg-white rounded px-2 py-1.5 border border-amber-200">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-slate-700 truncate">
-                        {e.code} — {e.description || "(sem descricao)"}
-                      </p>
-                      <p className="text-[10px] text-slate-500">
-                        {e.status} • Venc: {e.dueDate ? formatDate(e.dueDate) : "—"} • {formatCurrency(e.grossCents || 0)}
-                      </p>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {duplicateCandidates.map((e) => {
+                  // Entry em conta diferente da linha do banco = incompativel pra conciliar diretamente
+                  // (ex: ja foi pago em Caixa Interno quando a linha e de SICREDI).
+                  const entryAccount = e.cashAccountRef || e.cashAccount;
+                  const entryAccountId = e.cashAccountId || entryAccount?.id;
+                  const entryAccountType = entryAccount?.type;
+                  const isOtherAccount = entryAccountId && line && entryAccountId !== line.cashAccountId && entryAccountType !== "TRANSITO";
+                  return (
+                    <div key={e.id} className={`flex items-center justify-between gap-2 bg-white rounded px-2 py-1.5 border ${
+                      isOtherAccount ? "border-red-200" : "border-amber-200"
+                    }`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-700 truncate">
+                          {e.code} — {e.description || "(sem descricao)"}
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          {e.status} • Venc: {e.dueDate ? formatDate(e.dueDate) : "—"} • {formatCurrency(e.grossCents || 0)}
+                          {entryAccount?.name && (
+                            <> • Conta: <span className={isOtherAccount ? "text-red-700 font-medium" : "text-slate-700"}>{entryAccount.name}</span></>
+                          )}
+                        </p>
+                        {isOtherAccount && (
+                          <p className="text-[10px] text-red-700 mt-0.5">
+                            &#9888; Ja registrado em outra conta. Se for o mesmo pagamento, ajuste o lancamento original antes; senao, prossiga criando um novo.
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleMatchExisting(e.id)}
+                        disabled={saving || !!isOtherAccount}
+                        title={isOtherAccount ? "Entry em outra conta — nao pode ser conciliado diretamente com esta linha." : undefined}
+                        className="text-[11px] font-medium px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        Usar este
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleMatchExisting(e.id)}
-                      disabled={saving}
-                      className="text-[11px] font-medium px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
-                    >
-                      Usar este
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

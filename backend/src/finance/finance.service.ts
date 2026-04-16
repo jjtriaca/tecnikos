@@ -518,6 +518,7 @@ export class FinanceService {
           partner: { select: { id: true, name: true } },
           financialAccount: { select: { id: true, code: true, name: true } },
           parentEntry: { select: { id: true, nfseStatus: true, nfseEmissionId: true } },
+          cashAccountRef: { select: { id: true, name: true, type: true } },
           paymentInstrumentRef: {
             select: {
               id: true,
