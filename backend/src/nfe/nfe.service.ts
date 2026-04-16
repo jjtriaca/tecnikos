@@ -111,14 +111,22 @@ export class NfeService {
   async upload(xmlContent: string, companyId: string, sefazDocumentId?: string) {
     const parsed = this.parser.parse(xmlContent);
 
-    // Check duplicate by nfeKey
+    // Check duplicate by nfeKey — mensagem diferente conforme status (PROCESSED vs PENDING)
     if (parsed.nfeKey) {
       const existing = await this.prisma.nfeImport.findUnique({
         where: { nfeKey: parsed.nfeKey },
+        select: { status: true, createdAt: true, nfeNumber: true },
       });
       if (existing) {
+        const dateStr = existing.createdAt.toLocaleDateString('pt-BR');
+        if (existing.status === 'PROCESSED') {
+          throw new ConflictException(
+            `NFe ${existing.nfeNumber} (chave ${parsed.nfeKey}) já foi importada e processada em ${dateStr}.`,
+          );
+        }
         throw new ConflictException(
-          `NFe com chave ${parsed.nfeKey} já foi importada`,
+          `NFe ${existing.nfeNumber} (chave ${parsed.nfeKey}) já foi enviada em ${dateStr} mas está pendente de processamento. ` +
+          `Acesse a aba "Upload Manual" e clique em "Processar" para completar a importação.`,
         );
       }
     }
@@ -732,10 +740,23 @@ export class NfeService {
       });
 
       // ── 5. Update linked SefazDocument status to IMPORTED ─────────
+      // Cenario 1: import veio do SEFAZ — sefazDocumentId ja esta setado
       if (nfeImport.sefazDocumentId) {
         await tx.sefazDocument.update({
           where: { id: nfeImport.sefazDocumentId },
-          data: { status: 'IMPORTED' },
+          data: { status: 'IMPORTED', nfeImportId: id },
+        });
+      } else if (nfeImport.nfeKey) {
+        // Cenario 2: upload manual — busca SefazDocument com mesma chave (se existir)
+        // e sincroniza (cobre caso do DFe ter baixado a mesma NFe em paralelo).
+        await tx.sefazDocument.updateMany({
+          where: {
+            companyId,
+            nfeKey: nfeImport.nfeKey,
+            schema: { in: ['procNFe', 'resNFe'] },
+            status: { not: 'IMPORTED' },
+          },
+          data: { status: 'IMPORTED', nfeImportId: id },
         });
       }
 
