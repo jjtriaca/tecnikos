@@ -1530,6 +1530,16 @@ export class ReconciliationService {
       const lineAbs = Math.abs(line.amountCents);
 
       await this.prisma.$transaction(async (tx) => {
+        // 0. Deletar AccountTransfers criados pelo matchAsCardInvoice (rastreabilidade)
+        const linePrefix = lineId.substring(0, 8);
+        await tx.accountTransfer.deleteMany({
+          where: {
+            companyId,
+            fromAccountId: line.cashAccountId,
+            description: { contains: linePrefix },
+          },
+        });
+
         // 1. Reverte transferencia consolidada (banco += total, contas destino -= por entry)
         await tx.cashAccount.update({
           where: { id: line.cashAccountId },
