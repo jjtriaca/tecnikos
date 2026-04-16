@@ -1295,15 +1295,30 @@ export class ReconciliationService {
         });
       }
 
-      // Transferencia consolidada: banco debita o total da linha, contas destino creditam
-      // o total de entries vinculados a elas (zera divida acumulada, ou compensa o decrement recem-aplicado)
+      // Transferencia consolidada via AccountTransfer (banco → cada conta de cartao).
+      // AccountTransfer e rastreavel pelo balance-compare (via transferDate), diferente de decrement direto.
+      const bankAccountId = line.cashAccountId;
+      for (const [cardAccountId, amount] of creditByAccount.entries()) {
+        await tx.accountTransfer.create({
+          data: {
+            companyId,
+            fromAccountId: bankAccountId,
+            toAccountId: cardAccountId,
+            amountCents: amount,
+            description: `Fatura cartao — conciliacao linha ${line.id.substring(0, 8)}`,
+            transferDate: line.transactionDate,
+            createdByName: matchedByName,
+          },
+        });
+      }
+      // Atualiza saldos: debita banco, credita cada conta de cartao
       await tx.cashAccount.update({
-        where: { id: line.cashAccountId },
+        where: { id: bankAccountId },
         data: { currentBalanceCents: { decrement: lineAbs } },
       });
-      for (const [accountId, amount] of creditByAccount.entries()) {
+      for (const [cardAccountId, amount] of creditByAccount.entries()) {
         await tx.cashAccount.update({
-          where: { id: accountId },
+          where: { id: cardAccountId },
           data: { currentBalanceCents: { increment: amount } },
         });
       }
