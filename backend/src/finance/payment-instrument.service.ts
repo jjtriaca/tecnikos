@@ -152,7 +152,9 @@ export class PaymentInstrumentService {
    */
   static calculateCardBillingDate(purchaseDate: Date, closingDay: number): Date {
     const d = new Date(purchaseDate);
-    if (d.getDate() <= closingDay) {
+    // Compra ANTES do dia de fechamento → ciclo do mes atual
+    // Compra NO DIA ou DEPOIS → proximo ciclo (operadora processa D+1/D+2)
+    if (d.getDate() < closingDay) {
       return new Date(d.getFullYear(), d.getMonth(), closingDay, 12, 0, 0);
     } else {
       return new Date(d.getFullYear(), d.getMonth() + 1, closingDay, 12, 0, 0);
