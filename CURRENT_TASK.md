@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
-## Versao: v1.09.37
-## Ultima sessao: 176 (15/04/2026)
+## Versao: v1.09.74
+## Ultima sessao: 177 (16/04/2026)
 
 ## Fix manifestacao SEFAZ direto — Envelope + URL + parser (v1.09.32-37) ✅
 Migrado de Focus NFe (que falhava com "documento fiscal não encontrado" pois nao tinha as NFes no banco dele)
@@ -397,6 +397,28 @@ Cartao de credito vira CashAccount virtual (tipo novo CARTAO_CREDITO). Pagar com
 - Providers adicionais (BB, Itau, Sicoob, Bradesco, Santander, Caixa)
 - Wizard ChatIA para config boleto
 
+## CONCLUIDO (sessao 177 - 16/04/2026)
+
+### Refatoracao centralizada autoMarkPaid (v1.09.72)
+- Helper `resolveAutoPay()` + `applyBalanceDelta()` em PaymentInstrumentService
+- Refatorado finance.service.ts createEntry, nfe.service.ts process, nfse-entrada.service.ts process
+- Todos os 16 fluxos de criacao de FinancialEntry agora usam o mesmo helper
+- Migrados 10 PAYABLE CARTAO_CREDITO + 3 PIX RECEIVABLE que estavam PENDING por bug
+
+### Toggle "Lancar financeiro" no modal de pagamento (v1.09.73-74)
+- ChangeEntryStatusDto: novo campo skipCashAccount (boolean)
+- Backend: quando skipCashAccount=true, nao cria CardSettlement, nao debita saldo, nao faz fallback
+- Frontend: toggle discreto "Lancar financeiro" (padrao ligado) no modal de pagar
+- Util para: pagamento com cartao pessoa fisica, reembolso ja compensado fora do sistema
+
+### Lancamento parcelas remanescentes cartao Sicredi (dados)
+- 57 parcelas criadas (FIN-00374 a FIN-00430) de 12 compras parceladas pre-sistema
+- 8 entries corrigidas de cartao errado (Visa Juliano → Master Ueslei)
+- 3 entries PENDING marcadas como PAID no cartao correto
+- 7 compras avulsas criadas (FIN-00431 a FIN-00437)
+- Saldos finais: Master Ueslei -R$ 11.022,85 / Visa Juliano -R$ 5.913,51
+
 ## PENDENTE
+- FIN-00008 Posto Belvedere R$ 225,25: diferenca 13c com fatura (225,12), lancado sem nota
 - Fase 2: cheques de terceiros como meio de pagamento (controle estoque cheques)
 - Auto-ajuste de periodo do extrato ao selecionar cartao com billingClosingDay

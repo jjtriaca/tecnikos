@@ -1486,6 +1486,8 @@ interface CardInstrument {
   cardLast4?: string | null;
   cardBrand?: string | null;
   billingClosingDay?: number | null;
+  showInPayables?: boolean;
+  showInReceivables?: boolean;
   paymentMethod?: { code?: string | null; name?: string | null } | null;
 }
 
@@ -1540,27 +1542,33 @@ function CardInvoiceMatchModal({
     setNotes("");
     setAccountAssignments({});
     setBulkAccountId("");
-    // Default date window: 40 dias antes da data da linha do extrato
-    if (line) {
-      const end = new Date(line.transactionDate);
-      const start = new Date(end);
-      start.setDate(start.getDate() - 40);
-      setFromDate(start.toISOString().substring(0, 10));
-      setToDate(end.toISOString().substring(0, 10));
-    }
     Promise.all([
       api.get<CardInstrument[]>("/finance/payment-instruments").catch(() => []),
-      // Endpoint correto: /finance/accounts/postable (ja filtra no backend)
       api.get<FinancialAccountOption[]>("/finance/accounts/postable").catch(() => []),
     ])
       .then(([instrumentsData, accountsData]) => {
+        // Filtra apenas cartoes de CREDITO que estejam marcados como PAGAMENTO
         const credit = (instrumentsData || []).filter((i) => {
           const code = (i.paymentMethod?.code || "").toUpperCase();
-          return code === "CARTAO_CREDITO" || code === "CREDITO" || code === "CREDIT_CARD" || code === "CREDIT";
+          const isCredit = code === "CARTAO_CREDITO" || code === "CREDITO" || code === "CREDIT_CARD" || code === "CREDIT";
+          return isCredit && i.showInPayables !== false;
         });
         setInstruments(credit);
         setSelectedCardIds(new Set(credit.map((i) => i.id)));
         setFinancialAccounts(accountsData || []);
+
+        // Range baseado no billingClosingDay do primeiro cartao encontrado
+        if (line) {
+          const closingDay = credit.find((i) => i.billingClosingDay)?.billingClosingDay || 25;
+          const lineDate = new Date(line.transactionDate);
+          // Dia de fechamento mais recente ANTES da data da linha
+          const toD = new Date(lineDate.getFullYear(), lineDate.getMonth(), closingDay);
+          if (toD >= lineDate) toD.setMonth(toD.getMonth() - 1);
+          // Dia de inicio = dia seguinte ao fechamento anterior
+          const fromD = new Date(toD.getFullYear(), toD.getMonth() - 1, closingDay + 1);
+          setFromDate(fromD.toISOString().substring(0, 10));
+          setToDate(toD.toISOString().substring(0, 10));
+        }
       })
       .catch(() => toast("Erro ao carregar dados", "error"));
   }, [open, line, toast]);
