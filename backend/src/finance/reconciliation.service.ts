@@ -757,6 +757,36 @@ export class ReconciliationService {
             where: { id: entryBefore.id },
             data: entryUpdate,
           });
+
+          // v1.09.68: Se tem taxa de cartao (RECEIVABLE com valor liquido < bruto),
+          // cria entry PAYABLE tecnico de taxa pra refletir a diferenca na contabilidade.
+          // Sem isso, o entry.netCents fica > valor real creditado no banco e gera divergencia
+          // no calculo retroativo de saldo (banco vs sistema).
+          const taxCents = dto.taxCents ?? 0;
+          if (taxCents > 0 && entryBefore.type === 'RECEIVABLE' && line.amountCents > 0) {
+            const taxCode = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+            await tx.financialEntry.create({
+              data: {
+                companyId,
+                code: taxCode,
+                type: 'PAYABLE',
+                status: 'PAID',
+                description: `Taxa cartao - conciliacao linha ${line.id.substring(0, 8)} (entry ${entryBefore.id.substring(0, 8)})`,
+                grossCents: taxCents,
+                netCents: taxCents,
+                paidAt: line.transactionDate,
+                cashAccountId: bankAccountId,
+                autoMarkedPaid: true,
+                isRefundEntry: true, // marca como entry tecnico (nao aparece em DRE cliente)
+              },
+            });
+            // Nao mexer no saldo: a taxa e um debito virtual — o line.amountCents ja e o liquido
+            // Subtraimos a taxa pra manter o saldo correto (sistema agora sabe do pay de taxa)
+            await tx.cashAccount.update({
+              where: { id: bankAccountId },
+              data: { currentBalanceCents: { decrement: taxCents } },
+            });
+          }
         } else {
           // Entry ja PAID — aplica plano (se veio) e corrige paidAt pra data REAL do banco.
           // Isso e critico porque o usuario frequentemente cria entry com paidAt=hoje
@@ -1609,6 +1639,33 @@ export class ReconciliationService {
           where: { id: bankAccountId },
           data: { currentBalanceCents: { decrement: line.amountCents } },
         });
+
+        // v1.09.68: Reverte entry de taxa de cartao se existir (criado durante match)
+        // Identifica pela descricao (linha ${id.substring(0,8)}).
+        if (line.matchedTaxCents && line.matchedTaxCents > 0) {
+          const linePrefix = line.id.substring(0, 8);
+          const taxEntry = await this.prisma.financialEntry.findFirst({
+            where: {
+              companyId,
+              type: 'PAYABLE',
+              isRefundEntry: true,
+              description: { contains: `linha ${linePrefix}` },
+              cashAccountId: bankAccountId,
+              netCents: line.matchedTaxCents,
+              deletedAt: null,
+            },
+            select: { id: true },
+          });
+          if (taxEntry) {
+            // Reverte saldo do banco (a taxa tinha decrementado) e deleta entry
+            await this.prisma.cashAccount.update({
+              where: { id: bankAccountId },
+              data: { currentBalanceCents: { increment: line.matchedTaxCents } },
+            });
+            await this.prisma.financialEntry.delete({ where: { id: taxEntry.id } });
+          }
+        }
+
         await this.prisma.financialEntry.update({
           where: { id: line.matchedEntryId },
           data: {
