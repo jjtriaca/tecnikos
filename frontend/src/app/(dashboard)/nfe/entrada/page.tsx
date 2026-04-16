@@ -1051,8 +1051,8 @@ export default function NfseEntradaPage() {
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">NFS-e</p>
                       <div className="text-xs space-y-1">
-                        <div className="flex justify-between"><span className="text-slate-500">Numero</span><span className="font-medium">{processEntry.numero || "\u2014"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Servico</span><span className="font-medium truncate max-w-[250px]" title={processEntry.discriminacao || undefined}>{processEntry.discriminacao || "\u2014"}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Numero</span><span className="font-medium text-slate-900">{processEntry.numero || "\u2014"}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Servico</span><span className="font-medium text-slate-900 truncate max-w-[250px]" title={processEntry.discriminacao || undefined}>{processEntry.discriminacao || "\u2014"}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Valor</span><span className="font-semibold text-slate-900">{fmt(processEntry.valorServicosCents)}</span></div>
                       </div>
                     </div>
