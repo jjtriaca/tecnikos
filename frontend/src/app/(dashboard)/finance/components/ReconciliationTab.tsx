@@ -300,7 +300,8 @@ function QuickCreateEntryModal({
   }, [open, line, entryType, financialAccountsFromParent]);
 
   // Check for possible duplicates whenever partner + value are set.
-  // Criteria: same partner, same type, same grossCents, not already MATCHED to a bank line.
+  // Criteria: same partner, same type, same grossCents, NAO conciliados com outra linha do extrato
+  // (entries ja matched representam pagamentos resolvidos, nao sao risco de duplicacao).
   const grossCents = Math.round((parseFloat(grossReais.replace(",", ".")) || 0) * 100);
   useEffect(() => {
     if (!open || !partner || grossCents <= 0) {
@@ -312,6 +313,7 @@ function QuickCreateEntryModal({
       type: entryType,
       partnerId: partner.id,
       limit: "10",
+      excludeMatched: "true", // ignora entries ja conciliados — sao pagamentos resolvidos
     });
     api
       .get<any>(`/finance/entries?${params.toString()}`, { signal: controller.signal })
