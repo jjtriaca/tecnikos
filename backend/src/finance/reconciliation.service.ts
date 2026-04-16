@@ -460,6 +460,54 @@ export class ReconciliationService {
       if (entryBefore.status === 'CANCELLED') {
         throw new BadRequestException('Lançamento cancelado não pode ser conciliado.');
       }
+      // Protecao: entry ja conciliado com outra linha do extrato
+      const existingMatch = await this.prisma.bankStatementLine.findFirst({
+        where: {
+          matchedEntryId: dto.entryId,
+          status: 'MATCHED',
+          id: { not: lineId },
+        },
+        select: { id: true, transactionDate: true, description: true, amountCents: true },
+      });
+      if (existingMatch) {
+        const dateStr = existingMatch.transactionDate.toLocaleDateString('pt-BR');
+        throw new BadRequestException(
+          `Este lançamento já está conciliado com outra linha do extrato ` +
+          `(${dateStr} — ${existingMatch.description}). ` +
+          `Desfaça aquela conciliação primeiro ou escolha outro lançamento.`,
+        );
+      }
+      // Protecao: entry ja e parte de uma fatura de cartao conciliada
+      const entryInvoiceGroup = await this.prisma.financialEntry.findUnique({
+        where: { id: dto.entryId },
+        select: { invoiceMatchLineId: true },
+      });
+      if (entryInvoiceGroup?.invoiceMatchLineId) {
+        throw new BadRequestException(
+          'Este lançamento já está conciliado como parte de uma fatura de cartão. ' +
+          'Desfaça aquela conciliação primeiro.',
+        );
+      }
+    }
+
+    // Protecao: installment ja conciliada com outra linha
+    if (dto.installmentId) {
+      const existingMatch = await this.prisma.bankStatementLine.findFirst({
+        where: {
+          matchedInstallmentId: dto.installmentId,
+          status: 'MATCHED',
+          id: { not: lineId },
+        },
+        select: { id: true, transactionDate: true, description: true },
+      });
+      if (existingMatch) {
+        const dateStr = existingMatch.transactionDate.toLocaleDateString('pt-BR');
+        throw new BadRequestException(
+          `Esta parcela já está conciliada com outra linha do extrato ` +
+          `(${dateStr} — ${existingMatch.description}). ` +
+          `Desfaça aquela conciliação primeiro.`,
+        );
+      }
     }
 
     // Validacao de plano de contas (se empresa usa e entry nao e tecnico/refund)
@@ -793,6 +841,17 @@ export class ReconciliationService {
     };
     if (!includeAlreadyMatched) {
       where.invoiceMatchLineId = null;
+      // Tambem exclui entries ja conciliados individualmente com alguma linha do extrato
+      const matchedLines = await this.prisma.bankStatementLine.findMany({
+        where: { status: 'MATCHED', matchedEntryId: { not: null } },
+        select: { matchedEntryId: true },
+      });
+      const matchedIds = Array.from(new Set(
+        matchedLines.map((l) => l.matchedEntryId!).filter(Boolean),
+      ));
+      if (matchedIds.length > 0) {
+        where.id = { notIn: matchedIds };
+      }
     }
     if (fromDate || toDate) {
       // Usa paidAt para entries PAID; dueDate para PENDING/CONFIRMED (ainda nao pagos)
@@ -908,6 +967,29 @@ export class ReconciliationService {
       if (validAccounts.length !== accountIdsToValidate.length) {
         throw new BadRequestException('Um ou mais planos de contas informados são inválidos ou inativos.');
       }
+    }
+
+    // Protecao: nenhum dos entries pode estar conciliado com outra linha (1:1 match)
+    const conflictingMatch = await this.prisma.bankStatementLine.findFirst({
+      where: {
+        matchedEntryId: { in: dto.entryIds },
+        status: 'MATCHED',
+        id: { not: lineId },
+      },
+      select: {
+        id: true,
+        transactionDate: true,
+        description: true,
+        matchedEntryId: true,
+      },
+    });
+    if (conflictingMatch) {
+      const dateStr = conflictingMatch.transactionDate.toLocaleDateString('pt-BR');
+      throw new BadRequestException(
+        `Lançamento ${conflictingMatch.matchedEntryId} já está conciliado com outra linha ` +
+        `(${dateStr} — ${conflictingMatch.description}). ` +
+        `Remova-o da seleção ou desfaça a conciliação anterior.`,
+      );
     }
 
     for (const e of entries) {
