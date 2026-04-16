@@ -1085,6 +1085,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const [checkHolder, setCheckHolder] = useState("");
   // 4 ultimos digitos do cartao do cliente no momento de receber
   const [payCardLast4, setPayCardLast4] = useState("");
+  // Pagamento pessoa fisica: marca como PAID sem mexer no saldo de nenhuma conta
+  const [payPersonalCard, setPayPersonalCard] = useState(false);
 
   // Report modal
   const [showReportModal, setShowReportModal] = useState(false);
@@ -1353,7 +1355,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     const selectedPM = activePMs.find((p) => p.code === paymentMethod);
     // Se o usuario selecionou um PaymentInstrument especifico (ex: Master Ueslei), ja temos
     // o cartao — nao precisa de CardFeeRate separado. Taxa vem de PaymentInstrumentFeeRate.
-    if (selectedPM?.requiresBrand && !selectedInstrumentId && !selectedCardRateId) {
+    // Pagamento pessoa fisica pula validacao — nao afeta caixa nem gera settlement.
+    if (!payPersonalCard && selectedPM?.requiresBrand && !selectedInstrumentId && !selectedCardRateId) {
       toast("Selecione o cartao.", "error");
       return;
     }
@@ -1374,15 +1377,17 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       // RECEIVABLE com cartao: backend cria CardSettlement e gerencia a conta via settle
       // PAYABLE com cartao ou nao-cartao: passa cashAccountId pra debitar saldo direto
       const isReceivableCard = isCard && type === "RECEIVABLE";
+      // Pagamento pessoa fisica: skipCashAccount=true pula CardSettlement, fallback e update de saldo
       await api.patch(`/finance/entries/${entry.id}/status`, {
         status: action,
         paymentMethod,
         paidAt: payDate || undefined,
         cardBrand: isCard && selectedCardRate ? selectedCardRate.brand : undefined,
-        cardFeeRateId: isReceivableCard ? selectedCardRateId : undefined,
-        cashAccountId: isReceivableCard ? undefined : (selectedAccountId || undefined),
-        paymentInstrumentId: selectedInstrumentId || undefined,
+        cardFeeRateId: (isReceivableCard && !payPersonalCard) ? selectedCardRateId : undefined,
+        cashAccountId: (payPersonalCard || isReceivableCard) ? undefined : (selectedAccountId || undefined),
+        paymentInstrumentId: payPersonalCard ? undefined : (selectedInstrumentId || undefined),
         receivedCardLast4: (isReceivableCard && payCardLast4.length === 4) ? payCardLast4 : undefined,
+        skipCashAccount: payPersonalCard ? true : undefined,
         ...(isCheckPay && {
           checkNumber: checkNumber || undefined,
           checkBank: checkBank || undefined,
@@ -1403,6 +1408,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       setPayDate("");
       setAvailableInstruments([]);
       setShowManualPayable(false);
+      setPayPersonalCard(false);
       setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder("");
       await loadEntries();
     } catch {
@@ -1938,8 +1944,9 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               {/* Dropdown CardFeeRate so aparece quando:
                     - e cartao (isCardPayment)
                     - E usuario NAO selecionou um PaymentInstrument especifico (o instrumento ja tem suas proprias taxas)
+                    - E NAO e pagamento pessoa fisica (nao rastreamos taxa pra cartao pessoal)
                   Fallback pra tenants que ainda nao cadastraram instrumentos */}
-              {isCardPayment && !selectedInstrumentId && (
+              {isCardPayment && !selectedInstrumentId && !payPersonalCard && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Cartao *</label>
                   {filteredCardRates.length === 0 ? (
@@ -2003,8 +2010,31 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 />
               )}
 
-              {/* Cash account (optional — hidden for card payments) */}
-              {activeAccounts.length > 0 && !isCardPayment && (
+              {/* Pagamento pessoa fisica (nao afeta caixa) — util para cartao pessoal, reembolso ja compensado, etc. */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={payPersonalCard}
+                    onChange={(e) => {
+                      setPayPersonalCard(e.target.checked);
+                      if (e.target.checked) {
+                        // Limpa conta/instrumento quando marca pessoa fisica — nao vai ser usado
+                        setSelectedAccountId("");
+                        setSelectedInstrumentId("");
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-amber-800">Pagamento pessoa fisica (nao afetar caixa)</span>
+                    <p className="text-[10px] text-amber-700 mt-0.5">Marca como {type === "RECEIVABLE" ? "recebido" : "pago"} mas nao mexe no saldo de conta nenhuma. Use quando o pagamento foi feito com cartao/dinheiro pessoal, reembolso ja compensado, etc.</p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Cash account (optional — hidden for card payments and personal card) */}
+              {activeAccounts.length > 0 && !isCardPayment && !payPersonalCard && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Conta/Caixa</label>
                   <select

@@ -735,6 +735,14 @@ export class FinanceService {
           }
         }
 
+        // skipCashAccount: user escolheu "Nenhuma (nao atualizar saldo)" explicitamente.
+        // Ex: pagamento com cartao pessoa fisica, reembolso ja compensado fora, etc.
+        // Nao cria CardSettlement, nao debita saldo, nao faz fallback pra conta do instrumento.
+        if (dto.skipCashAccount) {
+          this.logger.log(`Entry ${entry.id} marcado como PAID com skipCashAccount=true — saldo nao afetado`);
+          return updated;
+        }
+
         if (isCardPayment && entry.type === 'RECEIVABLE') {
           // RECEIVABLE com cartao (maquininha): cria CardSettlement (prazo + taxa) — cliente paga,
           // operadora desconta taxa, empresa recebe liquido em D+N

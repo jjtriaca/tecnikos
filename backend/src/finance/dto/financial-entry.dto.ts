@@ -176,4 +176,15 @@ export class ChangeEntryStatusDto {
   @IsOptional()
   @IsString()
   checkHolder?: string;
+
+  /**
+   * Marca pagamento como "nao afetar caixa" — nao cria CardSettlement, nao debita saldo
+   * de conta nenhuma, nem faz fallback pro cashAccount do PaymentInstrument. Util para:
+   * - Pagamento com cartao pessoa fisica (nao empresarial)
+   * - Reembolso ja compensado fora do sistema
+   * - Lancamentos apenas para historico contabil
+   */
+  @IsOptional()
+  @IsBoolean()
+  skipCashAccount?: boolean;
 }
