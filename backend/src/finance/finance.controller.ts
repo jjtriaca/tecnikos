@@ -608,6 +608,7 @@ export class FinanceController {
     @Query('dateType') dateType: string | undefined,
     @Query('partnerId') partnerId: string | undefined,
     @Query('nfseStatus') nfseStatus: string | undefined,
+    @Query('excludeMatched') excludeMatched: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.findEntries(user.companyId, type || 'RECEIVABLE', pagination, {
@@ -617,6 +618,7 @@ export class FinanceController {
       dateType,
       partnerId,
       nfseStatus,
+      excludeMatched: excludeMatched === 'true',
     });
   }
 

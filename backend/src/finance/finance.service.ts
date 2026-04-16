@@ -398,7 +398,7 @@ export class FinanceService {
     companyId: string,
     type: 'RECEIVABLE' | 'PAYABLE',
     pagination?: PaginationDto,
-    filters?: { status?: string; dateFrom?: string; dateTo?: string; dateType?: string; partnerId?: string; nfseStatus?: string },
+    filters?: { status?: string; dateFrom?: string; dateTo?: string; dateType?: string; partnerId?: string; nfseStatus?: string; excludeMatched?: boolean },
   ): Promise<PaginatedResult<any> & { totals?: { sumNetCents: number; sumGrossCents: number } }> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
@@ -430,6 +430,24 @@ export class FinanceService {
       where[dateField] = {};
       if (filters.dateFrom) where[dateField].gte = new Date(filters.dateFrom);
       if (filters.dateTo) where[dateField].lte = new Date(filters.dateTo + 'T23:59:59.999Z');
+    }
+
+    // Exclui entries ja conciliados com o extrato:
+    //  - Ligados diretamente a uma BankStatementLine (matchedEntryId)
+    //  - Agrupados em uma fatura de cartao (invoiceMatchLineId)
+    // Usado pelo ConciliationModal pra nao mostrar candidatos ja casados.
+    if (filters?.excludeMatched) {
+      const matchedLines = await this.prisma.bankStatementLine.findMany({
+        where: { status: 'MATCHED', matchedEntryId: { not: null } },
+        select: { matchedEntryId: true },
+      });
+      const matchedEntryIds = Array.from(new Set(
+        matchedLines.map((l) => l.matchedEntryId!).filter(Boolean),
+      ));
+      where.invoiceMatchLineId = null;
+      if (matchedEntryIds.length > 0) {
+        where.id = { notIn: matchedEntryIds };
+      }
     }
     if (pagination?.search) {
       const words = pagination.search.trim().split(/\s+/).filter(Boolean);

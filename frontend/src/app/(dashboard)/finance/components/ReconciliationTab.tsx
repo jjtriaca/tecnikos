@@ -655,8 +655,9 @@ function ConciliationModal({
     // Fetch entries, card fee rates, planos de contas in parallel
     const type = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
     Promise.all([
-      api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50`).catch(() => ({ data: [] })),
-      api.get<any>(`/finance/entries?status=PENDING&type=${type}&limit=50`).catch(() => ({ data: [] })),
+      // excludeMatched=true remove entries ja conciliados com alguma linha do extrato (evita duplo match)
+      api.get<any>(`/finance/entries?status=PAID&type=${type}&limit=50&excludeMatched=true`).catch(() => ({ data: [] })),
+      api.get<any>(`/finance/entries?status=PENDING&type=${type}&limit=50&excludeMatched=true`).catch(() => ({ data: [] })),
       isCardTx ? api.get<any[]>("/finance/card-fee-rates").catch(() => []) : Promise.resolve([]),
       // Endpoint correto: /finance/accounts/postable (ja filtra allowPosting + isActive no backend)
       api.get<FinancialAccountOption[]>("/finance/accounts/postable").catch(() => []),
