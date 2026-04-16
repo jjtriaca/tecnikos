@@ -762,8 +762,11 @@ function ConciliationModal({
     setSelectedEntryId(entry.id);
     setManualOverride(false);
 
-    // Re-busca taxa se for cartao (prioriza PaymentInstrumentFeeRate do entry)
+    // Re-busca taxa se for cartao. Limpa a taxa antiga antes de buscar — evita residuo
+    // do card anterior (alerta de divergencia baseado em config errado).
     if (isCard && detectedBrand) {
+      setMatchedRate(null);
+      setConfigFeePercent(0);
       const installments = entry.installmentCount || 1;
       fetchRateForEntry(entry, detectedBrand, detectedType, installments)
         .then((rate) => {
@@ -771,8 +774,12 @@ function ConciliationModal({
             setMatchedRate(rate);
             setConfigFeePercent(rate.feePercent);
           }
+          // Se nao encontrou taxa pra este card, deixa vazio (sem divergencia)
         })
-        .catch(() => { /* mantem matchedRate atual */ });
+        .catch(() => {
+          setMatchedRate(null);
+          setConfigFeePercent(0);
+        });
     }
   }
 
@@ -1101,8 +1108,40 @@ function ConciliationModal({
                       </div>
                       <p className="text-xs text-slate-400">
                         {entry.partner?.name || "—"} • Venc: {formatDate(entry.dueDate)}
-                        {entry.paymentMethod && <span className="ml-1 text-slate-500">• {entry.paymentMethod.replace(/_/g, " ")}</span>}
-                        {entry.cardBrand && <span className="ml-1 px-1 py-0.5 rounded bg-purple-100 text-purple-700 text-[9px] font-medium">{entry.cardBrand}</span>}
+                        {(() => {
+                          const pi = entry.paymentInstrumentRef;
+                          if (pi) {
+                            // Prioriza info do instrumento (bandeira + ultimos 4 digitos)
+                            const brand = pi.cardBrand || entry.cardBrand;
+                            const last4 = pi.cardLast4;
+                            const methodLabel = pi.paymentMethod?.name || pi.name;
+                            return (
+                              <>
+                                <span className="ml-1 text-slate-600 font-medium">• {pi.name}</span>
+                                {brand && (
+                                  <span className="ml-1 px-1 py-0.5 rounded bg-purple-100 text-purple-700 text-[9px] font-bold uppercase">
+                                    {brand}
+                                  </span>
+                                )}
+                                {last4 && (
+                                  <span className="ml-1 px-1 py-0.5 rounded bg-slate-100 text-slate-600 text-[9px] font-mono">
+                                    &bull;&bull;&bull;&bull; {last4}
+                                  </span>
+                                )}
+                                {pi.paymentMethod?.code && pi.paymentMethod.code !== pi.name.toUpperCase() && (
+                                  <span className="ml-1 text-[9px] text-slate-400">({methodLabel})</span>
+                                )}
+                              </>
+                            );
+                          }
+                          // Fallback: entries antigos sem paymentInstrument
+                          return (
+                            <>
+                              {entry.paymentMethod && <span className="ml-1 text-slate-500">• {entry.paymentMethod.replace(/_/g, " ")}</span>}
+                              {entry.cardBrand && <span className="ml-1 px-1 py-0.5 rounded bg-purple-100 text-purple-700 text-[9px] font-medium">{entry.cardBrand}</span>}
+                            </>
+                          );
+                        })()}
                       </p>
                       {/* Plano de Contas — campo so aparece quando a empresa usa plano e o entry precisa */}
                       {financialAccounts.length > 0 && !entry.isRefundEntry && (

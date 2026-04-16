@@ -481,6 +481,15 @@ export class FinanceService {
           partner: { select: { id: true, name: true } },
           financialAccount: { select: { id: true, code: true, name: true } },
           parentEntry: { select: { id: true, nfseStatus: true, nfseEmissionId: true } },
+          paymentInstrumentRef: {
+            select: {
+              id: true,
+              name: true,
+              cardLast4: true,
+              cardBrand: true,
+              paymentMethod: { select: { code: true, name: true, requiresBrand: true } },
+            },
+          },
         },
       }),
       this.prisma.financialEntry.count({ where }),
