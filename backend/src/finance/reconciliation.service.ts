@@ -22,15 +22,18 @@ export class ReconciliationService {
   ) {}
 
   /**
-   * Extract year/month in Brazil timezone (America/Sao_Paulo).
-   * Used to partition transactions into monthly statements.
+   * Extract year/month from transactionDate. Usado pra particionar linhas em statements mensais.
+   *
+   * As datas do OFX sao naive (sem timezone) — representam "o dia do evento no banco" (BR).
+   * O parser salva como `new Date(year, month, day)` que no servidor UTC vira `yyyy-mm-dd 00:00 UTC`.
+   * Ler direto os componentes UTC da o mes correto (sem deslocamento de timezone).
+   *
+   * v1.09.67 — fix: antes subtraia 3h o que jogava linhas do dia 01 do mes pro mes anterior.
    */
   private getBrazilianPeriod(date: Date): { year: number; month: number } {
-    // Brazil is UTC-3 (no DST since 2019). Shift by -3h then read UTC components.
-    const shifted = new Date(date.getTime() - 3 * 60 * 60 * 1000);
     return {
-      year: shifted.getUTCFullYear(),
-      month: shifted.getUTCMonth() + 1, // 1..12
+      year: date.getUTCFullYear(),
+      month: date.getUTCMonth() + 1, // 1..12
     };
   }
 
