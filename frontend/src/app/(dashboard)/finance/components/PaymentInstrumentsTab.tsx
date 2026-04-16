@@ -8,7 +8,8 @@ import type { PaymentInstrument, PaymentMethod, CashAccount } from "@/types/fina
 
 /* ── Form data ────────────────────────────────────────── */
 
-type AccountOption = "none" | "existing" | "exclusive";
+// v1.09.55: "none" foi removido — conta e obrigatoria (existing ou exclusive)
+type AccountOption = "existing" | "exclusive";
 
 /** Faixa de taxa de parcelamento (v1.09.04) */
 interface FeeRateRow {
@@ -60,7 +61,7 @@ const EMPTY_FORM: PIFormData = {
   autoMarkPaid: false,
   feePercent: "",
   receivingDays: "",
-  accountOption: "none",
+  accountOption: "existing",
   feeRates: [],
 };
 
@@ -128,9 +129,9 @@ export default function PaymentInstrumentsTab() {
 
   function openEditForm(pi: PaymentInstrument) {
     setEditingId(pi.id);
-    // Determinar accountOption: se pi tem cashAccount e e CARTAO_CREDITO = exclusive; se tem = existing; senao = none
+    // Determinar accountOption: se pi tem cashAccount e e CARTAO_CREDITO = exclusive; senao = existing
     const caType = (pi.cashAccount as any)?.type;
-    const accountOption: AccountOption = caType === "CARTAO_CREDITO" ? "exclusive" : pi.cashAccountId ? "existing" : "none";
+    const accountOption: AccountOption = caType === "CARTAO_CREDITO" ? "exclusive" : "existing";
     setFormData({
       name: pi.name,
       paymentMethodId: pi.paymentMethodId,
@@ -193,6 +194,16 @@ export default function PaymentInstrumentsTab() {
     if (!formData.showInReceivables && !formData.showInPayables) {
       toast("Marque ao menos uma direcao: recebimento ou pagamento.", "error");
       return;
+    }
+
+    // Conta caixa/banco e OBRIGATORIA — sem ela, lancamentos ficam orfaos sem afetar saldo.
+    // Cartao de credito de pagamento cria conta automaticamente (isCreditForPaymentOnly), entao nao valida.
+    const isCreditForPaymentOnly = selectedPM?.code === "CARTAO_CREDITO" && formData.showInPayables && !formData.showInReceivables;
+    if (!isCreditForPaymentOnly) {
+      if (formData.accountOption === "existing" && !formData.cashAccountId) {
+        toast("Selecione uma conta caixa/banco — e obrigatoria.", "error");
+        return;
+      }
     }
 
     // Valida faixas de taxa preenchidas
@@ -665,19 +676,9 @@ export default function PaymentInstrumentsTab() {
                   </div>
                 ) : (
                   <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
-                    <label className="flex items-start gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="accountOption"
-                        checked={formData.accountOption === "none"}
-                        onChange={() => setFormData({ ...formData, accountOption: "none", cashAccountId: "" })}
-                        className="h-4 w-4 mt-0.5 border-slate-300 text-slate-600 focus:ring-slate-500"
-                      />
-                      <span className="text-sm text-slate-700">
-                        <span className="font-medium">Nenhuma conta</span>
-                        <p className="text-[11px] text-slate-500">Apenas identifica o meio; saldo fica em "Valores em Transito" do sistema.</p>
-                      </span>
-                    </label>
+                    <p className="text-[11px] text-slate-600 mb-1">
+                      <span className="text-red-500">*</span> Escolha uma conta — todo lancamento com este meio movimenta o saldo dela.
+                    </p>
                     <label className="flex items-start gap-2 cursor-pointer">
                       <input
                         type="radio"
@@ -692,15 +693,33 @@ export default function PaymentInstrumentsTab() {
                           <select
                             value={formData.cashAccountId}
                             onChange={(e) => setFormData({ ...formData, cashAccountId: e.target.value })}
-                            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                            className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${
+                              !formData.cashAccountId
+                                ? "border-amber-400 bg-amber-50"
+                                : "border-slate-300 bg-white"
+                            }`}
                           >
                             <option value="">Selecione a conta...</option>
-                            {cashAccounts.filter((ca: any) => ca.type !== "CARTAO_CREDITO").map((ca) => (
-                              <option key={ca.id} value={ca.id}>
-                                {ca.name} ({ca.type === "BANCO" ? "Banco" : ca.type === "TRANSITO" ? "Transito" : "Caixa"})
-                              </option>
-                            ))}
+                            {cashAccounts
+                              .filter((ca: any) => {
+                                if (ca.type === "CARTAO_CREDITO") return false;
+                                // Cartao de recebimento (maquininha): restringe a TRANSITO
+                                // — dinheiro so cai no banco apos a operadora liquidar (D+1/D+30).
+                                const isCardReceivable = selectedPM?.requiresBrand && formData.showInReceivables;
+                                if (isCardReceivable) return ca.type === "TRANSITO";
+                                return true;
+                              })
+                              .map((ca) => (
+                                <option key={ca.id} value={ca.id}>
+                                  {ca.name} ({ca.type === "BANCO" ? "Banco" : ca.type === "TRANSITO" ? "Transito" : "Caixa"})
+                                </option>
+                              ))}
                           </select>
+                          {selectedPM?.requiresBrand && formData.showInReceivables && (
+                            <p className="mt-1 text-[10px] text-slate-500">
+                              Cartao de recebimento: conta fica em TRANSITO ate a operadora liquidar (D+1 debito, D+30 credito). A Baixa de Cartoes move do transito pro banco.
+                            </p>
+                          )}
                         )}
                       </span>
                     </label>
