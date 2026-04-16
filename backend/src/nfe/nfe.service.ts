@@ -67,6 +67,10 @@ export class ProcessFinanceDecision {
 
   @IsOptional()
   @IsString()
+  paymentInstrumentId?: string;
+
+  @IsOptional()
+  @IsString()
   financialAccountId?: string;
 
   @IsOptional()
@@ -741,24 +745,71 @@ export class NfeService {
             : (nfeImport.issueDate ?? undefined);
 
         const finCode = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+
+        // v1.09.71: Resolve autoMarkPaid a partir do paymentInstrumentId escolhido no wizard.
+        // Se o instrumento tem autoMarkPaid=true (ex: cartao, PIX, dinheiro), o entry nasce PAID
+        // com cashAccountId vinculado e saldo da conta atualizado. Mesma logica do createEntry normal.
+        let entryStatus: 'PENDING' | 'PAID' = 'PENDING';
+        let entryPaidAt: Date | undefined;
+        let entryCashAccountId: string | undefined;
+        let entryAutoMarkedPaid = false;
+        let saldoDeltaForCashAccount: { id: string; delta: number } | null = null;
+
+        if (decisions.finance?.paymentInstrumentId) {
+          const instrument = await tx.paymentInstrument.findFirst({
+            where: { id: decisions.finance.paymentInstrumentId, companyId, deletedAt: null, isActive: true },
+            select: { id: true, autoMarkPaid: true, cashAccountId: true },
+          });
+          if (instrument?.autoMarkPaid) {
+            entryStatus = 'PAID';
+            entryPaidAt = new Date();
+            entryAutoMarkedPaid = true;
+            // Resolve conta: do instrumento, ou fallback pra TRANSITO
+            entryCashAccountId = instrument.cashAccountId ?? undefined;
+            if (!entryCashAccountId) {
+              const transit = await tx.cashAccount.findFirst({
+                where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
+                select: { id: true },
+              });
+              entryCashAccountId = transit?.id;
+            }
+            if (entryCashAccountId) {
+              // PAYABLE debita a conta (sai dinheiro)
+              saldoDeltaForCashAccount = { id: entryCashAccountId, delta: -(nfeImport.totalCents ?? 0) };
+            }
+          }
+        }
+
         const financialEntry = await tx.financialEntry.create({
           data: {
             companyId,
             code: finCode,
             partnerId: supplierId,
             type: 'PAYABLE',
-            status: 'PENDING',
+            status: entryStatus,
+            paidAt: entryPaidAt,
+            autoMarkedPaid: entryAutoMarkedPaid,
+            cashAccountId: entryCashAccountId,
             description: `NFe ${nfeImport.nfeNumber || ''} — ${nfeImport.supplierName || 'Fornecedor'}`,
             grossCents: nfeImport.totalCents ?? 0,
             netCents: nfeImport.totalCents ?? 0,
             dueDate,
             paymentMethod: decisions.finance?.paymentMethod || undefined,
+            paymentInstrumentId: decisions.finance?.paymentInstrumentId || undefined,
             financialAccountId: decisions.finance?.financialAccountId || undefined,
             installmentCount: hasInstallments ? installments.length : null,
             notes: nfeImport.nfeKey ? `Chave NFe: ${nfeImport.nfeKey}` : undefined,
           },
         });
         financialEntryId = financialEntry.id;
+
+        // Atualiza saldo da conta se auto-pay
+        if (saldoDeltaForCashAccount) {
+          await tx.cashAccount.update({
+            where: { id: saldoDeltaForCashAccount.id },
+            data: { currentBalanceCents: { increment: saldoDeltaForCashAccount.delta } },
+          });
+        }
 
         // Create installment records from XML duplicatas
         if (hasInstallments) {
