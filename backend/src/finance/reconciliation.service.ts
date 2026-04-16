@@ -355,7 +355,26 @@ export class ReconciliationService {
       };
     }
 
-    const D = statement.statementBalanceDate;
+    // Data de referencia = ultimo dia do mes do extrato (nao a data do OFX/LEDGERBAL que pode ser
+    // do mes seguinte — ex: extrato marco mas OFX gerado em 06/04). Cuida com fevereiro.
+    const lastDayOfMonth = new Date(statement.periodYear, statement.periodMonth, 0); // dia 0 do mes seguinte = ultimo dia do mes
+    lastDayOfMonth.setHours(23, 59, 59, 999);
+    const D = lastDayOfMonth;
+
+    // Se o saldo do OFX foi reportado em data POSTERIOR ao ultimo dia do mes,
+    // ajusta subtraindo transacoes do extrato que cairam entre D+1 e statementBalanceDate
+    let adjustedBankBalanceCents = statement.statementBalanceCents;
+    if (statement.statementBalanceDate > lastDayOfMonth) {
+      const linesAfterPeriod = await this.prisma.bankStatementLine.findMany({
+        where: {
+          statementId: statement.id,
+          transactionDate: { gt: lastDayOfMonth },
+        },
+        select: { amountCents: true },
+      });
+      const adjustmentCents = linesAfterPeriod.reduce((sum, l) => sum + l.amountCents, 0);
+      adjustedBankBalanceCents -= adjustmentCents;
+    }
     const cashAccountId = statement.cashAccountId;
     const currentBalance = statement.cashAccount.currentBalanceCents;
 
@@ -398,15 +417,15 @@ export class ReconciliationService {
       - (transferOut._sum.amountCents || 0);
 
     const systemBalanceAtD = currentBalance - movsAfterD;
-    const diff = statement.statementBalanceCents - systemBalanceAtD;
+    const diff = adjustedBankBalanceCents - systemBalanceAtD;
     // Tolerancia de 1 centavo (arredondamento)
     const matches = Math.abs(diff) <= 1;
 
     return {
       hasBalance: true,
       cashAccountName: statement.cashAccount.name,
-      bankBalanceCents: statement.statementBalanceCents,
-      bankBalanceDate: statement.statementBalanceDate,
+      bankBalanceCents: adjustedBankBalanceCents,
+      bankBalanceDate: lastDayOfMonth,
       systemBalanceCents: systemBalanceAtD,
       diffCents: diff,
       matches,
