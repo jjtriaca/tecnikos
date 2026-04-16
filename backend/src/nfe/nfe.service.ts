@@ -9,6 +9,7 @@ import { Type } from 'class-transformer';
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { NfeParserService } from './nfe-parser.service';
+import { PaymentInstrumentService } from '../finance/payment-instrument.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildSearchWhere } from '../common/util/build-search-where';
 
@@ -106,6 +107,7 @@ export class NfeService {
     private readonly prisma: PrismaService,
     private readonly codeGenerator: CodeGeneratorService,
     private readonly parser: NfeParserService,
+    private readonly paymentInstrumentService: PaymentInstrumentService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -746,39 +748,16 @@ export class NfeService {
 
         const finCode = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
 
-        // v1.09.71: Resolve autoMarkPaid a partir do paymentInstrumentId escolhido no wizard.
-        // Se o instrumento tem autoMarkPaid=true (ex: cartao, PIX, dinheiro), o entry nasce PAID
-        // com cashAccountId vinculado e saldo da conta atualizado. Mesma logica do createEntry normal.
-        let entryStatus: 'PENDING' | 'PAID' = 'PENDING';
-        let entryPaidAt: Date | undefined;
-        let entryCashAccountId: string | undefined;
-        let entryAutoMarkedPaid = false;
-        let saldoDeltaForCashAccount: { id: string; delta: number } | null = null;
-
-        if (decisions.finance?.paymentInstrumentId) {
-          const instrument = await tx.paymentInstrument.findFirst({
-            where: { id: decisions.finance.paymentInstrumentId, companyId, deletedAt: null, isActive: true },
-            select: { id: true, autoMarkPaid: true, cashAccountId: true },
-          });
-          if (instrument?.autoMarkPaid) {
-            entryStatus = 'PAID';
-            entryPaidAt = new Date();
-            entryAutoMarkedPaid = true;
-            // Resolve conta: do instrumento, ou fallback pra TRANSITO
-            entryCashAccountId = instrument.cashAccountId ?? undefined;
-            if (!entryCashAccountId) {
-              const transit = await tx.cashAccount.findFirst({
-                where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
-                select: { id: true },
-              });
-              entryCashAccountId = transit?.id;
-            }
-            if (entryCashAccountId) {
-              // PAYABLE debita a conta (sai dinheiro)
-              saldoDeltaForCashAccount = { id: entryCashAccountId, delta: -(nfeImport.totalCents ?? 0) };
-            }
-          }
-        }
+        // v1.09.72: helper unico — garante que instrumento com autoMarkPaid cria entry PAID
+        const totalCents = nfeImport.totalCents ?? 0;
+        const autoPay = await this.paymentInstrumentService.resolveAutoPay({
+          companyId,
+          paymentInstrumentId: decisions.finance?.paymentInstrumentId,
+          paymentMethodCode: decisions.finance?.paymentMethod,
+          type: 'PAYABLE',
+          netCents: totalCents,
+          tx,
+        });
 
         const financialEntry = await tx.financialEntry.create({
           data: {
@@ -786,16 +765,16 @@ export class NfeService {
             code: finCode,
             partnerId: supplierId,
             type: 'PAYABLE',
-            status: entryStatus,
-            paidAt: entryPaidAt,
-            autoMarkedPaid: entryAutoMarkedPaid,
-            cashAccountId: entryCashAccountId,
+            status: autoPay.status,
+            paidAt: autoPay.paidAt,
+            autoMarkedPaid: autoPay.autoMarkedPaid,
+            cashAccountId: autoPay.cashAccountId,
             description: `NFe ${nfeImport.nfeNumber || ''} — ${nfeImport.supplierName || 'Fornecedor'}`,
-            grossCents: nfeImport.totalCents ?? 0,
-            netCents: nfeImport.totalCents ?? 0,
+            grossCents: totalCents,
+            netCents: totalCents,
             dueDate,
             paymentMethod: decisions.finance?.paymentMethod || undefined,
-            paymentInstrumentId: decisions.finance?.paymentInstrumentId || undefined,
+            paymentInstrumentId: autoPay.resolvedInstrumentId || undefined,
             financialAccountId: decisions.finance?.financialAccountId || undefined,
             installmentCount: hasInstallments ? installments.length : null,
             notes: nfeImport.nfeKey ? `Chave NFe: ${nfeImport.nfeKey}` : undefined,
@@ -803,13 +782,7 @@ export class NfeService {
         });
         financialEntryId = financialEntry.id;
 
-        // Atualiza saldo da conta se auto-pay
-        if (saldoDeltaForCashAccount) {
-          await tx.cashAccount.update({
-            where: { id: saldoDeltaForCashAccount.id },
-            data: { currentBalanceCents: { increment: saldoDeltaForCashAccount.delta } },
-          });
-        }
+        await this.paymentInstrumentService.applyBalanceDelta(autoPay.balanceDelta, tx);
 
         // Create installment records from XML duplicatas
         if (hasInstallments) {

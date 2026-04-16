@@ -12,6 +12,7 @@ import { FocusNfeProvider, FocusNfseRecebida } from '../nfse-emission/focus-nfe.
 import { EncryptionService } from '../common/encryption.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { buildSearchWhere } from '../common/util/build-search-where';
+import { PaymentInstrumentService } from '../finance/payment-instrument.service';
 
 @Injectable()
 export class NfseEntradaService {
@@ -23,6 +24,7 @@ export class NfseEntradaService {
     private readonly focusNfe: FocusNfeProvider,
     private readonly encryption: EncryptionService,
     private readonly codeGenerator: CodeGeneratorService,
+    private readonly paymentInstrumentService: PaymentInstrumentService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -656,6 +658,7 @@ export class NfseEntradaService {
         createEntry?: boolean;
         dueDate?: string;
         paymentMethod?: string;
+        paymentInstrumentId?: string;
         financialAccountId?: string;
         linkedEntryIds?: string[];
       };
@@ -718,22 +721,39 @@ export class NfseEntradaService {
           : (entry.dataEmissao ?? undefined);
 
         const finCode = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+
+        // v1.09.72: helper unico — respeita autoMarkPaid do instrumento escolhido
+        const autoPay = await this.paymentInstrumentService.resolveAutoPay({
+          companyId,
+          paymentInstrumentId: decisions.finance.paymentInstrumentId,
+          paymentMethodCode: decisions.finance.paymentMethod,
+          type: 'PAYABLE',
+          netCents: totalCents,
+          tx,
+        });
+
         const financialEntry = await tx.financialEntry.create({
           data: {
             companyId,
             code: finCode,
             partnerId: prestadorId,
             type: 'PAYABLE',
-            status: 'PENDING',
+            status: autoPay.status,
+            paidAt: autoPay.paidAt,
+            autoMarkedPaid: autoPay.autoMarkedPaid,
+            cashAccountId: autoPay.cashAccountId,
             description: `NFS-e ${entry.numero || ''} — ${entry.prestadorRazaoSocial || 'Prestador'}`,
             grossCents: totalCents,
             netCents: totalCents,
             dueDate,
             paymentMethod: decisions.finance.paymentMethod || undefined,
+            paymentInstrumentId: autoPay.resolvedInstrumentId || undefined,
             financialAccountId: decisions.finance.financialAccountId || undefined,
           },
         });
         financialEntryId = financialEntry.id;
+
+        await this.paymentInstrumentService.applyBalanceDelta(autoPay.balanceDelta, tx);
       } else if (finMode === 'LINK' && decisions.finance.linkedEntryIds?.length) {
         // Link to existing entry(ies)
         financialEntryId = decisions.finance.linkedEntryIds[0]; // Primary link (1:1 FK)

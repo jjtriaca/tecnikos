@@ -4,8 +4,28 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
+
+/**
+ * Resultado da resolucao de auto-pay: dados prontos pra aplicar em FinancialEntry.create + ajuste de saldo.
+ * Helper unico pra garantir que TODA criacao de entry respeite a config autoMarkPaid do instrumento.
+ */
+export interface AutoPayResolution {
+  /** Status a aplicar no entry (PAID se autoMarkPaid=true, senao PENDING) */
+  status: 'PAID' | 'PENDING';
+  /** Data de pagamento (apenas se PAID) */
+  paidAt?: Date;
+  /** Conta final (respeita DTO, senao instrumento, senao TRANSITO) */
+  cashAccountId?: string;
+  /** Flag pra rastrear entries marcados PAID via auto-pay (usado em unmatch/revert) */
+  autoMarkedPaid: boolean;
+  /** ID do instrumento resolvido — passar no entry.paymentInstrumentId */
+  resolvedInstrumentId?: string;
+  /** Delta de saldo a aplicar apos create (null = nao mexer). cents tem o SINAL correto */
+  balanceDelta: { accountId: string; cents: number } | null;
+}
 
 /**
  * Detecta se um PaymentMethod representa cartao de credito (vira conta virtual CARTAO_CREDITO).
@@ -28,6 +48,107 @@ function buildExclusiveAccountName(instrumentName: string, isCredit: boolean): s
 @Injectable()
 export class PaymentInstrumentService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * HELPER UNICO pra resolucao de auto-pay ao criar FinancialEntry.
+   * Usado por TODOS os pontos do sistema que criam entries (createEntry, NFe process,
+   * NFS-e process, OS approve/finalize, renegociacao, etc.).
+   *
+   * Garante que, se o instrumento ou paymentMethod escolhido tem autoMarkPaid=true,
+   * o entry nasce PAID com cashAccountId e saldo da conta atualizado. Se nao, PENDING.
+   *
+   * Regras:
+   *  1. Se `paymentInstrumentId` fornecido, usa ele. Senao, resolve via paymentMethod code
+   *     (primeiro instrumento ativo do mesmo metodo, preferindo autoMarkPaid=true).
+   *  2. cashAccountId final: DTO > instrumento > fallback TRANSITO (so se autoMarkPaid=true).
+   *  3. balanceDelta: RECEIVABLE = +netCents, PAYABLE = -netCents (so quando autoMarkPaid).
+   *  4. Aceita tx opcional pra ser chamado dentro de transacao existente.
+   */
+  async resolveAutoPay(params: {
+    companyId: string;
+    paymentInstrumentId?: string | null;
+    paymentMethodCode?: string | null;
+    dtoCashAccountId?: string | null;
+    type: 'RECEIVABLE' | 'PAYABLE';
+    netCents: number;
+    tx?: Prisma.TransactionClient;
+  }): Promise<AutoPayResolution> {
+    const client = params.tx ?? this.prisma;
+    let resolvedInstrumentId: string | undefined = params.paymentInstrumentId ?? undefined;
+    let instrument: { id: string; autoMarkPaid: boolean; cashAccountId: string | null } | null = null;
+
+    if (resolvedInstrumentId) {
+      instrument = await client.paymentInstrument.findFirst({
+        where: { id: resolvedInstrumentId, companyId: params.companyId, deletedAt: null, isActive: true },
+        select: { id: true, autoMarkPaid: true, cashAccountId: true },
+      });
+      if (!instrument) resolvedInstrumentId = undefined;
+    } else if (params.paymentMethodCode) {
+      // Resolve via paymentMethod code — pega o instrumento padrao (autoMarkPaid=true primeiro)
+      const pm = await client.paymentMethod.findFirst({
+        where: { companyId: params.companyId, code: params.paymentMethodCode, deletedAt: null, isActive: true },
+        select: { id: true },
+      });
+      if (pm) {
+        instrument = await client.paymentInstrument.findFirst({
+          where: { companyId: params.companyId, paymentMethodId: pm.id, deletedAt: null, isActive: true },
+          orderBy: [{ autoMarkPaid: 'desc' }, { sortOrder: 'asc' }],
+          select: { id: true, autoMarkPaid: true, cashAccountId: true },
+        });
+        if (instrument) resolvedInstrumentId = instrument.id;
+      }
+    }
+
+    // Default: nao autoMarkPaid
+    if (!instrument?.autoMarkPaid) {
+      return {
+        status: 'PENDING',
+        paidAt: undefined,
+        cashAccountId: params.dtoCashAccountId ?? undefined,
+        autoMarkedPaid: false,
+        resolvedInstrumentId,
+        balanceDelta: null,
+      };
+    }
+
+    // autoMarkPaid=true — determina conta final
+    let finalCashAccountId: string | undefined = params.dtoCashAccountId ?? instrument.cashAccountId ?? undefined;
+    if (!finalCashAccountId) {
+      const transit = await client.cashAccount.findFirst({
+        where: { companyId: params.companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
+        select: { id: true },
+      });
+      finalCashAccountId = transit?.id;
+    }
+
+    const balanceDelta = finalCashAccountId
+      ? { accountId: finalCashAccountId, cents: params.type === 'RECEIVABLE' ? params.netCents : -params.netCents }
+      : null;
+
+    return {
+      status: 'PAID',
+      paidAt: new Date(),
+      cashAccountId: finalCashAccountId,
+      autoMarkedPaid: true,
+      resolvedInstrumentId,
+      balanceDelta,
+    };
+  }
+
+  /**
+   * Aplica o delta de saldo resultado de resolveAutoPay. Chame apos o create do entry.
+   */
+  async applyBalanceDelta(
+    delta: AutoPayResolution['balanceDelta'],
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    if (!delta) return;
+    const client = tx ?? this.prisma;
+    await client.cashAccount.update({
+      where: { id: delta.accountId },
+      data: { currentBalanceCents: { increment: delta.cents } },
+    });
+  }
 
   /**
    * Garante que todo PaymentMethod ativo da empresa tenha pelo menos 1 PaymentInstrument
