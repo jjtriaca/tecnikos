@@ -1687,14 +1687,27 @@ export default function NfePage() {
       setCreateFinancialEntry(true);
       setFinanceDueDate(imp.issueDate ? imp.issueDate.split("T")[0] : "");
 
-      // Pre-seleciona o meio de pagamento baseado no bloco <pag> do XML (se informado).
-      // Mapeia tPagSystemCode (ex: PIX, DINHEIRO, CARTAO_CREDITO) pro primeiro PaymentInstrument
-      // ativo que usa esse PaymentMethod.code. Se nao achar, deixa vazio pro usuario escolher.
+      // Pre-seleciona o meio de pagamento baseado no bloco <pag> do XML.
+      // Estrategia: filtra por metodo correto E showInPayables=true (NFe entrada = empresa paga);
+      // se tiver bandeira no XML, prioriza instrumento cujo nome contenha a bandeira (ex: "Visa Juliano").
       const xmlPayment = imp.payments && imp.payments.length > 0 ? imp.payments[0] : null;
       if (xmlPayment?.tPagSystemCode) {
-        const matched = nfePaymentInstruments.find(
-          (pi: any) => pi.paymentMethod?.code === xmlPayment.tPagSystemCode && pi.isActive !== false,
+        const candidates = nfePaymentInstruments.filter(
+          (pi: any) => pi.paymentMethod?.code === xmlPayment.tPagSystemCode
+            && pi.isActive !== false
+            && pi.showInPayables !== false,
         );
+        let matched: any = null;
+        if (xmlPayment.cardBrand && candidates.length > 0) {
+          const brandUpper = xmlPayment.cardBrand.toUpperCase();
+          matched = candidates.find(
+            (pi: any) => pi.name?.toUpperCase().includes(brandUpper)
+              || pi.cardBrand?.toUpperCase() === brandUpper,
+          );
+        }
+        if (!matched && candidates.length > 0) {
+          matched = candidates[0]; // fallback: primeiro do mesmo metodo
+        }
         if (matched) {
           setFinancePaymentInstrumentId(matched.id);
           setFinancePaymentMethod(matched.paymentMethod?.code || "");
@@ -2578,6 +2591,39 @@ export default function NfePage() {
                         {/* Meio de pagamento (PaymentInstrument) */}
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
                           <label className="block text-sm font-medium text-slate-700 mb-2">Meio de Pagamento *</label>
+
+                          {/* Badge: o que a NFe informou no bloco <pag> */}
+                          {(() => {
+                            const xmlPayments = nfeData?.payments || [];
+                            if (xmlPayments.length === 0) {
+                              return (
+                                <div className="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                                  <span className="font-medium">Nota fiscal:</span> nao informou meio de pagamento no XML.
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="mb-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] text-blue-800 space-y-0.5">
+                                {xmlPayments.map((p, idx) => {
+                                  const bits: string[] = [];
+                                  if (p.tPagLabel) bits.push(p.tPagLabel);
+                                  if (p.cardBrand) bits.push(`bandeira ${p.cardBrand}`);
+                                  if (p.indPag === "0") bits.push("a vista");
+                                  else if (p.indPag === "1") bits.push("a prazo");
+                                  const desc = bits.join(" - ");
+                                  const val = (p.valueCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+                                  return (
+                                    <div key={idx}>
+                                      <span className="font-medium">Nota fiscal:</span>{" "}
+                                      {desc || `Tipo ${p.tPag ?? "?"}`}
+                                      {" - "}{val}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+
                           <select
                             value={financePaymentInstrumentId}
                             onChange={(e) => {
