@@ -321,6 +321,17 @@ export class FinanceController {
     return this.reconciliationService.findStatementLines(statementId, user.companyId, status);
   }
 
+  // Compara o saldo oficial do banco (OFX LEDGERBAL) com o saldo do sistema
+  // calculado na mesma data — util pra auditoria de fechamento mensal.
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('reconciliation/statements/:statementId/balance-compare')
+  getStatementBalanceCompare(
+    @Param('statementId') statementId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.getStatementBalanceCompare(statementId, user.companyId);
+  }
+
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Get('reconciliation/imports')
   findReconciliationImports(@CurrentUser() user: AuthenticatedUser) {

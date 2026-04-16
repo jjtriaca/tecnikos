@@ -2324,6 +2324,16 @@ function StatementsSection() {
    LINES DETAIL VIEW
    ══════════════════════════════════════════════════════════ */
 
+interface BalanceCompare {
+  hasBalance: boolean;
+  cashAccountName: string;
+  bankBalanceCents: number | null;
+  bankBalanceDate: string | null;
+  systemBalanceCents: number | null;
+  diffCents: number | null;
+  matches: boolean | null;
+}
+
 function LinesDetail({ statement, onChanged }: { statement: BankStatement; onChanged?: () => void }) {
   const [lines, setLines] = useState<BankStatementLine[]>([]);
   const [allLinesForPair, setAllLinesForPair] = useState<BankStatementLine[]>([]);
@@ -2334,7 +2344,17 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
   const [refundLine, setRefundLine] = useState<BankStatementLine | null>(null);
   const [cardInvoiceLine, setCardInvoiceLine] = useState<BankStatementLine | null>(null);
   const [transferLine, setTransferLine] = useState<BankStatementLine | null>(null);
+  const [balanceCompare, setBalanceCompare] = useState<BalanceCompare | null>(null);
   const { toast } = useToast();
+
+  // Carrega o comparativo de saldo (banco vs sistema) quando o statement muda
+  useEffect(() => {
+    if (!statement?.id) return;
+    api
+      .get<BalanceCompare>(`/finance/reconciliation/statements/${statement.id}/balance-compare`)
+      .then(setBalanceCompare)
+      .catch(() => setBalanceCompare(null));
+  }, [statement?.id]);
 
   const RECON_COLUMNS: ColumnDefinition<BankStatementLine>[] = [
     { id: "actions", label: "Ações", render: () => null as any },
@@ -2444,6 +2464,51 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
 
   return (
     <div>
+      {/* Card comparativo: saldo do banco (OFX) vs saldo calculado pelo sistema na mesma data */}
+      {balanceCompare?.hasBalance && balanceCompare.bankBalanceDate && (
+        <div className={`mb-3 rounded-xl border p-3 ${
+          balanceCompare.matches
+            ? "border-green-200 bg-green-50/50"
+            : "border-amber-300 bg-amber-50/70"
+        }`}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-semibold text-slate-700">
+              {balanceCompare.matches ? "\u2705" : "\u26A0\uFE0F"} Conferencia de saldo
+            </span>
+            <span className="text-[10px] text-slate-500">
+              Data de referencia: {formatDate(balanceCompare.bankBalanceDate)}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <p className="text-[10px] text-slate-500 mb-0.5">Saldo no banco (OFX)</p>
+              <p className="font-semibold text-slate-800">{formatCurrency(balanceCompare.bankBalanceCents!)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 mb-0.5">Saldo no sistema (calculado)</p>
+              <p className="font-semibold text-slate-800">{formatCurrency(balanceCompare.systemBalanceCents!)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 mb-0.5">Diferenca</p>
+              <p className={`font-semibold ${
+                balanceCompare.matches
+                  ? "text-green-700"
+                  : Math.abs(balanceCompare.diffCents || 0) > 0
+                  ? "text-red-700"
+                  : "text-slate-800"
+              }`}>
+                {formatCurrency(balanceCompare.diffCents || 0)}
+              </p>
+            </div>
+          </div>
+          {!balanceCompare.matches && (
+            <p className="text-[11px] text-amber-800 mt-2">
+              O saldo do sistema nao bate com o banco. Verifique se todos os lancamentos foram registrados e conciliados corretamente.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-semibold text-slate-700">
           Transacoes — {MONTH_NAMES_PT[statement.periodMonth]} / {statement.periodYear}

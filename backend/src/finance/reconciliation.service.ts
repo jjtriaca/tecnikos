@@ -58,7 +58,8 @@ export class ReconciliationService {
     // Detect file type and parse
     const fileType = fileName.toLowerCase().endsWith('.ofx') ? 'OFX' : 'CSV';
     const isOfx = fileType === 'OFX';
-    const ofxTransactions = isOfx ? this.ofxParser.parse(fileContent) : [];
+    const ofxResult = isOfx ? this.ofxParser.parseWithMeta(fileContent) : null;
+    const ofxTransactions = ofxResult?.transactions ?? [];
     const csvTransactions = isOfx ? [] : this.csvParser.parse(fileContent);
     const totalCount = isOfx ? ofxTransactions.length : csvTransactions.length;
 
@@ -180,7 +181,16 @@ export class ReconciliationService {
           })),
         });
 
-        // Update statement: bump lineCount, refresh last* (overwrite fileName)
+        // Saldo do OFX (LEDGERBAL) — grava apenas no statement que cobre a data DTASOF
+        const shouldWriteBalance = isOfx
+          && ofxResult?.statementBalanceCents != null
+          && ofxResult?.statementBalanceDate
+          && (() => {
+            const { year: balYear, month: balMonth } = this.getBrazilianPeriod(ofxResult.statementBalanceDate);
+            return balYear === year && balMonth === month;
+          })();
+
+        // Update statement: bump lineCount, refresh last* (overwrite fileName), grava saldo se aplicavel
         await tx.bankStatement.update({
           where: { id: statement.id },
           data: {
@@ -188,6 +198,10 @@ export class ReconciliationService {
             lastImportAt: new Date(),
             lastImportByName: importedByName,
             lastFileName: fileName,
+            ...(shouldWriteBalance && {
+              statementBalanceCents: ofxResult!.statementBalanceCents,
+              statementBalanceDate: ofxResult!.statementBalanceDate,
+            }),
           },
         });
 
@@ -242,6 +256,102 @@ export class ReconciliationService {
       },
       take: 100,
     });
+  }
+
+  /**
+   * Calcula o saldo do SISTEMA na data informada pelo OFX (statementBalanceDate)
+   * e compara com o saldo do banco (statementBalanceCents).
+   *
+   * Abordagem: parte do saldo atual da conta e "reverte" os movimentos posteriores a D.
+   *   saldo_sistema_em_D = saldo_atual - movs_apos_D
+   *   movs_apos_D = (receivable PAID) - (payable PAID) + (transfer_in) - (transfer_out)
+   *
+   * Assim o sinal do saldo_sistema bate com banco (positivo = dinheiro em conta).
+   */
+  async getStatementBalanceCompare(statementId: string, companyId: string) {
+    const statement = await this.prisma.bankStatement.findFirst({
+      where: { id: statementId, companyId },
+      include: {
+        cashAccount: { select: { id: true, name: true, currentBalanceCents: true } },
+      },
+    });
+    if (!statement) throw new NotFoundException('Extrato não encontrado.');
+
+    if (statement.statementBalanceCents == null || !statement.statementBalanceDate) {
+      return {
+        hasBalance: false,
+        cashAccountName: statement.cashAccount.name,
+        bankBalanceCents: null,
+        bankBalanceDate: null,
+        systemBalanceCents: null,
+        diffCents: null,
+        matches: null,
+      };
+    }
+
+    const D = statement.statementBalanceDate;
+    const cashAccountId = statement.cashAccountId;
+    const currentBalance = statement.cashAccount.currentBalanceCents;
+
+    // Movimentos APOS a data D (que afetaram o saldo entre D e hoje)
+    const [rec, pay, transferIn, transferOut] = await Promise.all([
+      this.prisma.financialEntry.aggregate({
+        where: {
+          cashAccountId,
+          status: 'PAID',
+          paidAt: { gt: D },
+          type: 'RECEIVABLE',
+          deletedAt: null,
+        },
+        _sum: { netCents: true },
+      }),
+      this.prisma.financialEntry.aggregate({
+        where: {
+          cashAccountId,
+          status: 'PAID',
+          paidAt: { gt: D },
+          type: 'PAYABLE',
+          deletedAt: null,
+        },
+        _sum: { netCents: true },
+      }),
+      this.prisma.accountTransfer.aggregate({
+        where: { toAccountId: cashAccountId, transferDate: { gt: D } },
+        _sum: { amountCents: true },
+      }),
+      this.prisma.accountTransfer.aggregate({
+        where: { fromAccountId: cashAccountId, transferDate: { gt: D } },
+        _sum: { amountCents: true },
+      }),
+    ]);
+
+    const movsAfterD =
+      (rec._sum.netCents || 0)
+      - (pay._sum.netCents || 0)
+      + (transferIn._sum.amountCents || 0)
+      - (transferOut._sum.amountCents || 0);
+
+    const systemBalanceAtD = currentBalance - movsAfterD;
+    const diff = statement.statementBalanceCents - systemBalanceAtD;
+    // Tolerancia de 1 centavo (arredondamento)
+    const matches = Math.abs(diff) <= 1;
+
+    return {
+      hasBalance: true,
+      cashAccountName: statement.cashAccount.name,
+      bankBalanceCents: statement.statementBalanceCents,
+      bankBalanceDate: statement.statementBalanceDate,
+      systemBalanceCents: systemBalanceAtD,
+      diffCents: diff,
+      matches,
+      breakdown: {
+        currentBalance,
+        receivableAfterCents: rec._sum.netCents || 0,
+        payableAfterCents: pay._sum.netCents || 0,
+        transferInAfterCents: transferIn._sum.amountCents || 0,
+        transferOutAfterCents: transferOut._sum.amountCents || 0,
+      },
+    };
   }
 
   /**

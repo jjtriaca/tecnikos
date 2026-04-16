@@ -1540,6 +1540,10 @@ model BankStatement {
   lastImportAt    DateTime?
   lastImportByName String?
   lastFileName    String?
+  // Saldo oficial do banco reportado no OFX (v1.09.51)
+  // Usado pra comparar com o saldo calculado do sistema (auditoria de fechamento)
+  statementBalanceCents Int?
+  statementBalanceDate  DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

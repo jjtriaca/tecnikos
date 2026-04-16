@@ -9,13 +9,31 @@ export interface OfxTransaction {
   refNum?: string;
 }
 
+export interface OfxParseResult {
+  transactions: OfxTransaction[];
+  // Saldo reportado pelo banco (LEDGERBAL) e a data de referencia desse saldo
+  statementBalanceCents: number | null;
+  statementBalanceDate: Date | null;
+  // Periodo do extrato (DTSTART / DTEND do BANKTRANLIST)
+  periodStart: Date | null;
+  periodEnd: Date | null;
+}
+
 @Injectable()
 export class OfxParserService {
   /**
-   * Parse OFX file content and extract transactions.
+   * Parse OFX file content and extract transactions + saldo do banco (LEDGERBAL).
    * Uses regex-based extraction instead of XML parser to handle SGML-style OFX reliably.
+   * Retorna array direto pra compat com codigo antigo; use parseWithMeta() pra metadados.
    */
   parse(content: string): OfxTransaction[] {
+    return this.parseWithMeta(content).transactions;
+  }
+
+  /**
+   * Parse com metadados completos (saldo + periodo + transacoes).
+   */
+  parseWithMeta(content: string): OfxParseResult {
     try {
       // Find OFX content
       const ofxStart = content.indexOf('<OFX');
@@ -24,6 +42,30 @@ export class OfxParserService {
       }
       const ofxContent = content.substring(ofxStart);
 
+      // Extract LEDGERBAL block (saldo atual do banco)
+      const ledgerBlocks = this.extractBlocks(ofxContent, 'LEDGERBAL');
+      let statementBalanceCents: number | null = null;
+      let statementBalanceDate: Date | null = null;
+      if (ledgerBlocks.length > 0) {
+        const balBlock = ledgerBlocks[0];
+        const balAmt = this.extractValue(balBlock, 'BALAMT');
+        const dtAsof = this.extractValue(balBlock, 'DTASOF');
+        if (balAmt) {
+          statementBalanceCents = Math.round(parseFloat(balAmt) * 100);
+        }
+        if (dtAsof) {
+          statementBalanceDate = this.parseOfxDate(dtAsof);
+        }
+      }
+
+      // Extract period (DTSTART, DTEND)
+      let periodStart: Date | null = null;
+      let periodEnd: Date | null = null;
+      const dtStart = this.extractValue(ofxContent, 'DTSTART');
+      const dtEnd = this.extractValue(ofxContent, 'DTEND');
+      if (dtStart) periodStart = this.parseOfxDate(dtStart);
+      if (dtEnd) periodEnd = this.parseOfxDate(dtEnd);
+
       // Extract all STMTTRN blocks using regex (handles both SGML and XML styles)
       const transactionBlocks = this.extractBlocks(ofxContent, 'STMTTRN');
       if (transactionBlocks.length === 0) {
@@ -31,7 +73,7 @@ export class OfxParserService {
         if (!ofxContent.includes('BANKTRANLIST') && !ofxContent.includes('CCSTMTRS')) {
           throw new BadRequestException('Arquivo OFX não contém dados de extrato bancário.');
         }
-        return [];
+        return { transactions: [], statementBalanceCents, statementBalanceDate, periodStart, periodEnd };
       }
 
       const transactions: OfxTransaction[] = [];
@@ -60,7 +102,7 @@ export class OfxParserService {
         });
       }
 
-      return transactions;
+      return { transactions, statementBalanceCents, statementBalanceDate, periodStart, periodEnd };
     } catch (err) {
       if (err instanceof BadRequestException) throw err;
       throw new BadRequestException(`Erro ao processar arquivo OFX: ${(err as Error).message}`);
