@@ -780,14 +780,12 @@ export class ReconciliationService {
                 isRefundEntry: true, // marca como entry tecnico (nao aparece em DRE cliente)
               },
             });
-            // v1.09.68b: Corrige o entry PRINCIPAL pra netCents refletir o LIQUIDO realmente recebido.
-            // Sem isso, entry.netCents = bruto (400) mas saldo so teve +394 = divergencia no calculo retroativo.
-            // O entry original representa o RECEBIMENTO: ajustamos o netCents pro valor liquido da linha.
-            // O bruto e a taxa ficam rastreados no entry PAYABLE tecnico criado acima.
-            await tx.financialEntry.update({
-              where: { id: entryBefore.id },
-              data: { netCents: Math.abs(line.amountCents) },
-            });
+            // v1.09.70: saldo ja foi incrementado com line.amountCents (o LIQUIDO). NAO mexer mais.
+            // Matematica:
+            //   entry_rec.netCents = 400 (valor bruto — total recebido do cliente)
+            //   entry_pay_taxa.netCents = 6 (despesa de taxa)
+            //   Liquido entries: +400 - 6 = +394 = line.amountCents (o saldo aumentou)
+            //   Calculo retroativo: saldo - (+394) = saldo_antes_match ✓
           }
         } else {
           // Entry ja PAID — aplica plano (se veio) e corrige paidAt pra data REAL do banco.
@@ -1642,8 +1640,9 @@ export class ReconciliationService {
           data: { currentBalanceCents: { decrement: line.amountCents } },
         });
 
-        // v1.09.68: Reverte entry de taxa de cartao se existir (criado durante match)
-        // Identifica pela descricao (linha ${id.substring(0,8)}).
+        // v1.09.70: Reverte entry de taxa de cartao se existir (criado durante match).
+        // Como o match v1.09.70 NAO decrementa saldo ao criar entry de taxa (saldo += line.amountCents
+        // ja e o liquido apos taxa), o unmatch so precisa DELETAR o entry tecnico — sem mexer no saldo.
         if (line.matchedTaxCents && line.matchedTaxCents > 0) {
           const linePrefix = line.id.substring(0, 8);
           const taxEntry = await this.prisma.financialEntry.findFirst({
@@ -1659,11 +1658,6 @@ export class ReconciliationService {
             select: { id: true },
           });
           if (taxEntry) {
-            // Reverte saldo do banco (a taxa tinha decrementado) e deleta entry
-            await this.prisma.cashAccount.update({
-              where: { id: bankAccountId },
-              data: { currentBalanceCents: { increment: line.matchedTaxCents } },
-            });
             await this.prisma.financialEntry.delete({ where: { id: taxEntry.id } });
           }
         }
@@ -1675,8 +1669,6 @@ export class ReconciliationService {
             paidAt: null,
             cashAccountId: null,
             autoMarkedPaid: false,
-            // Restaura netCents pro bruto (durante match de cartao, netCents foi ajustado pro liquido)
-            netCents: entry.grossCents,
           },
         });
       } else if (entry?.cashAccountId === bankAccountId) {
