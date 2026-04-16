@@ -780,11 +780,13 @@ export class ReconciliationService {
                 isRefundEntry: true, // marca como entry tecnico (nao aparece em DRE cliente)
               },
             });
-            // Nao mexer no saldo: a taxa e um debito virtual — o line.amountCents ja e o liquido
-            // Subtraimos a taxa pra manter o saldo correto (sistema agora sabe do pay de taxa)
-            await tx.cashAccount.update({
-              where: { id: bankAccountId },
-              data: { currentBalanceCents: { decrement: taxCents } },
+            // v1.09.68b: Corrige o entry PRINCIPAL pra netCents refletir o LIQUIDO realmente recebido.
+            // Sem isso, entry.netCents = bruto (400) mas saldo so teve +394 = divergencia no calculo retroativo.
+            // O entry original representa o RECEBIMENTO: ajustamos o netCents pro valor liquido da linha.
+            // O bruto e a taxa ficam rastreados no entry PAYABLE tecnico criado acima.
+            await tx.financialEntry.update({
+              where: { id: entryBefore.id },
+              data: { netCents: Math.abs(line.amountCents) },
             });
           }
         } else {
@@ -1630,7 +1632,7 @@ export class ReconciliationService {
     if (line.matchedEntryId) {
       const entry = await this.prisma.financialEntry.findUnique({
         where: { id: line.matchedEntryId },
-        select: { cashAccountId: true, autoMarkedPaid: true },
+        select: { cashAccountId: true, autoMarkedPaid: true, grossCents: true },
       });
 
       if (entry?.autoMarkedPaid) {
@@ -1673,6 +1675,8 @@ export class ReconciliationService {
             paidAt: null,
             cashAccountId: null,
             autoMarkedPaid: false,
+            // Restaura netCents pro bruto (durante match de cartao, netCents foi ajustado pro liquido)
+            netCents: entry.grossCents,
           },
         });
       } else if (entry?.cashAccountId === bankAccountId) {
