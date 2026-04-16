@@ -361,11 +361,18 @@ const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
     render: () => null as any,
   },
   {
-    id: "nsu",
-    label: "NSU",
+    id: "numero",
+    label: "Numero",
     sortable: true,
-    sortKey: "nsu",
-    render: (doc) => <span className="font-mono text-xs text-slate-700">{doc.nsu}</span>,
+    sortKey: "nfeKey",
+    render: (doc) => {
+      // Extrai o nNF da chave NFe (posicoes 25-33, 9 digitos) e remove leading zeros
+      if (!doc.nfeKey || doc.nfeKey.length < 34) {
+        return <span className="font-mono text-xs text-slate-400">\u2014</span>;
+      }
+      const nNF = doc.nfeKey.substring(25, 34).replace(/^0+/, "") || "0";
+      return <span className="font-mono text-sm font-semibold text-slate-700" title={`NSU: ${doc.nsu}`}>{nNF}</span>;
+    },
   },
   {
     id: "schema",

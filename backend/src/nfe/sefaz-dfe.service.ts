@@ -467,14 +467,45 @@ export class SefazDfeService implements OnModuleInit {
           try {
             const docData = this.parseSefazDocument(doc.xml, doc.nsu, doc.schema);
 
-            // Check if document already exists (for auto-import logic)
-            const existing = await this.prisma.sefazDocument.findFirst({
-              where: { companyId, nsu: doc.nsu },
-              select: { id: true, status: true },
-            });
+            // Para NFes reais (procNFe/resNFe), checar se ja existe registro pela chave.
+            // Evita duplicatas quando a mesma NFe retorna em syncs diferentes com NSUs distintos
+            // (acontece apos manifestacao de ciencia — SEFAZ reenvia a NFe com novo NSU).
+            if (docData.nfeKey && (docData.schema === 'procNFe' || docData.schema === 'resNFe')) {
+              const existingByKey = await this.prisma.sefazDocument.findFirst({
+                where: {
+                  companyId,
+                  nfeKey: docData.nfeKey,
+                  schema: { in: ['procNFe', 'resNFe'] },
+                },
+                select: { id: true, schema: true, status: true, nsu: true },
+              });
 
-            // Upsert (skip if NSU already exists)
-            const upserted = await this.prisma.sefazDocument.upsert({
+              if (existingByKey) {
+                // Ja existe um registro pra essa chave. Se o novo e procNFe e o existente e resNFe
+                // (ou nao tem XML), faz upgrade; caso contrario, ignora o duplicado.
+                const shouldUpgrade = docData.schema === 'procNFe' && existingByKey.schema !== 'procNFe';
+                if (shouldUpgrade) {
+                  await this.prisma.sefazDocument.update({
+                    where: { id: existingByKey.id },
+                    data: {
+                      schema: 'procNFe',
+                      xmlContent: doc.xml,
+                      emitterName: docData.emitterName || undefined,
+                      nfeValue: docData.nfeValue || undefined,
+                      // NSU pode ter mudado tambem — atualiza pro mais recente
+                      nsu: doc.nsu,
+                    },
+                  });
+                  this.logger.log(`NFe ${docData.nfeKey} atualizada de ${existingByKey.schema} pra procNFe (NSU ${existingByKey.nsu} -> ${doc.nsu})`);
+                } else {
+                  this.logger.log(`NFe ${docData.nfeKey} ja existe (id=${existingByKey.id}, schema=${existingByKey.schema}). Ignorando NSU ${doc.nsu}.`);
+                }
+                continue;
+              }
+            }
+
+            // Criar novo registro (por NSU — eventos ou NFes novas)
+            await this.prisma.sefazDocument.upsert({
               where: {
                 companyId_nsu: { companyId, nsu: doc.nsu },
               },

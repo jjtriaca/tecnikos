@@ -850,16 +850,25 @@ function ConciliationModal({
     return entry.netCents || entry.grossCents;
   }
 
-  /** Sort candidates: exact matches first, then by date proximity */
+  /** Sort candidates: exact matches first, then by date proximity.
+   * Se a busca tem 4 digitos numericos, usa como filtro exato em receivedCardLast4
+   * (criterio principal quando o usuario anotou os 4 digitos do cartao do cliente).
+   */
   function getSortedCandidates() {
     if (!line) return candidates;
     const lineAbs = Math.abs(line.amountCents);
 
     let filtered = candidates;
-    if (search.trim()) {
-      const terms = search.toLowerCase().trim().split(/\s+/);
+    const trimmed = search.trim();
+
+    // Filtro especial: 4 digitos numericos = busca direta por receivedCardLast4
+    if (/^\d{4}$/.test(trimmed)) {
+      filtered = candidates.filter((e) => e.receivedCardLast4 === trimmed);
+    } else if (trimmed) {
+      // Busca multi-palavra: precisa bater TODAS nas propriedades de texto + cardLast4 como bonus
+      const terms = trimmed.toLowerCase().split(/\s+/);
       filtered = candidates.filter((e) => {
-        const haystack = `${e.code || ""} ${e.description || ""} ${e.partner?.name || ""}`.toLowerCase();
+        const haystack = `${e.code || ""} ${e.description || ""} ${e.partner?.name || ""} ${e.receivedCardLast4 || ""}`.toLowerCase();
         return terms.every((t) => haystack.includes(t));
       });
     }
@@ -1066,7 +1075,7 @@ function ConciliationModal({
           <div className="mb-3">
             <input
               type="text"
-              placeholder="Buscar lancamento por codigo, descricao ou parceiro..."
+              placeholder="Buscar por codigo, descricao, parceiro ou 4 digitos do cartao..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
@@ -1131,6 +1140,11 @@ function ConciliationModal({
                         {isPending && (
                           <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
                             Pendente
+                          </span>
+                        )}
+                        {entry.receivedCardLast4 && (
+                          <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap font-mono tracking-wider">
+                            &bull;&bull;&bull;&bull; {entry.receivedCardLast4}
                           </span>
                         )}
                       </div>
