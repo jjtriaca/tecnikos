@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsEnum, IsNotEmpty, IsDateString, IsBoolean, Min, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsEnum, IsNotEmpty, IsDateString, IsBoolean, Min, IsNumber, Matches } from 'class-validator';
 
 export class CreateFinancialEntryDto {
   @IsEnum(['RECEIVABLE', 'PAYABLE'])
@@ -70,6 +70,12 @@ export class CreateFinancialEntryDto {
   @IsOptional()
   @IsString()
   cashAccountId?: string;
+
+  // 4 ultimos digitos do cartao do CLIENTE (em recebimentos via cartao).
+  // Diferente de PaymentInstrument.cardLast4 (que e do cartao da empresa/maquina).
+  @IsOptional()
+  @Matches(/^\d{4}$/, { message: 'Ultimos 4 digitos devem ser 4 numeros.' })
+  receivedCardLast4?: string;
 }
 
 export class UpdateFinancialEntryDto {
@@ -141,6 +147,10 @@ export class ChangeEntryStatusDto {
   @IsOptional()
   @IsString()
   paymentInstrumentId?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}$/, { message: 'Ultimos 4 digitos devem ser 4 numeros.' })
+  receivedCardLast4?: string;
 
   // Check (cheque) data fields
   @IsOptional()

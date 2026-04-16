@@ -1603,6 +1603,7 @@ export class ServiceOrderService {
       cardBrand?: string;
       cardFeeRateId?: string;
       installmentCount?: number;
+      receivedCardLast4?: string;
     },
   ) {
     const so = await this.prisma.serviceOrder.findFirst({
@@ -1705,6 +1706,7 @@ export class ServiceOrderService {
             paidAt: now,
             paymentMethod: data.paymentMethod || undefined,
             cardBrand: data.cardBrand || undefined,
+            receivedCardLast4: data.receivedCardLast4 || undefined,
             installmentCount: nParcelas > 1 ? nParcelas : undefined,
             description: `A receber OS: ${so.title} (Antecipado)`,
             grossCents,

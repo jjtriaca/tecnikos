@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 export class EarlyFinancialDto {
   @IsBoolean()
@@ -39,4 +39,9 @@ export class EarlyFinancialDto {
   @IsInt()
   @Min(1)
   installmentCount?: number;
+
+  // 4 ultimos digitos do cartao do cliente (em recebimentos via cartao)
+  @IsOptional()
+  @Matches(/^\d{4}$/, { message: 'Ultimos 4 digitos devem ser 4 numeros.' })
+  receivedCardLast4?: string;
 }

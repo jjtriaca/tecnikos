@@ -15,6 +15,7 @@ import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
 import DraggableHeader from "@/components/ui/DraggableHeader";
 import Pagination from "@/components/ui/Pagination";
+import CardLast4Input, { isCardPayment as isCardPaymentCheck } from "@/components/ui/CardLast4Input";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
@@ -1082,12 +1083,15 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const [checkAccount, setCheckAccount] = useState("");
   const [checkClearanceDate, setCheckClearanceDate] = useState("");
   const [checkHolder, setCheckHolder] = useState("");
+  // 4 ultimos digitos do cartao do cliente no momento de receber
+  const [payCardLast4, setPayCardLast4] = useState("");
 
   // Report modal
   const [showReportModal, setShowReportModal] = useState(false);
 
   // New entry modal
   const [showNewForm, setShowNewForm] = useState(false);
+  const [receivedCardLast4, setReceivedCardLast4] = useState("");
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "" });
   const [selectedPartner, setSelectedPartner] = useState<PartnerSummary | null>(null);
@@ -1378,6 +1382,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         cardFeeRateId: isReceivableCard ? selectedCardRateId : undefined,
         cashAccountId: isReceivableCard ? undefined : (selectedAccountId || undefined),
         paymentInstrumentId: selectedInstrumentId || undefined,
+        receivedCardLast4: (isReceivableCard && payCardLast4.length === 4) ? payCardLast4 : undefined,
         ...(isCheckPay && {
           checkNumber: checkNumber || undefined,
           checkBank: checkBank || undefined,
@@ -1465,10 +1470,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         financialAccountId: formData.financialAccountId || undefined,
         paymentMethod: formData.paymentMethod || undefined,
         paymentInstrumentId: formData.paymentInstrumentId || undefined,
+        receivedCardLast4: receivedCardLast4 && receivedCardLast4.length === 4 ? receivedCardLast4 : undefined,
       });
       toast("Entrada criada com sucesso!", "success");
       setShowNewForm(false);
       setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "" });
+      setReceivedCardLast4("");
       setSelectedPartner(null);
       await loadEntries();
     } catch {
@@ -1815,7 +1822,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       {/* Payment method modal */}
       {payAction && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); setShowManualPayable(false); setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder(""); }} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); setShowManualPayable(false); setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder(""); setPayCardLast4(""); }} />
           <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
             <div className="flex items-start gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
@@ -1985,6 +1992,15 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 <p className="text-[10px] text-blue-600">
                   O saldo do caixa sera atualizado na baixa (aba Baixa Cartoes).
                 </p>
+              )}
+
+              {/* 4 ultimos digitos do cartao do CLIENTE (so em recebimentos via cartao) */}
+              {type === "RECEIVABLE" && isCardPayment && (
+                <CardLast4Input
+                  value={payCardLast4}
+                  onChange={setPayCardLast4}
+                  hint="Cartão do cliente — facilita identificar o pagamento depois."
+                />
               )}
 
               {/* Cash account (optional — hidden for card payments) */}
@@ -2229,6 +2245,22 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   })}
                 </select>
               </div>
+              {/* 4 ultimos digitos do cartao do CLIENTE — so em RECEBIMENTOS via cartao */}
+              {type === "RECEIVABLE" && (() => {
+                const pi = allInstruments.find((i: any) => i.id === formData.paymentInstrumentId);
+                const code = pi?.paymentMethod?.code || "";
+                const show = isCardPaymentCheck({ paymentMethodCode: code, requiresBrand: pi?.paymentMethod?.requiresBrand });
+                if (!show) return null;
+                return (
+                  <div>
+                    <CardLast4Input
+                      value={receivedCardLast4}
+                      onChange={setReceivedCardLast4}
+                      hint="Cartão do cliente — ajuda a identificar o pagamento na conciliação."
+                    />
+                  </div>
+                );
+              })()}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
                 <select

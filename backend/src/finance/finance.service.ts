@@ -309,6 +309,7 @@ export class FinanceService {
         financialAccountId: data.financialAccountId || undefined,
         paymentMethod: data.paymentMethod || undefined,
         paymentInstrumentId: resolvedInstrumentId || undefined,
+        receivedCardLast4: data.receivedCardLast4 || undefined,
         cashAccountId: (data.cashAccountId ?? autoPaidCashAccountId) || undefined,
         ...(autoPaidStatus && {
           status: autoPaidStatus,
@@ -656,6 +657,7 @@ export class FinanceService {
         if (dto.cardBrand) data.cardBrand = dto.cardBrand;
         if (dto.cashAccountId) data.cashAccountId = dto.cashAccountId;
         if (dto.paymentInstrumentId) data.paymentInstrumentId = dto.paymentInstrumentId;
+        if (dto.receivedCardLast4) data.receivedCardLast4 = dto.receivedCardLast4;
         // Check (cheque) data
         if (dto.checkNumber) data.checkNumber = dto.checkNumber;
         if (dto.checkBank) data.checkBank = dto.checkBank;

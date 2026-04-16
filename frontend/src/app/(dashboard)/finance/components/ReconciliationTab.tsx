@@ -9,6 +9,7 @@ import { useTableLayout } from "@/hooks/useTableLayout";
 import type { ColumnDefinition } from "@/lib/types/table";
 import LookupField from "@/components/ui/LookupField";
 import type { LookupFetcher, LookupFetcherResult } from "@/components/ui/SearchLookupModal";
+import CardLast4Input, { isCardPayment } from "@/components/ui/CardLast4Input";
 
 /* ── Partner Lookup (shared) ────────────────────────────── */
 
@@ -229,6 +230,7 @@ interface PaymentInstrumentOption {
   name: string;
   cashAccountId: string | null;
   autoMarkPaid: boolean;
+  paymentMethod?: { code: string; name: string; requiresBrand?: boolean } | null;
 }
 
 function QuickCreateEntryModal({
@@ -255,6 +257,7 @@ function QuickCreateEntryModal({
   const [paymentInstruments, setPaymentInstruments] = useState<PaymentInstrumentOption[]>([]);
   const [financialAccounts, setFinancialAccounts] = useState<FinancialAccountOption[]>(financialAccountsFromParent);
   const [duplicateCandidates, setDuplicateCandidates] = useState<any[]>([]);
+  const [receivedCardLast4, setReceivedCardLast4] = useState("");
 
   const entryType: "RECEIVABLE" | "PAYABLE" = line && line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
   const isoDate = (d: string) => {
@@ -273,6 +276,7 @@ function QuickCreateEntryModal({
     setPartner(null);
     setFinancialAccountId("");
     setPaymentInstrumentId("");
+    setReceivedCardLast4("");
 
     // Load payment instruments for this direction
     // Endpoint espera direction=RECEIVABLE ou PAYABLE (bate com o entryType)
@@ -341,6 +345,9 @@ function QuickCreateEntryModal({
       };
       if (financialAccountId) createBody.financialAccountId = financialAccountId;
       if (paymentInstrumentId) createBody.paymentInstrumentId = paymentInstrumentId;
+      if (receivedCardLast4 && receivedCardLast4.length === 4) {
+        createBody.receivedCardLast4 = receivedCardLast4;
+      }
 
       const created = await api.post<any>("/finance/entries", createBody);
       createdEntryId = created?.id || created?.entry?.id || created?.data?.id;
@@ -503,7 +510,14 @@ function QuickCreateEntryModal({
               <label className="block text-xs font-medium text-slate-600 mb-1">Meio de pagamento (opcional)</label>
               <select
                 value={paymentInstrumentId}
-                onChange={(e) => setPaymentInstrumentId(e.target.value)}
+                onChange={(e) => {
+                  setPaymentInstrumentId(e.target.value);
+                  // Se trocou pra um meio que nao e cartao, limpa os 4 digitos
+                  const pi = paymentInstruments.find((p) => p.id === e.target.value);
+                  if (pi && !isCardPayment({ paymentMethodCode: pi.paymentMethod?.code, requiresBrand: pi.paymentMethod?.requiresBrand })) {
+                    setReceivedCardLast4("");
+                  }
+                }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
               >
                 <option value="">—</option>
@@ -513,6 +527,20 @@ function QuickCreateEntryModal({
               </select>
             </div>
           )}
+
+          {/* 4 ultimos digitos do cartao do cliente — so quando o meio selecionado e cartao e entryType=RECEIVABLE */}
+          {entryType === "RECEIVABLE" && (() => {
+            const pi = paymentInstruments.find((p) => p.id === paymentInstrumentId);
+            const showCard4 = pi && isCardPayment({ paymentMethodCode: pi.paymentMethod?.code, requiresBrand: pi.paymentMethod?.requiresBrand });
+            if (!showCard4) return null;
+            return (
+              <CardLast4Input
+                value={receivedCardLast4}
+                onChange={setReceivedCardLast4}
+                hint="Os 4 últimos dígitos do cartão do cliente — ajuda a identificar o pagamento depois."
+              />
+            );
+          })()}
 
           {/* Alerta de possiveis duplicados */}
           {duplicateCandidates.length > 0 && (

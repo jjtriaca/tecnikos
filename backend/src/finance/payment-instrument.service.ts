@@ -189,7 +189,7 @@ export class PaymentInstrumentService {
     return this.prisma.paymentInstrument.findMany({
       where: { companyId, deletedAt: null, isActive: true },
       include: {
-        paymentMethod: { select: { id: true, name: true, code: true } },
+        paymentMethod: { select: { id: true, name: true, code: true, requiresBrand: true } },
         cashAccount: { select: { id: true, name: true, type: true } },
         feeRates: { where: { deletedAt: null }, orderBy: [{ installmentFrom: 'asc' }] },
       },
@@ -210,7 +210,7 @@ export class PaymentInstrumentService {
     return this.prisma.paymentInstrument.findMany({
       where,
       include: {
-        paymentMethod: { select: { id: true, name: true, code: true } },
+        paymentMethod: { select: { id: true, name: true, code: true, requiresBrand: true } },
         cashAccount: { select: { id: true, name: true, type: true } },
         feeRates: { where: { deletedAt: null }, orderBy: [{ installmentFrom: 'asc' }] },
       },
@@ -422,7 +422,7 @@ export class PaymentInstrumentService {
     return this.prisma.paymentInstrument.findMany({
       where: { companyId, paymentMethodId, deletedAt: null, isActive: true },
       include: {
-        paymentMethod: { select: { id: true, name: true, code: true } },
+        paymentMethod: { select: { id: true, name: true, code: true, requiresBrand: true } },
       },
       orderBy: { sortOrder: 'asc' },
     });

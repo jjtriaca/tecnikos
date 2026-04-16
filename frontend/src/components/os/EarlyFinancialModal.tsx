@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import CardLast4Input from "@/components/ui/CardLast4Input";
 
 type PostableAccount = { id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } };
 type PaymentMethodPM = { id: string; code: string; name: string; isActive: boolean; requiresBrand: boolean; feePercent?: number | null; receivingDays?: number | null; sortOrder: number };
@@ -62,6 +63,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
   const [payableAccountId, setPayableAccountId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [selectedCardRateId, setSelectedCardRateId] = useState("");
+  const [receivedCardLast4, setReceivedCardLast4] = useState("");
 
   // Card logic
   const selectedPM = useMemo(() => activePMs.find(p => p.code === paymentMethod), [paymentMethod, activePMs]);
@@ -150,6 +152,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
         cardBrand: isCardPayment && selectedCardRate ? selectedCardRate.brand : undefined,
         cardFeeRateId: isCardPayment ? selectedCardRateId : undefined,
         installmentCount: isCardPayment && selectedCardRate ? installmentCount : undefined,
+        receivedCardLast4: (isCardPayment && launchReceivable && receivedCardLast4.length === 4) ? receivedCardLast4 : undefined,
       });
       toast("Lancamento antecipado realizado com sucesso!", "success");
       onLaunched();
@@ -340,6 +343,15 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
                         </select>
                       )}
                     </div>
+                  )}
+
+                  {/* 4 ultimos digitos do cartao do cliente — recebimentos via cartao */}
+                  {isCardPayment && launchReceivable && (
+                    <CardLast4Input
+                      value={receivedCardLast4}
+                      onChange={setReceivedCardLast4}
+                      hint="Cartão do cliente — ajuda a identificar o pagamento depois."
+                    />
                   )}
 
                   {/* Fee preview for selected card */}

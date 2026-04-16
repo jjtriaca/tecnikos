@@ -820,6 +820,9 @@ model FinancialEntry {
   // Pagamento e Cancelamento (v2.1)
   paymentMethod     String?           // PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO, TRANSFERENCIA, BOLETO
   cardBrand         String?           // Visa, Mastercard, Elo, etc.
+  // Ultimos 4 digitos do cartao do CLIENTE (pagamentos RECEIVABLE em cartao) — v1.09.48
+  // Diferente do PaymentInstrument.cardLast4 que e do cartao/maquina da EMPRESA.
+  receivedCardLast4 String?           // 4 digitos numericos
   cancelledReason   String?
   cancelledByName   String?
 
