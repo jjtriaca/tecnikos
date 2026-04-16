@@ -593,6 +593,8 @@ export default function NfePage() {
   const [sefazConfigLoading, setSefazConfigLoading] = useState(true);
   const [sefazDocs, setSefazDocs] = useState<SefazDocument[]>([]);
   const [sefazDocsLoading, setSefazDocsLoading] = useState(true);
+  // Lista completa de pendentes (resNFe sem confirmacao conclusiva) — fetch separado da paginacao
+  const [pendingResNfe, setPendingResNfe] = useState<SefazDocument[]>([]);
   const [sefazDocsMeta, setSefazDocsMeta] = useState<PaginationMeta>({
     total: 0,
     page: 1,
@@ -744,6 +746,22 @@ export default function NfePage() {
     }
   }, [sefazTp.buildQueryString, toast]);
 
+  // Fetch independente de pendentes (sem paginacao) — garante alerta correto mesmo com muitas notas.
+  // Carregado toda vez que a tela eh aberta (mount do componente).
+  const loadPendingResNfe = useCallback(async () => {
+    try {
+      const qs = new URLSearchParams({ schema: "resNFe", status: "FETCHED", limit: "500" }).toString();
+      const res = await api.get<PaginatedResponse<SefazDocument>>(`/nfe/sefaz/documents?${qs}`);
+      // Filtra so as que ainda nao tiveram manifestacao conclusiva (precisam de acao do usuario)
+      const pending = (res.data || []).filter((d) =>
+        !["confirmacao", "desconhecimento", "nao_realizada"].includes(d.manifestType || "")
+      );
+      setPendingResNfe(pending);
+    } catch {
+      setPendingResNfe([]);
+    }
+  }, []);
+
   /* ══════════════════════════════════════════════════════════ */
   /*  SEFAZ: Effects                                           */
   /* ══════════════════════════════════════════════════════════ */
@@ -752,8 +770,9 @@ export default function NfePage() {
     if (activeTab === "sefaz") {
       loadSefazConfig();
       loadSefazDocs();
+      loadPendingResNfe();
     }
-  }, [activeTab, loadSefazConfig, loadSefazDocs]);
+  }, [activeTab, loadSefazConfig, loadSefazDocs, loadPendingResNfe]);
 
   // Auto-refresh every 10 minutes when on SEFAZ tab
   useEffect(() => {
@@ -761,9 +780,10 @@ export default function NfePage() {
     const interval = setInterval(() => {
       loadSefazDocs();
       loadSefazConfig();
+      loadPendingResNfe();
     }, 600000);
     return () => clearInterval(interval);
-  }, [activeTab, loadSefazDocs, loadSefazConfig]);
+  }, [activeTab, loadSefazDocs, loadSefazConfig, loadPendingResNfe]);
 
   // Close manifest dropdown on outside click
   useEffect(() => {
@@ -1525,12 +1545,9 @@ export default function NfePage() {
         />
 
         {/* ── Alerta: Notas resNFe aguardando confirmacao (XML completo nao liberado ainda) ─────── */}
+        {/* Usa `pendingResNfe` (fetch separado sem paginacao) — contagem e sempre correta independente da pagina atual */}
         {(() => {
-          const pendentes = sefazDocs.filter((d) =>
-            d.schema === "resNFe" &&
-            d.status === "FETCHED" &&
-            !["confirmacao", "desconhecimento", "nao_realizada"].includes(d.manifestType || ""),
-          );
+          const pendentes = pendingResNfe;
           if (pendentes.length === 0) return null;
           return (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 flex items-start gap-3">
