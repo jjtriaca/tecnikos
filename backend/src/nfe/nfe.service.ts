@@ -250,6 +250,54 @@ export class NfeService {
       },
     });
 
+    // Se nao veio de SEFAZ (sefazDocumentId nao fornecido), cria SefazDocument automaticamente
+    // com origem manual. Assim a nota aparece na lista unificada. Se ja existe um SefazDocument
+    // pra essa chave (baixado em paralelo pela SEFAZ), vincula ao NfeImport sem duplicar.
+    if (!sefazDocumentId && parsed.nfeKey) {
+      const existing = await this.prisma.sefazDocument.findFirst({
+        where: {
+          companyId,
+          nfeKey: parsed.nfeKey,
+          schema: { in: ['procNFe', 'resNFe'] },
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        // Ja existe SefazDocument pela SEFAZ — so vincula
+        await this.prisma.sefazDocument.update({
+          where: { id: existing.id },
+          data: { nfeImportId: nfeImport.id },
+        });
+        await this.prisma.nfeImport.update({
+          where: { id: nfeImport.id },
+          data: { sefazDocumentId: existing.id },
+        });
+      } else {
+        // Cria SefazDocument com origem manual (NSU sintetico pra nao conflitar com SEFAZ)
+        // Prefixo 'MANUAL-' distingue visualmente. companyId+nsu e a chave unica.
+        const syntheticNsu = `MANUAL-${Date.now()}-${nfeImport.id.substring(0, 8)}`;
+        const sefazDoc = await this.prisma.sefazDocument.create({
+          data: {
+            companyId,
+            nsu: syntheticNsu,
+            schema: 'procNFe',
+            nfeKey: parsed.nfeKey,
+            emitterCnpj: parsed.supplier.cnpj || null,
+            emitterName: parsed.supplier.name || null,
+            issueDate: parsed.issueDate ? new Date(parsed.issueDate) : null,
+            nfeValue: parsed.totalCents,
+            xmlContent,
+            status: 'FETCHED',
+            nfeImportId: nfeImport.id,
+          },
+        });
+        await this.prisma.nfeImport.update({
+          where: { id: nfeImport.id },
+          data: { sefazDocumentId: sefazDoc.id },
+        });
+      }
+    }
+
     // Enrich response with matched supplier name for frontend wizard
     let supplierMatchedName: string | null = null;
     if (nfeImport.supplierId) {

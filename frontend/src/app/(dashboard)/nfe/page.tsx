@@ -1524,6 +1524,52 @@ export default function NfePage() {
           searchPlaceholder="Chave, nome, CNPJ..."
         />
 
+        {/* ── Alerta: Notas resNFe aguardando confirmacao (XML completo nao liberado ainda) ─────── */}
+        {(() => {
+          const pendentes = sefazDocs.filter((d) =>
+            d.schema === "resNFe" &&
+            d.status === "FETCHED" &&
+            !["confirmacao", "desconhecimento", "nao_realizada"].includes(d.manifestType || ""),
+          );
+          if (pendentes.length === 0) return null;
+          return (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 flex items-start gap-3">
+              <svg className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-900">
+                  {pendentes.length} nota{pendentes.length > 1 ? "s" : ""} aguardando confirmacao da operacao
+                </p>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Essas notas chegaram como resumo (resNFe). O XML completo so e liberado apos voce manifestar <strong>Confirmacao</strong>, <strong>Desconhecimento</strong> ou <strong>Nao Realizada</strong>. Sem isso, nao e possivel importar a nota.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {pendentes.slice(0, 5).map((d) => {
+                    const numero = d.nfeKey && d.nfeKey.length >= 34 ? (d.nfeKey.substring(25, 34).replace(/^0+/, "") || "0") : "?";
+                    return (
+                      <span key={d.id} className="inline-flex items-center gap-1 rounded-full bg-white border border-amber-300 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                        NFe {numero}
+                        {d.emitterName && <span className="text-amber-600 font-normal truncate max-w-[150px]">- {d.emitterName}</span>}
+                      </span>
+                    );
+                  })}
+                  {pendentes.length > 5 && (
+                    <span className="text-[10px] text-amber-700 px-2 py-0.5">+{pendentes.length - 5} outra{pendentes.length - 5 > 1 ? "s" : ""}</span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => sefazTp.setFilter("schema", "resNFe")}
+                className="flex-shrink-0 rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                title="Filtra a tabela mostrando so as pendentes de confirmacao"
+              >
+                Ver pendentes
+              </button>
+            </div>
+          );
+        })()}
+
         {/* ── Documents Table ─────────────────────────────── */}
         {sefazDocsLoading ? (
           <div className="space-y-3">
@@ -1854,56 +1900,27 @@ export default function NfePage() {
 
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Notas Fiscais Eletronicas</h1>
-        <p className="text-sm text-slate-500">
-          Gerencie notas fiscais via integracao SEFAZ ou importacao manual de XML
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 mb-6 border-b border-slate-200">
+      {/* Header com botao de upload manual */}
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Notas Fiscais Eletronicas</h1>
+          <p className="text-sm text-slate-500">
+            Gerencie notas fiscais via integracao SEFAZ ou importe manualmente via XML
+          </p>
+        </div>
         <button
-          onClick={() => setActiveTab("sefaz")}
-          className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === "sefaz"
-              ? "text-blue-600"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
+          onClick={() => { setActiveTab("upload"); openWizard(); }}
+          className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition-colors flex items-center gap-2 flex-shrink-0"
         >
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-            </svg>
-            Notas SEFAZ
-          </div>
-          {activeTab === "sefaz" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("upload")}
-          className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === "upload"
-              ? "text-blue-600"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-            Upload Manual
-          </div>
-          {activeTab === "upload" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
-          )}
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          Importar XML
         </button>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === "sefaz" ? renderSefazTab() : renderUploadManualTab()}
+      {/* Conteudo unificado: lista SEFAZ (que agora inclui tambem uploads manuais) */}
+      {renderSefazTab()}
 
       {/* ══════════════════════════════════════════════════════ */}
       {/*  CONFIG MODAL (SEFAZ Certificate)                     */}
