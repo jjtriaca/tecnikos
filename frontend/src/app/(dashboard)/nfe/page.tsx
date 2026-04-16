@@ -96,6 +96,18 @@ interface NfeImport {
   outrasDespCents: number | null;
   infCpl: string | null;
   duplicatasJson: string | null;
+  // Meios de pagamento extraidos do XML (bloco <pag> da NFe 4.00)
+  payments?: NfePayment[];
+}
+
+interface NfePayment {
+  tPag: string | null;
+  tPagLabel: string | null;
+  tPagSystemCode: string | null;
+  valueCents: number;
+  indPag: string | null;
+  cardLast4: string | null;
+  cardBrand: string | null;
 }
 
 interface NfeDuplicata {
@@ -1643,8 +1655,18 @@ export default function NfePage() {
       }
     }
 
-    function handleOpenProcess(imp: NfeImport) {
-      setNfeData(imp);
+    async function handleOpenProcess(imp: NfeImport) {
+      // Busca detalhe completo pra incluir os campos `payments` (extraidos do XML) e items completos.
+      // A listagem nao traz payments.
+      let fullImp: NfeImport = imp;
+      try {
+        const detail = await api.get<NfeImport>(`/nfe/imports/${imp.id}`);
+        fullImp = detail;
+      } catch {
+        // Se falhar, segue com o que tem da listagem
+      }
+      setNfeData(fullImp);
+      imp = fullImp;
       if (imp.supplierId) {
         setSupplierAction({ action: "LINK", partnerId: imp.supplierId });
       } else {
@@ -1664,6 +1686,27 @@ export default function NfePage() {
       setProductLookupItem(null);
       setCreateFinancialEntry(true);
       setFinanceDueDate(imp.issueDate ? imp.issueDate.split("T")[0] : "");
+
+      // Pre-seleciona o meio de pagamento baseado no bloco <pag> do XML (se informado).
+      // Mapeia tPagSystemCode (ex: PIX, DINHEIRO, CARTAO_CREDITO) pro primeiro PaymentInstrument
+      // ativo que usa esse PaymentMethod.code. Se nao achar, deixa vazio pro usuario escolher.
+      const xmlPayment = imp.payments && imp.payments.length > 0 ? imp.payments[0] : null;
+      if (xmlPayment?.tPagSystemCode) {
+        const matched = nfePaymentInstruments.find(
+          (pi: any) => pi.paymentMethod?.code === xmlPayment.tPagSystemCode && pi.isActive !== false,
+        );
+        if (matched) {
+          setFinancePaymentInstrumentId(matched.id);
+          setFinancePaymentMethod(matched.paymentMethod?.code || "");
+        } else {
+          setFinancePaymentInstrumentId("");
+          setFinancePaymentMethod("");
+        }
+      } else {
+        setFinancePaymentInstrumentId("");
+        setFinancePaymentMethod("");
+      }
+
       setStep(2);
       setWizardStartStep(2);
       setWizardOpen(true);

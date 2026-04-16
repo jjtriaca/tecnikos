@@ -70,6 +70,17 @@ export interface ParsedNfeDuplicata {
   valueCents: number;
 }
 
+// Meio de pagamento extraido do bloco <pag>/<detPag> da NFe 4.00
+export interface ParsedNfePayment {
+  tPag: string | null;            // Codigo do tipo de pagamento (01-99)
+  tPagLabel: string | null;       // Label amigavel (ex: "Dinheiro", "PIX")
+  tPagSystemCode: string | null;  // Mapeamento pra PaymentMethod do sistema (DINHEIRO, PIX, CARTAO_CREDITO, ...)
+  valueCents: number;             // Valor do pagamento (vPag)
+  indPag: string | null;          // 0=a vista, 1=a prazo
+  cardLast4: string | null;       // tPag=03/04: ultimos 4 digitos do cartao (se tiver no XML)
+  cardBrand: string | null;       // tPag=03/04: bandeira (01 Visa, 02 Master, 03 Amex...)
+}
+
 export interface ParsedNfe {
   nfeNumber: string;
   nfeSeries: string;
@@ -89,6 +100,8 @@ export interface ParsedNfe {
   totals: ParsedNfeTotals;
   // Cobrança (duplicatas/parcelas)
   duplicatas: ParsedNfeDuplicata[];
+  // Meios de pagamento informados no XML (bloco <pag>)
+  payments: ParsedNfePayment[];
   // Additional info
   infCpl: string | null;
 }
@@ -261,6 +274,28 @@ export class NfeParserService {
       valueCents: this.toCents(String(dup.vDup ?? '0')),
     }));
 
+    // ── Meio de pagamento (bloco <pag>/<detPag>) — NFe 4.00 ────────
+    const pagNode = infNFe.pag;
+    const detPagRaw = pagNode?.detPag;
+    const detPagArray: any[] = Array.isArray(detPagRaw) ? detPagRaw : detPagRaw ? [detPagRaw] : [];
+    const payments: ParsedNfePayment[] = detPagArray.map((dp: any) => {
+      const tPag = dp.tPag != null ? String(dp.tPag).padStart(2, '0') : null;
+      const vPag = this.toCents(String(dp.vPag ?? '0'));
+      const indPag = dp.indPag != null ? String(dp.indPag) : null;
+      const card = dp.card;
+      const cardLast4 = card?.cAut ? String(card.cAut).slice(-4) : null; // cAut as aproximacao; nao temos PAN
+      const cardBrand = card?.tBand ? String(card.tBand) : null;
+      return {
+        tPag,
+        tPagLabel: this.mapTPagLabel(tPag),
+        tPagSystemCode: this.mapTPagToSystemCode(tPag),
+        valueCents: vPag,
+        indPag,
+        cardLast4,
+        cardBrand: this.mapCardBrandCode(cardBrand),
+      };
+    });
+
     // ── Additional info ────────────────────────────────────────────
     const infAdic = infNFe.infAdic;
     const infCpl = infAdic?.infCpl ? String(infAdic.infCpl) : null;
@@ -280,8 +315,69 @@ export class NfeParserService {
       totalCents,
       totals,
       duplicatas,
+      payments,
       infCpl,
     };
+  }
+
+  /* ── Mapeamento tPag (codigo SEFAZ) -> label amigavel ────────────── */
+  private mapTPagLabel(tPag: string | null): string | null {
+    if (!tPag) return null;
+    const map: Record<string, string> = {
+      '01': 'Dinheiro',
+      '02': 'Cheque',
+      '03': 'Cartao de Credito',
+      '04': 'Cartao de Debito',
+      '05': 'Credito Loja',
+      '10': 'Vale Alimentacao',
+      '11': 'Vale Refeicao',
+      '12': 'Vale Presente',
+      '13': 'Vale Combustivel',
+      '14': 'Duplicata Mercantil',
+      '15': 'Boleto Bancario',
+      '16': 'Deposito Bancario',
+      '17': 'PIX',
+      '18': 'Transferencia Bancaria',
+      '19': 'Programa de Fidelidade',
+      '90': 'Sem pagamento',
+      '99': 'Outros',
+    };
+    return map[tPag] || `Tipo ${tPag}`;
+  }
+
+  /* ── Mapeamento tPag -> code do PaymentMethod do sistema ────────── */
+  private mapTPagToSystemCode(tPag: string | null): string | null {
+    if (!tPag) return null;
+    const map: Record<string, string> = {
+      '01': 'DINHEIRO',
+      '02': 'CHEQUE',
+      '03': 'CARTAO_CREDITO',
+      '04': 'CARTAO_DEBITO',
+      '15': 'BOLETO',
+      '16': 'TRANSFERENCIA',
+      '17': 'PIX',
+      '18': 'TRANSFERENCIA',
+      '99': 'OUTROS',
+    };
+    return map[tPag] || null;
+  }
+
+  /* ── Mapeamento tBand (bandeira do cartao) -> nome ────────────────── */
+  private mapCardBrandCode(tBand: string | null): string | null {
+    if (!tBand) return null;
+    const map: Record<string, string> = {
+      '01': 'Visa',
+      '02': 'Mastercard',
+      '03': 'American Express',
+      '04': 'Sorocred',
+      '05': 'Diners Club',
+      '06': 'Elo',
+      '07': 'Hipercard',
+      '08': 'Aura',
+      '09': 'Cabal',
+      '99': 'Outros',
+    };
+    return map[tBand] || null;
   }
 
   /* ── Extract ICMS tax data from item ──────────────────────────────── */

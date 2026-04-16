@@ -350,6 +350,19 @@ export class NfeService {
       }
     }
 
+    // ── Extrai meios de pagamento do XML (bloco <pag>/<detPag>) — usado pra pre-preencher
+    //    o wizard de importacao com o meio de pagamento informado pelo emitente.
+    let payments: any[] = [];
+    if (nfeImport.xmlContent) {
+      try {
+        const parsed = this.parser.parse(nfeImport.xmlContent);
+        payments = parsed.payments || [];
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    (nfeImport as any).payments = payments;
+
     // ── Re-validate matches for PENDING imports ──────────────────
     if (nfeImport.status === 'PENDING') {
       let needsRefresh = false;
