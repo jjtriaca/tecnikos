@@ -1064,13 +1064,15 @@ export class ReconciliationService {
       }
     }
     if (fromDate || toDate) {
-      // Usa paidAt para entries PAID; dueDate para PENDING/CONFIRMED (ainda nao pagos)
       const range: Record<string, Date> = {};
       if (fromDate) range.gte = new Date(`${fromDate}T00:00:00.000-03:00`);
       if (toDate) range.lte = new Date(`${toDate}T23:59:59.999-03:00`);
+      // Prefere cardBillingDate (ciclo de fatura do cartao, separado de paidAt).
+      // Fallback pra paidAt/dueDate pra entries antigos que ainda nao tem cardBillingDate.
       where.OR = [
-        { paidAt: range },
-        { AND: [{ paidAt: null }, { dueDate: range }] },
+        { cardBillingDate: range },
+        { AND: [{ cardBillingDate: null }, { paidAt: range }] },
+        { AND: [{ cardBillingDate: null }, { paidAt: null }, { dueDate: range }] },
       ];
     }
 

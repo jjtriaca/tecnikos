@@ -872,6 +872,11 @@ model FinancialEntry {
   // Conciliacao auto-pagou este entry (estava PENDING e virou PAID no match) — flag para reverter corretamente no unmatch (v1.08.96)
   autoMarkedPaid      Boolean @default(false)
 
+  // Data de fechamento do ciclo de fatura do cartao em que esta entry cai (v1.09.79)
+  // Separada de paidAt pra nao afetar conferencia de saldo/DRE.
+  // NULL para entries sem cartao de credito. Preenchida automaticamente quando paymentInstrument tem billingClosingDay.
+  cardBillingDate     DateTime?
+
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   deletedAt        DateTime?

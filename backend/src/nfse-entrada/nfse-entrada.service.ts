@@ -742,6 +742,7 @@ export class NfseEntradaService {
             paidAt: autoPay.paidAt,
             autoMarkedPaid: autoPay.autoMarkedPaid,
             cashAccountId: autoPay.cashAccountId,
+            cardBillingDate: autoPay.cardBillingDate || undefined,
             description: `NFS-e ${entry.numero || ''} — ${entry.prestadorRazaoSocial || 'Prestador'}`,
             grossCents: totalCents,
             netCents: totalCents,

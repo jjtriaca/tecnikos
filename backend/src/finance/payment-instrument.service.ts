@@ -25,6 +25,8 @@ export interface AutoPayResolution {
   resolvedInstrumentId?: string;
   /** Delta de saldo a aplicar apos create (null = nao mexer). cents tem o SINAL correto */
   balanceDelta: { accountId: string; cents: number } | null;
+  /** Data de fechamento do ciclo de fatura do cartao (null se nao e cartao com billingClosingDay) */
+  cardBillingDate: Date | null;
 }
 
 /**
@@ -75,12 +77,12 @@ export class PaymentInstrumentService {
   }): Promise<AutoPayResolution> {
     const client = params.tx ?? this.prisma;
     let resolvedInstrumentId: string | undefined = params.paymentInstrumentId ?? undefined;
-    let instrument: { id: string; autoMarkPaid: boolean; cashAccountId: string | null } | null = null;
+    let instrument: { id: string; autoMarkPaid: boolean; cashAccountId: string | null; billingClosingDay: number | null } | null = null;
 
     if (resolvedInstrumentId) {
       instrument = await client.paymentInstrument.findFirst({
         where: { id: resolvedInstrumentId, companyId: params.companyId, deletedAt: null, isActive: true },
-        select: { id: true, autoMarkPaid: true, cashAccountId: true },
+        select: { id: true, autoMarkPaid: true, cashAccountId: true, billingClosingDay: true },
       });
       if (!instrument) resolvedInstrumentId = undefined;
     } else if (params.paymentMethodCode) {
@@ -93,11 +95,16 @@ export class PaymentInstrumentService {
         instrument = await client.paymentInstrument.findFirst({
           where: { companyId: params.companyId, paymentMethodId: pm.id, deletedAt: null, isActive: true },
           orderBy: [{ autoMarkPaid: 'desc' }, { sortOrder: 'asc' }],
-          select: { id: true, autoMarkPaid: true, cashAccountId: true },
+          select: { id: true, autoMarkPaid: true, cashAccountId: true, billingClosingDay: true },
         });
         if (instrument) resolvedInstrumentId = instrument.id;
       }
     }
+
+    // Calcula cardBillingDate se instrumento tem billingClosingDay
+    const billingDate = instrument?.billingClosingDay
+      ? PaymentInstrumentService.calculateCardBillingDate(new Date(), instrument.billingClosingDay)
+      : null;
 
     // Default: nao autoMarkPaid
     if (!instrument?.autoMarkPaid) {
@@ -108,6 +115,7 @@ export class PaymentInstrumentService {
         autoMarkedPaid: false,
         resolvedInstrumentId,
         balanceDelta: null,
+        cardBillingDate: billingDate,
       };
     }
 
@@ -132,7 +140,23 @@ export class PaymentInstrumentService {
       autoMarkedPaid: true,
       resolvedInstrumentId,
       balanceDelta,
+      cardBillingDate: billingDate,
     };
+  }
+
+  /**
+   * Calcula a data de fechamento do ciclo de fatura do cartao em que uma compra cai.
+   * Ex: closingDay=25, compra 05/03 → 25/03 (ciclo do mes atual)
+   *     closingDay=25, compra 27/03 → 25/04 (ciclo do mes seguinte)
+   * Usa horário 12:00 pra evitar bugs de timezone UTC/BRT.
+   */
+  static calculateCardBillingDate(purchaseDate: Date, closingDay: number): Date {
+    const d = new Date(purchaseDate);
+    if (d.getDate() <= closingDay) {
+      return new Date(d.getFullYear(), d.getMonth(), closingDay, 12, 0, 0);
+    } else {
+      return new Date(d.getFullYear(), d.getMonth() + 1, closingDay, 12, 0, 0);
+    }
   }
 
   /**

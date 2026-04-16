@@ -769,6 +769,7 @@ export class NfeService {
             paidAt: autoPay.paidAt,
             autoMarkedPaid: autoPay.autoMarkedPaid,
             cashAccountId: autoPay.cashAccountId,
+            cardBillingDate: autoPay.cardBillingDate || undefined,
             description: `NFe ${nfeImport.nfeNumber || ''} — ${nfeImport.supplierName || 'Fornecedor'}`,
             grossCents: totalCents,
             netCents: totalCents,

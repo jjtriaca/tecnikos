@@ -282,6 +282,7 @@ export class FinanceService {
         paymentInstrumentId: autoPay.resolvedInstrumentId || undefined,
         receivedCardLast4: data.receivedCardLast4 || undefined,
         cashAccountId: autoPay.cashAccountId || undefined,
+        cardBillingDate: autoPay.cardBillingDate || undefined,
       },
       include: {
         serviceOrder: { select: { id: true, title: true, status: true } },
@@ -640,6 +641,17 @@ export class FinanceService {
         if (dto.cardBrand) data.cardBrand = dto.cardBrand;
         if (dto.cashAccountId) data.cashAccountId = dto.cashAccountId;
         if (dto.paymentInstrumentId) data.paymentInstrumentId = dto.paymentInstrumentId;
+        // cardBillingDate: calcula se instrumento tem billingClosingDay
+        const piForBilling = dto.paymentInstrumentId || entry.paymentInstrumentId;
+        if (piForBilling) {
+          const piData = await this.prisma.paymentInstrument.findUnique({
+            where: { id: piForBilling },
+            select: { billingClosingDay: true },
+          });
+          if (piData?.billingClosingDay) {
+            data.cardBillingDate = PaymentInstrumentService.calculateCardBillingDate(data.paidAt, piData.billingClosingDay);
+          }
+        }
         if (dto.receivedCardLast4) data.receivedCardLast4 = dto.receivedCardLast4;
         // Check (cheque) data
         if (dto.checkNumber) data.checkNumber = dto.checkNumber;
