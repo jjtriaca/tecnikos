@@ -755,7 +755,11 @@ export class ReconciliationService {
             data: entryUpdate,
           });
         } else {
-          // Entry ja PAID — aplica so o plano (se veio) e faz o auto-transfer tradicional TRANSITO->banco
+          // Entry ja PAID — aplica plano (se veio) e corrige paidAt pra data REAL do banco.
+          // Isso e critico porque o usuario frequentemente cria entry com paidAt=hoje
+          // e depois concilia com uma linha bancaria de semanas atras. A data correta
+          // do movimento financeiro e a data do banco, nao a data do registro no sistema.
+          entryUpdate.paidAt = line.transactionDate;
           if (Object.keys(entryUpdate).length > 0) {
             await tx.financialEntry.update({
               where: { id: entryBefore.id },
