@@ -383,6 +383,9 @@ export default function NfseEntradaPage() {
     setFinanceMode("CREATE");
     setProcessDueDate(entry.dataEmissao ? entry.dataEmissao.split("T")[0] : "");
     setPaymentMethod("");
+    setPaymentInstrumentId("");  // v1.09.60: reset instrumento tambem — senao select mostra o da nota anterior mas paymentMethod fica vazio, desabilitando botao
+    setProcessAccountId("");
+    setSelectedLinkIds(new Set());
     setPartnerSearch("");
     setPartnerResults([]);
     if (entry.prestadorId) {
