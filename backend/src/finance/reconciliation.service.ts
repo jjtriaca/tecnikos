@@ -24,8 +24,8 @@ function detectPaymentMethodFromDescription(description: string | null): string 
   if (d.includes('CREDITO VISA') || d.includes('DEBITO VISA')) return 'CARTAO_DEBITO';
   if (d.includes('CREDITO ELO') || d.includes('DEBITO ELO')) return 'CARTAO_DEBITO';
   if (d.includes('TRANSF ENTRE CONTAS') || d.includes('TRANSFERENCIA') || d.includes('TRANSFERÊNCIA')) return 'TRANSFERENCIA';
-  if (d.includes('TARIFA') || d.includes('CESTA DE RELACIONAMENTO')) return 'TRANSFERENCIA';
-  if (d.includes('ESTORNO')) return 'TRANSFERENCIA';
+  if (d.includes('TARIFA') || d.includes('CESTA DE RELACIONAMENTO') || d.includes('CESTA RELACIONAMENTO')) return 'DEBITO_CONTA';
+  if (d.includes('ESTORNO')) return 'DEBITO_CONTA';
   if (d.includes('CONVENIO') || d.includes('CONVÊNIO')) return 'BOLETO';
   return null;
 }
