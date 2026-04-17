@@ -1771,11 +1771,15 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${batchUpdateFinancials ? "translate-x-5" : "translate-x-1"}`} />
                 </button>
               </label>
-              {/* Conta/Caixa — filtra por showInPayables/showInReceivables (IC-02) */}
+              {/* Conta/Caixa — filtra por showIn* (IC-02) + respeita lockAccountOnReceive (IM-03) */}
               {activeAccounts.length > 0 && batchUpdateFinancials && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Conta/Caixa</label>
-                  <select value={batchAccountId} onChange={(e) => setBatchAccountId(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                  <select
+                    value={batchAccountId}
+                    onChange={(e) => setBatchAccountId(e.target.value)}
+                    disabled={sysConfig?.financial?.lockAccountOnReceive === true && type === "RECEIVABLE"}
+                    className={`w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${sysConfig?.financial?.lockAccountOnReceive === true && type === "RECEIVABLE" ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "bg-white"}`}>
                     <option value="">Nenhuma (nao atualizar saldo)</option>
                     {activeAccounts
                       .filter((a: any) => type === "RECEIVABLE" ? a.showInReceivables !== false : a.showInPayables !== false)

@@ -636,8 +636,11 @@ export class FinanceService {
       data.checkAccount = null;
       data.checkClearanceDate = null;
       data.checkHolder = null;
-      // Append reversal log to notes
+      // Registra motivo do estorno no mesmo padrao do cancelamento (IM-02)
       const who = dto.cancelledByName || 'Sistema';
+      data.cancelledReason = notes || 'Estorno sem motivo informado';
+      data.cancelledByName = who;
+      data.cancelledAt = now;
       const logLine = `[${timestamp}] ESTORNO por ${who}: ${notes || 'sem motivo'}`;
       data.notes = entry.notes ? `${entry.notes}\n${logLine}` : logLine;
     } else {
@@ -926,7 +929,10 @@ export class FinanceService {
           dueDate: dto.firstDueDate ? new Date(dto.firstDueDate) : entry.dueDate,
           notes: dto.notes,
           parentEntryId: id,
-          // Herdar NFS-e do entry pai (renegociacao nao reemite nota)
+          // Herdar campos do entry pai (IM-01: nao perder info de pagamento)
+          paymentMethod: entry.paymentMethod,
+          paymentInstrumentId: entry.paymentInstrumentId,
+          financialAccountId: entry.financialAccountId,
           nfseStatus: entry.nfseStatus,
           nfseEmissionId: entry.nfseEmissionId,
           installmentCount: dto.installmentCount ?? null,
