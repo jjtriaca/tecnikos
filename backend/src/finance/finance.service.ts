@@ -1163,12 +1163,13 @@ export class FinanceService {
     }
     const hasDates = Object.keys(dateFilter).length > 0;
 
-    // 1) Fetch paid FinancialEntries
+    // 1) Fetch paid FinancialEntries (exclui skipCashAccount — entries sem conta nao aparecem no extrato)
     const entries = await this.prisma.financialEntry.findMany({
       where: {
         companyId,
         status: 'PAID',
         deletedAt: null,
+        cashAccountId: { not: null },
         ...(hasDates ? { paidAt: dateFilter } : {}),
       },
       orderBy: { paidAt: 'desc' },
@@ -1281,21 +1282,31 @@ export class FinanceService {
       });
 
       if (taxCents > 0) {
-        const feePercent = findFeePercent(e.paymentMethod, e.cardBrand);
-        entryRows.push({
-          id: `${e.id}-tax`,
-          date: e.paidAt ?? e.createdAt,
-          description: `Taxa cartão ${e.cardBrand || ''} ${feePercent ? `(${feePercent}%)` : ''} — ${e.description || ''}`.trim(),
-          type: 'DEBIT' as const,
-          amountCents: -taxCents,
-          category: 'Taxas de Cartão',
-          source: 'CARD_FEE',
-          partnerName: e.partner?.name ?? null,
-          paymentMethod: e.paymentMethod ?? null,
-          paymentInstrumentName: (e as any).paymentInstrumentRef?.name ?? null,
-          cashAccountName: cashName,
-          code: null,
-        });
+        // Verificar se ja existe entry REAL de taxa (criada pelo matchLine).
+        // Se sim, nao gerar linha virtual pra evitar duplicata no extrato.
+        const entryIdPrefix = e.id.substring(0, 8);
+        const hasTaxEntry = entries.some(other =>
+          (other as any).isRefundEntry &&
+          other.type === 'PAYABLE' &&
+          other.description?.includes(entryIdPrefix),
+        );
+        if (!hasTaxEntry) {
+          const feePercent = findFeePercent(e.paymentMethod, e.cardBrand);
+          entryRows.push({
+            id: `${e.id}-tax`,
+            date: e.paidAt ?? e.createdAt,
+            description: `Taxa cartão ${e.cardBrand || ''} ${feePercent ? `(${feePercent}%)` : ''} — ${e.description || ''}`.trim(),
+            type: 'DEBIT' as const,
+            amountCents: -taxCents,
+            category: 'Taxas de Cartão',
+            source: 'CARD_FEE',
+            partnerName: e.partner?.name ?? null,
+            paymentMethod: e.paymentMethod ?? null,
+            paymentInstrumentName: (e as any).paymentInstrumentRef?.name ?? null,
+            cashAccountName: cashName,
+            code: null,
+          });
+        }
       }
     }
 
