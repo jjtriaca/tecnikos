@@ -631,6 +631,14 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
       .finally(() => setStmtLoading(false));
   }, [stmtDateFrom, stmtDateTo]);
 
+  const didInitStmtRef = useRef(false);
+  useEffect(() => {
+    if (!didInitStmtRef.current) { didInitStmtRef.current = true; return; }
+    if (!stmtDateFrom || !stmtDateTo) return;
+    const t = setTimeout(() => reloadStatement(), 350);
+    return () => clearTimeout(t);
+  }, [stmtDateFrom, stmtDateTo, reloadStatement]);
+
   function handleDragStart(e: React.DragEvent, sectionId: string) {
     setDraggingId(sectionId);
     e.dataTransfer.effectAllowed = "move";

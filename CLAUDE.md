@@ -10,6 +10,30 @@
 7. Ao fazer mudancas estruturais: ATUALIZAR ARCHITECTURE.md antes de encerrar
 8. A CADA tarefa concluida: ATUALIZAR CURRENT_TASK.md
 
+## REGRA ABSOLUTA: Financeiro e Saldos (NUNCA VIOLAR)
+**Financeiro e EXATO. Nao tolera erro de R$ 0,01. E matematica, e ciencia exata.**
+
+### Antes de QUALQUER alteracao em dados financeiros:
+1. **SIMULAR o impacto** em TODOS os calculos dependentes (balance-compare, conferencia de saldo, DRE)
+2. **NUNCA alterar currentBalanceCents** sem verificar que março, abril e TODOS os meses continuam batendo
+3. **NUNCA mover cashAccountId** de uma entry sem calcular o efeito em movsAfterD de cada periodo
+4. **NUNCA alterar paidAt** — afeta conferencia de saldo retroativa. Usar cardBillingDate pra ciclo de fatura
+5. **NUNCA fazer UPDATE direto em saldo** sem AccountTransfer rastreavel (exceto correcao pontual aprovada)
+6. **NUNCA criar entry PAID via SQL** sem confirmar com usuario se realmente foi recebido/pago
+
+### Antes de QUALQUER mudanca de codigo financeiro:
+1. **ESTUDAR e ANALISAR** antes de implementar — nao agir por impulso
+2. **SIMULAR com query SQL** o resultado ANTES de aplicar
+3. **Verificar conferencia de saldo** de TODOS os meses apos qualquer alteracao
+4. Se a conferencia de saldo JA BATE, **NAO MEXER** no calculo — o risco de quebrar e maior que o beneficio
+5. **Reverter IMEDIATAMENTE** se algum saldo quebrar — nao tentar "consertar o conserto"
+6. **Toda movimentacao entre contas** deve ter AccountTransfer com transferDate (balance-compare depende disso)
+
+### Timezone (regra de ouro):
+- Datas financeiras SEMPRE com `T12:00:00` (meio-dia) pra evitar bug UTC/BRT
+- NUNCA usar midnight (`T00:00:00`) em paidAt, dueDate ou transferDate
+- O filtro do backend usa `-03:00` (Brasilia) — midnight UTC vira dia anterior em BRT
+
 ## AUTORIZACAO GERAL DO USUARIO
 O usuario (Juliano) autoriza TODAS as acoes sem pedir confirmacao:
 - WebSearch, WebFetch, Bash, Read, Write, Edit, Glob, Grep — TUDO liberado

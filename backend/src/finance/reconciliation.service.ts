@@ -759,8 +759,21 @@ export class ReconciliationService {
           entryUpdate.financialAccountId = financialAccountIdToSet;
         }
 
+        // v1.09.94: Determinar conta de origem (preserva historico no VT / conta original).
+        // Se entry ja tem cashAccountId diferente do banco, usa ela (ex: VT).
+        // Senao, busca a conta de TRANSITO como fallback.
+        let sourceAccountId: string | null = entryBefore.cashAccountId;
+        if (!sourceAccountId || sourceAccountId === bankAccountId) {
+          const transitAccount = await tx.cashAccount.findFirst({
+            where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
+            select: { id: true },
+          });
+          sourceAccountId = transitAccount?.id || null;
+        }
+        const usesTransit = !!(sourceAccountId && sourceAccountId !== bankAccountId);
+
         if (wasPending) {
-          // PENDING -> PAID. Cash account vai direto pro banco (o dinheiro ja saiu/entrou no banco).
+          // PENDING -> PAID via conciliacao bancaria.
           // Auto-detecta paymentMethod pela descricao da linha do extrato
           const detectedMethod = detectPaymentMethodFromDescription(line.description);
           if (!entryBefore.paymentMethod && !detectedMethod && !dto.paymentMethod) {
@@ -771,7 +784,6 @@ export class ReconciliationService {
           }
           entryUpdate.status = 'PAID';
           entryUpdate.paidAt = line.transactionDate;
-          entryUpdate.cashAccountId = bankAccountId;
           entryUpdate.autoMarkedPaid = true;
           if (!entryBefore.paymentMethod) {
             entryUpdate.paymentMethod = dto.paymentMethod || detectedMethod;
@@ -779,24 +791,71 @@ export class ReconciliationService {
           const logLine = `[${tsLog}] PAGO via conciliação bancária (linha ${line.id.substring(0, 8)})`;
           entryUpdate.notes = logLine;
 
-          // Atualiza saldo do banco diretamente (sem auto-transfer de transito)
-          await tx.cashAccount.update({
-            where: { id: bankAccountId },
-            data: { currentBalanceCents: { increment: line.amountCents } },
-          });
+          if (usesTransit) {
+            // v1.09.94 — Fluxo com conta de transito (preserva historico completo no VT)
+            // 1) entry fica na conta de origem (VT), saldo origem += grossCents (receita entra no VT)
+            // 2) Transfer origem -> banco no valor liquido (-liquido na origem, +liquido no banco)
+            // 3) Se taxa: entry PAYABLE de taxa na origem (-taxa)
+            // Net origem: +gross - liquido - taxa = 0 (ciclo fecha quando gross = liquido + taxa)
+            // Net banco: +liquido (= line.amountCents)
+            entryUpdate.cashAccountId = sourceAccountId;
+            const entryGross = entryBefore.grossCents;
+            const lineAbs = Math.abs(line.amountCents);
+            const isCredit = line.amountCents > 0;
+
+            // Passo 1: receita entra na conta origem
+            await tx.cashAccount.update({
+              where: { id: sourceAccountId! },
+              data: {
+                currentBalanceCents: entryBefore.type === 'RECEIVABLE'
+                  ? { increment: entryGross }
+                  : { decrement: entryGross },
+              },
+            });
+
+            // Passo 2: cria AccountTransfer rastreavel
+            const fromId = isCredit ? sourceAccountId! : bankAccountId;
+            const toId = isCredit ? bankAccountId : sourceAccountId!;
+            await tx.accountTransfer.create({
+              data: {
+                companyId,
+                fromAccountId: fromId,
+                toAccountId: toId,
+                amountCents: lineAbs,
+                description: `Conciliacao - linha ${line.id.substring(0, 8)} (entry ${entryBefore.id.substring(0, 8)})`,
+                transferDate: line.transactionDate,
+                createdByName: matchedByName,
+              },
+            });
+            await tx.cashAccount.update({
+              where: { id: fromId },
+              data: { currentBalanceCents: { decrement: lineAbs } },
+            });
+            await tx.cashAccount.update({
+              where: { id: toId },
+              data: { currentBalanceCents: { increment: lineAbs } },
+            });
+          } else {
+            // Fluxo legado (sem conta de transito): entry vai direto pro banco
+            entryUpdate.cashAccountId = bankAccountId;
+            await tx.cashAccount.update({
+              where: { id: bankAccountId },
+              data: { currentBalanceCents: { increment: line.amountCents } },
+            });
+          }
 
           await tx.financialEntry.update({
             where: { id: entryBefore.id },
             data: entryUpdate,
           });
 
-          // v1.09.68: Se tem taxa de cartao (RECEIVABLE com valor liquido < bruto),
-          // cria entry PAYABLE tecnico de taxa pra refletir a diferenca na contabilidade.
-          // Sem isso, o entry.netCents fica > valor real creditado no banco e gera divergencia
-          // no calculo retroativo de saldo (banco vs sistema).
+          // v1.09.68: Taxa de cartao (RECEIVABLE com valor liquido < bruto).
+          // Cria entry PAYABLE tecnico de taxa. v1.09.94: no fluxo de transito,
+          // a taxa vai na conta origem (VT), nao no banco.
           const taxCents = dto.taxCents ?? 0;
           if (taxCents > 0 && entryBefore.type === 'RECEIVABLE' && line.amountCents > 0) {
             const taxCode = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+            const taxAccountId = usesTransit ? sourceAccountId! : bankAccountId;
             await tx.financialEntry.create({
               data: {
                 companyId,
@@ -807,17 +866,20 @@ export class ReconciliationService {
                 grossCents: taxCents,
                 netCents: taxCents,
                 paidAt: line.transactionDate,
-                cashAccountId: bankAccountId,
+                cashAccountId: taxAccountId,
                 autoMarkedPaid: true,
                 isRefundEntry: true, // marca como entry tecnico (nao aparece em DRE cliente)
               },
             });
-            // v1.09.70: saldo ja foi incrementado com line.amountCents (o LIQUIDO). NAO mexer mais.
-            // Matematica:
-            //   entry_rec.netCents = 400 (valor bruto — total recebido do cliente)
-            //   entry_pay_taxa.netCents = 6 (despesa de taxa)
-            //   Liquido entries: +400 - 6 = +394 = line.amountCents (o saldo aumentou)
-            //   Calculo retroativo: saldo - (+394) = saldo_antes_match ✓
+            if (usesTransit) {
+              // Fluxo novo: taxa decrementa saldo da conta origem
+              await tx.cashAccount.update({
+                where: { id: taxAccountId },
+                data: { currentBalanceCents: { decrement: taxCents } },
+              });
+            }
+            // Fluxo legado: saldo do banco ja foi incrementado com line.amountCents (liquido),
+            // nao precisa decrementar taxa aqui.
           }
         } else {
           // Entry ja PAID — aplica plano (se veio) e corrige paidAt pra data REAL do banco.
@@ -832,20 +894,10 @@ export class ReconciliationService {
             });
           }
 
-          // Determine source account: entry's current account, or find transit account as fallback
-          let sourceAccountId = entryBefore.cashAccountId;
-          if (!sourceAccountId || sourceAccountId === bankAccountId) {
-            const transitAccount = await tx.cashAccount.findFirst({
-              where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
-              select: { id: true },
-            });
-            sourceAccountId = transitAccount?.id || null;
-          }
-
-          if (sourceAccountId && sourceAccountId !== bankAccountId) {
+          if (usesTransit) {
             const isCredit = line.amountCents > 0;
-            const fromId = isCredit ? sourceAccountId : bankAccountId;
-            const toId = isCredit ? bankAccountId : sourceAccountId;
+            const fromId = isCredit ? sourceAccountId! : bankAccountId;
+            const toId = isCredit ? bankAccountId : sourceAccountId!;
 
             // Criar AccountTransfer rastreavel (balance-compare depende disso)
             await tx.accountTransfer.create({
@@ -854,13 +906,13 @@ export class ReconciliationService {
                 fromAccountId: fromId,
                 toAccountId: toId,
                 amountCents: transferAmount,
-                description: `Conciliacao — linha ${line.id.substring(0, 8)} (entry ${entryBefore.id.substring(0, 8)})`,
+                description: `Conciliacao - linha ${line.id.substring(0, 8)} (entry ${entryBefore.id.substring(0, 8)})`,
                 transferDate: line.transactionDate,
                 createdByName: matchedByName,
               },
             });
 
-            // Ajustar saldos
+            // Ajustar saldos do transfer
             await tx.cashAccount.update({
               where: { id: fromId },
               data: { currentBalanceCents: { decrement: transferAmount } },
@@ -869,11 +921,38 @@ export class ReconciliationService {
               where: { id: toId },
               data: { currentBalanceCents: { increment: transferAmount } },
             });
-            await tx.financialEntry.update({
-              where: { id: entryBefore.id },
-              data: { cashAccountId: bankAccountId },
-            });
+
+            // v1.09.94: NAO mover entry pro banco (preserva historico no VT).
+            // Taxa automatica: se RECEIVABLE com gross > liquido, cria entry de taxa na origem.
+            const autoTaxCents = (dto.taxCents ?? 0) > 0
+              ? (dto.taxCents ?? 0)
+              : (entryBefore.type === 'RECEIVABLE' && isCredit && entryBefore.grossCents > transferAmount
+                  ? entryBefore.grossCents - transferAmount
+                  : 0);
+            if (autoTaxCents > 0 && entryBefore.type === 'RECEIVABLE' && isCredit) {
+              const taxCode = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+              await tx.financialEntry.create({
+                data: {
+                  companyId,
+                  code: taxCode,
+                  type: 'PAYABLE',
+                  status: 'PAID',
+                  description: `Taxa cartao - conciliacao linha ${line.id.substring(0, 8)} (entry ${entryBefore.id.substring(0, 8)})`,
+                  grossCents: autoTaxCents,
+                  netCents: autoTaxCents,
+                  paidAt: line.transactionDate,
+                  cashAccountId: sourceAccountId!,
+                  autoMarkedPaid: true,
+                  isRefundEntry: true,
+                },
+              });
+              await tx.cashAccount.update({
+                where: { id: sourceAccountId! },
+                data: { currentBalanceCents: { decrement: autoTaxCents } },
+              });
+            }
           }
+          // Se !usesTransit: entry ja esta no banco, nada a fazer (saldo ja correto)
         }
       }
 
@@ -1690,27 +1769,95 @@ export class ReconciliationService {
 
     const bankAccountId = line.cashAccountId;
     const transferAmount = Math.abs(line.amountCents);
+    const linePrefix = line.id.substring(0, 8);
 
-    // Revert the auto-transfer if entry was moved to the bank (or auto-pay PENDING->PAID)
+    // v1.09.94: Detecta qual fluxo foi usado no match:
+    // - Se existe AccountTransfer com description apontando pra essa linha -> fluxo com transito
+    // - Senao -> fluxo legado (entry foi movido direto pro banco)
     if (line.matchedEntryId) {
       const entry = await this.prisma.financialEntry.findUnique({
         where: { id: line.matchedEntryId },
-        select: { cashAccountId: true, autoMarkedPaid: true, grossCents: true },
+        select: { cashAccountId: true, autoMarkedPaid: true, grossCents: true, type: true },
       });
 
-      if (entry?.autoMarkedPaid) {
-        // Match auto-pagou (PENDING -> PAID): volta entry pra PENDING, limpa campos, reverte saldo do banco
+      const autoTransfer = await this.prisma.accountTransfer.findFirst({
+        where: {
+          companyId,
+          description: { contains: `linha ${linePrefix}` },
+        },
+        select: { id: true, fromAccountId: true, toAccountId: true, amountCents: true },
+      });
+
+      const autoTaxEntry = await this.prisma.financialEntry.findFirst({
+        where: {
+          companyId,
+          type: 'PAYABLE',
+          isRefundEntry: true,
+          description: { contains: `linha ${linePrefix}` },
+          deletedAt: null,
+        },
+        select: { id: true, cashAccountId: true, netCents: true },
+      });
+
+      if (entry?.autoMarkedPaid && autoTransfer) {
+        // v1.09.94: Fluxo novo - PENDING virou PAID com auto-transfer VT -> banco.
+        // Reverter: transfer, receita adicionada em VT, entry de taxa, voltar entry pra PENDING.
+        // 1) Reverter transfer
+        await this.prisma.cashAccount.update({
+          where: { id: autoTransfer.fromAccountId },
+          data: { currentBalanceCents: { increment: autoTransfer.amountCents } },
+        });
+        await this.prisma.cashAccount.update({
+          where: { id: autoTransfer.toAccountId },
+          data: { currentBalanceCents: { decrement: autoTransfer.amountCents } },
+        });
+        await this.prisma.accountTransfer.delete({ where: { id: autoTransfer.id } });
+
+        // 2) Reverter receita que foi adicionada a conta origem (VT) no match
+        if (entry.cashAccountId && entry.grossCents > 0) {
+          await this.prisma.cashAccount.update({
+            where: { id: entry.cashAccountId },
+            data: {
+              currentBalanceCents: entry.type === 'RECEIVABLE'
+                ? { decrement: entry.grossCents }
+                : { increment: entry.grossCents },
+            },
+          });
+        }
+
+        // 3) Reverter entry de taxa (se existir)
+        if (autoTaxEntry) {
+          await this.prisma.cashAccount.update({
+            where: { id: autoTaxEntry.cashAccountId! },
+            data: { currentBalanceCents: { increment: autoTaxEntry.netCents } },
+          });
+          await this.prisma.financialEntry.delete({ where: { id: autoTaxEntry.id } });
+        }
+
+        // 4) Volta entry pra PENDING (preserva cashAccountId — era conta original)
+        await this.prisma.financialEntry.update({
+          where: { id: line.matchedEntryId },
+          data: {
+            status: 'PENDING',
+            paidAt: null,
+            autoMarkedPaid: false,
+          },
+        });
+      } else if (entry?.autoMarkedPaid) {
+        // Fluxo legado pre v1.09.94: PENDING -> PAID, entry foi direto pro banco.
+        // Reverter saldo do banco + deletar entry de taxa (criada no banco).
         await this.prisma.cashAccount.update({
           where: { id: bankAccountId },
           data: { currentBalanceCents: { decrement: line.amountCents } },
         });
 
-        // v1.09.70: Reverte entry de taxa de cartao se existir (criado durante match).
-        // Como o match v1.09.70 NAO decrementa saldo ao criar entry de taxa (saldo += line.amountCents
-        // ja e o liquido apos taxa), o unmatch so precisa DELETAR o entry tecnico — sem mexer no saldo.
-        if (line.matchedTaxCents && line.matchedTaxCents > 0) {
-          const linePrefix = line.id.substring(0, 8);
-          const taxEntry = await this.prisma.financialEntry.findFirst({
+        if (autoTaxEntry) {
+          // v1.09.70: no fluxo legado, saldo do banco ja recebeu o liquido,
+          // a entry de taxa NAO decrementou saldo adicional — so deletar.
+          await this.prisma.financialEntry.delete({ where: { id: autoTaxEntry.id } });
+        } else if (line.matchedTaxCents && line.matchedTaxCents > 0) {
+          // Fallback: busca por matchedTaxCents (entries antigos sem description padronizada)
+          const legacyTaxEntry = await this.prisma.financialEntry.findFirst({
             where: {
               companyId,
               type: 'PAYABLE',
@@ -1722,8 +1869,8 @@ export class ReconciliationService {
             },
             select: { id: true },
           });
-          if (taxEntry) {
-            await this.prisma.financialEntry.delete({ where: { id: taxEntry.id } });
+          if (legacyTaxEntry) {
+            await this.prisma.financialEntry.delete({ where: { id: legacyTaxEntry.id } });
           }
         }
 
@@ -1736,8 +1883,42 @@ export class ReconciliationService {
             autoMarkedPaid: false,
           },
         });
+      } else if (autoTransfer) {
+        // v1.09.94: Entry ja era PAID antes do match, houve auto-transfer (fluxo B novo ou antigo).
+        // Reverter transfer e entry de taxa. NAO mover entry (pode ter ficado em VT ou no banco).
+        await this.prisma.cashAccount.update({
+          where: { id: autoTransfer.fromAccountId },
+          data: { currentBalanceCents: { increment: autoTransfer.amountCents } },
+        });
+        await this.prisma.cashAccount.update({
+          where: { id: autoTransfer.toAccountId },
+          data: { currentBalanceCents: { decrement: autoTransfer.amountCents } },
+        });
+        await this.prisma.accountTransfer.delete({ where: { id: autoTransfer.id } });
+
+        if (autoTaxEntry) {
+          await this.prisma.cashAccount.update({
+            where: { id: autoTaxEntry.cashAccountId! },
+            data: { currentBalanceCents: { increment: autoTaxEntry.netCents } },
+          });
+          await this.prisma.financialEntry.delete({ where: { id: autoTaxEntry.id } });
+        }
+
+        // Fluxo antigo movia entry pro banco — se esta no banco, volta pro transit pra compatibilidade
+        if (entry?.cashAccountId === bankAccountId) {
+          const transitAccount = await this.prisma.cashAccount.findFirst({
+            where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
+            select: { id: true },
+          });
+          if (transitAccount) {
+            await this.prisma.financialEntry.update({
+              where: { id: line.matchedEntryId },
+              data: { cashAccountId: transitAccount.id },
+            });
+          }
+        }
       } else if (entry?.cashAccountId === bankAccountId) {
-        // Entry ja estava PAID antes do match: desfaz o auto-transfer tradicional (banco <-> transito)
+        // Fluxo legado sem auto-transfer rastreavel: desfaz o transfer implicito via saldo
         const transitAccount = await this.prisma.cashAccount.findFirst({
           where: { companyId, deletedAt: null, isActive: true, type: 'TRANSITO' },
           select: { id: true },

@@ -1,7 +1,17 @@
 # TAREFA ATUAL
 
-## Versao: v1.09.74
-## Ultima sessao: 177 (16/04/2026)
+## Versao: v1.09.94 (pendente deploy)
+## Ultima sessao: 178 (17/04/2026)
+
+## Sessao 178 — Conciliacao preserva historico no VT (v1.09.94)
+- Bug: matchLine movia entry.cashAccountId pro banco em TODOS cenarios (A-PENDING e B-PAID). VT nunca esvaziava — so entradas, nunca saidas. Impossivel ver ciclo completo de cada cartao
+- Fix reconciliation.service.ts matchLine:
+  - Se entry tem cashAccountId != banco (ex: VT) ou existe CashAccount type='TRANSITO': fluxo novo. Entry fica em VT, cria AccountTransfer VT->banco, entry de taxa (auto-detectada se gross>liquido) fica em VT
+  - Senao: fluxo legado preservado (entry vai pro banco)
+- Fix reconciliation.service.ts unmatchLine: detecta fluxo pelo AccountTransfer com description contendo `linha {prefix}` e reverte corretamente (reverte transfer + receita VT + tax entry, NAO move entry)
+- Typecheck 0 erros; frontend sem alteracao; nao afeta matches antigos (so novos daqui pra frente)
+- Memory: memory/conciliacao-preserve-transit.md
+- Frontend melhoria auxiliar: Extrato Consolidado auto-recarrega ao mudar De/Ate (useEffect debounce 350ms) [finance/page.tsx:634]
 
 ## Fix manifestacao SEFAZ direto — Envelope + URL + parser (v1.09.32-37) ✅
 Migrado de Focus NFe (que falhava com "documento fiscal não encontrado" pois nao tinha as NFes no banco dele)
@@ -418,19 +428,38 @@ Cartao de credito vira CashAccount virtual (tipo novo CARTAO_CREDITO). Pagar com
 - 7 compras avulsas criadas (FIN-00431 a FIN-00437)
 - Saldos finais: Master Ueslei -R$ 11.022,85 / Visa Juliano -R$ 5.913,51
 
-### Auditorias gravadas (sessao 177)
-- `memory/auditoria-modais-pagamento-2026-04-16.md` — 11 modais, 8 toggles, 10 inconsistencias
-- `memory/auditoria-financeira-2026-04-16.md` — 5 contas, saldos OK, 1 possivel duplicata (FIN-00270/373)
+### Auditorias + correcoes (sessao 177, v1.09.72-93)
+- `memory/auditoria-modais-pagamento-2026-04-16.md` — 11 modais, 8 toggles, 11 inconsistencias
+- `memory/auditoria-financeira-2026-04-16.md` — 5 contas, saldos auditados
+
+**Correcoes implementadas:**
+- v1.09.72: resolveAutoPay centralizado
+- v1.09.74: Toggle "Lancar financeiro" no modal
+- v1.09.79-80: Nova coluna cardBillingDate (separa data fatura de paidAt)
+- v1.09.81: matchAsCardInvoice cria AccountTransfer (fix balance-compare)
+- v1.09.83: IC-01 a IC-04 (batch skipCashAccount, filtro contas, transaction atomica, cheque backend)
+- v1.09.84: IM-01 a IM-03 (renegociacao preserva campos, estorno padronizado, lock no batch)
+- v1.09.85: Im-01 a Im-03 (tipo conta batch, warning saldo, preview instrumento)
+- v1.09.86: Busca por codigo FIN no financeiro
+- v1.09.87-88: Card TRANSITO corrigido (breakdown → so saldo)
+- v1.09.89: matchLine e CardSettlement.settle criam AccountTransfer
+- v1.09.90: Entries skipCashAccount nao aparecem no extrato + fix taxa duplicada
+- v1.09.91-93: Auto-detect paymentMethod na conciliacao + dropdown obrigatorio
+
+**Dados corrigidos:**
+- Duplicata FIN-00270 removida (R$ 4.525)
+- FIN-00444 codigo atribuido (renegociacao sem codigo)
+- FIN-00015 dueDate setado (31/03)
+- 37 entries backfill paymentMethod
+- 57 parcelas cartao Sicredi + 7 avulsas + 6 encargos lancados
+- 8 entries corrigidas de cartao errado (Visa→Master)
 
 ## PENDENTE
-- 🔴 Verificar duplicata FIN-00270 / FIN-00373 (R$ 4.525 cada, Luiz Ramon Gambeta)
-- 🟡 Corrigir FIN-00294 cashAccountId (TRANSITO → SICREDI)
-- 🟡 Verificar CardSettlement FIN-00002 vencido 11 dias
-- 🟡 Entry renegociacao sem codigo (filha FIN-00282)
-- IC-01: Batch Pay respeitar skipCashAccount
-- IC-02: Batch Pay filtrar contas por showIn*
-- IC-03: balanceDelta dentro de transaction
-- IC-04: Validacao cheque no backend
-- FIN-00008 Posto Belvedere: diferenca 13c
+- 🟡 CardSettlement FIN-00002 vencido (R$ 351,76, deposito nao chegou)
+- 🟡 Saldo TRANSITO -R$ 831,55 (ajustes diretos pre-v1.09.89, nao rast reaveis)
+- 🟡 FIN-00294 cashAccountId TRANSITO mas conciliada c/ SICREDI (fluxo esperado, nao corrigir)
+- 🟢 FIN-00008 diferenca 13c (225,25 vs 225,12)
+- 🟢 Contas instrumentos PIX/Boleto/Transf: decisao do usuario manter TRANSITO por enquanto
+- IM-04: NFS-e entrada modal processamento (usuario vai testar e reportar)
 - Fase 2: cheques de terceiros
 - Auto-ajuste de periodo do extrato ao selecionar cartao com billingClosingDay
