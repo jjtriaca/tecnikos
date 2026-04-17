@@ -1785,6 +1785,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                       .filter((a: any) => type === "RECEIVABLE" ? a.showInReceivables !== false : a.showInPayables !== false)
                       .map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : a.type === "CARTAO_CREDITO" ? "Cartao" : "Caixa"})</option>)}
                   </select>
+                  {!batchAccountId && (
+                    <p className="mt-1 text-[10px] text-amber-600 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                      Sem conta selecionada — o saldo nao sera atualizado
+                    </p>
+                  )}
                 </div>
               )}
               {/* Selected entries summary */}
@@ -1998,7 +2004,40 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 </div>
               )}
 
-              {/* Fee preview for selected card */}
+              {/* Fee preview for selected instrument (Im-03: quando instrumento selecionado, mostra info) */}
+              {isCardPayment && selectedInstrumentId && !selectedCardRate && (() => {
+                const inst = allInstruments.find((i: any) => i.id === selectedInstrumentId);
+                if (!inst) return null;
+                const code = (inst.paymentMethod?.code || "").toUpperCase();
+                const methodLabel = code.includes("CREDITO") ? "Credito" : code.includes("DEBITO") ? "Debito" : (inst.paymentMethod?.name || "Cartao");
+                return (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                    <div className="flex gap-4">
+                      <div>
+                        <span className="text-[10px] text-slate-400">Instrumento</span>
+                        <p className="font-medium text-slate-700">{inst.name}{inst.cardLast4 ? ` •••• ${inst.cardLast4}` : ""}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400">Tipo</span>
+                        <p className="font-medium text-slate-700">{methodLabel}</p>
+                      </div>
+                      {inst.cashAccount && (
+                        <div>
+                          <span className="text-[10px] text-slate-400">Conta</span>
+                          <p className="font-medium text-slate-700">{inst.cashAccount.name}</p>
+                        </div>
+                      )}
+                    </div>
+                    {type === "RECEIVABLE" && (
+                      <p className="mt-1.5 text-[10px] text-blue-600">
+                        Taxa e prazo serao aplicados conforme configuracao do instrumento.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Fee preview for selected CardFeeRate (fallback generico) */}
               {isCardPayment && selectedCardRate && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                   <div className="flex gap-4">
