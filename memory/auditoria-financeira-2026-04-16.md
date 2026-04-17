@@ -157,6 +157,18 @@ Nenhuma transfer com valor zero, sem contas invalidas, sem duplicatas.
 
 ---
 
+## RESOLUCOES APLICADAS (16/04/2026)
+
+| # | Item | Acao | Resultado |
+|---|---|---|---|
+| 1 | FIN-00270/FIN-00373 duplicata R$ 4.525 | FIN-00270 soft-deleted, TRANSITO revertido -4.525 | ✅ CORRIGIDO |
+| 2 | FIN-00294 cashAccountId TRANSITO | NAO CORRIGIR — fluxo esperado do auto-pay | ⏭️ MANTIDO |
+| 3 | CardSettlement FIN-00002 vencido | MANTER PENDING — deposito nao chegou | ⏭️ MANTIDO |
+| 4 | Entry sem codigo (renegociacao) | Atribuido FIN-00444 | ✅ CORRIGIDO |
+| 5 | FIN-00015 sem dueDate | Setado 31/03/2026 | ✅ CORRIGIDO |
+| 6 | FIN-00008 diferenca 13c | Pendencia conhecida | ⏭️ MANTIDO |
+| 7 | FIN-00012 instrument/conta mismatch | NAO CORRIGIR — fluxo esperado | ⏭️ MANTIDO |
+
 ## CONCLUSAO
 
 O sistema financeiro esta em **estado saudavel**. Os saldos bancarios conferem com o extrato real. Os cartoes de credito estao equilibrados. A conciliacao esta 100%. O unico item que exige atencao urgente e a possivel duplicata de R$ 4.525,00 (FIN-00270 vs FIN-00373).

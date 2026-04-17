@@ -439,16 +439,31 @@ export class FinanceService {
       }
     }
     if (pagination?.search) {
-      const words = pagination.search.trim().split(/\s+/).filter(Boolean);
-      if (words.length <= 1) {
+      const raw = pagination.search.trim();
+      const words = raw.split(/\s+/).filter(Boolean);
+
+      // Detecta busca por codigo: "372", "00372", "FIN-00372", "FIN-372"
+      const codeMatch = raw.match(/^(?:FIN-?)?0*(\d+)$/i);
+      const codeLike = codeMatch ? `FIN-${codeMatch[1].padStart(5, '0')}` : null;
+
+      if (codeLike) {
+        // Busca por codigo OU texto (caso "372" tambem esteja na descricao)
         where.OR = [
-          { description: { contains: pagination.search, mode: 'insensitive' } },
-          { serviceOrder: { title: { contains: pagination.search, mode: 'insensitive' } } },
-          { partner: { name: { contains: pagination.search, mode: 'insensitive' } } },
+          { code: codeLike },
+          { description: { contains: raw, mode: 'insensitive' } },
+          { partner: { name: { contains: raw, mode: 'insensitive' } } },
+        ];
+      } else if (words.length <= 1) {
+        where.OR = [
+          { code: { contains: raw, mode: 'insensitive' } },
+          { description: { contains: raw, mode: 'insensitive' } },
+          { serviceOrder: { title: { contains: raw, mode: 'insensitive' } } },
+          { partner: { name: { contains: raw, mode: 'insensitive' } } },
         ];
       } else {
         where.AND = words.map((word) => ({
           OR: [
+            { code: { contains: word, mode: 'insensitive' } },
             { description: { contains: word, mode: 'insensitive' } },
             { serviceOrder: { title: { contains: word, mode: 'insensitive' } } },
             { partner: { name: { contains: word, mode: 'insensitive' } } },
