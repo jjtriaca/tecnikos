@@ -10,6 +10,26 @@ import { CsvParserService } from './csv-parser.service';
 import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto, MatchAsTransferDto } from './dto/reconciliation.dto';
 import { CodeGeneratorService } from '../common/code-generator.service';
 
+/**
+ * Detecta paymentMethod pela descricao da linha do extrato bancario.
+ * Retorna o code do PaymentMethod ou null se nao conseguir deduzir.
+ */
+function detectPaymentMethodFromDescription(description: string | null): string | null {
+  if (!description) return null;
+  const d = description.toUpperCase();
+  if (d.includes('PIX')) return 'PIX';
+  if (d.includes('BOLETO') || d.includes('LIQUIDACAO') || d.includes('LIQUIDAÇÃO')) return 'BOLETO';
+  if (d.includes('DARF') || d.includes('ARRECADACAO') || d.includes('ARRECADAÇÃO')) return 'BOLETO';
+  if (d.includes('CREDITO MASTER') || d.includes('DEBITO MASTER')) return 'CARTAO_DEBITO';
+  if (d.includes('CREDITO VISA') || d.includes('DEBITO VISA')) return 'CARTAO_DEBITO';
+  if (d.includes('CREDITO ELO') || d.includes('DEBITO ELO')) return 'CARTAO_DEBITO';
+  if (d.includes('TRANSF ENTRE CONTAS') || d.includes('TRANSFERENCIA') || d.includes('TRANSFERÊNCIA')) return 'TRANSFERENCIA';
+  if (d.includes('TARIFA') || d.includes('CESTA DE RELACIONAMENTO')) return 'TRANSFERENCIA';
+  if (d.includes('ESTORNO')) return 'TRANSFERENCIA';
+  if (d.includes('CONVENIO') || d.includes('CONVÊNIO')) return 'BOLETO';
+  return null;
+}
+
 @Injectable()
 export class ReconciliationService {
   private readonly logger = new Logger(ReconciliationService.name);
@@ -624,6 +644,7 @@ export class ReconciliationService {
             grossCents: true,
             cashAccountId: true,
             financialAccountId: true,
+            paymentMethod: true,
             isRefundEntry: true,
           },
         })
@@ -740,10 +761,21 @@ export class ReconciliationService {
 
         if (wasPending) {
           // PENDING -> PAID. Cash account vai direto pro banco (o dinheiro ja saiu/entrou no banco).
+          // Auto-detecta paymentMethod pela descricao da linha do extrato
+          const detectedMethod = detectPaymentMethodFromDescription(line.description);
+          if (!entryBefore.paymentMethod && !detectedMethod && !dto.paymentMethod) {
+            throw new BadRequestException(
+              'Não foi possível identificar a forma de pagamento automaticamente. ' +
+              'Defina a forma de pagamento do lançamento antes de conciliar.',
+            );
+          }
           entryUpdate.status = 'PAID';
           entryUpdate.paidAt = line.transactionDate;
           entryUpdate.cashAccountId = bankAccountId;
           entryUpdate.autoMarkedPaid = true;
+          if (!entryBefore.paymentMethod) {
+            entryUpdate.paymentMethod = dto.paymentMethod || detectedMethod;
+          }
           const logLine = `[${tsLog}] PAGO via conciliação bancária (linha ${line.id.substring(0, 8)})`;
           entryUpdate.notes = logLine;
 

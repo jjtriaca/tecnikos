@@ -658,6 +658,9 @@ function ConciliationModal({
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
   const [updatingRate, setUpdatingRate] = useState(false);
+  // Forma de pagamento auto-detectada/manual pra entries PENDING sem paymentMethod
+  const [matchPaymentMethod, setMatchPaymentMethod] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState<{ code: string; name: string }[]>([]);
 
   const isCard = line ? isCardTransaction(line.description) : false;
 
@@ -698,8 +701,19 @@ function ConciliationModal({
       setConfigFeePercent(0);
     }
 
-    // Reset plano de contas na abertura
+    // Reset plano de contas e paymentMethod na abertura
     setAccountAssignments({});
+    // Auto-detecta paymentMethod pela descricao da linha do extrato
+    const desc = (line.description || "").toUpperCase();
+    if (desc.includes("PIX")) setMatchPaymentMethod("PIX");
+    else if (desc.includes("BOLETO") || desc.includes("LIQUIDAC") || desc.includes("DARF") || desc.includes("ARRECADAC")) setMatchPaymentMethod("BOLETO");
+    else if (desc.includes("MASTER") || desc.includes("VISA") || desc.includes("ELO")) setMatchPaymentMethod("CARTAO_DEBITO");
+    else if (desc.includes("TRANSF") || desc.includes("TARIFA") || desc.includes("CESTA")) setMatchPaymentMethod("TRANSFERENCIA");
+    else setMatchPaymentMethod("");
+
+    // Carrega meios de pagamento
+    api.get<{ code: string; name: string }[]>("/finance/payment-methods/active")
+      .then(setPaymentMethods).catch(() => setPaymentMethods([]));
 
     // Fetch entries, card fee rates, planos de contas in parallel
     const type = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
@@ -942,6 +956,12 @@ function ConciliationModal({
       toast("Escolha o plano de contas do lançamento antes de conciliar.", "error");
       return;
     }
+    const wasPending = entry?.status === "PENDING" || entry?._fromStatus === "PENDING";
+    // Se entry PENDING sem paymentMethod, exige que gestor selecione
+    if (wasPending && !entry?.paymentMethod && !matchPaymentMethod) {
+      toast("Selecione a forma de pagamento antes de conciliar.", "error");
+      return;
+    }
     setMatching(entryId);
     try {
       const body: any = { entryId };
@@ -952,7 +972,10 @@ function ConciliationModal({
       if (accountAssignments[entryId]) {
         body.financialAccountId = accountAssignments[entryId];
       }
-      const wasPending = entry?.status === "PENDING" || entry?._fromStatus === "PENDING";
+      // Envia paymentMethod pra entries PENDING que não tinham
+      if (wasPending && !entry?.paymentMethod && matchPaymentMethod) {
+        body.paymentMethod = matchPaymentMethod;
+      }
       await api.post(`/finance/reconciliation/lines/${line.id}/match`, body);
       toast(wasPending ? "Conciliado e marcado como PAGO!" : "Conciliado com sucesso!", "success");
       onMatched();
@@ -1104,6 +1127,22 @@ function ConciliationModal({
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             />
           </div>
+
+          {/* Forma de Pagamento — pra entries PENDING sem paymentMethod */}
+          {paymentMethods.length > 0 && (
+            <div className="mb-3">
+              <label className="block text-[10px] font-medium text-slate-500 mb-1">Forma de Pagamento (para lancamentos pendentes)</label>
+              <select
+                value={matchPaymentMethod}
+                onChange={(e) => setMatchPaymentMethod(e.target.value)}
+                className={`w-full rounded-lg border px-3 py-1.5 text-sm focus:ring-1 outline-none ${matchPaymentMethod ? "border-green-300 bg-green-50 focus:border-green-500 focus:ring-green-500" : "border-amber-300 bg-amber-50 focus:border-amber-500 focus:ring-amber-500"}`}
+              >
+                <option value="">Selecione...</option>
+                {paymentMethods.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
+              </select>
+              {!matchPaymentMethod && <p className="mt-0.5 text-[10px] text-amber-600">Obrigatorio para conciliar lancamentos pendentes</p>}
+            </div>
+          )}
 
           <div className="flex items-center justify-between mb-2 gap-2">
             <p className="text-xs font-medium text-slate-500">

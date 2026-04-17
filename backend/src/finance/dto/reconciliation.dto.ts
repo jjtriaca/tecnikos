@@ -26,6 +26,11 @@ export class MatchLineDto {
   @IsOptional()
   @IsString()
   financialAccountId?: string;
+
+  // Forma de pagamento (preenchido pelo gestor quando auto-detecção falha)
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
 }
 
 export class MatchAsRefundDto {
