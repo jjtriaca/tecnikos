@@ -1127,6 +1127,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const [batchDate, setBatchDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [batchPayMethod, setBatchPayMethod] = useState("");
   const [batchAccountId, setBatchAccountId] = useState("");
+  const [batchUpdateFinancials, setBatchUpdateFinancials] = useState(true);
   const [batchProcessing, setBatchProcessing] = useState(false);
 
   const { toast } = useToast();
@@ -1427,7 +1428,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         entryIds: Array.from(selectedIds),
         paymentMethod: batchPayMethod,
         paidAt: batchDate || undefined,
-        cashAccountId: batchAccountId || undefined,
+        cashAccountId: batchUpdateFinancials ? (batchAccountId || undefined) : undefined,
+        skipCashAccount: !batchUpdateFinancials ? true : undefined,
       });
       if (result.errors.length > 0) {
         toast(`${result.paidCount} de ${selectedIds.size} ${type === "RECEIVABLE" ? "recebidos" : "pagos"}. ${result.errors.length} erro(s).`, "error");
@@ -1752,12 +1754,32 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   {activePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
                 </select>
               </div>
-              {activeAccounts.length > 0 && (
+              {/* Toggle "Lancar financeiro" — identico ao modal individual */}
+              <label className="flex items-center justify-between cursor-pointer select-none">
+                <span className="text-xs font-medium text-slate-600">Lancar financeiro</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={batchUpdateFinancials}
+                  onClick={() => {
+                    const next = !batchUpdateFinancials;
+                    setBatchUpdateFinancials(next);
+                    if (!next) setBatchAccountId("");
+                  }}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${batchUpdateFinancials ? "bg-blue-600" : "bg-slate-300"}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${batchUpdateFinancials ? "translate-x-5" : "translate-x-1"}`} />
+                </button>
+              </label>
+              {/* Conta/Caixa — filtra por showInPayables/showInReceivables (IC-02) */}
+              {activeAccounts.length > 0 && batchUpdateFinancials && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Conta/Caixa</label>
                   <select value={batchAccountId} onChange={(e) => setBatchAccountId(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
                     <option value="">Nenhuma (nao atualizar saldo)</option>
-                    {activeAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : a.type === "CARTAO_CREDITO" ? "Cartao" : "Caixa"})</option>)}
+                    {activeAccounts
+                      .filter((a: any) => type === "RECEIVABLE" ? a.showInReceivables !== false : a.showInPayables !== false)
+                      .map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : a.type === "CARTAO_CREDITO" ? "Cartao" : "Caixa"})</option>)}
                   </select>
                 </div>
               )}

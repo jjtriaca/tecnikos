@@ -418,7 +418,19 @@ Cartao de credito vira CashAccount virtual (tipo novo CARTAO_CREDITO). Pagar com
 - 7 compras avulsas criadas (FIN-00431 a FIN-00437)
 - Saldos finais: Master Ueslei -R$ 11.022,85 / Visa Juliano -R$ 5.913,51
 
+### Auditorias gravadas (sessao 177)
+- `memory/auditoria-modais-pagamento-2026-04-16.md` — 11 modais, 8 toggles, 10 inconsistencias
+- `memory/auditoria-financeira-2026-04-16.md` — 5 contas, saldos OK, 1 possivel duplicata (FIN-00270/373)
+
 ## PENDENTE
-- FIN-00008 Posto Belvedere R$ 225,25: diferenca 13c com fatura (225,12), lancado sem nota
-- Fase 2: cheques de terceiros como meio de pagamento (controle estoque cheques)
+- 🔴 Verificar duplicata FIN-00270 / FIN-00373 (R$ 4.525 cada, Luiz Ramon Gambeta)
+- 🟡 Corrigir FIN-00294 cashAccountId (TRANSITO → SICREDI)
+- 🟡 Verificar CardSettlement FIN-00002 vencido 11 dias
+- 🟡 Entry renegociacao sem codigo (filha FIN-00282)
+- IC-01: Batch Pay respeitar skipCashAccount
+- IC-02: Batch Pay filtrar contas por showIn*
+- IC-03: balanceDelta dentro de transaction
+- IC-04: Validacao cheque no backend
+- FIN-00008 Posto Belvedere: diferenca 13c
+- Fase 2: cheques de terceiros
 - Auto-ajuste de periodo do extrato ao selecionar cartao com billingClosingDay

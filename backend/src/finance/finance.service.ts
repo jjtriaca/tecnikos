@@ -260,39 +260,44 @@ export class FinanceService {
       netCents,
     });
 
-    const entry = await this.prisma.financialEntry.create({
-      data: {
-        companyId,
-        code,
-        serviceOrderId: data.serviceOrderId || undefined,
-        partnerId: data.partnerId || undefined,
-        type: data.type,
-        status: autoPay.status,
-        paidAt: autoPay.paidAt,
-        autoMarkedPaid: autoPay.autoMarkedPaid,
-        description: data.description,
-        grossCents: data.grossCents,
-        commissionBps,
-        commissionCents,
-        netCents,
-        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-        notes: data.notes,
-        financialAccountId: data.financialAccountId || undefined,
-        paymentMethod: data.paymentMethod || undefined,
-        paymentInstrumentId: autoPay.resolvedInstrumentId || undefined,
-        receivedCardLast4: data.receivedCardLast4 || undefined,
-        cashAccountId: autoPay.cashAccountId || undefined,
-        cardBillingDate: autoPay.cardBillingDate || undefined,
-      },
-      include: {
-        serviceOrder: { select: { id: true, title: true, status: true } },
-        partner: { select: { id: true, name: true } },
-        financialAccount: { select: { id: true, code: true, name: true } },
-      },
-    });
+    // Transaction atomica: cria entry + aplica saldo juntos (IC-03)
+    const entry = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.financialEntry.create({
+        data: {
+          companyId,
+          code,
+          serviceOrderId: data.serviceOrderId || undefined,
+          partnerId: data.partnerId || undefined,
+          type: data.type,
+          status: autoPay.status,
+          paidAt: autoPay.paidAt,
+          autoMarkedPaid: autoPay.autoMarkedPaid,
+          description: data.description,
+          grossCents: data.grossCents,
+          commissionBps,
+          commissionCents,
+          netCents,
+          dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+          notes: data.notes,
+          financialAccountId: data.financialAccountId || undefined,
+          paymentMethod: data.paymentMethod || undefined,
+          paymentInstrumentId: autoPay.resolvedInstrumentId || undefined,
+          receivedCardLast4: data.receivedCardLast4 || undefined,
+          cashAccountId: autoPay.cashAccountId || undefined,
+          cardBillingDate: autoPay.cardBillingDate || undefined,
+        },
+        include: {
+          serviceOrder: { select: { id: true, title: true, status: true } },
+          partner: { select: { id: true, name: true } },
+          financialAccount: { select: { id: true, code: true, name: true } },
+        },
+      });
 
-    // Aplica ajuste de saldo (null-safe — so executa se autoMarkPaid resultou em delta)
-    await this.paymentInstrumentService.applyBalanceDelta(autoPay.balanceDelta);
+      // Aplica ajuste de saldo DENTRO da transaction (null-safe)
+      await this.paymentInstrumentService.applyBalanceDelta(autoPay.balanceDelta, tx);
+
+      return created;
+    });
 
     // Auto-emit NFS-e if configured and entry is RECEIVABLE
     if (data.type === 'RECEIVABLE') {
@@ -543,6 +548,7 @@ export class FinanceService {
       paidAt?: string;
       cashAccountId?: string;
       paymentInstrumentId?: string;
+      skipCashAccount?: boolean;
     },
   ) {
     if (!body.entryIds?.length) throw new BadRequestException('Nenhuma entrada selecionada');
@@ -563,8 +569,9 @@ export class FinanceService {
           status: 'PAID',
           paymentMethod: body.paymentMethod,
           paidAt: body.paidAt,
-          cashAccountId: body.cashAccountId,
-          paymentInstrumentId: body.paymentInstrumentId,
+          cashAccountId: body.skipCashAccount ? undefined : body.cashAccountId,
+          paymentInstrumentId: body.skipCashAccount ? undefined : body.paymentInstrumentId,
+          skipCashAccount: body.skipCashAccount,
         } as ChangeEntryStatusDto);
 
         // Set batchPaymentId
@@ -636,6 +643,11 @@ export class FinanceService {
     } else {
       data.status = newStatus;
       if (newStatus === 'PAID') {
+        // IC-04: Validacao de cheque no backend
+        if (dto.paymentMethod?.toUpperCase().includes('CHEQUE')) {
+          if (!dto.checkNumber) throw new BadRequestException('Numero do cheque e obrigatorio para pagamento com cheque.');
+          if (!dto.checkBank) throw new BadRequestException('Banco emissor do cheque e obrigatorio.');
+        }
         data.paidAt = dto.paidAt ? new Date(dto.paidAt) : now;
         if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
         if (dto.cardBrand) data.cardBrand = dto.cardBrand;
