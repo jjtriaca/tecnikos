@@ -1075,20 +1075,25 @@ export class FinanceService {
       };
     };
 
-    // Transit account breakdown: credits (receivables) and debits (payables)
+    // Transit account breakdown: entradas vs saidas (entries + transfers)
     const transitAccount = cashAccounts.find((a: any) => a.type === 'TRANSITO');
     let transitCredits = 0;
     let transitDebits = 0;
     if (transitAccount) {
-      const transitEntries = await this.prisma.financialEntry.findMany({
-        where: {
-          companyId,
-          cashAccountId: transitAccount.id,
-          status: 'PAID',
-          deletedAt: null,
-        },
-        select: { type: true, netCents: true },
-      });
+      const [transitEntries, transfersIn, transfersOut] = await Promise.all([
+        this.prisma.financialEntry.findMany({
+          where: { companyId, cashAccountId: transitAccount.id, status: 'PAID', deletedAt: null },
+          select: { type: true, netCents: true },
+        }),
+        this.prisma.accountTransfer.aggregate({
+          where: { toAccountId: transitAccount.id },
+          _sum: { amountCents: true },
+        }),
+        this.prisma.accountTransfer.aggregate({
+          where: { fromAccountId: transitAccount.id },
+          _sum: { amountCents: true },
+        }),
+      ]);
       for (const e of transitEntries) {
         if (e.type === 'RECEIVABLE') {
           transitCredits += e.netCents;
@@ -1096,6 +1101,8 @@ export class FinanceService {
           transitDebits += e.netCents;
         }
       }
+      transitCredits += transfersIn._sum.amountCents || 0;
+      transitDebits += transfersOut._sum.amountCents || 0;
     }
 
     return {
