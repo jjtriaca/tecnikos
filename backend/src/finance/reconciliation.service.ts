@@ -812,25 +812,31 @@ export class ReconciliationService {
 
           if (sourceAccountId && sourceAccountId !== bankAccountId) {
             const isCredit = line.amountCents > 0;
-            if (isCredit) {
-              await tx.cashAccount.update({
-                where: { id: sourceAccountId },
-                data: { currentBalanceCents: { decrement: transferAmount } },
-              });
-              await tx.cashAccount.update({
-                where: { id: bankAccountId },
-                data: { currentBalanceCents: { increment: transferAmount } },
-              });
-            } else {
-              await tx.cashAccount.update({
-                where: { id: bankAccountId },
-                data: { currentBalanceCents: { decrement: transferAmount } },
-              });
-              await tx.cashAccount.update({
-                where: { id: sourceAccountId },
-                data: { currentBalanceCents: { increment: transferAmount } },
-              });
-            }
+            const fromId = isCredit ? sourceAccountId : bankAccountId;
+            const toId = isCredit ? bankAccountId : sourceAccountId;
+
+            // Criar AccountTransfer rastreavel (balance-compare depende disso)
+            await tx.accountTransfer.create({
+              data: {
+                companyId,
+                fromAccountId: fromId,
+                toAccountId: toId,
+                amountCents: transferAmount,
+                description: `Conciliacao — linha ${line.id.substring(0, 8)} (entry ${entryBefore.id.substring(0, 8)})`,
+                transferDate: line.transactionDate,
+                createdByName: matchedByName,
+              },
+            });
+
+            // Ajustar saldos
+            await tx.cashAccount.update({
+              where: { id: fromId },
+              data: { currentBalanceCents: { decrement: transferAmount } },
+            });
+            await tx.cashAccount.update({
+              where: { id: toId },
+              data: { currentBalanceCents: { increment: transferAmount } },
+            });
             await tx.financialEntry.update({
               where: { id: entryBefore.id },
               data: { cashAccountId: bankAccountId },

@@ -178,7 +178,7 @@ export class CardSettlementService {
   async settle(id: string, companyId: string, dto: SettleCardDto, settledByName: string) {
     const cs = await this.prisma.cardSettlement.findFirst({
       where: { id, companyId, status: 'PENDING' },
-      include: { financialEntry: { select: { description: true, partnerId: true } } },
+      include: { financialEntry: { select: { description: true, partnerId: true, cashAccountId: true } } },
     });
     if (!cs) throw new NotFoundException('Baixa de cartão não encontrada');
 
@@ -217,7 +217,27 @@ export class CardSettlementService {
         },
       });
 
-      // Update cash account balance with the ACTUAL received amount
+      // Mover saldo da conta de origem (TRANSITO) pra conta destino (banco)
+      // com AccountTransfer rastreavel pro balance-compare
+      const sourceAccountId = cs.financialEntry?.cashAccountId;
+      if (sourceAccountId && sourceAccountId !== dto.cashAccountId) {
+        await tx.accountTransfer.create({
+          data: {
+            companyId,
+            fromAccountId: sourceAccountId,
+            toAccountId: dto.cashAccountId,
+            amountCents: dto.actualAmountCents,
+            description: `Baixa cartao — settlement ${id.substring(0, 8)}`,
+            transferDate: new Date(),
+            createdByName: settledByName,
+          },
+        });
+        await tx.cashAccount.update({
+          where: { id: sourceAccountId },
+          data: { currentBalanceCents: { decrement: dto.actualAmountCents } },
+        });
+      }
+      // Incrementa conta destino (banco)
       await tx.cashAccount.update({
         where: { id: dto.cashAccountId },
         data: { currentBalanceCents: { increment: dto.actualAmountCents } },

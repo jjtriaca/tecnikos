@@ -820,7 +820,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
             <div className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-purple-700">{a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-purple-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
-              <p className="text-[10px] text-slate-400">Em Transito</p>
+              <p className="text-[10px] text-slate-400">Conta de passagem</p>
             </div>
           )});
         }
