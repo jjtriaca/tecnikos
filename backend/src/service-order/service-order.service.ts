@@ -90,7 +90,18 @@ export class ServiceOrderService {
     }
   }
 
-  /** Get billing cycle period (subscription-based), fallback to calendar month */
+  /**
+   * Get billing cycle period (subscription-based), fallback to calendar month.
+   *
+   * ATENCAO: retorna subscription.currentPeriodStart/End literais. Se subscription
+   * esta PAST_DUE e o periodo ja venceu mas o webhook Asaas nao confirmou novo
+   * pagamento, o periodo fica CONGELADO no ultimo ciclo — cliente trava na quota.
+   *
+   * Ver TODO em asaas.service.ts (PAYMENT_CONFIRMED handler) sobre cron anchor-based
+   * que avancaria ciclos vencidos automaticamente. Ate la, o bloqueio de 7 dias
+   * (checkOverdueSubscriptions) age como safety net — cliente nao fica preso
+   * indefinidamente.
+   */
   private async getBillingPeriod(companyId: string): Promise<{ periodStart: Date; periodEnd: Date }> {
     const now = new Date();
     const tenant = await this.prisma.tenant.findFirst({

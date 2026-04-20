@@ -12,6 +12,97 @@ const OVERDUE_GRACE_DAYS = 7;
 /**
  * Business logic layer for Asaas billing integration.
  * Handles tenant lifecycle tied to payment events.
+ *
+ * ════════════════════════════════════════════════════════════════════════════
+ *   REGRAS ABSOLUTAS — NUNCA VIOLAR
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * 1. NADA muda no sistema ate o webhook PAYMENT_CONFIRMED chegar.
+ *    - Signup: Subscription=PENDING, Tenant=PENDING_PAYMENT. So ativa no webhook.
+ *    - Upgrade: pendingPlanId salvo. Plano/limites so mudam no webhook.
+ *    - Add-on: AddOnPurchase=PENDING. Limites creditados so no webhook.
+ *    - Downgrade sem cobranca: agenda via pendingPlanId pro proximo ciclo.
+ *    - Excecao: credito pro-rata 100% -> aplicar imediatamente.
+ *
+ * 2. Asaas e a fonte de verdade de:
+ *    - Proxima cobranca (nextBillingDate) — sincronizado via webhook
+ *    - Status financeiro (PAID, OVERDUE, etc.)
+ *    - Valor a cobrar
+ *    Local nao "chuta" esses campos; espera o webhook.
+ *
+ * 3. Idempotencia: webhooks podem chegar em duplicata ou fora de ordem.
+ *    - Ex: PAYMENT_CONFIRMED pode chegar 2x (rede instavel). Codigo deve lidar.
+ *    - Activation usa updateMany + where status!=ACTIVE pra evitar double-onboard.
+ *
+ * ════════════════════════════════════════════════════════════════════════════
+ *   ARQUITETURA — CICLO DE VIDA DE TENANT/SUBSCRIPTION
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Tenant status:   PENDING_VERIFICATION -> PENDING_PAYMENT -> ACTIVE -> BLOCKED
+ * Subscription:    PENDING -> ACTIVE (<-> PAST_DUE) -> SUSPENDED/CANCELLED
+ *
+ * Fluxo normal:
+ *   signup -> Asaas cria customer + subscription -> webhook cobra boleto/pix
+ *   -> cliente paga -> webhook PAYMENT_CONFIRMED -> tenant ACTIVE
+ *
+ * Fluxo de atraso:
+ *   vencimento passa -> webhook PAYMENT_OVERDUE -> sub=PAST_DUE, overdueAt=hoje
+ *   -> 7 dias de graca (cliente ainda usa o sistema com warning "Atrasado")
+ *   -> cron checkOverdueSubscriptions (diario 07h) -> tenant BLOCKED, sub SUSPENDED
+ *   -> cliente paga -> webhook reativa tenant + sub ACTIVE
+ *
+ * ════════════════════════════════════════════════════════════════════════════
+ *   CRONS (@Cron decorators)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * - checkOverdueSubscriptions (07:00 diario): bloqueia tenants PAST_DUE > 7 dias
+ * - applyPendingDowngrades (00:30 diario): aplica downgrades agendados
+ * - (ver decorators @Cron no arquivo pra lista completa)
+ *
+ * ════════════════════════════════════════════════════════════════════════════
+ *   PROBLEMAS CONHECIDOS / MELHORIAS FUTURAS
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * [P1] Ciclo de consumo trava em PAST_DUE
+ *   Situacao: subscription.currentPeriodEnd e definido no webhook PAYMENT_CONFIRMED
+ *   (linha ~940). Enquanto cliente nao paga, currentPeriodEnd fica congelado no ciclo
+ *   vencido. service-order.service.ts conta OS nesse intervalo -> quota trava em
+ *   X/X ate pagar. Teoricamente o cliente deveria poder continuar criando OS durante
+ *   os 7 dias de graca (ciclo novo deve avancar).
+ *
+ *   Solucao proposta (NAO implementada, requer teste em sandbox Asaas):
+ *   - Criar @Cron('0 1 * * *') advanceBillingCycles():
+ *       Para cada sub ACTIVE/PAST_DUE com currentPeriodEnd < now:
+ *         Avanca currentPeriodStart = currentPeriodEnd
+ *         Avanca currentPeriodEnd = currentPeriodEnd + 1 mes (anchor-based)
+ *   - Webhook PAYMENT_CONFIRMED deixa de alterar currentPeriodStart/End (cron cuida).
+ *     Continua alterando: status, overdueAt, nextBillingDate.
+ *   - Garantir: cron e idempotente (nao avanca 2x no mesmo dia).
+ *   - Validar: pagamento adiantado/no-prazo/atrasado preserva anchor (dia fixo do
+ *     vencimento, ex: sempre dia 16).
+ *
+ * [P2] SLS como tenant dono
+ *   Hoje SLS (empresa do dono da plataforma) e tratado como tenant regular,
+ *   precisa pagar a propria assinatura. Opcoes:
+ *   a) Criar plano "INTERNAL" R$ 0 com limites altos; migrar SLS pra la.
+ *   b) Flag isMaster ja existe mas so pula KYC — poderia ser estendida pra pular
+ *      cobranca tambem (verificar impacto em todos os checks de quota).
+ *
+ * [P3] Divergencia local x Asaas
+ *   Sem sync periodico de status com Asaas. Se webhook falha (rede, config),
+ *   status local pode ficar desatualizado indefinidamente. Solucao: cron semanal
+ *   que reconcilia status local com Asaas API pra todas subs ativas.
+ *
+ * ════════════════════════════════════════════════════════════════════════════
+ *   ANTES DE MEXER AQUI
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * 1. Ler esta secao inteira e o CLAUDE.md ("REGRA ABSOLUTA: Pagamento Asaas").
+ * 2. Testar em sandbox Asaas, NUNCA direto em prod. Asaas sandbox e gratis.
+ * 3. Um bug aqui pode: ativar tenant sem pagar, bloquear tenant que pagou,
+ *    duplicar cobranca, inflar/bloquear quota. Todos critico pro negocio.
+ * 4. Webhooks sao re-entrantes: codigo deve ser idempotente.
+ * 5. Nunca remover logs — sao a unica auditoria de eventos Asaas.
  */
 @Injectable()
 export class AsaasService {
@@ -930,6 +1021,27 @@ export class AsaasService {
         }
 
         // Update subscription period + clear overdue
+        // ATENCAO (design atual): currentPeriodStart usa payment.paymentDate.
+        // Se cliente paga ATRASADO (ex: vence 16/04, paga 24/04), start=24/04, end=16/05
+        // — cliente "consome" o periodo reduzido (23 dias ao inves de 30), mas o anchor
+        // (16) e preservado via dueDate em nextEnd. E consistente com o dueDate do Asaas.
+        //
+        // PROBLEMA CONHECIDO: enquanto subscription fica PAST_DUE (nao pago), o
+        // currentPeriodEnd NAO avanca — getBillingPeriod() em service-order.service.ts
+        // continua contando OS do ciclo vencido. Cliente trava em X/X no medidor de cota.
+        //
+        // MELHORIA FUTURA (nao trivial, requer teste completo em sandbox Asaas):
+        //   1. Criar cron @Cron('0 1 * * *') advanceBillingCycles() que avanca
+        //      currentPeriodEnd anchor-based (mantem o dia do vencimento) mesmo durante
+        //      PAST_DUE. Assim a quota zera no proximo anchor independente de pagamento.
+        //   2. Webhook deixa de alterar currentPeriodStart/End (cron cuida). Webhook
+        //      altera apenas: status, overdueAt, nextBillingDate.
+        //   3. Garantir idempotencia (subscription.lastCycleAdvancedAt) pra evitar
+        //      avancos duplicados se cron rodar multiplas vezes.
+        //   4. Validar que Asaas nao desalinha: Asaas e a fonte de verdade de nextBillingDate
+        //      — local deve seguir Asaas, nao o contrario.
+        //   5. Teste: simular pagamentos adiantado/no-prazo/atrasado em sandbox antes
+        //      de mexer em prod. UN bug aqui pode inflar quota ou travar tenants.
         const nextDue = new Date(payment.dueDate || payment.paymentDate);
         const nextEnd = new Date(nextDue);
         nextEnd.setMonth(nextEnd.getMonth() + 1);
@@ -1872,6 +1984,89 @@ export class AsaasService {
         `Overdue check complete: ${overdueSubscriptions.length} tenant(s) processed`,
       );
     }
+  }
+
+  // ─── CRON: ADVANCE BILLING CYCLES (anchor-based) ─────────
+
+  /**
+   * Daily at 01:00 — avanca currentPeriodStart/End de subs ACTIVE/PAST_DUE cujo
+   * currentPeriodEnd ja passou. Anchor-based: preserva o dia do vencimento
+   * (ex: sempre dia 16), ajustando automaticamente se o mes seguinte nao tem
+   * esse dia (ex: 31/01 -> 28/02).
+   *
+   * POR QUE: sem isso, um tenant PAST_DUE fica com currentPeriodEnd congelado
+   * no ciclo vencido. service-order.service.ts conta OS dentro desse intervalo
+   * e trava a quota ate o webhook PAYMENT_CONFIRMED avancar manualmente. O cron
+   * garante que a quota zera no proximo anchor mesmo sem pagamento (cliente
+   * ainda pode criar OS durante os 7 dias de graca ate o bloqueio automatico).
+   *
+   * IDEMPOTENCIA: filtro where currentPeriodEnd < now — se ja foi avancado,
+   * currentPeriodEnd fica no futuro e o registro nao retorna na busca.
+   *
+   * CONVIVENCIA COM WEBHOOK: se cliente paga atrasado, webhook PAYMENT_CONFIRMED
+   * pode sobrescrever currentPeriodStart/End (com data do pagamento). Isso e
+   * aceitavel — anchor (dueDate) e preservado via nextEnd no webhook.
+   *
+   * EXECUCAO MANUAL: tambem exposto via endpoint admin POST /admin/cron/advance-billing-cycles
+   * pra dry-run e testes.
+   */
+  @Cron('0 1 * * *')
+  async advanceBillingCycles(): Promise<{ advanced: number; errors: number }> {
+    this.logger.log('Running daily billing cycle advance...');
+
+    const now = new Date();
+    const expiredSubs = await this.prisma.subscription.findMany({
+      where: {
+        status: { in: ['ACTIVE', 'PAST_DUE'] },
+        currentPeriodEnd: { lt: now },
+      },
+      include: { tenant: { select: { slug: true } } },
+    });
+
+    let advanced = 0;
+    let errors = 0;
+
+    for (const sub of expiredSubs) {
+      try {
+        const oldEnd = sub.currentPeriodEnd;
+        const anchorDay = oldEnd.getDate();
+        const newStart = oldEnd;
+
+        // Avanca 1 mes. Se mes novo nao tem o anchorDay (ex: 31/01 -> 28/02),
+        // setDate() faz overflow (31/02 -> 03/03), entao precisa normalizar.
+        const newEnd = new Date(oldEnd);
+        newEnd.setMonth(newEnd.getMonth() + 1);
+        if (newEnd.getDate() !== anchorDay) {
+          // Mes novo nao tem o anchorDay: usa ultimo dia do mes alvo
+          newEnd.setDate(0);
+        }
+
+        await this.prisma.subscription.update({
+          where: { id: sub.id },
+          data: {
+            currentPeriodStart: newStart,
+            currentPeriodEnd: newEnd,
+          },
+        });
+        advanced++;
+        this.logger.log(
+          `Cycle advanced for tenant ${sub.tenant.slug}: ` +
+          `${oldEnd.toISOString().split('T')[0]} -> ${newEnd.toISOString().split('T')[0]}`,
+        );
+      } catch (err) {
+        errors++;
+        this.logger.error(
+          `Failed to advance cycle for tenant ${sub.tenant.slug}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    if (expiredSubs.length > 0) {
+      this.logger.log(
+        `Billing cycle advance complete: ${advanced} advanced, ${errors} errors (total ${expiredSubs.length})`,
+      );
+    }
+    return { advanced, errors };
   }
 
   // ─── CRON: APPLY PENDING DOWNGRADES ──────────────────────

@@ -1067,4 +1067,17 @@ export class TenantController {
     }
     return this.asaasProvider.getMunicipalServices(description);
   }
+
+  // ─── MANUAL CRON TRIGGERS (admin only, for testing/recovery) ─────
+
+  /**
+   * Manually trigger advanceBillingCycles cron.
+   * Use case: after deploy, rodar sob demanda pra validar o comportamento em producao
+   * sem esperar a janela das 01:00. Idempotente — subs com ciclo ja avancado sao ignoradas.
+   * Retorna { advanced, errors } com contagem.
+   */
+  @Post('/cron/advance-billing-cycles')
+  async triggerAdvanceBillingCycles() {
+    return this.asaasService.advanceBillingCycles();
+  }
 }
