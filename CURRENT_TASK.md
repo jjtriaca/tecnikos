@@ -1,7 +1,25 @@
 # TAREFA ATUAL
 
-## Versao: v1.09.94 (pendente deploy)
-## Ultima sessao: 178 (17/04/2026)
+## Versao: v1.09.96 (pendente deploy)
+## Ultima sessao: 179 (22/04/2026)
+
+## Sessao 179 — OS-00064 fix + protecoes contra mutacao indevida (v1.09.96)
+- Bug reportado: OS-00064 ficou CONCLUIDA com assignedPartnerId=NULL. Ueslei finalizou fisicamente em 17/04 09:06 mas nunca aceitou no sistema (offline queue nao sincronizou). Iago clicou botao "Confirmar" no header (que chamava finalize() e nao approveAndFinalize()), entao faltou Evaluation + evento STATUS_CHANGE + o status ficou CONCLUIDA ao inves de APROVADA.
+- **Correcao de dados OS-00064 via SQL** (scripts/fix-os-00064.sql):
+  - status CONCLUIDA → APROVADA
+  - assignedPartnerId → Ueslei
+  - acceptedAt/startedAt/completedAt corrigidos para 17/04
+  - Evaluation GESTOR AVA-00034 (5 estrelas) criada
+  - ServiceOrderEvent STATUS_CHANGE + AuditLog APPROVED_AND_FINALIZED_MANUAL
+  - NAO criado FIN PAYABLE (Ueslei sem comissao). Ledger e FIN-00449 ja existiam.
+- **Frontend**: removido botao "Confirmar" do header da OS (orders/[id]/page.tsx) que chamava finalize() em vez de approveAndFinalize. Removido state/import/modal FinalizeOrderModal no mesmo arquivo (o componente em components/os/FinalizeOrderModal.tsx ficou orfao, nao foi deletado).
+- **Backend protecoes** (baseado em auditoria dos paths de mutacao de ServiceOrder):
+  - `finalize()`: se `assignedPartnerId=null`, tenta fallback pra `directedTechnicianIds[0]`; sem nenhum, lanca BadRequestException. Evita novo bug OS-00064.
+  - `finalize()`: cria `ServiceOrderEvent` STATUS_CHANGE na transacao (consistencia com approveAndFinalize).
+  - `update()`: bloqueia mudanca de techAssignmentMode/requiredSpecializationIds/directedTechnicianIds/workflowTemplateId em OS terminal (CONCLUIDA/APROVADA). Edicao de conteudo (titulo, itens, valor, endereco) continua liberada.
+  - `PATCH /service-orders/:id`: adicionado `@Roles(ADMIN, DESPACHO)` (antes qualquer user autenticado podia mudar status).
+- **Pulado (pra sessao futura, risco de quebrar workflows)**: AutomationEngine.executeChangeStatus + WorkflowEngine.autoChangeStatus sem bloqueio terminal; loop CONCLUIDA↔AJUSTE sem limite.
+- Memory: feedback_os_concluida_aberta.md (CONCLUIDA nao eh terminal no filtro "Abertas" — aguarda aprovacao).
 
 ## Sessao 178 — Conciliacao preserva historico no VT (v1.09.94)
 - Bug: matchLine movia entry.cashAccountId pro banco em TODOS cenarios (A-PENDING e B-PAID). VT nunca esvaziava — so entradas, nunca saidas. Impossivel ver ciclo completo de cada cartao

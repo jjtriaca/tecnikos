@@ -9,7 +9,6 @@ import LocationPickerModal from "@/components/ui/LocationPickerModal";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import NfseEmissionModal from "@/app/(dashboard)/finance/components/NfseEmissionModal";
-import FinalizeOrderModal from "@/components/os/FinalizeOrderModal";
 import ApprovalConfirmModal from "@/components/os/ApprovalConfirmModal";
 
 type AttachmentType = {
@@ -295,7 +294,6 @@ export default function OrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const { toast } = useToast();
 
   // Gestor Evaluation state
@@ -535,16 +533,6 @@ export default function OrderDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Confirmar — visivel em OS nao-terminal com valor */}
-          {!["CONCLUIDA", "APROVADA", "CANCELADA"].includes(order.status) && order.valueCents > 0 && (
-            <button
-              onClick={() => setShowFinalizeModal(true)}
-              className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-            >
-              Confirmar
-            </button>
-          )}
-
           {/* Editar — visivel em OS nao-terminal ou terminal com config habilitada */}
           {(() => {
             if (order.status === "CANCELADA") return null;
@@ -1554,17 +1542,6 @@ export default function OrderDetailPage() {
         addressText={order.addressText}
         onConfirm={handleConfirmLocation}
         onClose={() => setLocationPickerOpen(false)}
-      />
-
-      <FinalizeOrderModal
-        open={showFinalizeModal}
-        orderId={order.id}
-        onClose={() => setShowFinalizeModal(false)}
-        onFinalized={() => {
-          setShowFinalizeModal(false);
-          toast("OS finalizada com sucesso!", "success");
-          loadOrder();
-        }}
       />
 
       {/* Lightbox — foto em tamanho real */}

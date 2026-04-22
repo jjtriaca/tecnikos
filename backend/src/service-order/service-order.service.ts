@@ -1216,6 +1216,25 @@ export class ServiceOrderService {
     }
 
     // Atribuição de técnico (v1.00.24)
+    // OS terminal (CONCLUIDA/APROVADA): bloqueia mudança de atribuição.
+    // Conteúdo (title, desc, itens, valor, endereço) pode editar — atribuição não.
+    const isTerminalEdit = TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)
+      && so.status !== ServiceOrderStatus.CANCELADA;
+    const assignmentFields = [
+      ['techAssignmentMode', data.techAssignmentMode !== undefined && data.techAssignmentMode !== (so as any).techAssignmentMode],
+      ['requiredSpecializationIds', data.requiredSpecializationIds !== undefined],
+      ['directedTechnicianIds', data.directedTechnicianIds !== undefined],
+      ['workflowTemplateId', data.workflowTemplateId !== undefined && (data.workflowTemplateId || null) !== so.workflowTemplateId],
+    ] as const;
+    if (isTerminalEdit) {
+      for (const [field, changing] of assignmentFields) {
+        if (changing) {
+          throw new ForbiddenException(
+            `Não é permitido alterar "${field}" em OS ${so.status.toLowerCase()}. Edite apenas conteúdo (título, descrição, itens, valor, endereço).`,
+          );
+        }
+      }
+    }
     checkField('techAssignmentMode', data.techAssignmentMode, (so as any).techAssignmentMode);
     if (data.requiredSpecializationIds !== undefined) {
       updateData['requiredSpecializationIds'] = data.requiredSpecializationIds;
@@ -1948,6 +1967,21 @@ export class ServiceOrderService {
     if (so.ledger) {
       throw new BadRequestException('OS já foi finalizada');
     }
+    // OS sem técnico atribuído: tentar fallback para directedTechnicianIds[0]
+    // para evitar estado inconsistente (CONCLUIDA sem assignedPartnerId, RECEIVABLE sem PAYABLE correspondente)
+    if (!so.assignedPartnerId) {
+      const directed = ((so as any).directedTechnicianIds as string[] | undefined) || [];
+      if (directed.length === 0) {
+        throw new BadRequestException(
+          'OS não possui técnico atribuído nem direcionado. Atribua um técnico antes de finalizar.',
+        );
+      }
+      await this.prisma.serviceOrder.update({
+        where: { id },
+        data: { assignedPartnerId: directed[0] },
+      });
+      so.assignedPartnerId = directed[0];
+    }
 
     const grossCents = so.valueCents;
     const effectiveBps = so.commissionBps ?? 0;
@@ -2035,6 +2069,23 @@ export class ServiceOrderService {
         data: {
           status: ServiceOrderStatus.CONCLUIDA,
           completedAt: so.completedAt || new Date(),
+        },
+      });
+
+      // 5. Event (consistência com approveAndFinalize)
+      await tx.serviceOrderEvent.create({
+        data: {
+          companyId,
+          serviceOrderId: id,
+          type: 'STATUS_CHANGE',
+          actorType: 'USER',
+          actorId: actor?.id,
+          payload: {
+            from: so.status,
+            to: 'CONCLUIDA',
+            reason: 'Finalização',
+            entriesCreated: createdEntries.length,
+          },
         },
       });
 

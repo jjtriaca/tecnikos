@@ -315,6 +315,7 @@ export class ServiceOrderController {
     return this.service.update(id, user.companyId, body, user);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Patch(':id')
   updateStatus(
     @Param('id') id: string,
