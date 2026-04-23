@@ -1237,30 +1237,31 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
    *  2) Primeiro PaymentInstrument ativo da empresa que corresponda ao code — usa seu cashAccountId
    *  3) Fallback por tipo: DINHEIRO/CHEQUE → CAIXA; demais → TRANSITO; CARTAO → vazio (entra no fluxo de cartao)
    */
-  const autoSelectAccount = useCallback((pmCode: string, instrumentId?: string) => {
+  const resolveAccountIdForMethod = useCallback((pmCode: string, instrumentId?: string): string => {
     // 1) Instrument especifico selecionado
     if (instrumentId) {
       const inst = allInstruments.find((i: any) => i.id === instrumentId);
-      if (inst?.cashAccount?.id) {
-        setSelectedAccountId(inst.cashAccount.id);
-        return;
-      }
+      if (inst?.cashAccount?.id) return inst.cashAccount.id;
     }
     // 2) Busca instrumento padrao por code na empresa
     const instByCode = allInstruments.find((i: any) => (i.paymentMethod?.code || "") === pmCode);
-    if (instByCode?.cashAccount?.id) {
-      setSelectedAccountId(instByCode.cashAccount.id);
-      return;
-    }
+    if (instByCode?.cashAccount?.id) return instByCode.cashAccount.id;
     // 3) Fallback por tipo
     if (pmCode === "DINHEIRO" || pmCode === "CHEQUE") {
-      const caixa = activeAccounts.find((a) => a.type === "CAIXA");
-      setSelectedAccountId(caixa?.id || "");
-    } else if (pmCode && !pmCode.startsWith("CARTAO")) {
-      const transit = activeAccounts.find((a) => a.type === "TRANSITO");
-      setSelectedAccountId(transit?.id || "");
+      return activeAccounts.find((a) => a.type === "CAIXA")?.id || "";
     }
+    if (pmCode && !pmCode.startsWith("CARTAO")) {
+      return activeAccounts.find((a) => a.type === "TRANSITO")?.id || "";
+    }
+    return "";
   }, [allInstruments, activeAccounts]);
+
+  const autoSelectAccount = useCallback((pmCode: string, instrumentId?: string) => {
+    const id = resolveAccountIdForMethod(pmCode, instrumentId);
+    if (id || pmCode === "DINHEIRO" || pmCode === "CHEQUE" || (pmCode && !pmCode.startsWith("CARTAO"))) {
+      setSelectedAccountId(id);
+    }
+  }, [resolveAccountIdForMethod]);
 
   // Pre-fill payment method, category, and date when opening pay modal
   useEffect(() => {
@@ -1750,7 +1751,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Forma de {type === "RECEIVABLE" ? "Recebimento" : "Pagamento"} *</label>
-                <select value={batchPayMethod} onChange={(e) => setBatchPayMethod(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                <select value={batchPayMethod} onChange={(e) => {
+                    const code = e.target.value;
+                    setBatchPayMethod(code);
+                    // Auto-select conta/caixa — igual ao modal individual (fix lockAccountOnReceive travando vazio)
+                    if (code) setBatchAccountId(resolveAccountIdForMethod(code));
+                  }} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
                   <option value="">Selecione...</option>
                   {activePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
                 </select>
