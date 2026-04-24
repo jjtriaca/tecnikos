@@ -55,10 +55,12 @@ export class InstallmentService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      const filhasInfo: Array<{ code: string; amountCents: number; dueDate: Date }> = [];
       for (let i = 0; i < count; i++) {
         const dueDate = new Date(firstDue);
         dueDate.setDate(dueDate.getDate() + (i * intervalDays));
         const amountCents = i === count - 1 ? baseAmount + remainder : baseAmount;
+        filhasInfo.push({ code: codes[i], amountCents, dueDate });
         await tx.financialEntry.create({
           data: {
             companyId,
@@ -87,6 +89,17 @@ export class InstallmentService {
           },
         });
       }
+
+      // Notes do pai: lista detalhada das parcelas filhas.
+      // Primeira linha em [bracket] pra a coluna "notes" da tabela renderizar como hint.
+      const fmtBrl = (c: number) => `R$ ${(c / 100).toFixed(2).replace('.', ',')}`;
+      const fmtDate = (d: Date) => d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      const parcelasLinhas = filhasInfo
+        .map((f) => `- ${f.code} (${fmtBrl(f.amountCents)} venc ${fmtDate(f.dueDate)})`)
+        .join('\n');
+      const totalFmt = fmtBrl(filhasInfo.reduce((s, f) => s + f.amountCents, 0));
+      const notesFormatado = `[Parcelado em ${count}x] Total: ${totalFmt}\n${parcelasLinhas}`;
+
       // Pai: SPLIT, preserva valores/NFS-e, registra info de parcelamento
       await tx.financialEntry.update({
         where: { id: entryId },
@@ -97,7 +110,7 @@ export class InstallmentService {
           interestRateMonthly: dto.interestRateMonthly ?? pai.interestRateMonthly,
           penaltyPercent: dto.penaltyPercent ?? pai.penaltyPercent,
           penaltyFixedCents: dto.penaltyFixedCents ?? pai.penaltyFixedCents,
-          notes: `[Parcelado em ${count}x — substituido por entries filhas]`,
+          notes: notesFormatado,
         },
       });
     });
