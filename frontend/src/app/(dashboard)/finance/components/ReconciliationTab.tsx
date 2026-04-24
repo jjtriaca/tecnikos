@@ -660,6 +660,7 @@ function ConciliationModal({
   const [adjustEntry, setAdjustEntry] = useState<any>(null);
   const [adjustAccountId, setAdjustAccountId] = useState("");
   const [adjustDescription, setAdjustDescription] = useState("");
+  const [adjustPaymentMethod, setAdjustPaymentMethod] = useState("");
   const [creatingAdjust, setCreatingAdjust] = useState(false);
 
   // Card transaction breakdown state
@@ -999,6 +1000,9 @@ function ConciliationModal({
           a.code === "7100" || /juros|multa/i.test(a.name),
         );
         setAdjustAccountId(jurosAcc?.id || "");
+        // Pre-seleciona forma de pagamento: heranca do entry original ou auto-detect pela descricao da linha
+        const inheritedMethod = entry.paymentMethod || matchPaymentMethod || "";
+        setAdjustPaymentMethod(inheritedMethod);
         setAdjustEntry(entry);
         return;
       }
@@ -1056,6 +1060,7 @@ function ConciliationModal({
         dueDate: new Date(line.transactionDate).toISOString(),
         partnerId,
         financialAccountId: adjustAccountId || undefined,
+        paymentMethod: adjustPaymentMethod || undefined,
       });
       const adjustId = (created as any).id || (created as any).data?.id;
       if (!adjustId) throw new Error("Não foi possível recuperar ID do ajuste criado.");
@@ -1455,6 +1460,19 @@ function ConciliationModal({
                       .map((a) => (
                         <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
                       ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Forma de pagamento</label>
+                  <select
+                    value={adjustPaymentMethod}
+                    onChange={(e) => setAdjustPaymentMethod(e.target.value)}
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white"
+                  >
+                    <option value="">— sem forma —</option>
+                    {paymentMethods.map((m) => (
+                      <option key={m.code} value={m.code}>{m.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>
