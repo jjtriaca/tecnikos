@@ -1,80 +1,103 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CodeGeneratorService } from '../common/code-generator.service';
 import { GenerateInstallmentsDto } from './dto/generate-installments.dto';
 
+/**
+ * InstallmentService — arquitetura pos-refactor (v1.09.99):
+ * Parcelas sao FinancialEntry filhas com parentEntryId apontando pro pai.
+ * O FinancialInstallment continua no schema (apenas pra compat com dados antigos)
+ * mas parcelamentos novos NAO criam mais FinancialInstallment.
+ *
+ * Adapter pattern: endpoints que retornam "installment" formatam entries filhas
+ * no shape legado { id, installmentNumber, dueDate, amountCents, totalCents, status, ... }
+ * pra nao quebrar o frontend atual.
+ */
 @Injectable()
 export class InstallmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly codeGenerator: CodeGeneratorService,
+  ) {}
 
   /**
-   * Generate N installments for a financial entry.
-   * Splits the entry’s netCents equally across installments.
-   * Remainder cents go to the last installment.
+   * Gera N parcelas como entries filhas com parentEntryId = pai.
+   * Pai vira CANCELLED (some do "a receber") mas preserva NFS-e/histórico.
+   * Filhas herdam nfseStatus, nfseEmissionId, paymentMethod, paymentInstrumentId,
+   * financialAccountId, partner, type, serviceOrderId, config de juros/multa.
    */
   async generateInstallments(entryId: string, companyId: string, dto: GenerateInstallmentsDto) {
-    const entry = await this.prisma.financialEntry.findFirst({
+    const pai = await this.prisma.financialEntry.findFirst({
       where: { id: entryId, companyId, deletedAt: null },
-      include: { installments: true },
     });
-    if (!entry) throw new NotFoundException('Lancamento nao encontrado');
-    if (entry.installments.length > 0) {
-      throw new BadRequestException('Lancamento ja possui parcelas');
-    }
-    if (entry.status === 'PAID' || entry.status === 'CANCELLED') {
+    if (!pai) throw new NotFoundException('Lancamento nao encontrado');
+    if (pai.status === 'PAID' || pai.status === 'CANCELLED') {
       throw new BadRequestException('Lancamento com status terminal nao pode ser parcelado');
+    }
+    const existentes = await this.prisma.financialEntry.count({
+      where: { parentEntryId: entryId, deletedAt: null },
+    });
+    if (existentes > 0) {
+      throw new BadRequestException('Lancamento ja possui parcelas');
     }
 
     const count = dto.count;
     const intervalDays = dto.intervalDays ?? 30;
-    const baseAmount = Math.floor(entry.netCents / count);
-    const remainder = entry.netCents - (baseAmount * count);
+    const baseAmount = Math.floor(pai.netCents / count);
+    const remainder = pai.netCents - (baseAmount * count);
 
-    const installments: Array<{
-      financialEntryId: string;
-      installmentNumber: number;
-      dueDate: Date;
-      amountCents: number;
-      interestCents: number;
-      penaltyCents: number;
-      discountCents: number;
-      totalCents: number;
-      status: 'PENDING';
-    }> = [];
-    // Append T12:00:00 to avoid timezone shift when input is YYYY-MM-DD
     const firstDue = new Date(dto.firstDueDate.includes('T') ? dto.firstDueDate : `${dto.firstDueDate}T12:00:00`);
 
+    // Pre-gera N codigos (sequencial)
+    const codes: string[] = [];
     for (let i = 0; i < count; i++) {
-      const dueDate = new Date(firstDue);
-      dueDate.setDate(dueDate.getDate() + (i * intervalDays));
-
-      const amountCents = i === count - 1 ? baseAmount + remainder : baseAmount;
-
-      installments.push({
-        financialEntryId: entryId,
-        installmentNumber: i + 1,
-        dueDate,
-        amountCents,
-        interestCents: 0,
-        penaltyCents: 0,
-        discountCents: 0,
-        totalCents: amountCents,
-        status: 'PENDING' as const,
-      });
+      codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
     }
 
-    // Use interactive transaction to create all installments and update the entry
     await this.prisma.$transaction(async (tx) => {
-      for (const inst of installments) {
-        await tx.financialInstallment.create({ data: inst });
+      for (let i = 0; i < count; i++) {
+        const dueDate = new Date(firstDue);
+        dueDate.setDate(dueDate.getDate() + (i * intervalDays));
+        const amountCents = i === count - 1 ? baseAmount + remainder : baseAmount;
+        await tx.financialEntry.create({
+          data: {
+            companyId,
+            code: codes[i],
+            type: pai.type,
+            status: 'PENDING',
+            description: `${pai.description} — Parcela ${i + 1}/${count}`,
+            grossCents: amountCents,
+            netCents: amountCents,
+            dueDate,
+            parentEntryId: entryId,
+            partnerId: pai.partnerId,
+            serviceOrderId: pai.serviceOrderId,
+            paymentMethod: pai.paymentMethod,
+            paymentMethodId: pai.paymentMethodId,
+            paymentInstrumentId: pai.paymentInstrumentId,
+            financialAccountId: pai.financialAccountId,
+            cashAccountId: pai.cashAccountId,
+            nfseStatus: pai.nfseStatus,
+            nfseEmissionId: pai.nfseEmissionId,
+            interestType: dto.interestType || pai.interestType || 'SIMPLE',
+            interestRateMonthly: dto.interestRateMonthly ?? pai.interestRateMonthly ?? null,
+            penaltyPercent: dto.penaltyPercent ?? pai.penaltyPercent ?? null,
+            penaltyFixedCents: dto.penaltyFixedCents ?? pai.penaltyFixedCents ?? null,
+            installmentCount: count,
+          },
+        });
       }
+      // Pai: CANCELLED, preserva valores/NFS-e, registra info de parcelamento
       await tx.financialEntry.update({
         where: { id: entryId },
         data: {
+          status: 'CANCELLED',
           installmentCount: count,
-          interestType: dto.interestType || 'SIMPLE',
-          interestRateMonthly: dto.interestRateMonthly ?? null,
-          penaltyPercent: dto.penaltyPercent ?? null,
-          penaltyFixedCents: dto.penaltyFixedCents ?? null,
+          interestType: dto.interestType || pai.interestType,
+          interestRateMonthly: dto.interestRateMonthly ?? pai.interestRateMonthly,
+          penaltyPercent: dto.penaltyPercent ?? pai.penaltyPercent,
+          penaltyFixedCents: dto.penaltyFixedCents ?? pai.penaltyFixedCents,
+          notes: `[Parcelado em ${count}x — substituido por entries filhas]`,
         },
       });
     });
@@ -83,227 +106,173 @@ export class InstallmentService {
   }
 
   /**
-   * List all installments for an entry
+   * Lista parcelas do entry (entries filhas via parentEntryId) no shape legado.
    */
   async getInstallments(entryId: string, companyId: string) {
-    // Verify entry belongs to company
-    const entry = await this.prisma.financialEntry.findFirst({
+    const pai = await this.prisma.financialEntry.findFirst({
       where: { id: entryId, companyId, deletedAt: null },
     });
-    if (!entry) throw new NotFoundException('Lancamento nao encontrado');
+    if (!pai) throw new NotFoundException('Lancamento nao encontrado');
 
-    return this.prisma.financialInstallment.findMany({
-      where: { financialEntryId: entryId },
-      orderBy: { installmentNumber: 'asc' },
+    const filhas = await this.prisma.financialEntry.findMany({
+      where: { parentEntryId: entryId, deletedAt: null },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
     });
+
+    return filhas.map((f, idx) => this.toInstallmentShape(f, idx + 1, entryId));
   }
 
   /**
-   * Pay an installment (mark as PAID)
+   * "Paga" uma parcela — na verdade, marca a entry filha como PAID.
+   * id = FinancialEntry.id (filha).
    */
   async payInstallment(installmentId: string, companyId: string, paidAmountCents?: number, notes?: string) {
-    const installment = await this.prisma.financialInstallment.findFirst({
-      where: { id: installmentId },
-      include: { financialEntry: true },
+    const filha = await this.prisma.financialEntry.findFirst({
+      where: { id: installmentId, companyId, deletedAt: null },
     });
-    if (!installment) throw new NotFoundException('Parcela nao encontrada');
-    if (installment.financialEntry.companyId !== companyId) {
-      throw new NotFoundException('Parcela nao encontrada');
-    }
-    if (installment.status === 'PAID') {
-      throw new BadRequestException('Parcela ja foi paga');
-    }
-    if (installment.status === 'CANCELLED' || installment.status === 'RENEGOTIATED') {
-      throw new BadRequestException('Parcela com status terminal');
-    }
+    if (!filha) throw new NotFoundException('Parcela nao encontrada');
+    if (filha.status === 'PAID') throw new BadRequestException('Parcela ja foi paga');
+    if (filha.status === 'CANCELLED') throw new BadRequestException('Parcela com status terminal');
 
-    const updated = await this.prisma.financialInstallment.update({
+    const updated = await this.prisma.financialEntry.update({
       where: { id: installmentId },
       data: {
         status: 'PAID',
         paidAt: new Date(),
-        paidAmountCents: paidAmountCents ?? installment.totalCents,
-        notes: notes ?? installment.notes,
+        grossCents: paidAmountCents ?? filha.grossCents,
+        netCents: paidAmountCents ?? filha.netCents,
+        notes: notes ?? filha.notes,
       },
     });
 
-    // Check if all installments are paid — if so, mark entry as PAID
-    await this.checkAndUpdateEntryStatus(installment.financialEntryId);
-
-    return updated;
+    return this.toInstallmentShape(updated, 1, filha.parentEntryId || installmentId);
   }
 
   /**
-   * Cancel an installment
+   * Cancela uma parcela (marca entry filha como CANCELLED).
    */
   async cancelInstallment(installmentId: string, companyId: string, notes?: string) {
-    const installment = await this.prisma.financialInstallment.findFirst({
-      where: { id: installmentId },
-      include: { financialEntry: true },
+    const filha = await this.prisma.financialEntry.findFirst({
+      where: { id: installmentId, companyId, deletedAt: null },
     });
-    if (!installment) throw new NotFoundException('Parcela nao encontrada');
-    if (installment.financialEntry.companyId !== companyId) {
-      throw new NotFoundException('Parcela nao encontrada');
-    }
-    if (installment.status === 'PAID') {
-      throw new BadRequestException('Parcela ja paga nao pode ser cancelada');
-    }
-    if (installment.status === 'CANCELLED') {
-      throw new BadRequestException('Parcela ja esta cancelada');
-    }
+    if (!filha) throw new NotFoundException('Parcela nao encontrada');
+    if (filha.status === 'PAID') throw new BadRequestException('Parcela ja paga nao pode ser cancelada');
+    if (filha.status === 'CANCELLED') throw new BadRequestException('Parcela ja esta cancelada');
 
-    return this.prisma.financialInstallment.update({
+    const updated = await this.prisma.financialEntry.update({
       where: { id: installmentId },
-      data: {
-        status: 'CANCELLED',
-        notes: notes ?? installment.notes,
-      },
+      data: { status: 'CANCELLED', notes: notes ?? filha.notes },
     });
+    return this.toInstallmentShape(updated, 1, filha.parentEntryId || installmentId);
   }
 
   /**
-   * Update installment (dueDate, amountCents)
+   * Atualiza dueDate/amountCents da parcela (entry filha).
    */
   async updateInstallment(installmentId: string, companyId: string, data: { dueDate?: string; amountCents?: number }) {
-    const installment = await this.prisma.financialInstallment.findFirst({
-      where: { id: installmentId },
-      include: { financialEntry: true },
+    const filha = await this.prisma.financialEntry.findFirst({
+      where: { id: installmentId, companyId, deletedAt: null },
     });
-    if (!installment) throw new NotFoundException('Parcela nao encontrada');
-    if (installment.financialEntry.companyId !== companyId) {
-      throw new NotFoundException('Parcela nao encontrada');
-    }
-    if (installment.status === 'PAID') {
-      throw new BadRequestException('Parcela ja paga nao pode ser editada');
-    }
-    if (installment.status === 'CANCELLED') {
-      throw new BadRequestException('Parcela cancelada nao pode ser editada');
-    }
+    if (!filha) throw new NotFoundException('Parcela nao encontrada');
+    if (filha.status === 'PAID') throw new BadRequestException('Parcela ja paga nao pode ser editada');
+    if (filha.status === 'CANCELLED') throw new BadRequestException('Parcela cancelada nao pode ser editada');
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (data.dueDate) {
-      // Append T12:00:00 to avoid timezone shift (input is YYYY-MM-DD)
       updateData.dueDate = new Date(data.dueDate.includes('T') ? data.dueDate : `${data.dueDate}T12:00:00`);
-      // Reset overdue status if new date is in the future
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (updateData.dueDate >= today && installment.status === 'OVERDUE') {
-        updateData.status = 'PENDING';
-      }
     }
     if (data.amountCents !== undefined && data.amountCents > 0) {
-      updateData.amountCents = data.amountCents;
-      updateData.totalCents = data.amountCents + installment.interestCents + installment.penaltyCents;
+      updateData.grossCents = data.amountCents;
+      updateData.netCents = data.amountCents;
     }
-
     if (Object.keys(updateData).length === 0) {
       throw new BadRequestException('Nenhum dado para atualizar');
     }
 
-    return this.prisma.financialInstallment.update({
+    const updated = await this.prisma.financialEntry.update({
       where: { id: installmentId },
       data: updateData,
     });
+    return this.toInstallmentShape(updated, 1, filha.parentEntryId || installmentId);
   }
 
   /**
-   * Calculate and apply interest on overdue installments
-   * Called by the collection cron job daily
+   * Cron diario: aplica juros/multa em parcelas (entries filhas) vencidas.
+   * grossCents recebe principal + juros + multa calculados.
+   * Principal original e preservado no campo netCents (snapshot do momento da criacao).
    */
   async applyInterestToOverdue(companyId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Find overdue PENDING installments for this company
-    const overdueInstallments = await this.prisma.financialInstallment.findMany({
+    const overdue = await this.prisma.financialEntry.findMany({
       where: {
+        companyId,
+        deletedAt: null,
+        parentEntryId: { not: null },
         status: 'PENDING',
         dueDate: { lt: today },
-        financialEntry: { companyId, deletedAt: null },
       },
-      include: { financialEntry: true },
     });
 
     let processedCount = 0;
-
-    if (overdueInstallments.length > 0) {
+    if (overdue.length > 0) {
       await this.prisma.$transaction(async (tx) => {
-        for (const inst of overdueInstallments) {
-          const entry = inst.financialEntry;
+        for (const f of overdue) {
+          if (!f.dueDate) continue;
+          const principal = f.netCents;
           let interestCents = 0;
-          let penaltyCents = inst.penaltyCents; // Keep existing penalty
-
-          // Calculate interest if rate is set
-          if (entry.interestRateMonthly && entry.interestRateMonthly > 0) {
-            const daysOverdue = Math.floor((today.getTime() - inst.dueDate.getTime()) / (1000 * 60 * 60 * 24));
-            const dailyRate = entry.interestRateMonthly / 30 / 100; // Convert monthly % to daily decimal
-
-            if (entry.interestType === 'COMPOUND') {
-              // Compound: interest on (amount + previous interest)
-              interestCents = Math.round(inst.amountCents * (Math.pow(1 + dailyRate, daysOverdue) - 1));
-            } else {
-              // Simple: interest only on original amount
-              interestCents = Math.round(inst.amountCents * dailyRate * daysOverdue);
-            }
+          if (f.interestRateMonthly && f.interestRateMonthly > 0) {
+            const daysOverdue = Math.floor((today.getTime() - f.dueDate.getTime()) / (1000 * 60 * 60 * 24));
+            const dailyRate = f.interestRateMonthly / 30 / 100;
+            interestCents = f.interestType === 'COMPOUND'
+              ? Math.round(principal * (Math.pow(1 + dailyRate, daysOverdue) - 1))
+              : Math.round(principal * dailyRate * daysOverdue);
           }
-
-          // Apply penalty (only once, on first day overdue)
-          if (penaltyCents === 0) {
-            if (entry.penaltyPercent && entry.penaltyPercent > 0) {
-              penaltyCents += Math.round(inst.amountCents * entry.penaltyPercent / 100);
-            }
-            if (entry.penaltyFixedCents && entry.penaltyFixedCents > 0) {
-              penaltyCents += entry.penaltyFixedCents;
-            }
+          let penaltyCents = 0;
+          if (f.penaltyPercent && f.penaltyPercent > 0) {
+            penaltyCents += Math.round(principal * f.penaltyPercent / 100);
           }
-
-          const totalCents = inst.amountCents + interestCents + penaltyCents - inst.discountCents;
-
-          await tx.financialInstallment.update({
-            where: { id: inst.id },
+          if (f.penaltyFixedCents && f.penaltyFixedCents > 0) {
+            penaltyCents += f.penaltyFixedCents;
+          }
+          await tx.financialEntry.update({
+            where: { id: f.id },
             data: {
-              status: 'OVERDUE',
-              interestCents,
-              penaltyCents,
-              totalCents,
+              grossCents: principal + interestCents + penaltyCents,
             },
           });
-
           processedCount++;
         }
       });
     }
-
     return { processed: processedCount };
   }
 
   /**
-   * Get overdue aging report
-   * Groups overdue amounts by aging buckets: 0-30, 31-60, 61-90, 90+
+   * Aging report: overdue entries filhas + entries sem parentEntryId vencidas.
    */
   async getOverdueAgingReport(companyId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const overdueInstallments = await this.prisma.financialInstallment.findMany({
+    // Entries filhas (parcelas) vencidas
+    const overdueFilhas = await this.prisma.financialEntry.findMany({
       where: {
-        status: { in: ['PENDING', 'OVERDUE'] },
+        companyId,
+        deletedAt: null,
+        parentEntryId: { not: null },
+        status: { in: ['PENDING', 'CONFIRMED'] },
         dueDate: { lt: today },
-        financialEntry: { companyId, deletedAt: null },
       },
-      include: {
-        financialEntry: {
-          select: { type: true, partner: { select: { id: true, name: true } } },
-        },
-      },
+      include: { partner: { select: { id: true, name: true } } },
     });
-
-    // Also get entries without installments that are overdue
+    // Entries sem parcelamento vencidas
     const overdueEntries = await this.prisma.financialEntry.findMany({
       where: {
         companyId,
         deletedAt: null,
-        installmentCount: null,
+        parentEntryId: null,
         dueDate: { lt: today },
         status: { in: ['PENDING', 'CONFIRMED'] },
       },
@@ -325,13 +294,11 @@ export class InstallmentService {
       else { buckets['90+'].count++; buckets['90+'].totalCents += amount; }
     };
 
-    for (const inst of overdueInstallments) {
-      categorize(inst.dueDate, inst.totalCents);
+    for (const f of overdueFilhas) {
+      if (f.dueDate) categorize(f.dueDate, f.grossCents);
     }
-    for (const entry of overdueEntries) {
-      if (entry.dueDate) {
-        categorize(entry.dueDate, entry.netCents);
-      }
+    for (const e of overdueEntries) {
+      if (e.dueDate) categorize(e.dueDate, e.netCents);
     }
 
     const totalOverdueCents = Object.values(buckets).reduce((s, b) => s + b.totalCents, 0);
@@ -341,23 +308,35 @@ export class InstallmentService {
   }
 
   /**
-   * Check if all installments are paid/cancelled and update parent entry status
+   * Adapter: formata FinancialEntry filha no shape legado FinancialInstallment
+   * pra compatibilidade com o frontend atual.
    */
-  private async checkAndUpdateEntryStatus(entryId: string) {
-    const installments = await this.prisma.financialInstallment.findMany({
-      where: { financialEntryId: entryId },
-    });
-
-    const allPaidOrCancelled = installments.every(
-      i => i.status === 'PAID' || i.status === 'CANCELLED',
-    );
-    const hasAtLeastOnePaid = installments.some(i => i.status === 'PAID');
-
-    if (allPaidOrCancelled && hasAtLeastOnePaid) {
-      await this.prisma.financialEntry.update({
-        where: { id: entryId },
-        data: { status: 'PAID', paidAt: new Date() },
-      });
-    }
+  private toInstallmentShape(entry: any, installmentNumber: number, financialEntryId: string) {
+    const principal = entry.netCents || entry.grossCents || 0;
+    const total = entry.grossCents || 0;
+    const diff = total - principal;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isOverdue = entry.status === 'PENDING' && entry.dueDate && entry.dueDate < today;
+    return {
+      id: entry.id,
+      financialEntryId,
+      installmentNumber,
+      dueDate: entry.dueDate,
+      amountCents: principal,
+      interestCents: diff > 0 ? diff : 0,
+      penaltyCents: 0,
+      discountCents: 0,
+      totalCents: total,
+      status: entry.status === 'PAID' ? 'PAID'
+        : entry.status === 'CANCELLED' ? 'CANCELLED'
+        : isOverdue ? 'OVERDUE' : 'PENDING',
+      paidAt: entry.paidAt,
+      paidAmountCents: entry.status === 'PAID' ? total : null,
+      notes: entry.notes,
+      // Campos extras pra debug/audit
+      _entryId: entry.id,
+      _entryCode: entry.code,
+    };
   }
 }
