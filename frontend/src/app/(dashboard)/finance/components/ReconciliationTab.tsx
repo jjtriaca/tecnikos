@@ -655,6 +655,12 @@ function ConciliationModal({
   const [financialAccounts, setFinancialAccounts] = useState<FinancialAccountOption[]>([]);
   const [accountAssignments, setAccountAssignments] = useState<Record<string, string>>({});
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  // Auto-deteccao de diferenca: ao clicar "Conciliar" com entry de valor diferente da linha,
+  // abre form de ajuste (juros/multa) e faz match-multiple [entry + ajuste].
+  const [adjustEntry, setAdjustEntry] = useState<any>(null);
+  const [adjustAccountId, setAdjustAccountId] = useState("");
+  const [adjustDescription, setAdjustDescription] = useState("");
+  const [creatingAdjust, setCreatingAdjust] = useState(false);
 
   // Card transaction breakdown state
   const [liquidCents, setLiquidCents] = useState(0);
@@ -976,6 +982,28 @@ function ConciliationModal({
       toast("Selecione a forma de pagamento antes de conciliar.", "error");
       return;
     }
+
+    // Auto-deteccao de diferenca: se entry tem valor diferente da linha (e nao e cartao),
+    // abre form de ajuste pra criar lancamento separado de juros/multa.
+    if (entry && line && !isCard) {
+      const entryAmount = entry.netCents ?? entry.grossCents ?? 0;
+      const lineAbs = Math.abs(line.amountCents);
+      const diff = lineAbs - entryAmount;
+      if (diff > 1) {
+        const direction = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
+        const tipoAjuste = direction === "RECEIVABLE" ? "Juros/Multa recebidos" : "Juros/Multa pagos";
+        const partnerName = entry.partner?.name || "";
+        setAdjustDescription(`${tipoAjuste}${partnerName ? ` — ${partnerName}` : ""}`);
+        // Pre-seleciona "Juros e Multas" pelo code 7100 ou nome
+        const jurosAcc = financialAccounts.find((a) =>
+          a.code === "7100" || /juros|multa/i.test(a.name),
+        );
+        setAdjustAccountId(jurosAcc?.id || "");
+        setAdjustEntry(entry);
+        return;
+      }
+    }
+
     setMatching(entryId);
     try {
       const body: any = { entryId };
@@ -997,6 +1025,52 @@ function ConciliationModal({
       toast(err?.response?.data?.message || "Erro ao conciliar.", "error");
     } finally {
       setMatching(null);
+    }
+  }
+
+  /**
+   * Cria entry de ajuste (juros/multa) e concilia [entry original + ajuste] via match-multiple.
+   */
+  async function handleConciliarComAjuste() {
+    if (!line || !adjustEntry) return;
+    if (!adjustDescription.trim()) {
+      toast("Descrição obrigatória.", "error");
+      return;
+    }
+    const partnerId = adjustEntry.partner?.id || adjustEntry.partnerId;
+    if (!partnerId) {
+      toast("Lançamento sem parceiro — não é possível criar ajuste.", "error");
+      return;
+    }
+    const direction: "RECEIVABLE" | "PAYABLE" = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
+    const lineAbs = Math.abs(line.amountCents);
+    const entryAmount = adjustEntry.netCents ?? adjustEntry.grossCents ?? 0;
+    const diff = lineAbs - entryAmount;
+    setCreatingAdjust(true);
+    try {
+      // 1) Cria entry de ajuste
+      const created = await api.post<{ id: string }>("/finance/entries", {
+        type: direction,
+        description: adjustDescription.trim(),
+        grossCents: diff,
+        dueDate: new Date(line.transactionDate).toISOString(),
+        partnerId,
+        financialAccountId: adjustAccountId || undefined,
+      });
+      const adjustId = (created as any).id || (created as any).data?.id;
+      if (!adjustId) throw new Error("Não foi possível recuperar ID do ajuste criado.");
+
+      // 2) Concilia via match-multiple com [entry original + ajuste]
+      await api.post(`/finance/reconciliation/lines/${line.id}/match-multiple`, {
+        entryIds: [adjustEntry.id, adjustId],
+      });
+      toast(`Conciliado: ${adjustEntry.code || "lançamento"} + ajuste de ${formatCurrency(diff)}.`, "success");
+      setAdjustEntry(null);
+      onMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao conciliar com ajuste.", "error");
+    } finally {
+      setCreatingAdjust(false);
     }
   }
 
@@ -1339,6 +1413,71 @@ function ConciliationModal({
           onMatched(); // fecha modal de conciliacao e recarrega a lista
         }}
       />
+
+      {/* Overlay: form de ajuste quando entry tem valor diferente da linha (juros/multa) */}
+      {adjustEntry && line && (() => {
+        const lineAbs = Math.abs(line.amountCents);
+        const entryAmount = adjustEntry.netCents ?? adjustEntry.grossCents ?? 0;
+        const diff = lineAbs - entryAmount;
+        const direction: "RECEIVABLE" | "PAYABLE" = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col">
+              <div className="px-5 py-4 border-b border-slate-200">
+                <h3 className="text-base font-semibold text-amber-700">⚠ Diferença detectada</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  O lançamento {adjustEntry.code} é de {formatCurrency(entryAmount)} mas a linha do extrato é {formatCurrency(lineAbs)}. Diferença de <strong>{formatCurrency(diff)}</strong>.
+                </p>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-sm text-slate-700">
+                  Deseja criar um lançamento separado de {direction === "RECEIVABLE" ? "juros/multa recebida" : "encargos pagos"} para esta diferença?
+                </p>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Descrição *</label>
+                  <input
+                    type="text"
+                    value={adjustDescription}
+                    onChange={(e) => setAdjustDescription(e.target.value)}
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Plano de contas</label>
+                  <select
+                    value={adjustAccountId}
+                    onChange={(e) => setAdjustAccountId(e.target.value)}
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white"
+                  >
+                    <option value="">— sem plano —</option>
+                    {financialAccounts
+                      .filter((a) => direction === "RECEIVABLE" ? a.type === "REVENUE" : a.type === "EXPENSE")
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+              <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  onClick={() => setAdjustEntry(null)}
+                  disabled={creatingAdjust}
+                  className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800"
+                >
+                  Não, cancelar
+                </button>
+                <button
+                  onClick={handleConciliarComAjuste}
+                  disabled={creatingAdjust || !adjustDescription.trim()}
+                  className="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {creatingAdjust ? "Conciliando..." : "Sim, criar e conciliar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
