@@ -203,6 +203,7 @@ interface FinancialAccountOption {
   id: string;
   code: string | null;
   name: string;
+  type?: string; // REVENUE | EXPENSE | COST
   isActive: boolean;
   allowPosting: boolean;
   parent?: { id: string; code: string | null; name: string } | null;
@@ -2002,6 +2003,13 @@ function MultipleMatchModal({
   const [loading, setLoading] = useState(false);
   const [matching, setMatching] = useState(false);
   const [notes, setNotes] = useState("");
+  // Estados pro fluxo "criar lancamento de juros/multa pra diferenca"
+  const [financialAccounts, setFinancialAccounts] = useState<FinancialAccountOption[]>([]);
+  const [showAdjustForm, setShowAdjustForm] = useState(false);
+  const [adjustAccountId, setAdjustAccountId] = useState("");
+  const [adjustDescription, setAdjustDescription] = useState("");
+  const [creatingAdjust, setCreatingAdjust] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const direction: "RECEIVABLE" | "PAYABLE" = line && line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
   const lineAbs = line ? Math.abs(line.amountCents) : 0;
@@ -2012,10 +2020,22 @@ function MultipleMatchModal({
     if (!open || !line) return;
     setSelectedIds(new Set());
     setNotes("");
+    setShowAdjustForm(false);
     // Extrai maior palavra com 5+ letras (heuristica simples)
     const tokens = (line.description || "").split(/\s+/).filter((t) => /^[A-Za-zÀ-ÿ]{5,}$/.test(t));
     const prefill = tokens[0] || "";
     setSearch(prefill);
+    // Carrega planos de contas ativos pra escolher na criacao do ajuste
+    api.get<FinancialAccountOption[]>("/finance/accounts/postable")
+      .then((accounts) => {
+        setFinancialAccounts(accounts || []);
+        // Tenta pre-selecionar "Juros e Multas Recebidos" (code 7100) ou variacoes
+        const jurosAcc = (accounts || []).find((a) =>
+          a.code === "7100" || /juros|multa/i.test(a.name),
+        );
+        if (jurosAcc) setAdjustAccountId(jurosAcc.id);
+      })
+      .catch(() => setFinancialAccounts([]));
   }, [open, line]);
 
   // Debounced fetch: busca PENDING + PAID em paralelo (endpoint aceita 1 status por vez)
@@ -2049,7 +2069,7 @@ function MultipleMatchModal({
         .finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [open, line, direction, search]);
+  }, [open, line, direction, search, reloadKey]);
 
   if (!open || !line) return null;
 
@@ -2063,6 +2083,58 @@ function MultipleMatchModal({
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id); else next.add(id);
     setSelectedIds(next);
+  }
+
+  function openAdjustForm() {
+    if (!line) return;
+    // Sugere descricao baseada no parceiro mais comum dos selecionados
+    const partnerNames = selected.map((e) => e.partner?.name).filter(Boolean) as string[];
+    const partnerName = partnerNames[0] || "";
+    const tipoAjuste = direction === "RECEIVABLE" ? "Juros/Multa recebidos" : "Juros/Multa pagos";
+    setAdjustDescription(`${tipoAjuste}${partnerName ? ` — ${partnerName}` : ""}`);
+    setShowAdjustForm(true);
+  }
+
+  async function handleCreateAdjust() {
+    if (!line || diff <= 0) return;
+    if (!adjustDescription.trim()) {
+      toast("Descrição obrigatória.", "error");
+      return;
+    }
+    // partnerId e obrigatorio no backend — pega do primeiro entry selecionado com parceiro
+    const partnerId = selected.find((e) => e.partner?.id)?.partner?.id;
+    if (!partnerId) {
+      toast("Selecione ao menos 1 lançamento com parceiro antes de criar ajuste.", "error");
+      return;
+    }
+    setCreatingAdjust(true);
+    try {
+      const created = await api.post<{ id: string }>("/finance/entries", {
+        type: direction,
+        description: adjustDescription.trim(),
+        grossCents: diff,
+        dueDate: new Date(line.transactionDate).toISOString(),
+        partnerId,
+        financialAccountId: adjustAccountId || undefined,
+      });
+      toast(`Ajuste criado: ${formatCurrency(diff)}`, "success");
+      setShowAdjustForm(false);
+      // Recarrega candidates e auto-seleciona o novo entry
+      const newId = (created as any).id || (created as any).data?.id;
+      setReloadKey((k) => k + 1);
+      if (newId) {
+        // Adiciona ao set de selecionados — proxima carga vai trazer o entry
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.add(newId);
+          return next;
+        });
+      }
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao criar ajuste.", "error");
+    } finally {
+      setCreatingAdjust(false);
+    }
   }
 
   async function handleMatch() {
@@ -2151,6 +2223,69 @@ function MultipleMatchModal({
               )}
             </div>
           </div>
+
+          {/* Criar lancamento de ajuste pra diferenca positiva (juros/multa em RECEIVABLE; encargos em PAYABLE) */}
+          {!matches && diff > 0 && selectedIds.size > 0 && !showAdjustForm && (
+            <button
+              type="button"
+              onClick={openAdjustForm}
+              className="w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+            >
+              + Criar lançamento de ajuste para diferença {formatCurrency(diff)}
+              {direction === "RECEIVABLE" ? " (juros/multa recebida)" : " (encargos)"}
+            </button>
+          )}
+          {showAdjustForm && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+              <p className="text-xs font-semibold text-amber-800">
+                Ajuste de {formatCurrency(diff)} — {direction === "RECEIVABLE" ? "Juros/Multa recebida" : "Encargos pagos"}
+              </p>
+              <div>
+                <label className="block text-[10px] font-medium text-slate-600 mb-1">Descrição *</label>
+                <input
+                  type="text"
+                  value={adjustDescription}
+                  onChange={(e) => setAdjustDescription(e.target.value)}
+                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-xs"
+                  placeholder="Juros/Multa..."
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-slate-600 mb-1">Plano de contas</label>
+                <select
+                  value={adjustAccountId}
+                  onChange={(e) => setAdjustAccountId(e.target.value)}
+                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-xs bg-white"
+                >
+                  <option value="">— sem plano —</option>
+                  {financialAccounts
+                    .filter((a) => direction === "RECEIVABLE" ? a.type === "REVENUE" : a.type === "EXPENSE")
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                    ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustForm(false)}
+                  disabled={creatingAdjust}
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateAdjust}
+                  disabled={creatingAdjust || !adjustDescription.trim()}
+                  className="px-3 py-1.5 text-xs font-semibold text-white rounded bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {creatingAdjust ? "Criando..." : "Criar e adicionar"}
+                </button>
+              </div>
+            </div>
+          )}
+
           <input
             type="text"
             value={notes}
