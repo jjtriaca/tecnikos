@@ -1564,6 +1564,10 @@ export class ReconciliationService {
     const tsLog = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
     return this.prisma.$transaction(async (tx) => {
+      // Acumula valor de entries que ja eram PAID em conta diferente do banco
+      // — sera movido via AccountTransfer rastreavel pra evitar saldo inflado.
+      const transferByOrigin = new Map<string, number>();
+
       for (const e of entries) {
         const amount = e.netCents || e.grossCents || 0;
         const entryUpdate: Record<string, unknown> = { invoiceMatchLineId: lineId };
@@ -1577,14 +1581,15 @@ export class ReconciliationService {
           entryUpdate.autoMarkedPaid = true;
           entryUpdate.cashAccountId = line.cashAccountId;
           entryUpdate.notes = `[${tsLog}] PAGO via conciliação múltipla (linha ${line.id.substring(0, 8)})`;
+        } else if (e.status === 'PAID' && e.cashAccountId && e.cashAccountId !== line.cashAccountId) {
+          // Entry ja estava PAID em outra conta (ex: VT). Acumula pra criar AccountTransfer
+          // origem -> banco. NAO mexe no cashAccountId (preserva historico do entry).
+          transferByOrigin.set(e.cashAccountId, (transferByOrigin.get(e.cashAccountId) || 0) + amount);
         }
         await tx.financialEntry.update({ where: { id: e.id }, data: entryUpdate });
-        // Ignora entries ja PAID — nao afetam saldo agora (saldo foi afetado quando foram pagos).
-        // TODO: se era PAID e cashAccountId era diferente, idealmente faria AccountTransfer.
-        // Por ora: linha = agrupa os existentes sem mover saldo.
       }
 
-      // Saldo do banco: total dos entries que estavam PENDING (os PAID nao afetam — ja foram contabilizados antes)
+      // 1) Saldo do banco: total dos entries que estavam PENDING (vira credito direto)
       const pendingTotal = entries
         .filter((e) => e.status === 'PENDING' || e.status === 'CONFIRMED')
         .reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
@@ -1593,6 +1598,27 @@ export class ReconciliationService {
         await tx.cashAccount.update({
           where: { id: line.cashAccountId },
           data: { currentBalanceCents: { increment: delta } },
+        });
+      }
+
+      // 2) AccountTransfer pra entries que ja eram PAID em outra conta (ex: VT -> banco).
+      //    Banco ja foi creditado pela linha — entao apenas decrementa origem,
+      //    nao mexe no banco aqui (evita dupla contagem).
+      for (const [originAccountId, amount] of transferByOrigin.entries()) {
+        await tx.accountTransfer.create({
+          data: {
+            companyId,
+            fromAccountId: originAccountId,
+            toAccountId: line.cashAccountId,
+            amountCents: amount,
+            description: `Conciliação multipla — linha ${line.id.substring(0, 8)}`,
+            transferDate: line.transactionDate,
+            createdByName: matchedByName,
+          },
+        });
+        await tx.cashAccount.update({
+          where: { id: originAccountId },
+          data: { currentBalanceCents: { decrement: amount } },
         });
       }
 
@@ -1875,6 +1901,106 @@ export class ReconciliationService {
         await this.recalcCounts(tx, line.importId, line.statementId);
       });
       return { id: line.id, status: 'UNMATCHED' as const, unmatchedCardInvoice: true, revertedPending: autoPaidIds.length };
+    }
+
+    // Match-multiple nao-cartao (PIX/boleto/transferencia agrupando N entries):
+    // detecta entries com invoiceMatchLineId = lineId mesmo sem isCardInvoice.
+    const multiEntries = await this.prisma.financialEntry.findMany({
+      where: { invoiceMatchLineId: lineId, companyId, deletedAt: null },
+      select: { id: true, autoMarkedPaid: true, cashAccountId: true, netCents: true, grossCents: true, status: true, notes: true, type: true },
+    });
+    if (multiEntries.length > 0) {
+      const lineAbs = Math.abs(line.amountCents);
+      const direction: 'RECEIVABLE' | 'PAYABLE' = line.amountCents >= 0 ? 'RECEIVABLE' : 'PAYABLE';
+
+      await this.prisma.$transaction(async (tx) => {
+        // 1) Reverter saldo do banco — desfazer credito/debito da conciliacao
+        const pendingRevertTotal = multiEntries
+          .filter((e) => e.autoMarkedPaid)
+          .reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+        if (pendingRevertTotal > 0) {
+          const delta = direction === 'RECEIVABLE' ? -pendingRevertTotal : pendingRevertTotal;
+          await tx.cashAccount.update({
+            where: { id: line.cashAccountId },
+            data: { currentBalanceCents: { increment: delta } },
+          });
+        }
+
+        // 2) Reverter AccountTransfers criados pelo matchAsMultiple (entries PAID em outra conta)
+        const linePrefix = lineId.substring(0, 8);
+        const transfers = await tx.accountTransfer.findMany({
+          where: {
+            companyId,
+            toAccountId: line.cashAccountId,
+            description: { contains: linePrefix },
+          },
+        });
+        for (const tr of transfers) {
+          // Devolve saldo pra conta de origem
+          await tx.cashAccount.update({
+            where: { id: tr.fromAccountId },
+            data: { currentBalanceCents: { increment: tr.amountCents } },
+          });
+        }
+        await tx.accountTransfer.deleteMany({
+          where: { id: { in: transfers.map((t) => t.id) } },
+        });
+
+        // 3) Reverter entries auto-pagos pra PENDING
+        const autoPaidIds = multiEntries.filter((e) => e.autoMarkedPaid).map((e) => e.id);
+        if (autoPaidIds.length > 0) {
+          await tx.financialEntry.updateMany({
+            where: { id: { in: autoPaidIds }, companyId },
+            data: {
+              invoiceMatchLineId: null,
+              status: 'PENDING',
+              paidAt: null,
+              autoMarkedPaid: false,
+              cashAccountId: null,
+              notes: null,
+            },
+          });
+        }
+
+        // 4) Entries ja PAID antes (cashAccountId em outra conta): so remove vinculo
+        const otherIds = multiEntries.filter((e) => !e.autoMarkedPaid).map((e) => e.id);
+        if (otherIds.length > 0) {
+          await tx.financialEntry.updateMany({
+            where: { id: { in: otherIds }, companyId },
+            data: { invoiceMatchLineId: null },
+          });
+        }
+
+        // 5) Soft-delete entries criados como ajuste auto (marker [AUTO_RECONCILIATION_ADJUST])
+        const adjustIds = multiEntries
+          .filter((e) => (e.notes || '').includes('[AUTO_RECONCILIATION_ADJUST]'))
+          .map((e) => e.id);
+        if (adjustIds.length > 0) {
+          await tx.financialEntry.updateMany({
+            where: { id: { in: adjustIds }, companyId },
+            data: { deletedAt: new Date() },
+          });
+        }
+
+        // 6) Linha volta UNMATCHED
+        await tx.bankStatementLine.update({
+          where: { id: lineId },
+          data: {
+            status: 'UNMATCHED',
+            matchedAt: null,
+            matchedByName: null,
+            notes: null,
+          },
+        });
+        await this.recalcCounts(tx, line.importId, line.statementId);
+      });
+      return {
+        id: line.id,
+        status: 'UNMATCHED' as const,
+        unmatchedMultiple: true,
+        revertedPending: multiEntries.filter((e) => e.autoMarkedPaid).length,
+        deletedAdjusts: multiEntries.filter((e) => (e.notes || '').includes('[AUTO_RECONCILIATION_ADJUST]')).length,
+      };
     }
 
     // Refund pair: unmatch both lines + delete both technical entries

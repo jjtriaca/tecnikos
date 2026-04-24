@@ -1052,7 +1052,8 @@ function ConciliationModal({
     const diff = lineAbs - entryAmount;
     setCreatingAdjust(true);
     try {
-      // 1) Cria entry de ajuste
+      // 1) Cria entry de ajuste — marker [AUTO_RECONCILIATION_ADJUST] em notes
+      // permite que unmatchLine soft-delete o ajuste se a conciliacao for desfeita.
       const created = await api.post<{ id: string }>("/finance/entries", {
         type: direction,
         description: adjustDescription.trim(),
@@ -1061,6 +1062,7 @@ function ConciliationModal({
         partnerId,
         financialAccountId: adjustAccountId || undefined,
         paymentMethod: adjustPaymentMethod || undefined,
+        notes: `[AUTO_RECONCILIATION_ADJUST]`,
       });
       const adjustId = (created as any).id || (created as any).data?.id;
       if (!adjustId) throw new Error("Não foi possível recuperar ID do ajuste criado.");
@@ -2273,6 +2275,7 @@ function MultipleMatchModal({
         dueDate: new Date(line.transactionDate).toISOString(),
         partnerId,
         financialAccountId: adjustAccountId || undefined,
+        notes: `[AUTO_RECONCILIATION_ADJUST]`,
       });
       toast(`Ajuste criado: ${formatCurrency(diff)}`, "success");
       setShowAdjustForm(false);
