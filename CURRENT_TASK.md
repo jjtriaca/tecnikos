@@ -1,7 +1,117 @@
 # TAREFA ATUAL
 
-## Versao: v1.09.96 (pendente deploy)
-## Ultima sessao: 179 (22/04/2026)
+## Versao: v1.10.06 (em prod)
+## Ultima sessao: 180 (24/04/2026)
+
+## PENDENTE PROXIMA SESSAO
+
+### 🔴 Multiplos descontos na conciliacao (taxa + N alugueis da maquininha)
+**Cenario:** operadora de cartao desconta N valores (taxa + aluguel 1 + aluguel 2) de UM credito. Linha do banco R$ 115,86 (credito SICREDI MASTER 05/04), venda real ~R$ 200, diferenca ~R$ 84,14 sao descontos.
+
+**Limitacoes atuais:**
+- Fluxo cartao 1-para-1 (`isCard`): calcula UMA taxa automatica (`entry.gross - bank.amount`). Nao N descontos.
+- `matchAsMultiple`: bloqueia mistura RECEIVABLE+PAYABLE — exige mesmo tipo.
+- Auto-ajuste atual so trata diff positivo (juros). Nao trata diff negativo (descontos).
+
+**Implementar:**
+1. Overlay "Diferenca detectada" — detectar diff NEGATIVO (entry > linha) e oferecer "adicionar lancamentos de despesa"
+2. UI permite N linhas de despesa (valor + descricao + plano de contas)
+3. Quando soma despesas == diff: habilita conciliar
+4. Backend `matchAsMultiple`: flexibilizar pra aceitar RECEIVABLE + N PAYABLE com formula `sumR - sumP = lineAbs`
+5. Cria N entries PAYABLE PAID (descontadas em VT) + concilia tudo via match-multiple
+6. Plano de contas "Aluguel maquininha" precisa existir (criar via UI ou SQL) — confirmar com user codigo
+
+### 🟡 Fluxos legados que ainda criam FinancialInstallment
+- `finance.service.ts:981` (renegotiate com parcelas): continua criando FinancialInstallment legado. Migrar pro novo fluxo (entries filhas).
+- `nfe.service.ts:791` (import NFe parcelada): idem.
+- `collection.service.ts`: usa FinancialInstallment. Sem impacto imediato (zero CollectionRule ativa no tenant_sls), mas precisa adaptar se alguem ativar.
+
+### 🟢 Entries parcelados "a vista" (installmentCount=1, sem impacto)
+- FIN-00012, FIN-00344, FIN-00454 — nao precisam migrar urgente
+
+---
+
+## Sessao 180 — Parcelas viram entries filhas + fluxos conciliacao (v1.09.97-1.10.06)
+
+### v1.09.97 — Fix batch payment auto-select conta
+- Modal "Receber batch" tinha `lockAccountOnReceive=true` travando o dropdown vazio (o onChange de paymentMethod nao chamava autoSelectAccount como o modal individual)
+- Fix: extraido `resolveAccountIdForMethod` (funcao pura) reusada em single + batch. Onchange do batchPayMethod agora auto-seleciona conta.
+
+### v1.09.98 — Conciliacao fuzzy + N-para-1
+- **Fuzzy search**: busca por nome de parceiro agora dedupla letras consecutivas. "royale" bate "royalle", "pizaria" bate "pizzaria". Pragmatico pra typos PT-BR.
+- **Novo endpoint `matchAsMultiple`** (backend): 1 linha x N entries nao-cartao (PIX/boleto/transferencia). Valida direcao pelo sinal da linha. Auto-marca PENDING como PAID.
+- **Novo botao "📈 Conciliar multiplos lancamentos"** no LineActionsDropdown (rosa/verde). Abre MultipleMatchModal generico: search pre-preenchida com palavra da descricao da linha, multi-select com soma live.
+
+### v1.09.99 — Parcelas como entries filhas (refactor arquitetural)
+- **`InstallmentService.generateInstallments`** agora cria N `FinancialEntry` filhas (via `parentEntryId`) ao inves de `FinancialInstallment`
+- Filhas herdam: partnerId, serviceOrderId, paymentMethod, paymentInstrumentId, cashAccountId, financialAccountId, nfseStatus/nfseEmissionId, config juros/multa
+- Pai: fica CANCELLED (depois virou SPLIT na v1.10.01), preserva NFS-e/historico
+- Endpoints legados (`GET /entries/:id/installments`, `PATCH /installments/:id`, `.../pay`, `.../cancel`) continuam funcionando via **adapter** — formata entries filhas no shape FinancialInstallment pro frontend nao mudar
+- `applyInterestToOverdue` e `getOverdueAgingReport` lidam com entries filhas
+- **Migracao dados FIN-00444** (2x R$ 550 renegociacao Flavio):
+  - FIN-00444 → CANCELLED, depois SPLIT
+  - FIN-00467 PENDING R$ 550 venc 15/04
+  - FIN-00468 PENDING R$ 550 venc 10/05
+  - NFS-e AUTHORIZED herdada do avo FIN-00282
+- `collection.service.ts` NAO adaptado (zero CollectionRule ativa)
+
+### v1.10.01 — Novo status SPLIT
+- Enum `FinancialEntryStatus` ganhou `SPLIT` (migration `20260424190000`)
+- TenantMigratorService sincroniza o valor novo no boot do backend
+- Pai parcelado agora vira **SPLIT** (nao CANCELLED). Semanticamente correto: "foi dividido em filhas", nao "foi cancelado"
+- Filtros atualizados: `finance.service.ts#findEntries`, `financial-report.service`, `service-order.service.ts` (4 pontos) → `notIn: ['CANCELLED', 'SPLIT']`
+- Frontend: type + ENTRY_STATUS_CONFIG ganhou badge **roxa "Parcelado"**
+- FIN-00444 atualizado pra SPLIT
+- Arquivado: `memory/feedback_os_concluida_aberta.md`
+
+### v1.10.02 — Descricao automatica do parcelamento
+- `generateInstallments` popula `notes` do pai com detalhe formatado:
+  ```
+  [Parcelado em Nx] Total: R$ X,XX
+  - FIN-XXXXX (R$ X,XX venc DD/MM/YY)
+  - FIN-XXXXX (R$ X,XX venc DD/MM/YY)
+  ```
+- Primeira linha entre `[]` pra renderizar como hint na coluna "Observacoes" da tabela financeiro
+- FIN-00444 atualizado com novo formato
+
+### v1.10.03 — Auto-ajuste juros/multa no multi-match
+- Modal `MultipleMatchModal`: ao haver diferenca positiva entre linha e soma dos entries, botao "+ Criar lancamento de ajuste (juros/multa recebida)"
+- Mini-form inline: descricao auto, plano de contas dropdown (pre-seleciona code 7100 ou nome match "juros/multa"), botao "Criar e adicionar"
+- Cria entry PENDING do ajuste + auto-seleciona pra conciliacao final
+
+### v1.10.04 — Auto-ajuste no ConciliationModal single tambem
+- Fluxo: user clica "Conciliar" no card de UM entry → se diff > 0 e nao e cartao → abre overlay "Diferenca detectada" com form de ajuste → cria entry + concilia [entry + ajuste] via match-multiple
+- UX mais natural (user nao precisa escolher "multiplos" antes de saber que tem diferenca)
+- Plano de contas 7100 "Juros e Multas Recebidos" cadastrado pelo user
+
+### v1.10.05 — Dropdown forma de pagamento no ajuste
+- Auto-ajuste estava criando entries sem paymentMethod — ficava "—" no extrato
+- Adicionado dropdown "Forma de pagamento" no overlay
+- Pre-seleciona: entry.paymentMethod do original OU matchPaymentMethod do modal
+
+### v1.10.06 — Fix bugs unmatchLine + AccountTransfer
+**Bugs descobertos ao user conciliar + desfazer:**
+1. Royalle: 4 entries (R$ 2.980) em VT conciliadas com linha do banco, mas `matchAsMultiple` NAO criou AccountTransfer VT→SICREDI pra entries que ja eram PAID. Saldo VT e SICREDI ambos inflados.
+2. Flavio: conciliacao desfeita mas entries ficaram PAID com invoiceMatchLineId — `unmatchLine` so tratava `isCardInvoice=true`. Match-multiple normal nao era revertido.
+
+**Cleanup SQL** (scripts/cleanup-royalle-flavio.sql):
+- Royalle: criou AccountTransfer rastreavel VT→SICREDI R$ 2.980 em 22/04. VT decrementou. SICREDI preservado (ja tinha credito da linha).
+- Flavio: FIN-00467 voltou pra PENDING. FIN-00469 (juros auto) soft-deletado. SICREDI decrementou R$ 573,70.
+- Saldos finais: SICREDI R$ 1.851,76 / VT R$ 6.430,00
+
+**Fixes de codigo:**
+- `matchAsMultiple`: entries ja PAID em conta diferente agora geram AccountTransfer rastreavel `origem → banco`. Banco nao e duplamente creditado.
+- `unmatchLine`: novo branch pra match-multiple nao-cartao. Reverte saldos, deleta AccountTransfers criados, volta entries pra PENDING, **soft-delete entries com marker `[AUTO_RECONCILIATION_ADJUST]`** (ajustes de juros criados pelo fluxo).
+- Frontend: entries de ajuste auto-criados (ConciliationModal + MultipleMatchModal) recebem `notes: [AUTO_RECONCILIATION_ADJUST]` pra serem identificaveis no unmatch.
+
+### Migracao dados FIN-00273 (3x cartao Mastercard, recebido antecipado)
+- Opcao B escolhida (3 filhas PAID em VT, espelha estado atual)
+- FIN-00273 → SPLIT, notes formatado
+- FIN-00472/473/474 — PAID em VT, vencimentos 23/04, 23/05, 23/06
+- Saldo VT nao mexeu (R$ 905 permanece)
+- Quando operadora depositar dia 23, usuario concilia cada parcela → cria AccountTransfer VT→SICREDI automaticamente (matchLine 1-para-1)
+
+---
 
 ## Sessao 179 — OS-00064 fix + protecoes contra mutacao indevida (v1.09.96)
 - Bug reportado: OS-00064 ficou CONCLUIDA com assignedPartnerId=NULL. Ueslei finalizou fisicamente em 17/04 09:06 mas nunca aceitou no sistema (offline queue nao sincronizou). Iago clicou botao "Confirmar" no header (que chamava finalize() e nao approveAndFinalize()), entao faltou Evaluation + evento STATUS_CHANGE + o status ficou CONCLUIDA ao inves de APROVADA.
