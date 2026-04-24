@@ -1456,6 +1456,162 @@ export class ReconciliationService {
   }
 
   /**
+   * Concilia uma linha do extrato com N entries (PIX/boleto/transferencia — NAO cartao).
+   * Direcao pelo sinal da linha: credito → RECEIVABLE; debito → PAYABLE.
+   * Soma dos entries tem que bater com o valor absoluto da linha.
+   * Entries PENDING/CONFIRMED viram PAID automaticamente; saldo do banco e atualizado.
+   */
+  async matchAsMultiple(
+    lineId: string,
+    companyId: string,
+    dto: MatchCardInvoiceDto,
+    matchedByName: string,
+  ) {
+    const line = await this.prisma.bankStatementLine.findUnique({
+      where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
+    });
+    if (!line || line.import.companyId !== companyId) {
+      throw new NotFoundException('Linha não encontrada.');
+    }
+    if (line.status === 'MATCHED') {
+      throw new BadRequestException('Linha já está conciliada.');
+    }
+    if (!dto.entryIds || dto.entryIds.length === 0) {
+      throw new BadRequestException('Selecione ao menos um lançamento.');
+    }
+
+    const expectedType: 'RECEIVABLE' | 'PAYABLE' = line.amountCents >= 0 ? 'RECEIVABLE' : 'PAYABLE';
+
+    const entries = await this.prisma.financialEntry.findMany({
+      where: { id: { in: dto.entryIds }, companyId, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        type: true,
+        netCents: true,
+        grossCents: true,
+        cashAccountId: true,
+        invoiceMatchLineId: true,
+        financialAccountId: true,
+        isRefundEntry: true,
+      },
+    });
+    if (entries.length !== dto.entryIds.length) {
+      throw new BadRequestException('Um ou mais lançamentos não foram encontrados.');
+    }
+
+    // Indexa atribuicoes de plano de contas
+    const assignmentsByEntry = new Map<string, string>();
+    for (const a of dto.entryAccountAssignments || []) {
+      assignmentsByEntry.set(a.entryId, a.financialAccountId);
+    }
+    const usesChart = await this.companyUsesChartOfAccounts(companyId);
+    const accountIdsToValidate = Array.from(new Set(
+      [...assignmentsByEntry.values()].filter(Boolean),
+    ));
+    if (accountIdsToValidate.length > 0) {
+      const validAccounts = await this.prisma.financialAccount.findMany({
+        where: { id: { in: accountIdsToValidate }, companyId, isActive: true, allowPosting: true, deletedAt: null },
+        select: { id: true },
+      });
+      if (validAccounts.length !== accountIdsToValidate.length) {
+        throw new BadRequestException('Um ou mais planos de contas informados são inválidos ou inativos.');
+      }
+    }
+
+    // Proteção: nenhum entry pode estar conciliado em outra linha 1:1
+    const conflictingMatch = await this.prisma.bankStatementLine.findFirst({
+      where: { matchedEntryId: { in: dto.entryIds }, status: 'MATCHED', id: { not: lineId } },
+      select: { id: true, transactionDate: true, description: true, matchedEntryId: true },
+    });
+    if (conflictingMatch) {
+      const dateStr = conflictingMatch.transactionDate.toLocaleDateString('pt-BR');
+      throw new BadRequestException(
+        `Lançamento ${conflictingMatch.matchedEntryId} já conciliado com outra linha ` +
+        `(${dateStr} — ${conflictingMatch.description}). Remova da seleção ou desfaça.`,
+      );
+    }
+
+    for (const e of entries) {
+      if (e.status === 'CANCELLED') {
+        throw new BadRequestException(`Lançamento ${e.id} está cancelado.`);
+      }
+      if (e.type !== expectedType) {
+        throw new BadRequestException(
+          `Lançamento ${e.id} é ${e.type} mas linha ${line.amountCents >= 0 ? 'crédito' : 'débito'} exige ${expectedType}.`,
+        );
+      }
+      if (e.invoiceMatchLineId && e.invoiceMatchLineId !== lineId) {
+        throw new BadRequestException(`Lançamento ${e.id} já vinculado a outra conciliação múltipla.`);
+      }
+      if (usesChart && !e.isRefundEntry && !e.financialAccountId && !assignmentsByEntry.has(e.id)) {
+        throw new BadRequestException(
+          `Lançamento ${e.id} sem plano de contas. Informe antes de conciliar.`,
+        );
+      }
+    }
+
+    const entriesTotal = entries.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+    const lineAbs = Math.abs(line.amountCents);
+    const diff = Math.abs(entriesTotal - lineAbs);
+    if (diff > 1) {
+      throw new BadRequestException(
+        `Soma dos lançamentos (R$ ${(entriesTotal / 100).toFixed(2)}) não bate com o valor da linha (R$ ${(lineAbs / 100).toFixed(2)}). Diferença: R$ ${(diff / 100).toFixed(2)}.`,
+      );
+    }
+
+    const tsLog = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+    return this.prisma.$transaction(async (tx) => {
+      for (const e of entries) {
+        const amount = e.netCents || e.grossCents || 0;
+        const entryUpdate: Record<string, unknown> = { invoiceMatchLineId: lineId };
+        if (assignmentsByEntry.has(e.id)) {
+          entryUpdate.financialAccountId = assignmentsByEntry.get(e.id)!;
+        }
+        const wasPending = e.status === 'PENDING' || e.status === 'CONFIRMED';
+        if (wasPending) {
+          entryUpdate.status = 'PAID';
+          entryUpdate.paidAt = line.transactionDate;
+          entryUpdate.autoMarkedPaid = true;
+          entryUpdate.cashAccountId = line.cashAccountId;
+          entryUpdate.notes = `[${tsLog}] PAGO via conciliação múltipla (linha ${line.id.substring(0, 8)})`;
+        }
+        await tx.financialEntry.update({ where: { id: e.id }, data: entryUpdate });
+        // Ignora entries ja PAID — nao afetam saldo agora (saldo foi afetado quando foram pagos).
+        // TODO: se era PAID e cashAccountId era diferente, idealmente faria AccountTransfer.
+        // Por ora: linha = agrupa os existentes sem mover saldo.
+      }
+
+      // Saldo do banco: total dos entries que estavam PENDING (os PAID nao afetam — ja foram contabilizados antes)
+      const pendingTotal = entries
+        .filter((e) => e.status === 'PENDING' || e.status === 'CONFIRMED')
+        .reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+      if (pendingTotal > 0) {
+        const delta = expectedType === 'RECEIVABLE' ? pendingTotal : -pendingTotal;
+        await tx.cashAccount.update({
+          where: { id: line.cashAccountId },
+          data: { currentBalanceCents: { increment: delta } },
+        });
+      }
+
+      const updated = await tx.bankStatementLine.update({
+        where: { id: lineId },
+        data: {
+          status: 'MATCHED',
+          isCardInvoice: false,
+          matchedAt: new Date(),
+          matchedByName,
+          notes: dto.notes ?? null,
+        },
+      });
+      await this.recalcCounts(tx, line.importId, line.statementId);
+      return { ...updated, entriesCount: dto.entryIds.length, entriesTotalCents: entriesTotal };
+    });
+  }
+
+  /**
    * matchAsTransfer — Concilia linha do extrato criando uma AccountTransfer.
    * Uso: depositos em dinheiro (Caixa -> Banco), saques (Banco -> Caixa), transferencias entre contas proprias.
    *

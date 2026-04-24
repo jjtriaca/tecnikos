@@ -45,6 +45,7 @@ function LineActionsDropdown({
   onConciliar,
   onConciliarRefund,
   onConciliarCardInvoice,
+  onConciliarMultiple,
   onConciliarTransfer,
   onIgnore,
   onUnignore,
@@ -54,6 +55,7 @@ function LineActionsDropdown({
   onConciliar: () => void;
   onConciliarRefund: () => void;
   onConciliarCardInvoice: () => void;
+  onConciliarMultiple: () => void;
   onConciliarTransfer: () => void;
   onIgnore: () => void;
   onUnignore: () => void;
@@ -138,6 +140,13 @@ function LineActionsDropdown({
                   &#128179; Conciliar fatura de cartao
                 </button>
               )}
+              <button
+                onClick={() => { setOpen(false); onConciliarMultiple(); }}
+                className="block w-full text-left px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+                title="1 pagamento PIX/boleto/transferencia cobre varios lancamentos"
+              >
+                &#128200; Conciliar multiplos lancamentos
+              </button>
               <button
                 onClick={() => { setOpen(false); onConciliarTransfer(); }}
                 className="block w-full text-left px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
@@ -902,11 +911,15 @@ function ConciliationModal({
     if (/^\d{4}$/.test(trimmed)) {
       filtered = candidates.filter((e) => e.receivedCardLast4 === trimmed);
     } else if (trimmed) {
-      // Busca multi-palavra: precisa bater TODAS nas propriedades de texto + cardLast4 como bonus
+      // Busca multi-palavra: bate TODAS em code+description+partner+last4.
+      // Dedup de letras repetidas consecutivas tolera "royale" bater "royalle", "pizaria" bater "pizzaria" etc.
+      const dedup = (s: string) => s.replace(/(.)\1+/g, "$1");
       const terms = trimmed.toLowerCase().split(/\s+/);
+      const dedupedTerms = terms.map(dedup);
       filtered = candidates.filter((e) => {
         const haystack = `${e.code || ""} ${e.description || ""} ${e.partner?.name || ""} ${e.receivedCardLast4 || ""}`.toLowerCase();
-        return terms.every((t) => haystack.includes(t));
+        const dedupedHaystack = dedup(haystack);
+        return terms.every((t, i) => haystack.includes(t) || dedupedHaystack.includes(dedupedTerms[i]));
       });
     }
 
@@ -1971,6 +1984,197 @@ interface CashAccountOption {
   currentBalanceCents?: number;
 }
 
+function MultipleMatchModal({
+  open,
+  line,
+  onClose,
+  onMatched,
+}: {
+  open: boolean;
+  line: BankStatementLine | null;
+  onClose: () => void;
+  onMatched: () => void;
+}) {
+  const { toast } = useToast();
+  const [candidates, setCandidates] = useState<CardInvoiceEntry[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const [notes, setNotes] = useState("");
+
+  const direction: "RECEIVABLE" | "PAYABLE" = line && line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
+  const lineAbs = line ? Math.abs(line.amountCents) : 0;
+
+  // Pre-fill search com nome provavel do parceiro extraido da descricao da linha.
+  // Ex: "RECEBIMENTO PIX SICREDI-CX774665 08583806000161 ROYALLE PIZZARIA E CHOPERIA LTDA" → "ROYALLE"
+  useEffect(() => {
+    if (!open || !line) return;
+    setSelectedIds(new Set());
+    setNotes("");
+    // Extrai maior palavra com 5+ letras (heuristica simples)
+    const tokens = (line.description || "").split(/\s+/).filter((t) => /^[A-Za-zÀ-ÿ]{5,}$/.test(t));
+    const prefill = tokens[0] || "";
+    setSearch(prefill);
+  }, [open, line]);
+
+  // Debounced fetch: busca PENDING + PAID em paralelo (endpoint aceita 1 status por vez)
+  useEffect(() => {
+    if (!open || !line) return;
+    setLoading(true);
+    const t = setTimeout(() => {
+      const mkParams = (status: string) => {
+        const p = new URLSearchParams({
+          type: direction,
+          status,
+          excludeMatched: "true",
+          matchableForCashAccountId: line.cashAccountId,
+          limit: "100",
+        });
+        if (search.trim()) p.set("search", search.trim());
+        return p.toString();
+      };
+      Promise.all([
+        api.get<any>(`/finance/entries?${mkParams("PENDING")}`).catch(() => ({ data: [] })),
+        api.get<any>(`/finance/entries?${mkParams("PAID")}`).catch(() => ({ data: [] })),
+      ])
+        .then(([pendingRes, paidRes]) => {
+          const pending = (pendingRes.data || pendingRes || []) as CardInvoiceEntry[];
+          const paid = (paidRes.data || paidRes || []) as CardInvoiceEntry[];
+          const map = new Map<string, CardInvoiceEntry>();
+          [...pending, ...paid].forEach((e) => { if (!map.has(e.id)) map.set(e.id, e); });
+          setCandidates(Array.from(map.values()));
+        })
+        .catch(() => setCandidates([]))
+        .finally(() => setLoading(false));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [open, line, direction, search]);
+
+  if (!open || !line) return null;
+
+  const selected = candidates.filter((e) => selectedIds.has(e.id));
+  const total = selected.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+  const diff = lineAbs - total;
+  const matches = Math.abs(diff) <= 1 && selectedIds.size > 0;
+  const pendingCount = selected.filter((e) => e.status === "PENDING" || e.status === "CONFIRMED").length;
+
+  function toggle(id: string) {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  }
+
+  async function handleMatch() {
+    if (!matches) return;
+    setMatching(true);
+    try {
+      await api.post(`/finance/reconciliation/lines/${line!.id}/match-multiple`, {
+        entryIds: Array.from(selectedIds),
+        notes: notes || undefined,
+      });
+      const msg = pendingCount > 0
+        ? `Conciliado: ${selectedIds.size} lançamento(s), ${pendingCount} marcada(s) como PAGO.`
+        : `Conciliado: ${selectedIds.size} lançamento(s) vinculado(s).`;
+      toast(msg, "success");
+      onMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao conciliar.", "error");
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h3 className="text-base font-semibold text-emerald-700">📈 Conciliar múltiplos lançamentos</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Selecione os lançamentos cuja soma bata com o valor do extrato. Todos {direction === "RECEIVABLE" ? "A Receber" : "A Pagar"}.
+          </p>
+        </div>
+
+        <div className="px-5 py-3 bg-emerald-50/50 border-b border-slate-200 flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-slate-800 truncate">{line.description}</p>
+            <p className="text-xs text-slate-500">{formatDate(line.transactionDate)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] text-slate-500">Valor da linha</p>
+            <p className="text-lg font-bold text-emerald-700">{formatCurrency(lineAbs)}</p>
+          </div>
+        </div>
+
+        <div className="px-5 py-3 border-b border-slate-200">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por parceiro, código ou descrição..."
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          {loading && <p className="text-xs text-slate-400 italic">Carregando...</p>}
+          {!loading && candidates.length === 0 && (
+            <p className="text-xs text-slate-400 italic">Nenhum lançamento encontrado. Ajuste a busca.</p>
+          )}
+          {!loading && candidates.map((e) => {
+            const checked = selectedIds.has(e.id);
+            const amount = e.netCents || e.grossCents || 0;
+            return (
+              <label key={e.id} className={`flex items-center gap-3 py-2 px-2 rounded border-b border-slate-50 cursor-pointer ${checked ? "bg-emerald-50" : "hover:bg-slate-50"}`}>
+                <input type="checkbox" checked={checked} onChange={() => toggle(e.id)} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-slate-700 truncate">
+                    {e.code} — {e.description}
+                    {e.status === "PENDING" && <span className="ml-2 text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-700">Pendente</span>}
+                    {e.status === "PAID" && <span className="ml-2 text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-600">Pago</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-500 truncate">{e.partner?.name || "—"}</p>
+                </div>
+                <p className="text-xs font-semibold text-slate-800 whitespace-nowrap">{formatCurrency(amount)}</p>
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="px-5 py-3 border-t border-slate-200 space-y-2">
+          <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${matches ? "bg-emerald-50 border border-emerald-200" : "bg-slate-50 border border-slate-200"}`}>
+            <span className="text-xs text-slate-600">Soma ({selectedIds.size} selecionado{selectedIds.size === 1 ? "" : "s"})</span>
+            <div className="text-right">
+              <p className={`text-sm font-bold ${matches ? "text-emerald-700" : "text-slate-700"}`}>{formatCurrency(total)}</p>
+              {!matches && selectedIds.size > 0 && (
+                <p className="text-[10px] text-amber-600">Diferença: {formatCurrency(Math.abs(diff))}</p>
+              )}
+            </div>
+          </div>
+          <input
+            type="text"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Observações (opcional)"
+            className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs"
+          />
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} disabled={matching} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
+            <button
+              onClick={handleMatch}
+              disabled={!matches || matching}
+              className="px-5 py-2 text-sm font-semibold text-white rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={matches ? "" : "A soma precisa bater com o valor da linha"}
+            >
+              {matching ? "Conciliando..." : "Conciliar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TransferMatchModal({
   open,
   line,
@@ -2415,6 +2619,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
   const [matchLine, setMatchLine] = useState<BankStatementLine | null>(null);
   const [refundLine, setRefundLine] = useState<BankStatementLine | null>(null);
   const [cardInvoiceLine, setCardInvoiceLine] = useState<BankStatementLine | null>(null);
+  const [multipleLine, setMultipleLine] = useState<BankStatementLine | null>(null);
   const [transferLine, setTransferLine] = useState<BankStatementLine | null>(null);
   const [balanceCompare, setBalanceCompare] = useState<BalanceCompare | null>(null);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
@@ -2779,6 +2984,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
                             onConciliar={() => setMatchLine(line)}
                             onConciliarRefund={() => setRefundLine(line)}
                             onConciliarCardInvoice={() => setCardInvoiceLine(line)}
+                            onConciliarMultiple={() => setMultipleLine(line)}
                             onConciliarTransfer={() => setTransferLine(line)}
                             onIgnore={() => handleIgnore(line.id)}
                             onUnignore={() => handleUnignore(line.id)}
@@ -2879,6 +3085,14 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
         line={cardInvoiceLine}
         onClose={() => setCardInvoiceLine(null)}
         onMatched={() => { setCardInvoiceLine(null); refreshAll(); }}
+      />
+
+      {/* Multiple Match Modal (PIX/boleto/transferencia N-para-1) */}
+      <MultipleMatchModal
+        open={!!multipleLine}
+        line={multipleLine}
+        onClose={() => setMultipleLine(null)}
+        onMatched={() => { setMultipleLine(null); refreshAll(); }}
       />
 
       {/* Transfer Match Modal (deposito em dinheiro, transferencia entre contas) */}

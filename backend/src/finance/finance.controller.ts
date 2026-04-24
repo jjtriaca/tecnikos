@@ -429,6 +429,18 @@ export class FinanceController {
     return this.reconciliationService.matchAsCardInvoice(lineId, user.companyId, dto, user.email);
   }
 
+  // Concilia 1 linha com N entries (PIX/boleto/transferencia — NAO cartao).
+  // Direcao pelo sinal da linha: credito → RECEIVABLE; debito → PAYABLE.
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/match-multiple')
+  matchAsMultiple(
+    @Param('lineId') lineId: string,
+    @Body() dto: MatchCardInvoiceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.matchAsMultiple(lineId, user.companyId, dto, user.email);
+  }
+
   // Concilia linha como transferencia entre contas (deposito em dinheiro, saque, etc).
   // Cria uma AccountTransfer e vincula a linha a ela.
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
