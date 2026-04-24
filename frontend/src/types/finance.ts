@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 export type FinancialEntryType = 'RECEIVABLE' | 'PAYABLE';
-export type FinancialEntryStatus = 'PENDING' | 'CONFIRMED' | 'PAID' | 'CANCELLED';
+export type FinancialEntryStatus = 'PENDING' | 'CONFIRMED' | 'PAID' | 'CANCELLED' | 'SPLIT';
 export type InstallmentStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'RENEGOTIATED';
 
 export interface FinancialEntry {
@@ -259,6 +259,7 @@ export const ENTRY_STATUS_CONFIG: Record<FinancialEntryStatus, { label: string; 
   CONFIRMED: { label: 'Confirmado', color: 'text-blue-700',   bgColor: 'bg-blue-50',   borderColor: 'border-blue-200' },
   PAID:      { label: 'Pago',       color: 'text-green-700',  bgColor: 'bg-green-50',  borderColor: 'border-green-200' },
   CANCELLED: { label: 'Cancelado',  color: 'text-slate-500',  bgColor: 'bg-slate-50',  borderColor: 'border-slate-200' },
+  SPLIT:     { label: 'Parcelado',  color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
 };
 
 export const INSTALLMENT_STATUS_CONFIG: Record<InstallmentStatus, { label: string; color: string; bgColor: string; borderColor: string }> = {

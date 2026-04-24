@@ -136,7 +136,7 @@ export class FinancialReportService {
     if (filters.status) {
       where.status = filters.status;
     } else {
-      where.status = { not: 'CANCELLED' };
+      where.status = { notIn: ['CANCELLED', 'SPLIT'] };
     }
     if (filters.dateFrom || filters.dateTo) {
       where.dueDate = {};

@@ -87,11 +87,11 @@ export class InstallmentService {
           },
         });
       }
-      // Pai: CANCELLED, preserva valores/NFS-e, registra info de parcelamento
+      // Pai: SPLIT, preserva valores/NFS-e, registra info de parcelamento
       await tx.financialEntry.update({
         where: { id: entryId },
         data: {
-          status: 'CANCELLED',
+          status: 'SPLIT',
           installmentCount: count,
           interestType: dto.interestType || pai.interestType,
           interestRateMonthly: dto.interestRateMonthly ?? pai.interestRateMonthly,

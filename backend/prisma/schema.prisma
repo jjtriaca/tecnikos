@@ -51,6 +51,7 @@ enum FinancialEntryStatus {
   CONFIRMED
   PAID
   CANCELLED
+  SPLIT      // Entry "pai" foi parcelado em N filhas (via parentEntryId). Some do A Receber/A Pagar, preserva historico.
 }
 
 enum InstallmentStatus {

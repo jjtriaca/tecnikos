@@ -1531,7 +1531,7 @@ export class ServiceOrderService {
 
     // Check existing entries
     const existingEntries = await this.prisma.financialEntry.findMany({
-      where: { serviceOrderId: id, companyId, status: { not: 'CANCELLED' } },
+      where: { serviceOrderId: id, companyId, status: { notIn: ['CANCELLED', 'SPLIT'] } },
       select: { id: true, type: true, status: true, netCents: true, paidAt: true, code: true },
     });
     const existingReceivable = existingEntries.find(e => e.type === 'RECEIVABLE');
@@ -1657,7 +1657,7 @@ export class ServiceOrderService {
 
     // Check existing entries to avoid duplicates
     const existingEntries = await this.prisma.financialEntry.findMany({
-      where: { serviceOrderId: id, companyId, status: { not: 'CANCELLED' } },
+      where: { serviceOrderId: id, companyId, status: { notIn: ['CANCELLED', 'SPLIT'] } },
       select: { type: true },
     });
     const hasReceivable = existingEntries.some(e => e.type === 'RECEIVABLE');
@@ -1994,7 +1994,7 @@ export class ServiceOrderService {
 
     // Check for early-launched entries (lançamento antecipado)
     const earlyEntries = await this.prisma.financialEntry.findMany({
-      where: { serviceOrderId: id, companyId, status: { not: 'CANCELLED' } },
+      where: { serviceOrderId: id, companyId, status: { notIn: ['CANCELLED', 'SPLIT'] } },
       select: { type: true },
     });
     const hasEarlyReceivable = earlyEntries.some(e => e.type === 'RECEIVABLE');
@@ -2319,7 +2319,7 @@ export class ServiceOrderService {
 
     // Check for early-launched entries (lançamento antecipado)
     const earlyEntries = await this.prisma.financialEntry.findMany({
-      where: { serviceOrderId: id, companyId, status: { not: 'CANCELLED' } },
+      where: { serviceOrderId: id, companyId, status: { notIn: ['CANCELLED', 'SPLIT'] } },
       select: { type: true },
     });
     const hasEarlyReceivable = earlyEntries.some(e => e.type === 'RECEIVABLE');

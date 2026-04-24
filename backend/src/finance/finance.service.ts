@@ -380,8 +380,8 @@ export class FinanceService {
     } else if (filters?.status) {
       where.status = filters.status;
     } else {
-      // By default, exclude CANCELLED entries — user must explicitly filter by CANCELLED
-      where.status = { not: 'CANCELLED' };
+      // By default, exclude CANCELLED e SPLIT (parcelados tem filhas que assumem)
+      where.status = { notIn: ['CANCELLED', 'SPLIT'] };
     }
     if (filters?.partnerId) where.partnerId = filters.partnerId;
     if (filters?.nfseStatus) {
@@ -1054,7 +1054,7 @@ export class FinanceService {
       where: {
         companyId,
         deletedAt: null,
-        status: { not: 'CANCELLED' },
+        status: { notIn: ['CANCELLED', 'SPLIT'] },
         dueDate: { gte: startDate, lte: endDate },
       },
       select: { type: true, status: true, grossCents: true, netCents: true },
