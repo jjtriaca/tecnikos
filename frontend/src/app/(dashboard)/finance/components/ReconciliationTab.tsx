@@ -663,10 +663,29 @@ function ConciliationModal({
   const [adjustPaymentMethod, setAdjustPaymentMethod] = useState("");
   const [creatingAdjust, setCreatingAdjust] = useState(false);
   // v1.10.07 — descontos da operadora (diff NEGATIVO: entry > linha)
-  type DiscountRow = { id: string; amountCents: number; description: string; financialAccountId: string };
+  // amountText: string livre durante digitacao ("9,24"); formata so no onBlur
+  // dueDate: ISO yyyy-mm-dd (default: data da linha do extrato; user pode editar)
+  type DiscountRow = {
+    id: string;
+    amountText: string;
+    description: string;
+    financialAccountId: string;
+    dueDate: string;
+  };
   const [discountEntry, setDiscountEntry] = useState<any>(null);
   const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
   const [creatingWithDiscounts, setCreatingWithDiscounts] = useState(false);
+  const parseDiscountToCents = (s: string) => {
+    const n = parseFloat((s || "").replace(/\./g, "").replace(",", "."));
+    return isNaN(n) ? 0 : Math.round(n * 100);
+  };
+  const formatCentsToText = (c: number) => (c / 100).toFixed(2).replace(".", ",");
+  const isoDate = (d: Date | string | null | undefined) => {
+    if (!d) return "";
+    const dt = typeof d === "string" ? new Date(d) : d;
+    if (isNaN(dt.getTime())) return "";
+    return dt.toISOString().slice(0, 10);
+  };
 
   // Card transaction breakdown state
   const [liquidCents, setLiquidCents] = useState(0);
@@ -1046,21 +1065,24 @@ function ConciliationModal({
           const restoCents = (entryAmount - lineAbs) - taxaCents;
           const taxaAcc = financialAccounts.find((a) => a.code === "5200");
           const aluguelAcc = financialAccounts.find((a) => a.code === "3201");
+          const defaultDate = isoDate(line.transactionDate);
           const initialDiscounts: DiscountRow[] = [];
           if (taxaCents > 0) {
             initialDiscounts.push({
               id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-1`,
-              amountCents: taxaCents,
+              amountText: formatCentsToText(taxaCents),
               description: `Taxa cartão ${expectedRate.toFixed(2)}%`,
               financialAccountId: taxaAcc?.id || "",
+              dueDate: defaultDate,
             });
           }
           if (restoCents > 0) {
             initialDiscounts.push({
               id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-2`,
-              amountCents: restoCents,
+              amountText: formatCentsToText(restoCents),
               description: "Aluguel maquininha",
               financialAccountId: aluguelAcc?.id || "",
+              dueDate: defaultDate,
             });
           }
           setDiscounts(initialDiscounts);
@@ -1146,13 +1168,15 @@ function ConciliationModal({
   // v1.10.07 — Descontos da operadora (diff NEGATIVO)
   function addDiscount(presetCode?: string, presetDesc?: string) {
     const acc = presetCode ? financialAccounts.find((a) => a.code === presetCode) : null;
+    const defaultDate = line ? isoDate(line.transactionDate) : "";
     setDiscounts((prev) => [
       ...prev,
       {
         id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-        amountCents: 0,
+        amountText: "",
         description: presetDesc || "",
         financialAccountId: acc?.id || "",
+        dueDate: defaultDate,
       },
     ]);
   }
@@ -1169,7 +1193,8 @@ function ConciliationModal({
    */
   async function handleConciliarComDescontos() {
     if (!line || !discountEntry) return;
-    if (discounts.length === 0 || discounts.some((d) => d.amountCents <= 0 || !d.description.trim())) {
+    if (discounts.length === 0
+      || discounts.some((d) => parseDiscountToCents(d.amountText) <= 0 || !d.description.trim())) {
       toast("Preencha valor e descrição de cada desconto.", "error");
       return;
     }
@@ -1189,22 +1214,26 @@ function ConciliationModal({
     try {
       const newIds: string[] = [];
       for (const d of discounts) {
+        const cents = parseDiscountToCents(d.amountText);
+        const dueIso = d.dueDate
+          ? new Date(`${d.dueDate}T12:00:00`).toISOString()
+          : new Date(line.transactionDate).toISOString();
         // 1. Cria PENDING
         const created = await api.post<any>("/finance/entries", {
           type: oppositeType,
           description: d.description.trim(),
-          grossCents: d.amountCents,
-          dueDate: new Date(line.transactionDate).toISOString(),
+          grossCents: cents,
+          dueDate: dueIso,
           partnerId,
           financialAccountId: d.financialAccountId || undefined,
           notes: `[AUTO_RECONCILIATION_DESCONTO]`,
         });
         const newId = (created as any).id || (created as any).data?.id;
         if (!newId) throw new Error("Não foi possível recuperar ID do desconto criado.");
-        // 2. PAID na mesma conta do entry expected
+        // 2. PAID na mesma conta do entry expected (paidAt = data informada pelo user)
         await api.patch(`/finance/entries/${newId}/status`, {
           status: "PAID",
-          paidAt: new Date(line.transactionDate).toISOString(),
+          paidAt: dueIso,
           cashAccountId,
         });
         newIds.push(newId);
@@ -1213,7 +1242,7 @@ function ConciliationModal({
       await api.post(`/finance/reconciliation/lines/${line.id}/match-multiple`, {
         entryIds: [discountEntry.id, ...newIds],
       });
-      const totalDiscount = discounts.reduce((acc, d) => acc + d.amountCents, 0);
+      const totalDiscount = discounts.reduce((acc, d) => acc + parseDiscountToCents(d.amountText), 0);
       toast(`Conciliado: ${discountEntry.code || "lançamento"} − ${newIds.length} desconto(s) (${formatCurrency(totalDiscount)}).`, "success");
       setDiscountEntry(null);
       setDiscounts([]);
@@ -1650,16 +1679,16 @@ function ConciliationModal({
         const negDiff = entryAmount - lineAbs;
         const direction: "RECEIVABLE" | "PAYABLE" = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
         const oppositeType: "RECEIVABLE" | "PAYABLE" = direction === "RECEIVABLE" ? "PAYABLE" : "RECEIVABLE";
-        const discountsTotal = discounts.reduce((acc, d) => acc + (d.amountCents || 0), 0);
+        const discountsTotal = discounts.reduce((acc, d) => acc + parseDiscountToCents(d.amountText), 0);
         const remainder = negDiff - discountsTotal;
         const cobersDiff = Math.abs(remainder) <= 1 && discounts.length > 0
-          && discounts.every((d) => d.amountCents > 0 && d.description.trim().length > 0);
+          && discounts.every((d) => parseDiscountToCents(d.amountText) > 0 && d.description.trim().length > 0);
         // v1.10.10 — Detecta divergencia da taxa real (item plano 5200) vs taxa cadastrada
         const taxaItem = discounts.find((d) => {
           const acc = financialAccounts.find((a) => a.id === d.financialAccountId);
           return acc?.code === "5200" || /taxa\s*cart/i.test(d.description);
         });
-        const taxaRealCents = taxaItem?.amountCents || 0;
+        const taxaRealCents = taxaItem ? parseDiscountToCents(taxaItem.amountText) : 0;
         const taxaRealPercent = taxaRealCents > 0 && entryAmount > 0
           ? (taxaRealCents / entryAmount) * 100
           : 0;
@@ -1720,12 +1749,12 @@ function ConciliationModal({
                         value={d.description}
                         onChange={(e) => updateDiscount(d.id, { description: e.target.value })}
                         placeholder="Descrição (ex: Taxa cartão MASTER)"
-                        className="col-span-6 rounded border border-slate-300 px-2 py-1.5 text-xs"
+                        className="col-span-5 rounded border border-slate-300 px-2 py-1.5 text-xs"
                       />
                       <select
                         value={d.financialAccountId}
                         onChange={(e) => updateDiscount(d.id, { financialAccountId: e.target.value })}
-                        className="col-span-4 rounded border border-slate-300 px-1.5 py-1.5 text-xs bg-white"
+                        className="col-span-3 rounded border border-slate-300 px-1.5 py-1.5 text-xs bg-white"
                       >
                         <option value="">— plano —</option>
                         {financialAccounts
@@ -1735,12 +1764,23 @@ function ConciliationModal({
                           ))}
                       </select>
                       <input
+                        type="date"
+                        value={d.dueDate}
+                        onChange={(e) => updateDiscount(d.id, { dueDate: e.target.value })}
+                        className="col-span-2 rounded border border-slate-300 px-1.5 py-1.5 text-xs"
+                        title="Data do lançamento"
+                        data-no-auto-select="true"
+                      />
+                      <input
                         type="text"
                         inputMode="decimal"
-                        value={d.amountCents > 0 ? (d.amountCents / 100).toFixed(2).replace(".", ",") : ""}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value.replace(/\./g, "").replace(",", ".")) || 0;
-                          updateDiscount(d.id, { amountCents: Math.round(val * 100) });
+                        value={d.amountText}
+                        onChange={(e) => updateDiscount(d.id, { amountText: e.target.value })}
+                        onBlur={(e) => {
+                          const num = parseFloat(e.target.value.replace(/\./g, "").replace(",", "."));
+                          if (!isNaN(num) && num > 0) {
+                            updateDiscount(d.id, { amountText: num.toFixed(2).replace(".", ",") });
+                          }
                         }}
                         placeholder="0,00"
                         className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-xs text-right font-medium"
@@ -1785,8 +1825,9 @@ function ConciliationModal({
                       onClick={() => {
                         const last = discounts[discounts.length - 1];
                         if (!last) return;
-                        const v = last.amountCents + remainder;
-                        if (v > 0) updateDiscount(last.id, { amountCents: v });
+                        const lastCents = parseDiscountToCents(last.amountText);
+                        const v = lastCents + remainder;
+                        if (v > 0) updateDiscount(last.id, { amountText: formatCentsToText(v) });
                       }}
                       className="text-[11px] px-2.5 py-1.5 rounded bg-amber-100 text-amber-800 hover:bg-amber-200 font-medium"
                       title="Ajusta a última linha pra zerar a diferença"
@@ -2490,9 +2531,27 @@ function MultipleMatchModal({
   const [creatingAdjust, setCreatingAdjust] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   // v1.10.07: descontos da operadora (linha credito + RECEIVABLE - N PAYABLE = lineAbs)
-  type DiscountRow = { id: string; amountCents: number; description: string; financialAccountId: string };
+  // v1.10.11: amountText (string livre) + dueDate por linha
+  type DiscountRow = {
+    id: string;
+    amountText: string;
+    description: string;
+    financialAccountId: string;
+    dueDate: string;
+  };
   const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
   const [creatingWithDiscounts, setCreatingWithDiscounts] = useState(false);
+  const parseDiscountToCents = (s: string) => {
+    const n = parseFloat((s || "").replace(/\./g, "").replace(",", "."));
+    return isNaN(n) ? 0 : Math.round(n * 100);
+  };
+  const formatCentsToText = (c: number) => (c / 100).toFixed(2).replace(".", ",");
+  const isoDateLocal = (d: Date | string | null | undefined) => {
+    if (!d) return "";
+    const dt = typeof d === "string" ? new Date(d) : d;
+    if (isNaN(dt.getTime())) return "";
+    return dt.toISOString().slice(0, 10);
+  };
 
   const direction: "RECEIVABLE" | "PAYABLE" = line && line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
   const oppositeType: "RECEIVABLE" | "PAYABLE" = direction === "RECEIVABLE" ? "PAYABLE" : "RECEIVABLE";
@@ -2562,10 +2621,10 @@ function MultipleMatchModal({
   const total = selected.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
   const diff = lineAbs - total;
   // v1.10.07: descontos cobrem diferenca quando entries somam mais que linha
-  const discountsTotal = discounts.reduce((acc, d) => acc + (d.amountCents || 0), 0);
+  const discountsTotal = discounts.reduce((acc, d) => acc + parseDiscountToCents(d.amountText), 0);
   const negDiff = diff < 0 ? Math.abs(diff) : 0;
   const discountsCoverDiff = negDiff > 0 && Math.abs(discountsTotal - negDiff) <= 1 && discounts.length > 0
-    && discounts.every((d) => d.amountCents > 0 && d.description.trim().length > 0);
+    && discounts.every((d) => parseDiscountToCents(d.amountText) > 0 && d.description.trim().length > 0);
   const matches = (Math.abs(diff) <= 1 || discountsCoverDiff) && selectedIds.size > 0;
   const pendingCount = selected.filter((e) => e.status === "PENDING" || e.status === "CONFIRMED").length;
 
@@ -2578,13 +2637,15 @@ function MultipleMatchModal({
   // v1.10.07 — descontos da operadora
   function addDiscount(presetCode?: string, presetDesc?: string) {
     const acc = presetCode ? financialAccounts.find((a) => a.code === presetCode) : null;
+    const defaultDate = line ? isoDateLocal(line.transactionDate) : "";
     setDiscounts((prev) => [
       ...prev,
       {
         id: (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
-        amountCents: 0,
+        amountText: "",
         description: presetDesc || "",
         financialAccountId: acc?.id || "",
+        dueDate: defaultDate,
       },
     ]);
   }
@@ -2672,12 +2733,16 @@ function MultipleMatchModal({
     try {
       const newIds: string[] = [];
       for (const d of discounts) {
+        const cents = parseDiscountToCents(d.amountText);
+        const dueIso = d.dueDate
+          ? new Date(`${d.dueDate}T12:00:00`).toISOString()
+          : new Date(line.transactionDate).toISOString();
         // 1. Cria PENDING
         const created = await api.post<any>("/finance/entries", {
           type: oppositeType,
           description: d.description.trim(),
-          grossCents: d.amountCents,
-          dueDate: new Date(line.transactionDate).toISOString(),
+          grossCents: cents,
+          dueDate: dueIso,
           partnerId,
           financialAccountId: d.financialAccountId || undefined,
           notes: `[AUTO_RECONCILIATION_DESCONTO]`,
@@ -2687,7 +2752,7 @@ function MultipleMatchModal({
         // 2. PAID na mesma conta do entry expected (decrementa saldo da conta)
         await api.patch(`/finance/entries/${newId}/status`, {
           status: "PAID",
-          paidAt: new Date(line.transactionDate).toISOString(),
+          paidAt: dueIso,
           cashAccountId,
         });
         newIds.push(newId);
@@ -2890,12 +2955,12 @@ function MultipleMatchModal({
                       value={d.description}
                       onChange={(e) => updateDiscount(d.id, { description: e.target.value })}
                       placeholder="Descrição (ex: Taxa cartão MASTER 1,55%)"
-                      className="col-span-6 rounded border border-slate-300 px-2 py-1 text-[11px]"
+                      className="col-span-5 rounded border border-slate-300 px-2 py-1 text-[11px]"
                     />
                     <select
                       value={d.financialAccountId}
                       onChange={(e) => updateDiscount(d.id, { financialAccountId: e.target.value })}
-                      className="col-span-4 rounded border border-slate-300 px-1.5 py-1 text-[11px] bg-white"
+                      className="col-span-3 rounded border border-slate-300 px-1.5 py-1 text-[11px] bg-white"
                     >
                       <option value="">— plano —</option>
                       {financialAccounts
@@ -2905,12 +2970,23 @@ function MultipleMatchModal({
                         ))}
                     </select>
                     <input
+                      type="date"
+                      value={d.dueDate}
+                      onChange={(e) => updateDiscount(d.id, { dueDate: e.target.value })}
+                      className="col-span-2 rounded border border-slate-300 px-1.5 py-1 text-[11px]"
+                      title="Data do lançamento"
+                      data-no-auto-select="true"
+                    />
+                    <input
                       type="text"
                       inputMode="decimal"
-                      value={d.amountCents > 0 ? (d.amountCents / 100).toFixed(2).replace(".", ",") : ""}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value.replace(/\./g, "").replace(",", ".")) || 0;
-                        updateDiscount(d.id, { amountCents: Math.round(val * 100) });
+                      value={d.amountText}
+                      onChange={(e) => updateDiscount(d.id, { amountText: e.target.value })}
+                      onBlur={(e) => {
+                        const num = parseFloat(e.target.value.replace(/\./g, "").replace(",", "."));
+                        if (!isNaN(num) && num > 0) {
+                          updateDiscount(d.id, { amountText: num.toFixed(2).replace(".", ",") });
+                        }
                       }}
                       placeholder="0,00"
                       className="col-span-2 rounded border border-slate-300 px-2 py-1 text-[11px] text-right font-medium"
@@ -2956,8 +3032,9 @@ function MultipleMatchModal({
                       // Auto-ajusta a ULTIMA linha pra fechar a diferenca
                       const last = discounts[discounts.length - 1];
                       if (!last) return;
-                      const remainder = last.amountCents + (negDiff - discountsTotal);
-                      if (remainder > 0) updateDiscount(last.id, { amountCents: remainder });
+                      const lastCents = parseDiscountToCents(last.amountText);
+                      const v = lastCents + (negDiff - discountsTotal);
+                      if (v > 0) updateDiscount(last.id, { amountText: formatCentsToText(v) });
                     }}
                     className="text-[10px] px-2 py-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200 font-medium"
                     title="Ajusta a última linha pra zerar a diferença"
