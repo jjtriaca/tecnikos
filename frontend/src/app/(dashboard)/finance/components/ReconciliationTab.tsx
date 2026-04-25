@@ -989,39 +989,80 @@ function ConciliationModal({
       return;
     }
 
-    // Auto-deteccao de diferenca: se entry tem valor diferente da linha (e nao e cartao),
-    // abre form de ajuste pra criar lancamento separado.
-    // - diff > 0 (linha > entry): juros/multa (logica original)
-    // - diff < 0 (entry > linha): descontos da operadora (v1.10.07)
-    if (entry && line && !isCard) {
+    // Auto-deteccao de diferenca:
+    // - Nao-cartao: diff > 0 → juros/multa; diff < 0 → descontos
+    // - Cartao: divergencia da taxa implicita > taxa configurada + 5pp → descontos
+    //   (taxa unica auto so e segura quando bate com a config; alem disso eh aluguel/etc)
+    if (entry && line) {
       const entryAmount = entry.netCents ?? entry.grossCents ?? 0;
       const lineAbs = Math.abs(line.amountCents);
       const diff = lineAbs - entryAmount;
-      if (diff > 1) {
-        // Juros/multa
-        const direction = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
-        const tipoAjuste = direction === "RECEIVABLE" ? "Juros/Multa recebidos" : "Juros/Multa pagos";
-        const partnerName = entry.partner?.name || "";
-        setAdjustDescription(`${tipoAjuste}${partnerName ? ` — ${partnerName}` : ""}`);
-        const jurosAcc = financialAccounts.find((a) =>
-          a.code === "7100" || /juros|multa/i.test(a.name),
-        );
-        setAdjustAccountId(jurosAcc?.id || "");
-        const inheritedMethod = entry.paymentMethod || matchPaymentMethod || "";
-        setAdjustPaymentMethod(inheritedMethod);
-        setAdjustEntry(entry);
-        return;
-      }
-      if (diff < -1) {
-        // v1.10.07 — Descontos da operadora (entry > linha)
-        // Verificar pre-requisitos antes de abrir overlay
-        if (!entry.cashAccountId || entry.cashAccountId === line.cashAccountId) {
-          toast("Lançamento precisa estar PAGO em conta de origem (ex: VT) para aplicar descontos.", "error");
+
+      if (!isCard) {
+        if (diff > 1) {
+          // Juros/multa
+          const direction = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
+          const tipoAjuste = direction === "RECEIVABLE" ? "Juros/Multa recebidos" : "Juros/Multa pagos";
+          const partnerName = entry.partner?.name || "";
+          setAdjustDescription(`${tipoAjuste}${partnerName ? ` — ${partnerName}` : ""}`);
+          const jurosAcc = financialAccounts.find((a) =>
+            a.code === "7100" || /juros|multa/i.test(a.name),
+          );
+          setAdjustAccountId(jurosAcc?.id || "");
+          const inheritedMethod = entry.paymentMethod || matchPaymentMethod || "";
+          setAdjustPaymentMethod(inheritedMethod);
+          setAdjustEntry(entry);
           return;
         }
-        setDiscounts([]);
-        setDiscountEntry(entry);
-        return;
+        if (diff < -1) {
+          // Descontos da operadora (entry > linha) — v1.10.07
+          if (!entry.cashAccountId || entry.cashAccountId === line.cashAccountId) {
+            toast("Lançamento precisa estar PAGO em conta de origem (ex: VT) para aplicar descontos.", "error");
+            return;
+          }
+          setDiscounts([]);
+          setDiscountEntry(entry);
+          return;
+        }
+      } else {
+        // CARTAO — v1.10.09: deteccao de descontos extras (aluguel maquininha etc)
+        // Taxa implicita (gross - liquido)/gross. Se bate com configFee (tol 1.5pp), eh
+        // taxa pura → fluxo legado. Se excede config + 5pp, sao descontos extras.
+        const impliedRate = entryAmount > 0 ? ((entryAmount - lineAbs) / entryAmount) * 100 : 0;
+        const expectedRate = configFeePercent || 0;
+        const divergence = impliedRate - expectedRate;
+        if (diff < -1 && divergence > 5) {
+          // Pre-requisitos
+          if (!entry.cashAccountId || entry.cashAccountId === line.cashAccountId) {
+            toast("Lançamento precisa estar PAGO em conta de origem (ex: VT) para aplicar descontos.", "error");
+            return;
+          }
+          // Pre-popula primeira linha com a "taxa esperada" da config + segunda com "aluguel" (resto)
+          const taxaCents = expectedRate > 0 ? Math.round(entryAmount * (expectedRate / 100)) : 0;
+          const restoCents = (entryAmount - lineAbs) - taxaCents;
+          const taxaAcc = financialAccounts.find((a) => a.code === "5200");
+          const aluguelAcc = financialAccounts.find((a) => a.code === "3201");
+          const initialDiscounts: DiscountRow[] = [];
+          if (taxaCents > 0) {
+            initialDiscounts.push({
+              id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-1`,
+              amountCents: taxaCents,
+              description: `Taxa cartão ${expectedRate.toFixed(2)}%`,
+              financialAccountId: taxaAcc?.id || "",
+            });
+          }
+          if (restoCents > 0) {
+            initialDiscounts.push({
+              id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-2`,
+              amountCents: restoCents,
+              description: "Aluguel maquininha",
+              financialAccountId: aluguelAcc?.id || "",
+            });
+          }
+          setDiscounts(initialDiscounts);
+          setDiscountEntry(entry);
+          return;
+        }
       }
     }
 
