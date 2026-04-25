@@ -1,25 +1,13 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.06 (em prod)
-## Ultima sessao: 180 (24/04/2026)
+## Versao: v1.10.11 (em prod)
+## Ultima sessao: 181 (25/04/2026)
 
 ## PENDENTE PROXIMA SESSAO
 
-### 🔴 Multiplos descontos na conciliacao (taxa + N alugueis da maquininha)
-**Cenario:** operadora de cartao desconta N valores (taxa + aluguel 1 + aluguel 2) de UM credito. Linha do banco R$ 115,86 (credito SICREDI MASTER 05/04), venda real ~R$ 200, diferenca ~R$ 84,14 sao descontos.
-
-**Limitacoes atuais:**
-- Fluxo cartao 1-para-1 (`isCard`): calcula UMA taxa automatica (`entry.gross - bank.amount`). Nao N descontos.
-- `matchAsMultiple`: bloqueia mistura RECEIVABLE+PAYABLE — exige mesmo tipo.
-- Auto-ajuste atual so trata diff positivo (juros). Nao trata diff negativo (descontos).
-
-**Implementar:**
-1. Overlay "Diferenca detectada" — detectar diff NEGATIVO (entry > linha) e oferecer "adicionar lancamentos de despesa"
-2. UI permite N linhas de despesa (valor + descricao + plano de contas)
-3. Quando soma despesas == diff: habilita conciliar
-4. Backend `matchAsMultiple`: flexibilizar pra aceitar RECEIVABLE + N PAYABLE com formula `sumR - sumP = lineAbs`
-5. Cria N entries PAYABLE PAID (descontadas em VT) + concilia tudo via match-multiple
-6. Plano de contas "Aluguel maquininha" precisa existir (criar via UI ou SQL) — confirmar com user codigo
+### 🟡 Melhorias UX possiveis (decididas como nao-prioritarias na sessao 181)
+- **Filtro "Recebido em SICREDI"** poderia incluir AccountTransfer entrando, alem de FinancialEntry com cashAccountId=SICREDI. Hoje entries de cartao ficam em VT mesmo apos conciliacao (design v1.09.94 preserva ciclo da maquininha) — visualmente confuso pra quem espera ver "tudo que entrou no banco". User decidiu manter design atual; melhoria seria opcional.
+- **Flag por PaymentInstrument**: "Apos conciliar, mover entry pra banco" (alternativa a manter em VT). Adia v1.10.12+.
 
 ### 🟡 Fluxos legados que ainda criam FinancialInstallment
 - `finance.service.ts:981` (renegotiate com parcelas): continua criando FinancialInstallment legado. Migrar pro novo fluxo (entries filhas).
@@ -28,6 +16,61 @@
 
 ### 🟢 Entries parcelados "a vista" (installmentCount=1, sem impacto)
 - FIN-00012, FIN-00344, FIN-00454 — nao precisam migrar urgente
+
+---
+
+## Sessao 181 — Multiplos descontos na conciliacao + UX tabelas (v1.10.07-1.10.11)
+
+### v1.10.07 — Backend matchAsMultiple aceita mistura RECEIVABLE+PAYABLE
+- **Caso de uso:** linha credito SICREDI R$ 115,86 = venda RECEIVABLE R$ 360 − N PAYABLE R$ 244,14 (taxa cartao + alugueis maquininha)
+- `reconciliation.service.ts:matchAsMultiple` — antes rejeitava entry.type !== expectedType; agora valida `sumExp − sumOpp === lineAbs` (tol 1c)
+- Entries do tipo OPOSTO (descontos) DEVEM estar PAID antes do match
+- **Fix bug latente Royalle:** banco recebia apenas `pendingTotal` (PENDING que viraram PAID); entries PAID em outra conta nao incrementavam banco. Agora `banco += lineAbs` em UM update (cobre todos os casos)
+- AccountTransfer rastreavel por origem com sinal correto (origem -= liquid se positivo, += se negativo)
+- `unmatchLine`: reverte saldo banco em `lineAbs` + soft-delete entries com marker `[AUTO_RECONCILIATION_DESCONTO]` (alem do `_ADJUST` ja existente)
+
+### v1.10.07 — Frontend overlay "Descontos detectados"
+- **MultipleMatchModal**: quando soma selecionados > linha, mostra UI rosa com N linhas de despesa. Validacao live: soma despesas == |diff|
+- **ConciliationModal (1-para-1)**: ao clicar Conciliar com entry > linha em fluxo nao-cartao, abre overlay de descontos
+- Atalhos: "+ Taxa cartao" (5200), "+ Aluguel maquininha" (3201), "+ Outro desconto", "⚖ Fechar diferença"
+- Cria N entries PAYABLE PAID na mesma conta do entry expected (VT) com marker `[AUTO_RECONCILIATION_DESCONTO]` + match-multiple
+
+### v1.10.08 — UX tabelas (hover + selected state global)
+- **Hover**: `hover:bg-slate-50` (#f8fafc, quase invisivel) → `hover:bg-slate-100` (#f1f5f9, bem mais notavel) em 83 arquivos via sed
+- **Selected state**: listener global em `TableRowSelectionListener.tsx` adiciona `data-row-selected="true"` ao tr clicado. CSS global em `globals.css` aplica fundo azul-100 + barra azul lateral. Sem precisar tocar em nenhum `<tr>` existente
+- Click fora limpa selecao; click em botao/input dentro do tr nao atrapalha
+- Opt-out: `data-no-row-select="true"`
+
+### v1.10.09 — Deteccao automatica de descontos no fluxo cartao
+- Antes: `ConciliationModal` so abria overlay de descontos quando `!isCard` (cartao usava taxa unica auto)
+- Bug detectado: linha cartao R$ 115,86 conciliada com FIN-00002 R$ 360 criou taxa unica falsa de R$ 2,72 (devia ser R$ 244,14 de descontos). User precisou desfazer
+- Fix: agora cartao tambem detecta divergencia. Se `taxa_implicita > config_fee + 5pp`, abre overlay de descontos pre-populado com taxa cartao 5200 (config%) + resto em aluguel maquininha 3201
+- Mantem fluxo legado de taxa unica quando divergencia <= 5pp (taxa real bate com config)
+
+### v1.10.10 — Auto-select inputs numericos + alerta divergencia taxa
+- Listener global no `TableRowSelectionListener` ouve `focusin` em inputs com `type="number"`, `inputMode="decimal"`, `inputMode="numeric"` ou `data-auto-select="true"` e chama `select()` em `setTimeout(0)` (evita race com click)
+- Opt-out: `data-no-auto-select="true"` (usado no input date)
+- **Alerta divergencia taxa** no overlay descontos: detecta linha com plano 5200 (Taxa cartao); se taxa_real diverge da cadastrada > 0,05pp, mostra alerta amarelo + botao "Atualizar para X%". Reusa endpoint `PATCH /finance/payment-instrument-fee-rates/:id` ou `/finance/card-fee-rates/:id` (mesma rota da tela de detalhamento cartao)
+- Refactor: extraido helper `updateRateBy(percent)` reusado em `updateConfiguredRate()` e no novo botao do overlay
+
+### v1.10.11 — Input cents com digitacao livre + campo data por linha
+- **Bug**: input do valor formatava `"9,00"` em cada keystroke → cursor pulava pro fim, impossivel digitar `9,24`
+- **Fix**: trocado `amountCents: number` por `amountText: string` no DiscountRow. Input livre durante digitacao; formata `0,00` so no `onBlur` (segue padrao do `CurrencyInput.tsx`)
+- **Novo campo**: `dueDate` por linha de desconto. Default = data da linha do extrato; user pode editar individualmente (ex: aluguel cobrado em outro dia)
+- Layout overlay: descricao (5) + plano (3) + **data (2)** + valor (2) = 12 cols
+- `dueDate` aplicado em `dueDate` e `paidAt` do entry (com `T12:00:00` pra evitar bug timezone)
+
+### Caso real conciliado com sucesso (validado via SQL)
+- **Linha SICREDI R$ 115,86** (06/04/2026, id `bfecc4f2`) — MATCHED
+- FIN-00002 RECEIVABLE PAID R$ 360 (Trade Solar) + FIN-00480 R$ 9,18 (Taxa cartao 5200) + FIN-00481 R$ 105,96 (Aluguel 3201) + FIN-00482 R$ 129 (Aluguel 3201)
+- Validacao: 360 − 244,14 = **115,86** ✓
+- AccountTransfer VT → SICREDI R$ 115,86 em 06/04 ✓
+- Movimentos VT desta operacao: zerados ✓; SICREDI: +R$ 115,86 ✓
+
+### Operacional: tenant SLS desbloqueado
+- Cron AsaasService bloqueou tenant SLS as 7h ("Pagamento nao efetuado ha mais de 7 dias"). User pediu desbloqueio pra testar.
+- SQL: Tenant.status = ACTIVE, blockReason/blockedAt limpos. Subscription.status = ACTIVE, overdueAt limpo, nextBillingDate movido pra 16/05/2026
+- **Atencao**: cron de sync 7AM com Asaas pode re-bloquear se la continuar overdue
 
 ---
 

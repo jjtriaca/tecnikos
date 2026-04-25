@@ -1282,14 +1282,27 @@ export class FinanceService {
       });
 
       if (taxCents > 0) {
-        // Verificar se ja existe entry REAL de taxa (criada pelo matchLine).
-        // Se sim, nao gerar linha virtual pra evitar duplicata no extrato.
+        // Verificar se ja existe entry REAL de taxa pra evitar duplicata no extrato.
+        // Casos:
+        //  (a) Entry tecnico isRefundEntry=true criado pelo fluxo legado matchLine
+        //      (descricao contem prefix do entry original)
+        //  (b) v1.10.07+: entry de desconto criado via match-multiple com mistura
+        //      RECEIVABLE+PAYABLE — mesmo invoiceMatchLineId. Se ha PAYABLE no grupo,
+        //      taxa cartao ja foi tratada explicitamente pelo gestor.
         const entryIdPrefix = e.id.substring(0, 8);
-        const hasTaxEntry = entries.some(other =>
-          (other as any).isRefundEntry &&
-          other.type === 'PAYABLE' &&
-          other.description?.includes(entryIdPrefix),
-        );
+        const hasTaxEntry = entries.some((other) => {
+          if ((other as any).isRefundEntry
+            && other.type === 'PAYABLE'
+            && other.description?.includes(entryIdPrefix)) {
+            return true;
+          }
+          if ((e as any).invoiceMatchLineId
+            && (other as any).invoiceMatchLineId === (e as any).invoiceMatchLineId
+            && other.type !== e.type) {
+            return true;
+          }
+          return false;
+        });
         if (!hasTaxEntry) {
           const feePercent = findFeePercent(e.paymentMethod, e.cardBrand);
           entryRows.push({
