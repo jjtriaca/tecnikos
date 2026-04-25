@@ -9,6 +9,7 @@ import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
 import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto, MatchAsTransferDto } from './dto/reconciliation.dto';
 import { CodeGeneratorService } from '../common/code-generator.service';
+import { breakInTenantTz, endOfTenantDay } from '../common/util/tenant-date.util';
 
 /**
  * Detecta paymentMethod pela descricao da linha do extrato bancario.
@@ -44,17 +45,13 @@ export class ReconciliationService {
   /**
    * Extract year/month from transactionDate. Usado pra particionar linhas em statements mensais.
    *
-   * As datas do OFX sao naive (sem timezone) — representam "o dia do evento no banco" (BR).
-   * O parser salva como `new Date(year, month, day)` que no servidor UTC vira `yyyy-mm-dd 00:00 UTC`.
-   * Ler direto os componentes UTC da o mes correto (sem deslocamento de timezone).
-   *
-   * v1.09.67 — fix: antes subtraia 3h o que jogava linhas do dia 01 do mes pro mes anterior.
+   * v1.10.14: usa `breakInTenantTz` (BRT) pra garantir consistencia em todos os caminhos.
+   * Antes assumia que parser salvava em UTC midnight; com o fix do parser pra meio-dia BRT,
+   * mantemos o calculo robusto independente de como a date foi criada (UTC ou BRT).
    */
   private getBrazilianPeriod(date: Date): { year: number; month: number } {
-    return {
-      year: date.getUTCFullYear(),
-      month: date.getUTCMonth() + 1, // 1..12
-    };
+    const { year, month } = breakInTenantTz(date);
+    return { year, month };
   }
 
   /**
@@ -375,7 +372,10 @@ export class ReconciliationService {
       };
     }
 
-    const D = statement.statementBalanceDate;
+    // v1.10.14: D = fim do dia BRT do statementBalanceDate.
+    // Saldo do banco eh sempre "fechamento do dia" — todas transacoes daquele dia
+    // ja estao computadas. Entao filtramos `> endOfDay(D)` pra evitar contar duplo.
+    const D = endOfTenantDay(statement.statementBalanceDate);
     const cashAccountId = statement.cashAccountId;
     const currentBalance = statement.cashAccount.currentBalanceCents;
 

@@ -479,10 +479,17 @@ export class BankSicrediProvider implements BoletoProvider {
         : undefined;
 
       // dataEvento vem como array [year, month, day, hour, min, sec, nano]
+      // v1.10.14: ancora no fuso BRT (-03:00) pra evitar deslocamento UTC.
       let paidAt: Date | undefined;
       if (Array.isArray(payload.dataEvento) && payload.dataEvento.length >= 3) {
         const [year, month, day, hour = 0, min = 0, sec = 0] = payload.dataEvento;
-        paidAt = new Date(year, month - 1, day, hour, min, sec);
+        const yyyy = String(year).padStart(4, '0');
+        const mm = String(month).padStart(2, '0');
+        const dd = String(day).padStart(2, '0');
+        const hh = String(hour).padStart(2, '0');
+        const mi = String(min).padStart(2, '0');
+        const ss = String(sec).padStart(2, '0');
+        paidAt = new Date(`${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}-03:00`);
       }
 
       return {

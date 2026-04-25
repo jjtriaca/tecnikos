@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { tenantNoon } from '../common/util/tenant-date.util';
 
 export interface OfxTransaction {
   fitId: string;
@@ -162,14 +163,12 @@ export class OfxParserService {
     // Remove timezone info like [-3:BRT]
     const clean = dateStr.replace(/\[.*\]/, '').trim();
     const year = parseInt(clean.substring(0, 4));
-    const month = parseInt(clean.substring(4, 6)) - 1;
+    const month = parseInt(clean.substring(4, 6));
     const day = parseInt(clean.substring(6, 8));
-    let hours = 0, minutes = 0, seconds = 0;
-    if (clean.length >= 14) {
-      hours = parseInt(clean.substring(8, 10));
-      minutes = parseInt(clean.substring(10, 12));
-      seconds = parseInt(clean.substring(12, 14));
-    }
-    return new Date(year, month, day, hours, minutes, seconds);
+    // v1.10.14: SEMPRE meio-dia no fuso do tenant pra evitar deslocamento UTC vs BRT.
+    // Antes usava `new Date(year, month-1, day, 0, 0, 0)` que no servidor UTC virava
+    // `00:00 UTC = 21:00 BRT do dia anterior` — bug grave: linhas de 31/03 caiam em 30/03 BR,
+    // saldo de fim de mes ficava deslocado. Ver common/util/tenant-date.util.ts
+    return tenantNoon(year, month, day);
   }
 }

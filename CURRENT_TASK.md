@@ -1,19 +1,9 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.12 (em prod)
+## Versao: v1.10.13 (em prod)
 ## Ultima sessao: 181 (25/04/2026)
 
 ## PENDENTE PROXIMA SESSAO
-
-### 🟡 CardSettlement orfao apos match-multiple cartao com mistura
-- Quando user concilia entry RECEIVABLE de cartao via match-multiple com PAYABLE (descontos), o CardSettlement PENDING vinculado fica orfao
-- Caso ocorrido: FIN-00002 / CardSettlement `626cf832` PENDING R$ 8,24 (2,29%) — corrigido manualmente via SQL na sessao 181 (CANCELLED)
-- **Fix de codigo**: em `matchAsMultiple`, ao processar entry RECEIVABLE com `paymentMethod` cartao + opposite_type presente no batch, marcar CardSettlement vinculado como CANCELLED ou SETTLED (com `actualAmountCents` baseado no liquido real)
-
-### 🟡 Atualizar descricao do desconto ao atualizar taxa cadastrada
-- Hoje: clicar "Atualizar para X%" no overlay so atualiza CardFeeRate/PaymentInstrumentFeeRate, nao a descricao do desconto pre-populado ("Taxa cartão 2.29%" ficou estatica)
-- Caso ocorrido: FIN-00480 — corrigido manualmente via SQL na sessao 181
-- **Fix**: ao atualizar taxa via botao do overlay, regerar descricao da linha de desconto que tem plano 5200 ("Taxa cartão {newRate}%")
 
 ### 🟡 Melhorias UX possiveis (decididas como nao-prioritarias na sessao 181)
 - **Filtro "Recebido em SICREDI"** poderia incluir AccountTransfer entrando, alem de FinancialEntry com cashAccountId=SICREDI. Hoje entries de cartao ficam em VT mesmo apos conciliacao (design v1.09.94 preserva ciclo da maquininha) — visualmente confuso pra quem espera ver "tudo que entrou no banco". User decidiu manter design atual; melhoria seria opcional.
@@ -81,6 +71,16 @@
 - Cron AsaasService bloqueou tenant SLS as 7h ("Pagamento nao efetuado ha mais de 7 dias"). User pediu desbloqueio pra testar.
 - SQL: Tenant.status = ACTIVE, blockReason/blockedAt limpos. Subscription.status = ACTIVE, overdueAt limpo, nextBillingDate movido pra 16/05/2026
 - **Atencao**: cron de sync 7AM com Asaas pode re-bloquear se la continuar overdue
+
+### v1.10.12 — Fix duplicacao de taxa cartao no extrato consolidado
+- Bug: linha "Taxa cartao Mastercard X.XX%" gerada virtualmente pelo extrato + FIN-00480 desconto real = mesma despesa duas vezes na visualizacao
+- Causa: `finance.service.ts:getStatement` deduplicacao so reconhecia entry tecnica `isRefundEntry=true` criada pelo fluxo legado matchLine
+- Fix: estendido pra detectar tambem entries de match-multiple — `e.invoiceMatchLineId === other.invoiceMatchLineId && other.type !== e.type`
+- Ajuste manual via SQL: FIN-00480 descricao 2.29% → 2.55% (coerente com R$ 9,18); CardSettlement `626cf832` PENDING (R$ 8,24/2.29%) marcado como CANCELLED
+
+### v1.10.13 — Auto-cancelamento de CardSettlement + sync descricao taxa
+- Backend `matchAsMultiple`: ao detectar `sumOpposite > 0` (descontos via overlay), cancela CardSettlements PENDING vinculados aos entries RECEIVABLE de cartao no batch. Evita orfaos automaticamente
+- Frontend `updateRateBy`: ao clicar "Atualizar para X%" no overlay, regenera descricao das linhas de desconto que matcham padrao auto `^Taxa cart(ao|ão) X.XX%$`. Linhas editadas manualmente sao preservadas
 
 ---
 
