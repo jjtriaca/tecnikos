@@ -1152,7 +1152,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
             <>
               <button
                 onClick={onClose}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
                 Cancelar
               </button>
@@ -1171,7 +1171,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
               {error ? (
                 <button
                   onClick={() => { onSuccess(); }}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
                 >
                   Fechar
                 </button>
@@ -1185,7 +1185,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
             <>
               <button
                 onClick={handleCloseWithoutSend}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
                 Fechar sem Enviar
               </button>

@@ -114,7 +114,7 @@ export default function ChatList({ conversations, selectedPhone, onSelect, loadi
               <button
                 key={conv.remotePhone}
                 onClick={() => onSelect(conv.remotePhone)}
-                className={`w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 ${
+                className={`w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-slate-100 transition-colors border-b border-slate-100 ${
                   isSelected ? "bg-blue-50 border-l-2 border-l-blue-500" : ""
                 }`}
               >

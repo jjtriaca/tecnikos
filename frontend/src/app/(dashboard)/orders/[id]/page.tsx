@@ -539,7 +539,7 @@ export default function OrderDetailPage() {
             if (!["CONCLUIDA", "APROVADA"].includes(order.status)) {
               return (
                 <Link href={`/orders/${id}/edit`}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 transition-colors">
                   Editar
                 </Link>
               );
@@ -829,7 +829,7 @@ export default function OrderDetailPage() {
                     className={`flex items-center gap-3 rounded-lg border p-3 transition-colors cursor-pointer ${
                       selectedTechIds.has(tech.id)
                         ? "border-blue-300 bg-blue-50"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
+                        : "border-slate-200 bg-white hover:bg-slate-100"
                     }`}
                     onClick={() => toggleTechSelection(tech.id)}
                   >

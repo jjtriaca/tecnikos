@@ -131,7 +131,7 @@ export default function TechnicianReportPage() {
         </div>
         {report?.rows.length ? (
           <button onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
             📥 CSV
           </button>
         ) : null}
@@ -285,7 +285,7 @@ export default function TechnicianReportPage() {
                   {report.rows.length === 0 ? (
                     <tr><td colSpan={11} className="px-3 py-6 text-center text-slate-400">Nenhuma OS encontrada no periodo</td></tr>
                   ) : report.rows.map((r) => (
-                    <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                    <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-100">
                       <td className="px-3 py-2 text-xs font-mono text-slate-600">{r.code}</td>
                       <td className="px-3 py-2 text-slate-700 truncate max-w-[150px]">{r.title}</td>
                       <td className="px-3 py-2 text-xs text-slate-500 truncate max-w-[120px]">{r.serviceName}</td>

@@ -110,7 +110,7 @@ export default function PeriodSelector({ dateFrom, dateTo, onChange }: PeriodSel
       <div className="flex items-center gap-1">
         <button
           onClick={() => navigate(-1)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 transition-colors"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -118,7 +118,7 @@ export default function PeriodSelector({ dateFrom, dateTo, onChange }: PeriodSel
         </button>
         <button
           onClick={() => setShowMenu(!showMenu)}
-          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors min-w-[160px] justify-center"
+          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors min-w-[160px] justify-center"
         >
           <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -130,7 +130,7 @@ export default function PeriodSelector({ dateFrom, dateTo, onChange }: PeriodSel
         </button>
         <button
           onClick={() => navigate(1)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 transition-colors"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -145,7 +145,7 @@ export default function PeriodSelector({ dateFrom, dateTo, onChange }: PeriodSel
               <button
                 key={p.key}
                 onClick={() => applyPreset(p.key)}
-                className="flex w-full items-center px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                className="flex w-full items-center px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
               >
                 {p.label}
               </button>

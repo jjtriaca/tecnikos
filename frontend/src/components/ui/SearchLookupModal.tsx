@@ -221,7 +221,7 @@ export default function SearchLookupModal<T>({
                   className={`w-full text-left rounded-lg px-4 py-3 text-slate-900 transition-colors ${
                     idx === highlightIndex
                       ? "bg-blue-50 ring-1 ring-blue-200"
-                      : "hover:bg-slate-50"
+                      : "hover:bg-slate-100"
                   }`}
                 >
                   {renderItem(item)}
@@ -242,7 +242,7 @@ export default function SearchLookupModal<T>({
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-30"
+                  className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-30"
                 >
                   Anterior
                 </button>
@@ -252,7 +252,7 @@ export default function SearchLookupModal<T>({
                 <button
                   onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
                   disabled={page >= meta.totalPages}
-                  className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-30"
+                  className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-30"
                 >
                   Próxima
                 </button>

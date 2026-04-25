@@ -564,7 +564,7 @@ function PlanCard({
         className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
           isUpgrade
             ? "bg-blue-600 text-white hover:bg-blue-700"
-            : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
         }`}
       >
         {loading ? "Processando..." : actionLabel}

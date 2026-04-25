@@ -344,7 +344,7 @@ export default function FiscalDashboardPage() {
                   {periods.map(p => {
                     const badge = statusBadge(p.status);
                     return (
-                      <tr key={p.id} className="hover:bg-slate-50">
+                      <tr key={p.id} className="hover:bg-slate-100">
                         <td className="py-2.5 font-medium text-slate-700">{MONTH_NAMES[p.month]}/{p.year}</td>
                         <td className="py-2.5">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg}`}>{badge.label}</span>

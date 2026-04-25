@@ -34,7 +34,7 @@ export default function Pagination({ meta, onPageChange }: PaginationProps) {
         <button
           onClick={() => onPageChange(meta.page - 1)}
           disabled={meta.page <= 1}
-          className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-30"
+          className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-30"
         >
           Anterior
         </button>
@@ -45,7 +45,7 @@ export default function Pagination({ meta, onPageChange }: PaginationProps) {
             className={`rounded px-2.5 py-1 text-xs font-medium ${
               p === meta.page
                 ? "bg-blue-600 text-white"
-                : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                : "border border-slate-200 text-slate-600 hover:bg-slate-100"
             }`}
           >
             {p}
@@ -54,7 +54,7 @@ export default function Pagination({ meta, onPageChange }: PaginationProps) {
         <button
           onClick={() => onPageChange(meta.page + 1)}
           disabled={meta.page >= meta.totalPages}
-          className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-30"
+          className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-30"
         >
           Próxima
         </button>

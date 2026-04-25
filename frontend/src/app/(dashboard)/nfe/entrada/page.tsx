@@ -527,7 +527,7 @@ export default function NfseEntradaPage() {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
           Importar XML
         </button>
-        <button onClick={() => { setShowManual(!showManual); setShowUpload(false); }} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2">
+        <button onClick={() => { setShowManual(!showManual); setShowUpload(false); }} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
           Digitacao Manual
         </button>
@@ -649,7 +649,7 @@ export default function NfseEntradaPage() {
 
           {/* Buttons */}
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <button onClick={() => { setShowManual(false); setMf(emptyForm()); }} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onClick={() => { setShowManual(false); setMf(emptyForm()); }} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">Cancelar</button>
             <button onClick={handleSaveManual} disabled={savingManual} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">{savingManual ? "Salvando..." : "Registrar NFS-e"}</button>
           </div>
         </div>
@@ -715,7 +715,7 @@ export default function NfseEntradaPage() {
                 {entries.map((entry) => (
                   <React.Fragment key={entry.id}>
                     <tr
-                      className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                      className="border-b border-slate-100 hover:bg-slate-100 transition-colors cursor-pointer"
                       onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
                     >
                       {orderedColumns.map((col) => {
@@ -884,7 +884,7 @@ export default function NfseEntradaPage() {
                   )}
 
                   <div className="flex justify-between mt-6">
-                    <button onClick={closeWizard} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancelar</button>
+                    <button onClick={closeWizard} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">Cancelar</button>
                     <button onClick={() => setWizardStep(2)} disabled={supplierAction.action === "LINK" && !supplierAction.partnerId && !processEntry.prestadorId} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Proximo</button>
                   </div>
                 </div>
@@ -1030,7 +1030,7 @@ export default function NfseEntradaPage() {
                   </div>
 
                   <div className="flex justify-between mt-6">
-                    <button onClick={() => setWizardStep(1)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Voltar</button>
+                    <button onClick={() => setWizardStep(1)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">Voltar</button>
                     <button
                       onClick={() => setWizardStep(3)}
                       disabled={
@@ -1102,7 +1102,7 @@ export default function NfseEntradaPage() {
                   </div>
 
                   <div className="flex justify-between mt-6">
-                    <button onClick={() => setWizardStep(2)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Voltar</button>
+                    <button onClick={() => setWizardStep(2)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">Voltar</button>
                     <button onClick={handleProcess} disabled={processing} className="rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2">
                       {processing ? (
                         <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Importando...</>

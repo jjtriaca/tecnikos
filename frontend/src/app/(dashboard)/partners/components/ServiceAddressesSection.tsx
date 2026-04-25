@@ -410,7 +410,7 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
               >
                 Cancelar
               </button>
@@ -472,7 +472,7 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
                 <button
                   type="button"
                   onClick={() => handleEdit(addr)}
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
                   title="Editar"
                 >
                   Editar

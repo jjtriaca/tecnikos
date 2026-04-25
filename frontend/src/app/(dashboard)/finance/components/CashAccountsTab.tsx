@@ -670,7 +670,7 @@ function AccountsSection() {
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={closeForm}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>
@@ -826,7 +826,7 @@ function TransfersSection() {
             </thead>
             <tbody>
               {transfers.map((tx) => (
-                <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                   <td className="py-3 px-4 text-slate-700 whitespace-nowrap">{formatDateTime(tx.transferDate)}</td>
                   <td className="py-3 px-4 text-slate-700">{tx.fromAccount?.name || "—"}</td>
                   <td className="py-3 px-4 text-center text-slate-400">→</td>
@@ -907,7 +907,7 @@ function TransfersSection() {
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => { setShowForm(false); setFormData(EMPTY_TRANSFER); }}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>

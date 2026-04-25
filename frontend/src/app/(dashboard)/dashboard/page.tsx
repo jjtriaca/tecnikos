@@ -340,7 +340,7 @@ export default function DashboardPage() {
           </Link>
           <Link
             href="/reports"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-all shadow-sm"
           >
             <IconTrendUp className="h-4 w-4" />
             Relatórios
@@ -526,7 +526,7 @@ export default function DashboardPage() {
                   .map(([status, count]) => {
                     const pct = Math.round((count / stats.total) * 100);
                     return (
-                      <Link key={status} href={`/orders?status=${status}`} className="block hover:bg-slate-50 rounded-lg px-1 py-0.5 -mx-1 transition-colors">
+                      <Link key={status} href={`/orders?status=${status}`} className="block hover:bg-slate-100 rounded-lg px-1 py-0.5 -mx-1 transition-colors">
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
                             <div className={`h-2.5 w-2.5 rounded-full ${STATUS_COLORS[status] || "bg-slate-400"}`} />
@@ -643,7 +643,7 @@ export default function DashboardPage() {
                   <Link
                     key={order.id}
                     href={`/orders/${order.id}`}
-                    className="flex items-center justify-between px-6 py-3.5 hover:bg-slate-50 transition-colors group"
+                    className="flex items-center justify-between px-6 py-3.5 hover:bg-slate-100 transition-colors group"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div
@@ -721,7 +721,7 @@ export default function DashboardPage() {
                   <Link
                     key={tech.id}
                     href={`/partners/${tech.id}`}
-                    className="flex items-center gap-3 px-6 py-3.5 hover:bg-slate-50 transition-colors"
+                    className="flex items-center gap-3 px-6 py-3.5 hover:bg-slate-100 transition-colors"
                   >
                     {/* Rank badge */}
                     <div className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ${

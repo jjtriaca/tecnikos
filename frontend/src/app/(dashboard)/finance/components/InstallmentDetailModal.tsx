@@ -59,7 +59,7 @@ function ActionMenu({ items }: { items: { label: string; onClick: () => void; da
         <div ref={ref} className="fixed z-[100] min-w-[140px] bg-white rounded-xl shadow-lg border border-slate-200 py-1" style={{ top: pos.top, left: pos.left }}>
           {items.map((item, i) => (
             <button key={i} onClick={() => { setOpen(false); item.onClick(); }}
-              className={`block w-full px-4 py-2 text-left text-sm ${item.danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-slate-50"}`}>
+              className={`block w-full px-4 py-2 text-left text-sm ${item.danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-slate-100"}`}>
               {item.label}
             </button>
           ))}
@@ -239,7 +239,7 @@ export default function InstallmentDetailModal({ entryId, entryDescription, open
 
                   return (
                     <>
-                      <tr key={inst.id} className={`hover:bg-slate-50/50 transition-colors ${isDateChanged ? "bg-blue-50/40" : ""}`}>
+                      <tr key={inst.id} className={`hover:bg-slate-100 transition-colors ${isDateChanged ? "bg-blue-50/40" : ""}`}>
                         {/* Ações */}
                         <td className="px-3 py-3">
                           {editable ? (

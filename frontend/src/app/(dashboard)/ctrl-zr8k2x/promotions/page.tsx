@@ -181,7 +181,7 @@ export default function PromotionsPage() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {promotions.map((promo) => (
-                <tr key={promo.id} className="hover:bg-slate-50/50">
+                <tr key={promo.id} className="hover:bg-slate-100">
                   <td className="px-4 py-3 font-medium text-slate-900">
                     {promo.name}
                     {promo.skipPayment && (

@@ -157,7 +157,7 @@ function LineActionsDropdown({
               <div className="my-1 border-t border-slate-100" />
               <button
                 onClick={() => { setOpen(false); onIgnore(); }}
-                className="block w-full text-left px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
+                className="block w-full text-left px-3 py-2 text-sm text-slate-500 hover:bg-slate-100"
               >
                 Ignorar
               </button>
@@ -1371,7 +1371,7 @@ function ConciliationModal({
                   <div
                     key={entry.id}
                     onClick={() => isCard && selectEntry(entry)}
-                    className={`flex items-center justify-between rounded-lg border px-3 py-2 hover:bg-slate-50 transition-colors ${
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2 hover:bg-slate-100 transition-colors ${
                       isCard ? "cursor-pointer" : ""
                     } ${
                       isSelected
@@ -1869,7 +1869,7 @@ function RefundPairModal({
                     className={`flex items-center justify-between rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
                       isSelected
                         ? "border-purple-400 bg-purple-50/70 ring-1 ring-purple-200"
-                        : "border-slate-200 hover:bg-slate-50"
+                        : "border-slate-200 hover:bg-slate-100"
                     }`}
                   >
                     <div className="flex-1 min-w-0">
@@ -2157,7 +2157,7 @@ function CardInvoiceMatchModal({
                     className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                       selectedCardIds.has(inst.id)
                         ? "bg-rose-100 border-rose-300 text-rose-800"
-                        : "bg-white border-slate-300 text-slate-500 hover:bg-slate-50"
+                        : "bg-white border-slate-300 text-slate-500 hover:bg-slate-100"
                     }`}
                   >
                     &#128179; {inst.name}{inst.cardLast4 ? ` \u2022\u2022\u2022\u2022 ${inst.cardLast4}` : ""}
@@ -2245,7 +2245,7 @@ function CardInvoiceMatchModal({
                         ? "opacity-50 bg-slate-50 border-slate-200"
                         : selected
                         ? (needsAccount ? "bg-amber-50 border-amber-400" : "bg-rose-50 border-rose-300")
-                        : "bg-white border-slate-200 hover:bg-slate-50"
+                        : "bg-white border-slate-200 hover:bg-slate-100"
                     }`}
                   >
                     <label className={`flex items-center gap-3 px-3 py-2 ${alreadyMatched ? "cursor-not-allowed" : "cursor-pointer"}`}>
@@ -2688,7 +2688,7 @@ function MultipleMatchModal({
             const checked = selectedIds.has(e.id);
             const amount = e.netCents || e.grossCents || 0;
             return (
-              <label key={e.id} className={`flex items-center gap-3 py-2 px-2 rounded border-b border-slate-50 cursor-pointer ${checked ? "bg-emerald-50" : "hover:bg-slate-50"}`}>
+              <label key={e.id} className={`flex items-center gap-3 py-2 px-2 rounded border-b border-slate-50 cursor-pointer ${checked ? "bg-emerald-50" : "hover:bg-slate-100"}`}>
                 <input type="checkbox" checked={checked} onChange={() => toggle(e.id)} />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-slate-700 truncate">
@@ -3708,7 +3708,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
             </thead>
             <tbody>
               {lines.map((line) => (
-                <tr key={line.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <tr key={line.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                   {orderedColumns.map((col) => (
                     <td key={col.id} className={`py-3 px-4 text-sm ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}>
                       {col.id === "actions" ? (

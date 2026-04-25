@@ -207,7 +207,7 @@ export default function CardFeeRatesTab() {
           </div>
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={() => setForm(null)}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
               Cancelar
             </button>
             <button onClick={save} disabled={saving}
@@ -253,7 +253,7 @@ export default function CardFeeRatesTab() {
                   </thead>
                   <tbody>
                     {brandRates.map(r => (
-                      <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                      <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-100">
                         <td className="py-2 px-3 text-slate-800 font-medium">{r.description || "-"}</td>
                         <td className="py-2 px-3">
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${

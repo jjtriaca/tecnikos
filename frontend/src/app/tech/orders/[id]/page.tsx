@@ -168,7 +168,7 @@ const BUTTON_COLORS: Record<string, { selected: string; normal: string; full: st
   red: { selected: "border-red-400 bg-red-100 text-red-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-red-50", full: "bg-gradient-to-r from-red-500 to-red-600 text-white" },
   blue: { selected: "border-blue-400 bg-blue-100 text-blue-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-blue-50", full: "bg-gradient-to-r from-blue-500 to-blue-600 text-white" },
   yellow: { selected: "border-yellow-400 bg-yellow-100 text-yellow-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-yellow-50", full: "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white" },
-  slate: { selected: "border-slate-400 bg-slate-200 text-slate-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-slate-50", full: "bg-gradient-to-r from-slate-500 to-slate-600 text-white" },
+  slate: { selected: "border-slate-400 bg-slate-200 text-slate-800", normal: "border-slate-200 bg-white text-slate-600 hover:bg-slate-100", full: "bg-gradient-to-r from-slate-500 to-slate-600 text-white" },
 };
 
 function getInfoStyle(color?: string, fontSize?: string, boxSize?: string) {
@@ -1249,7 +1249,7 @@ export default function TechOrderDetailPage() {
                       className={`rounded-lg border px-3 py-2.5 text-left text-xs transition-colors ${
                         pauseReason === r.value
                           ? "border-orange-400 bg-orange-50 text-orange-800 font-medium"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-100"
                       }`}>
                       <span className="text-base mr-1">{r.icon}</span> {r.label}
                     </button>
@@ -1283,7 +1283,7 @@ export default function TechOrderDetailPage() {
                       className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
                         incidentCategory === c.value
                           ? "border-red-400 bg-red-50 text-red-800 font-medium"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-100"
                       }`}>
                       <span className="text-base mr-1">{c.icon}</span> {c.label}
                     </button>
@@ -1684,7 +1684,7 @@ function V2BlockAction({
                         <button
                           onClick={onAdvance}
                           disabled={acting}
-                          className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-50"
+                          className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 hover:bg-slate-100 active:scale-[0.98] transition-all disabled:opacity-50"
                         >
                           {acting ? (
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
@@ -1852,7 +1852,7 @@ function V2BlockAction({
               {(c.options || ["Sim", "Nao"]).map((opt: string) => (
                 <button key={opt} onClick={() => setV2Answer(opt)}
                   className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
-                    v2Answer === opt ? "border-blue-400 bg-blue-100 text-blue-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    v2Answer === opt ? "border-blue-400 bg-blue-100 text-blue-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                   }`}>
                   <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                     v2Answer === opt ? "border-blue-500 bg-blue-500" : "border-slate-300"
@@ -1990,7 +1990,7 @@ function V2BlockAction({
               {(c.options || [10, 20, 30, 45, 60]).map((min: number) => (
                 <button key={min} onClick={() => setV2Answer(String(min))}
                   className={`rounded-lg border py-3 text-sm font-bold transition-all ${
-                    v2Answer === String(min) ? "border-blue-400 bg-blue-100 text-blue-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    v2Answer === String(min) ? "border-blue-400 bg-blue-100 text-blue-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
                   }`}>
                   {min} min
                 </button>

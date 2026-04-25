@@ -38,12 +38,12 @@ export interface ActionsMenuProps {
 }
 
 const VARIANT_CLASSES: Record<ActionsMenuItemVariant, string> = {
-  default: "text-slate-700 hover:bg-slate-50",
+  default: "text-slate-700 hover:bg-slate-100",
   primary: "text-blue-700 hover:bg-blue-50 font-medium",
   success: "text-green-700 hover:bg-green-50 font-medium",
   warning: "text-amber-700 hover:bg-amber-50 font-medium",
   danger: "text-red-600 hover:bg-red-50 font-medium",
-  info: "text-slate-500 hover:bg-slate-50",
+  info: "text-slate-500 hover:bg-slate-100",
   purple: "text-purple-700 hover:bg-purple-50 font-medium",
   rose: "text-rose-700 hover:bg-rose-50 font-medium",
 };

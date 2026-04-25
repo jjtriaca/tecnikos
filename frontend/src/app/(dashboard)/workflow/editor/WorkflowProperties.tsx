@@ -214,7 +214,7 @@ function ConfirmButtonEditor({ config, onChange }: { config: { label: string; co
           <button key={s.value} type="button"
             onClick={() => onChange({ ...btn, size: s.value })}
             className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
-              btnSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+              btnSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100"
             }`}
           >{s.label}</button>
         ))}
@@ -883,7 +883,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   <button key={s.value} type="button"
                     onClick={() => updateConfig("buttonSize", s.value)}
                     className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
-                      buttonSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                      buttonSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100"
                     }`}
                   >{s.label}</button>
                 ))}
@@ -962,7 +962,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                         <button key={p.value} type="button"
                           onClick={() => updateInfoPanel("position", p.value)}
                           className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
-                            (infoPanel.position || "before") === p.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                            (infoPanel.position || "before") === p.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100"
                           }`}
                         >{p.label}</button>
                       ))}
@@ -1146,7 +1146,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                       <button key={s.value} type="button"
                         onClick={() => updateConfig("fontSize", s.value)}
                         className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
-                          fontSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                          fontSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100"
                         }`}
                       >{s.label}</button>
                     ))}
@@ -1159,7 +1159,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                       <button key={s.value} type="button"
                         onClick={() => updateConfig("boxSize", s.value)}
                         className={`flex-1 rounded border px-1.5 py-1 text-[10px] font-medium transition-all ${
-                          boxSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                          boxSize === s.value ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100"
                         }`}
                       >{s.label}</button>
                     ))}
@@ -1249,7 +1249,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                     className={`flex-1 py-1.5 text-[11px] font-medium transition-colors ${
                       currentUnit === u.value
                         ? "bg-blue-500 text-white"
-                        : "bg-white text-slate-500 hover:bg-slate-50"
+                        : "bg-white text-slate-500 hover:bg-slate-100"
                     }`}
                   >
                     {u.label}

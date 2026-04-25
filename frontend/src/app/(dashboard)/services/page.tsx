@@ -285,13 +285,13 @@ function ActionsDropdown({
         >
           <button
             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); setTimeout(onEdit, 0); }}
-            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer"
+            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
           >
             Editar
           </button>
           <button
             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); setTimeout(onDuplicate, 0); }}
-            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer"
+            className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
           >
             Duplicar
           </button>
@@ -724,7 +724,7 @@ export default function ServicesPage() {
           <div className="flex justify-end gap-2 mt-4">
             <button
               onClick={() => { setShowForm(false); setFormData(EMPTY_FORM); setEditingId(null); }}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
             >
               Cancelar
             </button>
@@ -788,7 +788,7 @@ export default function ServicesPage() {
                 services.map((service) => (
                   <tr
                     key={service.id}
-                    className="hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="hover:bg-slate-100 transition-colors cursor-pointer"
                     onClick={() => openEditForm(service)}
                   >
                     {columns.map((col) => (

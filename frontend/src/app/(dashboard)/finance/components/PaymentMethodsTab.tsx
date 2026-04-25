@@ -208,7 +208,7 @@ export default function PaymentMethodsTab() {
             <button
               onClick={handleSeed}
               disabled={seeding}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
               {seeding ? (
                 <>
@@ -452,7 +452,7 @@ export default function PaymentMethodsTab() {
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={closeForm}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>

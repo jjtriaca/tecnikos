@@ -1450,7 +1450,7 @@ export default function NfePage() {
               </div>
               <button
                 onClick={() => setShowKeyLookupModal(true)}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-2"
                 title="Buscar NFe especifica por chave de acesso (para notas que o sync nao puxou)"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -1510,7 +1510,7 @@ export default function NfePage() {
                 <button
                   onClick={() => { setShowKeyLookupModal(false); setKeyLookupInput(""); }}
                   disabled={keyLookupLoading}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                 >
                   Cancelar
                 </button>
@@ -1646,7 +1646,7 @@ export default function NfePage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {sefazDocs.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={doc.id} className="hover:bg-slate-100 transition-colors">
                       {sefazOrderedColumns.map((col) => {
                         const w = sefazColumnWidths[col.id];
                         const tdStyle: React.CSSProperties = w ? { width: w, minWidth: w, maxWidth: w, overflow: "hidden" } : {};
@@ -1866,7 +1866,7 @@ export default function NfePage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {imports.map((imp) => (
-                    <tr key={imp.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={imp.id} className="hover:bg-slate-100 transition-colors">
                       {uploadOrderedColumns.map((col) => {
                         const w = uploadColumnWidths[col.id];
                         const tdStyle: React.CSSProperties = w ? { width: w, minWidth: w, maxWidth: w, overflow: "hidden" } : {};
@@ -2008,7 +2008,7 @@ export default function NfePage() {
               <div className="flex justify-end mt-6 gap-3">
                 <button
                   onClick={() => { setConfigModalOpen(false); setCertFile(null); setCertPassword(""); }}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
                 >
                   Cancelar
                 </button>
@@ -2244,7 +2244,7 @@ export default function NfePage() {
                   <div className="flex justify-end mt-6 gap-3">
                     <button
                       onClick={closeWizard}
-                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
                     >
                       Cancelar
                     </button>
@@ -2387,7 +2387,7 @@ export default function NfePage() {
                   <div className="flex justify-between mt-6">
                     <button
                       onClick={() => wizardStartStep >= 2 ? closeWizard() : setStep(1)}
-                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
                     >
                       {wizardStartStep >= 2 ? "Cancelar" : "Voltar"}
                     </button>
@@ -2434,7 +2434,7 @@ export default function NfePage() {
                           const isLinkedAuto = item.productId && action === "LINK";
 
                           return (<React.Fragment key={item.itemNumber}>
-                            <tr className="hover:bg-slate-50 transition-colors">
+                            <tr className="hover:bg-slate-100 transition-colors">
                               <td className="px-3 py-2">
                                 {isLinkedAuto ? (
                                   <div className="flex items-center gap-1.5">
@@ -2482,7 +2482,7 @@ export default function NfePage() {
                                         ) : (
                                           <button
                                             onClick={() => setProductLookupItem(item.itemNumber)}
-                                            className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:border-blue-400 transition-colors"
+                                            className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 hover:border-blue-400 transition-colors"
                                           >
                                             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -2558,7 +2558,7 @@ export default function NfePage() {
                   <div className="flex justify-between mt-6">
                     <button
                       onClick={() => setStep(2)}
-                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
                     >
                       Voltar
                     </button>
@@ -2805,7 +2805,7 @@ export default function NfePage() {
                   <div className="flex justify-between mt-6">
                     <button
                       onClick={() => setStep(3)}
-                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
                     >
                       Voltar
                     </button>
@@ -2926,7 +2926,7 @@ export default function NfePage() {
                   <div className="flex justify-between mt-6">
                     <button
                       onClick={() => setStep(4)}
-                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
                     >
                       Voltar
                     </button>

@@ -113,7 +113,7 @@ export default function TemplateGallery({ open, onClose, onApply }: Props) {
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                   filterCategory === cat
                     ? 'bg-violet-600 text-white border-violet-600'
-                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                 }`}
               >
                 {cat === 'ALL' ? '📋 Todos' : `${cfg?.icon} ${cfg?.label}`}

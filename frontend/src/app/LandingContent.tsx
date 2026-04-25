@@ -448,7 +448,7 @@ export default function LandingContent() {
             </div>
 
             <div className="flex gap-2">
-              <button onClick={() => setPioneerModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              <button onClick={() => setPioneerModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100">
                 Voltar
               </button>
               <Link

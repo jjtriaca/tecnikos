@@ -320,7 +320,7 @@ export default function SaasDashboardPage() {
             <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
               <button
                 onClick={() => setShowBrazil(!showBrazil)}
-                className="w-full px-5 py-3 text-left flex items-center justify-between hover:bg-slate-50 transition-colors"
+                className="w-full px-5 py-3 text-left flex items-center justify-between hover:bg-slate-100 transition-colors"
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm">🇧🇷</span>
@@ -621,7 +621,7 @@ export default function SaasDashboardPage() {
             <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
               <button
                 onClick={() => setShowIps(!showIps)}
-                className="w-full p-5 text-left flex items-center justify-between hover:bg-slate-50 transition-colors"
+                className="w-full p-5 text-left flex items-center justify-between hover:bg-slate-100 transition-colors"
               >
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-slate-700">Detalhes por IP</h3>
@@ -708,22 +708,22 @@ export default function SaasDashboardPage() {
       {/* Quick Links */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <button onClick={() => router.push("/ctrl-zr8k2x/tenants")}
-          className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50">
+          className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-100">
           <div className="text-sm font-semibold text-slate-700">Gerenciar Empresas</div>
           <p className="mt-1 text-xs text-slate-400">Ver, ativar, bloquear empresas</p>
         </button>
         <button onClick={() => router.push("/ctrl-zr8k2x/invoices")}
-          className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50">
+          className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-100">
           <div className="text-sm font-semibold text-slate-700">Notas Fiscais</div>
           <p className="mt-1 text-xs text-slate-400">Emitir e gerenciar NFS-e</p>
         </button>
         <button onClick={() => router.push("/ctrl-zr8k2x/promotions")}
-          className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50">
+          className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-100">
           <div className="text-sm font-semibold text-slate-700">Promocoes</div>
           <p className="mt-1 text-xs text-slate-400">Configurar descontos e codigos</p>
         </button>
         <button onClick={() => router.push("/ctrl-zr8k2x/signup-attempts")}
-          className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50">
+          className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-100">
           <div className="text-sm font-semibold text-slate-700">Tentativas de Cadastro</div>
           <p className="mt-1 text-xs text-slate-400">Revisar rejeicoes e feedback</p>
         </button>

@@ -158,7 +158,7 @@ function ActionsDropdown({
           {/* Ver detalhes */}
           <Link
             href={`/quotes/${quote.id}`}
-            className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
             onClick={() => setOpen(false)}
           >
             Ver detalhes
@@ -167,7 +167,7 @@ function ActionsDropdown({
           {/* Abrir PDF */}
           <button
             onClick={() => { setOpen(false); onPdf(quote); }}
-            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
           >
             Abrir PDF
           </button>
@@ -176,7 +176,7 @@ function ActionsDropdown({
           {canEdit && (
             <Link
               href={`/quotes/${quote.id}/edit`}
-              className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
               onClick={() => setOpen(false)}
             >
               Editar
@@ -186,7 +186,7 @@ function ActionsDropdown({
           {/* Duplicar */}
           <button
             onClick={() => { setOpen(false); onDuplicate(quote); }}
-            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
           >
             Duplicar
           </button>
@@ -530,7 +530,7 @@ export default function QuotesPage() {
               </tr>
             ) : (
               quotes.map((q) => (
-                <tr key={q.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <tr key={q.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                   {columnsWithActions.map((col) => {
                     const w = columnWidths[col.id];
                     const tdStyle = w

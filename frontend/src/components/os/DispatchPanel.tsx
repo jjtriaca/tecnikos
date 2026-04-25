@@ -728,7 +728,7 @@ function MinimizedTray({ dispatches, onClick, config, onConfigChange }: {
           className="absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-white shadow-xl border border-slate-200 p-3 text-sm"
         >
           <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Comportamento do Painel</div>
-          <label className="flex items-center gap-2 py-1.5 cursor-pointer hover:bg-slate-50 rounded px-1">
+          <label className="flex items-center gap-2 py-1.5 cursor-pointer hover:bg-slate-100 rounded px-1">
             <input
               type="checkbox"
               checked={config.openOnNewOS}
@@ -737,7 +737,7 @@ function MinimizedTray({ dispatches, onClick, config, onConfigChange }: {
             />
             <span className="text-slate-700">Abrir ao lancar nova OS</span>
           </label>
-          <label className="flex items-center gap-2 py-1.5 cursor-pointer hover:bg-slate-50 rounded px-1">
+          <label className="flex items-center gap-2 py-1.5 cursor-pointer hover:bg-slate-100 rounded px-1">
             <input
               type="checkbox"
               checked={config.openOnUpdate}

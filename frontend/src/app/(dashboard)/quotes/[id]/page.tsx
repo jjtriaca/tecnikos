@@ -235,7 +235,7 @@ export default function QuoteDetailPage() {
           {quote.status === "RASCUNHO" && (
             <>
               <Link href={`/quotes/${quoteId}/edit`}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
                 Editar
               </Link>
               <button onClick={() => setShowSendModal(true)}
@@ -269,7 +269,7 @@ export default function QuoteDetailPage() {
             </button>
           )}
           <button onClick={() => handleAction("duplicate")}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
             Duplicar
           </button>
           <button onClick={async () => {
@@ -290,7 +290,7 @@ export default function QuoteDetailPage() {
                 toast(err?.message || "Erro ao gerar PDF", "error");
               }
             }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
             PDF
           </button>
           {quote.status === "RASCUNHO" && (

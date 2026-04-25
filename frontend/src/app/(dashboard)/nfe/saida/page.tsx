@@ -230,7 +230,7 @@ function ActionsDropdown({
   const isAuthorized = emission.status === "AUTHORIZED";
   const isRetryable = emission.status === "PROCESSING" || emission.status === "ERROR" || emission.status === "CANCELLING";
 
-  const menuItem = (label: string, onClick: () => void, className = "text-slate-700 hover:bg-slate-50") => (
+  const menuItem = (label: string, onClick: () => void, className = "text-slate-700 hover:bg-slate-100") => (
     <button
       key={label}
       onClick={() => { setOpen(false); onClick(); }}
@@ -553,7 +553,7 @@ export default function NfseSaidaPage() {
                   <tr
                     key={emission.id}
                     className={`border-b border-slate-100 transition-colors ${
-                      emission.status === "ERROR" ? "bg-red-50/30" : "hover:bg-slate-50"
+                      emission.status === "ERROR" ? "bg-red-50/30" : "hover:bg-slate-100"
                     }`}
                   >
                     {orderedColumns.map((col) => {
@@ -690,7 +690,7 @@ export default function NfseSaidaPage() {
               <div className="mt-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">{cancelError}</div>
             )}
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setCancelModal(null)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <button onClick={() => setCancelModal(null)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                 Voltar
               </button>
               <button

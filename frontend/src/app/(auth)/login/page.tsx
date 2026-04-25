@@ -332,7 +332,7 @@ function LoginPageInner() {
                   <button
                     type="button"
                     onClick={() => setForgotState("idle")}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-100 transition-colors"
                   >
                     Cancelar
                   </button>

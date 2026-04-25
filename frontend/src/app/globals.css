@@ -94,6 +94,20 @@ textarea:disabled::placeholder {
   animation: fade-in 0.3s ease-out;
 }
 
+/* ── Selected row state (v1.10.08) ── */
+/* Tabelas: linha clicada/focada ganha destaque azul + barra lateral. */
+/* Funciona em qualquer <tr> dentro de <tbody> sem precisar mudar markup. */
+/* Trigger: clicar em qualquer celula da linha (via tabIndex injetado por script). */
+tbody tr[data-row-selected="true"] {
+  background-color: rgb(219 234 254) !important; /* blue-100 */
+  box-shadow: inset 3px 0 0 0 rgb(59 130 246); /* blue-500 barra lateral */
+}
+
+tbody tr[data-row-selected="true"]:hover {
+  background-color: rgb(191 219 254) !important; /* blue-200 hover sobre selecionado */
+}
+
+
 /* Skeleton loading animation */
 @keyframes shimmer {
   0% { background-position: -200% 0; }

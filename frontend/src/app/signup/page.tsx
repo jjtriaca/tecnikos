@@ -982,7 +982,7 @@ function SignupPage() {
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setStep(1)}
-                  className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">Voltar</button>
+                  className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100">Voltar</button>
                 <button type="submit" disabled={
                   submitting ||
                   !agreeTerms ||
@@ -1250,7 +1250,7 @@ function SignupPage() {
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setStep(3)}
-                  className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">Voltar</button>
+                  className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100">Voltar</button>
                 <button type="submit" disabled={submitting}
                   className="flex-[2] py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
                   {submitting ? "Processando..." : "Pagar"}

@@ -145,7 +145,7 @@ export default function SignupAttemptsPage() {
         <div className="space-y-2">
           {items.map((attempt) => (
             <button key={attempt.id} onClick={() => openDetail(attempt)}
-              className={`w-full text-left rounded-xl border p-4 transition-colors hover:bg-slate-50 ${
+              className={`w-full text-left rounded-xl border p-4 transition-colors hover:bg-slate-100 ${
                 !attempt.readAt ? "border-blue-200 bg-blue-50/30" : "border-slate-200 bg-white"
               }`}>
               <div className="flex items-start justify-between">

@@ -120,7 +120,7 @@ export default function NotificationsPage() {
                 <button
                   onClick={push.unsubscribe}
                   disabled={push.loading}
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
                 >
                   {push.loading ? "..." : "Desativar"}
                 </button>

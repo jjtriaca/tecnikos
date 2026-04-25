@@ -310,7 +310,7 @@ function CollectionRulesSection() {
           <button
             onClick={handleRunAll}
             disabled={runningAll}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 flex items-center gap-1.5"
           >
             {runningAll ? (
               <>
@@ -535,7 +535,7 @@ function CollectionRulesSection() {
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={closeForm}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>
@@ -702,7 +702,7 @@ function ExecutionHistorySection() {
               {executions.map((exec) => {
                 const statusCfg = EXECUTION_STATUS_COLORS[exec.status] || EXECUTION_STATUS_COLORS.SKIPPED;
                 return (
-                  <tr key={exec.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  <tr key={exec.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                     <td className="py-3 px-4 text-sm text-slate-700 whitespace-nowrap">
                       {formatDateTime(exec.executedAt)}
                     </td>
@@ -747,7 +747,7 @@ function ExecutionHistorySection() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={meta.page <= 1}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Anterior
             </button>
@@ -778,7 +778,7 @@ function ExecutionHistorySection() {
                     className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                       meta.page === item
                         ? "bg-blue-600 text-white"
-                        : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        : "border border-slate-200 text-slate-600 hover:bg-slate-100"
                     }`}
                   >
                     {item}
@@ -788,7 +788,7 @@ function ExecutionHistorySection() {
             <button
               onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
               disabled={meta.page >= meta.totalPages}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Proximo
             </button>

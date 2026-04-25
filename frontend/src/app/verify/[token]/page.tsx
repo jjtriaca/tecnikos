@@ -429,7 +429,7 @@ export default function VerifyPage() {
 
             <div className="flex gap-3 mt-4">
               <button onClick={clearSelection}
-                className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100">
                 {isSelfie ? "Tirar outra" : "Escolher outra"}
               </button>
               <button onClick={handleUpload} disabled={uploading}

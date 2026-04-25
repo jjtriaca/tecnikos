@@ -166,7 +166,7 @@ export default function ExecutionTimeline({ open, ruleId, ruleName, onClose }: P
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-50"
+              className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-100"
             >
               ← Anterior
             </button>
@@ -176,7 +176,7 @@ export default function ExecutionTimeline({ open, ruleId, ruleName, onClose }: P
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-50"
+              className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-100"
             >
               Próxima →
             </button>

@@ -1129,7 +1129,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             {selectedClient && (selectedClient.addressStreet || serviceAddresses.length > 0) && (
               <div className="space-y-1.5">
                 {selectedClient.addressStreet && (
-                  <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                  <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-100 transition-colors select-none"
                     style={{ borderColor: addressSource === "main" ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
                     <input type="radio" name="addressSource" checked={addressSource === "main"}
                       onChange={() => handleAddressSourceChange("main")}
@@ -1144,7 +1144,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                 )}
 
                 {serviceAddresses.map(addr => (
-                  <label key={addr.id} className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                  <label key={addr.id} className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-100 transition-colors select-none"
                     style={{ borderColor: addressSource === "saved" && selectedAddressId === addr.id ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
                     <input type="radio" name="addressSource" checked={addressSource === "saved" && selectedAddressId === addr.id}
                       onChange={() => handleAddressSourceChange("saved", addr.id)}
@@ -1158,7 +1158,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                   </label>
                 ))}
 
-                <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                <label className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-100 transition-colors select-none"
                   style={{ borderColor: addressSource === "new" ? "rgb(59 130 246)" : "rgb(226 232 240)" }}>
                   <input type="radio" name="addressSource" checked={addressSource === "new"}
                     onChange={() => handleAddressSourceChange("new")}
@@ -1548,7 +1548,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             </button>
             <Link
               href={isEditMode ? `/orders/${editId}` : "/orders"}
-              className="rounded-lg border border-slate-300 px-6 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 px-6 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
             >
               Cancelar
             </Link>
@@ -1619,7 +1619,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
 
               <div className="flex gap-2">
                 <button onClick={() => setShowZeroValueConfirm(false)}
-                  className="flex-1 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-100">
                   Cancelar
                 </button>
                 <button onClick={() => { setShowZeroValueConfirm(false); handleSubmit(); }}

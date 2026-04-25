@@ -137,7 +137,7 @@ export default function BoletoGenerationModal({ entry, onClose, onSuccess }: Pro
                 <button
                   onClick={() => handleGenerate(false)}
                   disabled={loading}
-                  className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50"
+                  className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm hover:bg-slate-100 disabled:opacity-50"
                 >
                   Rascunho
                 </button>

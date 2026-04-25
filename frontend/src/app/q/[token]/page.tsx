@@ -404,7 +404,7 @@ export default function PublicQuotePage() {
                     {actionLoading ? "Processando..." : "Confirmar Aprovacao"}
                   </button>
                   <button onClick={() => { setShowApproveForm(false); setApproverName(""); }}
-                    className="rounded-lg border border-slate-300 px-4 py-3 text-base text-slate-600 hover:bg-slate-50 transition-colors">
+                    className="rounded-lg border border-slate-300 px-4 py-3 text-base text-slate-600 hover:bg-slate-100 transition-colors">
                     Voltar
                   </button>
                 </div>
@@ -430,7 +430,7 @@ export default function PublicQuotePage() {
                     {actionLoading ? "Processando..." : "Confirmar Recusa"}
                   </button>
                   <button onClick={() => { setShowRejectForm(false); setRejectReason(""); }}
-                    className="rounded-lg border border-slate-300 px-4 py-3 text-base text-slate-600 hover:bg-slate-50 transition-colors">
+                    className="rounded-lg border border-slate-300 px-4 py-3 text-base text-slate-600 hover:bg-slate-100 transition-colors">
                     Voltar
                   </button>
                 </div>

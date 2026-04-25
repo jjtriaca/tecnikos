@@ -157,7 +157,7 @@ export default function TechReviewModal({
                 key={tech.id}
                 onClick={() => toggleTech(tech.id)}
                 className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                  allowEdit ? "cursor-pointer hover:bg-slate-50" : ""
+                  allowEdit ? "cursor-pointer hover:bg-slate-100" : ""
                 } ${
                   selected.has(tech.id)
                     ? "border-blue-200 bg-blue-50/50"

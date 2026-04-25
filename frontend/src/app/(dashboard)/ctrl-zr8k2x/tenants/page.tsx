@@ -279,7 +279,7 @@ export default function TenantsPage() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filtered.map((t) => (
-                <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                <tr key={t.id} className="hover:bg-slate-100 transition-colors">
                   <td className="px-4 py-3">
                     <div className="font-medium text-slate-900">
                       {t.name}

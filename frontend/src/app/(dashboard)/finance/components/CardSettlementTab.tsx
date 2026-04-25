@@ -172,7 +172,7 @@ function ActionsDropdown({
                 setOpen(false);
                 onSettle(cs);
               }}
-              className="w-full px-3 py-1.5 text-left text-sm text-green-700 hover:bg-slate-50"
+              className="w-full px-3 py-1.5 text-left text-sm text-green-700 hover:bg-slate-100"
             >
               Baixar
             </button>
@@ -998,7 +998,7 @@ export default function CardSettlementTab() {
                 <div className="flex justify-end gap-2 mt-3">
                   <button
                     onClick={() => setFeeForm(null)}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
                   >
                     Cancelar
                   </button>
@@ -1047,7 +1047,7 @@ export default function CardSettlementTab() {
                         </thead>
                         <tbody>
                           {rates.map((r) => (
-                            <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                            <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-100">
                               <td className="py-2 px-3 text-slate-800 font-medium">
                                 {r.description || "-"}
                               </td>
@@ -1136,7 +1136,7 @@ export default function CardSettlementTab() {
           </button>
           <button
             onClick={clearSelection}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
           >
             Limpar
           </button>
@@ -1215,7 +1215,7 @@ export default function CardSettlementTab() {
               {settlements.data.map((cs) => (
                 <tr
                   key={cs.id}
-                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                  className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                 >
                   <td className="py-3 px-3 w-10">
                     {cs.status === "PENDING" ? (
@@ -1402,7 +1402,7 @@ export default function CardSettlementTab() {
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={closeSettleModal}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>
@@ -1501,7 +1501,7 @@ export default function CardSettlementTab() {
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={closeBatchModal}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>
@@ -1601,7 +1601,7 @@ export default function CardSettlementTab() {
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => setEditModal(null)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>

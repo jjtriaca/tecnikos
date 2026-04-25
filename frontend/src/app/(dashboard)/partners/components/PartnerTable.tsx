@@ -163,7 +163,7 @@ function ActionsDropdown({
         >
           <Link
             href={`/partners/${partner.id}`}
-            className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
             onClick={() => setOpen(false)}
           >
             Ver detalhes
@@ -172,7 +172,7 @@ function ActionsDropdown({
             <>
               <button
                 onClick={() => { onEdit(partner); setOpen(false); }}
-                className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
               >
                 Editar
               </button>
@@ -187,7 +187,7 @@ function ActionsDropdown({
           <div className="my-1 border-t border-slate-100" />
           <button
             onClick={() => { onToggleAudit(partner.id); setOpen(false); }}
-            className={`block w-full px-4 py-2 text-left text-sm ${expandedAuditId === partner.id ? "text-blue-600" : "text-slate-700"} hover:bg-slate-50`}
+            className={`block w-full px-4 py-2 text-left text-sm ${expandedAuditId === partner.id ? "text-blue-600" : "text-slate-700"} hover:bg-slate-100`}
           >
             Histórico
           </button>
@@ -357,7 +357,7 @@ export default function PartnerTable({ partners, canEdit, onEdit, onDelete, sort
         <tbody>
           {partners.map((p) => (
             <React.Fragment key={p.id}>
-              <tr className="border-b border-slate-100 hover:bg-slate-50">
+              <tr className="border-b border-slate-100 hover:bg-slate-100">
                 {orderedColumns.map((col) => {
                   const w = columnWidths[col.id];
                   const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};

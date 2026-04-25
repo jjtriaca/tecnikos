@@ -135,7 +135,7 @@ function CadastrosDropdown({ activeTab, onSelect }: { activeTab: TabId; onSelect
               className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
                 activeTab === tab.id
                   ? "bg-blue-50 text-blue-700 font-medium"
-                  : "text-slate-700 hover:bg-slate-50"
+                  : "text-slate-700 hover:bg-slate-100"
               }`}
             >
               <span>{tab.icon}</span>
@@ -981,7 +981,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 </thead>
                 <tbody>
                   {rows.map((row: any) => (
-                    <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                       <td className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">{formatDate(row.date)}</td>
                       <td className="px-3 py-2 text-xs text-slate-800 max-w-[200px] truncate">
                         {row.code && <span className="text-slate-400 mr-1">{row.code}</span>}
@@ -1511,7 +1511,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         <div className="flex gap-2">
           <button
             onClick={() => setShowReportModal(true)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
             title="Gerar Relatorio PDF"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1605,7 +1605,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               {entries.map((rawE) => {
                 const e = type === "RECEIVABLE" ? { ...rawE, _boleto: entryBoletos[rawE.id] || null } as any : rawE;
                 return (
-                <tr key={e.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${selectedIds.has(e.id) ? "bg-blue-50" : ""}`}>
+                <tr key={e.id} className={`border-b border-slate-100 hover:bg-slate-100 transition-colors ${selectedIds.has(e.id) ? "bg-blue-50" : ""}`}>
                   <td className="py-2 px-2 w-8">
                     {(e.status === "PENDING" || e.status === "CONFIRMED") && (
                       <input
@@ -2229,7 +2229,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               <button
                 onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedAccountId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); }}
                 disabled={!!actionLoading}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -2406,7 +2406,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "" });
                   setSelectedPartner(null);
                 }}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
                 Cancelar
               </button>
@@ -2574,7 +2574,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setEditEntry(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+              <button onClick={() => setEditEntry(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
                 Cancelar
               </button>
               <button onClick={handleSaveEdit} disabled={editSaving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
@@ -2790,7 +2790,7 @@ function EntryActions({
               <button
                 key={mi.label}
                 onClick={() => { setOpen(false); mi.onClick(); }}
-                className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors ${mi.className || "text-slate-700"}`}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-100 transition-colors ${mi.className || "text-slate-700"}`}
               >
                 {mi.label}
               </button>

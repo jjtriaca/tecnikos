@@ -110,7 +110,7 @@ export default function FinalizeOrderModal({ open, orderId, onClose, onFinalized
               </div>
             </div>
             <div className="mt-5 flex justify-end">
-              <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                 Fechar
               </button>
             </div>
@@ -136,7 +136,7 @@ export default function FinalizeOrderModal({ open, orderId, onClose, onFinalized
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-3">
-              <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                 Cancelar
               </button>
               <button
@@ -209,7 +209,7 @@ export default function FinalizeOrderModal({ open, orderId, onClose, onFinalized
             </div>
 
             <div className="mt-5 flex justify-end gap-3">
-              <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                 Cancelar
               </button>
               <button

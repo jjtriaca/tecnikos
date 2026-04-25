@@ -160,7 +160,7 @@ export default function TechSetupPage({ params }: { params: Promise<{ token: str
               </button>
               <button
                 onClick={handleSkip}
-                className="h-11 w-full rounded-xl border border-slate-200 font-medium text-slate-600 text-sm hover:bg-slate-50 transition-colors"
+                className="h-11 w-full rounded-xl border border-slate-200 font-medium text-slate-600 text-sm hover:bg-slate-100 transition-colors"
               >
                 Pular por enquanto
               </button>
@@ -239,7 +239,7 @@ export default function TechSetupPage({ params }: { params: Promise<{ token: str
 
           <button
             onClick={handleSkip}
-            className="h-11 w-full rounded-xl border border-slate-200 font-medium text-slate-600 text-sm hover:bg-slate-50 transition-colors"
+            className="h-11 w-full rounded-xl border border-slate-200 font-medium text-slate-600 text-sm hover:bg-slate-100 transition-colors"
           >
             Continuar sem instalar
           </button>

@@ -364,7 +364,7 @@ export default function PartnerForm({
                   className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     isActive
                       ? opt.key === "RURAL" ? "bg-green-600 text-white" : "bg-blue-600 text-white"
-                      : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+                      : "border border-slate-300 text-slate-600 hover:bg-slate-100"
                   }`}
                 >
                   {opt.label}
@@ -620,7 +620,7 @@ export default function PartnerForm({
           <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
             {saving ? "Salvando..." : editingId ? "Atualizar" : "Criar"}
           </button>
-          <button type="button" onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
+          <button type="button" onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100">
             Cancelar
           </button>
         </div>

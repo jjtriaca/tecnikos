@@ -53,7 +53,7 @@ export default function PartnerDetailPage() {
       <div className="mb-4 flex items-center gap-3">
         <button
           onClick={() => router.push("/partners")}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 transition-colors"
         >
           &larr; Voltar
         </button>

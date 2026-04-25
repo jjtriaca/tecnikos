@@ -188,7 +188,7 @@ export default function ServicosTomadosPage() {
               <tbody className="divide-y divide-slate-50">
                 {items.map((it, idx) => (
                   <>
-                    <tr key={it.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setExpandedId(expandedId === it.id ? null : it.id)}>
+                    <tr key={it.id} className="hover:bg-slate-100 cursor-pointer" onClick={() => setExpandedId(expandedId === it.id ? null : it.id)}>
                       <td className="px-4 py-2.5">
                         <svg className={`h-4 w-4 text-slate-400 transition-transform ${expandedId === it.id ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

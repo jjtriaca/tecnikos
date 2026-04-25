@@ -423,7 +423,7 @@ function ActionsDropdown({
               setOpen(false);
               onEdit(product);
             }}
-            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
           >
             Editar
           </button>
@@ -779,7 +779,7 @@ export default function ProductsPage() {
                 <tr
                   key={p.id}
                   onClick={() => openEditProduct(p)}
-                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="border-b border-slate-100 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   {orderedColumns.map((col) => {
                     const w = columnWidths[col.id];
@@ -1315,7 +1315,7 @@ export default function ProductsPage() {
                           {equivalents.map((eq) => (
                             <tr
                               key={eq.id}
-                              className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                              className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                             >
                               <td className="py-2.5 px-4 text-slate-700">
                                 {eq.supplier?.name || eq.supplierId || "—"}
@@ -1461,7 +1461,7 @@ export default function ProductsPage() {
             <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4 shrink-0">
               <button
                 onClick={closeModal}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
                 Cancelar
               </button>

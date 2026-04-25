@@ -961,7 +961,7 @@ export default function PaymentInstrumentsTab() {
             <div className="border-t border-slate-200 px-6 py-3 flex justify-end gap-2">
               <button
                 onClick={closeForm}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>

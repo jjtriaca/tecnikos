@@ -241,7 +241,7 @@ export default function BoletoDetailModal({ boleto, onClose, onRefresh }: Props)
             <button
               onClick={handleRefresh}
               disabled={loading === "refresh"}
-              className="px-3 py-1.5 text-sm border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50"
+              className="px-3 py-1.5 text-sm border border-slate-300 rounded hover:bg-slate-100 disabled:opacity-50"
             >
               {loading === "refresh" ? "Atualizando..." : "Atualizar Status"}
             </button>

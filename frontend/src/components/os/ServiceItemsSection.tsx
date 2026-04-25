@@ -141,7 +141,7 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {items.map((item, idx) => (
-                <tr key={item.serviceId} className="hover:bg-slate-50">
+                <tr key={item.serviceId} className="hover:bg-slate-100">
                   <td className="px-3 py-2 text-slate-900 font-medium">{item.serviceName}</td>
                   <td className="px-3 py-2 text-center">
                     <input

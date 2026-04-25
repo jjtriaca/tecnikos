@@ -611,7 +611,7 @@ export default function EmailSettingsPage() {
                     setError(null);
                     if (config) populateForm(config);
                   }}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   Cancelar
                 </button>

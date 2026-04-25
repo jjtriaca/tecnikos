@@ -232,7 +232,7 @@ function ConfigRow({
             <button onClick={onSave} className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700">
               Salvar
             </button>
-            <button onClick={onCancel} className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50">
+            <button onClick={onCancel} className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100">
               Cancelar
             </button>
           </div>

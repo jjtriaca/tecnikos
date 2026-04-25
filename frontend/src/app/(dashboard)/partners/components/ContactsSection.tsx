@@ -171,7 +171,7 @@ export default function ContactsSection({ partnerId }: Props) {
             <button type="button" onClick={handleSave} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Salvando...' : editingId ? 'Atualizar' : 'Salvar'}
             </button>
-            <button type="button" onClick={handleCancel} className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+            <button type="button" onClick={handleCancel} className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
               Cancelar
             </button>
           </div>

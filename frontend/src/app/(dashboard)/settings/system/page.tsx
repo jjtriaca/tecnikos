@@ -415,7 +415,7 @@ export default function SystemConfigPage() {
             {/* Fields */}
             <div className="divide-y divide-slate-100">
               {section.fields.map((field) => (
-                <div key={field.key} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
+                <div key={field.key} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-100 transition-colors">
                   <div className="flex-1 min-w-0 pr-4">
                     <p className="text-sm font-medium text-slate-700">{field.label}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">{field.description}</p>
@@ -522,7 +522,7 @@ function PdfLayoutSection({ value, onChange }: { value: number; onChange: (v: nu
         {PDF_LAYOUTS.map((layout) => (
           <div
             key={layout.id}
-            className={`flex items-center justify-between px-5 py-3.5 cursor-pointer transition-colors ${value === layout.id ? "bg-blue-50/60" : "hover:bg-slate-50/50"}`}
+            className={`flex items-center justify-between px-5 py-3.5 cursor-pointer transition-colors ${value === layout.id ? "bg-blue-50/60" : "hover:bg-slate-100"}`}
             onClick={() => onChange(layout.id)}
           >
             <div className="flex items-center gap-3 flex-1 min-w-0">

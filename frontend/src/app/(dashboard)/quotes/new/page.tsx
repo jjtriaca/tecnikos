@@ -659,7 +659,7 @@ function NewQuotePage() {
         <div className="flex items-center justify-between">
           <Link
             href="/quotes"
-            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
           >
             Cancelar
           </Link>
@@ -758,7 +758,7 @@ function NewQuotePage() {
 
             <div className="flex gap-3">
               <button onClick={handleSkipSend}
-                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
                 Salvar como Rascunho
               </button>
               <button onClick={handleSendConfirm} disabled={sending || (!sendWhatsApp && !sendEmail)}

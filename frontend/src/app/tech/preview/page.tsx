@@ -200,7 +200,7 @@ function LiveBlockAction({ block, onAdvance }: { block: BlockDef; onAdvance: (an
               <button
                 key={i}
                 onClick={() => { setSelectedAnswer(opt); onAdvance(opt); }}
-                className={`w-full rounded-xl border py-3 text-sm font-semibold transition-all ${selectedAnswer === opt ? "border-blue-400 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                className={`w-full rounded-xl border py-3 text-sm font-semibold transition-all ${selectedAnswer === opt ? "border-blue-400 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"}`}
               >
                 {opt}
               </button>

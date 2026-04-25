@@ -126,7 +126,7 @@ export default function ContractsSection({ partnerId }: Props) {
               <button
                 type="button"
                 onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
+                className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-100 transition-colors"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-sm">{cfg.icon}</span>

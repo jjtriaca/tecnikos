@@ -135,7 +135,7 @@ function AuditToggle({ active, onClick }: { active: boolean; onClick: () => void
     <button
       onClick={onClick}
       title="Histórico de alterações"
-      className={`rounded border px-1.5 py-1 text-xs transition-colors ${active ? "border-blue-300 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"}`}
+      className={`rounded border px-1.5 py-1 text-xs transition-colors ${active ? "border-blue-300 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600"}`}
     >
       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -225,7 +225,7 @@ function ActionsDropdown({
           {/* Ver detalhes */}
           <Link
             href={`/orders/${order.id}`}
-            className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
             onClick={() => setOpen(false)}
           >
             Ver detalhes
@@ -234,7 +234,7 @@ function ActionsDropdown({
           {/* Abrir PDF */}
           <button
             onClick={() => { setOpen(false); onPdf(order); }}
-            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
           >
             Abrir PDF
           </button>
@@ -243,7 +243,7 @@ function ActionsDropdown({
           {canEdit && isEditable && (
             <Link
               href={`/orders/${order.id}/edit`}
-              className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
               onClick={() => setOpen(false)}
             >
               Editar
@@ -254,7 +254,7 @@ function ActionsDropdown({
           {canEdit && (
             <button
               onClick={() => { setOpen(false); onDuplicate(order); }}
-              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
             >
               Duplicar
             </button>
@@ -295,7 +295,7 @@ function ActionsDropdown({
           <div className="my-1 border-t border-slate-100" />
           <button
             onClick={() => { setOpen(false); onAudit(order); }}
-            className="block w-full text-left px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
+            className="block w-full text-left px-3 py-2 text-sm text-slate-500 hover:bg-slate-100"
           >
             Histórico de alterações
           </button>
@@ -646,7 +646,7 @@ export default function OrdersPage() {
           {activeTab === "lista" && (
             <button
               onClick={handleExportCSV}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
               title="Exportar CSV"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -747,7 +747,7 @@ export default function OrdersPage() {
             <tbody>
               {orders.map((order) => (
                 <React.Fragment key={order.id}>
-                  <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  <tr className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                     {orderedColumns.map((col) => {
                       const w = columnWidths[col.id];
                       const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};

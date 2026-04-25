@@ -327,7 +327,7 @@ export default function AccountsTab() {
             <button
               onClick={handleSeed}
               disabled={seeding}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
               {seeding ? <SpinnerIcon /> : <SeedIcon />}
               {seeding ? "Criando..." : "Gerar Padrao"}
@@ -481,7 +481,7 @@ export default function AccountsTab() {
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={closeForm}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>
@@ -558,7 +558,7 @@ function GroupRow({
     <div className={`rounded-xl border bg-white shadow-sm transition-colors ${isInactive ? "opacity-60" : ""} ${tc.border}`}>
       {/* Group header */}
       <div
-        className={`flex items-center gap-2 px-4 py-3 cursor-pointer select-none hover:bg-slate-50/50 rounded-t-xl transition-colors ${
+        className={`flex items-center gap-2 px-4 py-3 cursor-pointer select-none hover:bg-slate-100 rounded-t-xl transition-colors ${
           expanded && childCount > 0 ? "" : "rounded-b-xl"
         }`}
         onClick={onToggleExpand}
@@ -701,7 +701,7 @@ function SubgroupRow({ account, parentType, onEdit, onDelete, onToggleActive, ca
   const isInactive = !account.isActive;
 
   return (
-    <div className={`flex items-center gap-2 px-4 py-2.5 pl-10 hover:bg-slate-50/50 transition-colors ${isInactive ? "opacity-60" : ""}`}>
+    <div className={`flex items-center gap-2 px-4 py-2.5 pl-10 hover:bg-slate-100 transition-colors ${isInactive ? "opacity-60" : ""}`}>
       {/* Indent line */}
       <span className="w-4 h-px bg-slate-200 shrink-0" />
 

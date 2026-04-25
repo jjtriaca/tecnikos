@@ -169,7 +169,7 @@ export default function LocationPickerModal({
         <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-5 py-4">
           <button
             onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
           >
             Cancelar
           </button>

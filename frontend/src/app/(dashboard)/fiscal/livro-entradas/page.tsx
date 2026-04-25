@@ -176,7 +176,7 @@ export default function LivroEntradasPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {items.map((it, idx) => (
-                  <tr key={it.id} className="hover:bg-slate-50">
+                  <tr key={it.id} className="hover:bg-slate-100">
                     <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
                     <td className="px-4 py-2.5 text-slate-700">{fmtDate(it.dataEmissao)}</td>
                     <td className="px-4 py-2.5 font-medium text-slate-700">{it.numero || "—"}</td>
