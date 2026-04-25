@@ -874,11 +874,9 @@ function ConciliationModal({
    * Atualiza a taxa configurada pra bater com a taxa real cobrada.
    * Usa o endpoint apropriado conforme origem (PIF = novo, CFR = legado).
    */
-  async function updateConfiguredRate() {
-    if (!matchedRate?.id) return;
-    const bruto = liquidCents + taxCents;
-    if (bruto <= 0 || taxCents <= 0) return;
-    const newRate = Number(((taxCents / bruto) * 100).toFixed(4));
+  async function updateRateBy(newRatePercent: number) {
+    if (!matchedRate?.id || newRatePercent <= 0) return;
+    const newRate = Number(newRatePercent.toFixed(4));
     const label = matchedRate.description
       || (matchedRate.brand && matchedRate.type ? `${matchedRate.brand} ${matchedRate.type}` : "taxa configurada");
     if (!window.confirm(
@@ -898,6 +896,12 @@ function ConciliationModal({
     } finally {
       setUpdatingRate(false);
     }
+  }
+
+  async function updateConfiguredRate() {
+    const bruto = liquidCents + taxCents;
+    if (bruto <= 0 || taxCents <= 0) return;
+    await updateRateBy((taxCents / bruto) * 100);
   }
 
   /** Get the display amount for an entry (what would appear in the bank) */
@@ -1650,6 +1654,18 @@ function ConciliationModal({
         const remainder = negDiff - discountsTotal;
         const cobersDiff = Math.abs(remainder) <= 1 && discounts.length > 0
           && discounts.every((d) => d.amountCents > 0 && d.description.trim().length > 0);
+        // v1.10.10 — Detecta divergencia da taxa real (item plano 5200) vs taxa cadastrada
+        const taxaItem = discounts.find((d) => {
+          const acc = financialAccounts.find((a) => a.id === d.financialAccountId);
+          return acc?.code === "5200" || /taxa\s*cart/i.test(d.description);
+        });
+        const taxaRealCents = taxaItem?.amountCents || 0;
+        const taxaRealPercent = taxaRealCents > 0 && entryAmount > 0
+          ? (taxaRealCents / entryAmount) * 100
+          : 0;
+        const taxaDiverge = !!matchedRate && configFeePercent > 0 && taxaRealPercent > 0
+          && Math.abs(taxaRealPercent - configFeePercent) > 0.05;
+        const rateUpdatedAt = matchedRate?.updatedAt ? new Date(matchedRate.updatedAt) : null;
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
@@ -1669,6 +1685,31 @@ function ConciliationModal({
                     </p>
                   </div>
                 </div>
+
+                {/* v1.10.10 — alerta divergencia taxa real vs cadastrada (so cartao) */}
+                {taxaDiverge && matchedRate?.id && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 flex items-start gap-2">
+                    <span className="text-amber-600 text-sm leading-none mt-0.5">&#9888;</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-amber-800">
+                        Taxa real ({taxaRealPercent.toFixed(2)}%) diverge da cadastrada ({configFeePercent.toFixed(2)}%) em {Math.abs(taxaRealPercent - configFeePercent).toFixed(2)} pontos.
+                      </p>
+                      {rateUpdatedAt && (
+                        <p className="text-[10px] text-amber-700 mt-0.5">
+                          Taxa cadastrada atualizada em {formatDateTime(rateUpdatedAt.toISOString())}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => updateRateBy(taxaRealPercent)}
+                      disabled={updatingRate}
+                      className="text-[10px] font-semibold px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+                      title="Atualizar a taxa cadastrada para o valor real detectado"
+                    >
+                      {updatingRate ? "Salvando..." : `Atualizar para ${taxaRealPercent.toFixed(2)}%`}
+                    </button>
+                  </div>
+                )}
 
                 {discounts.map((d, idx) => (
                   <div key={d.id} className="flex items-start gap-2 bg-white rounded border border-slate-200 p-2">
