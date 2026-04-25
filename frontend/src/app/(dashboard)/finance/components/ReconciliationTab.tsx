@@ -662,6 +662,11 @@ function ConciliationModal({
   const [adjustDescription, setAdjustDescription] = useState("");
   const [adjustPaymentMethod, setAdjustPaymentMethod] = useState("");
   const [creatingAdjust, setCreatingAdjust] = useState(false);
+  // v1.10.07 — descontos da operadora (diff NEGATIVO: entry > linha)
+  type DiscountRow = { id: string; amountCents: number; description: string; financialAccountId: string };
+  const [discountEntry, setDiscountEntry] = useState<any>(null);
+  const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
+  const [creatingWithDiscounts, setCreatingWithDiscounts] = useState(false);
 
   // Card transaction breakdown state
   const [liquidCents, setLiquidCents] = useState(0);
@@ -985,25 +990,37 @@ function ConciliationModal({
     }
 
     // Auto-deteccao de diferenca: se entry tem valor diferente da linha (e nao e cartao),
-    // abre form de ajuste pra criar lancamento separado de juros/multa.
+    // abre form de ajuste pra criar lancamento separado.
+    // - diff > 0 (linha > entry): juros/multa (logica original)
+    // - diff < 0 (entry > linha): descontos da operadora (v1.10.07)
     if (entry && line && !isCard) {
       const entryAmount = entry.netCents ?? entry.grossCents ?? 0;
       const lineAbs = Math.abs(line.amountCents);
       const diff = lineAbs - entryAmount;
       if (diff > 1) {
+        // Juros/multa
         const direction = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
         const tipoAjuste = direction === "RECEIVABLE" ? "Juros/Multa recebidos" : "Juros/Multa pagos";
         const partnerName = entry.partner?.name || "";
         setAdjustDescription(`${tipoAjuste}${partnerName ? ` — ${partnerName}` : ""}`);
-        // Pre-seleciona "Juros e Multas" pelo code 7100 ou nome
         const jurosAcc = financialAccounts.find((a) =>
           a.code === "7100" || /juros|multa/i.test(a.name),
         );
         setAdjustAccountId(jurosAcc?.id || "");
-        // Pre-seleciona forma de pagamento: heranca do entry original ou auto-detect pela descricao da linha
         const inheritedMethod = entry.paymentMethod || matchPaymentMethod || "";
         setAdjustPaymentMethod(inheritedMethod);
         setAdjustEntry(entry);
+        return;
+      }
+      if (diff < -1) {
+        // v1.10.07 — Descontos da operadora (entry > linha)
+        // Verificar pre-requisitos antes de abrir overlay
+        if (!entry.cashAccountId || entry.cashAccountId === line.cashAccountId) {
+          toast("Lançamento precisa estar PAGO em conta de origem (ex: VT) para aplicar descontos.", "error");
+          return;
+        }
+        setDiscounts([]);
+        setDiscountEntry(entry);
         return;
       }
     }
@@ -1078,6 +1095,88 @@ function ConciliationModal({
       toast(err?.response?.data?.message || err?.message || "Erro ao conciliar com ajuste.", "error");
     } finally {
       setCreatingAdjust(false);
+    }
+  }
+
+  // v1.10.07 — Descontos da operadora (diff NEGATIVO)
+  function addDiscount(presetCode?: string, presetDesc?: string) {
+    const acc = presetCode ? financialAccounts.find((a) => a.code === presetCode) : null;
+    setDiscounts((prev) => [
+      ...prev,
+      {
+        id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        amountCents: 0,
+        description: presetDesc || "",
+        financialAccountId: acc?.id || "",
+      },
+    ]);
+  }
+  function updateDiscount(id: string, patch: Partial<DiscountRow>) {
+    setDiscounts((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  }
+  function removeDiscount(id: string) {
+    setDiscounts((prev) => prev.filter((d) => d.id !== id));
+  }
+
+  /**
+   * v1.10.07 — Cria N entries do tipo OPOSTO (descontos) PAID na conta do entry expected
+   * (ex: VT) e concilia tudo via match-multiple. Backend valida sumExp - sumOpp = lineAbs.
+   */
+  async function handleConciliarComDescontos() {
+    if (!line || !discountEntry) return;
+    if (discounts.length === 0 || discounts.some((d) => d.amountCents <= 0 || !d.description.trim())) {
+      toast("Preencha valor e descrição de cada desconto.", "error");
+      return;
+    }
+    const direction: "RECEIVABLE" | "PAYABLE" = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
+    const oppositeType: "RECEIVABLE" | "PAYABLE" = direction === "RECEIVABLE" ? "PAYABLE" : "RECEIVABLE";
+    const partnerId = discountEntry.partner?.id || discountEntry.partnerId;
+    if (!partnerId) {
+      toast("Lançamento sem parceiro — não é possível criar descontos.", "error");
+      return;
+    }
+    const cashAccountId = discountEntry.cashAccountId;
+    if (!cashAccountId || cashAccountId === line.cashAccountId) {
+      toast("Lançamento precisa estar pago em conta diferente do banco.", "error");
+      return;
+    }
+    setCreatingWithDiscounts(true);
+    try {
+      const newIds: string[] = [];
+      for (const d of discounts) {
+        // 1. Cria PENDING
+        const created = await api.post<any>("/finance/entries", {
+          type: oppositeType,
+          description: d.description.trim(),
+          grossCents: d.amountCents,
+          dueDate: new Date(line.transactionDate).toISOString(),
+          partnerId,
+          financialAccountId: d.financialAccountId || undefined,
+          notes: `[AUTO_RECONCILIATION_DESCONTO]`,
+        });
+        const newId = (created as any).id || (created as any).data?.id;
+        if (!newId) throw new Error("Não foi possível recuperar ID do desconto criado.");
+        // 2. PAID na mesma conta do entry expected
+        await api.patch(`/finance/entries/${newId}/status`, {
+          status: "PAID",
+          paidAt: new Date(line.transactionDate).toISOString(),
+          cashAccountId,
+        });
+        newIds.push(newId);
+      }
+      // 3. Match-multiple [entry original + descontos novos]
+      await api.post(`/finance/reconciliation/lines/${line.id}/match-multiple`, {
+        entryIds: [discountEntry.id, ...newIds],
+      });
+      const totalDiscount = discounts.reduce((acc, d) => acc + d.amountCents, 0);
+      toast(`Conciliado: ${discountEntry.code || "lançamento"} − ${newIds.length} desconto(s) (${formatCurrency(totalDiscount)}).`, "success");
+      setDiscountEntry(null);
+      setDiscounts([]);
+      onMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao conciliar com descontos.", "error");
+    } finally {
+      setCreatingWithDiscounts(false);
     }
   }
 
@@ -1498,6 +1597,144 @@ function ConciliationModal({
           </div>
         );
       })()}
+
+      {/* v1.10.07 — Overlay descontos da operadora (entry > linha) */}
+      {discountEntry && line && (() => {
+        const lineAbs = Math.abs(line.amountCents);
+        const entryAmount = discountEntry.netCents ?? discountEntry.grossCents ?? 0;
+        const negDiff = entryAmount - lineAbs;
+        const direction: "RECEIVABLE" | "PAYABLE" = line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
+        const oppositeType: "RECEIVABLE" | "PAYABLE" = direction === "RECEIVABLE" ? "PAYABLE" : "RECEIVABLE";
+        const discountsTotal = discounts.reduce((acc, d) => acc + (d.amountCents || 0), 0);
+        const remainder = negDiff - discountsTotal;
+        const cobersDiff = Math.abs(remainder) <= 1 && discounts.length > 0
+          && discounts.every((d) => d.amountCents > 0 && d.description.trim().length > 0);
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+              <div className="px-5 py-4 border-b border-slate-200">
+                <h3 className="text-base font-semibold text-rose-700">⚠ Descontos detectados</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Lançamento {discountEntry.code} é de <strong>{formatCurrency(entryAmount)}</strong> mas a linha do extrato é <strong>{formatCurrency(lineAbs)}</strong>. Diferença: <strong className="text-rose-700">{formatCurrency(negDiff)}</strong> em descontos.
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                <div className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 flex items-center justify-between">
+                  <span className="text-xs text-slate-700">A operadora descontou:</span>
+                  <div className="text-right">
+                    <p className="text-[10px] text-rose-600">Faltam</p>
+                    <p className={`text-sm font-bold ${cobersDiff ? "text-emerald-700" : "text-rose-700"}`}>
+                      {formatCurrency(Math.max(0, remainder))}
+                    </p>
+                  </div>
+                </div>
+
+                {discounts.map((d, idx) => (
+                  <div key={d.id} className="flex items-start gap-2 bg-white rounded border border-slate-200 p-2">
+                    <span className="text-[10px] text-slate-400 mt-2 w-4">{idx + 1}.</span>
+                    <div className="flex-1 grid grid-cols-12 gap-2">
+                      <input
+                        type="text"
+                        value={d.description}
+                        onChange={(e) => updateDiscount(d.id, { description: e.target.value })}
+                        placeholder="Descrição (ex: Taxa cartão MASTER)"
+                        className="col-span-6 rounded border border-slate-300 px-2 py-1.5 text-xs"
+                      />
+                      <select
+                        value={d.financialAccountId}
+                        onChange={(e) => updateDiscount(d.id, { financialAccountId: e.target.value })}
+                        className="col-span-4 rounded border border-slate-300 px-1.5 py-1.5 text-xs bg-white"
+                      >
+                        <option value="">— plano —</option>
+                        {financialAccounts
+                          .filter((a) => oppositeType === "PAYABLE" ? a.type === "EXPENSE" : a.type === "REVENUE")
+                          .map((a) => (
+                            <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                          ))}
+                      </select>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={d.amountCents > 0 ? (d.amountCents / 100).toFixed(2).replace(".", ",") : ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value.replace(/\./g, "").replace(",", ".")) || 0;
+                          updateDiscount(d.id, { amountCents: Math.round(val * 100) });
+                        }}
+                        placeholder="0,00"
+                        className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-xs text-right font-medium"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeDiscount(d.id)}
+                      className="text-rose-500 hover:text-rose-700 text-base leading-none mt-1.5"
+                      title="Remover"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => addDiscount("5200", "Taxa cartão")}
+                    className="text-[11px] px-2.5 py-1.5 rounded bg-rose-100 text-rose-800 hover:bg-rose-200 font-medium"
+                  >
+                    + Taxa cartão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addDiscount("3201", "Aluguel maquininha")}
+                    className="text-[11px] px-2.5 py-1.5 rounded bg-rose-100 text-rose-800 hover:bg-rose-200 font-medium"
+                  >
+                    + Aluguel maquininha
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addDiscount()}
+                    className="text-[11px] px-2.5 py-1.5 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium"
+                  >
+                    + Outro desconto
+                  </button>
+                  {remainder !== 0 && discountsTotal > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const last = discounts[discounts.length - 1];
+                        if (!last) return;
+                        const v = last.amountCents + remainder;
+                        if (v > 0) updateDiscount(last.id, { amountCents: v });
+                      }}
+                      className="text-[11px] px-2.5 py-1.5 rounded bg-amber-100 text-amber-800 hover:bg-amber-200 font-medium"
+                      title="Ajusta a última linha pra zerar a diferença"
+                    >
+                      ⚖ Fechar diferença
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  onClick={() => { setDiscountEntry(null); setDiscounts([]); }}
+                  disabled={creatingWithDiscounts}
+                  className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConciliarComDescontos}
+                  disabled={creatingWithDiscounts || !cobersDiff}
+                  className="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={cobersDiff ? "" : "Adicione descontos que somem o valor faltante"}
+                >
+                  {creatingWithDiscounts ? "Conciliando..." : "Conciliar com descontos"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1712,6 +1949,7 @@ interface CardInvoiceEntry {
   paidAt: string | null;
   dueDate: string | null;
   status?: string | null;
+  cashAccountId: string | null;
   paymentInstrumentId: string | null;
   invoiceMatchLineId: string | null;
   financialAccountId: string | null;
@@ -2169,8 +2407,13 @@ function MultipleMatchModal({
   const [adjustDescription, setAdjustDescription] = useState("");
   const [creatingAdjust, setCreatingAdjust] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // v1.10.07: descontos da operadora (linha credito + RECEIVABLE - N PAYABLE = lineAbs)
+  type DiscountRow = { id: string; amountCents: number; description: string; financialAccountId: string };
+  const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
+  const [creatingWithDiscounts, setCreatingWithDiscounts] = useState(false);
 
   const direction: "RECEIVABLE" | "PAYABLE" = line && line.amountCents >= 0 ? "RECEIVABLE" : "PAYABLE";
+  const oppositeType: "RECEIVABLE" | "PAYABLE" = direction === "RECEIVABLE" ? "PAYABLE" : "RECEIVABLE";
   const lineAbs = line ? Math.abs(line.amountCents) : 0;
 
   // Pre-fill search com nome provavel do parceiro extraido da descricao da linha.
@@ -2180,6 +2423,7 @@ function MultipleMatchModal({
     setSelectedIds(new Set());
     setNotes("");
     setShowAdjustForm(false);
+    setDiscounts([]);
     // Extrai maior palavra com 5+ letras (heuristica simples)
     const tokens = (line.description || "").split(/\s+/).filter((t) => /^[A-Za-zÀ-ÿ]{5,}$/.test(t));
     const prefill = tokens[0] || "";
@@ -2235,13 +2479,38 @@ function MultipleMatchModal({
   const selected = candidates.filter((e) => selectedIds.has(e.id));
   const total = selected.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
   const diff = lineAbs - total;
-  const matches = Math.abs(diff) <= 1 && selectedIds.size > 0;
+  // v1.10.07: descontos cobrem diferenca quando entries somam mais que linha
+  const discountsTotal = discounts.reduce((acc, d) => acc + (d.amountCents || 0), 0);
+  const negDiff = diff < 0 ? Math.abs(diff) : 0;
+  const discountsCoverDiff = negDiff > 0 && Math.abs(discountsTotal - negDiff) <= 1 && discounts.length > 0
+    && discounts.every((d) => d.amountCents > 0 && d.description.trim().length > 0);
+  const matches = (Math.abs(diff) <= 1 || discountsCoverDiff) && selectedIds.size > 0;
   const pendingCount = selected.filter((e) => e.status === "PENDING" || e.status === "CONFIRMED").length;
 
   function toggle(id: string) {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id); else next.add(id);
     setSelectedIds(next);
+  }
+
+  // v1.10.07 — descontos da operadora
+  function addDiscount(presetCode?: string, presetDesc?: string) {
+    const acc = presetCode ? financialAccounts.find((a) => a.code === presetCode) : null;
+    setDiscounts((prev) => [
+      ...prev,
+      {
+        id: (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
+        amountCents: 0,
+        description: presetDesc || "",
+        financialAccountId: acc?.id || "",
+      },
+    ]);
+  }
+  function updateDiscount(id: string, patch: Partial<DiscountRow>) {
+    setDiscounts((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  }
+  function removeDiscount(id: string) {
+    setDiscounts((prev) => prev.filter((d) => d.id !== id));
   }
 
   function openAdjustForm() {
@@ -2297,8 +2566,70 @@ function MultipleMatchModal({
     }
   }
 
+  /**
+   * v1.10.07 — Concilia com descontos: cria N entries do tipo oposto PAID na conta do
+   * primeiro entry expected (geralmente VT) + chama match-multiple com tudo junto.
+   * Backend valida sumExp - sumOpp = lineAbs.
+   */
+  async function handleMatchWithDiscounts() {
+    if (!line || !discountsCoverDiff) return;
+    // Pega o primeiro entry expected (RECEIVABLE quando linha credito) que esteja em outra conta.
+    // Despesas vao na MESMA conta (preserva fluxo VT). Fallback: cashAccountId do primeiro selecionado.
+    const expectedSelected = selected.find((e) => e.cashAccountId && e.cashAccountId !== line.cashAccountId);
+    const cashAccountId = expectedSelected?.cashAccountId;
+    if (!cashAccountId) {
+      toast("Não foi possível identificar conta de origem (VT). Selecione um lançamento PAGO em conta diferente do banco.", "error");
+      return;
+    }
+    const partnerId = selected.find((e) => e.partner?.id)?.partner?.id;
+    if (!partnerId) {
+      toast("Selecione ao menos um lançamento com parceiro identificado.", "error");
+      return;
+    }
+    setCreatingWithDiscounts(true);
+    try {
+      const newIds: string[] = [];
+      for (const d of discounts) {
+        // 1. Cria PENDING
+        const created = await api.post<any>("/finance/entries", {
+          type: oppositeType,
+          description: d.description.trim(),
+          grossCents: d.amountCents,
+          dueDate: new Date(line.transactionDate).toISOString(),
+          partnerId,
+          financialAccountId: d.financialAccountId || undefined,
+          notes: `[AUTO_RECONCILIATION_DESCONTO]`,
+        });
+        const newId = (created as any).id || (created as any).data?.id;
+        if (!newId) throw new Error("Não foi possível recuperar ID do desconto criado.");
+        // 2. PAID na mesma conta do entry expected (decrementa saldo da conta)
+        await api.patch(`/finance/entries/${newId}/status`, {
+          status: "PAID",
+          paidAt: new Date(line.transactionDate).toISOString(),
+          cashAccountId,
+        });
+        newIds.push(newId);
+      }
+      // 3. Match-multiple [selecionados + descontos novos]
+      await api.post(`/finance/reconciliation/lines/${line.id}/match-multiple`, {
+        entryIds: [...Array.from(selectedIds), ...newIds],
+        notes: notes || undefined,
+      });
+      toast(`Conciliado: ${selectedIds.size} lançamento(s) + ${newIds.length} desconto(s) (${formatCurrency(discountsTotal)}).`, "success");
+      onMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao conciliar com descontos.", "error");
+    } finally {
+      setCreatingWithDiscounts(false);
+    }
+  }
+
   async function handleMatch() {
     if (!matches) return;
+    // Caso descontos: rota separada (cria entries auxiliares antes de match-multiple)
+    if (discountsCoverDiff) {
+      return handleMatchWithDiscounts();
+    }
     setMatching(true);
     try {
       await api.post(`/finance/reconciliation/lines/${line!.id}/match-multiple`, {
@@ -2446,6 +2777,116 @@ function MultipleMatchModal({
             </div>
           )}
 
+          {/* v1.10.07 — Descontos da operadora (diff NEGATIVO: entries somam mais que linha) */}
+          {diff < 0 && selectedIds.size > 0 && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-rose-800">
+                    Diferença de {formatCurrency(Math.abs(diff))} — descontos sobre o valor recebido
+                  </p>
+                  <p className="text-[10px] text-rose-700 mt-0.5">
+                    {direction === "RECEIVABLE"
+                      ? "Operadora descontou taxa, aluguel da maquininha ou outros encargos. Adicione cada desconto abaixo."
+                      : "Linha maior que pagamento. Adicione lançamentos auxiliares."}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] text-rose-600">Faltam</p>
+                  <p className={`text-sm font-bold ${discountsCoverDiff ? "text-emerald-700" : "text-rose-700"}`}>
+                    {formatCurrency(Math.max(0, negDiff - discountsTotal))}
+                  </p>
+                </div>
+              </div>
+
+              {discounts.map((d, idx) => (
+                <div key={d.id} className="flex items-start gap-2 bg-white rounded border border-rose-200 p-2">
+                  <span className="text-[10px] text-slate-400 mt-2 w-4">{idx + 1}.</span>
+                  <div className="flex-1 grid grid-cols-12 gap-2">
+                    <input
+                      type="text"
+                      value={d.description}
+                      onChange={(e) => updateDiscount(d.id, { description: e.target.value })}
+                      placeholder="Descrição (ex: Taxa cartão MASTER 1,55%)"
+                      className="col-span-6 rounded border border-slate-300 px-2 py-1 text-[11px]"
+                    />
+                    <select
+                      value={d.financialAccountId}
+                      onChange={(e) => updateDiscount(d.id, { financialAccountId: e.target.value })}
+                      className="col-span-4 rounded border border-slate-300 px-1.5 py-1 text-[11px] bg-white"
+                    >
+                      <option value="">— plano —</option>
+                      {financialAccounts
+                        .filter((a) => oppositeType === "PAYABLE" ? a.type === "EXPENSE" : a.type === "REVENUE")
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                        ))}
+                    </select>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={d.amountCents > 0 ? (d.amountCents / 100).toFixed(2).replace(".", ",") : ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value.replace(/\./g, "").replace(",", ".")) || 0;
+                        updateDiscount(d.id, { amountCents: Math.round(val * 100) });
+                      }}
+                      placeholder="0,00"
+                      className="col-span-2 rounded border border-slate-300 px-2 py-1 text-[11px] text-right font-medium"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeDiscount(d.id)}
+                    className="text-rose-500 hover:text-rose-700 text-sm leading-none mt-1"
+                    title="Remover"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => addDiscount("5200", "Taxa cartão")}
+                  className="text-[10px] px-2 py-1 rounded bg-rose-100 text-rose-800 hover:bg-rose-200 font-medium"
+                >
+                  + Taxa cartão
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addDiscount("3201", "Aluguel maquininha")}
+                  className="text-[10px] px-2 py-1 rounded bg-rose-100 text-rose-800 hover:bg-rose-200 font-medium"
+                >
+                  + Aluguel maquininha
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addDiscount()}
+                  className="text-[10px] px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium"
+                >
+                  + Outro desconto
+                </button>
+                {discountsTotal !== negDiff && discountsTotal > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Auto-ajusta a ULTIMA linha pra fechar a diferenca
+                      const last = discounts[discounts.length - 1];
+                      if (!last) return;
+                      const remainder = last.amountCents + (negDiff - discountsTotal);
+                      if (remainder > 0) updateDiscount(last.id, { amountCents: remainder });
+                    }}
+                    className="text-[10px] px-2 py-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200 font-medium"
+                    title="Ajusta a última linha pra zerar a diferença"
+                  >
+                    ⚖ Fechar diferença
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <input
             type="text"
             value={notes}
@@ -2454,14 +2895,14 @@ function MultipleMatchModal({
             className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs"
           />
           <div className="flex justify-end gap-2">
-            <button onClick={onClose} disabled={matching} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
+            <button onClick={onClose} disabled={matching || creatingWithDiscounts} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
             <button
               onClick={handleMatch}
-              disabled={!matches || matching}
+              disabled={!matches || matching || creatingWithDiscounts}
               className="px-5 py-2 text-sm font-semibold text-white rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={matches ? "" : "A soma precisa bater com o valor da linha"}
+              title={matches ? "" : (diff < 0 ? "Adicione descontos que somem o valor faltante" : "A soma precisa bater com o valor da linha")}
             >
-              {matching ? "Conciliando..." : "Conciliar"}
+              {creatingWithDiscounts ? "Criando descontos..." : matching ? "Conciliando..." : (discountsCoverDiff ? "Conciliar com descontos" : "Conciliar")}
             </button>
           </div>
         </div>

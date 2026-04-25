@@ -1533,13 +1533,19 @@ export class ReconciliationService {
       );
     }
 
+    // v1.10.07: aceita mistura RECEIVABLE+PAYABLE (cenario operadora cartao com taxa+aluguel descontados)
+    // - expectedType: tipo esperado pela linha (RECEIVABLE se credito, PAYABLE se debito)
+    // - oppositeType: tipo oposto (descontos sobre o valor)
+    // - Validacao: sumExp - sumOpp === lineAbs (tol 1c)
+    // - Entries do oppositeType DEVEM estar PAID (gestor cria como PAID em VT antes de conciliar)
     for (const e of entries) {
       if (e.status === 'CANCELLED') {
         throw new BadRequestException(`Lançamento ${e.id} está cancelado.`);
       }
-      if (e.type !== expectedType) {
+      const isOpposite = e.type !== expectedType;
+      if (isOpposite && e.status !== 'PAID') {
         throw new BadRequestException(
-          `Lançamento ${e.id} é ${e.type} mas linha ${line.amountCents >= 0 ? 'crédito' : 'débito'} exige ${expectedType}.`,
+          `Lançamento ${e.id} (${e.type}) é desconto/ajuste sobre a linha — deve estar PAGO antes de conciliar.`,
         );
       }
       if (e.invoiceMatchLineId && e.invoiceMatchLineId !== lineId) {
@@ -1552,21 +1558,28 @@ export class ReconciliationService {
       }
     }
 
-    const entriesTotal = entries.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+    const sumExpected = entries
+      .filter((e) => e.type === expectedType)
+      .reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+    const sumOpposite = entries
+      .filter((e) => e.type !== expectedType)
+      .reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
     const lineAbs = Math.abs(line.amountCents);
-    const diff = Math.abs(entriesTotal - lineAbs);
+    const netSigned = sumExpected - sumOpposite;
+    const diff = Math.abs(netSigned - lineAbs);
     if (diff > 1) {
-      throw new BadRequestException(
-        `Soma dos lançamentos (R$ ${(entriesTotal / 100).toFixed(2)}) não bate com o valor da linha (R$ ${(lineAbs / 100).toFixed(2)}). Diferença: R$ ${(diff / 100).toFixed(2)}.`,
-      );
+      const msg = sumOpposite > 0
+        ? `Soma liquida (${expectedType === 'RECEIVABLE' ? 'recebimentos' : 'pagamentos'} R$ ${(sumExpected / 100).toFixed(2)} − ajustes R$ ${(sumOpposite / 100).toFixed(2)} = R$ ${(netSigned / 100).toFixed(2)}) não bate com a linha (R$ ${(lineAbs / 100).toFixed(2)}). Diferença: R$ ${(diff / 100).toFixed(2)}.`
+        : `Soma dos lançamentos (R$ ${(sumExpected / 100).toFixed(2)}) não bate com o valor da linha (R$ ${(lineAbs / 100).toFixed(2)}). Diferença: R$ ${(diff / 100).toFixed(2)}.`;
+      throw new BadRequestException(msg);
     }
 
     const tsLog = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
     return this.prisma.$transaction(async (tx) => {
-      // Acumula valor de entries que ja eram PAID em conta diferente do banco
-      // — sera movido via AccountTransfer rastreavel pra evitar saldo inflado.
-      const transferByOrigin = new Map<string, number>();
+      // Acumula liquido por conta de origem (entries PAID em outra conta).
+      // Sinal: expected_type aumenta liquido (entrou); opposite_type diminui (despesa retira do liquido).
+      const liquidByOrigin = new Map<string, number>();
 
       for (const e of entries) {
         const amount = e.netCents || e.grossCents || 0;
@@ -1576,49 +1589,62 @@ export class ReconciliationService {
         }
         const wasPending = e.status === 'PENDING' || e.status === 'CONFIRMED';
         if (wasPending) {
+          // PENDING (so do expected_type — opposite ja foi rejeitado acima): vira PAID em banco
           entryUpdate.status = 'PAID';
           entryUpdate.paidAt = line.transactionDate;
           entryUpdate.autoMarkedPaid = true;
           entryUpdate.cashAccountId = line.cashAccountId;
           entryUpdate.notes = `[${tsLog}] PAGO via conciliação múltipla (linha ${line.id.substring(0, 8)})`;
         } else if (e.status === 'PAID' && e.cashAccountId && e.cashAccountId !== line.cashAccountId) {
-          // Entry ja estava PAID em outra conta (ex: VT). Acumula pra criar AccountTransfer
-          // origem -> banco. NAO mexe no cashAccountId (preserva historico do entry).
-          transferByOrigin.set(e.cashAccountId, (transferByOrigin.get(e.cashAccountId) || 0) + amount);
+          // Entry ja estava PAID em outra conta (ex: VT). Acumula liquido por origem.
+          // NAO mexe no cashAccountId (preserva historico do entry).
+          const sign = e.type === expectedType ? 1 : -1;
+          liquidByOrigin.set(
+            e.cashAccountId,
+            (liquidByOrigin.get(e.cashAccountId) || 0) + sign * amount,
+          );
         }
         await tx.financialEntry.update({ where: { id: e.id }, data: entryUpdate });
       }
 
-      // 1) Saldo do banco: total dos entries que estavam PENDING (vira credito direto)
-      const pendingTotal = entries
-        .filter((e) => e.status === 'PENDING' || e.status === 'CONFIRMED')
-        .reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
-      if (pendingTotal > 0) {
-        const delta = expectedType === 'RECEIVABLE' ? pendingTotal : -pendingTotal;
-        await tx.cashAccount.update({
-          where: { id: line.cashAccountId },
-          data: { currentBalanceCents: { increment: delta } },
-        });
-      }
+      // 1) Saldo do banco: linha credita/debita o banco em lineAbs (corresponde a transacao do extrato).
+      //    Cobre tanto entries PENDING que viraram PAID quanto entries PAID em outra conta —
+      //    todas somam liquido = lineAbs por construcao (validado acima).
+      //    v1.10.07: antes (v1.09.x) o codigo so creditava `pendingTotal` ignorando entries PAID em outra conta.
+      //    Isso causou o bug Royalle (saldo SICREDI nao recebia credito quando todas eram PAID em VT) — corrigido aqui.
+      const bankDelta = expectedType === 'RECEIVABLE' ? lineAbs : -lineAbs;
+      await tx.cashAccount.update({
+        where: { id: line.cashAccountId },
+        data: { currentBalanceCents: { increment: bankDelta } },
+      });
 
-      // 2) AccountTransfer pra entries que ja eram PAID em outra conta (ex: VT -> banco).
-      //    Banco ja foi creditado pela linha — entao apenas decrementa origem,
-      //    nao mexe no banco aqui (evita dupla contagem).
-      for (const [originAccountId, amount] of transferByOrigin.entries()) {
+      // 2) AccountTransfer rastreavel por origem (entries PAID em outra conta).
+      //    Movimenta saldo da origem pro banco — banco ja foi creditado em lineAbs no passo 1,
+      //    entao aqui apenas zeramos a origem (sem dupla contagem no banco).
+      for (const [originAccountId, liquid] of liquidByOrigin.entries()) {
+        if (liquid === 0) continue;
+        const absLiquid = Math.abs(liquid);
+        // Direcao do transfer:
+        // - Liquido positivo (origem -> banco): caso normal, dinheiro saiu da origem pro banco
+        // - Liquido negativo (banco -> origem): so acontece em caso reverso (linha debito + creditos)
+        const fromId = liquid > 0 ? originAccountId : line.cashAccountId;
+        const toId = liquid > 0 ? line.cashAccountId : originAccountId;
         await tx.accountTransfer.create({
           data: {
             companyId,
-            fromAccountId: originAccountId,
-            toAccountId: line.cashAccountId,
-            amountCents: amount,
+            fromAccountId: fromId,
+            toAccountId: toId,
+            amountCents: absLiquid,
             description: `Conciliação multipla — linha ${line.id.substring(0, 8)}`,
             transferDate: line.transactionDate,
             createdByName: matchedByName,
           },
         });
+        // Origem: liquid>0 => decrementa (saiu); liquid<0 => incrementa (entrou).
+        // Banco: NAO mexer aqui — ja foi creditado em lineAbs no passo 1 (linha 1).
         await tx.cashAccount.update({
           where: { id: originAccountId },
-          data: { currentBalanceCents: { decrement: amount } },
+          data: { currentBalanceCents: { increment: -liquid } },
         });
       }
 
@@ -1633,7 +1659,7 @@ export class ReconciliationService {
         },
       });
       await this.recalcCounts(tx, line.importId, line.statementId);
-      return { ...updated, entriesCount: dto.entryIds.length, entriesTotalCents: entriesTotal };
+      return { ...updated, entriesCount: dto.entryIds.length, entriesTotalCents: netSigned };
     });
   }
 
@@ -1914,32 +1940,45 @@ export class ReconciliationService {
       const direction: 'RECEIVABLE' | 'PAYABLE' = line.amountCents >= 0 ? 'RECEIVABLE' : 'PAYABLE';
 
       await this.prisma.$transaction(async (tx) => {
-        // 1) Reverter saldo do banco — desfazer credito/debito da conciliacao
-        const pendingRevertTotal = multiEntries
-          .filter((e) => e.autoMarkedPaid)
-          .reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
-        if (pendingRevertTotal > 0) {
-          const delta = direction === 'RECEIVABLE' ? -pendingRevertTotal : pendingRevertTotal;
-          await tx.cashAccount.update({
-            where: { id: line.cashAccountId },
-            data: { currentBalanceCents: { increment: delta } },
-          });
-        }
+        // v1.10.07: reverter saldo do banco em lineAbs (espelho do match novo).
+        // Cobre cenario novo (mistura RECEIVABLE+PAYABLE) E historico (so expected_type).
+        // Como no match novo `banco += lineAbs` cobre tanto pendings quanto PAID-em-outra-conta,
+        // aqui revertemos `banco -= lineAbs` numa unica operacao.
+        const bankRevertDelta = direction === 'RECEIVABLE' ? -lineAbs : lineAbs;
+        await tx.cashAccount.update({
+          where: { id: line.cashAccountId },
+          data: { currentBalanceCents: { increment: bankRevertDelta } },
+        });
 
-        // 2) Reverter AccountTransfers criados pelo matchAsMultiple (entries PAID em outra conta)
+        // 2) Reverter AccountTransfers criados pelo matchAsMultiple (entries PAID em outra conta).
+        //    Match novo: `origem.balance += -liquid` (decremento se liquid>0, incremento se liquid<0).
+        //    Reversao: aplica o oposto. Como cada transfer foi criado com `from -> to`, devolvemos
+        //    saldo a `from` (= origem no caso credito).
         const linePrefix = lineId.substring(0, 8);
         const transfers = await tx.accountTransfer.findMany({
           where: {
             companyId,
-            toAccountId: line.cashAccountId,
             description: { contains: linePrefix },
+            OR: [
+              { fromAccountId: line.cashAccountId },
+              { toAccountId: line.cashAccountId },
+            ],
           },
         });
         for (const tr of transfers) {
-          // Devolve saldo pra conta de origem
+          // origem do match = lado oposto ao banco no transfer
+          const originId = tr.fromAccountId === line.cashAccountId ? tr.toAccountId : tr.fromAccountId;
+          const isCredit = tr.toAccountId === line.cashAccountId; // origem -> banco
+          // Reversao do `origem.balance += -liquid` aplicada no match:
+          //  - liquid>0 (origem -> banco): origem perdeu amount, devolve += amount
+          //  - liquid<0 (banco -> origem): origem ganhou amount, retira -= amount
           await tx.cashAccount.update({
-            where: { id: tr.fromAccountId },
-            data: { currentBalanceCents: { increment: tr.amountCents } },
+            where: { id: originId },
+            data: {
+              currentBalanceCents: isCredit
+                ? { increment: tr.amountCents }
+                : { decrement: tr.amountCents },
+            },
           });
         }
         await tx.accountTransfer.deleteMany({
@@ -1971,9 +2010,14 @@ export class ReconciliationService {
           });
         }
 
-        // 5) Soft-delete entries criados como ajuste auto (marker [AUTO_RECONCILIATION_ADJUST])
+        // 5) Soft-delete entries criados como ajuste auto:
+        //    [AUTO_RECONCILIATION_ADJUST] (juros/multa, diff positivo) — desde v1.10.05
+        //    [AUTO_RECONCILIATION_DESCONTO] (descontos operadora, diff negativo) — v1.10.07
         const adjustIds = multiEntries
-          .filter((e) => (e.notes || '').includes('[AUTO_RECONCILIATION_ADJUST]'))
+          .filter((e) => {
+            const n = e.notes || '';
+            return n.includes('[AUTO_RECONCILIATION_ADJUST]') || n.includes('[AUTO_RECONCILIATION_DESCONTO]');
+          })
           .map((e) => e.id);
         if (adjustIds.length > 0) {
           await tx.financialEntry.updateMany({
@@ -1999,7 +2043,10 @@ export class ReconciliationService {
         status: 'UNMATCHED' as const,
         unmatchedMultiple: true,
         revertedPending: multiEntries.filter((e) => e.autoMarkedPaid).length,
-        deletedAdjusts: multiEntries.filter((e) => (e.notes || '').includes('[AUTO_RECONCILIATION_ADJUST]')).length,
+        deletedAdjusts: multiEntries.filter((e) => {
+          const n = e.notes || '';
+          return n.includes('[AUTO_RECONCILIATION_ADJUST]') || n.includes('[AUTO_RECONCILIATION_DESCONTO]');
+        }).length,
       };
     }
 
