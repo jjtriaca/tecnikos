@@ -1,13 +1,23 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.11 (em prod)
+## Versao: v1.10.12 (em prod)
 ## Ultima sessao: 181 (25/04/2026)
 
 ## PENDENTE PROXIMA SESSAO
 
+### 🟡 CardSettlement orfao apos match-multiple cartao com mistura
+- Quando user concilia entry RECEIVABLE de cartao via match-multiple com PAYABLE (descontos), o CardSettlement PENDING vinculado fica orfao
+- Caso ocorrido: FIN-00002 / CardSettlement `626cf832` PENDING R$ 8,24 (2,29%) — corrigido manualmente via SQL na sessao 181 (CANCELLED)
+- **Fix de codigo**: em `matchAsMultiple`, ao processar entry RECEIVABLE com `paymentMethod` cartao + opposite_type presente no batch, marcar CardSettlement vinculado como CANCELLED ou SETTLED (com `actualAmountCents` baseado no liquido real)
+
+### 🟡 Atualizar descricao do desconto ao atualizar taxa cadastrada
+- Hoje: clicar "Atualizar para X%" no overlay so atualiza CardFeeRate/PaymentInstrumentFeeRate, nao a descricao do desconto pre-populado ("Taxa cartão 2.29%" ficou estatica)
+- Caso ocorrido: FIN-00480 — corrigido manualmente via SQL na sessao 181
+- **Fix**: ao atualizar taxa via botao do overlay, regerar descricao da linha de desconto que tem plano 5200 ("Taxa cartão {newRate}%")
+
 ### 🟡 Melhorias UX possiveis (decididas como nao-prioritarias na sessao 181)
 - **Filtro "Recebido em SICREDI"** poderia incluir AccountTransfer entrando, alem de FinancialEntry com cashAccountId=SICREDI. Hoje entries de cartao ficam em VT mesmo apos conciliacao (design v1.09.94 preserva ciclo da maquininha) — visualmente confuso pra quem espera ver "tudo que entrou no banco". User decidiu manter design atual; melhoria seria opcional.
-- **Flag por PaymentInstrument**: "Apos conciliar, mover entry pra banco" (alternativa a manter em VT). Adia v1.10.12+.
+- **Flag por PaymentInstrument**: "Apos conciliar, mover entry pra banco" (alternativa a manter em VT). Adia v1.10.13+.
 
 ### 🟡 Fluxos legados que ainda criam FinancialInstallment
 - `finance.service.ts:981` (renegotiate com parcelas): continua criando FinancialInstallment legado. Migrar pro novo fluxo (entries filhas).

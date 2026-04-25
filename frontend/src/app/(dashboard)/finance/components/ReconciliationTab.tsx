@@ -909,6 +909,16 @@ function ConciliationModal({
       const updated = await api.patch<any>(endpoint, { feePercent: newRate });
       setMatchedRate({ ...matchedRate, ...updated });
       setConfigFeePercent(updated.feePercent);
+      // v1.10.13: regenera descricao das linhas de desconto que tem padrao auto "Taxa cartão X.XX%"
+      // (evita ficar incoerente com a taxa nova). Linhas editadas manualmente sao preservadas.
+      const autoTaxPattern = /^Taxa cart(ão|ao)\s+\d+([,.]\d+)?\s*%\s*$/i;
+      setDiscounts((prev) => prev.map((d) => {
+        const acc = financialAccounts.find((a) => a.id === d.financialAccountId);
+        if ((acc?.code === "5200" || /taxa\s*cart/i.test(d.description)) && autoTaxPattern.test(d.description)) {
+          return { ...d, description: `Taxa cartão ${newRate.toFixed(2)}%` };
+        }
+        return d;
+      }));
       toast(`Taxa atualizada para ${newRate.toFixed(2)}%`, "success");
     } catch (err: any) {
       toast(err?.response?.data?.message || "Erro ao atualizar taxa.", "error");

@@ -1495,6 +1495,7 @@ export class ReconciliationService {
         invoiceMatchLineId: true,
         financialAccountId: true,
         isRefundEntry: true,
+        paymentMethod: true,
       },
     });
     if (entries.length !== dto.entryIds.length) {
@@ -1646,6 +1647,28 @@ export class ReconciliationService {
           where: { id: originAccountId },
           data: { currentBalanceCents: { increment: -liquid } },
         });
+      }
+
+      // v1.10.13: se ha entries do tipo OPOSTO no batch (descontos cartao via overlay),
+      // cancela CardSettlements PENDING vinculados aos entries RECEIVABLE de cartao.
+      // Evita orfaos (taxa fica representada explicitamente pelos PAYABLE; settlement nao precisa mais).
+      if (sumOpposite > 0) {
+        const cardEntryIds = entries
+          .filter((e) => e.type === expectedType && e.paymentMethod?.startsWith('CARTAO'))
+          .map((e) => e.id);
+        if (cardEntryIds.length > 0) {
+          await tx.cardSettlement.updateMany({
+            where: {
+              companyId,
+              financialEntryId: { in: cardEntryIds },
+              status: 'PENDING',
+            },
+            data: {
+              status: 'CANCELLED',
+              notes: `[${tsLog}] Cancelado automaticamente — taxa cartao tratada via match-multiple (linha ${line.id.substring(0, 8)})`,
+            },
+          });
+        }
       }
 
       const updated = await tx.bankStatementLine.update({
