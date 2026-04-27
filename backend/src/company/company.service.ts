@@ -5,10 +5,23 @@ import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import sharp from 'sharp';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 const LOGO_ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const LOGO_MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+// v1.10.16: variantes geradas automaticamente ao fazer upload da logo.
+// Servidas pelo endpoint publico /api/public/tenant/:slug/logo/:variant
+// pra previews social (og:image), favicon, apple-touch-icon, PWA icons.
+const LOGO_VARIANTS = [
+  { name: 'favicon-32', size: 32, fit: 'contain' as const },
+  { name: 'icon-192', size: 192, fit: 'contain' as const },
+  { name: 'icon-512', size: 512, fit: 'contain' as const },
+  { name: 'apple-touch', size: 180, fit: 'contain' as const },
+  // og:image precisa ser 1200x630 (proporcao 1.91:1) — logo centralizada com fundo branco
+  { name: 'og', width: 1200, height: 630, fit: 'contain' as const },
+];
 
 const ALLOWED_FIELDS: (keyof UpdateCompanyDto)[] = [
   'name', 'tradeName', 'cnpj', 'ie', 'im',
@@ -111,6 +124,12 @@ export class CompanyService {
       data: { logoUrl },
     });
 
+    // v1.10.16: gera variantes (favicon, icons PWA, og:image) em paralelo.
+    // Sao usados pelo metadata dinamico em previews social, abas do navegador, PWA.
+    this.generateLogoVariants(companyId, file.buffer).catch(err =>
+      this.logger.warn(`Logo variants generation failed: ${err.message}`),
+    );
+
     // Sync logo as WhatsApp profile picture (fire-and-forget)
     if (this.whatsApp) {
       this.whatsApp.syncProfilePicture(companyId).catch(err =>
@@ -119,6 +138,55 @@ export class CompanyService {
     }
 
     return { logoUrl };
+  }
+
+  /**
+   * Gera variantes do logo em multiplos tamanhos (v1.10.16).
+   *
+   * Chamada apos upload pra produzir:
+   *  - favicon-32.png (aba navegador)
+   *  - apple-touch.png 180x180 (icone iOS)
+   *  - icon-192.png e icon-512.png (PWA + Android)
+   *  - og.png 1200x630 (Open Graph — preview WhatsApp/Facebook/Twitter)
+   *
+   * Salva em uploads/{companyId}/variants/{name}.png. Servidos pelo endpoint
+   * publico /api/public/tenant/:slug/branding e /api/public/tenant/:slug/logo/:variant.
+   *
+   * og.png usa fundo branco com logo centralizada (proporcao 1.91:1) — exigencia
+   * da Meta pra previews aparecerem corretamente.
+   */
+  private async generateLogoVariants(companyId: string, buffer: Buffer) {
+    const variantsDir = path.join(UPLOAD_DIR, companyId, 'variants');
+    fs.mkdirSync(variantsDir, { recursive: true });
+
+    for (const variant of LOGO_VARIANTS) {
+      try {
+        const outputPath = path.join(variantsDir, `${variant.name}.png`);
+        let pipeline = sharp(buffer);
+
+        if ('size' in variant) {
+          // Quadrado (favicon, apple-touch, icons PWA) — fundo transparente
+          pipeline = pipeline.resize(variant.size, variant.size, {
+            fit: variant.fit,
+            background: { r: 255, g: 255, b: 255, alpha: 0 },
+          });
+        } else {
+          // og:image 1200x630 — fundo branco solido (Meta nao renderiza alpha)
+          pipeline = pipeline.resize(variant.width, variant.height, {
+            fit: variant.fit,
+            background: { r: 255, g: 255, b: 255, alpha: 1 },
+          });
+        }
+
+        await pipeline.png().toFile(outputPath);
+      } catch (err) {
+        this.logger.warn(
+          `Falha gerando variante ${variant.name} pra ${companyId}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    this.logger.log(`Logo variants generated for company ${companyId}`);
   }
 
   async removeLogo(companyId: string) {
@@ -131,12 +199,43 @@ export class CompanyService {
       }
     }
 
+    // v1.10.16: limpa variantes geradas (favicon, icons PWA, og:image)
+    const variantsDir = path.join(UPLOAD_DIR, companyId, 'variants');
+    if (fs.existsSync(variantsDir)) {
+      try {
+        fs.rmSync(variantsDir, { recursive: true, force: true });
+      } catch (err) {
+        this.logger.warn(`Falha removendo variantes: ${(err as Error).message}`);
+      }
+    }
+
     await this.prisma.company.update({
       where: { id: companyId },
       data: { logoUrl: null },
     });
 
     return { logoUrl: null };
+  }
+
+  /**
+   * Backfill: gera variantes pra empresas que ja tem logoUrl mas nao tem variantes.
+   * Util pra rodar 1x apos deploy v1.10.16 nas empresas existentes.
+   */
+  async ensureLogoVariants(companyId: string): Promise<boolean> {
+    const company = await this.findOne(companyId);
+    if (!company.logoUrl) return false;
+
+    const variantsDir = path.join(UPLOAD_DIR, companyId, 'variants');
+    const ogPath = path.join(variantsDir, 'og.png');
+    if (fs.existsSync(ogPath)) return false; // ja tem
+
+    const safeName = path.basename(company.logoUrl);
+    const originalPath = path.join(UPLOAD_DIR, companyId, safeName);
+    if (!fs.existsSync(originalPath)) return false;
+
+    const buffer = fs.readFileSync(originalPath);
+    await this.generateLogoVariants(companyId, buffer);
+    return true;
   }
 
   async updateLogoDimensions(companyId: string, logoWidth: number, logoHeight: number) {

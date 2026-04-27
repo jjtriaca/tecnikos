@@ -1,14 +1,11 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.14 (em prod)
+## Versao: v1.10.15 (em prod)
 ## Ultima sessao: 182 (27/04/2026)
 
 ## PENDENTE PROXIMA SESSAO
 
-### 🟡 R$ 23,70 + R$ 296,30 historico SICREDI (ajuste cumulativo)
-- Apos correcoes da sessao 182, sistema(31/03) bate banco com diff R$ 23,70 (99,2% fechado).
-- Excesso interno SICREDI +R$ 296,30 (saldo > sum_calc): historico nao rastreavel sem audit log.
-- Caminho: implementar **feature "Rebalancear conta"** (v1.10.15+) — operacao auditavel na UI que cria entry tecnico isRefundEntry=true com motivo + AuditLog. Nao polui DRE.
+(nada urgente — auditoria SICREDI fechou 100% na sessao 182)
 
 ### 🟡 Melhorias UX possiveis (decididas como nao-prioritarias na sessao 181)
 - **Filtro "Recebido em SICREDI"** poderia incluir AccountTransfer entrando, alem de FinancialEntry com cashAccountId=SICREDI. Hoje entries de cartao ficam em VT mesmo apos conciliacao (design v1.09.94 preserva ciclo da maquininha) — visualmente confuso pra quem espera ver "tudo que entrou no banco". User decidiu manter design atual; melhoria seria opcional.
@@ -110,6 +107,20 @@
    - 3 AccountTransfers VT->SICREDI criados (R$ 157,60 + R$ 156 + R$ 5.181,10)
    - 3 entries de taxa criadas: FIN-00484 (R$ 2,40), FIN-00485 (R$ 4), FIN-00486 (R$ 78,90), todas PAYABLE PAID em VT, isRefundEntry=true, plano 5200
 - Resultado: saldo SICREDI 2.809,80 → 5.789,80. Diff caiu de R$ 3.003,70 pra R$ 23,70 (99,2%)
+
+### v1.10.15 — Feature "Rebalancear conta" + Fechamento 100% SICREDI
+- **Backend**: `cashAccountService.rebalance` (linha ~205) + endpoint `POST /finance/cash-accounts/:id/rebalance` em finance.controller.ts. DTO `RebalanceCashAccountDto` (direction CREDIT/DEBIT, amountCents, reason min 10 chars, financialAccountId opcional).
+- Cria entry tecnico isRefundEntry=true com motivo registrado em notes (marker `[REBALANCE_AJUSTE]`) + snapshot saldo antes/depois. Atualiza saldo em transacao atomica.
+- **Frontend**: botao "⚖" (Rebalancear) na tela CashAccountsTab.tsx (Configuracoes > Contas Caixa/Banco) abre modal com form: direcao, valor, motivo (textarea), plano de contas opcional. Preview ao vivo do saldo antes/depois. Validacoes: valor > 0 e motivo >= 10 chars.
+- Fechamento 100% SICREDI:
+  - **FIN-00487** RECEIVABLE R$ 296,30 PAID 31/03 isRefundEntry — registra mov ausente que gerou excesso de saldo (insert sem update saldo, compensa UPDATE antigo nao rastreado)
+  - **FIN-00488** RECEIVABLE R$ 23,70 PAID 31/03 isRefundEntry — diff residual conferencia banco
+  - **FIN-00287** (Marcia OS-00059, R$ 320 cartao credito 10/04): movido de cashAccountId NULL pra VT (aguardando deposito operadora ~10/05)
+- **Conferencia final**: sistema 31/03 = banco 31/03 = R$ 1.919,33. Saldo SICREDI bate sum_calc. Divergencia 0.
+
+### Operacional
+- Tenant SLS desbloqueado (07h cron AsaasService bloqueou — reativado na sessao 181)
+- Cron sync Asaas pode re-bloquear amanha se la continuar overdue
 
 ---
 
