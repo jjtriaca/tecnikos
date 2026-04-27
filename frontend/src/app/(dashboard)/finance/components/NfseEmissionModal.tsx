@@ -13,7 +13,7 @@ import nbsRef from "@/lib/nbs-ref.json";
    Phase 3: SEND   — Success + send via Email / WhatsApp
    =================================================================== */
 
-type Phase = "FORM" | "PROCESSING" | "SEND";
+type Phase = "OBRA_SELECTION" | "FORM" | "PROCESSING" | "SEND";
 
 interface Props {
   financialEntryId: string;
@@ -284,6 +284,25 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         const tpl = await api.get<{ infComplementares: string }>(`/nfse-emission/resolve-template/${financialEntryId}`);
         if (tpl.infComplementares) setInfComplementares(tpl.infComplementares);
       } catch { /* template is optional */ }
+
+      // v1.10.17: se tomador tem obras cadastradas, pula pra fase OBRA_SELECTION
+      // pra forcar confirmacao explicita de qual obra (mesmo que tenha so 1).
+      // User pode optar "sem obra" pra continuar como nota normal.
+      if (data.tomador?.partnerId) {
+        try {
+          const obrasDoTomador = await api.get<ObraOption[]>(
+            `/obras?partnerId=${data.tomador.partnerId}&activeOnly=true`,
+          );
+          if (obrasDoTomador && obrasDoTomador.length > 0) {
+            setObras(obrasDoTomador);
+            // Se entry ja tem obra vinculada (linkagem prevista), pre-seleciona
+            if (data.obra) setSelectedObraId(data.obra.id);
+            else if (obrasDoTomador.length === 1) setSelectedObraId(obrasDoTomador[0].id);
+            setPhase("OBRA_SELECTION");
+            return;
+          }
+        } catch { /* sem obras — fluxo normal */ }
+      }
     } catch (err: any) {
       setError(err?.message || "Erro ao carregar dados da NFS-e");
     } finally {
@@ -292,8 +311,8 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   }, [financialEntryId]);
 
   useEffect(() => {
-    if (open && phase === "FORM") loadPreview();
-  }, [open, loadPreview, phase]);
+    if (open && (phase === "FORM" || phase === "OBRA_SELECTION") && !preview) loadPreview();
+  }, [open, loadPreview, phase, preview]);
 
   // ═══════════════════════════════════════════
   // Fetch obras when tipo = OBRA
@@ -578,6 +597,93 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         </div>
 
         <div className="px-6 py-5 space-y-5">
+          {/* ════════════════════════════════════════════
+              PHASE 0: OBRA_SELECTION (v1.10.17)
+              Tomador tem obras cadastradas — exigir confirmacao explicita.
+              ════════════════════════════════════════════ */}
+          {phase === "OBRA_SELECTION" && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-800">⚠ Cliente possui obras cadastradas</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  {preview?.tomador?.razaoSocial} tem {obras.length} {obras.length === 1 ? "obra cadastrada" : "obras cadastradas"}.
+                  Confirme em qual obra esta nota sera emitida ou prossiga como nota normal (sem vinculo a obra).
+                </p>
+              </div>
+
+              {loadingObras ? (
+                <div className="space-y-2">
+                  <div className="h-20 animate-pulse rounded-lg bg-slate-100" />
+                  <div className="h-20 animate-pulse rounded-lg bg-slate-100" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {obras.map((o) => {
+                    const isSelected = selectedObraId === o.id;
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => setSelectedObraId(o.id)}
+                        className={`w-full text-left rounded-lg border-2 px-4 py-3 transition-colors ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-800">{o.name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              CNO: <span className="font-mono">{o.cno}</span>
+                            </p>
+                            {(o.addressStreet || o.city) && (
+                              <p className="text-[11px] text-slate-400 mt-1">
+                                {[o.addressStreet, o.addressNumber, o.neighborhood, o.city, o.state].filter(Boolean).join(", ")}
+                              </p>
+                            )}
+                          </div>
+                          {isSelected && (
+                            <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs">✓</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedObraId) {
+                      toast("Selecione uma obra ou clique em 'Emitir sem obra'.", "error");
+                      return;
+                    }
+                    setTipoNota("OBRA");
+                    setPhase("FORM");
+                  }}
+                  disabled={!selectedObraId}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold text-white rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Continuar com obra selecionada
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoNota("SERVICO");
+                    setSelectedObraId("");
+                    setPhase("FORM");
+                  }}
+                  className="px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200"
+                >
+                  Emitir sem obra
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ════════════════════════════════════════════
               PHASE 1: FORM
               ════════════════════════════════════════════ */}

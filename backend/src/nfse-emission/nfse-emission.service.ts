@@ -86,7 +86,8 @@ export class NfseEmissionService {
       where: { id: financialEntryId, companyId, deletedAt: null },
       include: {
         partner: true,
-        serviceOrder: { include: { assignedPartner: true } },
+        obra: true,
+        serviceOrder: { include: { assignedPartner: true, obra: true } },
       },
     });
     if (!entry) return template;
@@ -97,6 +98,8 @@ export class NfseEmissionService {
     const so = entry.serviceOrder;
     const partner = entry.partner;
     const tech = so?.assignedPartner;
+    // v1.10.16+: obra do entry direto (NFS-e tipo OBRA) ou da OS associada
+    const obra = entry.obra || so?.obra || null;
     const now = new Date();
     const brDate = new Date(now.getTime() - 3 * 60 * 60 * 1000);
 
@@ -110,6 +113,11 @@ export class NfseEmissionService {
     // Build client address
     const enderecoCliente = partner
       ? [partner.addressStreet, partner.addressNumber, partner.neighborhood, partner.city, partner.state].filter(Boolean).join(', ')
+      : '';
+
+    // Build endereco da obra (logradouro, numero, bairro, cidade/UF)
+    const enderecoObra = obra
+      ? [obra.addressStreet, obra.addressNumber, obra.neighborhood, obra.city, obra.state].filter(Boolean).join(', ')
       : '';
 
     // Variable map
@@ -133,6 +141,18 @@ export class NfseEmissionService {
       '{endereco_servico}': endereco,
       '{complemento_servico}': so?.addressComp || '',
       '{descricao_os}': so?.description || '',
+      // Obra (v1.10.16) — preenchido quando entry tem obraId direto OU OS tem obra associada
+      '{nome_obra}': obra?.name || '',
+      '{cno}': obra?.cno || '',
+      '{cno_obra}': obra?.cno || '',
+      '{endereco_obra}': enderecoObra,
+      '{logradouro_obra}': obra?.addressStreet || '',
+      '{numero_obra}': obra?.addressNumber || '',
+      '{complemento_obra}': obra?.addressComp || '',
+      '{bairro_obra}': obra?.neighborhood || '',
+      '{cidade_obra}': obra?.city || '',
+      '{uf_obra}': obra?.state || '',
+      '{cep_obra}': obra?.cep || '',
       // Nota
       '{valor_total}': `R$ ${(grossCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       '{numero_nfse}': '', // filled after emission
@@ -158,6 +178,22 @@ export class NfseEmissionService {
       .replace(/\S+:\s*(?=\s|$)/g, '')   // remove "label: " with empty value
       .replace(/\s{2,}/g, ' ')            // collapse multiple spaces
       .trim();
+
+    // v1.10.16: AUTO-INJECAO de dados da obra quando NFS-e tem obra mas o
+    // template nao inclui placeholder de obra (compat: usuario nao precisa
+    // editar template manual). Adiciona ao final.
+    const hasObraPlaceholder = /\{(?:nome_obra|cno(?:_obra)?|endereco_obra|logradouro_obra|cep_obra)\}/.test(template);
+    if (obra && !hasObraPlaceholder) {
+      const linhasObra: string[] = [];
+      if (obra.name) linhasObra.push(`Obra: ${obra.name}`);
+      if (obra.cno) linhasObra.push(`CNO: ${obra.cno}`);
+      if (enderecoObra) linhasObra.push(`Endereco da obra: ${enderecoObra}`);
+      if (obra.cep) linhasObra.push(`CEP da obra: ${obra.cep}`);
+      if (linhasObra.length > 0) {
+        result = (result ? `${result} | ` : '') + linhasObra.join(' | ');
+      }
+    }
+
     return result;
   }
 
