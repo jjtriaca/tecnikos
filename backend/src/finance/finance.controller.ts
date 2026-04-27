@@ -28,7 +28,7 @@ import { RenegotiateDto } from './dto/renegotiate.dto';
 import { CreateCollectionRuleDto, UpdateCollectionRuleDto } from './dto/collection-rule.dto';
 import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-method.dto';
 import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
-import { CreateCashAccountDto, UpdateCashAccountDto } from './dto/cash-account.dto';
+import { CreateCashAccountDto, UpdateCashAccountDto, RebalanceCashAccountDto } from './dto/cash-account.dto';
 import { CreateTransferDto } from './dto/transfer.dto';
 import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, MatchAsTransferDto } from './dto/reconciliation.dto';
 
@@ -280,6 +280,16 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.cashAccountService.remove(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('cash-accounts/:id/rebalance')
+  rebalanceCashAccount(
+    @Param('id') id: string,
+    @Body() dto: RebalanceCashAccountDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cashAccountService.rebalance(id, user.companyId, dto, user.email || user.id);
   }
 
   /* ── Transfers ───────────────────────────────────────── */

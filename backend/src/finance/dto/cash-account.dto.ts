@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsInt, IsEnum, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, IsEnum, IsDateString, MinLength, Min } from 'class-validator';
 
 export class CreateCashAccountDto {
   @IsString()
@@ -112,4 +112,21 @@ export class UpdateCashAccountDto {
   @IsOptional()
   @IsDateString()
   initialBalanceDate?: string;
+}
+
+export class RebalanceCashAccountDto {
+  @IsEnum(['CREDIT', 'DEBIT'])
+  direction: 'CREDIT' | 'DEBIT';
+
+  @IsInt()
+  @Min(1)
+  amountCents: number;
+
+  @IsString()
+  @MinLength(10, { message: 'Motivo deve ter ao menos 10 caracteres.' })
+  reason: string;
+
+  @IsOptional()
+  @IsString()
+  financialAccountId?: string;
 }

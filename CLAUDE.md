@@ -30,9 +30,16 @@
 6. **Toda movimentacao entre contas** deve ter AccountTransfer com transferDate (balance-compare depende disso)
 
 ### Timezone (regra de ouro):
-- Datas financeiras SEMPRE com `T12:00:00` (meio-dia) pra evitar bug UTC/BRT
-- NUNCA usar midnight (`T00:00:00`) em paidAt, dueDate ou transferDate
+- **USAR SEMPRE** os helpers de `backend/src/common/util/tenant-date.util.ts`:
+  - `tenantNoon(year, month, day)` pra criar dates financeiras
+  - `parseTenantDate(string)` pra parsear strings
+  - `breakInTenantTz(date)` pra extrair year/month/day no fuso BRT
+  - `startOfTenantDay(date)` / `endOfTenantDay(date)` pra ranges
+- **NUNCA** usar `new Date(year, month, day)` direto — fuso do servidor (UTC em prod) desloca pra dia anterior em BRT
+- **NUNCA** usar midnight (`T00:00:00`) em paidAt, dueDate, transferDate, statementBalanceDate
+- Datas financeiras SEMPRE no meio-dia BRT (12:00:00 -03:00 = 15:00 UTC) pra ficar dentro do mesmo dia em qualquer fuso
 - O filtro do backend usa `-03:00` (Brasilia) — midnight UTC vira dia anterior em BRT
+- Incidente v1.10.14 (25/04/2026): parser OFX criava `new Date(y,m,d,0,0,0)` no fuso UTC → DTASOF=20260331 virava 30/03 21:00 BRT, 339 registros backfillados (+15h)
 
 ## AUTORIZACAO GERAL DO USUARIO
 O usuario (Juliano) autoriza TODAS as acoes sem pedir confirmacao:

@@ -1,9 +1,14 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.13 (em prod)
-## Ultima sessao: 181 (25/04/2026)
+## Versao: v1.10.14 (em prod)
+## Ultima sessao: 182 (27/04/2026)
 
 ## PENDENTE PROXIMA SESSAO
+
+### 🟡 R$ 23,70 + R$ 296,30 historico SICREDI (ajuste cumulativo)
+- Apos correcoes da sessao 182, sistema(31/03) bate banco com diff R$ 23,70 (99,2% fechado).
+- Excesso interno SICREDI +R$ 296,30 (saldo > sum_calc): historico nao rastreavel sem audit log.
+- Caminho: implementar **feature "Rebalancear conta"** (v1.10.15+) — operacao auditavel na UI que cria entry tecnico isRefundEntry=true com motivo + AuditLog. Nao polui DRE.
 
 ### 🟡 Melhorias UX possiveis (decididas como nao-prioritarias na sessao 181)
 - **Filtro "Recebido em SICREDI"** poderia incluir AccountTransfer entrando, alem de FinancialEntry com cashAccountId=SICREDI. Hoje entries de cartao ficam em VT mesmo apos conciliacao (design v1.09.94 preserva ciclo da maquininha) — visualmente confuso pra quem espera ver "tudo que entrou no banco". User decidiu manter design atual; melhoria seria opcional.
@@ -81,6 +86,30 @@
 ### v1.10.13 — Auto-cancelamento de CardSettlement + sync descricao taxa
 - Backend `matchAsMultiple`: ao detectar `sumOpposite > 0` (descontos via overlay), cancela CardSettlements PENDING vinculados aos entries RECEIVABLE de cartao no batch. Evita orfaos automaticamente
 - Frontend `updateRateBy`: ao clicar "Atualizar para X%" no overlay, regenera descricao das linhas de desconto que matcham padrao auto `^Taxa cart(ao|ão) X.XX%$`. Linhas editadas manualmente sao preservadas
+
+---
+
+## Sessao 182 — Timezone fix sistemico + Auditoria SICREDI (27/04/2026)
+
+### v1.10.14 — Helper tenantDate centralizado + fix parser OFX + backfill
+- **Bug raiz**: `parseOfxDate` em `ofx-parser.service.ts` usava `new Date(year, month-1, day, 0, 0, 0)` que no servidor UTC virava `00:00 UTC = 21:00 BRT do dia anterior`. DTASOF=20260331 ficava 30/03 BR.
+- Helper centralizado `backend/src/common/util/tenant-date.util.ts`: `tenantNoon`, `parseTenantDate`, `breakInTenantTz`, `startOfTenantDay`, `endOfTenantDay`. Padrao: meio-dia BRT (12:00 -03:00 = 15:00 UTC) — fica dentro do mesmo dia em qualquer fuso
+- Fixes: parser OFX, `getBrazilianPeriod`, `getStatementBalanceCompare` (D = endOfTenantDay), boleto Sicredi provider (paidAt do webhook)
+- Backfill 339 registros tenant_sls (+15h em colunas de data com hora=0): 68 BankStatementLine.transactionDate, 2 BankStatement.statementBalanceDate, 83 FinancialEntry.paidAt, 178 dueDate, 8 AccountTransfer.transferDate
+- CLAUDE.md atualizado proibindo `new Date(y,m,d)` em codigo financeiro
+
+### Auditoria SICREDI: diff R$ 3.003,70 (banco vs sistema 31/03)
+- **Causas rastreadas (R$ 2.980)**: Royalle cleanup 24/04 criou AccountTransfer 2.980 mas saldo SICREDI nao foi creditado (bug do cleanup script).
+- **Causas rastreadas (R$ 85,30)**: 3 conciliacoes legacy de cartao (FIN-00336/335/272) com codigo pre-v1.09.94 — entry foi criado em SICREDI direto com gross, saldo recebeu liquido, taxa nao foi lancada.
+- **R$ 320,00 inexplicado** (R$ 296,30 excesso interno SICREDI + R$ 23,70 residual): historico nao rastreavel sem audit log de UPDATEs em CashAccount.
+
+### Fix aplicado em prod (script `fix-sicredi-balance-2026-04-27.sql`)
+1. **Royalle**: `UPDATE SICREDI saldo += R$ 2.980` (refletindo AccountTransfer ja existente)
+2. **3 conciliacoes legacy refeitas via fluxo transito v1.09.94**:
+   - Entries FIN-00336/335/272 movidos pra VT
+   - 3 AccountTransfers VT->SICREDI criados (R$ 157,60 + R$ 156 + R$ 5.181,10)
+   - 3 entries de taxa criadas: FIN-00484 (R$ 2,40), FIN-00485 (R$ 4), FIN-00486 (R$ 78,90), todas PAYABLE PAID em VT, isRefundEntry=true, plano 5200
+- Resultado: saldo SICREDI 2.809,80 → 5.789,80. Diff caiu de R$ 3.003,70 pra R$ 23,70 (99,2%)
 
 ---
 

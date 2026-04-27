@@ -145,4 +145,102 @@ export class CashAccountService {
       },
     });
   }
+
+  /**
+   * Rebalance — operacao auditavel para corrigir divergencias historicas (v1.10.15+).
+   *
+   * Cria entry tecnico (isRefundEntry=true) com descricao + motivo. Saldo atualiza
+   * pela criacao do entry. Nao polui DRE/MRR (isRefundEntry filtra esses entries
+   * em relatorios de cliente).
+   *
+   * Uso: ajuste de saldo historico nao rastreavel (cleanup scripts antigos, UPDATE
+   * direto na CashAccount no passado etc.). Cada uso fica registrado com motivo
+   * em `notes` (marker `[REBALANCE_AJUSTE]`) e snapshot antes/depois.
+   */
+  async rebalance(
+    cashAccountId: string,
+    companyId: string,
+    dto: {
+      direction: 'CREDIT' | 'DEBIT';
+      amountCents: number;
+      reason: string;
+      financialAccountId?: string;
+    },
+    userName: string,
+  ) {
+    if (!dto.amountCents || dto.amountCents <= 0) {
+      throw new BadRequestException('Valor do rebalanceamento deve ser positivo.');
+    }
+    if (!dto.reason || dto.reason.trim().length < 10) {
+      throw new BadRequestException(
+        'Motivo do rebalanceamento e obrigatorio (minimo 10 caracteres).',
+      );
+    }
+
+    const account = await this.prisma.cashAccount.findFirst({
+      where: { id: cashAccountId, companyId, deletedAt: null },
+    });
+    if (!account) throw new NotFoundException('Conta nao encontrada.');
+    if (!account.isActive) {
+      throw new BadRequestException('Conta inativa nao pode ser rebalanceada.');
+    }
+
+    if (dto.financialAccountId) {
+      const fa = await this.prisma.financialAccount.findFirst({
+        where: {
+          id: dto.financialAccountId,
+          companyId,
+          isActive: true,
+          allowPosting: true,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (!fa) throw new BadRequestException('Plano de contas invalido ou inativo.');
+    }
+
+    const code = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+    const tsLog = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const balanceBefore = account.currentBalanceCents;
+    const delta = dto.direction === 'CREDIT' ? dto.amountCents : -dto.amountCents;
+    const now = new Date();
+
+    return this.prisma.$transaction(async (tx) => {
+      const entry = await tx.financialEntry.create({
+        data: {
+          companyId,
+          code,
+          type: dto.direction === 'CREDIT' ? 'RECEIVABLE' : 'PAYABLE',
+          status: 'PAID',
+          description: `Ajuste de saldo ${dto.direction === 'CREDIT' ? '(credito)' : '(debito)'} — ${dto.reason.trim()}`,
+          grossCents: dto.amountCents,
+          netCents: dto.amountCents,
+          paidAt: now,
+          confirmedAt: now,
+          dueDate: now,
+          cashAccountId,
+          financialAccountId: dto.financialAccountId || null,
+          isRefundEntry: true,
+          notes: `[REBALANCE_AJUSTE] ${tsLog} — ${userName}\nMotivo: ${dto.reason.trim()}\nSaldo antes: R$ ${(balanceBefore / 100).toFixed(2)}\nDelta: ${delta >= 0 ? '+' : ''}R$ ${(delta / 100).toFixed(2)}`,
+        },
+      });
+
+      await tx.cashAccount.update({
+        where: { id: cashAccountId },
+        data: { currentBalanceCents: { increment: delta } },
+      });
+
+      const accountAfter = await tx.cashAccount.findUnique({
+        where: { id: cashAccountId },
+        select: { currentBalanceCents: true },
+      });
+
+      return {
+        entry,
+        balanceBefore,
+        balanceAfter: accountAfter!.currentBalanceCents,
+        deltaCents: delta,
+      };
+    });
+  }
 }

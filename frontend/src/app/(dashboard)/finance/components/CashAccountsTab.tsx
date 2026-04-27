@@ -191,7 +191,65 @@ function AccountsSection() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CashAccount | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // v1.10.15: rebalancear conta — operacao auditavel pra ajustar saldo historico
+  const [rebalanceTarget, setRebalanceTarget] = useState<CashAccount | null>(null);
+  const [rebalanceDirection, setRebalanceDirection] = useState<"CREDIT" | "DEBIT">("CREDIT");
+  const [rebalanceAmountText, setRebalanceAmountText] = useState("");
+  const [rebalanceReason, setRebalanceReason] = useState("");
+  const [rebalanceAccountId, setRebalanceAccountId] = useState("");
+  const [rebalanceAccounts, setRebalanceAccounts] = useState<{ id: string; code: string; name: string; type: string }[]>([]);
+  const [rebalancing, setRebalancing] = useState(false);
   const { toast } = useToast();
+
+  function openRebalance(acc: CashAccount) {
+    setRebalanceTarget(acc);
+    setRebalanceDirection("CREDIT");
+    setRebalanceAmountText("");
+    setRebalanceReason("");
+    setRebalanceAccountId("");
+    api.get<{ id: string; code: string; name: string; type: string }[]>("/finance/accounts/postable")
+      .then((accs) => setRebalanceAccounts(accs || []))
+      .catch(() => setRebalanceAccounts([]));
+  }
+
+  function closeRebalance() {
+    setRebalanceTarget(null);
+    setRebalanceAmountText("");
+    setRebalanceReason("");
+    setRebalanceAccountId("");
+  }
+
+  async function handleRebalance() {
+    if (!rebalanceTarget) return;
+    const amountCents = Math.round((parseFloat(rebalanceAmountText.replace(/\./g, "").replace(",", ".")) || 0) * 100);
+    if (amountCents <= 0) {
+      toast("Informe um valor positivo.", "error");
+      return;
+    }
+    if (rebalanceReason.trim().length < 10) {
+      toast("Motivo deve ter ao menos 10 caracteres.", "error");
+      return;
+    }
+    setRebalancing(true);
+    try {
+      const result = await api.post<{ balanceBefore: number; balanceAfter: number; deltaCents: number; entry: { code: string } }>(
+        `/finance/cash-accounts/${rebalanceTarget.id}/rebalance`,
+        {
+          direction: rebalanceDirection,
+          amountCents,
+          reason: rebalanceReason.trim(),
+          financialAccountId: rebalanceAccountId || undefined,
+        },
+      );
+      toast(`Saldo ajustado: ${formatCurrency(result.balanceBefore)} → ${formatCurrency(result.balanceAfter)} (${result.entry.code})`, "success");
+      closeRebalance();
+      loadAccounts();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao rebalancear.", "error");
+    } finally {
+      setRebalancing(false);
+    }
+  }
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -455,6 +513,17 @@ function AccountsSection() {
                     {acc.type === "CARTAO_CREDITO" && (
                       <span className="text-[10px] text-slate-400 italic px-2">Gerenciado em Meios de Pagamento</span>
                     )}
+                    {acc.type !== "CARTAO_CREDITO" && (
+                      <button
+                        onClick={() => openRebalance(acc)}
+                        className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:text-amber-600 hover:border-amber-300 transition-colors"
+                        title="Rebalancear saldo (ajuste auditavel)"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 6m0 0l-3 6m3-6h12m-3 6l3-6m0 0l-3-6" />
+                        </svg>
+                      </button>
+                    )}
                     {acc.type !== "TRANSITO" && acc.type !== "CARTAO_CREDITO" && (
                       <button
                         onClick={() => setDeleteTarget(acc)}
@@ -713,6 +782,130 @@ function AccountsSection() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* Rebalance modal — ajuste de saldo auditavel (v1.10.15) */}
+      {rebalanceTarget && (() => {
+        const amountCents = Math.round((parseFloat(rebalanceAmountText.replace(/\./g, "").replace(",", ".")) || 0) * 100);
+        const delta = rebalanceDirection === "CREDIT" ? amountCents : -amountCents;
+        const previewBalance = rebalanceTarget.currentBalanceCents + delta;
+        const reasonOk = rebalanceReason.trim().length >= 10;
+        const valueOk = amountCents > 0;
+        const accountTypeFilter = rebalanceDirection === "CREDIT" ? "REVENUE" : "EXPENSE";
+        const filteredAccounts = rebalanceAccounts.filter((a: any) => a.type === accountTypeFilter);
+        return (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeRebalance} />
+            <div className="relative mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
+              <h3 className="text-lg font-bold text-amber-700 mb-1">⚖ Rebalancear conta</h3>
+              <p className="text-xs text-slate-500 mb-4">
+                Ajuste auditavel pra corrigir divergencia historica. Cria entry tecnico (nao polui DRE) com motivo registrado.
+              </p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 mb-4">
+                <p className="text-[11px] text-slate-500">{rebalanceTarget.name}</p>
+                <p className="text-sm font-semibold text-slate-800">Saldo atual: {formatCurrency(rebalanceTarget.currentBalanceCents)}</p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Direcao do ajuste *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRebalanceDirection("CREDIT")}
+                      className={`rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors ${
+                        rebalanceDirection === "CREDIT"
+                          ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 hover:border-slate-300 text-slate-600"
+                      }`}
+                    >
+                      + Credito (somar saldo)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRebalanceDirection("DEBIT")}
+                      className={`rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors ${
+                        rebalanceDirection === "DEBIT"
+                          ? "border-rose-400 bg-rose-50 text-rose-700"
+                          : "border-slate-200 hover:border-slate-300 text-slate-600"
+                      }`}
+                    >
+                      − Debito (subtrair saldo)
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Valor *</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={rebalanceAmountText}
+                    onChange={(e) => setRebalanceAmountText(e.target.value)}
+                    onBlur={(e) => {
+                      const num = parseFloat(e.target.value.replace(/\./g, "").replace(",", "."));
+                      if (!isNaN(num) && num > 0) setRebalanceAmountText(num.toFixed(2).replace(".", ","));
+                    }}
+                    placeholder="0,00"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Motivo * <span className="text-[10px] text-slate-400">(min 10 caracteres)</span>
+                  </label>
+                  <textarea
+                    value={rebalanceReason}
+                    onChange={(e) => setRebalanceReason(e.target.value)}
+                    rows={3}
+                    placeholder="Ex: Ajuste cumulativo historico — divergencia detectada na auditoria de 27/04/2026"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5">{rebalanceReason.trim().length} / 10+ caracteres</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Plano de contas (opcional)</label>
+                  <select
+                    value={rebalanceAccountId}
+                    onChange={(e) => setRebalanceAccountId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="">— sem plano —</option>
+                    {filteredAccounts.map((a: any) => (
+                      <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {valueOk && (
+                  <div className={`rounded-lg border px-3 py-2 ${delta >= 0 ? "border-emerald-300 bg-emerald-50" : "border-rose-300 bg-rose-50"}`}>
+                    <p className="text-[11px] text-slate-600">Preview do ajuste:</p>
+                    <p className="text-sm font-semibold">
+                      {formatCurrency(rebalanceTarget.currentBalanceCents)}{" "}
+                      <span className={delta >= 0 ? "text-emerald-700" : "text-rose-700"}>
+                        {delta >= 0 ? "+" : ""}{formatCurrency(delta)}
+                      </span>{" "}
+                      = <span className="font-bold">{formatCurrency(previewBalance)}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  onClick={closeRebalance}
+                  disabled={rebalancing}
+                  className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleRebalance}
+                  disabled={rebalancing || !valueOk || !reasonOk}
+                  className="px-5 py-2 text-sm font-semibold text-white rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {rebalancing ? "Aplicando..." : "Aplicar ajuste"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
