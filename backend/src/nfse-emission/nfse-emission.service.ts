@@ -186,11 +186,26 @@ export class NfseEmissionService {
     for (const [key, val] of Object.entries(vars)) {
       result = result.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), val);
     }
-    // Sanitize: remove labels followed by empty values (e.g. "IE: " when IE is empty)
-    result = result
-      .replace(/\S+:\s*(?=\s|$)/g, '')   // remove "label: " with empty value
-      .replace(/\s{2,}/g, ' ')            // collapse multiple spaces
-      .trim();
+    // v1.10.21: sanitization robusta — quando template usa formato com "|" como
+    // separador de segmentos (ex: "Servico: {x} | OS: {y} | IE: {z}"), remove
+    // segmentos inteiros que ficaram com label sem valor. Tambem limpa pipes
+    // duplicados e bordas.
+    if (result.includes('|')) {
+      const segments = result.split('|').map((s) => s.trim());
+      const cleaned = segments.filter((seg) => {
+        if (!seg) return false;
+        // Segmento que e so "Label:" ou "Label palavras:" sem valor apos
+        if (/^[A-Za-zÀ-ÿ][\wÀ-ÿ\s]*:\s*$/.test(seg)) return false;
+        return true;
+      });
+      result = cleaned.join(' | ');
+    } else {
+      // Template sem pipes — fallback antigo: remove "label:" + colapsa espacos
+      result = result
+        .replace(/\S+:\s*(?=\s|$)/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
 
     // v1.10.16: AUTO-INJECAO de dados da obra quando NFS-e tem obra mas o
     // template nao inclui placeholder de obra (compat: usuario nao precisa
