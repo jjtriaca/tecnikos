@@ -100,8 +100,6 @@ interface NfsePreview {
   }[];
 }
 
-type TipoNota = "SERVICO" | "OBRA";
-
 interface ObraOption {
   id: string;
   name: string;
@@ -186,8 +184,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [aliquotaIss, setAliquotaIss] = useState("");
   const [issRetido, setIssRetido] = useState(false);
 
-  // Tipo de nota + Obra state
-  const [tipoNota, setTipoNota] = useState<TipoNota>("SERVICO");
+  // Obra state (tipoNota é sempre SERVICO no padrão Nacional — obra é só bloco anexado)
   const [obras, setObras] = useState<ObraOption[]>([]);
   const [selectedObraId, setSelectedObraId] = useState<string>("");
   const [loadingObras, setLoadingObras] = useState(false);
@@ -268,14 +265,9 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       setDiscriminacao(data.servico.discriminacao);
       setAliquotaIss(String(data.servico.aliquotaIss || ""));
       setIssRetido(data.servico.issRetido);
-      // Set tipo nota default based on linked obra
-      if (data.obra) {
-        setTipoNota("OBRA");
-        setSelectedObraId(data.obra.id);
-      } else {
-        setTipoNota("SERVICO");
-        setSelectedObraId("");
-      }
+      // Pré-seleciona obra do entry (se vinculada). Tipo é sempre SERVICO no padrão Nacional.
+      if (data.obra) setSelectedObraId(data.obra.id);
+      else setSelectedObraId("");
       // Set defaults from config
       setSendEmail(data.config.sendEmailToTomador);
       setSendWhatsApp(data.config.afterEmissionSendWhatsApp);
@@ -315,11 +307,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   }, [open, loadPreview, phase, preview]);
 
   // ═══════════════════════════════════════════
-  // Fetch obras when tipo = OBRA
+  // Fetch obras quando partner tem obras cadastradas (independente do tipo)
   // ═══════════════════════════════════════════
   useEffect(() => {
-    if (tipoNota !== "OBRA" || !preview?.tomador?.partnerId) {
-      setObras([]);
+    if (!preview?.tomador?.partnerId) {
       return;
     }
     let cancelled = false;
@@ -327,18 +318,27 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       setLoadingObras(true);
       try {
         const data = await api.get<ObraOption[]>(`/obras?partnerId=${preview.tomador.partnerId}&activeOnly=true`);
-        if (!cancelled) setObras(data);
+        if (!cancelled && data && data.length > 0) setObras(data);
       } catch {
-        if (!cancelled) setObras([]);
+        /* silencioso — sem obras é o caso normal */
       } finally {
         if (!cancelled) setLoadingObras(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [tipoNota, preview?.tomador?.partnerId]);
+  }, [preview?.tomador?.partnerId]);
 
   // Derived: selected obra object
   const selectedObra = obras.find((o) => o.id === selectedObraId) || (preview?.obra?.id === selectedObraId ? preview.obra : null);
+
+  // Derived: cTribNac selecionado e se é construção civil (07.xx) — exige obra
+  const selectedServiceCode = preview?.serviceCodes?.find((sc) => sc.id === selectedServiceCodeId);
+  const cTribNacAtivo = selectedServiceCode?.codigo
+    || preview?.config?.codigoTributarioNacionalServico
+    || preview?.config?.codigoTributarioNacional
+    || "";
+  const isConstrucaoCivil = cTribNacAtivo.startsWith("07");
+  const showObraBlock = isConstrucaoCivil || obras.length > 0 || !!selectedObraId;
 
   // ═══════════════════════════════════════════
   // Polling logic for PROCESSING phase
@@ -404,17 +404,20 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
     if (!tomadorUf) { toast("UF do tomador e obrigatoria.", "error"); return; }
     if (!tomadorCep) { toast("CEP do tomador e obrigatorio.", "error"); return; }
     if (!tomadorCodigoMunicipio) { toast("Codigo do municipio (IBGE) do tomador e obrigatorio.", "error"); return; }
-    if (tipoNota === "OBRA" && !selectedObraId) { toast("Selecione uma obra para emitir nota de obra.", "error"); return; }
+    if (isConstrucaoCivil && !selectedObraId) {
+      toast(`Código ${cTribNacAtivo} é construção civil — selecione a obra antes de emitir.`, "error");
+      return;
+    }
 
     setEmitting(true);
     try {
       const result = await api.post<EmissionData>("/nfse-emission/emit", {
         financialEntryId,
         serviceOrderId: preview.financialEntry.serviceOrderId,
-        tipoNota,
+        tipoNota: "SERVICO",
         ...(selectedServiceCodeId ? { serviceCodeId: selectedServiceCodeId } : {}),
         ...(selectedNbs ? { codigoNbs: selectedNbs } : {}),
-        ...(tipoNota === "OBRA" && selectedObraId ? { obraId: selectedObraId } : {}),
+        ...(selectedObraId ? { obraId: selectedObraId } : {}),
         tomadorCnpjCpf,
         tomadorRazaoSocial,
         tomadorEmail,
@@ -661,10 +664,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                       toast("Selecione uma obra ou clique em 'Emitir sem obra'.", "error");
                       return;
                     }
-                    setTipoNota("OBRA");
-                    // v1.10.20: re-fetch template incluindo obra selecionada
-                    // (caso entry nao tenha obra vinculada nativamente, mas user
-                    // confirmou que esta nota e da obra X)
+                    // re-fetch template incluindo obra selecionada (auto-injeta dados da obra na Obs)
                     try {
                       const tpl = await api.get<{ infComplementares: string }>(
                         `/nfse-emission/resolve-template/${financialEntryId}?obraId=${selectedObraId}`,
@@ -681,7 +681,6 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                 <button
                   type="button"
                   onClick={() => {
-                    setTipoNota("SERVICO");
                     setSelectedObraId("");
                     setPhase("FORM");
                   }}
@@ -865,65 +864,47 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                   <div className="rounded-lg border border-slate-200 p-4">
                     <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Servico</h3>
 
-                    {/* Tipo de NFS-e toggle */}
+                    {/* Servico (cTribNac selector) — sempre tipo SERVICO no padrão Nacional */}
                     <div className="mb-4">
-                      <label className="block text-xs font-medium text-slate-600 mb-1.5">Tipo de NFS-e</label>
-                      <div className="flex gap-1 rounded-lg border border-slate-300 p-1">
-                        {(["SERVICO", "OBRA"] as TipoNota[]).map((t) => (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => { setTipoNota(t); setSelectedServiceCodeId(""); }}
-                            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                              tipoNota === t
-                                ? "bg-blue-600 text-white"
-                                : "text-slate-600 hover:bg-slate-100"
-                            }`}
-                          >
-                            {t === "SERVICO" ? "Servico" : "Obra"}
-                          </button>
-                        ))}
-                      </div>
-                      {/* Servico habilitado (cTribNac selector) */}
-                      <div className="mt-3">
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Servico *</label>
-                        {(preview.serviceCodes || []).filter(sc => sc.tipo === tipoNota).length > 0 ? (
-                          <select
-                            value={selectedServiceCodeId}
-                            onChange={(e) => {
-                              const id = e.target.value;
-                              setSelectedServiceCodeId(id);
-                              setSelectedNbs(""); setNbsSearch("");
-                              const sc = (preview.serviceCodes || []).find(s => s.id === id);
-                              if (sc) {
-                                if (sc.aliquotaIss != null) setAliquotaIss(String(sc.aliquotaIss));
-                              }
-                            }}
-                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                          >
-                            <option value="">Selecione o servico...</option>
-                            {(preview.serviceCodes || []).filter(sc => sc.tipo === tipoNota).map((sc) => (
-                              <option key={sc.id} value={sc.id}>
-                                {sc.codigo} — {sc.descricao}{sc.codigoNbs ? ` (NBS: ${sc.codigoNbs})` : ""}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <>
-                            <input
-                              type="text"
-                              readOnly
-                              value={
-                                tipoNota === "SERVICO"
-                                  ? preview.config.codigoTributarioNacionalServico || preview.config.codigoTributarioNacional || ""
-                                  : preview.config.codigoTributarioNacional || ""
-                              }
-                              className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 font-medium outline-none cursor-default"
-                            />
-                            <p className="mt-1 text-xs text-amber-600">Nenhum servico cadastrado. Configure em Configuracoes &gt; Fiscal &gt; Servicos Habilitados.</p>
-                          </>
-                        )}
-                      </div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Serviço *</label>
+                      {(preview.serviceCodes || []).length > 0 ? (
+                        <select
+                          value={selectedServiceCodeId}
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            setSelectedServiceCodeId(id);
+                            setSelectedNbs(""); setNbsSearch("");
+                            const sc = (preview.serviceCodes || []).find(s => s.id === id);
+                            if (sc) {
+                              if (sc.aliquotaIss != null) setAliquotaIss(String(sc.aliquotaIss));
+                            }
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                          <option value="">Selecione o serviço...</option>
+                          {(preview.serviceCodes || []).map((sc) => (
+                            <option key={sc.id} value={sc.id}>
+                              {sc.codigo} — {sc.descricao}{sc.codigoNbs ? ` (NBS: ${sc.codigoNbs})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <>
+                          <input
+                            type="text"
+                            readOnly
+                            value={preview.config.codigoTributarioNacionalServico || preview.config.codigoTributarioNacional || ""}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 font-medium outline-none cursor-default"
+                          />
+                          <p className="mt-1 text-xs text-amber-600">Nenhum serviço cadastrado. Configure em Configurações &gt; Fiscal &gt; Serviços Habilitados.</p>
+                        </>
+                      )}
+                      {isConstrucaoCivil && (
+                        <p className="mt-1 text-xs text-amber-700 flex items-center gap-1">
+                          <span>&#9888;</span>
+                          Código {cTribNacAtivo} é construção civil — informar a obra é obrigatório.
+                        </p>
+                      )}
                     </div>
 
                     {/* NBS selector — shown when a service code is selected */}
@@ -978,30 +959,31 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                       </div>
                     )}
 
-                    {/* Obra selector (only when tipo=OBRA) */}
-                    {tipoNota === "OBRA" && (
-                      <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-2">
-                        <label className="block text-xs font-medium text-amber-800 mb-1">Obra *</label>
+                    {/* Obra (bloco anexado ao serviço — obrigatório se cTribNac é 07.xx) */}
+                    {showObraBlock && (
+                      <div className={`mb-4 rounded-lg border p-3 space-y-2 ${isConstrucaoCivil ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"}`}>
+                        <label className={`block text-xs font-medium mb-1 ${isConstrucaoCivil ? "text-amber-800" : "text-slate-700"}`}>
+                          Obra {isConstrucaoCivil ? "*" : "(opcional)"}
+                        </label>
                         {loadingObras ? (
-                          <div className="h-9 animate-pulse rounded-lg bg-amber-100" />
+                          <div className="h-9 animate-pulse rounded-lg bg-slate-100" />
                         ) : obras.length === 0 && !preview.obra ? (
                           <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-700 space-y-1">
                             <p className="font-semibold">Nenhuma obra cadastrada para este parceiro.</p>
-                            <p>Para emitir NFS-e de obra, primeiro cadastre a obra (CNO + endereço) no cadastro do parceiro: <strong>Parceiros &gt; Editar &gt; Obras</strong>.</p>
+                            <p>Para emitir NFS-e de construção civil, primeiro cadastre a obra (CNO + endereço) em <strong>Parceiros &gt; Editar &gt; Obras</strong>.</p>
                           </div>
                         ) : (
                           <select
                             value={selectedObraId}
                             onChange={(e) => setSelectedObraId(e.target.value)}
-                            className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${isConstrucaoCivil ? "border-amber-300" : "border-slate-300"}`}
                           >
-                            <option value="">Selecione uma obra...</option>
+                            <option value="">{isConstrucaoCivil ? "Selecione uma obra..." : "Sem obra (serviço sem vínculo a obra)"}</option>
                             {obras.map((o) => (
                               <option key={o.id} value={o.id}>
                                 {o.name} — CNO: {o.cno}
                               </option>
                             ))}
-                            {/* If preview.obra exists but is not in the obras list (e.g. inactive), still show it */}
                             {preview.obra && !obras.find((o) => o.id === preview.obra!.id) && (
                               <option key={preview.obra.id} value={preview.obra.id}>
                                 {preview.obra.name} — CNO: {preview.obra.cno}
@@ -1009,12 +991,11 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                             )}
                           </select>
                         )}
-                        {/* Selected obra details */}
                         {selectedObra && (
-                          <div className="rounded-md bg-white border border-amber-200 px-3 py-2 text-xs text-slate-700 space-y-0.5">
+                          <div className="rounded-md bg-white border border-slate-200 px-3 py-2 text-xs text-slate-700 space-y-0.5">
                             <div><span className="text-slate-500">CNO:</span> <span className="font-medium">{selectedObra.cno}</span></div>
                             <div>
-                              <span className="text-slate-500">Endereco:</span>{" "}
+                              <span className="text-slate-500">Endereço:</span>{" "}
                               <span className="font-medium">
                                 {selectedObra.addressStreet}, {selectedObra.addressNumber}
                                 {selectedObra.addressComp ? ` - ${selectedObra.addressComp}` : ""}
@@ -1273,7 +1254,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
               </button>
               <button
                 onClick={handleEmit}
-                disabled={emitting || loading || !!error || (tipoNota === "OBRA" && !selectedObraId)}
+                disabled={emitting || loading || !!error || (isConstrucaoCivil && !selectedObraId)}
                 className="rounded-lg bg-teal-600 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
               >
                 {emitting ? "Emitindo..." : "Confirmar e Emitir NFS-e"}

@@ -87,12 +87,27 @@ export interface FocusNfsenRequest {
   // Informações complementares (texto livre no PDF)
   informacoes_complementares?: string;
   // Informações de Obra (obrigatório para cTribNac 07.02.xx, 07.04.xx, etc.)
-  codigo_obra?: string;           // CNO - Cadastro Nacional de Obras
-  logradouro_obra?: string;
-  numero_obra?: string;
-  complemento_obra?: string;
-  bairro_obra?: string;
-  cep_obra?: number;              // CEP numérico (sem hífen)
+  // Estrutura aninhada conforme NFSe Nacional (DPS) — TCInfoObra
+  obra?: {
+    codigo?: string;                  // CNO/CEI (1-30 chars)
+    art?: string;                     // ART opcional (1-15 chars)
+    inscricao_imobiliaria?: string;   // inscImobFisc opcional (1-30 chars)
+    id_obra?: string;                 // id opcional (1-15 chars)
+    codigo_cib?: string;              // CCIB opcional (8 chars)
+    endereco?: {
+      logradouro?: string;            // xLgr (1-255 chars)
+      numero?: string;                // nro (1-60 chars)
+      complemento?: string;           // xCpl (0-156 chars)
+      bairro?: string;                // xBairro (1-60 chars)
+      codigo_municipio?: number;      // cMun (IBGE 7 dígitos)
+      uf?: string;                    // UF (2 chars)
+      cep?: string;                   // CEP (8 dígitos numéricos como string)
+      // Endereço exterior (alternativa)
+      cep_ext?: string;
+      nome_cidade_ext?: string;
+      regiao_ext?: string;
+    };
+  };
 }
 
 // ========== Response (mesma para ambos) ==========

@@ -634,11 +634,9 @@ export class NfseEmissionService {
     // Generate unique ref (new ref even for retry, since the old ref may be stuck in Focus NFe)
     const ref = `tk-${companyId.substring(0, 8)}-${randomUUID().substring(0, 8)}`;
 
-    // Load Obra if tipoNota=OBRA
+    // Load Obra if obraId provided (independente do tipoNota — qualquer serviço pode ser prestado em obra)
     let obra: any = null;
-    const isObra = dto.tipoNota === 'OBRA';
-    if (isObra) {
-      if (!dto.obraId) throw new BadRequestException('Obra é obrigatória para NFS-e de tipo OBRA');
+    if (dto.obraId) {
       obra = await this.prisma.obra.findFirst({
         where: { id: dto.obraId, companyId, active: true },
       });
@@ -655,10 +653,21 @@ export class NfseEmissionService {
     }
 
     // Determine cTribNac: service code > config fallback
+    // tipoNota=OBRA usa codigoTributarioNacional (legado); SERVICO usa codigoTributarioNacionalServico
+    const isLegacyObra = dto.tipoNota === 'OBRA';
     const codigoTribNac = serviceCode?.codigo
-      || (isObra
+      || (isLegacyObra
         ? (config.codigoTributarioNacional || '')
         : (config.codigoTributarioNacionalServico || config.codigoTributarioNacional || ''));
+
+    // Construção civil: cTribNac começando com "07" exige bloco de obra
+    const isConstrucaoCivil = codigoTribNac.startsWith('07');
+    if (isConstrucaoCivil && !obra) {
+      throw new BadRequestException(
+        `Código ${codigoTribNac} (construção civil) exige cadastro de obra. Selecione a obra antes de emitir.`,
+      );
+    }
+    const isObra = !!obra;
 
     // Override aliquota/codes from service code if available
     if (serviceCode) {
@@ -750,14 +759,20 @@ export class NfseEmissionService {
         } : {}),
         // Informações complementares
         ...(dto.infComplementares ? { informacoes_complementares: dto.infComplementares } : {}),
-        // Campos de obra (obrigatório para cTribNac 07.02.xx, 07.04.xx, etc.)
+        // Bloco de obra aninhado (obrigatório para cTribNac 07.02.xx, 07.04.xx, etc.)
         ...(isObra && obra ? {
-          codigo_obra: obra.cno?.replace(/\D/g, '') || '',
-          logradouro_obra: obra.addressStreet || undefined,
-          numero_obra: obra.addressNumber || undefined,
-          complemento_obra: obra.addressComp || undefined,
-          bairro_obra: obra.neighborhood || undefined,
-          cep_obra: parseInt((obra.cep || '').replace(/\D/g, ''), 10) || undefined,
+          obra: {
+            codigo: obra.cno?.replace(/\D/g, '') || '',
+            endereco: {
+              logradouro: obra.addressStreet || undefined,
+              numero: obra.addressNumber || undefined,
+              complemento: obra.addressComp || undefined,
+              bairro: obra.neighborhood || undefined,
+              codigo_municipio: obra.ibgeCode ? parseInt(obra.ibgeCode, 10) : codigoMunicipioNum,
+              uf: obra.state || undefined,
+              cep: (obra.cep || '').replace(/\D/g, '') || undefined,
+            },
+          },
         } : {}),
       };
       request = nfsenPayload;

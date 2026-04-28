@@ -1,7 +1,20 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.15 (em prod)
-## Ultima sessao: 182 (27/04/2026)
+## Versao: v1.10.22 (em prod)
+## Ultima sessao: 183 (28/04/2026)
+
+## v1.10.22 — NFS-e Nacional: bloco obra ANINHADO + UX unificada SERVICO/OBRA
+- **Problema**: emissao com obra (RPS 21, FIN-00490 Spe Terraz) falhou com erro Focus local: `Element '{http://www.sped.fazenda.gov.br/nfse}end': This element is not expected.` — XSD validacao antes de chegar SEFAZ.
+- **Causa**: interface `FocusNfsenRequest` enviava obra como campos flat (codigo_obra, logradouro_obra, cep_obra) — Focus NFsen Nacional espera **objeto aninhado**. Confirmado via doc Focus (Lavras/MG guide): `$.obra.codigo`, `$.obra.endereco.{logradouro, numero, complemento, bairro, codigo_municipio, uf, cep}`.
+- **Fix backend**:
+  - `focus-nfe.provider.ts`: substituido bloco flat por `obra: { codigo, art?, inscricao_imobiliaria?, codigo_cib?, endereco: { logradouro, numero, complemento, bairro, codigo_municipio, uf, cep } }`
+  - `nfse-emission.service.ts`: payload monta `obra.endereco` usando `obra.ibgeCode` (cMun) e `obra.state` (UF) do cadastro.
+- **Refatoracao UX (NfseEmissionModal)**:
+  - **Removido toggle SERVICO/OBRA** — NFS-e Nacional sempre é "Servico"; obra é so um bloco anexado.
+  - Service codes nao filtrados mais por `tipo` — lista unificada.
+  - Bloco obra agora aparece automaticamente quando: (a) cTribNac selecionado começa com "07" (construcao civil — obrigatorio) OU (b) parceiro tem obras cadastradas (opcional).
+  - Backend valida: cTribNac 07.xx sem obra → BadRequestException.
+- **Backend lib**: removido `dto.tipoNota === 'OBRA'` como gate; obra carrega sempre que `dto.obraId` enviado.
 
 ## PENDENTE PROXIMA SESSAO
 
