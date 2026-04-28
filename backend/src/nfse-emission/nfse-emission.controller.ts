@@ -87,8 +87,16 @@ export class NfseEmissionController {
   @Get('resolve-template/:financialEntryId')
   @Roles('ADMIN', 'FINANCEIRO', 'FISCAL')
   @UseGuards(FiscalGuard)
-  async resolveTemplate(@Req() req: any, @Param('financialEntryId') financialEntryId: string) {
-    const text = await this.nfseService.resolveInfComplementares(req.user.companyId, financialEntryId);
+  async resolveTemplate(
+    @Req() req: any,
+    @Param('financialEntryId') financialEntryId: string,
+    @Query('obraId') obraId?: string,
+  ) {
+    const text = await this.nfseService.resolveInfComplementares(
+      req.user.companyId,
+      financialEntryId,
+      obraId,
+    );
     return { infComplementares: text };
   }
 

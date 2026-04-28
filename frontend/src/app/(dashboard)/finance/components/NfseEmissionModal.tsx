@@ -656,12 +656,21 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
               <div className="flex flex-col sm:flex-row gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (!selectedObraId) {
                       toast("Selecione uma obra ou clique em 'Emitir sem obra'.", "error");
                       return;
                     }
                     setTipoNota("OBRA");
+                    // v1.10.20: re-fetch template incluindo obra selecionada
+                    // (caso entry nao tenha obra vinculada nativamente, mas user
+                    // confirmou que esta nota e da obra X)
+                    try {
+                      const tpl = await api.get<{ infComplementares: string }>(
+                        `/nfse-emission/resolve-template/${financialEntryId}?obraId=${selectedObraId}`,
+                      );
+                      if (tpl.infComplementares) setInfComplementares(tpl.infComplementares);
+                    } catch { /* mantem o texto atual */ }
                     setPhase("FORM");
                   }}
                   disabled={!selectedObraId}

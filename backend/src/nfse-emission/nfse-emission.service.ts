@@ -73,7 +73,11 @@ export class NfseEmissionService {
 
   // ========== TEMPLATE RESOLUTION ==========
 
-  async resolveInfComplementares(companyId: string, financialEntryId: string): Promise<string> {
+  async resolveInfComplementares(
+    companyId: string,
+    financialEntryId: string,
+    obraIdOverride?: string,
+  ): Promise<string> {
     // Get company with system config
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) return '';
@@ -98,8 +102,17 @@ export class NfseEmissionService {
     const so = entry.serviceOrder;
     const partner = entry.partner;
     const tech = so?.assignedPartner;
-    // v1.10.16+: obra do entry direto (NFS-e tipo OBRA) ou da OS associada
-    const obra = entry.obra || so?.obra || null;
+    // v1.10.16: obra do entry direto (NFS-e tipo OBRA) ou da OS associada
+    // v1.10.20: obraIdOverride (passado pelo modal apos user selecionar obra
+    // na fase OBRA_SELECTION) — busca a obra escolhida e usa ela mesmo se entry/os
+    // nao tem obra vinculada (caso de lancamento avulso pra cliente que tem obras)
+    let obra: any = entry.obra || so?.obra || null;
+    if (obraIdOverride) {
+      const overrideObra = await this.prisma.obra.findFirst({
+        where: { id: obraIdOverride, companyId, active: true },
+      });
+      if (overrideObra) obra = overrideObra;
+    }
     const now = new Date();
     const brDate = new Date(now.getTime() - 3 * 60 * 60 * 1000);
 
