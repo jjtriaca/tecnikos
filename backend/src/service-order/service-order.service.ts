@@ -1351,19 +1351,65 @@ export class ServiceOrderService {
       throw new ForbiddenException('OS já está em status terminal');
     }
 
-    const updated = await this.prisma.serviceOrder.update({
-      where: { id },
-      data: {
-        status: ServiceOrderStatus.CANCELADA,
-        cancelledReason: reason || null,
-        cancelledByName: actor.email,
+    // v1.10.19: cascade cancel nos lancamentos vinculados PENDING/CONFIRMED.
+    // Entries PAID NAO sao tocados (preserva rastro contabil — gestor deve
+    // criar estorno manual se necessario).
+    const entriesToCancel = await this.prisma.financialEntry.findMany({
+      where: {
+        serviceOrderId: id,
+        companyId,
+        deletedAt: null,
+        status: { in: ['PENDING', 'CONFIRMED'] },
       },
+      select: { id: true, code: true, type: true, netCents: true, status: true },
+    });
+
+    const paidEntries = await this.prisma.financialEntry.findMany({
+      where: {
+        serviceOrderId: id,
+        companyId,
+        deletedAt: null,
+        status: 'PAID',
+      },
+      select: { id: true, code: true, type: true, netCents: true },
+    });
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.serviceOrder.update({
+        where: { id },
+        data: {
+          status: ServiceOrderStatus.CANCELADA,
+          cancelledReason: reason || null,
+          cancelledByName: actor.email,
+        },
+      });
+
+      if (entriesToCancel.length > 0) {
+        const cancelTs = new Date();
+        await tx.financialEntry.updateMany({
+          where: { id: { in: entriesToCancel.map((e) => e.id) } },
+          data: {
+            status: 'CANCELLED',
+            cancelledAt: cancelTs,
+            cancelledByName: actor.email,
+            cancelledReason: `OS ${so.code} cancelada${reason ? `: ${reason}` : ''}`,
+          },
+        });
+      }
+
+      return result;
     });
 
     this.audit.log({
       companyId, entityType: 'SERVICE_ORDER', entityId: id,
       action: 'CANCELLED', actorType: 'USER', actorId: actor.id, actorName: actor.email,
-      before: { status: so.status }, after: { status: 'CANCELADA', reason: reason || undefined },
+      before: { status: so.status },
+      after: {
+        status: 'CANCELADA',
+        reason: reason || undefined,
+        entriesCancelled: entriesToCancel.map((e) => e.code),
+        paidEntriesPreserved: paidEntries.map((e) => e.code),
+      },
     });
 
     this.dispatchAutomation({
@@ -1371,7 +1417,41 @@ export class ServiceOrderService {
       data: { status: 'CANCELADA', oldStatus: so.status, state: (so as any).state, city: (so as any).city, valueCents: so.valueCents, assignedPartnerId: so.assignedPartnerId ?? undefined, clientPartnerId: so.clientPartnerId ?? undefined, title: so.title, description: so.description ?? undefined, addressStreet: (so as any).addressStreet, cep: (so as any).cep, deadlineAt: so.deadlineAt?.toISOString(), createdAt: so.createdAt?.toISOString() },
     });
 
-    return updated;
+    return {
+      ...updated,
+      // Pra frontend mostrar resumo do que aconteceu
+      cascadedEntries: {
+        cancelled: entriesToCancel,
+        paidPreserved: paidEntries,
+      },
+    };
+  }
+
+  /**
+   * v1.10.19: preview do impacto de cancelar uma OS.
+   * Retorna entries vinculados pra UI mostrar warning antes de confirmar.
+   */
+  async previewCancel(id: string, companyId: string) {
+    const so = await this.findOne(id, companyId);
+
+    const [entries] = await Promise.all([
+      this.prisma.financialEntry.findMany({
+        where: { serviceOrderId: id, companyId, deletedAt: null },
+        select: {
+          id: true, code: true, type: true, status: true, netCents: true, paidAt: true,
+        },
+        orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+      }),
+    ]);
+
+    return {
+      orderCode: so.code,
+      orderStatus: so.status,
+      orderTitle: so.title,
+      willBeCancelled: entries.filter((e) => e.status === 'PENDING' || e.status === 'CONFIRMED'),
+      paidEntries: entries.filter((e) => e.status === 'PAID'),
+      othersEntries: entries.filter((e) => !['PENDING', 'CONFIRMED', 'PAID'].includes(e.status)),
+    };
   }
 
   async duplicate(id: string, companyId: string, actor: AuthenticatedUser) {

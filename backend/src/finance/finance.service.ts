@@ -865,7 +865,26 @@ export class FinanceService {
   }
 
   async deleteEntry(id: string, companyId: string) {
-    await this.findOneEntry(id, companyId);
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: { serviceOrder: { select: { code: true, status: true } } },
+    });
+    if (!entry) throw new NotFoundException('Lancamento nao encontrado');
+
+    // v1.10.19: bloquear delete de entry vinculado a OS em status terminal
+    // (CONCLUIDA/APROVADA). Pra excluir, gestor deve cancelar a OS primeiro
+    // — o cancelamento cascateia automaticamente nos entries PENDING/CONFIRMED.
+    // Preserva rastro contabil de OS finalizadas.
+    if (entry.serviceOrder) {
+      const terminalOsStatuses = ['CONCLUIDA', 'APROVADA'];
+      if (terminalOsStatuses.includes(entry.serviceOrder.status)) {
+        throw new BadRequestException(
+          `Lancamento vinculado a ${entry.serviceOrder.code} (${entry.serviceOrder.status}). ` +
+          `Pra excluir, cancele a OS primeiro — o lancamento sera cancelado junto.`,
+        );
+      }
+    }
+
     return this.prisma.financialEntry.update({
       where: { id },
       data: { deletedAt: new Date() },

@@ -169,6 +169,15 @@ export class ServiceOrderController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Get(':id/cancel-preview')
+  previewCancel(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.previewCancel(id, user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/duplicate')
   duplicate(
     @Param('id') id: string,

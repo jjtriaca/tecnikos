@@ -501,6 +501,14 @@ export default function OrdersPage() {
   }, [activeTab]);
 
   const [cancelTarget, setCancelTarget] = useState<ServiceOrder | null>(null);
+  // v1.10.19: preview de entries vinculados antes de confirmar cancelamento
+  const [cancelPreview, setCancelPreview] = useState<{
+    orderCode: string;
+    orderTitle: string;
+    willBeCancelled: Array<{ id: string; code: string; type: string; netCents: number }>;
+    paidEntries: Array<{ id: string; code: string; type: string; netCents: number }>;
+  } | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ServiceOrder | null>(null);
   const [earlyFinancialTarget, setEarlyFinancialTarget] = useState<ServiceOrder | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -575,16 +583,37 @@ export default function OrdersPage() {
     loadOrders();
   }, [loadOrders]);
 
+  // v1.10.19: ao abrir modal de cancelamento, busca preview dos entries vinculados
+  useEffect(() => {
+    if (!cancelTarget) {
+      setCancelPreview(null);
+      setCancelReason("");
+      return;
+    }
+    let cancelled = false;
+    api.get<typeof cancelPreview>(`/service-orders/${cancelTarget.id}/cancel-preview`)
+      .then((data) => { if (!cancelled) setCancelPreview(data); })
+      .catch(() => { if (!cancelled) setCancelPreview(null); });
+    return () => { cancelled = true; };
+  }, [cancelTarget]);
+
   async function handleCancel() {
     if (!cancelTarget) return;
     setActionLoading(true);
     try {
-      await api.patch(`/service-orders/${cancelTarget.id}/cancel`);
-      toast("OS cancelada com sucesso!", "success");
+      await api.patch(`/service-orders/${cancelTarget.id}/cancel`, {
+        reason: cancelReason.trim() || undefined,
+      });
+      const cancelled = cancelPreview?.willBeCancelled.length || 0;
+      const paid = cancelPreview?.paidEntries.length || 0;
+      const msg = cancelled > 0
+        ? `OS cancelada. ${cancelled} lancamento(s) cancelado(s) junto.${paid > 0 ? ` ${paid} lancamento(s) PAGO(s) preservado(s) — verifique se precisa de estorno.` : ""}`
+        : "OS cancelada com sucesso!";
+      toast(msg, "success");
       setCancelTarget(null);
       loadOrders();
-    } catch {
-      toast("Erro ao cancelar OS.", "error");
+    } catch (err: any) {
+      toast(err?.response?.data?.message || "Erro ao cancelar OS.", "error");
     } finally {
       setActionLoading(false);
     }
@@ -782,17 +811,85 @@ export default function OrdersPage() {
       {/* Agenda Tab Content */}
       {activeTab === "agenda" && <AgendaView />}
 
-      {/* Cancel Modal */}
-      <ConfirmModal
-        open={!!cancelTarget}
-        title="Cancelar OS"
-        message={cancelTarget ? `Deseja realmente cancelar a OS "${cancelTarget.title}"? Esta ação não pode ser desfeita.` : ""}
-        confirmLabel="Cancelar OS"
-        variant="warning"
-        loading={actionLoading}
-        onConfirm={handleCancel}
-        onCancel={() => setCancelTarget(null)}
-      />
+      {/* Cancel Modal — v1.10.19 com preview de entries vinculados */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !actionLoading && setCancelTarget(null)} />
+          <div className="relative mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl animate-scale-in max-h-[85vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-amber-700 mb-1">⚠ Cancelar OS</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Deseja realmente cancelar a OS <strong>{cancelTarget.code}</strong> — &quot;{cancelTarget.title}&quot;? Esta acao nao pode ser desfeita.
+            </p>
+
+            {/* Preview dos entries que serao cancelados */}
+            {cancelPreview && cancelPreview.willBeCancelled.length > 0 && (
+              <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3">
+                <p className="text-sm font-semibold text-amber-800 mb-2">
+                  📋 {cancelPreview.willBeCancelled.length} lancamento(s) financeiro(s) sera(o) cancelado(s) junto:
+                </p>
+                <ul className="space-y-1">
+                  {cancelPreview.willBeCancelled.map((e) => (
+                    <li key={e.id} className="text-xs text-amber-700">
+                      <span className="font-mono">{e.code}</span> — {e.type === "RECEIVABLE" ? "A receber" : "A pagar"}{" "}
+                      <strong>R$ {(e.netCents / 100).toFixed(2).replace(".", ",")}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* PAID entries — alerta vermelho, NAO cancelados automaticamente */}
+            {cancelPreview && cancelPreview.paidEntries.length > 0 && (
+              <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-3 py-3">
+                <p className="text-sm font-semibold text-red-800 mb-2">
+                  ⚠ Atencao: {cancelPreview.paidEntries.length} lancamento(s) ja PAGO(s) — preservados:
+                </p>
+                <ul className="space-y-1 mb-2">
+                  {cancelPreview.paidEntries.map((e) => (
+                    <li key={e.id} className="text-xs text-red-700">
+                      <span className="font-mono">{e.code}</span> — {e.type === "RECEIVABLE" ? "Recebido" : "Pago"}{" "}
+                      <strong>R$ {(e.netCents / 100).toFixed(2).replace(".", ",")}</strong>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-red-700">
+                  Esses lancamentos preservam rastro contabil. Se a OS sera cancelada e o dinheiro precisa voltar, crie um estorno (RECEIVABLE→PAYABLE ou vice-versa) manualmente apos cancelar.
+                </p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Motivo (opcional)
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={2}
+                placeholder="Ex: cliente desistiu, OS duplicada, erro de cadastro..."
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setCancelTarget(null)}
+                disabled={actionLoading}
+                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={actionLoading}
+                className="px-5 py-2 text-sm font-semibold text-white rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
+              >
+                {actionLoading ? "Cancelando..." : "Cancelar OS"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Modal */}
       <ConfirmModal
