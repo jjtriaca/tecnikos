@@ -88,11 +88,14 @@ export class AuthService {
 
     const ttl = SESSION_TTL_SECONDS;
     // Create session FIRST so we can embed sessionId in the JWT
+    // v1.10.18: revokeOthers=true so login forca politica "sessao unica" — outras
+    // abas/dispositivos ficam logout. Silent refresh usa false (so rotaciona).
     const { refreshToken, session } = await this.createSession(
       user.id,
       ip,
       userAgent,
       ttl,
+      true,
     );
     const accessToken = this.issueAccessToken(user, session.id);
 
@@ -155,10 +158,15 @@ export class AuthService {
 
     // Issue new pair (preserve original device name)
     // Create session FIRST so we can embed sessionId in the JWT
+    // v1.10.18: revokeOthers=false — silent refresh nao revoga outras sessoes
+    // (so rotaciona token da sessao corrente). Politica de sessao unica
+    // permanece em vigor apenas no login inicial.
     const { refreshToken, session: newSession } = await this.createSession(
       matchedSession.userId,
       ip,
       userAgent || matchedSession.userAgent || undefined,
+      undefined,
+      false,
     );
     const accessToken = this.issueAccessToken(user, newSession.id);
 
@@ -511,20 +519,26 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
     ttlSeconds?: number,
+    revokeOthers: boolean = true,
   ) {
     const ttl = ttlSeconds || this.refreshTtlSeconds;
     const refreshToken = randomUUID();
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     const expiresAt = new Date(Date.now() + ttl * 1000);
 
-    // Sessão única: revogar TODAS as sessões anteriores do usuário ao fazer login
-    // Garante que o usuário só pode estar logado em 1 dispositivo por vez
-    const revokedCount = await this.prisma.session.updateMany({
-      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
-      data: { revokedAt: new Date() },
-    });
-    if (revokedCount.count > 0) {
-      this.logger.debug(`Revoked ${revokedCount.count} previous session(s) for user ${userId} (single-session policy)`);
+    // v1.10.18: revokeOthers=true (login) revoga sessoes anteriores — politica
+    // "1 dispositivo por user". revokeOthers=false (refresh) NAO revoga — silent
+    // refresh deve apenas rotacionar o token da sessao corrente, sem derrubar
+    // outras abas/dispositivos do mesmo user. Bug anterior: a cada refresh
+    // (15min), todas as sessoes paralelas eram revogadas → "voce foi desconectado".
+    if (revokeOthers) {
+      const revokedCount = await this.prisma.session.updateMany({
+        where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+        data: { revokedAt: new Date() },
+      });
+      if (revokedCount.count > 0) {
+        this.logger.debug(`Revoked ${revokedCount.count} previous session(s) for user ${userId} (single-session policy)`);
+      }
     }
 
     const session = await this.prisma.session.create({
