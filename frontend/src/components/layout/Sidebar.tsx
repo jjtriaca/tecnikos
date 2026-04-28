@@ -443,7 +443,7 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
                 </div>
               </div>
               {buildInfo && (
-                <p className="mt-2 text-center text-[10px] text-slate-600">
+                <p className="mt-2 text-center text-xs text-slate-400">
                   v{buildInfo.version}
                 </p>
               )}
@@ -454,7 +454,7 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
                 {user.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
               {buildInfo && (
-                <p className="text-[9px] text-slate-600">v{buildInfo.version}</p>
+                <p className="text-[10px] text-slate-400">v{buildInfo.version}</p>
               )}
             </div>
           )}
