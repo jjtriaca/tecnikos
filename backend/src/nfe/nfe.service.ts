@@ -813,15 +813,18 @@ export class NfeService {
       });
 
       // ── 5. Update linked SefazDocument status to IMPORTED ─────────
-      // Cenario 1: import veio do SEFAZ — sefazDocumentId ja esta setado
+      // updateMany e tolerante a record ausente — protege contra ref dangling
+      // (ex: SefazDocument deletado, mas NfeImport ainda referencia o id antigo).
       if (nfeImport.sefazDocumentId) {
-        await tx.sefazDocument.update({
+        await tx.sefazDocument.updateMany({
           where: { id: nfeImport.sefazDocumentId },
           data: { status: 'IMPORTED', nfeImportId: id },
         });
-      } else if (nfeImport.nfeKey) {
-        // Cenario 2: upload manual — busca SefazDocument com mesma chave (se existir)
-        // e sincroniza (cobre caso do DFe ter baixado a mesma NFe em paralelo).
+      }
+      // Tambem sincroniza por nfeKey — cobre upload manual + DFe paralelo
+      // e cenario onde sefazDocumentId aponta pra record removido mas existe
+      // outro SefazDocument com a mesma chave.
+      if (nfeImport.nfeKey) {
         await tx.sefazDocument.updateMany({
           where: {
             companyId,
