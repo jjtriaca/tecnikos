@@ -1,7 +1,13 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.22 (em prod)
-## Ultima sessao: 183 (28/04/2026)
+## Versao: v1.10.24 (em prod)
+## Ultima sessao: 184 (29/04/2026)
+
+## v1.10.24 — Fix erro "Record to update not found" na confirmacao de import NFe
+- **Erro**: Toast `Invalid prisma.sefazDocument.update() invocation: Record to update not found` ao clicar "Confirmar Importacao" (etapa 5/5).
+- **Causa**: NfeImport `d8a8d37d` (L.J.TRIACCA, R$ 509,94, criado 14/04) tinha `sefazDocumentId = 4259617f` apontando pra SefazDocument inexistente (deletado em algum momento). Existia outro SefazDocument valido com a mesma `nfeKey` (id `0c7e0ff3`, nsu real do SEFAZ, status FETCHED, com `nfeImportId` correto). O `tx.sefazDocument.update({ where: { id: nfeImport.sefazDocumentId }})` falhava por record ausente, derrubando a transacao toda.
+- **Fix**: `nfe.service.ts:818` — `update` -> `updateMany` (tolerante a record ausente). Tambem passou a sempre rodar a sincronizacao por `nfeKey` em paralelo com a sincronizacao por id, garantindo que qualquer SefazDocument com a mesma chave seja marcado como IMPORTED mesmo quando o forward-link da NfeImport esta dangling.
+- Comportamento: import agora completa mesmo se o ref estiver quebrado; SefazDocument certo (mesmo nfeKey) sempre fica IMPORTED.
 
 ## v1.10.22 — NFS-e Nacional: bloco obra ANINHADO + UX unificada SERVICO/OBRA
 - **Problema**: emissao com obra (RPS 21, FIN-00490 Spe Terraz) falhou com erro Focus local: `Element '{http://www.sped.fazenda.gov.br/nfse}end': This element is not expected.` — XSD validacao antes de chegar SEFAZ.
