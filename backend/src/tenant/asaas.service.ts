@@ -1952,6 +1952,7 @@ export class AsaasService {
       where: {
         status: 'PAST_DUE',
         overdueAt: { not: null, lte: cutoff },
+        tenant: { isMaster: false },
       },
       include: { tenant: true },
     });
@@ -2085,6 +2086,7 @@ export class AsaasService {
         pendingPlanId: { not: null },
         pendingPlanAt: { not: null, lte: now },
         status: { in: ['ACTIVE', 'PAST_DUE'] },
+        tenant: { isMaster: false },
       },
       include: { tenant: true },
     });
@@ -2173,6 +2175,7 @@ export class AsaasService {
       where: {
         status: 'PAID',
         expiresAt: { not: null, lte: now },
+        subscription: { tenant: { isMaster: false } },
       },
       include: {
         subscription: { include: { tenant: true } },
