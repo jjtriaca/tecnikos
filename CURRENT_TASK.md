@@ -1,7 +1,16 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.24 (em prod)
+## Versao: v1.10.25 (em prod)
 ## Ultima sessao: 184 (29/04/2026)
+
+## v1.10.25 — Extensao isMaster: bypass de cobranca/expiracao + SLS marcado como master
+- **Contexto**: NFS-e import bloqueado pra SLS (`maxNfseImports = 0`). Add-on `+72 Import. NFS-e/mes` (id `8adf0806`) expirou em 16/04 (inicio do ciclo). Sistema nao tem auto-renew (gotcha 10: "Add-on NAO faz rollover").
+- **Decisao** (opcao 2): SLS e o tenant dono do SaaS — nao paga pra si mesmo. Estendeu flag `Tenant.isMaster` (que ja existia, so pulava KYC) pra tambem pular crons de cobranca e expiracao. Esse plano ja estava documentado em `asaas.service.ts:88` ("Flag isMaster ja existe mas so pula KYC — poderia ser estendida pra pular cobranca tambem").
+- **Mudancas**:
+  - `asaas.service.ts:checkOverdueSubscriptions` (cron 07:00) — adiciona `tenant: { isMaster: false }` ao where, pra nao bloquear masters por inadimplencia
+  - `asaas.service.ts:applyPendingDowngrades` (cron 00:30) — idem, masters nao sofrem downgrade automatico
+  - `asaas.service.ts:expireAddOnPurchases` (cron 00:15) — `subscription: { tenant: { isMaster: false } }`, masters nao tem add-on revertido
+- **Estado SLS em prod**: `Tenant.isMaster = true`, todos os limites (Tenant + Company `maxNfseImports/maxOsPerMonth/maxUsers/maxTechnicians/maxAiMessages`) setados pra 999999.
 
 ## v1.10.24 — Fix erro "Record to update not found" na confirmacao de import NFe
 - **Erro**: Toast `Invalid prisma.sefazDocument.update() invocation: Record to update not found` ao clicar "Confirmar Importacao" (etapa 5/5).
