@@ -1,7 +1,13 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.25 (em prod)
-## Ultima sessao: 184 (29/04/2026)
+## Versao: v1.10.26 (em prod)
+## Ultima sessao: 185 (04/05/2026)
+
+## v1.10.26 — Fix NFS-e Layout Municipal: DataEmissao xs:date (nao xs:dateTime)
+- **Erro em prod (SLS Obras)**: prefeitura rejeitou XML com `Element 'DataEmissao': '2026-05-04T17:50:48-03:00' is not a valid value of the atomic type 'xs:date'`. Outros 2 erros (CodigoMunicipio e RegimeEspecialTributacao em posicao errada) parecem ser cascata XSD — XSD validacao para no primeiro erro.
+- **Causa**: `nfse-emission.service.ts:782` (Layout Municipal `/v2/nfse`) enviava `data_emissao: brazilNow()` que retorna `YYYY-MM-DDTHH:mm:ss-03:00` (xs:dateTime). Esta prefeitura valida estritamente como `xs:date` (so YYYY-MM-DD).
+- **Fix**: `brazilNow()` -> `brazilToday()` na linha 782 (so Layout Municipal). Layout Nacional `/v2/nfsen` linha 719 mantem `brazilNow()` pois DPS aceita dateTime.
+- **Risco**: outras prefeituras Layout Municipal que aceitavam dateTime continuam aceitando date (xs:date eh formato mais comum no ABRASF, raramente alguem rejeita).
 
 ## v1.10.25 — Extensao isMaster: bypass de cobranca/expiracao + SLS marcado como master
 - **Contexto**: NFS-e import bloqueado pra SLS (`maxNfseImports = 0`). Add-on `+72 Import. NFS-e/mes` (id `8adf0806`) expirou em 16/04 (inicio do ciclo). Sistema nao tem auto-renew (gotcha 10: "Add-on NAO faz rollover").

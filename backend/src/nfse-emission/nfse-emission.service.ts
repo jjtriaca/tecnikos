@@ -778,8 +778,11 @@ export class NfseEmissionService {
       request = nfsenPayload;
     } else {
       // ===== Layout Municipal (nested) — endpoint /v2/nfse =====
+      // DataEmissao no Layout Municipal ABRASF eh xs:date (YYYY-MM-DD).
+      // Algumas prefeituras (ex: SLS Obras) validam estritamente como xs:date e
+      // rejeitam xs:dateTime. brazilToday() retorna YYYY-MM-DD em fuso BRT.
       request = {
-        data_emissao: brazilNow(),
+        data_emissao: brazilToday(),
         natureza_operacao: dto.naturezaOperacao || config.naturezaOperacao || '1',
         regime_especial_tributacao: config.regimeEspecialTributacao || undefined,
         optante_simples_nacional: config.optanteSimplesNacional,
