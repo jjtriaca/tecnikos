@@ -55,7 +55,7 @@ export interface FocusNfsenRequest {
   inscricao_municipal_prestador?: string;
   codigo_opcao_simples_nacional: number; // 1=Não optante, 2=Optante MEI, 3=Optante ME/EPP
   regime_tributario_simples_nacional?: number; // regApTribSN — 1=Federal+Municipal pelo SN, 2=Federal SN + ISS fora, 3=Tudo fora
-  regime_especial_tributacao: number;     // 0=Sem, 1=Microempresa municipal, etc.
+  regime_especial_tributacao?: number;    // 0=Sem (omitir), 1=Microempresa municipal, etc.
   // Tomador
   cnpj_tomador?: string;
   cpf_tomador?: string;

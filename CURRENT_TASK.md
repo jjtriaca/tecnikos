@@ -1,7 +1,18 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.26 (em prod)
+## Versao: v1.10.27 (em prod)
 ## Ultima sessao: 185 (04/05/2026)
+
+## v1.10.27 — Fix NFS-e Layout NACIONAL: DataEmissao xs:date + omitir RegimeEspecial=0
+- **Erro persistia em prod** apos v1.10.26 (que so corrigiu Layout MUNICIPAL). SLS Obras esta configurado como `nfseLayout: NACIONAL` (codigoMunicipio 5107040 = Sinop/MT). Endpoint `/v2/nfsen` ainda gera XML com namespace ABRASF que a prefeitura valida estritamente.
+- **Diagnostico via JSON do Focus** (`tk-00000000-5234f478`): user enviou o payload exato do painel Focus. Confirmou 2 problemas no nfsenPayload (linhas 718-727):
+  1. `data_emissao: brazilNow()` -> `2026-05-04T18:03:26-03:00` (xs:dateTime). Sinop/MT valida como xs:date.
+  2. `regime_especial_tributacao: 0` sendo enviado mesmo com valor 0 (sem regime). Focus gerava `<RegimeEspecialTributacao>0</...>` no XML que esta prefeitura rejeita ("This element is not expected").
+- **Fix**: 
+  - linha 719: `brazilNow()` -> `brazilToday()` (mesmo padrao da v1.10.26 mas no branch Nacional)
+  - linha 727: `regime_especial_tributacao: regimeEspecial` -> spread condicional `...(regimeEspecial > 0 ? { regime_especial_tributacao: regimeEspecial } : {})`
+  - `focus-nfe.provider.ts` FocusNfsenRequest: `regime_especial_tributacao` virou opcional
+- **Diferenca chave** entre RPS 23 (CARUS, 30/04 AUTORIZADA) e RPS 24 (VITORIO, 04/05 ERROR): provavelmente prefeitura Sinop/MT atualizou XSD no intervalo. Mesma config NfseConfig em ambos.
 
 ## v1.10.26 — Fix NFS-e Layout Municipal: DataEmissao xs:date (nao xs:dateTime)
 - **Erro em prod (SLS Obras)**: prefeitura rejeitou XML com `Element 'DataEmissao': '2026-05-04T17:50:48-03:00' is not a valid value of the atomic type 'xs:date'`. Outros 2 erros (CodigoMunicipio e RegimeEspecialTributacao em posicao errada) parecem ser cascata XSD — XSD validacao para no primeiro erro.

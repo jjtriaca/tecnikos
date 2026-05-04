@@ -716,7 +716,10 @@ export class NfseEmissionService {
       const tipoRetencaoIss = (dto.issRetido ?? false) ? 2 : 1;
 
       const nfsenPayload: FocusNfsenRequest = {
-        data_emissao: brazilNow(),
+        // v1.10.27: prefeitura Sinop/MT (5107040) e outras validam DataEmissao como xs:date
+        // (so YYYY-MM-DD) mesmo no endpoint Nacional. brazilNow() retornava xs:dateTime
+        // com timezone que era rejeitado.
+        data_emissao: brazilToday(),
         data_competencia: brazilToday(),
         codigo_municipio_emissora: codigoMunicipioNum,
         cnpj_prestador: cnpjClean,
@@ -724,7 +727,10 @@ export class NfseEmissionService {
         codigo_opcao_simples_nacional: codigoOpcaoSN,
         // regApTribSN — obrigatório para optantes SN (ME/EPP): 1=Tudo pelo SN
         ...(config.optanteSimplesNacional ? { regime_tributario_simples_nacional: 1 } : {}),
-        regime_especial_tributacao: regimeEspecial,
+        // v1.10.27: so envia regime_especial_tributacao quando > 0 (regime real).
+        // Com valor 0 ("sem regime"), Focus gera elemento <RegimeEspecialTributacao>0</...>
+        // que algumas prefeituras (Sinop/MT) rejeitam como elemento inesperado.
+        ...(regimeEspecial > 0 ? { regime_especial_tributacao: regimeEspecial } : {}),
         // Tomador
         cnpj_tomador: tomadorDoc.length === 14 ? tomadorDoc : undefined,
         cpf_tomador: tomadorDoc.length === 11 ? tomadorDoc : undefined,
