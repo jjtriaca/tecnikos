@@ -1,7 +1,21 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.27 (em prod)
+## Versao: v1.10.28 (em prod)
 ## Ultima sessao: 185 (04/05/2026)
+
+## v1.10.28 — REVERT v1.10.27 — voltar ao contrato oficial do Focus NFe
+- **Descoberta apos consultar doc oficial Focus** (https://focusnfe.com.br/doc/#nfse-nacional_campos): meus fixes de v1.10.27 estavam VIOLANDO o contrato de entrada do Focus.
+- **Doc oficial mostra**:
+  1. `data_emissao` deve ser ISO 8601 com horario: `"2024-05-07T07:34:56-0300"` (xs:dateTime)
+  2. `regime_especial_tributacao` eh OBRIGATORIO — enviado mesmo com valor 0 (Nenhum)
+- **Revert**: 
+  - linha ~720: `brazilToday()` → `brazilNow()` (Layout Nacional)
+  - linha ~770: spread condicional → `regime_especial_tributacao: regimeEspecial` sempre enviado
+  - linha ~830: `brazilToday()` → `brazilNow()` (Layout Municipal, manter consistencia)
+  - `focus-nfe.provider.ts`: `regime_especial_tributacao` voltou a ser required (sem `?`)
+- **Por que cometi o erro em v1.10.27**: vi erro de prefeitura "DataEmissao not xs:date" e inferi (errado) que devia mandar xs:date pro Focus. Na verdade Focus exige xs:dateTime, e a CONVERSAO pra xs:date final eh responsabilidade do Focus. Violar contrato de entrada do Focus fez ele gerar XML incompleto (sem Prestador, Tomador, Valores).
+- **Comentarios e memoria atualizados**: header de service e provider corrigidos com referencia a doc oficial. memory/nfse-lessons-learned.md reescrito com 5 gotchas baseados em doc oficial + 3 cenarios da Reforma Tributaria.
+- **Reforma Tributaria** (Cenarios A/B/C): doc Focus explica 3 modos de adesao do municipio. Primavera do Leste/MT (5107040) provavelmente mudou de cenario entre 30/04 e 04/05, exigindo revisao das flags `habilita_nfse` / `habilita_nfsen` no painel Focus.
 
 ## v1.10.27 — Fix NFS-e Layout NACIONAL: DataEmissao xs:date + omitir RegimeEspecial=0
 - **Erro persistia em prod** apos v1.10.26 (que so corrigiu Layout MUNICIPAL). SLS Obras esta configurado como `nfseLayout: NACIONAL` (codigoMunicipio 5107040 = Sinop/MT). Endpoint `/v2/nfsen` ainda gera XML com namespace ABRASF que a prefeitura valida estritamente.

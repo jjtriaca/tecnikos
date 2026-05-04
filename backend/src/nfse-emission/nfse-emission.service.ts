@@ -7,6 +7,44 @@ import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { randomUUID } from 'crypto';
 
+// ════════════════════════════════════════════════════════════════════════════
+//  ATENCAO — REGRAS NFS-e (ler antes de mexer)
+// ════════════════════════════════════════════════════════════════════════════
+//  Documentacao oficial Focus NFe:
+//   - https://focusnfe.com.br/doc/#nfse           (Layout Municipal /v2/nfse)
+//   - https://focusnfe.com.br/doc/#nfse-nacional  (Layout Nacional  /v2/nfsen)
+//  Licoes aprendidas: memory/nfse-lessons-learned.md
+//
+//  1) data_emissao no payload Focus eh ISO 8601 COM HORARIO (xs:dateTime).
+//     Exemplo doc oficial: "2024-05-07T07:34:56-0300".
+//     Use brazilNow() (NAO brazilToday) tanto pra Nacional quanto Municipal.
+//     Nao confundir com a validacao final da PREFEITURA: algumas prefeituras
+//     em transicao (Sinop/MT, Primavera do Leste) validam o XML final como
+//     xs:date. Mas a CONVERSAO eh responsabilidade do Focus, nao nossa —
+//     mandamos o formato que o Focus exige (com horario), Focus converte
+//     pra ABRASF/Nacional dependendo do municipio.
+//
+//  2) Campos OBRIGATORIOS do payload Focus DEVEM ser sempre enviados,
+//     mesmo com valor "0". Doc oficial mostra `regime_especial_tributacao: 0`
+//     enviado explicitamente. Omitir gera XML incompleto pelo Focus
+//     (foi causa raiz do bug 04/05/2026 que confundiu nossa investigacao).
+//
+//  3) Layouts MUNICIPAL vs NACIONAL tem fluxos SEPARADOS:
+//     - Layout MUNICIPAL: branch da linha ~785, usa /v2/nfse, payload aninhado
+//       (prestador.cnpj, servico.valores), gera XML ABRASF direto
+//     - Layout NACIONAL: branch da linha ~718, usa /v2/nfsen, payload flat
+//       (cnpj_prestador, valor_servico), gera XML DPS Nacional
+//     - Focus tem fallback automatico Nacional -> ABRASF pra cidades em
+//       transicao. Esse conversor pode ter bugs por municipio (acompanhar
+//       avisos de Reforma Tributaria no painel deles).
+//
+//  4) Antes de fazer mudancas aqui:
+//     - Confirmar contra a doc oficial Focus ANTES de assumir contrato
+//     - Testar com 1 emissao real, NUNCA fazer multi-deploy rapido
+//     - Em caso de XSD error da prefeitura, pedir XML GERADO no painel Focus
+//       e XML ENVIO de uma emissao bem-sucedida pra comparar
+// ════════════════════════════════════════════════════════════════════════════
+
 /** Format IE (Inscrição Estadual) by state */
 const IE_MASKS: Record<string, (d: string) => string> = {
   MT: (d) => d.replace(/(\d{10})(\d{0,1})/, '$1-$2'),
@@ -30,14 +68,24 @@ function formatIE(ie?: string | null, uf?: string | null): string {
   return IE_MASKS[uf](d);
 }
 
-/** Retorna data/hora atual no fuso de Brasilia (UTC-3) em formato ISO sem 'Z'. */
+/**
+ * Retorna data/hora atual no fuso de Brasilia (UTC-3) em formato ISO 8601.
+ * Ex: "2026-05-04T18:03:26-03:00" (xs:dateTime).
+ *
+ * Use para `data_emissao` em payload Focus NFe — eh o formato exigido pela
+ * doc oficial: https://focusnfe.com.br/doc/#nfse-nacional_campos
+ */
 function brazilNow(): string {
   const now = new Date();
   const br = new Date(now.getTime() - 3 * 60 * 60 * 1000);
   return br.toISOString().slice(0, 19) + '-03:00';
 }
 
-/** Retorna data atual no fuso de Brasilia como YYYY-MM-DD. */
+/**
+ * Retorna data atual no fuso de Brasilia como YYYY-MM-DD (xs:date).
+ * Use para `data_competencia` em payload Focus NFe (doc oficial: data
+ * sem horario). Para `data_emissao` use brazilNow() (com horario).
+ */
 function brazilToday(): string {
   const now = new Date();
   const br = new Date(now.getTime() - 3 * 60 * 60 * 1000);
@@ -716,10 +764,10 @@ export class NfseEmissionService {
       const tipoRetencaoIss = (dto.issRetido ?? false) ? 2 : 1;
 
       const nfsenPayload: FocusNfsenRequest = {
-        // v1.10.27: prefeitura Sinop/MT (5107040) e outras validam DataEmissao como xs:date
-        // (so YYYY-MM-DD) mesmo no endpoint Nacional. brazilNow() retornava xs:dateTime
-        // com timezone que era rejeitado.
-        data_emissao: brazilToday(),
+        // data_emissao no Layout Nacional: ISO 8601 com horario (xs:dateTime).
+        // Doc oficial Focus: https://focusnfe.com.br/doc/#nfse-nacional_campos
+        // Exemplo doc: "2024-05-07T07:34:56-0300". Use brazilNow() (NAO brazilToday).
+        data_emissao: brazilNow(),
         data_competencia: brazilToday(),
         codigo_municipio_emissora: codigoMunicipioNum,
         cnpj_prestador: cnpjClean,
@@ -727,10 +775,10 @@ export class NfseEmissionService {
         codigo_opcao_simples_nacional: codigoOpcaoSN,
         // regApTribSN — obrigatório para optantes SN (ME/EPP): 1=Tudo pelo SN
         ...(config.optanteSimplesNacional ? { regime_tributario_simples_nacional: 1 } : {}),
-        // v1.10.27: so envia regime_especial_tributacao quando > 0 (regime real).
-        // Com valor 0 ("sem regime"), Focus gera elemento <RegimeEspecialTributacao>0</...>
-        // que algumas prefeituras (Sinop/MT) rejeitam como elemento inesperado.
-        ...(regimeEspecial > 0 ? { regime_especial_tributacao: regimeEspecial } : {}),
+        // regime_especial_tributacao eh OBRIGATORIO no contrato Focus (enum 0-9).
+        // 0=Nenhum (caso mais comum). Doc oficial mostra ele enviado mesmo sendo 0.
+        // NAO usar spread condicional aqui — quebra o contrato e gera XML incompleto.
+        regime_especial_tributacao: regimeEspecial,
         // Tomador
         cnpj_tomador: tomadorDoc.length === 14 ? tomadorDoc : undefined,
         cpf_tomador: tomadorDoc.length === 11 ? tomadorDoc : undefined,
@@ -784,12 +832,16 @@ export class NfseEmissionService {
       request = nfsenPayload;
     } else {
       // ===== Layout Municipal (nested) — endpoint /v2/nfse =====
-      // DataEmissao no Layout Municipal ABRASF eh xs:date (YYYY-MM-DD).
-      // Algumas prefeituras (ex: SLS Obras) validam estritamente como xs:date e
-      // rejeitam xs:dateTime. brazilToday() retorna YYYY-MM-DD em fuso BRT.
+      // Layout Municipal envia payload ja estruturado (prestador.cnpj, servico.valores)
+      // que Focus repassa pra ABRASF Municipal sem conversao. Pode ser util como
+      // workaround se Layout Nacional (`/v2/nfsen`) der problema de conversao.
       request = {
-        data_emissao: brazilToday(),
+        // data_emissao: brazilNow() retorna ISO 8601 com horario (xs:dateTime).
+        // Mesma referencia do Layout Nacional acima — manter formato consistente.
+        data_emissao: brazilNow(),
         natureza_operacao: dto.naturezaOperacao || config.naturezaOperacao || '1',
+        // regime_especial_tributacao: tipo string aqui, optional.
+        // `|| undefined` cobre null/empty string corretamente.
         regime_especial_tributacao: config.regimeEspecialTributacao || undefined,
         optante_simples_nacional: config.optanteSimplesNacional,
         incentivador_cultural: false,

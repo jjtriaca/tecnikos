@@ -1,8 +1,43 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+// ════════════════════════════════════════════════════════════════════════════
+//  ATENCAO — Focus NFe Interfaces (ler antes de mexer)
+// ════════════════════════════════════════════════════════════════════════════
+//  Doc oficial:
+//   - https://focusnfe.com.br/doc/#nfse           (Layout Municipal /v2/nfse)
+//   - https://focusnfe.com.br/doc/#nfse-nacional  (Layout Nacional  /v2/nfsen)
+//  Licoes: memory/nfse-lessons-learned.md
+//
+//  1) data_emissao: ISO 8601 COM HORARIO em ambos layouts.
+//     Exemplo doc: "2024-05-07T07:34:56-0300". Use brazilNow().
+//
+//  2) Campos OBRIGATORIOS no contrato Focus devem ser sempre enviados,
+//     mesmo com valor "0". Ex: regime_especial_tributacao=0 (Nenhum) eh
+//     enviado explicitamente na doc. Omitir gera XML incompleto pelo Focus.
+//
+//  3) Focus tem fallback automatico Nacional -> ABRASF pra municipios em
+//     transicao. Se Layout NACIONAL der erro de XSD ABRASF persistente,
+//     considerar trocar pra MUNICIPAL como workaround (vai pra /v2/nfse
+//     diretamente sem passar pelo conversor).
+//
+//  4) REFORMA TRIBUTARIA — 3 cenarios de adesao do municipio:
+//     Cenario A: formato proprio + ambiente proprio. Use Layout MUNICIPAL.
+//                Painel Focus: habilita_nfse=true.
+//     Cenario B: formato Nacional + ambiente proprio. Use Layout NACIONAL.
+//                Painel Focus: habilita_nfse=true, habilita_nfsen=false.
+//     Cenario C: formato Nacional + ambiente Nacional (NFSe Nacional pura).
+//                Use Layout NACIONAL. Painel Focus: habilita_nfsen=true,
+//                habilita_nfse=false. MEI sempre obrigatoriamente Cenario C.
+//     Quando bug de emissao aparecer apos atualizacao do municipio:
+//     1. Verificar em qual cenario o municipio esta (consultar Focus)
+//     2. Conferir flags habilita_nfse / habilita_nfsen no painel Focus
+//     3. Confirmar Layout no NfseConfig do tenant
+// ════════════════════════════════════════════════════════════════════════════
+
 // ========== MUNICIPAL layout (/v2/nfse) — ABRASF ==========
 
 export interface FocusNfseRequest {
+  // ISO 8601 com horario. Use brazilNow(). Ver doc oficial.
   data_emissao: string;
   natureza_operacao: string;
   regime_especial_tributacao?: string;
@@ -48,14 +83,18 @@ export interface FocusNfseRequest {
 // ========== NACIONAL layout (/v2/nfsen) — Layout Nacional ==========
 
 export interface FocusNfsenRequest {
+  // ISO 8601 com horario. Doc oficial: "2024-05-07T07:34:56-0300". Use brazilNow().
   data_emissao: string;
+  // Data sem horario (xs:date). Use brazilToday().
   data_competencia: string;
   codigo_municipio_emissora: number;
   cnpj_prestador: string;
   inscricao_municipal_prestador?: string;
   codigo_opcao_simples_nacional: number; // 1=Não optante, 2=Optante MEI, 3=Optante ME/EPP
   regime_tributario_simples_nacional?: number; // regApTribSN — 1=Federal+Municipal pelo SN, 2=Federal SN + ISS fora, 3=Tudo fora
-  regime_especial_tributacao?: number;    // 0=Sem (omitir), 1=Microempresa municipal, etc.
+  // OBRIGATORIO no contrato Focus. Enum 0-9. 0=Nenhum (default). Doc oficial
+  // mostra ele enviado mesmo com valor 0. Manter required (sem `?`).
+  regime_especial_tributacao: number;     // 0=Nenhum, 1=Microempresa municipal, ...
   // Tomador
   cnpj_tomador?: string;
   cpf_tomador?: string;
