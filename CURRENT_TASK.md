@@ -1,7 +1,16 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.28 (em prod)
+## Versao: v1.10.29 (em prod)
 ## Ultima sessao: 185 (04/05/2026)
+
+## v1.10.29 — Fix Layout Municipal: omitir regime_especial_tributacao quando "0"
+- **Erro persistente apos v1.10.28**: trocar nfseLayout pra MUNICIPAL (via SQL) destravou o conversor bugado do Focus (XML agora gerado completo). Mas erro novo apareceu: `Element 'RegimeEspecialTributacao': [facet 'pattern'] The value '0' is not accepted by the pattern '1|2|3|4|5|6'`.
+- **Causa**: XSD ABRASF do Layout Municipal so aceita valores 1-6 pra RegimeEspecialTributacao (Microempresa Municipal, Estimativa, Sociedade Profissionais, Cooperativa, MEI, ME/EPP). Valor "0" (Nenhum) NAO existe nesse XSD — eh especifico do Layout Nacional.
+- **Diferenca relevante** entre Layouts:
+  - NACIONAL: `regime_especial_tributacao` eh OBRIGATORIO (enviar sempre, mesmo 0)
+  - MUNICIPAL: campo opcional, MAS valor "0" rejeitado pelo XSD ABRASF (omitir quando 0)
+- **Fix**: linha ~838 do nfse-emission.service.ts, branch Layout Municipal — spread condicional omitindo regime quando "0" ou vazio.
+- **Estado SLS**: nfseLayout mudou de NACIONAL para MUNICIPAL (workaround pelo conversor Nacional→ABRASF do Focus estar bugado pra Primavera do Leste apos Reforma Tributaria). IM 9648219 mantida.
 
 ## v1.10.28 — REVERT v1.10.27 — voltar ao contrato oficial do Focus NFe
 - **Descoberta apos consultar doc oficial Focus** (https://focusnfe.com.br/doc/#nfse-nacional_campos): meus fixes de v1.10.27 estavam VIOLANDO o contrato de entrada do Focus.

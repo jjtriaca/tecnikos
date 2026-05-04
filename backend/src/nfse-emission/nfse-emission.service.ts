@@ -835,14 +835,21 @@ export class NfseEmissionService {
       // Layout Municipal envia payload ja estruturado (prestador.cnpj, servico.valores)
       // que Focus repassa pra ABRASF Municipal sem conversao. Pode ser util como
       // workaround se Layout Nacional (`/v2/nfsen`) der problema de conversao.
+      // ⚠️ DIFERENCA RELEVANTE entre Layouts:
+      //   - regime_especial_tributacao no Layout NACIONAL: 0=Nenhum eh valor valido,
+      //     campo eh obrigatorio na doc Focus (sempre enviar).
+      //   - regime_especial_tributacao no Layout MUNICIPAL: XSD ABRASF so aceita 1-6
+      //     (Microempresa Municipal | Estimativa | Sociedade Profissionais |
+      //      Cooperativa | MEI | ME/EPP). Valor "0" REJEITADO. Omitir quando for 0.
       request = {
         // data_emissao: brazilNow() retorna ISO 8601 com horario (xs:dateTime).
         // Mesma referencia do Layout Nacional acima — manter formato consistente.
         data_emissao: brazilNow(),
         natureza_operacao: dto.naturezaOperacao || config.naturezaOperacao || '1',
-        // regime_especial_tributacao: tipo string aqui, optional.
-        // `|| undefined` cobre null/empty string corretamente.
-        regime_especial_tributacao: config.regimeEspecialTributacao || undefined,
+        // Spread condicional: omite quando "0" ou vazio (XSD ABRASF nao aceita 0).
+        ...(config.regimeEspecialTributacao && config.regimeEspecialTributacao !== '0'
+          ? { regime_especial_tributacao: config.regimeEspecialTributacao }
+          : {}),
         optante_simples_nacional: config.optanteSimplesNacional,
         incentivador_cultural: false,
         prestador: {
