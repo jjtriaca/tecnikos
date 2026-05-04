@@ -43,6 +43,10 @@ const TENANT_MODEL_DELEGATES = new Set([
   'quoteAttachment', 'checklistResponse', 'pushSubscription',
   'nfseServiceCode', 'partnerContact', 'suggestion', 'deviceToken',
   'boletoConfig', 'boleto',
+  // Modulo Piscina/Obras (vertical) - sao todos por-tenant
+  'poolCatalogConfig', 'poolBudgetTemplate', 'poolBudget', 'poolBudgetItem',
+  'poolProject', 'poolProjectStage', 'poolProjectEntry', 'poolProjectPhoto',
+  'poolPrintLayout', 'poolPrintPage', 'poolModuleConfig',
 ]);
 
 /**

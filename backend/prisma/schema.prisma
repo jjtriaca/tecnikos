@@ -51,7 +51,7 @@ enum FinancialEntryStatus {
   CONFIRMED
   PAID
   CANCELLED
-  SPLIT      // Entry "pai" foi parcelado em N filhas (via parentEntryId). Some do A Receber/A Pagar, preserva historico.
+  SPLIT // Entry "pai" foi parcelado em N filhas (via parentEntryId). Some do A Receber/A Pagar, preserva historico.
 }
 
 enum InstallmentStatus {
@@ -111,41 +111,41 @@ enum QuoteItemType {
 }
 
 enum BoletoStatus {
-  DRAFT          // Criado localmente, nao registrado no banco
-  REGISTERING    // Enviado para API do banco, aguardando confirmacao
-  REGISTERED     // Registrado com sucesso no banco
-  REJECTED       // Banco rejeitou o registro
-  PAID           // Pagamento confirmado (webhook ou manual)
-  OVERDUE        // Vencido e nao pago
-  CANCELLED      // Cancelado no banco
-  PROTESTED      // Protestado (cartorio)
-  WRITTEN_OFF    // Baixado
+  DRAFT // Criado localmente, nao registrado no banco
+  REGISTERING // Enviado para API do banco, aguardando confirmacao
+  REGISTERED // Registrado com sucesso no banco
+  REJECTED // Banco rejeitou o registro
+  PAID // Pagamento confirmado (webhook ou manual)
+  OVERDUE // Vencido e nao pago
+  CANCELLED // Cancelado no banco
+  PROTESTED // Protestado (cartorio)
+  WRITTEN_OFF // Baixado
 }
 
 model Company {
-  id        String   @id @default(uuid())
-  name      String   // Razão Social
-  tradeName String?  // Nome Fantasia
-  cnpj      String?  @unique
-  ie        String?  // Inscrição Estadual
-  im        String?  // Inscrição Municipal
+  id        String  @id @default(uuid())
+  name      String // Razão Social
+  tradeName String? // Nome Fantasia
+  cnpj      String? @unique
+  ie        String? // Inscrição Estadual
+  im        String? // Inscrição Municipal
 
-  phone     String?
-  email     String?
+  phone String?
+  email String?
 
   // Logomarca
-  logoUrl    String?  // URL relativa: /uploads/{companyId}/logo.png
-  logoWidth  Int?     @default(120)  // largura em px no PDF
-  logoHeight Int?     @default(40)   // altura em px no PDF
+  logoUrl    String? // URL relativa: /uploads/{companyId}/logo.png
+  logoWidth  Int?    @default(120) // largura em px no PDF
+  logoHeight Int?    @default(40) // altura em px no PDF
 
   // Endereço
   cep           String?
-  addressStreet String?  // Logradouro
-  addressNumber String?  // Número
-  addressComp   String?  // Complemento
-  neighborhood  String?  // Bairro
+  addressStreet String? // Logradouro
+  addressNumber String? // Número
+  addressComp   String? // Complemento
+  neighborhood  String? // Bairro
   city          String?
-  state         String?  // UF (2 chars)
+  state         String? // UF (2 chars)
 
   // Responsável Legal
   ownerName  String?
@@ -154,103 +154,114 @@ model Company {
   ownerEmail String?
 
   // Configurações de Avaliação
-  evalGestorWeight Int    @default(40)  // peso do gestor em % (0-100)
-  evalClientWeight Int    @default(60)  // peso do cliente em % (0-100)
-  evalMinRating    Float  @default(3.0) // nota mínima para receber demandas (1.0-5.0)
+  evalGestorWeight Int   @default(40) // peso do gestor em % (0-100)
+  evalClientWeight Int   @default(60) // peso do cliente em % (0-100)
+  evalMinRating    Float @default(3.0) // nota mínima para receber demandas (1.0-5.0)
 
   // Configurações Fiscais
-  taxRegime         String   @default("SN")  // SN | LP | LR (Simples Nacional | Lucro Presumido | Lucro Real)
-  crt               Int      @default(1)     // Código Regime Tributário: 1=SN, 2=SN excesso sublimite, 3=Regime Normal
-  cnae              String?                  // CNAE principal (7 dígitos, ex: "4120400")
-  suframa           String?                  // Inscrição SUFRAMA
-  fiscalProfile     String   @default("A")   // Perfil EFD ICMS/IPI: A (detalhado) | B (sintético) | C (simplificado)
+  taxRegime        String  @default("SN") // SN | LP | LR (Simples Nacional | Lucro Presumido | Lucro Real)
+  crt              Int     @default(1) // Código Regime Tributário: 1=SN, 2=SN excesso sublimite, 3=Regime Normal
+  cnae             String? // CNAE principal (7 dígitos, ex: "4120400")
+  suframa          String? // Inscrição SUFRAMA
+  fiscalProfile    String  @default("A") // Perfil EFD ICMS/IPI: A (detalhado) | B (sintético) | C (simplificado)
   // Contabilista (SPED Reg 0100)
-  contabilistName   String?
-  contabilistCpf    String?
-  contabilistCrc    String?
-  contabilistCnpj   String?
-  contabilistCep    String?
-  contabilistPhone  String?
-  contabilistEmail  String?
+  contabilistName  String?
+  contabilistCpf   String?
+  contabilistCrc   String?
+  contabilistCnpj  String?
+  contabilistCep   String?
+  contabilistPhone String?
+  contabilistEmail String?
 
-  status        String   @default("ATIVA")
-  fiscalEnabled  Boolean  @default(false) // Módulo fiscal (NFS-e) habilitado
-  maxOsPerMonth  Int      @default(0)     // 0 = unlimited
-  maxUsers       Int      @default(0)     // 0 = unlimited
-  maxTechnicians Int      @default(0)     // 0 = unlimited
-  maxAiMessages  Int      @default(0)     // 0 = unlimited
-  maxNfseImports Int      @default(0)     // 0 = unlimited (importações NFS-e/mês)
+  status         String  @default("ATIVA")
+  fiscalEnabled  Boolean @default(false) // Módulo fiscal (NFS-e) habilitado
+  maxOsPerMonth  Int     @default(0) // 0 = unlimited
+  maxUsers       Int     @default(0) // 0 = unlimited
+  maxTechnicians Int     @default(0) // 0 = unlimited
+  maxAiMessages  Int     @default(0) // 0 = unlimited
+  maxNfseImports Int     @default(0) // 0 = unlimited (importações NFS-e/mês)
 
   // Horário comercial e fuso
-  timezone       String?  @default("America/Sao_Paulo")
-  businessHours  Json?    // [{start: "07:00", end: "11:00"}, {start: "13:00", end: "17:00"}]
+  timezone      String? @default("America/Sao_Paulo")
+  businessHours Json? // [{start: "07:00", end: "11:00"}, {start: "13:00", end: "17:00"}]
 
   // Configurações do sistema (toggles)
-  systemConfig        Json?     // { os: { financialOnApproval: true }, ... }
+  systemConfig Json? // { os: { financialOnApproval: true }, ... }
+
+  // Módulo Piscina/Obras (toggle por tenant; futuramente atrelado a Plan premium)
+  poolModuleActive Boolean @default(false)
 
   // Chat IA
-  chatIAMonthlyMsgs   Int       @default(0)     // Messages used this month
-  chatIAMonthReset    DateTime?                  // Last monthly reset date
-  onboardingDismissed Boolean   @default(false)  // User dismissed onboarding wizard
+  chatIAMonthlyMsgs   Int       @default(0) // Messages used this month
+  chatIAMonthReset    DateTime? // Last monthly reset date
+  onboardingDismissed Boolean   @default(false) // User dismissed onboarding wizard
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  users              User[]
-  partners           Partner[]
-  serviceOrders      ServiceOrder[]
-  workflowTemplates  WorkflowTemplate[]
-  specializations    Specialization[]
-  automationRules      AutomationRule[]
-  automationTemplates  AutomationTemplate[]
-  financialEntries     FinancialEntry[]
-  collectionRules      CollectionRule[]
-  whatsappMessages     WhatsAppMessage[]
-  whatsAppConfig       WhatsAppConfig?
-  products             Product[]
-  nfeImports           NfeImport[]
-  sefazConfig          SefazConfig?
-  sefazDocuments       SefazDocument[]
-  paymentMethods       PaymentMethod[]
-  paymentInstruments   PaymentInstrument[]
+  users                     User[]
+  partners                  Partner[]
+  serviceOrders             ServiceOrder[]
+  workflowTemplates         WorkflowTemplate[]
+  specializations           Specialization[]
+  automationRules           AutomationRule[]
+  automationTemplates       AutomationTemplate[]
+  financialEntries          FinancialEntry[]
+  collectionRules           CollectionRule[]
+  whatsappMessages          WhatsAppMessage[]
+  whatsAppConfig            WhatsAppConfig?
+  products                  Product[]
+  nfeImports                NfeImport[]
+  sefazConfig               SefazConfig?
+  sefazDocuments            SefazDocument[]
+  paymentMethods            PaymentMethod[]
+  paymentInstruments        PaymentInstrument[]
   paymentInstrumentFeeRates PaymentInstrumentFeeRate[]
-  cashAccounts         CashAccount[]
-  nfseConfig           NfseConfig?
-  nfseEmissions        NfseEmission[]
-  nfseServiceCodes     NfseServiceCode[]
-  partnerContacts      PartnerContact[]
-  workDays             WorkDay[]
-  obras                Obra[]
-  serviceAddresses     ServiceAddress[]
-  cardSettlements      CardSettlement[]
-  financialAccounts    FinancialAccount[]
-  services             Service[]
-  cardFeeRates         CardFeeRate[]
-  nfseEntradas         NfseEntrada[]
-  fiscalPeriods        FiscalPeriod[]
-  emailConfig          EmailConfig?
-  technicianContracts  TechnicianContract[]
-  codeCounters         CodeCounter[]
-  chatIAConversations  ChatIAConversation[]
-  suggestions          Suggestion[]
-  quotes               Quote[]
-  checklistResponses   ChecklistResponse[]
-  pushSubscriptions    PushSubscription[]
-  deviceTokens         DeviceToken[]
-  boletoConfig         BoletoConfig?
-  boletos              Boleto[]
+  cashAccounts              CashAccount[]
+  nfseConfig                NfseConfig?
+  nfseEmissions             NfseEmission[]
+  nfseServiceCodes          NfseServiceCode[]
+  partnerContacts           PartnerContact[]
+  workDays                  WorkDay[]
+  obras                     Obra[]
+  serviceAddresses          ServiceAddress[]
+  cardSettlements           CardSettlement[]
+  financialAccounts         FinancialAccount[]
+  services                  Service[]
+  cardFeeRates              CardFeeRate[]
+  nfseEntradas              NfseEntrada[]
+  fiscalPeriods             FiscalPeriod[]
+  emailConfig               EmailConfig?
+  technicianContracts       TechnicianContract[]
+  codeCounters              CodeCounter[]
+  chatIAConversations       ChatIAConversation[]
+  suggestions               Suggestion[]
+  quotes                    Quote[]
+  checklistResponses        ChecklistResponse[]
+  pushSubscriptions         PushSubscription[]
+  deviceTokens              DeviceToken[]
+  boletoConfig              BoletoConfig?
+  boletos                   Boleto[]
+
+  // Modulo Piscina/Obras
+  poolCatalogConfigs  PoolCatalogConfig[]
+  poolBudgetTemplates PoolBudgetTemplate[]
+  poolBudgets         PoolBudget[]
+  poolProjects        PoolProject[]
+  poolPrintLayouts    PoolPrintLayout[]
+  poolModuleConfig    PoolModuleConfig?
 }
 
 model User {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   companyId    String
-  code         String?  // Auto-generated: USR-00001
+  code         String? // Auto-generated: USR-00001
   name         String
-  email        String   @unique
-  passwordHash String?  // Nullable: null when user is invited and hasn't set password yet
+  email        String     @unique
+  passwordHash String? // Nullable: null when user is invited and hasn't set password yet
   roles        UserRole[]
-  mfaEnabled   Boolean  @default(false)
+  mfaEnabled   Boolean    @default(false)
 
   // Password reset / invite flow
   passwordResetToken     String?   @unique
@@ -259,21 +270,21 @@ model User {
   passwordSetAt          DateTime? // Set when user defines their own password
 
   // Chat IA access control
-  chatIAEnabled          Boolean   @default(false) // Toggle: ADMIN always has access
+  chatIAEnabled Boolean @default(false) // Toggle: ADMIN always has access
 
   // Anti-fraud: cooldown on reactivation (doubles each deactivation)
-  deactivationCount      Int       @default(0)
-  lastDeactivatedAt      DateTime?
+  deactivationCount Int       @default(0)
+  lastDeactivatedAt DateTime?
 
   // UI preferences (dispatch panel position, etc.)
-  preferences            Json?
+  preferences Json?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  company  Company   @relation(fields: [companyId], references: [id])
-  sessions Session[]
+  company             Company              @relation(fields: [companyId], references: [id])
+  sessions            Session[]
   chatIAConversations ChatIAConversation[]
   suggestions         Suggestion[]
   pushSubscriptions   PushSubscription[]
@@ -289,8 +300,8 @@ model Session {
   revokedAt        DateTime?
   ip               String?
   userAgent        String?
-  deviceName       String?    // "Chrome no Windows", "Safari no iPhone"
-  lastActivityAt   DateTime?  // Updated on token refresh
+  deviceName       String? // "Chrome no Windows", "Safari no iPhone"
+  lastActivityAt   DateTime? // Updated on token refresh
   createdAt        DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id])
@@ -322,28 +333,28 @@ model DeviceToken {
 model Partner {
   id              String   @id @default(uuid())
   companyId       String
-  code            String?  // Auto-generated: PAR-00001
+  code            String? // Auto-generated: PAR-00001
   partnerTypes    String[] // ["CLIENTE", "FORNECEDOR", "TECNICO"]
-  personType      String   // "PF", "PJ"
+  personType      String // "PF", "PJ"
   isRuralProducer Boolean  @default(false) // PF Produtor Rural = habilita IE
 
-  name          String   // Nome completo (PF) ou Razão Social (PJ)
-  tradeName     String?  // Nome Fantasia (PJ)
-  document      String?  // CPF ou CNPJ
-  documentType  String?  // "CPF", "CNPJ"
-  ie            String?  // Inscrição Estadual
-  im            String?  // Inscrição Municipal
-  caepf         String?  // CAEPF - Cadastro de Atividade Econômica PF (Produtor Rural)
-  ieStatus      String?  // "ATIVA", "INATIVA", "NAO_HABILITADO"
-  ieLastCheck   DateTime?
+  name         String // Nome completo (PF) ou Razão Social (PJ)
+  tradeName    String? // Nome Fantasia (PJ)
+  document     String? // CPF ou CNPJ
+  documentType String? // "CPF", "CNPJ"
+  ie           String? // Inscrição Estadual
+  im           String? // Inscrição Municipal
+  caepf        String? // CAEPF - Cadastro de Atividade Econômica PF (Produtor Rural)
+  ieStatus     String? // "ATIVA", "INATIVA", "NAO_HABILITADO"
+  ieLastCheck  DateTime?
 
-  phone         String?
-  email         String?
+  phone String?
+  email String?
 
   // Campos específicos de TECNICO
-  passwordHash  String?  // Login do técnico
-  rating        Float    @default(5.0) // Avaliação do técnico (1-5)
-  regime        String?  // "CLT" | "PJ" — regime do técnico
+  passwordHash String? // Login do técnico
+  rating       Float   @default(5.0) // Avaliação do técnico (1-5)
+  regime       String? // "CLT" | "PJ" — regime do técnico
 
   // Endereço
   cep           String?
@@ -352,35 +363,40 @@ model Partner {
   addressComp   String?
   neighborhood  String?
   city          String?
-  state         String?  // UF (2 chars)
+  state         String? // UF (2 chars)
 
-  status    String   @default("ATIVO")
+  status String @default("ATIVO")
 
   // Anti-fraud: cooldown on reactivation (doubles each deactivation)
-  deactivationCount    Int       @default(0)
-  lastDeactivatedAt    DateTime?
+  deactivationCount Int       @default(0)
+  lastDeactivatedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  company              Company                @relation(fields: [companyId], references: [id])
-  serviceOrders        ServiceOrder[]         @relation("AssignedPartner")
-  clientServiceOrders  ServiceOrder[]         @relation("ClientPartner")
-  specializations      PartnerSpecialization[]
-  evaluations          Evaluation[]
-  financialEntries     FinancialEntry[]
-  whatsappMessages     WhatsAppMessage[]
-  productEquivalents   ProductEquivalent[]
-  obras                Obra[]
-  serviceAddresses     ServiceAddress[]
-  nfseEntradasPrestador NfseEntrada[] @relation("NfseEntradaPrestador")
+  company               Company                 @relation(fields: [companyId], references: [id])
+  serviceOrders         ServiceOrder[]          @relation("AssignedPartner")
+  clientServiceOrders   ServiceOrder[]          @relation("ClientPartner")
+  specializations       PartnerSpecialization[]
+  evaluations           Evaluation[]
+  financialEntries      FinancialEntry[]
+  whatsappMessages      WhatsAppMessage[]
+  productEquivalents    ProductEquivalent[]
+  obras                 Obra[]
+  serviceAddresses      ServiceAddress[]
+  nfseEntradasPrestador NfseEntrada[]           @relation("NfseEntradaPrestador")
   technicianContracts   TechnicianContract[]
-  clientQuotes          Quote[]      @relation("QuoteClient")
+  clientQuotes          Quote[]                 @relation("QuoteClient")
   contacts              PartnerContact[]
   deviceTokens          DeviceToken[]
   workDays              WorkDay[]
   boletos               Boleto[]
+
+  // Modulo Piscina
+  clientPoolBudgets  PoolBudget[]       @relation("PoolBudgetClient")
+  poolProjects       PoolProject[]
+  poolProjectEntries PoolProjectEntry[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -393,9 +409,9 @@ model PartnerContact {
   id         String    @id @default(uuid())
   companyId  String
   partnerId  String
-  type       String    // EMAIL | WHATSAPP
-  value      String    // email ou telefone
-  label      String?   // "Financeiro", "Comercial", etc.
+  type       String // EMAIL | WHATSAPP
+  value      String // email ou telefone
+  label      String? // "Financeiro", "Comercial", etc.
   lastUsedAt DateTime? // para ordenar pelo último usado
   active     Boolean   @default(true)
   createdAt  DateTime  @default(now())
@@ -408,9 +424,9 @@ model PartnerContact {
 }
 
 model ServiceOrder {
-  id          String             @id @default(uuid())
+  id          String  @id @default(uuid())
   companyId   String
-  code        String?            // Auto-generated: OS-00001
+  code        String? // Auto-generated: OS-00001
   title       String
   description String?
   addressText String
@@ -419,15 +435,15 @@ model ServiceOrder {
   valueCents  Int
 
   // Endereço estruturado (v1.00.09)
-  addressStreet  String?
-  addressNumber  String?
-  addressComp    String?
-  neighborhood   String?
-  city           String?
-  state          String?  // UF (2 chars)
-  cep            String?
-  deadlineAt  DateTime
-  status      ServiceOrderStatus @default(ABERTA)
+  addressStreet String?
+  addressNumber String?
+  addressComp   String?
+  neighborhood  String?
+  city          String?
+  state         String? // UF (2 chars)
+  cep           String?
+  deadlineAt    DateTime
+  status        ServiceOrderStatus @default(ABERTA)
 
   assignedPartnerId  String?
   clientPartnerId    String?
@@ -437,55 +453,55 @@ model ServiceOrder {
   workflowTemplateId String?
 
   // Atribuição de técnico (v1.00.24)
-  techAssignmentMode        String   @default("BY_SPECIALIZATION") // BY_SPECIALIZATION | DIRECTED | BY_WORKFLOW
-  requiredSpecializationIds String[] @default([])
-  directedTechnicianIds     String[] @default([])
-  contactPersonName         String?  // Nome do contato no local (v1.00.25)
-  acceptTimeoutMinutes      Int?     // Tempo para aceitar em minutos (v1.00.34) — null = usa do fluxo
-  enRouteTimeoutMinutes     Int?     // Tempo para clicar a caminho em minutos (v1.00.35) — null = usa do fluxo
-  estimatedArrivalMinutes   Int?     // Tempo estimado de chegada informado pelo técnico (v1.00.37)
-  enRouteAt                 DateTime?  // Quando o técnico clicou "Estou a caminho" (v1.03.11)
-  trackingStartedAt         DateTime?  // Quando o GPS tracking foi ativado (v1.00.40)
-  proximityEnteredAt        DateTime?  // Quando o técnico entrou no raio de proximidade (v1.00.40)
-  proximityRadiusMeters     Int?       // Raio configurado no momento do tracking (snapshot) (v1.00.40)
-  arrivedAt                 DateTime?  // Quando o técnico clicou "Cheguei no local" (v1.03.19)
+  techAssignmentMode        String    @default("BY_SPECIALIZATION") // BY_SPECIALIZATION | DIRECTED | BY_WORKFLOW
+  requiredSpecializationIds String[]  @default([])
+  directedTechnicianIds     String[]  @default([])
+  contactPersonName         String? // Nome do contato no local (v1.00.25)
+  acceptTimeoutMinutes      Int? // Tempo para aceitar em minutos (v1.00.34) — null = usa do fluxo
+  enRouteTimeoutMinutes     Int? // Tempo para clicar a caminho em minutos (v1.00.35) — null = usa do fluxo
+  estimatedArrivalMinutes   Int? // Tempo estimado de chegada informado pelo técnico (v1.00.37)
+  enRouteAt                 DateTime? // Quando o técnico clicou "Estou a caminho" (v1.03.11)
+  trackingStartedAt         DateTime? // Quando o GPS tracking foi ativado (v1.00.40)
+  proximityEnteredAt        DateTime? // Quando o técnico entrou no raio de proximidade (v1.00.40)
+  proximityRadiusMeters     Int? // Raio configurado no momento do tracking (snapshot) (v1.00.40)
+  arrivedAt                 DateTime? // Quando o técnico clicou "Cheguei no local" (v1.03.19)
 
   // Sistema de Pausas (v1.00.42)
-  isPaused        Boolean  @default(false)
-  pausedAt        DateTime?
-  pauseCount      Int      @default(0)
-  totalPausedMs   BigInt   @default(0)  // milissegundos totais pausados (acumulativo)
+  isPaused      Boolean   @default(false)
+  pausedAt      DateTime?
+  pauseCount    Int       @default(0)
+  totalPausedMs BigInt    @default(0) // milissegundos totais pausados (acumulativo)
 
   // Criador da OS (v1.05.63)
-  createdByUserId  String?   // ID do usuario que criou
-  createdByName    String?   // Nome do usuario que criou (snapshot)
+  createdByUserId String? // ID do usuario que criou
+  createdByName   String? // Nome do usuario que criou (snapshot)
 
   // Cancelamento (v1.00.55)
-  cancelledReason  String?   // Motivo do cancelamento
-  cancelledByName  String?   // Nome do usuario que cancelou
+  cancelledReason String? // Motivo do cancelamento
+  cancelledByName String? // Nome do usuario que cancelou
 
   // Recusa do técnico
-  declinedReason   String?   // Motivo da recusa pelo técnico
-  declinedAt       DateTime? // Data/hora da recusa
+  declinedReason String? // Motivo da recusa pelo técnico
+  declinedAt     DateTime? // Data/hora da recusa
 
   // Obra vinculada (v1.00.88)
-  obraId           String?
+  obraId String?
 
   // Comissao do tecnico (v1.01.81)
-  commissionBps       Int?       // Comissao customizada (basis points), null = usa default da empresa
-  techCommissionCents Int?       // Valor em centavos que vai para o tecnico
+  commissionBps       Int? // Comissao customizada (basis points), null = usa default da empresa
+  techCommissionCents Int? // Valor em centavos que vai para o tecnico
   isReturn            Boolean @default(false) // Retorno de atendimento anterior
-  returnPaidToTech    Boolean @default(true)  // Se retorno: paga o tecnico ou obrigacao dele
+  returnPaidToTech    Boolean @default(true) // Se retorno: paga o tecnico ou obrigacao dele
   isUrgent            Boolean @default(false) // OS urgente (prioridade maxima)
   isEvaluation        Boolean @default(false) // OS de avaliação/orçamento (visita técnica para orçar)
-  parentOrderId       String?                // Vínculo com OS original (retorno)
+  parentOrderId       String? // Vínculo com OS original (retorno)
 
   // Agendamento CLT (v1.01.72)
-  scheduledStartAt          DateTime?  // Data/hora agendada para inicio do servico
-  estimatedDurationMinutes  Int?       // Duracao estimada em minutos
+  scheduledStartAt         DateTime? // Data/hora agendada para inicio do servico
+  estimatedDurationMinutes Int? // Duracao estimada em minutos
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   company          Company           @relation(fields: [companyId], references: [id])
@@ -494,22 +510,22 @@ model ServiceOrder {
   workflowTemplate WorkflowTemplate? @relation(fields: [workflowTemplateId], references: [id])
   obra             Obra?             @relation(fields: [obraId], references: [id])
 
-  offers           ServiceOrderOffer[]
-  events           ServiceOrderEvent[]
-  ledger           ServiceOrderLedger?
-  financialEntries FinancialEntry[]
-  nfseEmissions    NfseEmission[]
-  workflowStepLogs WorkflowStepLog[]
-  attachments      Attachment[]
-  evaluations      Evaluation[]
-  locationLogs     TechnicianLocationLog[]
-  executionPauses      ExecutionPause[]
-  technicianContracts  TechnicianContract[]
-  quotes               Quote[]
-  items                ServiceOrderItem[]
-  checklistResponses   ChecklistResponse[]
-  parentOrder          ServiceOrder?  @relation("ReturnOrders", fields: [parentOrderId], references: [id])
-  returnOrders         ServiceOrder[] @relation("ReturnOrders")
+  offers              ServiceOrderOffer[]
+  events              ServiceOrderEvent[]
+  ledger              ServiceOrderLedger?
+  financialEntries    FinancialEntry[]
+  nfseEmissions       NfseEmission[]
+  workflowStepLogs    WorkflowStepLog[]
+  attachments         Attachment[]
+  evaluations         Evaluation[]
+  locationLogs        TechnicianLocationLog[]
+  executionPauses     ExecutionPause[]
+  technicianContracts TechnicianContract[]
+  quotes              Quote[]
+  items               ServiceOrderItem[]
+  checklistResponses  ChecklistResponse[]
+  parentOrder         ServiceOrder?           @relation("ReturnOrders", fields: [parentOrderId], references: [id])
+  returnOrders        ServiceOrder[]          @relation("ReturnOrders")
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -524,14 +540,14 @@ model ServiceOrder {
 }
 
 model ServiceOrderOffer {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   serviceOrderId String
   companyId      String
   channel        String
-  token          String   @unique
+  token          String    @unique
   expiresAt      DateTime
   revokedAt      DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
 
@@ -547,7 +563,7 @@ model ServiceOrderEvent {
   actorType       String
   actorId         String?
   payload         Json?
-  clientTimestamp  DateTime? // Timestamp do dispositivo do tecnico (pode diferir do createdAt se offline)
+  clientTimestamp DateTime? // Timestamp do dispositivo do tecnico (pode diferir do createdAt se offline)
   createdAt       DateTime  @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
@@ -557,48 +573,48 @@ model ServiceOrderEvent {
 }
 
 model OtpCode {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   companyId      String
   partnerId      String
   serviceOrderId String
   codeHash       String
-  attempts       Int      @default(0)
+  attempts       Int       @default(0)
   expiresAt      DateTime
   consumedAt     DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   @@index([partnerId, serviceOrderId])
   @@index([companyId])
 }
 
 model WorkflowTemplate {
-  id        String   @id @default(uuid())
-  companyId String
-  name      String
-  isDefault Boolean  @default(false)
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  steps     Json     // V1: Array<{order,name,icon,requirePhoto,requireNote}> | V2: {version:2, blocks: Block[]}
-  requiredSpecializationIds String[] @default([]) // IDs de especializações necessárias
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
+  id                        String    @id @default(uuid())
+  companyId                 String
+  name                      String
+  isDefault                 Boolean   @default(false)
+  isActive                  Boolean   @default(true)
+  sortOrder                 Int       @default(0)
+  steps                     Json // V1: Array<{order,name,icon,requirePhoto,requireNote}> | V2: {version:2, blocks: Block[]}
+  requiredSpecializationIds String[]  @default([]) // IDs de especializações necessárias
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  deletedAt                 DateTime?
 
   company       Company        @relation(fields: [companyId], references: [id])
   serviceOrders ServiceOrder[]
 }
 
 model WorkflowStepLog {
-  id             String   @id @default(uuid())
-  serviceOrderId String
-  stepOrder      Int      // V1: step.order | V2: sequential completion order
-  stepName       String
-  blockId        String?  // V2: block ID from graph
-  partnerId      String
-  note           String?
-  photoUrl       String?
-  responseData    Json?     // V2: block-specific response data (answers, GPS, checklist, etc.)
-  clientTimestamp  DateTime? // Timestamp do dispositivo do tecnico
+  id              String    @id @default(uuid())
+  serviceOrderId  String
+  stepOrder       Int // V1: step.order | V2: sequential completion order
+  stepName        String
+  blockId         String? // V2: block ID from graph
+  partnerId       String
+  note            String?
+  photoUrl        String?
+  responseData    Json? // V2: block-specific response data (answers, GPS, checklist, etc.)
+  clientTimestamp DateTime? // Timestamp do dispositivo do tecnico
   completedAt     DateTime  @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
@@ -609,14 +625,14 @@ model WorkflowStepLog {
 }
 
 model ServiceOrderLedger {
-  id               String   @id @default(uuid())
-  serviceOrderId   String   @unique
-  grossCents       Int
-  commissionBps    Int
-  commissionCents  Int
-  netCents         Int
-  confirmedAt      DateTime?
-  createdAt        DateTime @default(now())
+  id              String    @id @default(uuid())
+  serviceOrderId  String    @unique
+  grossCents      Int
+  commissionBps   Int
+  commissionCents Int
+  netCents        Int
+  confirmedAt     DateTime?
+  createdAt       DateTime  @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
 
@@ -627,14 +643,14 @@ model Attachment {
   id             String   @id @default(uuid())
   serviceOrderId String
   companyId      String
-  type           String   // "ANTES", "DEPOIS", "WORKFLOW_STEP", "OUTRO"
+  type           String // "ANTES", "DEPOIS", "WORKFLOW_STEP", "OUTRO"
   fileName       String
   mimeType       String
   sizeBytes      Int
   url            String
-  uploadedBy     String   // partner ID or user ID
-  stepOrder      Int?     // if attached to a workflow step
-  blockId        String?  // V2 workflow block ID this attachment belongs to
+  uploadedBy     String // partner ID or user ID
+  stepOrder      Int? // if attached to a workflow step
+  blockId        String? // V2 workflow block ID this attachment belongs to
   createdAt      DateTime @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
@@ -647,14 +663,14 @@ model Notification {
   id                String    @id @default(uuid())
   companyId         String
   serviceOrderId    String?
-  channel           String    // "WHATSAPP", "SMS", "EMAIL", "PUSH", "MOCK"
+  channel           String // "WHATSAPP", "SMS", "EMAIL", "PUSH", "MOCK"
   recipientPhone    String?
   recipientEmail    String?
   message           String
-  type              String    // "PROXIMIDADE", "STATUS_CHANGE", "OS_ATRIBUIDA", "OS_CONCLUIDA", "LEMBRETE"
+  type              String // "PROXIMIDADE", "STATUS_CHANGE", "OS_ATRIBUIDA", "OS_CONCLUIDA", "LEMBRETE"
   status            String    @default("PENDING") // "PENDING", "SENT", "FAILED"
-  whatsappMessageId String?   // WhatsApp message ID (wamid) for delivery/read tracking
-  errorDetail       String?   // Error message when status=FAILED
+  whatsappMessageId String? // WhatsApp message ID (wamid) for delivery/read tracking
+  errorDetail       String? // Error message when status=FAILED
   sentAt            DateTime?
   readAt            DateTime? // Marcada como lida quando abre a tela de notificações
   createdAt         DateTime  @default(now())
@@ -668,10 +684,10 @@ model PushSubscription {
   id         String    @id @default(uuid())
   companyId  String
   userId     String
-  endpoint   String    // Push service endpoint URL
-  p256dh     String    // Client public key (base64)
-  auth       String    // Auth secret (base64)
-  deviceName String?   // "Chrome no Windows", etc.
+  endpoint   String // Push service endpoint URL
+  p256dh     String // Client public key (base64)
+  auth       String // Auth secret (base64)
+  deviceName String? // "Chrome no Windows", etc.
   expiresAt  DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -694,7 +710,7 @@ model Specialization {
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  company  Company                @relation(fields: [companyId], references: [id])
+  company  Company                 @relation(fields: [companyId], references: [id])
   partners PartnerSpecialization[]
 
   @@unique([companyId, name])
@@ -721,9 +737,9 @@ model Evaluation {
   serviceOrderId String
   partnerId      String
   companyId      String
-  code           String?  // Auto-generated: AVA-00001
-  evaluatorType  String   // "GESTOR", "CLIENTE"
-  score          Int      // 1-5
+  code           String? // Auto-generated: AVA-00001
+  evaluatorType  String // "GESTOR", "CLIENTE"
+  score          Int // 1-5
   comment        String?
   token          String?  @unique // para avaliação pública do cliente
   createdAt      DateTime @default(now())
@@ -740,19 +756,19 @@ model Evaluation {
 // ========== Motor de Automação ==========
 
 model AutomationRule {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   companyId   String
   name        String
   description String?
-  isActive    Boolean  @default(true)
-  trigger     Json     // { entity: 'SERVICE_ORDER', event: 'completed', conditions: [...] }
-  actions     Json     // [{ type: 'LAUNCH_FINANCIAL', config: {...} }]
-  layout      Json?    // Canvas visual positions: { blocks: [...], connections: [...] }
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean   @default(true)
+  trigger     Json // { entity: 'SERVICE_ORDER', event: 'completed', conditions: [...] }
+  actions     Json // [{ type: 'LAUNCH_FINANCIAL', config: {...} }]
+  layout      Json? // Canvas visual positions: { blocks: [...], connections: [...] }
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  company    Company              @relation(fields: [companyId], references: [id])
+  company    Company               @relation(fields: [companyId], references: [id])
   executions AutomationExecution[]
 
   @@index([companyId, isActive])
@@ -762,11 +778,11 @@ model AutomationExecution {
   id               String   @id @default(uuid())
   automationRuleId String
   companyId        String
-  entityType       String   // "SERVICE_ORDER"
+  entityType       String // "SERVICE_ORDER"
   entityId         String
-  eventType        String   // "completed", "created", etc.
-  status           String   // "SUCCESS" | "FAILED" | "SKIPPED"
-  actionsExecuted  Json?    // [{ type, result }]
+  eventType        String // "completed", "created", etc.
+  status           String // "SUCCESS" | "FAILED" | "SKIPPED"
+  actionsExecuted  Json? // [{ type, result }]
   error            String?
   executedAt       DateTime @default(now())
 
@@ -783,12 +799,12 @@ model AutomationTemplate {
   id          String   @id @default(uuid())
   name        String
   description String?
-  category    String   // "FINANCEIRO", "COMUNICACAO", "GESTAO", "INTEGRACAO"
+  category    String // "FINANCEIRO", "COMUNICACAO", "GESTAO", "INTEGRACAO"
   trigger     Json
   actions     Json
   layout      Json?
   isBuiltIn   Boolean  @default(false) // system-provided templates
-  companyId   String?                  // null = global built-in
+  companyId   String? // null = global built-in
   createdAt   DateTime @default(now())
 
   company Company? @relation(fields: [companyId], references: [id])
@@ -800,116 +816,119 @@ model AutomationTemplate {
 // ========== Financeiro Expandido (v1.00.17) ==========
 
 model FinancialEntry {
-  id               String               @id @default(uuid())
-  companyId        String
-  code             String?              // Auto-generated: FIN-00001
-  serviceOrderId   String?
-  partnerId        String?
-  type             FinancialEntryType
-  status           FinancialEntryStatus @default(PENDING)
-  description      String?
-  grossCents       Int
-  commissionBps    Int?
-  commissionCents  Int?
-  netCents         Int
-  dueDate          DateTime?
-  paidAt           DateTime?
-  confirmedAt      DateTime?
-  cancelledAt      DateTime?
-  notes            String?
+  id              String               @id @default(uuid())
+  companyId       String
+  code            String? // Auto-generated: FIN-00001
+  serviceOrderId  String?
+  partnerId       String?
+  type            FinancialEntryType
+  status          FinancialEntryStatus @default(PENDING)
+  description     String?
+  grossCents      Int
+  commissionBps   Int?
+  commissionCents Int?
+  netCents        Int
+  dueDate         DateTime?
+  paidAt          DateTime?
+  confirmedAt     DateTime?
+  cancelledAt     DateTime?
+  notes           String?
 
   // Pagamento e Cancelamento (v2.1)
-  paymentMethod     String?           // PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO, TRANSFERENCIA, BOLETO
-  cardBrand         String?           // Visa, Mastercard, Elo, etc.
+  paymentMethod     String? // PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO, TRANSFERENCIA, BOLETO
+  cardBrand         String? // Visa, Mastercard, Elo, etc.
   // Ultimos 4 digitos do cartao do CLIENTE (pagamentos RECEIVABLE em cartao) — v1.09.48
   // Diferente do PaymentInstrument.cardLast4 que e do cartao/maquina da EMPRESA.
-  receivedCardLast4 String?           // 4 digitos numericos
+  receivedCardLast4 String? // 4 digitos numericos
   cancelledReason   String?
   cancelledByName   String?
 
   // Referências para cadastros (v2.2)
-  paymentMethodId      String?           // FK para PaymentMethod
-  cashAccountId        String?           // FK para CashAccount (conta de recebimento/pagamento)
-  paymentInstrumentId  String?           // FK para PaymentInstrument (instrumento especifico)
-  batchPaymentId       String?           // Agrupamento de pagamentos em lote
+  paymentMethodId     String? // FK para PaymentMethod
+  cashAccountId       String? // FK para CashAccount (conta de recebimento/pagamento)
+  paymentInstrumentId String? // FK para PaymentInstrument (instrumento especifico)
+  batchPaymentId      String? // Agrupamento de pagamentos em lote
 
   // Dados do cheque (v2.3)
-  checkNumber          String?
-  checkBank            String?
-  checkAgency          String?
-  checkAccount         String?
-  checkClearanceDate   DateTime?
-  checkHolder          String?
+  checkNumber        String?
+  checkBank          String?
+  checkAgency        String?
+  checkAccount       String?
+  checkClearanceDate DateTime?
+  checkHolder        String?
 
   // Parcelas e Juros (v2.0)
-  installmentCount    Int?              // Nro de parcelas (null = à vista)
-  interestType        String?           // "SIMPLE" ou "COMPOUND"
-  interestRateMonthly Float?            // Taxa juros mensal % (ex: 2.0 = 2%)
-  penaltyPercent      Float?            // Multa % sobre valor
-  penaltyFixedCents   Int?              // Multa fixa em centavos
+  installmentCount    Int? // Nro de parcelas (null = à vista)
+  interestType        String? // "SIMPLE" ou "COMPOUND"
+  interestRateMonthly Float? // Taxa juros mensal % (ex: 2.0 = 2%)
+  penaltyPercent      Float? // Multa % sobre valor
+  penaltyFixedCents   Int? // Multa fixa em centavos
 
   // Renegociação (v2.0)
-  parentEntryId       String?           // Entry original (rastreio de renegociação)
-  renegotiatedAt      DateTime?
-  renegotiatedToId    String?           // Nova entry criada na renegociação
+  parentEntryId    String? // Entry original (rastreio de renegociação)
+  renegotiatedAt   DateTime?
+  renegotiatedToId String? // Nova entry criada na renegociação
 
   // NFS-e (v3.0)
-  nfseStatus          String?           // NOT_ISSUED | PROCESSING | AUTHORIZED | ERROR | CANCELLED
-  nfseEmissionId      String?           // FK para NfseEmission
+  nfseStatus     String? // NOT_ISSUED | PROCESSING | AUTHORIZED | ERROR | CANCELLED
+  nfseEmissionId String? // FK para NfseEmission
 
   // Plano de Contas (v1.01)
-  financialAccountId  String?           // FK para FinancialAccount (categoria/natureza)
+  financialAccountId String? // FK para FinancialAccount (categoria/natureza)
 
   // Obra vinculada (v1.00.88)
-  obraId              String?
+  obraId String?
 
   // Estorno/Devolucao PIX indevido (v1.08.86)
-  refundPairEntryId   String?           // Par do lancamento de estorno (RECEIVABLE <-> PAYABLE)
-  isRefundEntry       Boolean @default(false) // Lancamento tecnico de estorno (nao afeta MRR/metricas)
+  refundPairEntryId String? // Par do lancamento de estorno (RECEIVABLE <-> PAYABLE)
+  isRefundEntry     Boolean @default(false) // Lancamento tecnico de estorno (nao afeta MRR/metricas)
 
   // Fatura de cartao conciliada N-para-1 (v1.08.95)
-  invoiceMatchLineId  String?           // Se preenchido, este entry integra a fatura conciliada com a BankStatementLine X
+  invoiceMatchLineId String? // Se preenchido, este entry integra a fatura conciliada com a BankStatementLine X
 
   // Conciliacao auto-pagou este entry (estava PENDING e virou PAID no match) — flag para reverter corretamente no unmatch (v1.08.96)
-  autoMarkedPaid      Boolean @default(false)
+  autoMarkedPaid Boolean @default(false)
 
   // Data de fechamento do ciclo de fatura do cartao em que esta entry cai (v1.09.79)
   // Separada de paidAt pra nao afetar conferencia de saldo/DRE.
   // NULL para entries sem cartao de credito. Preenchida automaticamente quando paymentInstrument tem billingClosingDay.
-  cardBillingDate     DateTime?
+  cardBillingDate DateTime?
 
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  deletedAt        DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  company          Company        @relation(fields: [companyId], references: [id])
-  serviceOrder     ServiceOrder?  @relation(fields: [serviceOrderId], references: [id])
-  partner          Partner?       @relation(fields: [partnerId], references: [id])
-  paymentMethodRef    PaymentMethod?    @relation(fields: [paymentMethodId], references: [id])
-  cashAccountRef      CashAccount?      @relation(fields: [cashAccountId], references: [id])
+  company              Company            @relation(fields: [companyId], references: [id])
+  serviceOrder         ServiceOrder?      @relation(fields: [serviceOrderId], references: [id])
+  partner              Partner?           @relation(fields: [partnerId], references: [id])
+  paymentMethodRef     PaymentMethod?     @relation(fields: [paymentMethodId], references: [id])
+  cashAccountRef       CashAccount?       @relation(fields: [cashAccountId], references: [id])
   paymentInstrumentRef PaymentInstrument? @relation(fields: [paymentInstrumentId], references: [id])
-  nfseEmission     NfseEmission?    @relation(fields: [nfseEmissionId], references: [id])
-  financialAccount FinancialAccount? @relation(fields: [financialAccountId], references: [id])
-  obra             Obra?          @relation(fields: [obraId], references: [id])
+  nfseEmission         NfseEmission?      @relation(fields: [nfseEmissionId], references: [id])
+  financialAccount     FinancialAccount?  @relation(fields: [financialAccountId], references: [id])
+  obra                 Obra?              @relation(fields: [obraId], references: [id])
 
   // Self-relations para renegociação
-  parentEntry        FinancialEntry?        @relation("Renegotiation", fields: [parentEntryId], references: [id])
-  childEntries       FinancialEntry[]       @relation("Renegotiation")
-  renegotiatedTo     FinancialEntry?        @relation("RenegotiationTarget", fields: [renegotiatedToId], references: [id])
-  renegotiationSource FinancialEntry[]      @relation("RenegotiationTarget")
+  parentEntry         FinancialEntry?  @relation("Renegotiation", fields: [parentEntryId], references: [id])
+  childEntries        FinancialEntry[] @relation("Renegotiation")
+  renegotiatedTo      FinancialEntry?  @relation("RenegotiationTarget", fields: [renegotiatedToId], references: [id])
+  renegotiationSource FinancialEntry[] @relation("RenegotiationTarget")
 
   // Self-relation para par de estorno/devolucao
-  refundPairEntry    FinancialEntry?        @relation("RefundPairEntry", fields: [refundPairEntryId], references: [id])
-  refundPairReverse  FinancialEntry[]       @relation("RefundPairEntry")
+  refundPairEntry   FinancialEntry?  @relation("RefundPairEntry", fields: [refundPairEntryId], references: [id])
+  refundPairReverse FinancialEntry[] @relation("RefundPairEntry")
 
   // Fatura de cartao (N entries conciliados em 1 linha do extrato)
-  invoiceMatchLine   BankStatementLine?     @relation("CardInvoiceMatch", fields: [invoiceMatchLineId], references: [id])
+  invoiceMatchLine BankStatementLine? @relation("CardInvoiceMatch", fields: [invoiceMatchLineId], references: [id])
 
   // Parcelas
-  installments       FinancialInstallment[]
-  cardSettlements    CardSettlement[]
-  nfseEntradaLinks   NfseEntradaEntryLink[]
-  boletos            Boleto[]
+  installments     FinancialInstallment[]
+  cardSettlements  CardSettlement[]
+  nfseEntradaLinks NfseEntradaEntryLink[]
+  boletos          Boleto[]
+
+  // Modulo Piscina (lancamento de obra que reflete no financeiro geral)
+  poolProjectEntries PoolProjectEntry[]
 
   @@unique([companyId, code])
   @@index([companyId, type, status])
@@ -929,16 +948,16 @@ model FinancialEntry {
 model FinancialInstallment {
   id                String            @id @default(uuid())
   financialEntryId  String
-  installmentNumber Int               // 1, 2, 3... N
+  installmentNumber Int // 1, 2, 3... N
   dueDate           DateTime
-  amountCents       Int               // Valor original da parcela
+  amountCents       Int // Valor original da parcela
   interestCents     Int               @default(0)
   penaltyCents      Int               @default(0)
   discountCents     Int               @default(0)
-  totalCents        Int               // amount + interest + penalty - discount
+  totalCents        Int // amount + interest + penalty - discount
   status            InstallmentStatus @default(PENDING)
   paidAt            DateTime?
-  paidAmountCents   Int?              // Valor efetivamente pago
+  paidAmountCents   Int? // Valor efetivamente pago
   notes             String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -955,16 +974,16 @@ model FinancialInstallment {
 // ========== Régua de Cobrança (v2.0) ==========
 
 model CollectionRule {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   companyId       String
-  name            String            // Ex: "Lembrete 3 dias antes", "Cobrança 1 dia após"
-  daysAfterDue    Int               // Negativo = antes do vencimento, positivo = depois
-  actionType      String            // WHATSAPP, EMAIL, STATUS_CHANGE, INTEREST_APPLY
-  messageTemplate String?           // {{partner_name}}, {{amount}}, {{due_date}}, {{days_overdue}}
-  isActive        Boolean  @default(true)
-  sortOrder       Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  name            String // Ex: "Lembrete 3 dias antes", "Cobrança 1 dia após"
+  daysAfterDue    Int // Negativo = antes do vencimento, positivo = depois
+  actionType      String // WHATSAPP, EMAIL, STATUS_CHANGE, INTEREST_APPLY
+  messageTemplate String? // {{partner_name}}, {{amount}}, {{due_date}}, {{days_overdue}}
+  isActive        Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
   company Company @relation(fields: [companyId], references: [id])
@@ -974,16 +993,16 @@ model CollectionRule {
 }
 
 model CollectionExecution {
-  id                String   @id @default(uuid())
-  companyId         String
-  collectionRuleId  String
-  financialEntryId  String?
-  installmentId     String?
-  status            String   // SUCCESS, FAILED, SKIPPED
-  actionType        String
-  message           String?
-  error             String?
-  executedAt        DateTime @default(now())
+  id               String   @id @default(uuid())
+  companyId        String
+  collectionRuleId String
+  financialEntryId String?
+  installmentId    String?
+  status           String // SUCCESS, FAILED, SKIPPED
+  actionType       String
+  message          String?
+  error            String?
+  executedAt       DateTime @default(now())
 
   @@index([companyId, executedAt])
   @@index([financialEntryId])
@@ -993,57 +1012,64 @@ model CollectionExecution {
 // ========== Cadastro de Produtos (v2.0) ==========
 
 model Product {
-  id          String   @id @default(uuid())
-  companyId   String
+  id        String @id @default(uuid())
+  companyId String
 
   // Aba Geral
-  code        String?   // Código interno
-  barcode     String?   // Código de barras (EAN)
-  description String    // Nome / Descrição do produto
-  brand       String?   // Marca
-  model       String?   // Modelo
-  unit        String    @default("UN")  // UN, CX, KG, MT, LT, PC
-  ncm         String?   // NCM (Nomenclatura Comum do Mercosul)
-  cest        String?   // CEST
-  origin      String?   // 0=Nacional, 1=Estrangeira importação, etc.
-  category    String?   // Categoria livre
+  code        String? // Código interno
+  barcode     String? // Código de barras (EAN)
+  description String // Nome / Descrição do produto
+  brand       String? // Marca
+  model       String? // Modelo
+  unit        String  @default("UN") // UN, CX, KG, MT, LT, PC
+  ncm         String? // NCM (Nomenclatura Comum do Mercosul)
+  cest        String? // CEST
+  origin      String? // 0=Nacional, 1=Estrangeira importação, etc.
+  category    String? // Categoria livre
 
   // Finalidade Fiscal
-  finalidade  String?   // USO_CONSUMO | REVENDA | ATIVO_IMOBILIZADO | MATERIA_PRIMA | MATERIAL_OBRA
+  finalidade String? // USO_CONSUMO | REVENDA | ATIVO_IMOBILIZADO | MATERIA_PRIMA | MATERIAL_OBRA
 
   // Aba Impostos
-  icmsRate    Float?    // Alíquota ICMS %
-  ipiRate     Float?    // Alíquota IPI %
-  pisRate     Float?    // Alíquota PIS %
-  cofinsRate  Float?    // Alíquota COFINS %
-  csosn       String?   // CSOSN (Simples Nacional)
-  cfop        String?   // CFOP padrão
-  cst         String?   // CST ICMS
-  cstPis      String?   // CST PIS
-  cstCofins   String?   // CST COFINS
+  icmsRate   Float? // Alíquota ICMS %
+  ipiRate    Float? // Alíquota IPI %
+  pisRate    Float? // Alíquota PIS %
+  cofinsRate Float? // Alíquota COFINS %
+  csosn      String? // CSOSN (Simples Nacional)
+  cfop       String? // CFOP padrão
+  cst        String? // CST ICMS
+  cstPis     String? // CST PIS
+  cstCofins  String? // CST COFINS
 
   // Aba Margem de Lucro
-  costCents              Int?     // Custo unitário em centavos
-  salePriceCents         Int?     // Preço de venda em centavos
-  profitMarginPercent    Float?   // Margem de lucro %
-  lastPurchasePriceCents Int?     // Último preço de compra
-  averageCostCents       Int?     // Custo médio
+  costCents              Int? // Custo unitário em centavos
+  salePriceCents         Int? // Preço de venda em centavos
+  profitMarginPercent    Float? // Margem de lucro %
+  lastPurchasePriceCents Int? // Último preço de compra
+  averageCostCents       Int? // Custo médio
 
   // Aba Estoque
-  currentStock  Float   @default(0)
-  minStock      Float?  // Estoque mínimo
-  maxStock      Float?  // Estoque máximo
-  location      String? // Localização no depósito
+  currentStock Float   @default(0)
+  minStock     Float? // Estoque mínimo
+  maxStock     Float? // Estoque máximo
+  location     String? // Localização no depósito
+
+  // Imagem (modulo Piscina + impressao de orcamento)
+  imageUrl String? // URL da foto do produto (CDN ou /uploads)
 
   status    String    @default("ATIVO")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  company      Company              @relation(fields: [companyId], references: [id])
-  equivalents  ProductEquivalent[]
-  nfeItems     NfeImportItem[]
-  quoteItems   QuoteItem[]
+  company     Company             @relation(fields: [companyId], references: [id])
+  equivalents ProductEquivalent[]
+  nfeItems    NfeImportItem[]
+  quoteItems  QuoteItem[]
+
+  // Modulo Piscina
+  poolCatalogConfig PoolCatalogConfig?
+  poolBudgetItems   PoolBudgetItem[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -1052,15 +1078,15 @@ model Product {
 }
 
 model ProductEquivalent {
-  id                  String   @id @default(uuid())
+  id                  String    @id @default(uuid())
   productId           String
-  supplierId          String   // Partner (FORNECEDOR) ID
-  supplierCode        String   // Código do produto no fornecedor
-  supplierDescription String?  // Descrição do fornecedor
-  lastPriceCents      Int?     // Último preço pago
+  supplierId          String // Partner (FORNECEDOR) ID
+  supplierCode        String // Código do produto no fornecedor
+  supplierDescription String? // Descrição do fornecedor
+  lastPriceCents      Int? // Último preço pago
   lastPurchaseDate    DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   product  Product @relation(fields: [productId], references: [id])
   supplier Partner @relation(fields: [supplierId], references: [id])
@@ -1072,91 +1098,91 @@ model ProductEquivalent {
 // ========== Importador NFe XML (v2.0) ==========
 
 model NfeImport {
-  id            String   @id @default(uuid())
-  companyId     String
-  nfeNumber     String?  // Número da NFe
-  nfeSeries     String?  // Série
-  nfeKey        String?  @unique // Chave de acesso (44 dígitos)
-  issueDate     DateTime?
-  supplierId    String?  // Partner vinculado
-  supplierCnpj  String?  // CNPJ do fornecedor na NFe
-  supplierName  String?  // Nome do fornecedor na NFe
-  totalCents    Int?     // Valor total da NFe em centavos
-  status        String   @default("PENDING") // PENDING, PROCESSED, CANCELLED
+  id               String    @id @default(uuid())
+  companyId        String
+  nfeNumber        String? // Número da NFe
+  nfeSeries        String? // Série
+  nfeKey           String?   @unique // Chave de acesso (44 dígitos)
+  issueDate        DateTime?
+  supplierId       String? // Partner vinculado
+  supplierCnpj     String? // CNPJ do fornecedor na NFe
+  supplierName     String? // Nome do fornecedor na NFe
+  totalCents       Int? // Valor total da NFe em centavos
+  status           String    @default("PENDING") // PENDING, PROCESSED, CANCELLED
   financialEntryId String? // Lançamento financeiro criado automaticamente
   sefazDocumentId  String? // Link com SefazDocument (null = upload manual)
   // Campos fiscais expandidos (Fase 1 - Módulo Fiscal)
-  indOper           Int?      // 0=Entrada, 1=Saída
-  finNfe            Int?      // Finalidade: 1=Normal, 2=Complementar, 3=Ajuste, 4=Devolução
-  codSit            String?   // Código Situação: 00=Regular, 01=Extemporâneo, etc.
-  baseIcmsCents     Int?      // BC ICMS total
-  icmsCents         Int?      // Valor ICMS total
-  baseIcmsStCents   Int?      // BC ICMS-ST total
-  icmsStCents       Int?      // Valor ICMS-ST total
-  ipiCents          Int?      // Valor IPI total
-  pisCents          Int?      // Valor PIS total
-  cofinsCents       Int?      // Valor COFINS total
-  freteCents        Int?      // Valor total do frete
-  seguroCents       Int?      // Valor total do seguro
-  descontoCents     Int?      // Valor total de descontos
-  outrasDespCents   Int?      // Valor outras despesas acessórias
-  infCpl            String?   // Informações complementares da nota
-  duplicatasJson    String?   // JSON array of {number, dueDate, valueCents} from cobr/dup
-  xmlContent        String?   // XML completo para referência futura (SPED)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  indOper          Int? // 0=Entrada, 1=Saída
+  finNfe           Int? // Finalidade: 1=Normal, 2=Complementar, 3=Ajuste, 4=Devolução
+  codSit           String? // Código Situação: 00=Regular, 01=Extemporâneo, etc.
+  baseIcmsCents    Int? // BC ICMS total
+  icmsCents        Int? // Valor ICMS total
+  baseIcmsStCents  Int? // BC ICMS-ST total
+  icmsStCents      Int? // Valor ICMS-ST total
+  ipiCents         Int? // Valor IPI total
+  pisCents         Int? // Valor PIS total
+  cofinsCents      Int? // Valor COFINS total
+  freteCents       Int? // Valor total do frete
+  seguroCents      Int? // Valor total do seguro
+  descontoCents    Int? // Valor total de descontos
+  outrasDespCents  Int? // Valor outras despesas acessórias
+  infCpl           String? // Informações complementares da nota
+  duplicatasJson   String? // JSON array of {number, dueDate, valueCents} from cobr/dup
+  xmlContent       String? // XML completo para referência futura (SPED)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  company  Company         @relation(fields: [companyId], references: [id])
-  items    NfeImportItem[]
+  company Company         @relation(fields: [companyId], references: [id])
+  items   NfeImportItem[]
 
   @@index([companyId])
   @@index([nfeKey])
 }
 
 model NfeImportItem {
-  id              String   @id @default(uuid())
-  nfeImportId     String
-  itemNumber      Int      // Número do item na NFe (1, 2, 3...)
-  productCode     String?  // Código do produto na NFe
-  description     String?  // Descrição do produto na NFe
-  ncm             String?
-  cfop            String?
-  unit            String?  // Unidade
-  quantity        Float?
-  unitPriceCents  Int?     // Preço unitário em centavos
-  totalCents      Int?     // Total do item em centavos
-  productId       String?  // Product vinculado (se existir)
-  action          String   @default("PENDING") // PENDING, LINKED, CREATED, SKIPPED
+  id                         String   @id @default(uuid())
+  nfeImportId                String
+  itemNumber                 Int // Número do item na NFe (1, 2, 3...)
+  productCode                String? // Código do produto na NFe
+  description                String? // Descrição do produto na NFe
+  ncm                        String?
+  cfop                       String?
+  unit                       String? // Unidade
+  quantity                   Float?
+  unitPriceCents             Int? // Preço unitário em centavos
+  totalCents                 Int? // Total do item em centavos
+  productId                  String? // Product vinculado (se existir)
+  action                     String   @default("PENDING") // PENDING, LINKED, CREATED, SKIPPED
   // Campos tributários expandidos (Fase 1 - Módulo Fiscal)
-  cstIcms           String?   // CST ICMS (3 dígitos: origem + tributação, ex: "000", "060")
-  modBcIcms         Int?      // Modalidade BC ICMS: 0=MVA, 1=Pauta, 2=PreçoTab, 3=ValorOper
-  baseIcmsCents     Int?      // Base de cálculo ICMS
-  aliqIcms          Float?    // Alíquota ICMS %
-  icmsCents         Int?      // Valor ICMS
-  baseIcmsStCents   Int?      // BC ICMS Substituição Tributária
-  aliqIcmsSt        Float?    // Alíquota ICMS-ST %
-  icmsStCents       Int?      // Valor ICMS-ST
-  cstIpi            String?   // CST IPI (2 dígitos, ex: "00", "49", "99")
-  baseIpiCents      Int?      // BC IPI
-  aliqIpi           Float?    // Alíquota IPI %
-  ipiCents          Int?      // Valor IPI
-  cstPis            String?   // CST PIS (2 dígitos, ex: "01", "50", "70", "99")
-  basePisCents      Int?      // BC PIS
-  aliqPis           Float?    // Alíquota PIS %
-  pisCents          Int?      // Valor PIS
-  cstCofins         String?   // CST COFINS (2 dígitos, ex: "01", "50", "70", "99")
-  baseCofinsCents   Int?      // BC COFINS
-  aliqCofins        Float?    // Alíquota COFINS %
-  cofinsCents       Int?      // Valor COFINS
-  freteCents        Int?      // Valor do frete rateado para este item
-  seguroCents       Int?      // Valor do seguro rateado
-  descontoCents     Int?      // Valor de desconto
-  outrasDespCents   Int?      // Outras despesas acessórias
+  cstIcms                    String? // CST ICMS (3 dígitos: origem + tributação, ex: "000", "060")
+  modBcIcms                  Int? // Modalidade BC ICMS: 0=MVA, 1=Pauta, 2=PreçoTab, 3=ValorOper
+  baseIcmsCents              Int? // Base de cálculo ICMS
+  aliqIcms                   Float? // Alíquota ICMS %
+  icmsCents                  Int? // Valor ICMS
+  baseIcmsStCents            Int? // BC ICMS Substituição Tributária
+  aliqIcmsSt                 Float? // Alíquota ICMS-ST %
+  icmsStCents                Int? // Valor ICMS-ST
+  cstIpi                     String? // CST IPI (2 dígitos, ex: "00", "49", "99")
+  baseIpiCents               Int? // BC IPI
+  aliqIpi                    Float? // Alíquota IPI %
+  ipiCents                   Int? // Valor IPI
+  cstPis                     String? // CST PIS (2 dígitos, ex: "01", "50", "70", "99")
+  basePisCents               Int? // BC PIS
+  aliqPis                    Float? // Alíquota PIS %
+  pisCents                   Int? // Valor PIS
+  cstCofins                  String? // CST COFINS (2 dígitos, ex: "01", "50", "70", "99")
+  baseCofinsCents            Int? // BC COFINS
+  aliqCofins                 Float? // Alíquota COFINS %
+  cofinsCents                Int? // Valor COFINS
+  freteCents                 Int? // Valor do frete rateado para este item
+  seguroCents                Int? // Valor do seguro rateado
+  descontoCents              Int? // Valor de desconto
+  outrasDespCents            Int? // Outras despesas acessórias
   // Snapshots para reversão
-  prevStockQty               Float?    // Estoque antes da importação
-  prevAvgCostCents           Int?      // Custo médio antes da importação
-  prevLastPurchasePriceCents Int?      // Último preço compra antes da importação
-  createdAt       DateTime @default(now())
+  prevStockQty               Float? // Estoque antes da importação
+  prevAvgCostCents           Int? // Custo médio antes da importação
+  prevLastPurchasePriceCents Int? // Último preço compra antes da importação
+  createdAt                  DateTime @default(now())
 
   nfeImport NfeImport @relation(fields: [nfeImportId], references: [id])
   product   Product?  @relation(fields: [productId], references: [id])
@@ -1170,13 +1196,13 @@ model SefazConfig {
   id                  String    @id @default(uuid())
   companyId           String    @unique
   environment         String    @default("PRODUCTION") // PRODUCTION | HOMOLOGATION
-  pfxBase64           String    // PFX criptografado com AES-256-GCM
-  pfxPassword         String    // Senha do PFX criptografada com AES-256-GCM
-  certificateCN       String?   // Common Name do certificado
+  pfxBase64           String // PFX criptografado com AES-256-GCM
+  pfxPassword         String // Senha do PFX criptografada com AES-256-GCM
+  certificateCN       String? // Common Name do certificado
   certificateExpiry   DateTime? // Data de expiração do certificado
   lastNsu             String    @default("000000000000000") // 15 dígitos
   lastFetchAt         DateTime?
-  lastFetchStatus     String?   // SUCCESS | ERROR | NO_DOCS
+  lastFetchStatus     String? // SUCCESS | ERROR | NO_DOCS
   lastFetchError      String?
   autoFetchEnabled    Boolean   @default(true)
   autoManifestCiencia Boolean   @default(false) // Auto-manifestar ciência para novas resNFe
@@ -1187,23 +1213,23 @@ model SefazConfig {
 }
 
 model SefazDocument {
-  id            String    @id @default(uuid())
-  companyId     String
-  nsu           String    // NSU do SEFAZ (15 chars)
-  schema        String    // resNFe | procNFe | resEvento
-  nfeKey        String?   // Chave de acesso 44 dígitos
-  emitterCnpj   String?
-  emitterName   String?
-  issueDate     DateTime?
-  nfeValue      Int?      // Valor total em centavos
-  situacao      String?   // 1=Autorizada, 2=Denegada, 3=Cancelada
-  xmlContent    String?   // XML descomprimido completo
-  nfeImportId   String?   // Vínculo com NfeImport quando processado
-  status        String    @default("FETCHED") // FETCHED | IMPORTED | IGNORED | EVENT
-  manifestType  String?   // ciencia | confirmacao | desconhecimento | nao_realizada
-  manifestedAt  DateTime? // Data/hora da manifestação
-  fetchedAt     DateTime  @default(now())
-  createdAt     DateTime  @default(now())
+  id           String    @id @default(uuid())
+  companyId    String
+  nsu          String // NSU do SEFAZ (15 chars)
+  schema       String // resNFe | procNFe | resEvento
+  nfeKey       String? // Chave de acesso 44 dígitos
+  emitterCnpj  String?
+  emitterName  String?
+  issueDate    DateTime?
+  nfeValue     Int? // Valor total em centavos
+  situacao     String? // 1=Autorizada, 2=Denegada, 3=Cancelada
+  xmlContent   String? // XML descomprimido completo
+  nfeImportId  String? // Vínculo com NfeImport quando processado
+  status       String    @default("FETCHED") // FETCHED | IMPORTED | IGNORED | EVENT
+  manifestType String? // ciencia | confirmacao | desconhecimento | nao_realizada
+  manifestedAt DateTime? // Data/hora da manifestação
+  fetchedAt    DateTime  @default(now())
+  createdAt    DateTime  @default(now())
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -1224,26 +1250,26 @@ enum WaitStatus {
 }
 
 model PendingWorkflowWait {
-  id                 String     @id @default(uuid())
+  id                 String  @id @default(uuid())
   companyId          String
   serviceOrderId     String
   workflowTemplateId String
-  blockId            String     // ID do bloco WAIT_FOR no grafo
-  nextBlockId        String?    // bloco seguinte para retomar
+  blockId            String // ID do bloco WAIT_FOR no grafo
+  nextBlockId        String? // bloco seguinte para retomar
   technicianId       String
-  stepOrder          Int        // stepOrder do log deste bloco
+  stepOrder          Int // stepOrder do log deste bloco
 
-  status             WaitStatus @default(WAITING)
-  expiresAt          DateTime   // quando expira
-  triggerConditions  Json       @default("[]") // ["os_assigned","os_status_changed"]
-  targetStatus       String?    // status alvo para os_status_changed (opcional)
-  timeoutAction      String     @default("continue") // "continue" | "cancel"
+  status            WaitStatus @default(WAITING)
+  expiresAt         DateTime // quando expira
+  triggerConditions Json       @default("[]") // ["os_assigned","os_status_changed"]
+  targetStatus      String? // status alvo para os_status_changed (opcional)
+  timeoutAction     String     @default("continue") // "continue" | "cancel"
 
-  resolvedAt         DateTime?
-  resolvedBy         String?    // "TIMEOUT" | "EVENT:assigned" | "OS_CANCELLED"
+  resolvedAt DateTime?
+  resolvedBy String? // "TIMEOUT" | "EVENT:assigned" | "OS_CANCELLED"
 
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status, expiresAt])
   @@index([serviceOrderId, status])
@@ -1253,17 +1279,17 @@ model PendingWorkflowWait {
 // ========== Audit Log Genérico ==========
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  companyId   String
-  entityType  String   // "SERVICE_ORDER" | "PARTNER" | "USER"
-  entityId    String
-  action      String   // "CREATED" | "UPDATED" | "DELETED" | "STATUS_CHANGED" | "ASSIGNED" | "CANCELLED" | "DUPLICATED"
-  actorType   String   // "USER" | "SYSTEM"
-  actorId     String?
-  actorName   String?  // desnormalizado para display sem joins
-  before      Json?    // campos antes da alteração (só os que mudaram)
-  after       Json?    // campos depois da alteração (só os que mudaram)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  companyId  String
+  entityType String // "SERVICE_ORDER" | "PARTNER" | "USER"
+  entityId   String
+  action     String // "CREATED" | "UPDATED" | "DELETED" | "STATUS_CHANGED" | "ASSIGNED" | "CANCELLED" | "DUPLICATED"
+  actorType  String // "USER" | "SYSTEM"
+  actorId    String?
+  actorName  String? // desnormalizado para display sem joins
+  before     Json? // campos antes da alteração (só os que mudaram)
+  after      Json? // campos depois da alteração (só os que mudaram)
+  createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
   @@index([companyId])
@@ -1273,17 +1299,17 @@ model AuditLog {
 // ========== Pausas de Execução (v1.00.42) ==========
 
 model ExecutionPause {
-  id               String   @id @default(uuid())
-  companyId        String
-  serviceOrderId   String
-  partnerId        String   // técnico que pausou
-  reasonCategory   String   // meal_break | end_of_day | fetch_materials | weather | waiting_client | waiting_utilities | waiting_access | waiting_other_service | personal | other
-  reason           String?  // texto livre (obrigatório quando category = 'other')
-  pausedAt         DateTime @default(now())
-  resumedAt        DateTime?
-  durationMs       BigInt?  // calculado ao retomar (resumedAt - pausedAt em ms)
-  pausePhotos      Json?    // string[] URLs de fotos tiradas ao pausar
-  resumePhotos     Json?    // string[] URLs de fotos tiradas ao retomar
+  id             String    @id @default(uuid())
+  companyId      String
+  serviceOrderId String
+  partnerId      String // técnico que pausou
+  reasonCategory String // meal_break | end_of_day | fetch_materials | weather | waiting_client | waiting_utilities | waiting_access | waiting_other_service | personal | other
+  reason         String? // texto livre (obrigatório quando category = 'other')
+  pausedAt       DateTime  @default(now())
+  resumedAt      DateTime?
+  durationMs     BigInt? // calculado ao retomar (resumedAt - pausedAt em ms)
+  pausePhotos    Json? // string[] URLs de fotos tiradas ao pausar
+  resumePhotos   Json? // string[] URLs de fotos tiradas ao retomar
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
 
@@ -1294,21 +1320,21 @@ model ExecutionPause {
 // ========== Jornada de Trabalho (CLT) ==========
 
 model WorkDay {
-  id              String    @id @default(uuid())
-  companyId       String
-  partnerId       String    // Técnico
-  date            String    // YYYY-MM-DD (dia da jornada)
-  startedAt       DateTime  // Início da jornada
-  endedAt         DateTime? // Fim da jornada (null = jornada ativa)
-  totalWorkedMs   BigInt    @default(0) // Tempo trabalhado em ms (atualizado ao encerrar)
-  totalPausedMs   BigInt    @default(0) // Tempo pausado em ms
-  overtimeMs      BigInt    @default(0) // Tempo extra em ms (acima de 8h)
-  mealBreakTaken  Boolean   @default(false) // Se fez pausa refeição
-  osCount         Int       @default(0) // Quantidade de OS trabalhadas
-  notes           String?   // Observações
+  id             String    @id @default(uuid())
+  companyId      String
+  partnerId      String // Técnico
+  date           String // YYYY-MM-DD (dia da jornada)
+  startedAt      DateTime // Início da jornada
+  endedAt        DateTime? // Fim da jornada (null = jornada ativa)
+  totalWorkedMs  BigInt    @default(0) // Tempo trabalhado em ms (atualizado ao encerrar)
+  totalPausedMs  BigInt    @default(0) // Tempo pausado em ms
+  overtimeMs     BigInt    @default(0) // Tempo extra em ms (acima de 8h)
+  mealBreakTaken Boolean   @default(false) // Se fez pausa refeição
+  osCount        Int       @default(0) // Quantidade de OS trabalhadas
+  notes          String? // Observações
 
-  company         Company   @relation(fields: [companyId], references: [id])
-  partner         Partner   @relation(fields: [partnerId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+  partner Partner @relation(fields: [partnerId], references: [id])
 
   @@unique([companyId, partnerId, date])
   @@index([companyId, partnerId])
@@ -1318,18 +1344,18 @@ model WorkDay {
 // ========== Rastreamento GPS do Técnico (v1.00.40) ==========
 
 model TechnicianLocationLog {
-  id               String   @id @default(uuid())
+  id               String @id @default(uuid())
   companyId        String
   serviceOrderId   String
   partnerId        String
   lat              Float
   lng              Float
-  accuracy         Float?   // precisão em metros
-  speed            Float?   // velocidade em m/s
-  heading          Float?   // direção em graus (0-360)
-  distanceToTarget Float?   // distância até o endereço da OS em metros
+  accuracy         Float? // precisão em metros
+  speed            Float? // velocidade em m/s
+  heading          Float? // direção em graus (0-360)
+  distanceToTarget Float? // distância até o endereço da OS em metros
 
-  createdAt        DateTime @default(now())
+  createdAt DateTime @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
 
@@ -1340,17 +1366,17 @@ model TechnicianLocationLog {
 // ========== WhatsApp Config (v1.00.51 — Meta Cloud API) ==========
 
 model WhatsAppConfig {
-  id                  String   @id @default(uuid())
-  companyId           String   @unique
-  metaAccessToken     String?  // Encrypted AES-256-GCM
-  metaPhoneNumberId   String?  // Phone Number ID from Meta dashboard
-  metaWabaId          String?  // WhatsApp Business Account ID
-  metaAppId           String?  // Meta App ID (for uploads)
-  metaVerifyToken     String   // Auto-generated for webhook verification
-  isConnected         Boolean  @default(false)
-  connectedAt         DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                String    @id @default(uuid())
+  companyId         String    @unique
+  metaAccessToken   String? // Encrypted AES-256-GCM
+  metaPhoneNumberId String? // Phone Number ID from Meta dashboard
+  metaWabaId        String? // WhatsApp Business Account ID
+  metaAppId         String? // Meta App ID (for uploads)
+  metaVerifyToken   String // Auto-generated for webhook verification
+  isConnected       Boolean   @default(false)
+  connectedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   company Company @relation(fields: [companyId], references: [id])
 }
@@ -1361,17 +1387,17 @@ model WhatsAppMessage {
   id            String   @id @default(uuid())
   companyId     String
   partnerId     String?
-  remotePhone   String   // phone number without country code (e.g. "65999887766")
-  direction     String   // "INBOUND" | "OUTBOUND"
+  remotePhone   String // phone number without country code (e.g. "65999887766")
+  direction     String // "INBOUND" | "OUTBOUND"
   messageType   String   @default("text") // "text" | "image" | "document" | "audio" | "video" | "location" | "contact" | "sticker"
-  content       String   // text content or media description
+  content       String // text content or media description
   caption       String?
   whatsappMsgId String?  @unique // WhatsApp message ID for dedup & status tracking
   status        String   @default("SENT") // SENT, DELIVERED, READ, FAILED, RECEIVED
   createdAt     DateTime @default(now())
 
-  company  Company  @relation(fields: [companyId], references: [id])
-  partner  Partner? @relation(fields: [partnerId], references: [id])
+  company Company  @relation(fields: [companyId], references: [id])
+  partner Partner? @relation(fields: [partnerId], references: [id])
 
   @@index([companyId, remotePhone])
   @@index([companyId, createdAt])
@@ -1383,19 +1409,19 @@ model WhatsAppMessage {
 model PaymentMethod {
   id                String    @id @default(uuid())
   companyId         String
-  name              String    // "PIX", "Cartao Credito", "Cheque"
-  code              String    // Slug: "PIX", "CARTAO_CREDITO", "CHEQUE"
+  name              String // "PIX", "Cartao Credito", "Cheque"
+  code              String // Slug: "PIX", "CARTAO_CREDITO", "CHEQUE"
   isActive          Boolean   @default(true)
-  feePercent        Float?    // Taxa % (ex: 2.5)
-  receivingDays     Int?      // Prazo de recebimento em dias
-  requiresBrand     Boolean   @default(false)  // Exige bandeira (cartoes)
-  requiresCheckData Boolean   @default(false)  // Exige dados do cheque
+  feePercent        Float? // Taxa % (ex: 2.5)
+  receivingDays     Int? // Prazo de recebimento em dias
+  requiresBrand     Boolean   @default(false) // Exige bandeira (cartoes)
+  requiresCheckData Boolean   @default(false) // Exige dados do cheque
   sortOrder         Int       @default(0)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
 
-  company            Company              @relation(fields: [companyId], references: [id])
+  company            Company             @relation(fields: [companyId], references: [id])
   financialEntries   FinancialEntry[]
   paymentInstruments PaymentInstrument[]
 
@@ -1406,33 +1432,33 @@ model PaymentMethod {
 // ========== Instrumentos de Pagamento da Empresa (v1.01) ==========
 
 model PaymentInstrument {
-  id              String    @id @default(uuid())
-  companyId       String
-  paymentMethodId String    // FK -> PaymentMethod (tipo generico: PIX, Cartao, etc.)
-  name            String    // "Mastercard Final 9767", "PIX CNPJ", "Conta Bradesco"
-  cardLast4       String?   // Ultimos 4 digitos (para cartoes)
-  cardBrand       String?   // Visa, Mastercard, Elo, Amex, Hipercard
-  bankName        String?   // Nome do banco (para transferencias/boletos)
-  cashAccountId   String?   // FK -> CashAccount (vincular a conta bancaria)
-  details         String?   // Informacoes adicionais
-  billingClosingDay Int?    // Dia do fechamento da fatura (1-31, cartoes)
-  billingDueDay     Int?    // Dia do vencimento da fatura (1-31, cartoes)
+  id                String    @id @default(uuid())
+  companyId         String
+  paymentMethodId   String // FK -> PaymentMethod (tipo generico: PIX, Cartao, etc.)
+  name              String // "Mastercard Final 9767", "PIX CNPJ", "Conta Bradesco"
+  cardLast4         String? // Ultimos 4 digitos (para cartoes)
+  cardBrand         String? // Visa, Mastercard, Elo, Amex, Hipercard
+  bankName          String? // Nome do banco (para transferencias/boletos)
+  cashAccountId     String? // FK -> CashAccount (vincular a conta bancaria)
+  details           String? // Informacoes adicionais
+  billingClosingDay Int? // Dia do fechamento da fatura (1-31, cartoes)
+  billingDueDay     Int? // Dia do vencimento da fatura (1-31, cartoes)
   // Direcao do uso — em qual tipo de lancamento este meio aparece (v1.08.100)
-  showInReceivables Boolean @default(true)  // aparece no dropdown de "A Receber"
-  showInPayables    Boolean @default(true)  // aparece no dropdown de "A Pagar"
+  showInReceivables Boolean   @default(true) // aparece no dropdown de "A Receber"
+  showInPayables    Boolean   @default(true) // aparece no dropdown de "A Pagar"
   // Comportamento ao lancar (v1.08.100)
-  autoMarkPaid     Boolean @default(false)  // Lancamento nasce como PAID (dinheiro/PIX instantaneo)
-  feePercent       Float?                    // Taxa % padrao aplicada (shortcut — pra casos simples sem tela de Taxas de Cartao)
-  receivingDays    Int?                      // Prazo de recebimento/compensacao em dias
-  isActive        Boolean   @default(true)
-  sortOrder       Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  autoMarkPaid      Boolean   @default(false) // Lancamento nasce como PAID (dinheiro/PIX instantaneo)
+  feePercent        Float? // Taxa % padrao aplicada (shortcut — pra casos simples sem tela de Taxas de Cartao)
+  receivingDays     Int? // Prazo de recebimento/compensacao em dias
+  isActive          Boolean   @default(true)
+  sortOrder         Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
 
-  company          Company          @relation(fields: [companyId], references: [id])
-  paymentMethod    PaymentMethod    @relation(fields: [paymentMethodId], references: [id])
-  cashAccount      CashAccount?     @relation(fields: [cashAccountId], references: [id])
+  company          Company                    @relation(fields: [companyId], references: [id])
+  paymentMethod    PaymentMethod              @relation(fields: [paymentMethodId], references: [id])
+  cashAccount      CashAccount?               @relation(fields: [cashAccountId], references: [id])
   financialEntries FinancialEntry[]
   cardSettlements  CardSettlement[]
   feeRates         PaymentInstrumentFeeRate[]
@@ -1446,20 +1472,20 @@ model PaymentInstrument {
 // de "Taxas de Cartao" (CardFeeRate) pra quem quer tudo em 1 cadastro.
 
 model PaymentInstrumentFeeRate {
-  id                   String    @id @default(uuid())
-  companyId            String
-  paymentInstrumentId  String
-  installmentFrom      Int       // 1 para avista, 2 para inicio de faixa "2 a 6x"
-  installmentTo        Int       // 1 para avista, 6 para fim de faixa "2 a 6x"
-  feePercent           Float     // Ex: 2.77
-  receivingDays        Int?      // D+N (dias ate o dinheiro cair no banco)
-  sortOrder            Int       @default(0)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  deletedAt            DateTime?
+  id                  String    @id @default(uuid())
+  companyId           String
+  paymentInstrumentId String
+  installmentFrom     Int // 1 para avista, 2 para inicio de faixa "2 a 6x"
+  installmentTo       Int // 1 para avista, 6 para fim de faixa "2 a 6x"
+  feePercent          Float // Ex: 2.77
+  receivingDays       Int? // D+N (dias ate o dinheiro cair no banco)
+  sortOrder           Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
 
-  company              Company           @relation(fields: [companyId], references: [id])
-  paymentInstrument    PaymentInstrument @relation(fields: [paymentInstrumentId], references: [id])
+  company           Company           @relation(fields: [companyId], references: [id])
+  paymentInstrument PaymentInstrument @relation(fields: [paymentInstrumentId], references: [id])
 
   @@index([companyId])
   @@index([paymentInstrumentId])
@@ -1471,35 +1497,35 @@ model PaymentInstrumentFeeRate {
 model CashAccount {
   id                  String           @id @default(uuid())
   companyId           String
-  code                String?          // CX-00001
-  name                String           // "Caixa Principal", "Bradesco CC"
-  type                CashAccountType  // CAIXA | BANCO | TRANSITO
-  bankCode            String?          // "237"
-  bankName            String?          // "Bradesco"
+  code                String? // CX-00001
+  name                String // "Caixa Principal", "Bradesco CC"
+  type                CashAccountType // CAIXA | BANCO | TRANSITO
+  bankCode            String? // "237"
+  bankName            String? // "Bradesco"
   agency              String?
   accountNumber       String?
   accountType         BankAccountType? // CORRENTE | POUPANCA
   pixKeyType          PixKeyType?
   pixKey              String?
   initialBalanceCents Int              @default(0)
-  initialBalanceDate  DateTime?        // Data referente ao saldo inicial
+  initialBalanceDate  DateTime? // Data referente ao saldo inicial
   currentBalanceCents Int              @default(0)
-  showInReceivables   Boolean          @default(true)  // Aparece em formas de recebimento
-  showInPayables      Boolean          @default(true)  // Aparece em formas de pagamento
+  showInReceivables   Boolean          @default(true) // Aparece em formas de recebimento
+  showInPayables      Boolean          @default(true) // Aparece em formas de pagamento
   isActive            Boolean          @default(true)
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
   deletedAt           DateTime?
 
-  company             Company             @relation(fields: [companyId], references: [id])
-  transfersFrom       AccountTransfer[]   @relation("TransferFrom")
-  transfersTo         AccountTransfer[]   @relation("TransferTo")
-  statementLines      BankStatementLine[]
-  bankStatements      BankStatement[]
-  financialEntries    FinancialEntry[]
-  cardSettlements     CardSettlement[]
-  paymentInstruments  PaymentInstrument[]
-  boletoConfigs       BoletoConfig[]
+  company            Company             @relation(fields: [companyId], references: [id])
+  transfersFrom      AccountTransfer[]   @relation("TransferFrom")
+  transfersTo        AccountTransfer[]   @relation("TransferTo")
+  statementLines     BankStatementLine[]
+  bankStatements     BankStatement[]
+  financialEntries   FinancialEntry[]
+  cardSettlements    CardSettlement[]
+  paymentInstruments PaymentInstrument[]
+  boletoConfigs      BoletoConfig[]
 
   @@index([companyId, isActive])
   @@index([companyId, type])
@@ -1508,15 +1534,15 @@ model CashAccount {
 // ========== Transferencias entre Contas (v2.2) ==========
 
 model AccountTransfer {
-  id              String      @id @default(uuid())
-  companyId       String
-  fromAccountId   String
-  toAccountId     String
-  amountCents     Int
-  description     String?
-  transferDate    DateTime    @default(now())
-  createdByName   String
-  createdAt       DateTime    @default(now())
+  id            String   @id @default(uuid())
+  companyId     String
+  fromAccountId String
+  toAccountId   String
+  amountCents   Int
+  description   String?
+  transferDate  DateTime @default(now())
+  createdByName String
+  createdAt     DateTime @default(now())
 
   fromAccount CashAccount @relation("TransferFrom", fields: [fromAccountId], references: [id])
   toAccount   CashAccount @relation("TransferTo", fields: [toAccountId], references: [id])
@@ -1536,22 +1562,22 @@ model AccountTransfer {
 // Imports sao puros registros de auditoria (quem importou qual arquivo quando)
 // e alimentam o statement correspondente ao mes das transacoes.
 model BankStatement {
-  id              String   @id @default(uuid())
-  companyId       String
-  cashAccountId   String
-  periodYear      Int      // ex: 2026
-  periodMonth     Int      // 1..12
-  lineCount       Int      @default(0)
-  matchedCount    Int      @default(0)
-  lastImportAt    DateTime?
-  lastImportByName String?
-  lastFileName    String?
+  id                    String    @id @default(uuid())
+  companyId             String
+  cashAccountId         String
+  periodYear            Int // ex: 2026
+  periodMonth           Int // 1..12
+  lineCount             Int       @default(0)
+  matchedCount          Int       @default(0)
+  lastImportAt          DateTime?
+  lastImportByName      String?
+  lastFileName          String?
   // Saldo oficial do banco reportado no OFX (v1.09.51)
   // Usado pra comparar com o saldo calculado do sistema (auditoria de fechamento)
   statementBalanceCents Int?
   statementBalanceDate  DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   cashAccount CashAccount           @relation(fields: [cashAccountId], references: [id])
   lines       BankStatementLine[]
@@ -1563,19 +1589,19 @@ model BankStatement {
 }
 
 model BankStatementImport {
-  id              String   @id @default(uuid())
-  companyId       String
-  cashAccountId   String
-  statementId     String?  // v1.08.87 — extrato ao qual este import contribuiu (1 import pode tocar varios statements se arquivo cruza meses)
-  fileName        String
-  fileType        String   // "OFX" | "CSV"
-  importedAt      DateTime @default(now())
-  importedByName  String
-  lineCount       Int      @default(0)
-  matchedCount    Int      @default(0)
+  id             String   @id @default(uuid())
+  companyId      String
+  cashAccountId  String
+  statementId    String? // v1.08.87 — extrato ao qual este import contribuiu (1 import pode tocar varios statements se arquivo cruza meses)
+  fileName       String
+  fileType       String // "OFX" | "CSV"
+  importedAt     DateTime @default(now())
+  importedByName String
+  lineCount      Int      @default(0)
+  matchedCount   Int      @default(0)
 
   lines     BankStatementLine[]
-  statement BankStatement?       @relation(fields: [statementId], references: [id])
+  statement BankStatement?      @relation(fields: [statementId], references: [id])
 
   @@index([companyId])
   @@index([cashAccountId])
@@ -1583,46 +1609,46 @@ model BankStatementImport {
 }
 
 model BankStatementLine {
-  id                    String              @id @default(uuid())
-  importId              String
-  statementId           String?             // v1.08.87 — extrato mensal ao qual a linha pertence
-  cashAccountId         String
-  transactionDate       DateTime
-  description           String
-  amountCents           Int                 // Positivo = credito, Negativo = debito
-  fitId                 String?             // OFX FITID (dedup)
-  checkNum              String?
-  refNum                String?
-  status                StatementLineStatus @default(UNMATCHED)
-  matchedEntryId        String?
-  matchedInstallmentId  String?
-  matchedAt             DateTime?
-  matchedByName         String?
-  matchedLiquidCents    Int?              // Valor liquido confirmado pelo gestor
-  matchedTaxCents       Int?              // Taxa de cartao confirmada pelo gestor
-  notes                 String?
+  id                   String              @id @default(uuid())
+  importId             String
+  statementId          String? // v1.08.87 — extrato mensal ao qual a linha pertence
+  cashAccountId        String
+  transactionDate      DateTime
+  description          String
+  amountCents          Int // Positivo = credito, Negativo = debito
+  fitId                String? // OFX FITID (dedup)
+  checkNum             String?
+  refNum               String?
+  status               StatementLineStatus @default(UNMATCHED)
+  matchedEntryId       String?
+  matchedInstallmentId String?
+  matchedAt            DateTime?
+  matchedByName        String?
+  matchedLiquidCents   Int? // Valor liquido confirmado pelo gestor
+  matchedTaxCents      Int? // Taxa de cartao confirmada pelo gestor
+  notes                String?
   // Estorno/Devolucao PIX indevido (v1.08.86)
-  refundPairLineId      String?           // Par da linha de estorno (entrada <-> saida)
-  isRefund              Boolean @default(false) // Marcada como estorno/devolucao
+  refundPairLineId     String? // Par da linha de estorno (entrada <-> saida)
+  isRefund             Boolean             @default(false) // Marcada como estorno/devolucao
   // Fatura de cartao conciliada N-para-1 (v1.08.95)
-  isCardInvoice         Boolean @default(false) // Linha representa fatura de cartao com N entries vinculados
+  isCardInvoice        Boolean             @default(false) // Linha representa fatura de cartao com N entries vinculados
   // Conciliacao como transferencia entre contas (deposito em dinheiro, etc) (v1.09.44)
-  transferMatchId       String?  // FK para AccountTransfer criada via conciliacao
-  createdAt             DateTime            @default(now())
+  transferMatchId      String? // FK para AccountTransfer criada via conciliacao
+  createdAt            DateTime            @default(now())
 
   import      BankStatementImport @relation(fields: [importId], references: [id])
   statement   BankStatement?      @relation(fields: [statementId], references: [id])
   cashAccount CashAccount         @relation(fields: [cashAccountId], references: [id])
 
   // Self-relation para par de estorno
-  refundPairLine        BankStatementLine?   @relation("RefundPair", fields: [refundPairLineId], references: [id])
-  refundPairReverse     BankStatementLine[]  @relation("RefundPair")
+  refundPairLine    BankStatementLine?  @relation("RefundPair", fields: [refundPairLineId], references: [id])
+  refundPairReverse BankStatementLine[] @relation("RefundPair")
 
   // Entries agrupados em fatura de cartao
-  cardInvoiceEntries    FinancialEntry[]     @relation("CardInvoiceMatch")
+  cardInvoiceEntries FinancialEntry[] @relation("CardInvoiceMatch")
 
   // Transferencia vinculada (quando linha foi conciliada como deposito/transferencia)
-  transferMatch         AccountTransfer?     @relation("TransferMatch", fields: [transferMatchId], references: [id])
+  transferMatch AccountTransfer? @relation("TransferMatch", fields: [transferMatchId], references: [id])
 
   @@index([importId])
   @@index([statementId])
@@ -1635,44 +1661,44 @@ model BankStatementLine {
 // ========== NFS-e Emissão (v3.0) ==========
 
 model NfseConfig {
-  id                      String   @id @default(uuid())
-  companyId               String   @unique
+  id                              String   @id @default(uuid())
+  companyId                       String   @unique
   // Focus NFe
-  focusNfeToken           String?  // Token PRODUÇÃO (encriptado AES-256-GCM)
-  focusNfeTokenHomolog    String?  // Token HOMOLOGAÇÃO (encriptado AES-256-GCM)
-  focusNfeEnvironment     String   @default("HOMOLOGATION") // PRODUCTION | HOMOLOGATION
-  focusNfeCompanyId       String?  // ID da empresa no Focus NFe
+  focusNfeToken                   String? // Token PRODUÇÃO (encriptado AES-256-GCM)
+  focusNfeTokenHomolog            String? // Token HOMOLOGAÇÃO (encriptado AES-256-GCM)
+  focusNfeEnvironment             String   @default("HOMOLOGATION") // PRODUCTION | HOMOLOGATION
+  focusNfeCompanyId               String? // ID da empresa no Focus NFe
   // Dados fiscais do prestador
-  inscricaoMunicipal      String?
-  codigoMunicipio         String?  // IBGE 7 dígitos
-  naturezaOperacao        String   @default("1") // 1=Tributação no municipio
-  regimeEspecialTributacao String?  // 1-6
-  optanteSimplesNacional  Boolean  @default(false)
-  itemListaServico        String?  // Código LC 116 padrão (ex: "1401")
-  codigoCnae              String?  // CNAE 7 dígitos
-  codigoTributarioMunicipio String?
-  codigoTributarioNacional String?  // cTribNac - 6 dígitos (obrigatório para NFS-e Nacional) — usado para OBRA
+  inscricaoMunicipal              String?
+  codigoMunicipio                 String? // IBGE 7 dígitos
+  naturezaOperacao                String   @default("1") // 1=Tributação no municipio
+  regimeEspecialTributacao        String? // 1-6
+  optanteSimplesNacional          Boolean  @default(false)
+  itemListaServico                String? // Código LC 116 padrão (ex: "1401")
+  codigoCnae                      String? // CNAE 7 dígitos
+  codigoTributarioMunicipio       String?
+  codigoTributarioNacional        String? // cTribNac - 6 dígitos (obrigatório para NFS-e Nacional) — usado para OBRA
   codigoTributarioNacionalServico String? // cTribNac para serviços SEM obra (ex: 140100)
-  nfseLayout              String   @default("MUNICIPAL") // MUNICIPAL | NACIONAL (endpoint /v2/nfse vs /v2/nfsen)
-  aliquotaIss             Float?   // % ISS padrão
+  nfseLayout                      String   @default("MUNICIPAL") // MUNICIPAL | NACIONAL (endpoint /v2/nfse vs /v2/nfsen)
+  aliquotaIss                     Float? // % ISS padrão
   // Configurações de comportamento
-  autoEmitOnEntry         Boolean  @default(false) // Auto-emitir NFS-e ao criar lançamento RECEIVABLE
-  askOnFinishOS           Boolean  @default(true)  // Perguntar ao finalizar OS
-  receiveWithoutNfse      String   @default("WARN") // WARN | BLOCK | IGNORE
-  sendEmailToTomador      Boolean  @default(true)
-  afterEmissionSendWhatsApp Boolean @default(false) // Enviar NFS-e por WhatsApp ao tomador após emissão
-  rpsSeries               String   @default("A")
-  rpsNextNumber           Int      @default(1)
+  autoEmitOnEntry                 Boolean  @default(false) // Auto-emitir NFS-e ao criar lançamento RECEIVABLE
+  askOnFinishOS                   Boolean  @default(true) // Perguntar ao finalizar OS
+  receiveWithoutNfse              String   @default("WARN") // WARN | BLOCK | IGNORE
+  sendEmailToTomador              Boolean  @default(true)
+  afterEmissionSendWhatsApp       Boolean  @default(false) // Enviar NFS-e por WhatsApp ao tomador após emissão
+  rpsSeries                       String   @default("A")
+  rpsNextNumber                   Int      @default(1)
   // Discriminação padrão (template)
-  defaultDiscriminacao    String?  // Template com variáveis: {titulo_os}, {descricao_os}, {tecnico}
+  defaultDiscriminacao            String? // Template com variáveis: {titulo_os}, {descricao_os}, {tecnico}
   // Sync NFS-e recebidas (Focus NFe)
-  autoSyncNfseRecebida    Boolean  @default(false) // Sincronizar NFS-e recebidas automaticamente
-  lastNfseSyncVersion     Int      @default(0)     // Última versão sincronizada (paginação incremental)
+  autoSyncNfseRecebida            Boolean  @default(false) // Sincronizar NFS-e recebidas automaticamente
+  lastNfseSyncVersion             Int      @default(0) // Última versão sincronizada (paginação incremental)
   // Certificado: reutiliza do SefazConfig (mesmo companyId)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
+  company      Company           @relation(fields: [companyId], references: [id])
   serviceCodes NfseServiceCode[]
 }
 
@@ -1680,76 +1706,76 @@ model NfseServiceCode {
   id                  String   @id @default(uuid())
   companyId           String
   configId            String
-  codigo              String   // cTribNac 6 dígitos (ex: "140601")
-  codigoNbs           String?  // NBS (ex: "1.0101.00.00")
-  descricao           String   // Descrição do serviço (ex: "Instalação de boiler")
+  codigo              String // cTribNac 6 dígitos (ex: "140601")
+  codigoNbs           String? // NBS (ex: "1.0101.00.00")
+  descricao           String // Descrição do serviço (ex: "Instalação de boiler")
   tipo                String   @default("SERVICO") // SERVICO | OBRA
-  aliquotaIss         Float?   // Alíquota ISS padrão (%)
-  itemListaServico    String?  // Item LC 116 (ex: "14.06")
-  codigoCnae          String?  // CNAE 7 dígitos
-  codigoTribMunicipal String?  // Código tributário municipal
+  aliquotaIss         Float? // Alíquota ISS padrão (%)
+  itemListaServico    String? // Item LC 116 (ex: "14.06")
+  codigoCnae          String? // CNAE 7 dígitos
+  codigoTribMunicipal String? // Código tributário municipal
   active              Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  company  Company    @relation(fields: [companyId], references: [id])
-  config   NfseConfig @relation(fields: [configId], references: [id])
+  company Company    @relation(fields: [companyId], references: [id])
+  config  NfseConfig @relation(fields: [configId], references: [id])
 
   @@index([companyId, active])
   @@index([configId])
 }
 
 model NfseEmission {
-  id                    String    @id @default(uuid())
-  companyId             String
-  serviceOrderId        String?
+  id                       String    @id @default(uuid())
+  companyId                String
+  serviceOrderId           String?
   // RPS
-  rpsNumber             Int
-  rpsSeries             String
+  rpsNumber                Int
+  rpsSeries                String
   // NFS-e retornada
-  nfseNumber            String?   // Número da NFS-e (retornado pela prefeitura)
-  codigoVerificacao     String?   // Código de verificação
+  nfseNumber               String? // Número da NFS-e (retornado pela prefeitura)
+  codigoVerificacao        String? // Código de verificação
   // Referência Focus NFe
-  focusNfeRef           String    @unique // ref enviada ao Focus NFe
+  focusNfeRef              String    @unique // ref enviada ao Focus NFe
   // Status
-  status                String    @default("PROCESSING") // PROCESSING | AUTHORIZED | ERROR | CANCELLED
-  errorMessage          String?
+  status                   String    @default("PROCESSING") // PROCESSING | AUTHORIZED | ERROR | CANCELLED
+  errorMessage             String?
   // Dados do prestador (snapshot no momento da emissão)
-  prestadorCnpj         String
-  prestadorIm           String?
+  prestadorCnpj            String
+  prestadorIm              String?
   prestadorCodigoMunicipio String?
   // Dados do tomador (snapshot)
-  tomadorCnpjCpf        String?
-  tomadorRazaoSocial    String?
-  tomadorEmail          String?
+  tomadorCnpjCpf           String?
+  tomadorRazaoSocial       String?
+  tomadorEmail             String?
   // Dados do serviço
-  valorServicos         Int       // centavos
-  aliquotaIss           Float?
-  issRetido             Boolean   @default(false)
-  valorIss              Int?      // centavos
-  itemListaServico      String?
-  codigoCnae            String?
-  discriminacao         String?
-  codigoMunicipioServico String?
-  naturezaOperacao      String?
-  infComplementares     String?
+  valorServicos            Int // centavos
+  aliquotaIss              Float?
+  issRetido                Boolean   @default(false)
+  valorIss                 Int? // centavos
+  itemListaServico         String?
+  codigoCnae               String?
+  discriminacao            String?
+  codigoMunicipioServico   String?
+  naturezaOperacao         String?
+  infComplementares        String?
   // XML e PDF
-  xmlUrl                String?   // URL do XML no Focus NFe
-  pdfUrl                String?   // URL do DANFSe no Focus NFe
+  xmlUrl                   String? // URL do XML no Focus NFe
+  pdfUrl                   String? // URL do DANFSe no Focus NFe
   // Cancelamento
-  cancelledAt           DateTime?
-  cancelReason          String?
+  cancelledAt              DateTime?
+  cancelReason             String?
   // Timestamps
-  issuedAt              DateTime? // Data da emissão efetiva pela prefeitura
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  issuedAt                 DateTime? // Data da emissão efetiva pela prefeitura
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   // Obra vinculada (v1.00.88)
-  obraId                String?
+  obraId String?
 
-  company        Company        @relation(fields: [companyId], references: [id])
-  serviceOrder   ServiceOrder?  @relation(fields: [serviceOrderId], references: [id])
-  obra           Obra?          @relation(fields: [obraId], references: [id])
+  company          Company          @relation(fields: [companyId], references: [id])
+  serviceOrder     ServiceOrder?    @relation(fields: [serviceOrderId], references: [id])
+  obra             Obra?            @relation(fields: [obraId], references: [id])
   financialEntries FinancialEntry[]
 
   @@index([companyId, status])
@@ -1763,68 +1789,68 @@ model Obra {
   id            String   @id @default(uuid())
   companyId     String
   partnerId     String
-  name          String                  // "Residencial Porto Seguro"
-  cno           String                  // CNO - Cadastro Nacional de Obras (XX.XXX.XXXXX/XX)
+  name          String // "Residencial Porto Seguro"
+  cno           String // CNO - Cadastro Nacional de Obras (XX.XXX.XXXXX/XX)
   addressStreet String
   addressNumber String
   addressComp   String?
   neighborhood  String
   city          String
-  state         String                  // UF (2 chars)
+  state         String // UF (2 chars)
   cep           String
-  ibgeCode      String?                 // IBGE 7 dígitos
+  ibgeCode      String? // IBGE 7 dígitos
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  company           Company           @relation(fields: [companyId], references: [id])
-  partner           Partner           @relation(fields: [partnerId], references: [id])
-  serviceOrders     ServiceOrder[]
-  financialEntries  FinancialEntry[]
-  nfseEmissions     NfseEmission[]
+  company          Company          @relation(fields: [companyId], references: [id])
+  partner          Partner          @relation(fields: [partnerId], references: [id])
+  serviceOrders    ServiceOrder[]
+  financialEntries FinancialEntry[]
+  nfseEmissions    NfseEmission[]
 
   @@index([companyId, partnerId])
   @@index([companyId, active])
 }
 
 model ServiceAddress {
-  id              String   @id @default(uuid())
-  companyId       String
-  partnerId       String
-  label           String                  // "Escritorio Centro", "Casa do cliente"
-  cep             String?
-  addressStreet   String
-  addressNumber   String?
-  addressComp     String?
-  neighborhood    String?
-  city            String
-  state           String                  // UF (2 chars)
-  lat             Float?                  // GPS latitude (atualizado pelo técnico ao chegar)
-  lng             Float?                  // GPS longitude (atualizado pelo técnico ao chegar)
-  active          Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(uuid())
+  companyId     String
+  partnerId     String
+  label         String // "Escritorio Centro", "Casa do cliente"
+  cep           String?
+  addressStreet String
+  addressNumber String?
+  addressComp   String?
+  neighborhood  String?
+  city          String
+  state         String // UF (2 chars)
+  lat           Float? // GPS latitude (atualizado pelo técnico ao chegar)
+  lng           Float? // GPS longitude (atualizado pelo técnico ao chegar)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  company  Company @relation(fields: [companyId], references: [id])
-  partner  Partner @relation(fields: [partnerId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+  partner Partner @relation(fields: [partnerId], references: [id])
 
   @@index([companyId, partnerId])
   @@index([companyId, active])
 }
 
 model CardSettlement {
-  id                  String   @id @default(uuid())
+  id                  String    @id @default(uuid())
   companyId           String
   financialEntryId    String
   paymentMethodCode   String?
   cardBrand           String?
   grossCents          Int
-  feePercent          Float    @default(0)
-  feeCents            Int      @default(0)
+  feePercent          Float     @default(0)
+  feeCents            Int       @default(0)
   expectedNetCents    Int
   expectedDate        DateTime
-  receivingDays       Int      @default(0)
-  status              String   @default("PENDING")
+  receivingDays       Int       @default(0)
+  status              String    @default("PENDING")
   settledAt           DateTime?
   actualAmountCents   Int?
   differenceCents     Int?
@@ -1832,15 +1858,15 @@ model CardSettlement {
   settledByName       String?
   notes               String?
   cardFeeRateId       String?
-  paymentInstrumentId String?   // FK -> PaymentInstrument (facilita filtro por cartao)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  paymentInstrumentId String? // FK -> PaymentInstrument (facilita filtro por cartao)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  company            Company            @relation(fields: [companyId], references: [id])
-  financialEntry     FinancialEntry     @relation(fields: [financialEntryId], references: [id])
-  cashAccount        CashAccount?       @relation(fields: [cashAccountId], references: [id])
-  cardFeeRate        CardFeeRate?       @relation(fields: [cardFeeRateId], references: [id])
-  paymentInstrument  PaymentInstrument? @relation(fields: [paymentInstrumentId], references: [id])
+  company           Company            @relation(fields: [companyId], references: [id])
+  financialEntry    FinancialEntry     @relation(fields: [financialEntryId], references: [id])
+  cashAccount       CashAccount?       @relation(fields: [cashAccountId], references: [id])
+  cardFeeRate       CardFeeRate?       @relation(fields: [cardFeeRateId], references: [id])
+  paymentInstrument PaymentInstrument? @relation(fields: [paymentInstrumentId], references: [id])
 
   @@index([companyId, status])
   @@index([companyId, expectedDate])
@@ -1851,22 +1877,22 @@ model CardSettlement {
 // ========== Taxas de Cartão ==========
 
 model CardFeeRate {
-  id              String   @id @default(uuid())
-  companyId       String
+  id        String @id @default(uuid())
+  companyId String
 
-  description     String   @default("") // Ex: "Visa Crédito 1x", "Mastercard Débito à vista"
-  brand           String   // Visa, Mastercard, Elo, Hipercard, American Express, Outros
-  type            String   // CREDITO, DEBITO
-  installmentFrom Int      @default(1) // Parcela inicial (ex: 1)
-  installmentTo   Int      @default(1) // Parcela final (ex: 1 = à vista, 6 = até 6x)
-  feePercent      Float    // Taxa % (ex: 1.99)
-  receivingDays   Int      @default(30) // Prazo de recebimento em dias
+  description     String @default("") // Ex: "Visa Crédito 1x", "Mastercard Débito à vista"
+  brand           String // Visa, Mastercard, Elo, Hipercard, American Express, Outros
+  type            String // CREDITO, DEBITO
+  installmentFrom Int    @default(1) // Parcela inicial (ex: 1)
+  installmentTo   Int    @default(1) // Parcela final (ex: 1 = à vista, 6 = até 6x)
+  feePercent      Float // Taxa % (ex: 1.99)
+  receivingDays   Int    @default(30) // Prazo de recebimento em dias
 
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  company         Company         @relation(fields: [companyId], references: [id])
+  company         Company          @relation(fields: [companyId], references: [id])
   cardSettlements CardSettlement[]
 
   @@unique([companyId, brand, type, installmentFrom, installmentTo])
@@ -1875,25 +1901,25 @@ model CardFeeRate {
 
 // ========== Plano de Contas (v1.01) ==========
 model FinancialAccount {
-  id              String    @id @default(uuid())
-  companyId       String
-  code            String    // "1000", "5200", etc.
-  name            String    // "Receitas Operacionais", "Taxas de Cartão"
-  type            String    // REVENUE | EXPENSE | COST
-  parentId        String?   // null = grupo principal, preenchido = subgrupo
-  level           Int       @default(1) // 1 = grupo, 2 = subgrupo
-  allowPosting    Boolean   @default(false) // true = pode receber lançamentos (só subgrupos)
-  isSystem        Boolean   @default(false) // true = criado pelo sistema, não pode deletar
-  isActive        Boolean   @default(true)
-  sortOrder       Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  id           String    @id @default(uuid())
+  companyId    String
+  code         String // "1000", "5200", etc.
+  name         String // "Receitas Operacionais", "Taxas de Cartão"
+  type         String // REVENUE | EXPENSE | COST
+  parentId     String? // null = grupo principal, preenchido = subgrupo
+  level        Int       @default(1) // 1 = grupo, 2 = subgrupo
+  allowPosting Boolean   @default(false) // true = pode receber lançamentos (só subgrupos)
+  isSystem     Boolean   @default(false) // true = criado pelo sistema, não pode deletar
+  isActive     Boolean   @default(true)
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
-  company         Company            @relation(fields: [companyId], references: [id])
-  parent          FinancialAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children        FinancialAccount[] @relation("AccountHierarchy")
-  entries         FinancialEntry[]
+  company  Company            @relation(fields: [companyId], references: [id])
+  parent   FinancialAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children FinancialAccount[] @relation("AccountHierarchy")
+  entries  FinancialEntry[]
 
   @@unique([companyId, code])
   @@index([companyId, parentId])
@@ -1903,43 +1929,43 @@ model FinancialAccount {
 // ========== NFS-e de Entrada (Serviços Tomados) ==========
 
 model NfseEntrada {
-  id                String   @id @default(uuid())
-  companyId         String
+  id        String @id @default(uuid())
+  companyId String
 
   // Identificação
-  numero            String?    // Número da NFS-e
-  codigoVerificacao String?    // Código de verificação/autenticidade
-  dataEmissao       DateTime?  // Data de emissão
-  competencia       String?    // Competência "AAAA-MM"
-  layout            String?    // ABRASF | NACIONAL | MANUAL
+  numero            String? // Número da NFS-e
+  codigoVerificacao String? // Código de verificação/autenticidade
+  dataEmissao       DateTime? // Data de emissão
+  competencia       String? // Competência "AAAA-MM"
+  layout            String? // ABRASF | NACIONAL | MANUAL
 
   // Prestador (quem emitiu a nota — fornecedor do serviço)
-  prestadorId       String?    // Partner vinculado (se existir)
-  prestadorCnpjCpf  String?    // CNPJ ou CPF do prestador
+  prestadorId          String? // Partner vinculado (se existir)
+  prestadorCnpjCpf     String? // CNPJ ou CPF do prestador
   prestadorRazaoSocial String? // Razão social
-  prestadorIm       String?    // Inscrição Municipal
-  prestadorMunicipio String?   // Código IBGE do município
-  prestadorUf       String?    // UF
+  prestadorIm          String? // Inscrição Municipal
+  prestadorMunicipio   String? // Código IBGE do município
+  prestadorUf          String? // UF
 
   // Tomador (a empresa = Company)
-  tomadorCnpj       String?    // CNPJ da empresa tomadora
+  tomadorCnpj String? // CNPJ da empresa tomadora
 
   // Serviço
-  itemListaServico  String?    // Item LC 116 (ex: "7.02")
-  codigoCnae        String?    // CNAE do serviço
-  codigoTribMunicipio String?  // Código tributário municipal
-  codigoTribNacional String?   // cTribNac (Nacional)
-  discriminacao     String?    // Descrição do serviço
-  municipioServico  String?    // IBGE do município de prestação
-  naturezaOperacao  String?    // 1-6 (ABRASF)
-  exigibilidadeIss  String?    // 1-7 (ABRASF)
+  itemListaServico    String? // Item LC 116 (ex: "7.02")
+  codigoCnae          String? // CNAE do serviço
+  codigoTribMunicipio String? // Código tributário municipal
+  codigoTribNacional  String? // cTribNac (Nacional)
+  discriminacao       String? // Descrição do serviço
+  municipioServico    String? // IBGE do município de prestação
+  naturezaOperacao    String? // 1-6 (ABRASF)
+  exigibilidadeIss    String? // 1-7 (ABRASF)
 
   // Valores (em centavos)
   valorServicosCents  Int?
   valorDeducoesCents  Int?
   baseCalculoCents    Int?
   aliquotaIss         Float?
-  issRetido           Boolean  @default(false)
+  issRetido           Boolean @default(false)
   valorIssCents       Int?
   valorPisCents       Int?
   valorCofinsCents    Int?
@@ -1952,29 +1978,29 @@ model NfseEntrada {
   valorLiquidoCents   Int?
 
   // Construção Civil
-  codigoObra          String?  // CNO/CEI
-  art                 String?  // ART/RRT
+  codigoObra String? // CNO/CEI
+  art        String? // ART/RRT
 
   // Links
-  financialEntryId    String?
-  obraId              String?
+  financialEntryId String?
+  obraId           String?
 
   // XML armazenado
-  xmlContent          String?
+  xmlContent String?
 
   // Focus NFe (importação automática)
-  chaveNfse           String?    // Chave de acesso NFS-e (deduplicação)
-  focusSource         Boolean    @default(false) // Importada via Focus NFe
-  situacaoFocus       String?    // autorizado | cancelado | substituido
-  versaoFocus         Int?       // Versão incremental Focus NFe
+  chaveNfse     String? // Chave de acesso NFS-e (deduplicação)
+  focusSource   Boolean @default(false) // Importada via Focus NFe
+  situacaoFocus String? // autorizado | cancelado | substituido
+  versaoFocus   Int? // Versão incremental Focus NFe
 
   // Controle
-  status              String   @default("ACTIVE") // ACTIVE | CANCELLED
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  status    String   @default("ACTIVE") // ACTIVE | CANCELLED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  company    Company   @relation(fields: [companyId], references: [id])
-  prestador  Partner?  @relation("NfseEntradaPrestador", fields: [prestadorId], references: [id])
+  company    Company                @relation(fields: [companyId], references: [id])
+  prestador  Partner?               @relation("NfseEntradaPrestador", fields: [prestadorId], references: [id])
   entryLinks NfseEntradaEntryLink[]
 
   @@unique([companyId, chaveNfse])
@@ -2002,29 +2028,36 @@ model NfseEntradaEntryLink {
 // ========== Cadastro de Serviços ==========
 
 model Service {
-  id          String    @id @default(uuid())
-  companyId   String
+  id        String @id @default(uuid())
+  companyId String
 
-  code        String?   // Código interno
-  name        String    // Nome do serviço
-  description String?   // Descrição detalhada
-  unit        String    @default("SV") // SV, HR, UN
-  priceCents          Int?              // Preço unitário em centavos
-  commissionBps       Int?              // Comissão do técnico em basis points (ex: 1000 = 10%)
-  techFixedValueCents Int?              // Valor fixo para o técnico em centavos
-  commissionRule      CommissionRule?   // Regra quando ambos (fixo + %) existem
-  defaultQty          Int?              // Quantidade padrão ao adicionar na OS (ex: 2 horas)
-  checklists  Json?     // {toolsPpe: string[], materials: string[], initialCheck: string[], finalCheck: string[]}
-  category    String?   // Categoria livre
-  isActive    Boolean   @default(true)
+  code                String? // Código interno
+  name                String // Nome do serviço
+  description         String? // Descrição detalhada
+  unit                String          @default("SV") // SV, HR, UN
+  priceCents          Int? // Preço unitário em centavos
+  commissionBps       Int? // Comissão do técnico em basis points (ex: 1000 = 10%)
+  techFixedValueCents Int? // Valor fixo para o técnico em centavos
+  commissionRule      CommissionRule? // Regra quando ambos (fixo + %) existem
+  defaultQty          Int? // Quantidade padrão ao adicionar na OS (ex: 2 horas)
+  checklists          Json? // {toolsPpe: string[], materials: string[], initialCheck: string[], finalCheck: string[]}
+  category            String? // Categoria livre
+  isActive            Boolean         @default(true)
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  // Imagem (modulo Piscina + impressao)
+  imageUrl String?
 
-  company     Company   @relation(fields: [companyId], references: [id])
-  quoteItems  QuoteItem[]
-  orderItems  ServiceOrderItem[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company    Company            @relation(fields: [companyId], references: [id])
+  quoteItems QuoteItem[]
+  orderItems ServiceOrderItem[]
+
+  // Modulo Piscina
+  poolCatalogConfig PoolCatalogConfig?
+  poolBudgetItems   PoolBudgetItem[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -2033,21 +2066,21 @@ model Service {
 // ========== Itens de Serviço na OS ==========
 
 model ServiceOrderItem {
-  id               String   @id @default(uuid())
-  serviceOrderId   String
-  serviceId        String
-  serviceName      String   // Snapshot do nome no momento da criação
-  unit             String   // Snapshot da unidade
-  quantity         Float    @default(1)  // Supports decimals (e.g., 2.5 diárias)
-  unitPriceCents      Int              // Preço unitário em centavos (snapshot)
-  commissionBps       Int?             // Comissão em basis points (snapshot do serviço)
-  techFixedValueCents Int?             // Valor fixo para técnico (snapshot)
-  commissionRule      CommissionRule?  // Regra de comissão (snapshot)
+  id                  String          @id @default(uuid())
+  serviceOrderId      String
+  serviceId           String
+  serviceName         String // Snapshot do nome no momento da criação
+  unit                String // Snapshot da unidade
+  quantity            Float           @default(1) // Supports decimals (e.g., 2.5 diárias)
+  unitPriceCents      Int // Preço unitário em centavos (snapshot)
+  commissionBps       Int? // Comissão em basis points (snapshot do serviço)
+  techFixedValueCents Int? // Valor fixo para técnico (snapshot)
+  commissionRule      CommissionRule? // Regra de comissão (snapshot)
 
-  createdAt        DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  serviceOrder     ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
-  service          Service      @relation(fields: [serviceId], references: [id])
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  service      Service      @relation(fields: [serviceId], references: [id])
 
   @@index([serviceOrderId])
 }
@@ -2055,27 +2088,27 @@ model ServiceOrderItem {
 // ========== Respostas de Checklist ==========
 
 model ChecklistResponse {
-  id               String         @id @default(uuid())
-  companyId        String
-  serviceOrderId   String
-  checklistClass   ChecklistClass
-  stage            String         // ABERTA, ATRIBUIDA, EM_EXECUCAO, CONCLUIDA
-  mode             ChecklistMode  @default(ITEM_BY_ITEM)
-  required         Boolean        @default(true)
-  items            Json           // [{text: string, checked: boolean, checkedAt?: string}]
-  observation      String?
-  confirmed        Boolean        @default(false)
-  confirmedAt      DateTime?
-  confirmedBy      String?        // Partner ID do técnico
-  technicianName   String?
-  geolocation      Json?          // {lat: number, lng: number, accuracy?: number}
-  deviceInfo       Json?          // {browser?: string, os?: string, device?: string}
-  timeInStage      Int?           // Segundos entre receber e confirmar
-  skippedItems     Json?          // Itens não confirmados quando modo Recomendado
-  createdAt        DateTime       @default(now())
+  id             String         @id @default(uuid())
+  companyId      String
+  serviceOrderId String
+  checklistClass ChecklistClass
+  stage          String // ABERTA, ATRIBUIDA, EM_EXECUCAO, CONCLUIDA
+  mode           ChecklistMode  @default(ITEM_BY_ITEM)
+  required       Boolean        @default(true)
+  items          Json // [{text: string, checked: boolean, checkedAt?: string}]
+  observation    String?
+  confirmed      Boolean        @default(false)
+  confirmedAt    DateTime?
+  confirmedBy    String? // Partner ID do técnico
+  technicianName String?
+  geolocation    Json? // {lat: number, lng: number, accuracy?: number}
+  deviceInfo     Json? // {browser?: string, os?: string, device?: string}
+  timeInStage    Int? // Segundos entre receber e confirmar
+  skippedItems   Json? // Itens não confirmados quando modo Recomendado
+  createdAt      DateTime       @default(now())
 
-  company          Company        @relation(fields: [companyId], references: [id])
-  serviceOrder     ServiceOrder   @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  company      Company      @relation(fields: [companyId], references: [id])
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
 
   @@index([serviceOrderId])
   @@index([companyId, serviceOrderId])
@@ -2085,58 +2118,58 @@ model ChecklistResponse {
 // ========== Período Fiscal (Escrituração) ==========
 
 model FiscalPeriod {
-  id              String    @id @default(uuid())
-  companyId       String
+  id        String @id @default(uuid())
+  companyId String
 
-  year            Int       // 2026
-  month           Int       // 1-12
-  status          String    @default("OPEN") // OPEN | CLOSED | FILED
+  year   Int // 2026
+  month  Int // 1-12
+  status String @default("OPEN") // OPEN | CLOSED | FILED
 
   // Resumo quantitativo (preenchido ao fechar)
-  totalNfeEntrada     Int?  // Qtd NFe de entrada importadas
-  totalNfeSaida       Int?  // Qtd NFe de saída (se aplicável)
-  totalNfseEntrada    Int?  // Qtd NFS-e de entrada
-  totalNfseSaida      Int?  // Qtd NFS-e de saída emitidas
+  totalNfeEntrada  Int? // Qtd NFe de entrada importadas
+  totalNfeSaida    Int? // Qtd NFe de saída (se aplicável)
+  totalNfseEntrada Int? // Qtd NFS-e de entrada
+  totalNfseSaida   Int? // Qtd NFS-e de saída emitidas
 
   // ICMS (apuração)
-  icmsDebitoCents     Int?  // Total débitos ICMS
-  icmsCreditoCents    Int?  // Total créditos ICMS
-  icmsSaldoCents      Int?  // Saldo (positivo = a recolher)
-  icmsStCents         Int?  // ICMS-ST do período
+  icmsDebitoCents  Int? // Total débitos ICMS
+  icmsCreditoCents Int? // Total créditos ICMS
+  icmsSaldoCents   Int? // Saldo (positivo = a recolher)
+  icmsStCents      Int? // ICMS-ST do período
 
   // IPI (apuração)
-  ipiDebitoCents      Int?
-  ipiCreditoCents     Int?
-  ipiSaldoCents       Int?
+  ipiDebitoCents  Int?
+  ipiCreditoCents Int?
+  ipiSaldoCents   Int?
 
   // PIS (apuração)
-  pisDebitoCents      Int?
-  pisCreditoCents     Int?
-  pisSaldoCents       Int?
+  pisDebitoCents  Int?
+  pisCreditoCents Int?
+  pisSaldoCents   Int?
 
   // COFINS (apuração)
-  cofinsDebitoCents   Int?
-  cofinsCreditoCents  Int?
-  cofinsSaldoCents    Int?
+  cofinsDebitoCents  Int?
+  cofinsCreditoCents Int?
+  cofinsSaldoCents   Int?
 
   // ISS (apuração)
-  issDevidoCents      Int?  // Total ISS devido (NFS-e saída)
-  issRetidoCents      Int?  // Total ISS retido (NFS-e entrada)
+  issDevidoCents Int? // Total ISS devido (NFS-e saída)
+  issRetidoCents Int? // Total ISS retido (NFS-e entrada)
 
   // Total valores no período
-  totalEntradaCents   Int?  // Soma valor entradas (NFe + NFS-e)
-  totalSaidaCents     Int?  // Soma valor saídas (NFe + NFS-e)
+  totalEntradaCents Int? // Soma valor entradas (NFe + NFS-e)
+  totalSaidaCents   Int? // Soma valor saídas (NFe + NFS-e)
 
   // Controle de fechamento
-  closedAt            DateTime?
-  closedByName        String?
-  filedAt             DateTime?
-  notes               String?   // Observações do período
+  closedAt     DateTime?
+  closedByName String?
+  filedAt      DateTime?
+  notes        String? // Observações do período
 
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
 
   @@unique([companyId, year, month])
   @@index([companyId, status])
@@ -2145,19 +2178,19 @@ model FiscalPeriod {
 // ========== Email Config (SMTP) ==========
 
 model EmailConfig {
-  id            String   @id @default(uuid())
-  companyId     String   @unique
-  smtpHost      String                    // ex: smtp.gmail.com
-  smtpPort      Int      @default(587)
-  smtpSecure    Boolean  @default(false)  // true = SSL/465, false = STARTTLS/587
-  smtpUser      String                    // SMTP username
-  smtpPass      String                    // Encrypted AES-256-GCM
-  fromName      String                    // Display name (ex: "Tecnikos")
-  fromEmail     String                    // Sender email (ex: noreply@empresa.com)
-  isConnected   Boolean  @default(false)
-  connectedAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String    @id @default(uuid())
+  companyId   String    @unique
+  smtpHost    String // ex: smtp.gmail.com
+  smtpPort    Int       @default(587)
+  smtpSecure  Boolean   @default(false) // true = SSL/465, false = STARTTLS/587
+  smtpUser    String // SMTP username
+  smtpPass    String // Encrypted AES-256-GCM
+  fromName    String // Display name (ex: "Tecnikos")
+  fromEmail   String // Sender email (ex: noreply@empresa.com)
+  isConnected Boolean   @default(false)
+  connectedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   company Company @relation(fields: [companyId], references: [id])
 }
@@ -2165,33 +2198,33 @@ model EmailConfig {
 // ========== Contratos de Técnico ==========
 
 model TechnicianContract {
-  id              String    @id @default(uuid())
-  companyId       String
-  partnerId       String
-  serviceOrderId  String?   // OS que disparou o envio (se via workflow)
-  specializationId String?  // Especialização que disparou o envio (se trigger onNewSpecialization)
-  trigger         String?   // onNewTechnician | onNewSpecialization
-  token           String    @unique
-  contractType    String    @default("CONTRACT") // "CONTRACT" (PJ) | "WELCOME" (CLT)
-  contractName    String    // Snapshot do nome do contrato
-  contractContent String    // Snapshot do conteúdo HTML/texto
-  status          String    @default("PENDING") // PENDING, VIEWED, ACCEPTED, EXPIRED, CANCELLED
-  replyMessage    String?   // Resposta do técnico (CLT) — ex: "sim, aceito"
-  blockUntilAccepted Boolean @default(true)
-  requireSignature  Boolean @default(false)
-  requireAcceptance Boolean @default(true)
-  sentAt          DateTime  @default(now())
-  sentVia         String?   // WHATSAPP, EMAIL
-  viewedAt        DateTime?
-  acceptedAt      DateTime?
-  acceptedIp      String?
-  acceptedUserAgent String?
-  signatureData   String?   // Base64 PNG da assinatura digital
-  expiresAt       DateTime
-  cancelledAt     DateTime?
-  cancelledReason String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  companyId          String
+  partnerId          String
+  serviceOrderId     String? // OS que disparou o envio (se via workflow)
+  specializationId   String? // Especialização que disparou o envio (se trigger onNewSpecialization)
+  trigger            String? // onNewTechnician | onNewSpecialization
+  token              String    @unique
+  contractType       String    @default("CONTRACT") // "CONTRACT" (PJ) | "WELCOME" (CLT)
+  contractName       String // Snapshot do nome do contrato
+  contractContent    String // Snapshot do conteúdo HTML/texto
+  status             String    @default("PENDING") // PENDING, VIEWED, ACCEPTED, EXPIRED, CANCELLED
+  replyMessage       String? // Resposta do técnico (CLT) — ex: "sim, aceito"
+  blockUntilAccepted Boolean   @default(true)
+  requireSignature   Boolean   @default(false)
+  requireAcceptance  Boolean   @default(true)
+  sentAt             DateTime  @default(now())
+  sentVia            String? // WHATSAPP, EMAIL
+  viewedAt           DateTime?
+  acceptedAt         DateTime?
+  acceptedIp         String?
+  acceptedUserAgent  String?
+  signatureData      String? // Base64 PNG da assinatura digital
+  expiresAt          DateTime
+  cancelledAt        DateTime?
+  cancelledReason    String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   company      Company       @relation(fields: [companyId], references: [id])
   partner      Partner       @relation(fields: [partnerId], references: [id])
@@ -2206,11 +2239,11 @@ model TechnicianContract {
 // ========== Contadores de Código Sequencial ==========
 
 model CodeCounter {
-  id         String  @id @default(uuid())
+  id         String @id @default(uuid())
   companyId  String
-  entity     String  // PARTNER, SERVICE_ORDER, FINANCIAL_ENTRY, EVALUATION, USER
-  prefix     String  // PAR, OS, FIN, AVA, USR
-  nextNumber Int     @default(1)
+  entity     String // PARTNER, SERVICE_ORDER, FINANCIAL_ENTRY, EVALUATION, USER
+  prefix     String // PAR, OS, FIN, AVA, USR
+  nextNumber Int    @default(1)
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -2240,56 +2273,56 @@ enum SubscriptionStatus {
 
 // Tenant = cada empresa cliente do SaaS
 model Tenant {
-  id          String       @id @default(uuid())
-  slug        String       @unique  // subdomínio (ex: "acme" → acme.tecnikos.com.br)
-  name        String                // Nome fantasia
-  schemaName  String       @unique  // Nome do schema PostgreSQL (ex: "tenant_acme")
-  cnpj        String?      @unique
-  status      TenantStatus @default(PENDING_VERIFICATION)
+  id         String       @id @default(uuid())
+  slug       String       @unique // subdomínio (ex: "acme" → acme.tecnikos.com.br)
+  name       String // Nome fantasia
+  schemaName String       @unique // Nome do schema PostgreSQL (ex: "tenant_acme")
+  cnpj       String?      @unique
+  status     TenantStatus @default(PENDING_VERIFICATION)
 
   // Plano atual
-  planId      String?
-  plan        Plan?        @relation(fields: [planId], references: [id])
+  planId String?
+  plan   Plan?   @relation(fields: [planId], references: [id])
 
   // Dados do responsável (onboarding)
   responsibleName   String?
   responsibleEmail  String?
   responsiblePhone  String?
   responsibleCpf    String?
-  responsibleDocUrl String?   // URL da foto do documento enviado
-  verificationId    String?   // ID da verificação ppid
-  passwordHash      String?   // Hash da senha definida no signup (usado no onboarding)
+  responsibleDocUrl String? // URL da foto do documento enviado
+  verificationId    String? // ID da verificação ppid
+  passwordHash      String? // Hash da senha definida no signup (usado no onboarding)
 
   // Promoção usada no signup (só trava vaga após pagamento)
-  promoCode         String?   // Código promocional usado (ex: "PIONEIRO-PISCINAS")
+  promoCode String? // Código promocional usado (ex: "PIONEIRO-PISCINAS")
 
   // Asaas (gateway pagamento)
-  asaasCustomerId   String?   // ID do cliente no Asaas
+  asaasCustomerId String? // ID do cliente no Asaas
 
   // Link direto ao Company do tenant (para webhooks resolverem o tenant)
-  companyId         String?   @unique  // ID do Company dentro do tenant schema
+  companyId String? @unique // ID do Company dentro do tenant schema
 
   // Controle
-  isMaster          Boolean   @default(false)  // true = SLS Obras (tenant do dono)
-  maxUsers          Int       @default(5)       // Snapshot do plano (grandfather)
-  maxOsPerMonth     Int       @default(100)     // Snapshot do plano (grandfather)
-  maxTechnicians    Int       @default(0)       // Snapshot: 0 = ilimitado
-  maxAiMessages     Int       @default(0)       // Snapshot: msgs IA/mês (0 = ilimitado)
-  maxNfseImports    Int       @default(0)       // Snapshot: importações NFS-e/mês (0 = ilimitado)
-  supportLevel      String    @default("EMAIL") // Snapshot: EMAIL, EMAIL_CHAT, PRIORITY
-  allModulesIncluded Boolean  @default(true)    // Snapshot: todos os módulos
+  isMaster           Boolean @default(false) // true = SLS Obras (tenant do dono)
+  maxUsers           Int     @default(5) // Snapshot do plano (grandfather)
+  maxOsPerMonth      Int     @default(100) // Snapshot do plano (grandfather)
+  maxTechnicians     Int     @default(0) // Snapshot: 0 = ilimitado
+  maxAiMessages      Int     @default(0) // Snapshot: msgs IA/mês (0 = ilimitado)
+  maxNfseImports     Int     @default(0) // Snapshot: importações NFS-e/mês (0 = ilimitado)
+  supportLevel       String  @default("EMAIL") // Snapshot: EMAIL, EMAIL_CHAT, PRIORITY
+  allModulesIncluded Boolean @default(true) // Snapshot: todos os módulos
 
   // Termos de uso
-  agreeTermsAt  DateTime?  // Timestamp do aceite dos termos de uso
+  agreeTermsAt DateTime? // Timestamp do aceite dos termos de uso
 
   // Bloqueio
-  blockedAt     DateTime?
-  blockReason   String?
+  blockedAt   DateTime?
+  blockReason String?
 
   // Timestamps
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   subscriptions        Subscription[]
   verificationSessions VerificationSession[]
@@ -2301,34 +2334,34 @@ model Tenant {
 
 // Sessão de verificação de documentos (signup manual)
 model VerificationSession {
-  id        String   @id @default(uuid())
-  tenantId  String
-  token     String   @unique  // Token para URL pública (/verify/{token})
+  id       String @id @default(uuid())
+  tenantId String
+  token    String @unique // Token para URL pública (/verify/{token})
 
   // Documentos (URLs relativas em /uploads/verification/{id}/)
-  cnpjCardUrl      String?   // Cartão CNPJ (PDF)
-  docFrontUrl      String?   // Documento frente (RG/CNH)
-  docBackUrl       String?   // Documento verso (RG/CNH)
-  selfieFarUrl     String?   // Selfie longe
-  selfieMediumUrl  String?   // Selfie médio
-  selfieCloseUrl   String?   // Selfie perto
+  cnpjCardUrl     String? // Cartão CNPJ (PDF)
+  docFrontUrl     String? // Documento frente (RG/CNH)
+  docBackUrl      String? // Documento verso (RG/CNH)
+  selfieFarUrl    String? // Selfie longe
+  selfieMediumUrl String? // Selfie médio
+  selfieCloseUrl  String? // Selfie perto
 
   // Status de upload (frontend polling)
-  uploadedCount    Int       @default(0)  // 0-6 documentos enviados
-  uploadComplete   Boolean   @default(false)
+  uploadedCount  Int     @default(0) // 0-6 documentos enviados
+  uploadComplete Boolean @default(false)
 
   // Revisão do admin
-  reviewStatus     String    @default("PENDING")  // PENDING | APPROVED | REJECTED
-  reviewedAt       DateTime?
-  reviewedBy       String?   // Nome de quem revisou
-  rejectionReason  String?
+  reviewStatus    String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewedAt      DateTime?
+  reviewedBy      String? // Nome de quem revisou
+  rejectionReason String?
 
   // Controle
-  expiresAt        DateTime  // 72h após criação
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  expiresAt DateTime // 72h após criação
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
   @@index([token])
@@ -2337,77 +2370,77 @@ model VerificationSession {
 // Planos disponíveis para contratação
 model Plan {
   id               String   @id @default(uuid())
-  name             String   @unique  // "Básico", "Profissional", "Enterprise"
-  maxUsers         Int               // Limite de usuários gestores
-  maxOsPerMonth    Int               // Limite de OS/mês (0 = ilimitado)
-  priceCents       Int               // Preço mensal em centavos
-  priceYearlyCents Int?              // Preço anual total em centavos (null = sem opção anual)
+  name             String   @unique // "Básico", "Profissional", "Enterprise"
+  maxUsers         Int // Limite de usuários gestores
+  maxOsPerMonth    Int // Limite de OS/mês (0 = ilimitado)
+  priceCents       Int // Preço mensal em centavos
+  priceYearlyCents Int? // Preço anual total em centavos (null = sem opção anual)
   isActive         Boolean  @default(true)
   sortOrder        Int      @default(0)
-  description      String?           // Descrição para landing page
-  features         String[]          // Lista de funcionalidades para landing page (auto-gerado)
+  description      String? // Descrição para landing page
+  features         String[] // Lista de funcionalidades para landing page (auto-gerado)
 
   // Campos estruturados de features
-  maxTechnicians       Int      @default(0)         // 0 = ilimitado
-  maxAiMessages        Int      @default(0)         // Msgs IA/mês (0 = ilimitado)
-  maxNfseImports       Int      @default(0)         // Limite importação NFS-e/mês (0 = mesmo que maxOsPerMonth)
-  supportLevel         String   @default("EMAIL")   // EMAIL, EMAIL_CHAT, PRIORITY
-  allModulesIncluded   Boolean  @default(true)       // Todos os módulos inclusos
+  maxTechnicians     Int     @default(0) // 0 = ilimitado
+  maxAiMessages      Int     @default(0) // Msgs IA/mês (0 = ilimitado)
+  maxNfseImports     Int     @default(0) // Limite importação NFS-e/mês (0 = mesmo que maxOsPerMonth)
+  supportLevel       String  @default("EMAIL") // EMAIL, EMAIL_CHAT, PRIORITY
+  allModulesIncluded Boolean @default(true) // Todos os módulos inclusos
 
   tenants       Tenant[]
   subscriptions Subscription[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Assinatura ativa de um tenant
 model Subscription {
-  id                    String             @id @default(uuid())
-  tenantId              String
-  tenant                Tenant             @relation(fields: [tenantId], references: [id])
-  planId                String
-  plan                  Plan               @relation(fields: [planId], references: [id])
-  status                SubscriptionStatus @default(ACTIVE)
+  id       String             @id @default(uuid())
+  tenantId String
+  tenant   Tenant             @relation(fields: [tenantId], references: [id])
+  planId   String
+  plan     Plan               @relation(fields: [planId], references: [id])
+  status   SubscriptionStatus @default(ACTIVE)
 
   // Período de cobrança
-  currentPeriodStart    DateTime
-  currentPeriodEnd      DateTime
-  nextBillingDate       DateTime
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  nextBillingDate    DateTime
 
   // Asaas
-  asaasSubscriptionId   String?
+  asaasSubscriptionId String?
 
   // Uso de OS no mês
-  osUsedThisMonth       Int       @default(0)
-  osResetDate           DateTime              // Data para resetar contador
+  osUsedThisMonth Int      @default(0)
+  osResetDate     DateTime // Data para resetar contador
 
   // Pacotes extras de OS comprados
-  extraOsPurchased      Int       @default(0)
-  addOnPurchases        AddOnPurchase[]
+  extraOsPurchased Int             @default(0)
+  addOnPurchases   AddOnPurchase[]
 
   // Promoção aplicada
-  promotionId           String?
-  promotionMonthsLeft   Int?      // Meses restantes de promoção
-  originalValueCents    Int?      // Valor cheio do plano (para restaurar após promo)
+  promotionId         String?
+  promotionMonthsLeft Int? // Meses restantes de promoção
+  originalValueCents  Int? // Valor cheio do plano (para restaurar após promo)
 
   // Ciclo de cobrança
-  billingCycle          String    @default("MONTHLY") // "MONTHLY" | "ANNUAL"
+  billingCycle String @default("MONTHLY") // "MONTHLY" | "ANNUAL"
 
   // Saldo de crédito pro-rata (centavos) — abatido em faturas futuras
-  creditBalanceCents    Int       @default(0)
+  creditBalanceCents Int @default(0)
 
   // Downgrade pendente (aplicado no próximo ciclo)
-  pendingPlanId         String?
-  pendingPlanAt         DateTime?
+  pendingPlanId String?
+  pendingPlanAt DateTime?
 
   // Inadimplência
-  overdueAt             DateTime? // Data em que ficou inadimplente (PAST_DUE)
+  overdueAt DateTime? // Data em que ficou inadimplente (PAST_DUE)
 
   // Timestamps
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  cancelledAt           DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  cancelledAt DateTime?
 
   @@index([tenantId])
   @@index([status])
@@ -2417,62 +2450,62 @@ model Subscription {
 // Promoções configuráveis pelo admin (Juliano)
 model Promotion {
   id              String    @id @default(uuid())
-  name            String                  // "Primeiro mês 50% OFF"
-  code            String?   @unique       // Código promocional (ex: "PROMO50")
-  discountPercent Float?                  // % de desconto (ex: 50.0)
-  discountCents   Int?                    // Desconto fixo em centavos
-  durationMonths  Int       @default(1)   // Duração em meses
-  applicablePlans String[]               // IDs dos planos aplicáveis (vazio = todos)
-  maxUses         Int?                    // Limite de usos (null = ilimitado)
+  name            String // "Primeiro mês 50% OFF"
+  code            String?   @unique // Código promocional (ex: "PROMO50")
+  discountPercent Float? // % de desconto (ex: 50.0)
+  discountCents   Int? // Desconto fixo em centavos
+  durationMonths  Int       @default(1) // Duração em meses
+  applicablePlans String[] // IDs dos planos aplicáveis (vazio = todos)
+  maxUses         Int? // Limite de usos (null = ilimitado)
   currentUses     Int       @default(0)
   isActive        Boolean   @default(true)
   skipPayment     Boolean   @default(false) // Voucher: pula etapa de pagamento
   startsAt        DateTime  @default(now())
   expiresAt       DateTime?
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Add-on packages (extra OS, extra users, etc.)
 model AddOn {
-  id                  String    @id @default(uuid())
-  name                String    // "Pacote 100 OS", "+1 Usuario Gestor"
-  description         String?
-  osQuantity          Int       @default(0)  // Extra OS (0 if not OS add-on)
-  userQuantity        Int       @default(0)  // Extra users (0 if not user add-on)
-  technicianQuantity  Int       @default(0)  // Extra technicians (0 if not tech add-on)
-  aiMessageQuantity   Int       @default(0)  // Extra AI msgs (0 if not AI add-on)
-  nfseImportQuantity  Int       @default(0)  // Extra NFS-e imports (0 if not import add-on)
-  priceCents          Int       // One-time price in cents (valid for 1 billing cycle)
-  isActive            Boolean   @default(true)
-  sortOrder           Int       @default(0)
+  id                 String  @id @default(uuid())
+  name               String // "Pacote 100 OS", "+1 Usuario Gestor"
+  description        String?
+  osQuantity         Int     @default(0) // Extra OS (0 if not OS add-on)
+  userQuantity       Int     @default(0) // Extra users (0 if not user add-on)
+  technicianQuantity Int     @default(0) // Extra technicians (0 if not tech add-on)
+  aiMessageQuantity  Int     @default(0) // Extra AI msgs (0 if not AI add-on)
+  nfseImportQuantity Int     @default(0) // Extra NFS-e imports (0 if not import add-on)
+  priceCents         Int // One-time price in cents (valid for 1 billing cycle)
+  isActive           Boolean @default(true)
+  sortOrder          Int     @default(0)
 
-  purchases   AddOnPurchase[]
+  purchases AddOnPurchase[]
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AddOnPurchase {
-  id                  String   @id @default(uuid())
-  subscriptionId      String
-  subscription        Subscription @relation(fields: [subscriptionId], references: [id])
-  addOnId             String
-  addOn               AddOn    @relation(fields: [addOnId], references: [id])
-  osQuantity          Int      @default(0)  // OS granted
-  userQuantity        Int      @default(0)  // Users granted
-  technicianQuantity  Int      @default(0)  // Technicians granted
-  aiMessageQuantity   Int      @default(0)  // AI messages granted
-  nfseImportQuantity  Int      @default(0)  // NFS-e imports granted
-  priceCents          Int      // Price paid
-  asaasPaymentId      String?  // Asaas payment ID
-  status              String   @default("PENDING") // PENDING | PAID | CANCELLED | EXPIRED
-  periodMonth         String?  // "2026-03" — month this add-on is valid for
-  expiresAt           DateTime? // End of billing cycle when add-on expires
+  id                 String       @id @default(uuid())
+  subscriptionId     String
+  subscription       Subscription @relation(fields: [subscriptionId], references: [id])
+  addOnId            String
+  addOn              AddOn        @relation(fields: [addOnId], references: [id])
+  osQuantity         Int          @default(0) // OS granted
+  userQuantity       Int          @default(0) // Users granted
+  technicianQuantity Int          @default(0) // Technicians granted
+  aiMessageQuantity  Int          @default(0) // AI messages granted
+  nfseImportQuantity Int          @default(0) // NFS-e imports granted
+  priceCents         Int // Price paid
+  asaasPaymentId     String? // Asaas payment ID
+  status             String       @default("PENDING") // PENDING | PAID | CANCELLED | EXPIRED
+  periodMonth        String? // "2026-03" — month this add-on is valid for
+  expiresAt          DateTime? // End of billing cycle when add-on expires
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([subscriptionId])
   @@index([status])
@@ -2482,42 +2515,42 @@ model AddOnPurchase {
 
 // Nota fiscal (NFS-e) emitida via Asaas para licenças SaaS
 model SaasInvoice {
-  id                 String    @id @default(uuid())
-  tenantId           String
-  tenant             Tenant    @relation(fields: [tenantId], references: [id])
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   // Asaas reference
-  asaasInvoiceId     String?   @unique   // ID da NF no Asaas (inv_xxx)
-  asaasPaymentId     String?             // ID do pagamento vinculado
-  asaasCustomerId    String?             // ID do cliente no Asaas
+  asaasInvoiceId  String? @unique // ID da NF no Asaas (inv_xxx)
+  asaasPaymentId  String? // ID do pagamento vinculado
+  asaasCustomerId String? // ID do cliente no Asaas
 
   // Invoice data
-  status             String    @default("PENDING") // PENDING | SCHEDULED | SYNCHRONIZED | AUTHORIZED | ERROR | CANCELED
-  value              Float                          // Valor em BRL
+  status             String   @default("PENDING") // PENDING | SCHEDULED | SYNCHRONIZED | AUTHORIZED | ERROR | CANCELED
+  value              Float // Valor em BRL
   serviceDescription String
   observations       String?
-  effectiveDate      DateTime                       // Data de emissão
+  effectiveDate      DateTime // Data de emissão
 
   // Result from Asaas (populated after emission)
-  pdfUrl             String?
-  xmlUrl             String?
-  rpsNumber          Int?
-  invoiceNumber      String?
+  pdfUrl        String?
+  xmlUrl        String?
+  rpsNumber     Int?
+  invoiceNumber String?
 
   // Taxes (percentages)
-  iss                Float     @default(0)
-  cofins             Float     @default(0)
-  csll               Float     @default(0)
-  inss               Float     @default(0)
-  ir                 Float     @default(0)
-  pis                Float     @default(0)
-  retainIss          Boolean   @default(false)
+  iss       Float   @default(0)
+  cofins    Float   @default(0)
+  csll      Float   @default(0)
+  inss      Float   @default(0)
+  ir        Float   @default(0)
+  pis       Float   @default(0)
+  retainIss Boolean @default(false)
 
   // Error tracking
-  errorMessage       String?
+  errorMessage String?
 
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tenantId])
   @@index([status])
@@ -2526,39 +2559,39 @@ model SaasInvoice {
 
 // Configuração global de emissão de NFS-e (singleton)
 model SaasInvoiceConfig {
-  id                         String   @id @default(uuid())
+  id String @id @default(uuid())
 
   // Auto-emit settings
-  autoEmitOnPayment          Boolean  @default(false)  // Emitir automaticamente ao confirmar pagamento
+  autoEmitOnPayment Boolean @default(false) // Emitir automaticamente ao confirmar pagamento
 
   // Municipal service details
-  municipalServiceId         String?    // ID interno Asaas do serviço municipal
-  municipalServiceCode       String?    // Código do serviço (ex: "1.01")
-  municipalServiceName       String?    // Nome do serviço
+  municipalServiceId   String? // ID interno Asaas do serviço municipal
+  municipalServiceCode String? // Código do serviço (ex: "1.01")
+  municipalServiceName String? // Nome do serviço
 
   // Default taxes (percentages)
-  defaultIss                 Float    @default(0)
-  defaultCofins              Float    @default(0)
-  defaultCsll                Float    @default(0)
-  defaultInss                Float    @default(0)
-  defaultIr                  Float    @default(0)
-  defaultPis                 Float    @default(0)
-  defaultRetainIss           Boolean  @default(false)
+  defaultIss       Float   @default(0)
+  defaultCofins    Float   @default(0)
+  defaultCsll      Float   @default(0)
+  defaultInss      Float   @default(0)
+  defaultIr        Float   @default(0)
+  defaultPis       Float   @default(0)
+  defaultRetainIss Boolean @default(false)
 
   // Service description template (variables: {empresa}, {plano}, {periodo})
-  serviceDescriptionTemplate String   @default("Licenciamento de software SaaS - Plano {plano} - {empresa}")
+  serviceDescriptionTemplate String @default("Licenciamento de software SaaS - Plano {plano} - {empresa}")
 
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Configuração global do sistema (key-value, criptografia para tokens)
 model SaasConfig {
   id        String   @id @default(uuid())
-  key       String   @unique   // ex: FOCUS_NFE_RESELLER_TOKEN, VAPID_PUBLIC_KEY
-  value     String              // Criptografado para campos sensíveis
+  key       String   @unique // ex: FOCUS_NFE_RESELLER_TOKEN, VAPID_PUBLIC_KEY
+  value     String // Criptografado para campos sensíveis
   encrypted Boolean  @default(true)
-  label     String?             // Label legível para o admin UI
+  label     String? // Label legível para o admin UI
   group     String   @default("GENERAL") // INTEGRATION, PUSH, GENERAL
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2566,58 +2599,58 @@ model SaasConfig {
 
 // Signup attempt tracking (failed verifications + user feedback)
 model SignupAttempt {
-  id                String    @id @default(uuid())
-  status            String    @default("PENDING") // PENDING | REVIEWED | DISMISSED
+  id     String @id @default(uuid())
+  status String @default("PENDING") // PENDING | REVIEWED | DISMISSED
 
   // Company form data (steps 1-2)
-  slug              String?
-  companyName       String?
-  cnpj              String?
-  responsibleName   String?
-  responsibleEmail  String?
-  responsiblePhone  String?
+  slug             String?
+  companyName      String?
+  cnpj             String?
+  responsibleName  String?
+  responsibleEmail String?
+  responsiblePhone String?
 
   // Plan info
-  planId            String?
-  planName          String?
-  billingCycle      String?
+  planId       String?
+  planName     String?
+  billingCycle String?
 
   // CNPJ lookup result (full object)
-  cnpjData          Json?
+  cnpjData Json?
 
   // Verification result (full object from PPID + QSA)
   verificationResult Json?
 
   // Rejection reasons array
-  rejectionReasons  String[]
+  rejectionReasons String[]
 
   // Step tracking
-  lastStep          Int       @default(1)  // 1=Plano, 2=Dados, 3=Documentos, 4=Pagamento, 5=Concluido
-  lastError         String?                // Error message that caused the stall
-  completedAt       DateTime?              // Non-null = signup completed successfully
+  lastStep    Int       @default(1) // 1=Plano, 2=Dados, 3=Documentos, 4=Pagamento, 5=Concluido
+  lastError   String? // Error message that caused the stall
+  completedAt DateTime? // Non-null = signup completed successfully
 
   // User feedback (criticism submitted on rejection screen)
-  criticism         String?
+  criticism String?
 
   // Metadata
-  ipAddress         String?
-  userAgent         String?
+  ipAddress String?
+  userAgent String?
 
   // Traffic source tracking
-  referrer          String?   // document.referrer
-  utmSource         String?   // utm_source
-  utmMedium         String?   // utm_medium
-  utmCampaign       String?   // utm_campaign
-  utmTerm           String?   // utm_term
-  utmContent        String?   // utm_content
-  landingPage       String?   // URL da primeira pagina acessada
+  referrer    String? // document.referrer
+  utmSource   String? // utm_source
+  utmMedium   String? // utm_medium
+  utmCampaign String? // utm_campaign
+  utmTerm     String? // utm_term
+  utmContent  String? // utm_content
+  landingPage String? // URL da primeira pagina acessada
 
   // Admin tracking
-  readAt            DateTime?
-  adminNotes        String?
+  readAt     DateTime?
+  adminNotes String?
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([readAt])
@@ -2626,19 +2659,19 @@ model SignupAttempt {
 
 // ─── Chat IA ────────────────────────────────────────────────
 model ChatIAConversation {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   companyId     String
   userId        String
   title         String?
-  isOnboarding  Boolean  @default(false)
-  status        String   @default("ACTIVE") // ACTIVE | ARCHIVED
-  messageCount  Int      @default(0)
+  isOnboarding  Boolean   @default(false)
+  status        String    @default("ACTIVE") // ACTIVE | ARCHIVED
+  messageCount  Int       @default(0)
   lastMessageAt DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id])
-  user     User     @relation(fields: [userId], references: [id])
+  company  Company         @relation(fields: [companyId], references: [id])
+  user     User            @relation(fields: [userId], references: [id])
   messages ChatIAMessage[]
 
   @@index([companyId])
@@ -2649,10 +2682,10 @@ model ChatIAConversation {
 model ChatIAMessage {
   id             String   @id @default(uuid())
   conversationId String
-  role           String   // "user" | "assistant"
+  role           String // "user" | "assistant"
   content        String
-  toolCalls      Json?    // Tool calls made by Claude (for audit)
-  actionButtons  Json?    // [{label, href, icon}] — inline action buttons
+  toolCalls      Json? // Tool calls made by Claude (for audit)
+  actionButtons  Json? // [{label, href, icon}] — inline action buttons
   inputTokens    Int?
   outputTokens   Int?
   createdAt      DateTime @default(now())
@@ -2672,7 +2705,7 @@ model Suggestion {
   category    String   @default("MELHORIA") // MELHORIA, BUG, DUVIDA
   title       String
   description String
-  status      String   @default("ABERTA")   // ABERTA, EM_ANALISE, IMPLEMENTADA, DESCARTADA
+  status      String   @default("ABERTA") // ABERTA, EM_ANALISE, IMPLEMENTADA, DESCARTADA
   adminNotes  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2687,13 +2720,13 @@ model Suggestion {
 // ========== Orçamentos (Quotes) ==========
 
 model Quote {
-  id              String      @id @default(uuid())
-  companyId       String
-  code            String?     // Auto-generated: ORC-00001
-  version         Int         @default(1)
-  parentQuoteId   String?     // FK previous version (null = first)
+  id            String  @id @default(uuid())
+  companyId     String
+  code          String? // Auto-generated: ORC-00001
+  version       Int     @default(1)
+  parentQuoteId String? // FK previous version (null = first)
 
-  status          QuoteStatus @default(RASCUNHO)
+  status QuoteStatus @default(RASCUNHO)
 
   // Relationships
   clientPartnerId String
@@ -2703,59 +2736,59 @@ model Quote {
   // Content
   title           String
   description     String?
-  notes           String?     // Internal notes (not visible to client)
-  termsConditions String?     // Visible to client
+  notes           String? // Internal notes (not visible to client)
+  termsConditions String? // Visible to client
 
   // Validity
-  validityDays    Int         @default(30)
-  expiresAt       DateTime?
+  validityDays Int       @default(30)
+  expiresAt    DateTime?
 
   // Global discount
-  discountPercent Float?      // 0-100
-  discountCents   Int?        // Fixed amount in cents
+  discountPercent Float? // 0-100
+  discountCents   Int? // Fixed amount in cents
 
   // Totals (computed on save)
-  subtotalCents       Int         @default(0)
-  productValueCents   Int         @default(0) // Valor dos produtos/materiais (somado ao total)
-  totalCents          Int         @default(0)
+  subtotalCents     Int @default(0)
+  productValueCents Int @default(0) // Valor dos produtos/materiais (somado ao total)
+  totalCents        Int @default(0)
 
   // Delivery & Approval
-  deliveryMethod  String      @default("WHATSAPP_LINK") // WHATSAPP_LINK | WHATSAPP_MESSAGE | EMAIL_LINK
-  approvalMode    String      @default("CLIENT")        // CLIENT | INTERNAL
+  deliveryMethod String @default("WHATSAPP_LINK") // WHATSAPP_LINK | WHATSAPP_MESSAGE | EMAIL_LINK
+  approvalMode   String @default("CLIENT") // CLIENT | INTERNAL
 
   // Public access token
   publicToken          String?   @unique
   publicTokenExpiresAt DateTime?
 
   // Approval tracking
-  approvedAt      DateTime?
-  approvedByName  String?
-  approvedByType  String?     // CLIENT | INTERNAL
-  rejectedAt      DateTime?
-  rejectedByName  String?
-  rejectedReason  String?
+  approvedAt     DateTime?
+  approvedByName String?
+  approvedByType String? // CLIENT | INTERNAL
+  rejectedAt     DateTime?
+  rejectedByName String?
+  rejectedReason String?
 
   // Sent tracking
-  sentAt          DateTime?
-  sentVia         String?     // WHATSAPP | EMAIL
+  sentAt  DateTime?
+  sentVia String? // WHATSAPP | EMAIL
 
   // Cancellation
   cancelledAt     DateTime?
   cancelledByName String?
   cancelledReason String?
 
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  deletedAt       DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // Relations
-  company         Company      @relation(fields: [companyId], references: [id])
-  clientPartner   Partner      @relation("QuoteClient", fields: [clientPartnerId], references: [id])
-  serviceOrder    ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
-  parentQuote     Quote?       @relation("QuoteVersions", fields: [parentQuoteId], references: [id])
-  childQuotes     Quote[]      @relation("QuoteVersions")
-  items           QuoteItem[]
-  attachments     QuoteAttachment[]
+  company       Company           @relation(fields: [companyId], references: [id])
+  clientPartner Partner           @relation("QuoteClient", fields: [clientPartnerId], references: [id])
+  serviceOrder  ServiceOrder?     @relation(fields: [serviceOrderId], references: [id])
+  parentQuote   Quote?            @relation("QuoteVersions", fields: [parentQuoteId], references: [id])
+  childQuotes   Quote[]           @relation("QuoteVersions")
+  items         QuoteItem[]
+  attachments   QuoteAttachment[]
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -2767,45 +2800,45 @@ model Quote {
 }
 
 model QuoteItem {
-  id              String        @id @default(uuid())
-  quoteId         String
-  sortOrder       Int           @default(0)
+  id        String @id @default(uuid())
+  quoteId   String
+  sortOrder Int    @default(0)
 
-  type            QuoteItemType // SERVICE | PRODUCT | LABOR
-  productId       String?
-  serviceId       String?
+  type      QuoteItemType // SERVICE | PRODUCT | LABOR
+  productId String?
+  serviceId String?
 
-  description     String
-  unit            String        @default("UN") // UN, HR, SV, MT, M2, etc.
-  quantity        Float         @default(1)
-  unitPriceCents  Int           @default(0)
+  description    String
+  unit           String @default("UN") // UN, HR, SV, MT, M2, etc.
+  quantity       Float  @default(1)
+  unitPriceCents Int    @default(0)
 
-  discountPercent Float?        // Per-item discount 0-100
+  discountPercent Float? // Per-item discount 0-100
 
-  totalCents      Int           @default(0) // Computed: (qty * unitPrice) * (1 - discount%)
+  totalCents Int @default(0) // Computed: (qty * unitPrice) * (1 - discount%)
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  quote           Quote         @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  product         Product?      @relation(fields: [productId], references: [id])
-  service         Service?      @relation(fields: [serviceId], references: [id])
+  quote   Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+  service Service? @relation(fields: [serviceId], references: [id])
 
   @@index([quoteId])
 }
 
 model QuoteAttachment {
-  id          String   @id @default(uuid())
-  quoteId     String
-  fileName    String   // Original file name
-  filePath    String   // Stored path: /uploads/{companyId}/quotes/{quoteId}/{uuid}.pdf
-  fileSize    Int?     // Size in bytes
-  mimeType    String   @default("application/pdf")
-  label       String?  // e.g. "Orçamento Loja X - Materiais"
+  id           String   @id @default(uuid())
+  quoteId      String
+  fileName     String // Original file name
+  filePath     String // Stored path: /uploads/{companyId}/quotes/{quoteId}/{uuid}.pdf
+  fileSize     Int? // Size in bytes
+  mimeType     String   @default("application/pdf")
+  label        String? // e.g. "Orçamento Loja X - Materiais"
   supplierName String? // Partner store name
-  createdAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
 
-  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   @@index([quoteId])
 }
@@ -2813,57 +2846,57 @@ model QuoteAttachment {
 // ========== Boleto Bancario (Cobranca) ==========
 
 model BoletoConfig {
-  id                    String   @id @default(uuid())
-  companyId             String   @unique
+  id        String @id @default(uuid())
+  companyId String @unique
 
   // Banco
-  bankCode              String   // "077" Inter, "748" Sicredi, "001" BB, etc.
-  bankName              String   // "Inter", "Sicredi", "Banco do Brasil"
-  cashAccountId         String?  // FK -> CashAccount vinculada
+  bankCode      String // "077" Inter, "748" Sicredi, "001" BB, etc.
+  bankName      String // "Inter", "Sicredi", "Banco do Brasil"
+  cashAccountId String? // FK -> CashAccount vinculada
 
   // Credenciais (AES-256-GCM via EncryptionService)
-  clientId              String?  // OAuth2 client_id (encrypted)
-  clientSecret          String?  // OAuth2 client_secret (encrypted)
-  apiKey                String?  // API key (encrypted)
-  certificateBase64     String?  // Certificado mTLS PFX/PEM base64 (encrypted)
-  certificatePassword   String?  // Senha do certificado (encrypted)
+  clientId            String? // OAuth2 client_id (encrypted)
+  clientSecret        String? // OAuth2 client_secret (encrypted)
+  apiKey              String? // API key (encrypted)
+  certificateBase64   String? // Certificado mTLS PFX/PEM base64 (encrypted)
+  certificatePassword String? // Senha do certificado (encrypted)
 
   // Config banco-especifica (extensivel)
-  bankSpecificConfig    Json?    // { "contaCorrente": "12345", "posto": "08", "cooperativa": "0101" }
+  bankSpecificConfig Json? // { "contaCorrente": "12345", "posto": "08", "cooperativa": "0101" }
 
   // Ambiente
-  environment           String   @default("SANDBOX") // SANDBOX | PRODUCTION
+  environment String @default("SANDBOX") // SANDBOX | PRODUCTION
 
   // Dados do convenio
-  convenio              String?  // Numero do convenio/beneficiario
-  carteira              String?  // Carteira (ex: "109", "17", "1")
-  especie               String   @default("R$")
-  especieDoc            String   @default("DM") // DM=Duplicata Mercantil, DS=Duplicata de Servico
-  aceite                String   @default("N")  // N=Nao aceito, S=Aceito
+  convenio   String? // Numero do convenio/beneficiario
+  carteira   String? // Carteira (ex: "109", "17", "1")
+  especie    String  @default("R$")
+  especieDoc String  @default("DM") // DM=Duplicata Mercantil, DS=Duplicata de Servico
+  aceite     String  @default("N") // N=Nao aceito, S=Aceito
 
   // Defaults de juros/multa/desconto
-  defaultInterestType       String?  // VALOR_DIA | PERCENTUAL_MES
-  defaultInterestValue      Float?   // Valor em R$ ou % conforme tipo
-  defaultPenaltyPercent     Float?   // Multa % (ex: 2.0)
-  defaultDiscountType       String?  // VALOR_FIXO | PERCENTUAL
+  defaultInterestType       String? // VALOR_DIA | PERCENTUAL_MES
+  defaultInterestValue      Float? // Valor em R$ ou % conforme tipo
+  defaultPenaltyPercent     Float? // Multa % (ex: 2.0)
+  defaultDiscountType       String? // VALOR_FIXO | PERCENTUAL
   defaultDiscountValue      Float?
-  defaultDiscountDaysBefore Int?     // Dias antes do vencimento para desconto
+  defaultDiscountDaysBefore Int? // Dias antes do vencimento para desconto
 
   // Instrucoes padrao impressas no boleto
-  defaultInstructions1  String?
-  defaultInstructions2  String?
-  defaultInstructions3  String?
+  defaultInstructions1 String?
+  defaultInstructions2 String?
+  defaultInstructions3 String?
 
   // Comportamento
-  autoRegisterOnEntry   Boolean  @default(false) // Auto-registrar boleto ao criar RECEIVABLE
-  nextNossoNumero       Int      @default(1)     // Contador sequencial nosso numero
+  autoRegisterOnEntry Boolean @default(false) // Auto-registrar boleto ao criar RECEIVABLE
+  nextNossoNumero     Int     @default(1) // Contador sequencial nosso numero
 
   // Webhook
-  webhookSecret         String?  // Secret para validacao de webhook (encrypted)
+  webhookSecret String? // Secret para validacao de webhook (encrypted)
 
-  isActive              Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   company     Company      @relation(fields: [companyId], references: [id])
   cashAccount CashAccount? @relation(fields: [cashAccountId], references: [id])
@@ -2873,69 +2906,69 @@ model BoletoConfig {
 }
 
 model Boleto {
-  id                    String       @id @default(uuid())
-  companyId             String
-  boletoConfigId        String
+  id             String @id @default(uuid())
+  companyId      String
+  boletoConfigId String
 
   // Links com financeiro
-  financialEntryId      String?
-  installmentId         String?      // FK -> FinancialInstallment (parcela especifica)
-  partnerId             String?      // Sacado (pagador)
+  financialEntryId String?
+  installmentId    String? // FK -> FinancialInstallment (parcela especifica)
+  partnerId        String? // Sacado (pagador)
 
   // Identificacao do boleto
-  nossoNumero           String       // Nosso numero (atribuido por nos)
-  seuNumero             String?      // Numero de referencia do cliente
-  linhaDigitavel        String?      // Linha digitavel (retornada pelo banco)
-  codigoBarras          String?      // Codigo de barras (retornado pelo banco)
-  pixCopiaECola         String?      // PIX copia-e-cola (boleto hibrido)
+  nossoNumero    String // Nosso numero (atribuido por nos)
+  seuNumero      String? // Numero de referencia do cliente
+  linhaDigitavel String? // Linha digitavel (retornada pelo banco)
+  codigoBarras   String? // Codigo de barras (retornado pelo banco)
+  pixCopiaECola  String? // PIX copia-e-cola (boleto hibrido)
 
   // Valores
-  amountCents           Int          // Valor nominal
-  interestCents         Int          @default(0)
-  penaltyCents          Int          @default(0)
-  discountCents         Int          @default(0)
-  paidAmountCents       Int?         // Valor efetivamente pago
+  amountCents     Int // Valor nominal
+  interestCents   Int  @default(0)
+  penaltyCents    Int  @default(0)
+  discountCents   Int  @default(0)
+  paidAmountCents Int? // Valor efetivamente pago
 
   // Datas
-  issueDate             DateTime     // Data de emissao
-  dueDate               DateTime     // Data de vencimento
-  paidAt                DateTime?
-  cancelledAt           DateTime?
-  registeredAt          DateTime?    // Quando o banco confirmou registro
+  issueDate    DateTime // Data de emissao
+  dueDate      DateTime // Data de vencimento
+  paidAt       DateTime?
+  cancelledAt  DateTime?
+  registeredAt DateTime? // Quando o banco confirmou registro
 
   // Dados do sacado (denormalizados para API do banco)
-  payerName             String
-  payerDocument         String       // CPF ou CNPJ
-  payerDocumentType     String       // CPF | CNPJ
-  payerAddress          String?
-  payerCity             String?
-  payerState            String?
-  payerCep              String?
+  payerName         String
+  payerDocument     String // CPF ou CNPJ
+  payerDocumentType String // CPF | CNPJ
+  payerAddress      String?
+  payerCity         String?
+  payerState        String?
+  payerCep          String?
 
   // Status
-  status                BoletoStatus @default(DRAFT)
-  bankProtocol          String?      // Protocolo/ID retornado pelo banco
-  bankResponse          Json?        // Resposta completa do banco (debug)
-  errorMessage          String?
+  status       BoletoStatus @default(DRAFT)
+  bankProtocol String? // Protocolo/ID retornado pelo banco
+  bankResponse Json? // Resposta completa do banco (debug)
+  errorMessage String?
 
   // PDF
-  pdfUrl                String?      // URL ou path do PDF do boleto
+  pdfUrl String? // URL ou path do PDF do boleto
 
   // Config de juros/multa deste boleto especifico
-  interestType          String?      // VALOR_DIA | PERCENTUAL_MES
-  interestValue         Float?
-  penaltyPercent        Float?
-  discountType          String?
-  discountValue         Float?
-  discountDeadline      DateTime?
+  interestType     String? // VALOR_DIA | PERCENTUAL_MES
+  interestValue    Float?
+  penaltyPercent   Float?
+  discountType     String?
+  discountValue    Float?
+  discountDeadline DateTime?
 
   // Instrucoes impressas
-  instructions1         String?
-  instructions2         String?
-  instructions3         String?
+  instructions1 String?
+  instructions2 String?
+  instructions3 String?
 
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   company        Company               @relation(fields: [companyId], references: [id])
   boletoConfig   BoletoConfig          @relation(fields: [boletoConfigId], references: [id])
@@ -2954,17 +2987,419 @@ model Boleto {
 
 // SaaS analytics events (lightweight tracking)
 model SaasEvent {
-  id          String    @id @default(uuid())
-  event       String    // "landing_view", "signup_step_1", "signup_complete", etc.
-  page        String?   // "/", "/signup", etc.
-  metadata    Json?     // { planId, stepTime, ... }
-  sessionId   String?   // Anonymous session ID (localStorage)
-  ipAddress   String?
-  userAgent   String?
+  id        String  @id @default(uuid())
+  event     String // "landing_view", "signup_step_1", "signup_complete", etc.
+  page      String? // "/", "/signup", etc.
+  metadata  Json? // { planId, stepTime, ... }
+  sessionId String? // Anonymous session ID (localStorage)
+  ipAddress String?
+  userAgent String?
 
-  createdAt   DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([event])
   @@index([createdAt])
   @@index([sessionId])
+}
+
+// ============================================================================
+// MODULO PISCINA / OBRAS - Vertical especialista pra construcao de piscinas
+// ============================================================================
+// Origem: planilha .xlsm da Juliano Piscinas. Modelo isolado, ativado por
+// Company.poolModuleActive (toggle simples por enquanto; futuramente atrelado
+// a Plan premium). Ver memory/project_modulo_piscina_tecnikos.md
+// ============================================================================
+
+enum PoolSection {
+  CONSTRUCAO
+  FILTRO
+  CASCATA
+  SPA
+  AQUECIMENTO
+  ILUMINACAO
+  CASA_MAQUINAS
+  DISPOSITIVOS
+  ACIONAMENTOS
+  BORDA_CALCADA
+  EXECUCAO
+  OUTROS
+}
+
+enum PoolBudgetStatus {
+  RASCUNHO
+  ENVIADO
+  APROVADO
+  REJEITADO
+  CANCELADO
+  EXPIRADO
+}
+
+enum PoolProjectStatus {
+  PLANEJADA
+  EM_ANDAMENTO
+  PAUSADA
+  CONCLUIDA
+  CANCELADA
+}
+
+enum PoolStageStatus {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+  BLOQUEADA
+}
+
+enum PoolEntryType {
+  MATERIAL
+  SERVICO
+  SUBEMPREITADA
+  FRETE
+  OUTRO
+}
+
+enum PoolPrintPageType {
+  FIXED
+  DYNAMIC
+}
+
+enum PoolPrintDynamicType {
+  COVER
+  BUDGET_SUMMARY
+  PRODUCTS_BY_SECTION
+  PHOTOS_GALLERY
+  CALCULATIONS
+  TERMS_CONDITIONS
+  INSTALLMENTS
+  CUSTOM_TABLE
+}
+
+// Configuracao 1:1 (opcional) com Product OU Service - so existe pra itens
+// usados em orcamento de piscina. Mantem core Product/Service neutro.
+model PoolCatalogConfig {
+  id             String      @id @default(uuid())
+  companyId      String
+  productId      String?     @unique
+  serviceId      String?     @unique
+  poolSection    PoolSection
+  displayOrder   Int         @default(0)
+  // {basis: "POOL_AREA"|"POOL_PERIMETER"|"POOL_VOLUME"|"WALL_AREA"|"TILE_AREA"|"FIXED", factor: 0.15, value?: 1, minQty?: 1}
+  poolFormula    Json?
+  // {requires: ["AQUECIMENTO_SOLAR"]} ou {excludes: [...]}
+  poolCondition  Json?
+  // {vazaoM3h: 7, btuPorM3: 1500, capacidadePorPlaca: 5} - varia por tipo
+  technicalSpecs Json?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  company Company  @relation(fields: [companyId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
+  service Service? @relation(fields: [serviceId], references: [id])
+
+  budgetItems PoolBudgetItem[]
+
+  @@index([companyId, poolSection, isActive])
+  @@index([companyId, displayOrder])
+}
+
+// Template editavel de etapas (substitui aba Linear da planilha).
+// Tenant pode ter varios: "Piscina padrao", "Piscina + spa", "Piscina premium"
+model PoolBudgetTemplate {
+  id          String    @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  isDefault   Boolean   @default(false)
+  // [{section: "CONSTRUCAO", catalogConfigIds: [uuid1, uuid2], required: true, sortOrder: 1}]
+  sections    Json
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  company Company      @relation(fields: [companyId], references: [id])
+  budgets PoolBudget[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+}
+
+// Orcamento de piscina (especialista, NAO estende Quote)
+model PoolBudget {
+  id             String  @id @default(uuid())
+  companyId      String
+  code           String? // ORCP-00001 via CodeCounter
+  version        Int     @default(1)
+  parentBudgetId String?
+
+  status PoolBudgetStatus @default(RASCUNHO)
+
+  clientPartnerId String
+  templateId      String?
+  printLayoutId   String?
+  createdByUserId String
+
+  title           String
+  description     String?
+  notes           String? // Interno, nao visivel ao cliente
+  termsConditions String? // Visivel ao cliente
+
+  // Substitui a aba CAPA da planilha
+  // {length, width, depth, area, perimeter, volume, type, hasSpa, hasCascata, hasAquecimentoSolar}
+  poolDimensions    Json
+  // {temperatura, capaTermica, tipoConstrucao, regiaoSolar}
+  environmentParams Json?
+
+  // Validade
+  validityDays Int       @default(30)
+  expiresAt    DateTime?
+
+  // Totais
+  subtotalCents   Int    @default(0)
+  discountCents   Int?
+  discountPercent Float?
+  taxesCents      Int    @default(0)
+  totalCents      Int    @default(0)
+
+  // Aprovacao publica (igual Quote)
+  publicToken          String?   @unique
+  publicTokenExpiresAt DateTime?
+
+  // Tracking de envio/aprovacao
+  sentAt          DateTime?
+  sentVia         String? // WHATSAPP | EMAIL
+  approvedAt      DateTime?
+  approvedByName  String?
+  approvedByType  String? // CLIENT | INTERNAL
+  rejectedAt      DateTime?
+  rejectedByName  String?
+  rejectedReason  String?
+  cancelledAt     DateTime?
+  cancelledByName String?
+  cancelledReason String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company       Company             @relation(fields: [companyId], references: [id])
+  clientPartner Partner             @relation("PoolBudgetClient", fields: [clientPartnerId], references: [id])
+  template      PoolBudgetTemplate? @relation(fields: [templateId], references: [id])
+  printLayout   PoolPrintLayout?    @relation(fields: [printLayoutId], references: [id])
+  parentBudget  PoolBudget?         @relation("PoolBudgetVersions", fields: [parentBudgetId], references: [id])
+  childBudgets  PoolBudget[]        @relation("PoolBudgetVersions")
+  items         PoolBudgetItem[]
+  project       PoolProject? // 1:1 quando aprovado
+
+  @@unique([companyId, code])
+  @@index([companyId, status, deletedAt])
+  @@index([clientPartnerId])
+  @@index([publicToken])
+  @@index([createdAt])
+}
+
+model PoolBudgetItem {
+  id              String  @id @default(uuid())
+  budgetId        String
+  // Referencia o catalogo (snapshot pra historico) - nullable pra itens livres
+  catalogConfigId String?
+  productId       String?
+  serviceId       String?
+
+  poolSection PoolSection
+  sortOrder   Int         @default(0)
+
+  description    String // Editavel sem mexer no cadastro
+  unit           String @default("UN")
+  qtyCalculated  Float? // Calculada via formula (referencia)
+  qty            Float  @default(1) // O usado (default = qtyCalculated)
+  unitPriceCents Int    @default(0)
+  totalCents     Int    @default(0)
+
+  isAutoCalculated Boolean @default(true) // UI badge "auto" vs "editado"
+  isExtra          Boolean @default(false) // Adicionado fora do template
+  notes            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget        PoolBudget         @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  catalogConfig PoolCatalogConfig? @relation(fields: [catalogConfigId], references: [id])
+  product       Product?           @relation(fields: [productId], references: [id])
+  service       Service?           @relation(fields: [serviceId], references: [id])
+
+  projectEntries PoolProjectEntry[]
+
+  @@index([budgetId, poolSection, sortOrder])
+}
+
+// Obra (projeto/execucao) - gerada de orcamento aprovado
+// NAO confundir com modelo Obra (entidade fiscal com CNO)
+model PoolProject {
+  id         String  @id @default(uuid())
+  companyId  String
+  code       String? // OBR-00001
+  budgetId   String  @unique
+  customerId String
+
+  status PoolProjectStatus @default(PLANEJADA)
+
+  startDate       DateTime?
+  expectedEndDate DateTime?
+  actualEndDate   DateTime?
+
+  notes           String?
+  progressPercent Float   @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company  Company            @relation(fields: [companyId], references: [id])
+  budget   PoolBudget         @relation(fields: [budgetId], references: [id])
+  customer Partner            @relation(fields: [customerId], references: [id])
+  stages   PoolProjectStage[]
+  entries  PoolProjectEntry[]
+  photos   PoolProjectPhoto[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status, deletedAt])
+  @@index([customerId])
+}
+
+model PoolProjectStage {
+  id           String          @id @default(uuid())
+  projectId    String
+  poolSection  PoolSection
+  name         String // "Escavacao", "Parede pre-moldada"
+  status       PoolStageStatus @default(PENDENTE)
+  plannedStart DateTime?
+  plannedEnd   DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  notes        String?
+  sortOrder    Int             @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project PoolProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sortOrder])
+}
+
+// Lancamento livro caixa da obra (substitui aba Lancamentos da planilha)
+model PoolProjectEntry {
+  id           String  @id @default(uuid())
+  projectId    String
+  budgetItemId String? // Link com item orcado pra comparar realizado vs orcado
+
+  date           DateTime
+  supplierName   String? // Texto livre (nem sempre eh Partner cadastrado)
+  partnerId      String? // Se for Partner cadastrado
+  description    String
+  qty            Float?
+  unitPriceCents Int?
+  totalCents     Int
+
+  type          PoolEntryType
+  paymentMethod String? // PIX, BOLETO, CARTAO, etc.
+  invoiceNumber String?
+
+  // Toggle: refletir no Financeiro geral?
+  reflectsInFinance Boolean @default(false)
+  financialEntryId  String? // FK FinancialEntry quando reflectsInFinance=true
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project        PoolProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  budgetItem     PoolBudgetItem? @relation(fields: [budgetItemId], references: [id])
+  partner        Partner?        @relation(fields: [partnerId], references: [id])
+  financialEntry FinancialEntry? @relation(fields: [financialEntryId], references: [id])
+
+  @@index([projectId, date])
+  @@index([budgetItemId])
+  @@index([financialEntryId])
+}
+
+model PoolProjectPhoto {
+  id               String    @id @default(uuid())
+  projectId        String
+  fileUrl          String
+  fileSize         Int?
+  caption          String?
+  takenAt          DateTime?
+  uploadedAt       DateTime  @default(now())
+  uploadedByUserId String?
+
+  project PoolProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, takenAt])
+}
+
+// Layout de impressao (template do PDF, com pages builder)
+model PoolPrintLayout {
+  id        String    @id @default(uuid())
+  companyId String
+  name      String
+  isDefault Boolean   @default(false)
+  // {logoUrl, primaryColor, accentColor, fontFamily, footerHtml}
+  branding  Json?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company Company         @relation(fields: [companyId], references: [id])
+  pages   PoolPrintPage[]
+  budgets PoolBudget[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+}
+
+model PoolPrintPage {
+  id       String            @id @default(uuid())
+  layoutId String
+  order    Int               @default(0)
+  type     PoolPrintPageType
+
+  // Para FIXED:
+  htmlContent String? // WYSIWYG com placeholders {clientName}, {poolArea}
+
+  // Para DYNAMIC:
+  dynamicType PoolPrintDynamicType?
+  // {sections: [...], showImages: true, sortBy: "section"}
+  pageConfig  Json?
+
+  // Condicional
+  isConditional Boolean @default(false)
+  conditionRule Json? // {requires: ["AQUECIMENTO_SOLAR"]}
+
+  pageBreak Boolean @default(true)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  layout PoolPrintLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+
+  @@index([layoutId, order])
+}
+
+// Configuracao do tenant pro modulo (defaults)
+model PoolModuleConfig {
+  companyId         String   @id
+  defaultLayoutId   String?
+  defaultTemplateId String?
+  defaultMarkup     Float?   @default(0) // Markup padrao sobre custo
+  prefixBudget      String   @default("ORCP")
+  prefixProject     String   @default("OBR")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
 }

@@ -12,7 +12,23 @@ export class AuditService {
    */
   log(params: {
     companyId: string;
-    entityType: 'SERVICE_ORDER' | 'PARTNER' | 'USER' | 'QUOTE';
+    entityType:
+      | 'SERVICE_ORDER'
+      | 'PARTNER'
+      | 'USER'
+      | 'QUOTE'
+      // Modulo Piscina/Obras
+      | 'POOL_CATALOG_CONFIG'
+      | 'POOL_BUDGET_TEMPLATE'
+      | 'POOL_BUDGET'
+      | 'POOL_BUDGET_ITEM'
+      | 'POOL_PROJECT'
+      | 'POOL_PROJECT_STAGE'
+      | 'POOL_PROJECT_ENTRY'
+      | 'POOL_PROJECT_PHOTO'
+      | 'POOL_PRINT_LAYOUT'
+      | 'POOL_PRINT_PAGE'
+      | 'POOL_MODULE_CONFIG';
     entityId: string;
     action: string;
     actorType: 'USER' | 'SYSTEM';
