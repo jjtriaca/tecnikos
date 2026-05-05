@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import FilterBar from "@/components/ui/FilterBar";
@@ -13,6 +13,7 @@ import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import PoolBudgetsTab from "@/components/pool/PoolBudgetsTab";
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -306,16 +307,35 @@ const QUOTE_COLUMNS: ColumnDefinition<Quote>[] = [
 
 export default function QuotesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const tp = useTableParams({ persistKey: "quotes-list" });
   const { orderedColumns, reorderColumns, columnWidths, setColumnWidth } =
     useTableLayout("quotes-list", QUOTE_COLUMNS);
+
+  const initialTab = (searchParams?.get("tab") === "obras" ? "obras" : "servicos") as "servicos" | "obras";
+  const [activeTab, setActiveTab] = useState<"servicos" | "obras">(initialTab);
+  const [poolModuleActive, setPoolModuleActive] = useState<boolean | null>(null);
 
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  // Fetch poolModuleActive once
+  useEffect(() => {
+    api.get<{ poolModuleActive: boolean }>("/companies/pool-module")
+      .then((r) => setPoolModuleActive(!!r.poolModuleActive))
+      .catch(() => setPoolModuleActive(false));
+  }, []);
+
+  // Fallback to "servicos" if poolModuleActive becomes false and current tab is "obras"
+  useEffect(() => {
+    if (poolModuleActive === false && activeTab === "obras") {
+      setActiveTab("servicos");
+    }
+  }, [poolModuleActive, activeTab]);
 
   const loadQuotes = useCallback(async () => {
     setLoading(true);
@@ -441,20 +461,68 @@ export default function QuotesPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Orçamentos</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {totalAll} orçamento{totalAll !== 1 ? "s" : ""} no total
+            {activeTab === "servicos"
+              ? `${totalAll} orçamento${totalAll !== 1 ? "s" : ""} no total`
+              : "Orçamentos e obras de piscina"}
           </p>
         </div>
-        <Link
-          href="/quotes/new"
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Novo Orçamento
-        </Link>
+        {activeTab === "servicos" ? (
+          <Link
+            href="/quotes/new"
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Novo Orçamento
+          </Link>
+        ) : (
+          <Link
+            href="/quotes/pool/new"
+            className="flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-700"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Novo Orçamento de Obra
+          </Link>
+        )}
       </div>
 
+      {/* Tabs */}
+      {poolModuleActive && (
+        <div className="border-b border-slate-200">
+          <nav className="-mb-px flex gap-6">
+            <button
+              type="button"
+              onClick={() => setActiveTab("servicos")}
+              className={`whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition-colors ${
+                activeTab === "servicos"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+              }`}
+            >
+              Servicos
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("obras")}
+              className={`whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition-colors ${
+                activeTab === "obras"
+                  ? "border-cyan-500 text-cyan-600"
+                  : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+              }`}
+            >
+              Obras de Piscina
+            </button>
+          </nav>
+        </div>
+      )}
+
+      {activeTab === "obras" ? (
+        <PoolBudgetsTab />
+      ) : (
+        <>
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
         {(["RASCUNHO", "ENVIADO", "APROVADO", "REJEITADO", "EXPIRADO", "CANCELADO"] as const).map((status) => (
@@ -565,6 +633,8 @@ export default function QuotesPage() {
         onConfirm={() => confirmDelete && handleDelete(confirmDelete)}
         onCancel={() => setConfirmDelete(null)}
       />
+        </>
+      )}
     </div>
   );
 }

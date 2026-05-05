@@ -36,6 +36,7 @@ type CompanyData = {
   evalMinRating: number;
   timezone: string | null;
   businessHours: { start: string; end: string }[] | null;
+  poolModuleActive: boolean;
   createdAt: string;
 };
 
@@ -160,6 +161,8 @@ export default function SettingsPage() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoWidth, setLogoWidth] = useState(120);
   const [logoHeight, setLogoHeight] = useState(40);
+  const [poolModuleActive, setPoolModuleActive] = useState(false);
+  const [poolToggling, setPoolToggling] = useState(false);
   const [form, setForm] = useState<CompanyForm>({
     name: "", tradeName: "", cnpj: "", ie: "", im: "",
     phone: "", email: "",
@@ -199,6 +202,7 @@ export default function SettingsPage() {
       setLogoWidth(lw);
       setLogoHeight(lh);
       savedLogoDimsRef.current = JSON.stringify({ logoWidth: lw, logoHeight: lh });
+      setPoolModuleActive(!!data.poolModuleActive);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -1015,6 +1019,68 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* ── Modulos Verticais (Piscina) ── */}
+        <div className="rounded-xl border border-cyan-200 bg-gradient-to-r from-cyan-50 to-white p-6 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+            <svg className="h-4 w-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12c2 0 3-1 4.5-1S10 12 12 12s3-1 4.5-1S19 12 21 12M3 18c2 0 3-1 4.5-1s2.5 1 4.5 1 3-1 4.5-1 2.5 1 4.5 1" />
+            </svg>
+            Modulo Piscina (Beta)
+          </h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Vertical para piscineiros: orcamentos com calculos automaticos por area/perimetro/volume,
+            obras com etapas, livro caixa por obra, fotos de acompanhamento e layouts de impressao.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled={!isAdmin || poolToggling}
+              onClick={async () => {
+                setPoolToggling(true);
+                try {
+                  const next = !poolModuleActive;
+                  await api.patch("/companies/pool-module", { poolModuleActive: next });
+                  setPoolModuleActive(next);
+                  flashSuccess(next ? "Modulo Piscina ativado!" : "Modulo Piscina desativado.");
+                } catch {
+                  setError("Erro ao atualizar modulo Piscina");
+                } finally {
+                  setPoolToggling(false);
+                }
+              }}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                poolModuleActive ? "bg-cyan-600" : "bg-slate-300"
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                  poolModuleActive ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+            <span className="text-sm text-slate-700">
+              {poolModuleActive ? "Ativo" : "Desativado"}
+              {poolToggling && <span className="ml-2 text-xs text-slate-400">salvando...</span>}
+            </span>
+          </div>
+          {poolModuleActive && (
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <a href="/pool/catalog" className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 transition-colors">
+                <div className="font-medium">Catalogo Piscina</div>
+                <div className="text-xs text-slate-500">Vincular produtos/servicos a secoes</div>
+              </a>
+              <a href="/pool/templates" className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 transition-colors">
+                <div className="font-medium">Templates de Etapas</div>
+                <div className="text-xs text-slate-500">Modelos pre-prontos de orcamento</div>
+              </a>
+              <a href="/pool/print-layouts" className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 transition-colors">
+                <div className="font-medium">Layouts de Impressao</div>
+                <div className="text-xs text-slate-500">Page builder para PDF do orcamento</div>
+              </a>
+            </div>
+          )}
         </div>
 
         {/* ── Horario Comercial ── */}

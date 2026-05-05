@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,7 +8,10 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { PoolProjectService } from './pool-project.service';
@@ -155,7 +159,7 @@ export class PoolProjectController {
 
   // ============== PHOTOS ==============
 
-  @ApiOperation({ summary: 'Adiciona foto na obra' })
+  @ApiOperation({ summary: 'Adiciona foto na obra (com URL pré-existente)' })
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/photos')
@@ -165,6 +169,29 @@ export class PoolProjectController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.addPhoto(projectId, body, user.companyId, user);
+  }
+
+  @ApiOperation({ summary: 'Faz upload de foto multipart e cria registro' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/photos/upload')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadPhoto(
+    @Param('id') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('caption') caption: string | undefined,
+    @Body('takenAt') takenAt: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file) throw new BadRequestException('Arquivo obrigatório');
+    return this.service.uploadPhoto(
+      projectId,
+      file,
+      caption,
+      takenAt,
+      user.companyId,
+      user,
+    );
   }
 
   @ApiOperation({ summary: 'Remove foto' })

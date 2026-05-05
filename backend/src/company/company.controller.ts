@@ -78,6 +78,22 @@ export class CompanyController {
     return this.service.toggleFiscalModule(user.companyId, fiscalEnabled);
   }
 
+  /* ── Pool Module Toggle (Sprint 2 v1.10.31) ──────────────── */
+
+  @Get('pool-module')
+  getPoolModule(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getPoolModule(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch('pool-module')
+  togglePoolModule(
+    @Body('poolModuleActive') poolModuleActive: boolean,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.togglePoolModule(user.companyId, poolModuleActive);
+  }
+
   /* ── Fiscal Config (Tax Regime + Accountant) ──── */
 
   @Roles(UserRole.ADMIN, UserRole.FISCAL)

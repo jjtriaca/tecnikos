@@ -1,7 +1,30 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.30 (em prod)
-## Ultima sessao: 185 (04/05/2026)
+## Versao: v1.10.31 (pendente deploy)
+## Ultima sessao: 186 (05/05/2026)
+
+## v1.10.31 — Modulo Piscina Sprint 2: UI completa
+- **Backend (3 endpoints novos)**:
+  - `GET/PATCH /companies/pool-module` — toggle do `Company.poolModuleActive` (mirror do fiscal-module)
+  - `POST /pool-projects/:id/photos/upload` — upload multipart de fotos da obra (FileInterceptor + storage local em `uploads/{companyId}/pool-projects/{projectId}/{uuid}.{ext}`, validacao MIME e size 10MB, audit log)
+  - `removePhoto` agora apaga arquivo do disco se for `/uploads/`
+- **Frontend (10 arquivos novos + 2 edicoes)**:
+  - `settings/page.tsx`: card "Modulo Piscina (Beta)" com toggle ON/OFF (so admin) + 3 atalhos pra Catalogo/Templates/Layouts quando ativo
+  - `quotes/page.tsx`: tabs "Servicos / Obras de Piscina" — aba so aparece quando poolModuleActive. Action button muda pra "Novo Orcamento de Obra" (cyan) na aba Obras
+  - `components/pool/PoolBudgetsTab.tsx`: aba que lista PoolBudgets e PoolProjects (sub-tabs Orcamentos/Obras), com filtro de status e busca, tabela com status badges + barra de progresso
+  - `quotes/pool/new/page.tsx`: form criacao de orcamento — cliente + titulo + template + layout + dimensoes (length/width/depth + tipo + has SPA/Cascata/Aquecimento) + auto-calculo area/perimetro/volume + validade + desconto + notas + termos
+  - `quotes/pool/[id]/page.tsx`: detalhe do orcamento — header com status, resumo (valor/dimensoes/validade/items), items agrupados por secao com edicao inline (qty/preco/descricao via blur commit), modal "Adicionar item" (do catalogo OU livre), acoes Aprovar/Rejeitar/Cancelar/Excluir via ConfirmModal com reasonRequired, link pra obra quando aprovado
+  - `quotes/pool/projects/[id]/page.tsx`: detalhe da obra — resumo financeiro (orcamento/gasto/saldo/progresso), datas (inicio/previsao/termino real, salvas inline), 3 tabs:
+    - **Etapas**: lista com status inline-editavel + add modal + remover
+    - **Lancamentos** (livro caixa): tabela com data/descricao/fornecedor/tipo/pagto/NF/valor/refletir-no-financeiro, modal completo de add com campos qty/preco-un/total + checkbox `reflectsInFinance` (cria FinancialEntry PAYABLE)
+    - **Fotos**: galeria 4 cols com upload via FormData (FileInterceptor backend), captions, remove com hover
+  - `pool/catalog/page.tsx`: CRUD de PoolCatalogConfig — agrupado por secao, modal cria/edita selecionando Product OU Service do cadastro principal, com formula (basis: POOL_AREA/PERIMETER/VOLUME/WALL_AREA/TILE_AREA/FIXED + factor + minQty) e poolCondition (requires)
+  - `pool/templates/page.tsx`: CRUD de PoolBudgetTemplate — cards com nome/secoes/items, modal de edicao com botoes pra adicionar secoes + checkboxes pra escolher items do catalogo + flag obrigatorio por item
+  - `pool/print-layouts/page.tsx`: lista de layouts (cards), action "Novo layout" + "Editar paginas" + "Remover" — usa `_count.pages` do backend pra mostrar contagem
+  - `pool/print-layouts/[id]/page.tsx`: page builder drag&drop — paginas reordenavies (HTML5 drag/drop nativo + reorder-pages backend), modal de edicao com type FIXED/DYNAMIC, dropdown de placeholders pro HTML fixo ({clientName}, {poolArea}, etc.), config JSON pra DYNAMIC, conditional rendering com requires
+- **Middleware**: adicionado `/pool` na lista de rotas auth-gated (era acessivel sem login)
+- **Estado SLS**: Company.poolModuleActive setado true via UI funciona ponta a ponta (backend toggle + UI consome `/companies/pool-module`). Aba "Obras" aparece em /quotes. Catalogo/Templates/Layouts vazios — pronto pro user popular.
+- **Pendente**: renderizador PDF (Puppeteer) — descartei nesta sprint pq projeto usa pdfkit/pdf-lib (nao Puppeteer); sera proxima fase. PoolPrintLayout HTML fica pronto pro pipeline de PDF.
 
 ## v1.10.30 — Modulo Piscina Sprint 1 fase 2: 4 modulos NestJS adicionais
 - **Construido**: 4 modulos NestJS completos (DTOs + Service + Controller + Module + AppModule registration), todos seguindo padroes Tecnikos (companyId filter, @Roles, @ApiOperation, AuditService.log, paginacao $transaction):

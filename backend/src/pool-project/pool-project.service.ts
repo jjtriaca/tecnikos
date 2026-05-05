@@ -5,6 +5,9 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
 import {
   PoolBudgetStatus,
   PoolProjectStatus,
@@ -588,6 +591,64 @@ export class PoolProjectService {
     return photo;
   }
 
+  async uploadPhoto(
+    projectId: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    caption: string | undefined,
+    takenAt: string | undefined,
+    companyId: string,
+    user: AuthenticatedUser,
+  ) {
+    await this.assertModuleActive(companyId);
+
+    const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+    const MAX_SIZE = 10 * 1024 * 1024;
+
+    if (!ALLOWED_MIME.includes(file.mimetype)) {
+      throw new BadRequestException('Tipo de arquivo não permitido. Use JPEG, PNG, WebP ou HEIC.');
+    }
+    if (file.size > MAX_SIZE) {
+      throw new BadRequestException('Arquivo muito grande. Máximo: 10MB.');
+    }
+
+    const project = await this.prisma.poolProject.findFirst({
+      where: { id: projectId, companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!project) throw new NotFoundException('Obra não encontrada');
+
+    const ext = path.extname(file.originalname) || '.jpg';
+    const fileName = `${randomUUID()}${ext}`;
+    const dirPath = path.join(process.cwd(), 'uploads', companyId, 'pool-projects', projectId);
+    fs.mkdirSync(dirPath, { recursive: true });
+    fs.writeFileSync(path.join(dirPath, fileName), file.buffer);
+    const fileUrl = `/uploads/${companyId}/pool-projects/${projectId}/${fileName}`;
+
+    const photo = await this.prisma.poolProjectPhoto.create({
+      data: {
+        projectId,
+        fileUrl,
+        fileSize: file.size,
+        caption,
+        takenAt: takenAt ? new Date(takenAt) : undefined,
+        uploadedByUserId: user.id,
+      },
+    });
+
+    this.audit.log({
+      companyId,
+      entityType: 'POOL_PROJECT_PHOTO',
+      entityId: photo.id,
+      action: 'CREATED',
+      actorType: 'USER',
+      actorId: user.id,
+      actorName: user.email,
+      after: photo as unknown as Record<string, unknown>,
+    });
+
+    return photo;
+  }
+
   async removePhoto(photoId: string, companyId: string, user: AuthenticatedUser) {
     await this.assertModuleActive(companyId);
 
@@ -595,6 +656,16 @@ export class PoolProjectService {
       where: { id: photoId, project: { companyId, deletedAt: null } },
     });
     if (!photo) throw new NotFoundException('Foto não encontrada');
+
+    // Apaga arquivo local se for /uploads/
+    if (photo.fileUrl.startsWith('/uploads/')) {
+      const localPath = path.join(process.cwd(), photo.fileUrl);
+      try {
+        if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+      } catch (err) {
+        this.logger.warn(`Falha apagando foto ${photo.fileUrl}: ${(err as Error).message}`);
+      }
+    }
 
     await this.prisma.poolProjectPhoto.delete({ where: { id: photoId } });
 

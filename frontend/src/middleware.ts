@@ -47,6 +47,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/products') ||
     pathname.startsWith('/whatsapp') ||
     pathname.startsWith('/quotes') ||
+    pathname.startsWith('/pool') ||
     pathname.startsWith('/ctrl-zr8k2x')
   ) {
     const refreshToken = request.cookies.get('refresh_token');

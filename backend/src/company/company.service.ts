@@ -263,6 +263,24 @@ export class CompanyService {
     return { fiscalEnabled };
   }
 
+  /* ── Pool Module (Sprint 2 v1.10.31) ─────────────────── */
+
+  async getPoolModule(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { poolModuleActive: true },
+    });
+    return { poolModuleActive: company?.poolModuleActive ?? false };
+  }
+
+  async togglePoolModule(companyId: string, poolModuleActive: boolean) {
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { poolModuleActive },
+    });
+    return { poolModuleActive };
+  }
+
   /* ── Fiscal Config (Tax Regime + Accountant) ─────── */
 
   async getFiscalConfig(companyId: string) {

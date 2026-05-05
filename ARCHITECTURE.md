@@ -11,7 +11,7 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 
 ---
 
-## 1. Modulos do Backend (34 NestJS Modules)
+## 1. Modulos do Backend (39 NestJS Modules)
 
 ### Core
 | Modulo | Responsabilidade | Service principal |
@@ -75,6 +75,15 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 | ReportsModule | Dashboard + exports | ReportsService |
 | ContractModule | Contratos tecnicos + portal publico | ContractService |
 | EvaluationModule | Avaliacoes gestor+cliente (1-5) | EvaluationService |
+
+### Modulo Piscina (vertical, opt-in via Company.poolModuleActive)
+| Modulo | Responsabilidade | Service principal |
+|--------|-----------------|-------------------|
+| PoolCatalogConfigModule | Vincula Product/Service a secoes Piscina + formula | PoolCatalogConfigService |
+| PoolBudgetTemplateModule | Templates pre-prontos de etapas | PoolBudgetTemplateService |
+| PoolBudgetModule | Orcamentos de piscina + items + status | PoolBudgetService, PoolFormulaService |
+| PoolProjectModule | Obras (etapas + livro caixa + fotos) | PoolProjectService |
+| PoolPrintLayoutModule | Page builder de layouts PDF | PoolPrintLayoutService |
 
 ### Dependencias Circulares (forwardRef)
 - FinanceModule <-> NfseEmissionModule
@@ -248,6 +257,7 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 | Financeiro | `/finance`, `/results`, `/reports` |
 | Fiscal | `/nfe`, `/nfe/entrada`, `/nfe/saida`, `/fiscal`, `/fiscal/livro-entradas`, `/fiscal/servicos-tomados`, `/fiscal/sped` |
 | Config | `/settings`, `/settings/billing`, `/settings/devices`, `/settings/email`, `/settings/fiscal`, `/settings/whatsapp` |
+| Piscina (opt-in) | `/quotes?tab=obras` (lista PoolBudgets+PoolProjects), `/quotes/pool/new`, `/quotes/pool/[id]`, `/quotes/pool/projects/[id]`, `/pool/catalog`, `/pool/templates`, `/pool/print-layouts`, `/pool/print-layouts/[id]` |
 | Admin | `/users`, `/notifications`, `/whatsapp`, `/workflow`, `/automation`, `/dashboard` |
 | SaaS Admin | `/ctrl-zr8k2x/*` (tenants, plans, addons, promotions, invoices, signup-attempts, settings) |
 
