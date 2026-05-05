@@ -426,6 +426,8 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 | AsaasService | 00:15 diario | Expirar add-ons vencidos (revert limites) |
 | PushNotificationService | 3 AM diario | Cleanup push subscriptions expiradas |
 | WaitForService | A cada minuto | Checar blocos WAIT_FOR pendentes |
+| NfseEmissionService.pollProcessingEmissions | A cada 2 min | Consultar Focus em emissoes PROCESSING > 3min |
+| NfseEmissionService.timeoutStuckEmissions | A cada 30 min | PROCESSING > 1h => ERROR automatico |
 
 ---
 

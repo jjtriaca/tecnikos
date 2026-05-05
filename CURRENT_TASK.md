@@ -1,7 +1,23 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.33 (em prod)
+## Versao: v1.10.35 (em prod)
 ## Ultima sessao: 186 (05/05/2026)
+
+## v1.10.35 — NFS-e: cron polling + auto-timeout + botao cancelar tentativa (resolve 🔴 sessao 185)
+- **Resolve**: NfseEmission ficava eternamente em PROCESSING quando webhook do Focus nao chegava — confirmado em prod hoje quando RPS 24 ficou stuck e foi necessario UPDATE manual em DB pra liberar.
+- **Backend** (`nfse-emission.service.ts`):
+  - `@Cron('*/2 * * * *')` `pollProcessingEmissions`: a cada 2min consulta Focus via `query()` em emissoes PROCESSING > 3min, atualiza status via `handleWebhook`. Recupera quando webhook falha mas Focus tem resposta.
+  - `@Cron('*/30 * * * *')` `timeoutStuckEmissions`: PROCESSING > 1h vira ERROR automaticamente (mensagem `[AUTO TIMEOUT 1h]`). Recupera quando ate Focus nao responde.
+  - `cancelAttempt(companyId, emissionId)`: marca PROCESSING como ERROR (mensagem `[CANCELADO PELO USUARIO]`), atualiza tambem `FinancialEntry.nfseStatus` (snapshot pro frontend).
+- **Backend** (`nfse-emission.controller.ts`): `POST /nfse-emission/emissions/:id/cancel-attempt`.
+- **Frontend** (`NfseEmissionModal.tsx`): botao "Cancelar tentativa" no rodape do modal PROCESSING, com `confirm()` alertando sobre risco de duplicidade.
+- **3 camadas de defesa**: polling auto > timeout 1h > botao manual.
+
+## v1.10.34 — NFS-e Layout MUNICIPAL: replicar informacoes_complementares no top-level
+- **Erro reportado pelo user**: NFS-e 72 (RPS 24, AUTORIZADA via Layout MUNICIPAL) saiu sem o "IE: 132285827" no campo INFORMAÇÕES ADICIONAIS do PDF, mesmo enviando via `dto.infComplementares` corretamente.
+- **Causa**: no Layout MUNICIPAL, mandavamos `informacoes_complementares` SO dentro de `servico.informacoes_complementares` (posicao legacy ABRASF). Para municipios em Reforma Tributaria que usam SPED nfse XSD (`http://www.sped.fazenda.gov.br/nfse`) — Cenario A, ex Primavera do Leste — Focus nao relaya esse campo do servico pro PDF.
+- **Fix**: agora envia `informacoes_complementares` em DUAS posicoes na request Layout MUNICIPAL: top-level (SPED Reforma Tributaria) E dentro de servico (legacy ABRASF). Adicionado campo `informacoes_complementares?` na interface `FocusNfseRequest`.
+- **Tambem aprendido**: Company.ie da SLS Obras esta vazia. O template usa `{ie_cliente}` (do partner). Se quiser IE do prestador, voce edita Configuracoes > Dados da Empresa preenchendo IE + edita o template em Configuracoes > Fiscal pra incluir `IE Empresa: {ie_empresa}`.
 
 ## v1.10.33 — NFS-e: derivar itemListaServico do cTribNac (consistencia) + RPS 24 AUTORIZADO
 - **Erro novo apos v1.10.32 (Layout MUNICIPAL)**: `RNG6110 - Falha Schema Xml ... cObra ... actual length is less than the MinLength value`. Prefeitura sinalizando que faltava preencher cObra (codigo da obra) no XML — mas tinhamos enviado SERVICO sem obra.
