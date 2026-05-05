@@ -1,7 +1,31 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.35 (em prod)
+## Versao: v1.10.37 (em prod)
 ## Ultima sessao: 186 (05/05/2026)
+
+## v1.10.37 — 🔴 CRITICO: fix bug matchAsMultiple direcao PAYABLE
+- **Causa raiz** (introduzida em v1.10.07): em `reconciliation.service.ts:matchAsMultiple` linha ~1602, o sinal era `e.type === expectedType ? 1 : -1`. Pra `expectedType=PAYABLE` isso invertia: PAYABLE entry virava +1 (deveria ser -1, dinheiro saiu), RECEIVABLE desconto virava -1 (deveria ser +1). `liquid` calculado positivo → AccountTransfer criado VT→SICREDI (deveria ser SICREDI→VT). Pra `expectedType=RECEIVABLE` o sinal acertava por coincidencia.
+- **Sintoma**: ao conciliar linha de DEBITO bancario via "Conciliacao multipla" (com desconto), `getStatementBalanceCompare` mostra diff retroativa = 2× o valor da linha. Caso real: conciliacao R$ 798 + desconto R$ 0,68 (FIN-00525 SOUZA FILHO) quebrou abril em -R$ 1.596. E linha 901d518f (R$ 1.653) quebrou marco em -R$ 3.306.
+- **Fix codigo**: `const sign = e.type === 'RECEIVABLE' ? 1 : -1` — sinal SEMPRE depende do tipo da entry, nao do expectedType.
+- **Fix dados**: 2 AccountTransfers buggy revertidos via SQL (ids `1115d9f1` e `7ba38cab`) + VT.currentBalanceCents += R$ 4.902 (compensa decremento errado). Verificado: 31/03 e 30/04 voltaram a bater com extrato bancario.
+- **Memoria**: novo `matchAsMultiple-payable-direction-bug.md` com plano de debug + comando reverso pra casos similares.
+
+## v1.10.36 — Pool: form refinements (tabela sections + radier auto)
+- `quotes/pool/new/page.tsx`:
+  - **Tipo de piscina** subiu pra cima das dimensoes
+  - **Tabela editavel** com 1+ linhas (cada linha = parte da piscina, pra formatos irregulares)
+  - **Coluna Nome** (placeholder "praia, degraus, spa...")
+  - Volume m³ por linha + totais somatorios no rodape
+  - Botao "+ Adicionar mais uma linha" / botao ✕ por linha
+  - **Inputs amarelos** (bounding box): comprimentoTotal/larguraTotal/cantos com auto-derivacao
+  - **Manuais com sugestao**: areaParedeEFundo, radierM2, radierEspessura, escavacaoM3
+  - **RadierM3 read-only auto**: = radierM2 × espessura
+  - Removido: secao "Validade e Desconto"
+- `components/PartnerCombobox.tsx`: novo componente reusavel (autocomplete + criar-na-hora) — usado em /quotes/pool/new
+- `quotes/pool/new`: cliente combobox com criar partner sem CPF + campo "Solicitante" (default = nome do cliente)
+- `finance/page.tsx`: aviso quando partner sem CPF for usado em entry (link "Editar parceiro")
+- `pool/catalog`: select de produto/servico virou autocomplete inline (busca client-side por nome ou code)
+- **Backend** (`scripts/pool-seed/`): seeder TS que extrai 220 rows da planilha Excel da Juliano Piscinas (193 produtos + 47 servicos), cria Product/Service + PoolCatalogConfig com mapeamento Grupo→PoolSection (28 grupos). technicalSpecs JSONB carrega vazaoM3h, voltagem, amperagem, tuboEntradaMm, eficiencia, kcalHMin/Max, etc. Local: 218 configs criadas no public schema. Pendente: rodar em prod via SSH `node scripts/pool-seed/seed-from-excel.js <companyId>` no container backend.
 
 ## v1.10.35 — NFS-e: cron polling + auto-timeout + botao cancelar tentativa (resolve 🔴 sessao 185)
 - **Resolve**: NfseEmission ficava eternamente em PROCESSING quando webhook do Focus nao chegava — confirmado em prod hoje quando RPS 24 ficou stuck e foi necessario UPDATE manual em DB pra liberar.
