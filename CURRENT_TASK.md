@@ -1,7 +1,16 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.32 (em prod)
+## Versao: v1.10.33 (em prod)
 ## Ultima sessao: 186 (05/05/2026)
+
+## v1.10.33 — NFS-e: derivar itemListaServico do cTribNac (consistencia) + RPS 24 AUTORIZADO
+- **Erro novo apos v1.10.32 (Layout MUNICIPAL)**: `RNG6110 - Falha Schema Xml ... cObra ... actual length is less than the MinLength value`. Prefeitura sinalizando que faltava preencher cObra (codigo da obra) no XML — mas tinhamos enviado SERVICO sem obra.
+- **Causa**: inconsistencia entre cTribNac e itemListaServico. SLS estava com `cTribNac=140601` (montagem, do `codigoTributarioNacionalServico` da config) MAS `itemListaServico=7.02` (construcao civil, do fallback `config.itemListaServico` antigo). A prefeitura via "7.02" e classificava como construcao civil → exigia bloco de obra → cObra vazio = invalido.
+- **Fix**: backend agora **deriva `itemListaServico` automaticamente do `cTribNac`** quando o user nao seleciona um `NfseServiceCode` explicito. Mapeamento: AABCDD → AA.BC (zeros a esquerda removidos). Ex: 140601→14.06, 070202→7.02, 010101→1.01. Sobrescreve `dto.itemListaServico` recebido do frontend (que vinha do preview baseado em config). Linha ~734 em `nfse-emission.service.ts`.
+- **Reset PROCESSING travado**: RPS 24 ficou em PROCESSING apos a tentativa v1.10.33 (webhook do Focus nao chegou). Reset manual via SQL: `UPDATE NfseEmission SET status='ERROR'` + `UPDATE FinancialEntry SET nfseStatus='ERROR'` — atualizar AMBOS porque o frontend le `FinancialEntry.nfseStatus` como snapshot.
+- **Resultado**: RPS 24 autorizado em prod (numero 72, codVerif EB4C44534) em 05/05/2026 11:09 BRT.
+- **Memoria atualizada**: novos Gotchas 7 (itemListaServico/cTribNac consistencia), 8 (Cenario A Reforma Tributaria → workaround Layout MUNICIPAL), 9 (reset manual PROCESSING).
+- **Estado SLS prod**: `nfseLayout=MUNICIPAL` (manter ate municipio resolver Cenario A no painel Focus).
 
 ## v1.10.32 — NFS-e: bloco de obra FLAT + restauracao do toggle SERVICO/OBRA
 - **Causa raiz** (sessao 186, apos consultar [campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html](https://campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html)): contrato oficial Focus NFe Nacional lista campos de obra como FLAT (`codigo_obra`, `logradouro_obra`, `cep_obra`, `numero_obra`, `complemento_obra`, `bairro_obra`, `inscricao_imobiliaria`). v1.10.22 enviou aninhado (`obra: { codigo, endereco: {...} }`) baseado num exemplo de Lavras/MG que nao representa o contrato global. Como Focus ignorou o objeto aninhado, o XML resultante saiu com elementos fora de ordem (CodigoMunicipio antes de Valores, RegimeEspecial depois de Prestador) — exatamente os erros do RPS 24 (`{http://www.abrasf.org.br/nfse.xsd}` strict-order).
