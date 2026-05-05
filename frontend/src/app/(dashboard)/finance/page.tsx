@@ -2284,6 +2284,22 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   </div>
                 )}
               />
+              {selectedPartner && !selectedPartner.document?.trim() && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 flex items-start gap-2">
+                  <svg className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <div className="text-xs text-amber-800">
+                    <strong>{selectedPartner.name}</strong> esta sem CPF/CNPJ cadastrado.
+                    Para emissao de NFS-e e relatorios fiscais, e necessario informar o documento.
+                    {" "}
+                    <a href={`/partners/${selectedPartner.id}/edit`} target="_blank" rel="noopener noreferrer"
+                      className="underline font-medium hover:text-amber-900">
+                      Editar parceiro
+                    </a>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Descrição</label>
                 <input

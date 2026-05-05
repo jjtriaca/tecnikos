@@ -18,8 +18,8 @@ type CatalogConfig = {
   product: { id: string; description: string; salePriceCents: number; unit: string } | null;
   service: { id: string; name: string; priceCents: number; unit: string } | null;
 };
-type Product = { id: string; description: string; salePriceCents: number; unit: string };
-type Service = { id: string; name: string; priceCents: number; unit: string };
+type Product = { id: string; description: string; salePriceCents: number; unit: string; code?: string | null; brand?: string | null };
+type Service = { id: string; name: string; priceCents: number; unit: string; code?: string | null };
 
 const SECTION_LABEL: Record<string, string> = {
   CONSTRUCAO: "Construcao", FILTRO: "Filtro", CASCATA: "Cascata", SPA: "SPA",
@@ -224,6 +224,28 @@ function CatalogForm({ editing, products, services, onClose, onSubmit }: {
   const [displayOrder, setDisplayOrder] = useState(editing?.displayOrder || 0);
   const [isActive, setIsActive] = useState(editing?.isActive ?? true);
 
+  // Autocomplete states (busca client-side nos arrays ja carregados)
+  const initialName = (() => {
+    if (editing?.productId) return products.find((p) => p.id === editing.productId)?.description || "";
+    if (editing?.serviceId) return services.find((s) => s.id === editing.serviceId)?.name || "";
+    return "";
+  })();
+  const [search, setSearch] = useState(initialName);
+  const [showResults, setShowResults] = useState(false);
+
+  const filtered = (() => {
+    const q = search.trim().toLowerCase();
+    if (q.length < 1) return [];
+    if (kind === "product") {
+      return products
+        .filter((p) => p.description.toLowerCase().includes(q) || (p.code && p.code.toLowerCase().includes(q)))
+        .slice(0, 20);
+    }
+    return services
+      .filter((s) => s.name.toLowerCase().includes(q) || (s.code && s.code.toLowerCase().includes(q)))
+      .slice(0, 20);
+  })();
+
   const ef = editing?.poolFormula as any;
   const [basis, setBasis] = useState(ef?.basis || "FIXED");
   const [factor, setFactor] = useState(ef?.factor !== undefined ? String(ef.factor) : "1");
@@ -283,25 +305,56 @@ function CatalogForm({ editing, products, services, onClose, onSubmit }: {
               </button>
             </div>
           )}
-          {kind === "product" ? (
-            <div>
-              <label className="block text-xs text-slate-600 mb-1">Produto *</label>
-              <select value={productId} onChange={(e) => setProductId(e.target.value)} required disabled={!!editing}
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Selecione...</option>
-                {products.map((p) => (<option key={p.id} value={p.id}>{p.description}</option>))}
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs text-slate-600 mb-1">Servico *</label>
-              <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} required disabled={!!editing}
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Selecione...</option>
-                {services.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-              </select>
-            </div>
-          )}
+          <div className="relative">
+            <label className="block text-xs text-slate-600 mb-1">{kind === "product" ? "Produto *" : "Servico *"}</label>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setShowResults(true);
+                if (kind === "product") setProductId("");
+                else setServiceId("");
+              }}
+              onFocus={() => setShowResults(true)}
+              onBlur={() => setTimeout(() => setShowResults(false), 200)}
+              required={!productId && !serviceId}
+              disabled={!!editing}
+              placeholder={`Buscar ${kind === "product" ? "produto" : "servico"} por nome ou codigo...`}
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-200 outline-none disabled:bg-slate-100"
+            />
+            {showResults && !editing && filtered.length > 0 && (
+              <div className="absolute left-0 right-0 z-30 mt-1 rounded-lg border border-slate-200 bg-white shadow-lg max-h-72 overflow-y-auto">
+                {filtered.map((item: any) => {
+                  const name = kind === "product" ? item.description : item.name;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        if (kind === "product") setProductId(item.id);
+                        else setServiceId(item.id);
+                        setSearch(name);
+                        setShowResults(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-cyan-50 border-b border-slate-100 last:border-0"
+                    >
+                      <div className="font-medium text-slate-900">{name}</div>
+                      <div className="text-xs text-slate-500">
+                        {[item.code, item.brand, item.unit].filter(Boolean).join(" • ")}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {showResults && !editing && search.length >= 1 && filtered.length === 0 && (
+              <div className="absolute left-0 right-0 z-30 mt-1 rounded-lg border border-slate-200 bg-white shadow-lg p-3 text-sm text-slate-400">
+                Nenhum {kind === "product" ? "produto" : "servico"} encontrado
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>

@@ -47,7 +47,7 @@ export default function NewPoolBudgetPage() {
     // orcamento. 0 = nao preenchido.
     areaParedeEFundo: 0,
     radierM2: 0,
-    radierM3: 0,
+    radierEspessura: 0.20,  // metros — espessura tipica 20cm
     escavacaoM3: 0,
     hasSpa: false,
     hasCascata: false,
@@ -144,13 +144,13 @@ export default function NewPoolBudgetPage() {
   // valor real do projeto, essa eh so uma referencia inicial).
   const sugAreaParedeEFundo = totals.area + 2 * (bbCompr + bbLarg) * profMedia;
   const sugRadierM2 = bbCompr * bbLarg;
-  const sugRadierM3 = sugRadierM2 * 0.20;
   const sugEscavacaoM3 = bbCompr * bbLarg * totals.maxDepth * 1.30;
 
   // Valores efetivos: o que o user digitou, ou a sugestao se nao digitou
   const areaParedeEFundo = form.areaParedeEFundo || sugAreaParedeEFundo;
   const radierM2 = form.radierM2 || sugRadierM2;
-  const radierM3 = form.radierM3 || sugRadierM3;
+  // Radier m³ = radier m² × espessura (calculado, nao editavel)
+  const radierM3 = radierM2 * form.radierEspessura;
   const escavacaoM3 = form.escavacaoM3 || sugEscavacaoM3;
 
   async function handleSubmit(e: React.FormEvent) {
@@ -475,7 +475,7 @@ export default function NewPoolBudgetPage() {
           </div>
 
           {/* Inputs manuais — piscineiro digita conforme projeto real */}
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Area parede + fundo (m²)
@@ -496,12 +496,20 @@ export default function NewPoolBudgetPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Radier (m³)
+                Espessura radier (m)
               </label>
-              <input type="number" step="0.01" min="0" value={form.radierM3 || ""}
-                onChange={(e) => setForm({ ...form, radierM3: parseFloat(e.target.value) || 0 })}
-                placeholder={`sug: ${sugRadierM3.toFixed(2)}`}
+              <input type="number" step="0.01" min="0" value={form.radierEspessura}
+                onChange={(e) => setForm({ ...form, radierEspessura: parseFloat(e.target.value) || 0 })}
+                placeholder="0.20"
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Radier (m³) <span className="text-slate-400 font-normal">— auto</span>
+              </label>
+              <input type="text" readOnly value={`${radierM3.toFixed(2)} m³`}
+                title="Calculado automaticamente: Radier m² × Espessura"
+                className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700 cursor-default outline-none" />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -514,7 +522,7 @@ export default function NewPoolBudgetPage() {
             </div>
           </div>
           <p className="mt-1.5 text-[11px] text-slate-400">
-            Sugestoes baseadas nas dimensoes — substitua pelos valores reais do projeto.
+            Sugestoes baseadas nas dimensoes — substitua pelos valores reais do projeto. Radier m³ recalcula automaticamente quando voce muda Radier m² ou Espessura.
           </p>
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -533,30 +541,6 @@ export default function NewPoolBudgetPage() {
           </div>
         </div>
 
-        {/* Validade + Desconto */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Validade e Desconto</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Validade (dias)</label>
-              <input type="number" min="1" value={form.validityDays}
-                onChange={(e) => setForm({ ...form, validityDays: parseInt(e.target.value) || 30 })}
-                className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Desconto (R$)</label>
-              <input type="number" step="0.01" value={form.discountCents / 100}
-                onChange={(e) => setForm({ ...form, discountCents: Math.round(parseFloat(e.target.value || "0") * 100) })}
-                className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Desconto (%)</label>
-              <input type="number" step="0.1" min="0" max="100" value={form.discountPercent}
-                onChange={(e) => setForm({ ...form, discountPercent: parseFloat(e.target.value) || 0 })}
-                className={inputClass} />
-            </div>
-          </div>
-        </div>
 
         {/* Notas */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">

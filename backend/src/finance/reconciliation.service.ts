@@ -1599,7 +1599,17 @@ export class ReconciliationService {
         } else if (e.status === 'PAID' && e.cashAccountId && e.cashAccountId !== line.cashAccountId) {
           // Entry ja estava PAID em outra conta (ex: VT). Acumula liquido por origem.
           // NAO mexe no cashAccountId (preserva historico do entry).
-          const sign = e.type === expectedType ? 1 : -1;
+          //
+          // BUG FIX (v1.10.37): o sinal depende do TIPO da entry, nao do
+          // expectedType. RECEIVABLE = dinheiro entrou na origem (sinal +1),
+          // PAYABLE = dinheiro saiu (sinal -1). A logica antiga `e.type ===
+          // expectedType ? 1 : -1` so funcionava pra expectedType=RECEIVABLE;
+          // pra PAYABLE-expected criava AccountTransfer na direcao errada
+          // (VT->SICREDI quando devia ser SICREDI->VT), quebrando balance-compare
+          // retroativo (deviation = 2x amount). Caso real: linha a64d2ef7
+          // (FIN-00525 souza filho impermeabilizantes + R$0,68 desconto)
+          // e linha 901d518f (FIN-00530 + FIN-00347).
+          const sign = e.type === 'RECEIVABLE' ? 1 : -1;
           liquidByOrigin.set(
             e.cashAccountId,
             (liquidByOrigin.get(e.cashAccountId) || 0) + sign * amount,
