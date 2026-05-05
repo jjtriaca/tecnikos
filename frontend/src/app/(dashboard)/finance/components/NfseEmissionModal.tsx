@@ -184,7 +184,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [aliquotaIss, setAliquotaIss] = useState("");
   const [issRetido, setIssRetido] = useState(false);
 
-  // Obra state (tipoNota é sempre SERVICO no padrão Nacional — obra é só bloco anexado)
+  // Tipo de nota — toggle entre SERVICO (default, instalacao/montagem) e OBRA (construcao civil)
+  const [tipoNota, setTipoNota] = useState<"SERVICO" | "OBRA">("SERVICO");
+
+  // Obra state — bloco anexado apenas quando tipoNota=OBRA
   const [obras, setObras] = useState<ObraOption[]>([]);
   const [selectedObraId, setSelectedObraId] = useState<string>("");
   const [loadingObras, setLoadingObras] = useState(false);
@@ -331,14 +334,18 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   // Derived: selected obra object
   const selectedObra = obras.find((o) => o.id === selectedObraId) || (preview?.obra?.id === selectedObraId ? preview.obra : null);
 
-  // Derived: cTribNac selecionado e se é construção civil (07.xx) — exige obra
+  // Derived: cTribNac selecionado. Quando tipoNota=OBRA usamos codigoTributarioNacional
+  // (legado, construcao civil — geralmente 07.xx); quando SERVICO usamos
+  // codigoTributarioNacionalServico (instalacao/montagem — geralmente 14.xx).
   const selectedServiceCode = preview?.serviceCodes?.find((sc) => sc.id === selectedServiceCodeId);
   const cTribNacAtivo = selectedServiceCode?.codigo
-    || preview?.config?.codigoTributarioNacionalServico
-    || preview?.config?.codigoTributarioNacional
+    || (tipoNota === "OBRA"
+      ? preview?.config?.codigoTributarioNacional
+      : preview?.config?.codigoTributarioNacionalServico || preview?.config?.codigoTributarioNacional)
     || "";
   const isConstrucaoCivil = cTribNacAtivo.startsWith("07");
-  const showObraBlock = isConstrucaoCivil || obras.length > 0 || !!selectedObraId;
+  // Bloco de obra so aparece quando tipoNota=OBRA. Para SERVICO (padrao) ignoramos.
+  const showObraBlock = tipoNota === "OBRA";
 
   // ═══════════════════════════════════════════
   // Polling logic for PROCESSING phase
@@ -404,7 +411,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
     if (!tomadorUf) { toast("UF do tomador e obrigatoria.", "error"); return; }
     if (!tomadorCep) { toast("CEP do tomador e obrigatorio.", "error"); return; }
     if (!tomadorCodigoMunicipio) { toast("Codigo do municipio (IBGE) do tomador e obrigatorio.", "error"); return; }
-    if (isConstrucaoCivil && !selectedObraId) {
+    // Validacao de obra so aplica quando o user marcou tipoNota=OBRA. Em SERVICO
+    // (padrao) o bloco de obra nem eh anexado, entao nao precisa exigir obra
+    // mesmo quando o codigo eh 07.xx.
+    if (tipoNota === "OBRA" && isConstrucaoCivil && !selectedObraId) {
       toast(`Código ${cTribNacAtivo} é construção civil — selecione a obra antes de emitir.`, "error");
       return;
     }
@@ -414,10 +424,11 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       const result = await api.post<EmissionData>("/nfse-emission/emit", {
         financialEntryId,
         serviceOrderId: preview.financialEntry.serviceOrderId,
-        tipoNota: "SERVICO",
+        tipoNota,
         ...(selectedServiceCodeId ? { serviceCodeId: selectedServiceCodeId } : {}),
         ...(selectedNbs ? { codigoNbs: selectedNbs } : {}),
-        ...(selectedObraId ? { obraId: selectedObraId } : {}),
+        // obraId so vai quando tipoNota=OBRA — para SERVICO ignoramos a selecao de obra
+        ...(tipoNota === "OBRA" && selectedObraId ? { obraId: selectedObraId } : {}),
         tomadorCnpjCpf,
         tomadorRazaoSocial,
         tomadorEmail,
@@ -864,7 +875,41 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                   <div className="rounded-lg border border-slate-200 p-4">
                     <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Servico</h3>
 
-                    {/* Servico (cTribNac selector) — sempre tipo SERVICO no padrão Nacional */}
+                    {/* Toggle Tipo de Nota — SERVICO (default, instalacao/montagem) ou OBRA (construcao civil) */}
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Tipo de nota</label>
+                      <div className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setTipoNota("SERVICO")}
+                          className={`rounded px-3 py-1.5 text-xs font-medium transition ${
+                            tipoNota === "SERVICO"
+                              ? "bg-white text-blue-700 shadow-sm"
+                              : "text-slate-500 hover:text-slate-700"
+                          }`}
+                        >
+                          Serviço (instalação/montagem)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTipoNota("OBRA")}
+                          className={`rounded px-3 py-1.5 text-xs font-medium transition ${
+                            tipoNota === "OBRA"
+                              ? "bg-white text-amber-700 shadow-sm"
+                              : "text-slate-500 hover:text-slate-700"
+                          }`}
+                        >
+                          Obra (construção civil)
+                        </button>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {tipoNota === "SERVICO"
+                          ? "Padrão. Não anexa bloco de obra à nota."
+                          : "Anexa bloco de obra (CNO + endereço) à nota — exigido para construção civil."}
+                      </p>
+                    </div>
+
+                    {/* Servico (cTribNac selector) */}
                     <div className="mb-4">
                       <label className="block text-xs font-medium text-slate-600 mb-1">Serviço *</label>
                       {(preview.serviceCodes || []).length > 0 ? (
@@ -893,13 +938,15 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                           <input
                             type="text"
                             readOnly
-                            value={preview.config.codigoTributarioNacionalServico || preview.config.codigoTributarioNacional || ""}
+                            value={tipoNota === "OBRA"
+                              ? (preview.config.codigoTributarioNacional || "")
+                              : (preview.config.codigoTributarioNacionalServico || preview.config.codigoTributarioNacional || "")}
                             className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 font-medium outline-none cursor-default"
                           />
                           <p className="mt-1 text-xs text-amber-600">Nenhum serviço cadastrado. Configure em Configurações &gt; Fiscal &gt; Serviços Habilitados.</p>
                         </>
                       )}
-                      {isConstrucaoCivil && (
+                      {tipoNota === "OBRA" && isConstrucaoCivil && (
                         <p className="mt-1 text-xs text-amber-700 flex items-center gap-1">
                           <span>&#9888;</span>
                           Código {cTribNacAtivo} é construção civil — informar a obra é obrigatório.

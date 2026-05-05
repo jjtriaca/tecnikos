@@ -125,28 +125,21 @@ export interface FocusNfsenRequest {
   percentual_total_tributos_municipais?: string;
   // Informações complementares (texto livre no PDF)
   informacoes_complementares?: string;
-  // Informações de Obra (obrigatório para cTribNac 07.02.xx, 07.04.xx, etc.)
-  // Estrutura aninhada conforme NFSe Nacional (DPS) — TCInfoObra
-  obra?: {
-    codigo?: string;                  // CNO/CEI (1-30 chars)
-    art?: string;                     // ART opcional (1-15 chars)
-    inscricao_imobiliaria?: string;   // inscImobFisc opcional (1-30 chars)
-    id_obra?: string;                 // id opcional (1-15 chars)
-    codigo_cib?: string;              // CCIB opcional (8 chars)
-    endereco?: {
-      logradouro?: string;            // xLgr (1-255 chars)
-      numero?: string;                // nro (1-60 chars)
-      complemento?: string;           // xCpl (0-156 chars)
-      bairro?: string;                // xBairro (1-60 chars)
-      codigo_municipio?: number;      // cMun (IBGE 7 dígitos)
-      uf?: string;                    // UF (2 chars)
-      cep?: string;                   // CEP (8 dígitos numéricos como string)
-      // Endereço exterior (alternativa)
-      cep_ext?: string;
-      nome_cidade_ext?: string;
-      regiao_ext?: string;
-    };
-  };
+  // ── Campos de obra (FLAT, conforme contrato oficial Focus NFe Nacional) ──
+  // Doc oficial: https://campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html
+  // ATENCAO: enviar como flat, nao aninhado. v1.10.22 enviava aninhado e quebrava
+  // a geracao do XML pelo Focus (XML resultante saia com elementos fora de ordem).
+  inscricao_imobiliaria?: string;   // Opcional — inscricao do imovel (1-30 chars)
+  codigo_obra?: string;             // CNO/CEI (1-30 chars)
+  cep_obra?: number;                // Integer 8 digitos
+  logradouro_obra?: string;         // 1-255 chars
+  numero_obra?: string;             // 1-60 chars
+  complemento_obra?: string;        // 0-156 chars
+  bairro_obra?: string;             // 1-60 chars
+  // Endereco exterior da obra (alternativa pra obras fora do Brasil)
+  cep_ext_obra?: string;
+  nome_cidade_ext_obra?: string;
+  regiao_ext_obra?: string;
 }
 
 // ========== Response (mesma para ambos) ==========

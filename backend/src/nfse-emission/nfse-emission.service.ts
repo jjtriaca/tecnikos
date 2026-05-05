@@ -701,21 +701,27 @@ export class NfseEmissionService {
     }
 
     // Determine cTribNac: service code > config fallback
-    // tipoNota=OBRA usa codigoTributarioNacional (legado); SERVICO usa codigoTributarioNacionalServico
+    // tipoNota=OBRA usa codigoTributarioNacional (legado); SERVICO (default) usa codigoTributarioNacionalServico
     const isLegacyObra = dto.tipoNota === 'OBRA';
     const codigoTribNac = serviceCode?.codigo
       || (isLegacyObra
         ? (config.codigoTributarioNacional || '')
         : (config.codigoTributarioNacionalServico || config.codigoTributarioNacional || ''));
 
-    // Construção civil: cTribNac começando com "07" exige bloco de obra
+    // Construção civil: cTribNac começando com "07" exige bloco de obra,
+    // PORÉM só quando o usuário explicitamente escolheu tipoNota=OBRA. Se ele
+    // marcou SERVICO (padrão), nem o bloco de obra é montado nem a validação
+    // dispara — útil para serviços de instalação/montagem que partilham CNAE
+    // com construção civil mas são emitidos como serviço comum.
     const isConstrucaoCivil = codigoTribNac.startsWith('07');
-    if (isConstrucaoCivil && !obra) {
+    if (isLegacyObra && isConstrucaoCivil && !obra) {
       throw new BadRequestException(
         `Código ${codigoTribNac} (construção civil) exige cadastro de obra. Selecione a obra antes de emitir.`,
       );
     }
-    const isObra = !!obra;
+    // Só anexamos bloco de obra quando o user pediu tipoNota=OBRA. Para SERVICO
+    // a obra (mesmo que cadastrada) é apenas referência interna (entry.obra).
+    const isObra = isLegacyObra && !!obra;
 
     // Override aliquota/codes from service code if available
     if (serviceCode) {
@@ -763,9 +769,16 @@ export class NfseEmissionService {
       // tipo_retencao_iss: 1=Não retido, 2=Retido pelo tomador
       const tipoRetencaoIss = (dto.issRetido ?? false) ? 2 : 1;
 
+      // codigo_municipio_prestacao deve ser onde o servico eh prestado.
+      // Pra obras (construcao civil cTribNac 07.xx), eh a cidade da obra.
+      // Senao, eh a cidade da empresa (config.codigoMunicipio).
+      const codigoMunicipioPrestacao = isObra && obra?.ibgeCode
+        ? parseInt(obra.ibgeCode, 10)
+        : codigoMunicipioNum;
+
       const nfsenPayload: FocusNfsenRequest = {
         // data_emissao no Layout Nacional: ISO 8601 com horario (xs:dateTime).
-        // Doc oficial Focus: https://focusnfe.com.br/doc/#nfse-nacional_campos
+        // Doc oficial Focus: https://campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html
         // Exemplo doc: "2024-05-07T07:34:56-0300". Use brazilNow() (NAO brazilToday).
         data_emissao: brazilNow(),
         data_competencia: brazilToday(),
@@ -792,7 +805,7 @@ export class NfseEmissionService {
         bairro_tomador: dto.tomadorBairro || undefined,
         email_tomador: dto.tomadorEmail || undefined,
         // Serviço
-        codigo_municipio_prestacao: codigoMunicipioNum,
+        codigo_municipio_prestacao: codigoMunicipioPrestacao,
         codigo_tributacao_nacional_iss: codigoTribNac,
         codigo_tributacao_municipal_iss: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
         codigo_nbs: dto.codigoNbs || undefined,
@@ -813,20 +826,20 @@ export class NfseEmissionService {
         } : {}),
         // Informações complementares
         ...(dto.infComplementares ? { informacoes_complementares: dto.infComplementares } : {}),
-        // Bloco de obra aninhado (obrigatório para cTribNac 07.02.xx, 07.04.xx, etc.)
+        // Bloco de obra (FLAT, obrigatorio para cTribNac 07.xx — construcao civil)
+        // Doc oficial: https://campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html
+        // ATENCAO: enviar como campos top-level, NAO aninhados. v1.10.22 enviava
+        // aninhado (obra: { codigo, endereco: {...} }) e o Focus gerava XML quebrado
+        // (elementos em ordem errada — CodigoMunicipio antes de Valores, etc.).
         ...(isObra && obra ? {
-          obra: {
-            codigo: obra.cno?.replace(/\D/g, '') || '',
-            endereco: {
-              logradouro: obra.addressStreet || undefined,
-              numero: obra.addressNumber || undefined,
-              complemento: obra.addressComp || undefined,
-              bairro: obra.neighborhood || undefined,
-              codigo_municipio: obra.ibgeCode ? parseInt(obra.ibgeCode, 10) : codigoMunicipioNum,
-              uf: obra.state || undefined,
-              cep: (obra.cep || '').replace(/\D/g, '') || undefined,
-            },
-          },
+          codigo_obra: obra.cno?.replace(/\D/g, '') || undefined,
+          ...(obra.cep ? { cep_obra: parseInt(obra.cep.replace(/\D/g, ''), 10) || undefined } : {}),
+          logradouro_obra: obra.addressStreet || undefined,
+          numero_obra: obra.addressNumber || undefined,
+          complemento_obra: obra.addressComp || undefined,
+          bairro_obra: obra.neighborhood || undefined,
+          // Nao existe `codigo_municipio_obra` ou `uf_obra` no contrato Focus.
+          // O municipio da obra eh inferido por `codigo_municipio_prestacao`.
         } : {}),
       };
       request = nfsenPayload;
