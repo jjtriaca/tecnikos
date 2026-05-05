@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.31 (pendente deploy)
+## Versao: v1.10.31 (em prod)
 ## Ultima sessao: 186 (05/05/2026)
 
 ## v1.10.31 — Modulo Piscina Sprint 2: UI completa
