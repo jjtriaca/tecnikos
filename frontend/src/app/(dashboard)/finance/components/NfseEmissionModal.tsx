@@ -1319,7 +1319,26 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                   Fechar
                 </button>
               ) : (
-                <p className="text-xs text-slate-400 italic">Aguardando resposta da prefeitura...</p>
+                <>
+                  <p className="text-xs text-slate-400 italic flex-1">Aguardando resposta da prefeitura...</p>
+                  <button
+                    onClick={async () => {
+                      if (!emissionId) return;
+                      if (!confirm("Cancelar esta tentativa de emissao?\n\nA NFS-e sera marcada como ERRO e voce podera retentar imediatamente.\n\nAtenção: se a prefeitura ja autorizou e o webhook ainda nao chegou, isso pode causar duplicidade. Use apenas se tiver certeza que travou.")) return;
+                      try {
+                        await api.post(`/nfse-emission/emissions/${emissionId}/cancel-attempt`, {});
+                        toast("Tentativa cancelada. Pode retentar a emissao agora.", "success");
+                        onSuccess();
+                      } catch (err: any) {
+                        toast(err?.payload?.message || "Erro ao cancelar tentativa", "error");
+                      }
+                    }}
+                    className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                    title="Cancela a tentativa atual e libera retentativa imediata. Use se a emissao travou em PROCESSING."
+                  >
+                    Cancelar tentativa
+                  </button>
+                </>
               )}
             </>
           )}

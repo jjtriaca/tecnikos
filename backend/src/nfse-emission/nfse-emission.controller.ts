@@ -182,6 +182,19 @@ export class NfseEmissionController {
     return this.nfseService.refreshStatus(req.user.companyId, id);
   }
 
+  /**
+   * Cancela uma tentativa em PROCESSING manualmente (marca como ERROR).
+   * Usuario aciona pelo modal de processamento quando suspeita que o webhook
+   * nao vai chegar e quer retentar imediatamente, sem aguardar o timeout
+   * automatico de 1h.
+   */
+  @Post('emissions/:id/cancel-attempt')
+  @Roles('ADMIN', 'FINANCEIRO', 'FISCAL')
+  @UseGuards(FiscalGuard)
+  async cancelAttempt(@Req() req: any, @Param('id') id: string) {
+    return this.nfseService.cancelAttempt(req.user.companyId, id);
+  }
+
   // ========== PDF ==========
 
   @Get('emissions/:id/pdf')

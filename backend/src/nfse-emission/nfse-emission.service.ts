@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/encryption.service';
 import { SaasConfigService } from '../common/saas-config.service';
@@ -1502,5 +1503,127 @@ export class NfseEmissionService {
 
     await this.prisma.nfseServiceCode.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  // ========== CRON: Polling de emissoes em PROCESSING ==========
+  // ════════════════════════════════════════════════════════════════════════════
+  //  Resolve incidente confirmado em sessao 185 (04-05/2026): NfseEmission ficava
+  //  eternamente em PROCESSING quando o webhook do Focus nao chegava ou era
+  //  perdido. Usuario nao tinha como destravar pela UI — foi necessario UPDATE
+  //  manual em DB. Esses crons fazem polling periodico e auto-timeout pra
+  //  resolver o caso sem intervencao manual.
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * A cada 2 minutos: consulta Focus pra emissoes em PROCESSING ha mais de 3 min.
+   * Usa a `query()` da Focus + `handleWebhook()` interno pra atualizar status
+   * (NfseEmission + FinancialEntry.nfseStatus).
+   */
+  @Cron('*/2 * * * *')
+  async pollProcessingEmissions(): Promise<void> {
+    const threshold = new Date(Date.now() - 3 * 60 * 1000); // 3 min
+    const stuck = await this.prisma.nfseEmission.findMany({
+      where: {
+        status: 'PROCESSING',
+        createdAt: { lt: threshold },
+      },
+      select: { id: true, companyId: true, focusNfeRef: true, rpsNumber: true },
+      take: 50,
+    });
+
+    if (stuck.length === 0) return;
+
+    this.logger.log(`Polling ${stuck.length} emissoes PROCESSING > 3min`);
+
+    for (const em of stuck) {
+      try {
+        await this.refreshStatus(em.companyId, em.id);
+        this.logger.log(`Polled RPS ${em.rpsNumber} ref=${em.focusNfeRef}`);
+      } catch (err: any) {
+        this.logger.warn(`Polling falhou pra RPS ${em.rpsNumber} ref=${em.focusNfeRef}: ${err.message}`);
+      }
+    }
+  }
+
+  /**
+   * A cada 30 minutos: emissoes em PROCESSING ha mais de 1 hora viram ERROR
+   * automaticamente. Cliente pode retentar o emit (backend reusa o RPS pelo
+   * fluxo `existingErrorEmission`).
+   */
+  @Cron('*/30 * * * *')
+  async timeoutStuckEmissions(): Promise<void> {
+    const threshold = new Date(Date.now() - 60 * 60 * 1000); // 1 hora
+    const stuck = await this.prisma.nfseEmission.findMany({
+      where: {
+        status: 'PROCESSING',
+        createdAt: { lt: threshold },
+      },
+      select: { id: true, focusNfeRef: true, rpsNumber: true },
+      take: 50,
+    });
+
+    if (stuck.length === 0) return;
+
+    this.logger.warn(`Timeout: marcando ${stuck.length} emissoes PROCESSING > 1h como ERROR`);
+
+    for (const em of stuck) {
+      const ids = await this.prisma.financialEntry.findMany({
+        where: { nfseEmissionId: em.id },
+        select: { id: true },
+      });
+      await this.prisma.$transaction([
+        this.prisma.nfseEmission.update({
+          where: { id: em.id },
+          data: {
+            status: 'ERROR',
+            errorMessage: '[AUTO TIMEOUT 1h] Webhook Focus nao chegou em 1 hora. Retente a emissao.',
+          },
+        }),
+        ...ids.map((e) => this.prisma.financialEntry.update({
+          where: { id: e.id },
+          data: { nfseStatus: 'ERROR' },
+        })),
+      ]);
+      this.logger.log(`Auto-timeout RPS ${em.rpsNumber} ref=${em.focusNfeRef}`);
+    }
+  }
+
+  // ========== CANCEL ATTEMPT (manual unblock) ==========
+
+  /**
+   * Marca uma emissao em PROCESSING como ERROR pra liberar retentativa.
+   * Usuario aciona quando suspeita que o webhook nao vai chegar e nao quer
+   * esperar o timeout automatico de 1h. Atualiza tambem FinancialEntry.nfseStatus
+   * (snapshot/cache que o frontend le).
+   */
+  async cancelAttempt(companyId: string, emissionId: string) {
+    const emission = await this.prisma.nfseEmission.findFirst({
+      where: { id: emissionId, companyId },
+      include: { financialEntries: { select: { id: true } } },
+    });
+    if (!emission) throw new NotFoundException('NFS-e não encontrada');
+    if (emission.status !== 'PROCESSING') {
+      throw new BadRequestException(
+        `Status atual eh ${emission.status} — so eh possivel cancelar tentativas em PROCESSING`,
+      );
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.nfseEmission.update({
+        where: { id: emissionId },
+        data: {
+          status: 'ERROR',
+          errorMessage: '[CANCELADO PELO USUARIO] Tentativa cancelada manualmente. Retente quando quiser.',
+        },
+      }),
+      ...emission.financialEntries.map((e) => this.prisma.financialEntry.update({
+        where: { id: e.id },
+        data: { nfseStatus: 'ERROR' },
+      })),
+    ]);
+
+    this.logger.log(`Tentativa de emissao cancelada manualmente: RPS ${emission.rpsNumber} ref=${emission.focusNfeRef}`);
+
+    return this.prisma.nfseEmission.findUnique({ where: { id: emissionId } });
   }
 }
