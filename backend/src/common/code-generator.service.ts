@@ -10,7 +10,10 @@ export type CodeEntity =
   | 'PRODUCT'
   | 'SERVICE'
   | 'QUOTE'
-  | 'CASH_ACCOUNT';
+  | 'CASH_ACCOUNT'
+  // Modulo Piscina
+  | 'POOL_BUDGET'
+  | 'POOL_PROJECT';
 
 const ENTITY_PREFIX: Record<CodeEntity, string> = {
   PARTNER: 'PAR',
@@ -22,6 +25,8 @@ const ENTITY_PREFIX: Record<CodeEntity, string> = {
   SERVICE: 'SRV',
   QUOTE: 'ORC',
   CASH_ACCOUNT: 'CX',
+  POOL_BUDGET: 'ORCP',
+  POOL_PROJECT: 'OBR',
 };
 
 const ENTITY_TABLE: Record<CodeEntity, string> = {
@@ -34,6 +39,8 @@ const ENTITY_TABLE: Record<CodeEntity, string> = {
   SERVICE: 'Service',
   QUOTE: 'Quote',
   CASH_ACCOUNT: 'CashAccount',
+  POOL_BUDGET: 'PoolBudget',
+  POOL_PROJECT: 'PoolProject',
 };
 
 @Injectable()

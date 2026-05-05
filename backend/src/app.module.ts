@@ -41,6 +41,10 @@ import { QuoteModule } from './quote/quote.module';
 import { VerificationModule } from './verification/verification.module';
 import { BoletoModule } from './boleto/boleto.module';
 import { PoolCatalogConfigModule } from './pool-catalog-config/pool-catalog-config.module';
+import { PoolBudgetTemplateModule } from './pool-budget-template/pool-budget-template.module';
+import { PoolBudgetModule } from './pool-budget/pool-budget.module';
+import { PoolProjectModule } from './pool-project/pool-project.module';
+import { PoolPrintLayoutModule } from './pool-print-layout/pool-print-layout.module';
 
 import { RequestLoggerMiddleware } from './common/logger/request-logger.middleware';
 import { AuditModule } from './common/audit/audit.module';
@@ -100,6 +104,10 @@ import { VerificationGuard } from './auth/guards/verification.guard';
     VerificationModule,
     BoletoModule,
     PoolCatalogConfigModule,
+    PoolBudgetTemplateModule,
+    PoolBudgetModule,
+    PoolProjectModule,
+    PoolPrintLayoutModule,
   ],
   providers: [
     // Sentry global exception filter — captures all unhandled errors

@@ -1,7 +1,21 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.29 (em prod)
+## Versao: v1.10.30 (em prod)
 ## Ultima sessao: 185 (04/05/2026)
+
+## v1.10.30 — Modulo Piscina Sprint 1 fase 2: 4 modulos NestJS adicionais
+- **Construido**: 4 modulos NestJS completos (DTOs + Service + Controller + Module + AppModule registration), todos seguindo padroes Tecnikos (companyId filter, @Roles, @ApiOperation, AuditService.log, paginacao $transaction):
+  1. **PoolBudgetTemplate**: CRUD de templates editaveis de etapas (substitui aba Linear). Valida catalogConfigIds existem no tenant. Suporta isDefault unico por tenant.
+  2. **PoolBudget**: CRUD de orcamentos + items (add/update/remove) + transicoes de status (approve/reject/cancel) + auto-calculo de quantidade via PoolFormulaService quando aplica template. Recalcula totais automaticamente.
+  3. **PoolFormulaService**: computa metricas da piscina (area, perimetro, volume, wallArea, tileArea) e calcula qty automatica baseado em fórmulas {basis, factor, value, minQty, roundUp} com suporte a condicionais {requires, excludes}.
+  4. **PoolProject** (Obras): CRUD obras + stages (etapas) + entries (livro caixa, com toggle reflectsInFinance que cria FinancialEntry PAYABLE no Financeiro geral) + photos. Sincroniza FinancialEntry quando entry vinculada eh atualizada/removida.
+  5. **PoolPrintLayout**: CRUD layouts + pages (FIXED com htmlContent, DYNAMIC com pageType enum) + reorderPages (drag&drop). Validacoes: FIXED exige htmlContent, DYNAMIC exige dynamicType.
+- **CodeGeneratorService**: adicionados POOL_BUDGET (prefixo ORCP) e POOL_PROJECT (prefixo OBR).
+- **AuditService**: ja tinha entityTypes Pool* (adicionados na v1.10.26).
+- **TENANT_MODEL_DELEGATES**: ja inclui todos os 11 modelos Pool* (v1.10.26).
+- **Total Sprint 1**: 5 modulos NestJS + ~20 endpoints REST + ~20 DTOs com class-validator + 1 service de cálculo de fórmulas + integração com Financeiro existente.
+- **Estado SLS**: Company.poolModuleActive = false (default) — endpoints retornam 403 ate ativar. Migration ja aplicada na v1.10.26. Sem impacto pros tenants atuais.
+- **Pendente Sprint 2 (proxima sessao)**: feature flag UI no Tecnikos (toggle Company.poolModuleActive em Configurações), pagina Orçamentos com aba "Obras", editor de orcamento drag&drop, page builder de impressao (UI), upload de fotos (storage), renderizador PDF (Puppeteer + templates HTML).
 
 ## v1.10.29 — Fix Layout Municipal: omitir regime_especial_tributacao quando "0"
 - **Erro persistente apos v1.10.28**: trocar nfseLayout pra MUNICIPAL (via SQL) destravou o conversor bugado do Focus (XML agora gerado completo). Mas erro novo apareceu: `Element 'RegimeEspecialTributacao': [facet 'pattern'] The value '0' is not accepted by the pattern '1|2|3|4|5|6'`.
@@ -73,7 +87,15 @@
 
 ## PENDENTE PROXIMA SESSAO
 
-(nada urgente — auditoria SICREDI fechou 100% na sessao 182)
+### 🔴 NFS-e: tratamento robusto de emissoes travadas em PROCESSING (sessao 185 / 04-05/2026)
+- **Problema**: NfseEmission pode ficar eternamente em status PROCESSING quando webhook do Focus nao chega ou nao eh processado. UI fica com modal "Processando NFS-e" travada e usuario nao consegue retentar. Caso real: tk-00000000-8c5552a9 (RPS 24 SLS Obras, Vitorio R$8100, 04/05) ficou travado no painel mesmo depois que prefeitura ja tinha rejeitado com `<Codigo>E999</Codigo><Mensagem>RNG6110...</Mensagem>`. Fui obrigado a fazer UPDATE manual em DB pra liberar.
+- **Solucoes propostas (em ordem de robustez)**:
+  1. **Cron de polling** (recomendado primeira): job a cada 2-5min busca emissoes em PROCESSING ha mais de 5min, consulta Focus via `GET /v2/nfse/{ref}` ou `/v2/nfsen/{ref}`, parseia o XML resposta, atualiza `NfseEmission.status` + `errorMessage`. Resolve quando webhook do Focus falha.
+  2. **Timeout automatico**: PROCESSING ha mais de 1h vira ERROR automatico com mensagem "timeout aguardando prefeitura".
+  3. **Botao "Atualizar status" na UI**: visivel em emissoes PROCESSING, forca consulta no Focus na hora.
+  4. **Botao "Cancelar tentativa"**: marca como ERROR + libera retentativa direto.
+- **Parser XML resposta**: garantir que extrai `<MensagemRetorno><Codigo>...</Codigo><Mensagem>...</Mensagem></MensagemRetorno>` em qualquer formato. Estrutura padrao ABRASF/SPED.
+- **CRITICO**: ao atualizar status, atualizar AMBOS campos: `NfseEmission.status` E `FinancialEntry.nfseStatus` (este eh snapshot/cache que o frontend le diretamente). Esquecer de atualizar `FinancialEntry.nfseStatus` faz UI continuar mostrando status antigo mesmo apos NfseEmission corrigida.
 
 ### 🟡 Melhorias UX possiveis (decididas como nao-prioritarias na sessao 181)
 - **Filtro "Recebido em SICREDI"** poderia incluir AccountTransfer entrando, alem de FinancialEntry com cashAccountId=SICREDI. Hoje entries de cartao ficam em VT mesmo apos conciliacao (design v1.09.94 preserva ciclo da maquininha) — visualmente confuso pra quem espera ver "tudo que entrou no banco". User decidiu manter design atual; melhoria seria opcional.
