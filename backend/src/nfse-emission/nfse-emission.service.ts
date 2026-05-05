@@ -731,6 +731,26 @@ export class NfseEmissionService {
       if (serviceCode.codigoTribMunicipal && !dto.codigoTributarioMunicipio) dto.codigoTributarioMunicipio = serviceCode.codigoTribMunicipal;
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // itemListaServico (codigo ABRASF legado) DERIVADO do cTribNac quando
+    // nao houver serviceCode explicito. Evita inconsistencia tipo cTribNac=140601
+    // (montagem) com itemListaServico=7.02 (construcao) que faz a prefeitura
+    // gerar erros como "cObra: empty value" ou "elemento fora de ordem".
+    // Mapeamento: cTribNac AABCDD → itemListaServico AA.BC (zeros a esquerda
+    // removidos do prefixo). Ex: 140601→14.06, 070202→7.02, 010101→1.01.
+    // ──────────────────────────────────────────────────────────────────────
+    if (codigoTribNac && codigoTribNac.length >= 4) {
+      const derivedItemList = `${parseInt(codigoTribNac.substring(0, 2), 10)}.${codigoTribNac.substring(2, 4)}`;
+      // Sobrescreve sempre que o user nao escolheu um serviceCode (que tem item
+      // proprio cadastrado). Isso garante consistencia entre cTribNac e itemListaServico.
+      if (!serviceCode || !serviceCode.itemListaServico) {
+        if (dto.itemListaServico !== derivedItemList) {
+          this.logger.log(`Derivando itemListaServico=${derivedItemList} a partir de cTribNac=${codigoTribNac} (anterior: ${dto.itemListaServico || config.itemListaServico || 'vazio'})`);
+          dto.itemListaServico = derivedItemList;
+        }
+      }
+    }
+
     // Reuse RPS from existing error emission, or get next RPS number
     let rpsNumber: number;
     if (existingErrorEmission) {
