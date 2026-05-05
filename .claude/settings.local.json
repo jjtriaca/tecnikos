@@ -15,7 +15,8 @@
       "NotebookEdit(*)",
       "mcp__Claude_Preview__*",
       "mcp__Claude_in_Chrome__*",
-      "mcp__mcp-registry__*"
+      "mcp__mcp-registry__*",
+      "Bash(curl -fsS http://localhost:4000/health)"
     ],
     "deny": []
   }
