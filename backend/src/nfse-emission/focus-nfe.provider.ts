@@ -43,6 +43,11 @@ export interface FocusNfseRequest {
   regime_especial_tributacao?: string;
   optante_simples_nacional: boolean;
   incentivador_cultural: boolean;
+  // v1.10.34: alguns conversores Focus (Cenario A Reforma Tributaria) nao relayam
+  // `servico.informacoes_complementares` ao gerar SPED nfse XML. Sending also at
+  // top-level garante que o campo apareca no PDF da prefeitura. Fields ignored
+  // by legacy ABRASF (sem efeito), mas renderizados corretamente no SPED.
+  informacoes_complementares?: string;
   prestador: {
     cnpj: string;
     inscricao_municipal: string;

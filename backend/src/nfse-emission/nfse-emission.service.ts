@@ -885,6 +885,10 @@ export class NfseEmissionService {
           : {}),
         optante_simples_nacional: config.optanteSimplesNacional,
         incentivador_cultural: false,
+        // v1.10.34: tambem envia infComplementares no ROOT (duplicado em servico).
+        // Conversor SPED Reforma Tributaria (Cenario A) nao relaya
+        // servico.informacoes_complementares pro PDF; mandando aqui resolve.
+        ...(dto.infComplementares ? { informacoes_complementares: dto.infComplementares } : {}),
         prestador: {
           cnpj: cnpjClean,
           inscricao_municipal: config.inscricaoMunicipal || company.im || '',
