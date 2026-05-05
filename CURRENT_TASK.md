@@ -1,7 +1,20 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.31 (em prod)
+## Versao: v1.10.32 (em prod)
 ## Ultima sessao: 186 (05/05/2026)
+
+## v1.10.32 — NFS-e: bloco de obra FLAT + restauracao do toggle SERVICO/OBRA
+- **Causa raiz** (sessao 186, apos consultar [campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html](https://campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html)): contrato oficial Focus NFe Nacional lista campos de obra como FLAT (`codigo_obra`, `logradouro_obra`, `cep_obra`, `numero_obra`, `complemento_obra`, `bairro_obra`, `inscricao_imobiliaria`). v1.10.22 enviou aninhado (`obra: { codigo, endereco: {...} }`) baseado num exemplo de Lavras/MG que nao representa o contrato global. Como Focus ignorou o objeto aninhado, o XML resultante saiu com elementos fora de ordem (CodigoMunicipio antes de Valores, RegimeEspecial depois de Prestador) — exatamente os erros do RPS 24 (`{http://www.abrasf.org.br/nfse.xsd}` strict-order).
+- **Backend**:
+  - `focus-nfe.provider.ts` `FocusNfsenRequest`: removido `obra: { codigo, endereco: {...} }` aninhado, adicionados campos top-level (`codigo_obra`, `cep_obra`, `logradouro_obra`, `numero_obra`, `complemento_obra`, `bairro_obra`, `inscricao_imobiliaria`, mais variantes ext pra obras estrangeiras). Sem `codigo_municipio_obra` ou `uf_obra` — nao existem no contrato.
+  - `nfse-emission.service.ts`: payload Layout Nacional agora monta os campos FLAT. Tambem ajustado `codigo_municipio_prestacao` pra usar IBGE da obra quando `tipoNota=OBRA` (cidade da prestacao = cidade da obra). Validacao `cTribNac 07.xx exige obra` so dispara quando `tipoNota=OBRA` (em SERVICO o bloco nem eh montado). Renomeado `isObra = isLegacyObra && !!obra` (so OBRA + obra selecionada).
+- **Frontend** (`NfseEmissionModal.tsx`):
+  - **Toggle restaurado** que v1.10.22 removeu erroneamente: "Serviço (instalação/montagem)" — padrao | "Obra (construção civil)". State `tipoNota` substitui o auto-detect.
+  - Quando SERVICO (default): nao mostra bloco de obra, sem validacao 07.xx, usa `codigoTributarioNacionalServico` (ex: 140601 montagem).
+  - Quando OBRA: mostra bloco, valida 07.xx exige obra, usa `codigoTributarioNacional` (ex: 070202 construcao).
+  - Envia `tipoNota` no payload do emit. `obraId` so vai quando OBRA.
+- **Memoria** (`nfse-lessons-learned.md`): novos Gotchas 5 (bloco obra FLAT) e 6 (toggle SERVICO/OBRA). URL canonica trocada pra campos.focusnfe.com.br.
+- **Estado SLS**: NfseConfig.nfseLayout=NACIONAL, regimeEspecialTributacao=0, codigoTributarioNacionalServico=140601 (default servico). Pronto pra retentar RPS 24 (existente em ERROR — backend reusa o RPS) ou nova emissao.
 
 ## v1.10.31 — Modulo Piscina Sprint 2: UI completa
 - **Backend (3 endpoints novos)**:
