@@ -594,6 +594,7 @@ export default function PoolBudgetDetailPage() {
                           dimensions={budget.poolDimensions}
                           dias={budget.estimatedDurationDays ?? 0}
                           allItems={budget.items}
+                          catalog={catalog}
                           onUpdate={(patch) => updateItem(it.id, patch)}
                           onRemove={() => removeItem(it.id)}
                           onMove={(dir) => moveItem(it, dir)}
@@ -708,7 +709,7 @@ export default function PoolBudgetDetailPage() {
   );
 }
 
-function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItems, onUpdate, onRemove, onMove }: {
+function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItems, catalog, onUpdate, onRemove, onMove }: {
   item: BudgetItem;
   seq?: number;
   locked: boolean;
@@ -717,12 +718,14 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItem
   dimensions?: any;
   dias?: number;
   allItems?: BudgetItem[];
+  catalog?: CatalogConfig[];
   onUpdate: (patch: Partial<BudgetItem> & { formulaExpr?: string | null }) => void;
   onRemove: () => void;
   onMove?: (dir: -1 | 1) => void;
 }) {
   const [qty, setQty] = useState(item.qty);
   const [showFormula, setShowFormula] = useState(false);
+  const [showCatalogPick, setShowCatalogPick] = useState(false);
   const [price, setPrice] = useState((item.unitPriceCents / 100).toFixed(2));
   const [desc, setDesc] = useState(item.description);
   const [slot, setSlot] = useState(item.slotName || "");
@@ -742,9 +745,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItem
     <>
     <tr className="border-b border-slate-100 hover:bg-slate-50 last:border-b-0">
       <td className="px-3 py-1.5 text-xs font-mono tabular-nums whitespace-nowrap">
-        <span className="text-slate-400">{seq ?? ""}</span>
+        <span className="text-slate-700 font-semibold">{seq ?? ""}</span>
         {item.cellRef && (
-          <span className="ml-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5"
+          <span className="ml-1 text-[10px] font-bold text-amber-900 bg-amber-200 border border-amber-400 rounded px-1.5 py-0.5"
             title="Endereco da linha (use em formulas: qty(LX), total(LX))">{item.cellRef}</span>
         )}
       </td>
@@ -765,12 +768,19 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItem
         {locked ? (
           <span className="text-sm text-slate-700">{item.description}</span>
         ) : (
-          <input
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            onBlur={commit}
-            className="w-full rounded border border-transparent px-1 py-0.5 text-sm hover:border-slate-300 focus:border-cyan-500 outline-none"
-          />
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => setShowCatalogPick(true)}
+              className="text-slate-400 hover:text-cyan-700 hover:bg-cyan-50 rounded p-1 text-xs flex-shrink-0"
+              title="Buscar no catalogo (trocar produto/servico)">
+              🔍
+            </button>
+            <input
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              onBlur={commit}
+              className="flex-1 rounded border border-transparent px-1 py-0.5 text-sm hover:border-slate-300 focus:border-cyan-500 outline-none"
+            />
+          </div>
         )}
         {item.isAutoCalculated && <span className="ml-2 text-[10px] text-cyan-600">auto</span>}
         {item.isExtra && <span className="ml-2 text-[10px] text-orange-600">extra</span>}
@@ -842,6 +852,28 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItem
         onClose={() => setShowFormula(false)}
         onSave={(expr) => { setShowFormula(false); onUpdate({ formulaExpr: expr }); }}
         onClear={() => { setShowFormula(false); onUpdate({ formulaExpr: "" }); }}
+      />
+    )}
+    {showCatalogPick && catalog && (
+      <CatalogPickModal
+        catalog={catalog}
+        currentSection={item.poolSection}
+        onClose={() => setShowCatalogPick(false)}
+        onPick={(cfg) => {
+          setShowCatalogPick(false);
+          const newDesc = cfg.product?.description || cfg.service?.name || item.description;
+          const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
+          const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
+          onUpdate({
+            catalogConfigId: cfg.id,
+            productId: cfg.product?.id ?? null,
+            serviceId: cfg.service?.id ?? null,
+            description: newDesc,
+            unit: newUnit,
+            unitPriceCents: newPriceCents,
+          } as any);
+          setDesc(newDesc);
+        }}
       />
     )}
     </>
@@ -945,9 +977,9 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
               </div>
               <div className="relative">
                 <input value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
-                  placeholder="🔍 Buscar por descricao, marca, codigo, voltagem, vazao..."
-                  className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-cyan-500 outline-none" />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                  placeholder="Buscar por descricao, marca, codigo, voltagem, vazao..."
+                  className="w-full rounded-lg border border-slate-300 pl-9 pr-8 py-2 text-sm focus:border-cyan-500 outline-none" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">🔍</span>
                 {search && (
                   <button type="button" onClick={() => setSearch("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm">✕</button>
@@ -1774,3 +1806,124 @@ function SaveAsTemplateModal({ budgetId, itemsCount, currentTemplateId, onClose,
   );
 }
 
+
+// ─────────────────────────────────────────────────────────
+// CatalogPickModal — busca produto/serviço pra trocar item de uma linha existente
+// ─────────────────────────────────────────────────────────
+function CatalogPickModal({ catalog, currentSection, onClose, onPick }: {
+  catalog: CatalogConfig[];
+  currentSection?: string;
+  onClose: () => void;
+  onPick: (cfg: CatalogConfig) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [showAll, setShowAll] = useState(true);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const tokens = q.length > 0 ? q.split(/\s+/) : [];
+    return catalog.filter((c) => {
+      if (!showAll && currentSection && c.poolSection !== currentSection) return false;
+      if (tokens.length === 0) return true;
+      const haystack = [
+        c.product?.code, c.product?.description, c.product?.brand,
+        c.service?.code, c.service?.name,
+        SECTION_LABEL[c.poolSection],
+        ...(c.product?.technicalSpecs ? Object.values(c.product.technicalSpecs).map(String) : []),
+        ...(c.service?.technicalSpecs ? Object.values(c.service.technicalSpecs).map(String) : []),
+      ].filter(Boolean).join(" ").toLowerCase();
+      return tokens.every((t) => haystack.includes(t));
+    });
+  }, [catalog, search, currentSection, showAll]);
+
+  return (
+    <tr>
+      <td colSpan={8} className="p-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-5 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-semibold text-slate-900">Buscar item do catalogo</h3>
+              <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
+            </div>
+            <div className="space-y-2 overflow-hidden flex flex-col flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-slate-600">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
+                {currentSection && (
+                  <label className="text-[10px] text-slate-500 flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="h-3 w-3" />
+                    Buscar em todas as etapas
+                  </label>
+                )}
+              </div>
+              <div className="relative">
+                <input value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
+                  placeholder="Buscar por descricao, marca, codigo, voltagem, vazao..."
+                  className="w-full rounded-lg border border-slate-300 pl-9 pr-8 py-2 text-sm focus:border-cyan-500 outline-none" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">🔍</span>
+                {search && (
+                  <button type="button" onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm">✕</button>
+                )}
+              </div>
+              <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
+                {filtered.length === 0 ? (
+                  <div className="text-center text-xs text-slate-400 py-6">
+                    {search ? "Nenhum item encontrado" : "Catalogo vazio"}
+                  </div>
+                ) : filtered.slice(0, 200).map((c) => {
+                  const isProduct = !!c.product;
+                  const name = c.product?.description || c.service?.name || "";
+                  const code = c.product?.code || c.service?.code;
+                  const priceCents = c.product?.salePriceCents ?? c.service?.priceCents ?? 0;
+                  const itemUnit = c.product?.unit || c.service?.unit || "UN";
+                  const specs = c.product?.technicalSpecs || c.service?.technicalSpecs || null;
+                  const specBadges: string[] = [];
+                  if (specs) {
+                    if (specs.voltagem) specBadges.push(`${specs.voltagem}V`);
+                    if (specs.amperagem) specBadges.push(`${specs.amperagem}A`);
+                    if (specs.potenciaCv) specBadges.push(`${specs.potenciaCv}cv`);
+                    if (specs.potenciaWatts) specBadges.push(`${specs.potenciaWatts}W`);
+                    if (specs.vazaoM3h) specBadges.push(`${specs.vazaoM3h}m³/h`);
+                    if (specs.pesoKg) specBadges.push(`${specs.pesoKg}kg`);
+                    if (specs.eficiencia) specBadges.push(`${specs.eficiencia}%ef`);
+                  }
+                  return (
+                    <button key={c.id} type="button" onClick={() => onPick(c)}
+                      className="w-full text-left px-3 py-2 hover:bg-cyan-50 transition">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isProduct ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}>
+                              {isProduct ? "PROD" : "SERV"}
+                            </span>
+                            <span className="text-[9px] font-mono text-slate-400">{code}</span>
+                            <span className="text-[9px] text-slate-500">{SECTION_LABEL[c.poolSection]}</span>
+                          </div>
+                          <div className="text-sm font-medium text-slate-900 mt-0.5">{name}</div>
+                          {(c.product?.brand || specBadges.length > 0) && (
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {c.product?.brand && (
+                                <span className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{c.product.brand}</span>
+                              )}
+                              {specBadges.map((b, i) => (
+                                <span key={i} className="text-[10px] text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded font-mono">{b}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right whitespace-nowrap">
+                          <div className="text-sm font-bold text-slate-900 tabular-nums">{fmtCurrency(priceCents)}</div>
+                          <div className="text-[10px] text-slate-500">/ {itemUnit}</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
