@@ -176,6 +176,79 @@ function fmtCurrency(c: number) {
   return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+// ─────────────────────────────────────────────────────────
+// useColumnWidths — persiste larguras das colunas em localStorage por usuario.
+// Aceita defaults inicialmente; substitui pelos persistidos quando montar.
+// ─────────────────────────────────────────────────────────
+const COL_WIDTHS_KEY = "pool-budget-col-widths-v1";
+type PoolBudgetColKey = "seq" | "item" | "desc" | "un" | "qty" | "valorUn" | "valorTotal" | "actions";
+const DEFAULT_COL_WIDTHS: Record<PoolBudgetColKey, number> = {
+  seq: 80, item: 224, desc: 320, un: 64, qty: 80, valorUn: 112, valorTotal: 112, actions: 80,
+};
+function useColumnWidths() {
+  const [widths, setWidths] = useState<Record<PoolBudgetColKey, number>>(DEFAULT_COL_WIDTHS);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COL_WIDTHS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setWidths({ ...DEFAULT_COL_WIDTHS, ...parsed });
+      }
+    } catch {}
+  }, []);
+  function setWidth(key: PoolBudgetColKey, w: number) {
+    setWidths((prev) => {
+      const next = { ...prev, [key]: Math.max(40, Math.round(w)) };
+      try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }
+  function reset() {
+    setWidths(DEFAULT_COL_WIDTHS);
+    try { localStorage.removeItem(COL_WIDTHS_KEY); } catch {}
+  }
+  return { widths, setWidth, reset };
+}
+
+// Componente <th> com handle de drag pra resize
+function ResizableTh({ colKey, width, setWidth, className, children, ...rest }: {
+  colKey: PoolBudgetColKey;
+  width: number;
+  setWidth: (k: PoolBudgetColKey, w: number) => void;
+  className?: string;
+  children?: React.ReactNode;
+  title?: string;
+}) {
+  function onMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = width;
+    function onMove(ev: MouseEvent) {
+      setWidth(colKey, startW + (ev.clientX - startX));
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }
+  return (
+    <th style={{ width, position: "relative" }} className={className} {...rest}>
+      {children}
+      <span
+        onMouseDown={onMouseDown}
+        className="absolute top-0 right-0 h-full w-1 cursor-col-resize hover:bg-cyan-400/60"
+        title="Arraste pra ajustar a largura"
+      />
+    </th>
+  );
+}
+
 export default function PoolBudgetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -191,6 +264,7 @@ export default function PoolBudgetDetailPage() {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject" | "cancel" | "delete">(null);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
+  const { widths: colWidths, setWidth: setColWidth, reset: resetColWidths } = useColumnWidths();
 
   function toggleSection(section: string) {
     setCollapsedSections((prev) => {
@@ -507,6 +581,11 @@ export default function PoolBudgetDetailPage() {
         return (
           <div className="space-y-4">
             <div className="flex justify-end gap-2 -mb-2">
+              <button type="button" onClick={resetColWidths}
+                className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
+                title="Volta as larguras das colunas pro padrao">
+                ↹ Resetar larguras
+              </button>
               <button type="button" onClick={collapseAll}
                 className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
                 title="Minimizar todas as etapas">
@@ -567,17 +646,25 @@ export default function PoolBudgetDetailPage() {
                     </div>
                   </div>
                   {isCollapsed ? null : (
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
                     <thead>
                       <tr className="bg-slate-50 text-[10px] font-semibold uppercase text-slate-500 border-b border-slate-100">
-                        <th className="text-left px-3 py-1.5 w-20" title="Sequencia atual + Endereco estavel da linha (LX) usado em formulas">Seq · Ref</th>
-                        <th className="text-left px-3 py-1.5 w-56">Item</th>
-                        <th className="text-left px-3 py-1.5">Descricao</th>
-                        <th className="text-center px-2 py-1.5 w-16">Un</th>
-                        <th className="text-center px-2 py-1.5 w-20">Qtd</th>
-                        <th className="text-right px-3 py-1.5 w-28">Valor un.</th>
-                        <th className="text-right px-3 py-1.5 w-28">Valor total</th>
-                        <th className="w-20" />
+                        <ResizableTh colKey="seq" width={colWidths.seq} setWidth={setColWidth}
+                          className="text-left px-3 py-1.5"
+                          title="Sequencia atual + Endereco estavel da linha (LX) usado em formulas">Seq · Ref</ResizableTh>
+                        <ResizableTh colKey="item" width={colWidths.item} setWidth={setColWidth}
+                          className="text-left px-3 py-1.5">Item</ResizableTh>
+                        <ResizableTh colKey="desc" width={colWidths.desc} setWidth={setColWidth}
+                          className="text-left px-3 py-1.5">Descricao</ResizableTh>
+                        <ResizableTh colKey="un" width={colWidths.un} setWidth={setColWidth}
+                          className="text-center px-2 py-1.5">Un</ResizableTh>
+                        <ResizableTh colKey="qty" width={colWidths.qty} setWidth={setColWidth}
+                          className="text-center px-2 py-1.5">Qtd</ResizableTh>
+                        <ResizableTh colKey="valorUn" width={colWidths.valorUn} setWidth={setColWidth}
+                          className="text-right px-3 py-1.5">Valor un.</ResizableTh>
+                        <ResizableTh colKey="valorTotal" width={colWidths.valorTotal} setWidth={setColWidth}
+                          className="text-right px-3 py-1.5">Valor total</ResizableTh>
+                        <ResizableTh colKey="actions" width={colWidths.actions} setWidth={setColWidth} className=""></ResizableTh>
                       </tr>
                     </thead>
                     <tbody>
@@ -765,36 +852,26 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItem
         )}
       </td>
       <td className="px-3 py-1.5">
-        {(() => {
-          const isLinkedToCatalog = !!(item.productId || item.serviceId);
-          if (locked) {
-            return <span className="text-sm text-slate-700">{item.description}</span>;
-          }
-          return (
-            <div className="flex items-center gap-1">
-              <button type="button" onClick={() => setShowCatalogPick(true)}
-                className="text-slate-400 hover:text-cyan-700 hover:bg-cyan-50 rounded p-1 text-xs flex-shrink-0"
-                title={isLinkedToCatalog ? "Trocar produto/servico (catalogo)" : "Buscar no catalogo"}>
-                🔍
-              </button>
-              {isLinkedToCatalog ? (
-                <span
-                  className="flex-1 px-1 py-0.5 text-sm text-slate-700 truncate cursor-pointer hover:underline"
-                  title="Vinculado ao catalogo. Clique pra trocar."
-                  onClick={() => setShowCatalogPick(true)}
-                >{item.description}</span>
-              ) : (
-                <input
-                  value={desc}
-                  onChange={(e) => setDesc(e.target.value)}
-                  onBlur={commit}
-                  placeholder="(sem item) — clique na lupa pra escolher"
-                  className="flex-1 rounded border border-transparent px-1 py-0.5 text-sm hover:border-slate-300 focus:border-cyan-500 outline-none placeholder:text-slate-300 placeholder:italic"
-                />
-              )}
-            </div>
-          );
-        })()}
+        {locked ? (
+          <span className="text-sm text-slate-700">{item.description}</span>
+        ) : (
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => setShowCatalogPick(true)}
+              className="text-slate-400 hover:text-cyan-700 hover:bg-cyan-50 rounded p-1 text-xs flex-shrink-0"
+              title="Buscar no catalogo">
+              🔍
+            </button>
+            <span
+              onClick={() => setShowCatalogPick(true)}
+              title="Clique pra escolher/trocar item do catalogo"
+              className={
+                "flex-1 px-1 py-0.5 text-sm truncate cursor-pointer hover:bg-cyan-50 rounded " +
+                (item.description ? "text-slate-700 hover:underline" : "text-slate-300 italic")
+              }>
+              {item.description || "(sem item) — clique pra escolher"}
+            </span>
+          </div>
+        )}
         {item.isAutoCalculated && <span className="ml-2 text-[10px] text-cyan-600">auto</span>}
         {item.isExtra && <span className="ml-2 text-[10px] text-orange-600">extra</span>}
       </td>
