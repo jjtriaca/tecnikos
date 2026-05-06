@@ -300,7 +300,8 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
       let defaultVal = col.columnDefault;
 
       // Replace public enum references with tenant schema references
-      if (isEnum) {
+      // (so apenas pra tipos customizados; arrays built-in nao precisam)
+      if (isEnumType || isCustomEnumArray) {
         defaultVal = defaultVal.replace(
           /::"([A-Za-z]+)"(\[\])?/g,
           `::"${schemaName}"."$1"$2`,
