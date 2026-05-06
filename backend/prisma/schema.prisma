@@ -3158,8 +3158,20 @@ model PoolBudget {
   subtotalCents   Int    @default(0)
   discountCents   Int?
   discountPercent Float?
+  taxesPercent    Float? // Imposto em %, valor calculado em taxesCents
   taxesCents      Int    @default(0)
-  totalCents      Int    @default(0)
+  totalCents      Int    @default(0) // subtotal - desconto + impostos
+
+  // Prazo (auto-calculado a partir dos items com unit h/dia)
+  startDate            DateTime?
+  endDate              DateTime?
+  estimatedDurationDays Int? // dias corridos (8h/dia padrao)
+
+  // Condicoes gerais da proposta
+  equipmentWarranty       String? // texto livre
+  workWarranty            String? // ex: "5 anos"
+  paymentTerms            String? // ex: "50% Entrada 50% Final"
+  earlyPaymentDiscountPct Float? // Desconto pra pagamento antecipado (informativo)
 
   // Aprovacao publica (igual Quote)
   publicToken          String?   @unique

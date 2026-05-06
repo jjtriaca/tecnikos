@@ -43,8 +43,16 @@ type Budget = {
   subtotalCents: number;
   discountCents: number | null;
   discountPercent: number | null;
+  taxesPercent: number | null;
   taxesCents: number;
   totalCents: number;
+  startDate: string | null;
+  endDate: string | null;
+  estimatedDurationDays: number | null;
+  equipmentWarranty: string | null;
+  workWarranty: string | null;
+  paymentTerms: string | null;
+  earlyPaymentDiscountPct: number | null;
   approvedAt: string | null;
   approvedByName: string | null;
   rejectedAt: string | null;
@@ -122,7 +130,22 @@ export default function PoolBudgetDetailPage() {
   const [addSection, setAddSection] = useState<string | null>(null);
   // Etapas adicionadas manualmente que ainda nao tem items (pra UI ja ter card vazio)
   const [extraSections, setExtraSections] = useState<string[]>([]);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject" | "cancel" | "delete">(null);
+
+  function toggleSection(section: string) {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section); else next.add(section);
+      return next;
+    });
+  }
+  function collapseAll() {
+    setCollapsedSections(new Set(SECTION_ORDER));
+  }
+  function expandAll() {
+    setCollapsedSections(new Set());
+  }
 
   const load = useCallback(async () => {
     try {
@@ -159,6 +182,15 @@ export default function PoolBudgetDetailPage() {
       await load();
     } catch (err: any) {
       toast(err?.payload?.message || "Erro ao atualizar item", "error");
+    }
+  }
+
+  async function updateBudget(patch: Record<string, any>) {
+    try {
+      await api.put(`/pool-budgets/${id}`, patch);
+      await load();
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao atualizar orcamento", "error");
     }
   }
 
@@ -350,17 +382,37 @@ export default function PoolBudgetDetailPage() {
         }
         return (
           <div className="space-y-4">
+            <div className="flex justify-end gap-2 -mb-2">
+              <button type="button" onClick={collapseAll}
+                className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
+                title="Minimizar todas as etapas">
+                Minimizar todas
+              </button>
+              <button type="button" onClick={expandAll}
+                className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
+                title="Expandir todas as etapas">
+                Expandir todas
+              </button>
+            </div>
             {presentSections.map((section) => {
               const items = itemsBySection[section] || [];
               const totProdutos = items.filter((it) => !isServicoItem(it)).reduce((s, it) => s + it.totalCents, 0);
               const totServicos = items.filter((it) => isServicoItem(it)).reduce((s, it) => s + it.totalCents, 0);
               const totEtapa = totProdutos + totServicos;
+              const isCollapsed = collapsedSections.has(section);
               return (
                 <div key={section} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-cyan-50">
-                    <h3 className="text-sm font-semibold text-cyan-900 uppercase tracking-wide">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(section)}
+                      className="flex items-center gap-2 text-sm font-semibold text-cyan-900 uppercase tracking-wide hover:text-cyan-700"
+                      title={isCollapsed ? "Expandir etapa" : "Minimizar etapa"}
+                    >
+                      <span className="inline-flex w-4 justify-center text-xs">{isCollapsed ? "▶" : "▼"}</span>
                       Etapa: {SECTION_LABEL[section] || section}
-                    </h3>
+                      {isCollapsed && <span className="ml-2 normal-case font-normal text-xs text-slate-600 tabular-nums">— {fmtCurrency(totEtapa)}</span>}
+                    </button>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-500">{items.length} linha{items.length !== 1 ? "s" : ""}</span>
                       {!isLocked && (
@@ -374,6 +426,7 @@ export default function PoolBudgetDetailPage() {
                       )}
                     </div>
                   </div>
+                  {isCollapsed ? null : (
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-slate-50 text-[10px] font-semibold uppercase text-slate-500 border-b border-slate-100">
@@ -419,6 +472,7 @@ export default function PoolBudgetDetailPage() {
                       </tr>
                     </tfoot>
                   </table>
+                  )}
                 </div>
               );
             })}
@@ -444,6 +498,13 @@ export default function PoolBudgetDetailPage() {
           </div>
         );
       })()}
+
+      {/* Bloco de totais + prazo + condicoes (espelha rodape da aba Linear da planilha) */}
+      <BudgetSummaryBlock
+        budget={budget}
+        locked={budget.status === "APROVADO"}
+        onUpdate={updateBudget}
+      />
 
       {/* Modal adicionar item */}
       {showAdd && (
@@ -685,6 +746,175 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// BudgetSummaryBlock — espelha o rodape da aba Linear da planilha
+// 4 linhas de totais (Subtotal, Impostos, Desconto, Total Geral) + prazo + condicoes.
+// Impostos e Desconto sao em %, valores calculados pelo backend.
+// ─────────────────────────────────────────────────────────
+function BudgetSummaryBlock({ budget, locked, onUpdate }: {
+  budget: Budget;
+  locked: boolean;
+  onUpdate: (patch: Record<string, any>) => void;
+}) {
+  const [taxesPct, setTaxesPct] = useState<string>(budget.taxesPercent?.toString().replace(".", ",") ?? "");
+  const [discPct, setDiscPct] = useState<string>(budget.discountPercent?.toString().replace(".", ",") ?? "");
+  const [startDate, setStartDate] = useState<string>(budget.startDate ? budget.startDate.slice(0, 10) : "");
+  const [eqWarranty, setEqWarranty] = useState<string>(budget.equipmentWarranty ?? "");
+  const [workWarranty, setWorkWarranty] = useState<string>(budget.workWarranty ?? "");
+  const [paymentTerms, setPaymentTerms] = useState<string>(budget.paymentTerms ?? "");
+  const [earlyPct, setEarlyPct] = useState<string>(budget.earlyPaymentDiscountPct?.toString().replace(".", ",") ?? "");
+
+  function parsePct(v: string): number | undefined {
+    const n = parseFloat(v.replace(",", "."));
+    return isNaN(n) ? undefined : n;
+  }
+
+  function commitTaxes() {
+    const v = parsePct(taxesPct);
+    if (v !== budget.taxesPercent) onUpdate({ taxesPercent: v ?? 0 });
+  }
+  function commitDiscount() {
+    const v = parsePct(discPct);
+    if (v !== budget.discountPercent) onUpdate({ discountPercent: v ?? 0 });
+  }
+  function commitStartDate() {
+    const v = startDate || undefined;
+    const cur = budget.startDate ? budget.startDate.slice(0, 10) : "";
+    if ((v || "") !== cur) onUpdate({ startDate: v });
+  }
+  function commitEarly() {
+    const v = parsePct(earlyPct);
+    if (v !== budget.earlyPaymentDiscountPct) onUpdate({ earlyPaymentDiscountPct: v ?? 0 });
+  }
+  function commitText(field: string, value: string, current: string | null) {
+    if (value !== (current ?? "")) onUpdate({ [field]: value || undefined });
+  }
+
+  const inputCls = "w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm focus:border-cyan-500 outline-none";
+  const lockedValueCls = "text-sm text-slate-700";
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* TOTAIS — espelha o bloco laranja da planilha (SUBTOTAL/IMPOSTOS/DESCONTO%/TOTAL GERAL) */}
+      <div className="rounded-xl border-2 border-orange-400 bg-orange-50 overflow-hidden">
+        <table className="w-full text-sm">
+          <tbody>
+            <tr className="border-b border-orange-300">
+              <td className="px-4 py-2 font-semibold text-slate-700 text-right">SUBTOTAL:</td>
+              <td className="px-4 py-2 text-right tabular-nums font-medium w-40">R$ {(budget.subtotalCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr className="border-b border-orange-300">
+              <td className="px-4 py-2 font-semibold text-slate-700 text-right">
+                <span className="inline-flex items-center gap-1.5 justify-end">
+                  IMPOSTOS
+                  {locked ? (
+                    <span className="text-xs text-slate-500">({budget.taxesPercent ? `${budget.taxesPercent}%` : "0%"})</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-0.5 text-xs">
+                      (
+                      <input type="text" value={taxesPct} onChange={(e) => setTaxesPct(e.target.value)} onBlur={commitTaxes}
+                        placeholder="0" className="w-12 rounded border border-orange-300 bg-white px-1 py-0 text-xs text-right" />
+                      %)
+                    </span>
+                  )}
+                  :
+                </span>
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums w-40">R$ {(budget.taxesCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr className="border-b border-orange-300">
+              <td className="px-4 py-2 font-semibold text-slate-700 text-right">DESCONTO %:</td>
+              <td className="px-4 py-2 text-right tabular-nums w-40">
+                {locked ? (
+                  <span>{budget.discountPercent ? `${budget.discountPercent.toString().replace(".", ",")}%` : "0,00%"}</span>
+                ) : (
+                  <span className="inline-flex items-center gap-0.5 justify-end">
+                    <input type="text" value={discPct} onChange={(e) => setDiscPct(e.target.value)} onBlur={commitDiscount}
+                      placeholder="0,00" className="w-16 rounded border border-orange-300 bg-white px-1 py-0.5 text-right text-sm tabular-nums" />
+                    %
+                  </span>
+                )}
+              </td>
+            </tr>
+            <tr className="bg-orange-200/60">
+              <td className="px-4 py-3 font-bold text-slate-900 text-right">TOTAL GERAL:</td>
+              <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-slate-900 w-40">
+                R$ {(budget.totalCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* PRAZO + CONDICOES */}
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">Condicoes gerais da proposta</div>
+        <div className="p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Previsao de inicio</label>
+              {locked ? (
+                <div className={lockedValueCls}>{budget.startDate ? new Date(budget.startDate).toLocaleDateString("pt-BR") : "—"}</div>
+              ) : (
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onBlur={commitStartDate}
+                  className={inputCls} />
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Previsao de termino (auto)</label>
+              <div className={lockedValueCls}>
+                {budget.endDate
+                  ? `${new Date(budget.endDate).toLocaleDateString("pt-BR")} (${budget.estimatedDurationDays}d)`
+                  : budget.estimatedDurationDays
+                    ? `+${budget.estimatedDurationDays}d`
+                    : "—"}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Calculado por items com unit h/dia (8h por dia)</div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Garantia dos equipamentos</label>
+            {locked ? <div className={lockedValueCls}>{budget.equipmentWarranty || "—"}</div> : (
+              <input value={eqWarranty} onChange={(e) => setEqWarranty(e.target.value)}
+                onBlur={() => commitText("equipmentWarranty", eqWarranty, budget.equipmentWarranty)}
+                placeholder="De acordo com a garantia do fabricante" className={inputCls} />
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Garantia da obra</label>
+            {locked ? <div className={lockedValueCls}>{budget.workWarranty || "—"}</div> : (
+              <input value={workWarranty} onChange={(e) => setWorkWarranty(e.target.value)}
+                onBlur={() => commitText("workWarranty", workWarranty, budget.workWarranty)}
+                placeholder="5 anos" className={inputCls} />
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Forma de pagamento</label>
+            {locked ? <div className={lockedValueCls}>{budget.paymentTerms || "—"}</div> : (
+              <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)}
+                onBlur={() => commitText("paymentTerms", paymentTerms, budget.paymentTerms)}
+                placeholder="50% Entrada / 50% Final" className={inputCls} />
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Desconto pra pagamento antecipado (%)</label>
+            {locked ? (
+              <div className={lockedValueCls}>{budget.earlyPaymentDiscountPct ? `${budget.earlyPaymentDiscountPct}%` : "—"}</div>
+            ) : (
+              <input type="text" value={earlyPct} onChange={(e) => setEarlyPct(e.target.value)} onBlur={commitEarly}
+                placeholder="5,00" className={inputCls} />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

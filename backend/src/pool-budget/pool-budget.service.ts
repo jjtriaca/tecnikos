@@ -111,6 +111,12 @@ export class PoolBudgetService {
         validityDays: dto.validityDays ?? 30,
         discountCents: dto.discountCents,
         discountPercent: dto.discountPercent,
+        taxesPercent: dto.taxesPercent,
+        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+        equipmentWarranty: dto.equipmentWarranty,
+        workWarranty: dto.workWarranty,
+        paymentTerms: dto.paymentTerms,
+        earlyPaymentDiscountPct: dto.earlyPaymentDiscountPct,
         status: PoolBudgetStatus.RASCUNHO,
       },
       include: {
@@ -227,26 +233,67 @@ export class PoolBudgetService {
   async recalculateTotals(budgetId: string) {
     const items = await this.prisma.poolBudgetItem.findMany({
       where: { budgetId },
-      select: { totalCents: true },
+      select: { totalCents: true, qty: true, unit: true },
     });
     const subtotalCents = items.reduce((sum, i) => sum + (i.totalCents ?? 0), 0);
 
     const budget = await this.prisma.poolBudget.findUnique({
       where: { id: budgetId },
-      select: { discountCents: true, discountPercent: true },
+      select: {
+        discountCents: true,
+        discountPercent: true,
+        taxesPercent: true,
+        startDate: true,
+      },
     });
 
-    let totalCents = subtotalCents;
-    if (budget?.discountPercent && budget.discountPercent > 0) {
-      totalCents = Math.round(totalCents * (1 - budget.discountPercent / 100));
+    // Desconto: %/valor sobre subtotal
+    const discountPctCents = budget?.discountPercent && budget.discountPercent > 0
+      ? Math.round(subtotalCents * (budget.discountPercent / 100))
+      : 0;
+    const discountFlatCents = budget?.discountCents && budget.discountCents > 0
+      ? budget.discountCents
+      : 0;
+    const discountCents = discountPctCents + discountFlatCents;
+
+    // Impostos: % sobre subtotal
+    const taxesCents = budget?.taxesPercent && budget.taxesPercent > 0
+      ? Math.round(subtotalCents * (budget.taxesPercent / 100))
+      : 0;
+
+    // Total Geral = subtotal - desconto + impostos
+    const totalCents = Math.max(0, subtotalCents - discountCents + taxesCents);
+
+    // Prazo: itens com unit ∈ {h,H,hora,horas} = horas; {d,D,dia,dias} = dias × 8h
+    const HOURS_PER_DAY = 8;
+    let totalHours = 0;
+    for (const it of items) {
+      const u = (it.unit || '').trim().toLowerCase();
+      const qty = Number(it.qty) || 0;
+      if (qty <= 0) continue;
+      if (u === 'h' || u === 'hora' || u === 'horas') {
+        totalHours += qty;
+      } else if (u === 'd' || u === 'dia' || u === 'dias') {
+        totalHours += qty * HOURS_PER_DAY;
+      }
     }
-    if (budget?.discountCents && budget.discountCents > 0) {
-      totalCents = Math.max(0, totalCents - budget.discountCents);
+    const estimatedDurationDays = totalHours > 0 ? Math.ceil(totalHours / HOURS_PER_DAY) : null;
+
+    let endDate: Date | null = null;
+    if (budget?.startDate && estimatedDurationDays && estimatedDurationDays > 0) {
+      endDate = new Date(budget.startDate);
+      endDate.setUTCDate(endDate.getUTCDate() + estimatedDurationDays);
     }
 
     await this.prisma.poolBudget.update({
       where: { id: budgetId },
-      data: { subtotalCents, totalCents },
+      data: {
+        subtotalCents,
+        taxesCents,
+        totalCents,
+        estimatedDurationDays,
+        endDate,
+      },
     });
   }
 
@@ -373,12 +420,20 @@ export class PoolBudgetService {
         validityDays: dto.validityDays,
         discountCents: dto.discountCents,
         discountPercent: dto.discountPercent,
+        taxesPercent: dto.taxesPercent,
+        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+        equipmentWarranty: dto.equipmentWarranty,
+        workWarranty: dto.workWarranty,
+        paymentTerms: dto.paymentTerms,
+        earlyPaymentDiscountPct: dto.earlyPaymentDiscountPct,
       },
     });
 
     if (
       dto.discountCents !== undefined ||
-      dto.discountPercent !== undefined
+      dto.discountPercent !== undefined ||
+      dto.taxesPercent !== undefined ||
+      dto.startDate !== undefined
     ) {
       await this.recalculateTotals(id);
     }
