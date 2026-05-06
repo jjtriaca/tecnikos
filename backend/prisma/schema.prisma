@@ -3209,6 +3209,12 @@ model PoolBudgetItem {
   poolSection PoolSection
   sortOrder   Int         @default(0)
 
+  // Rotulo do "papel" da linha dentro da etapa (ex: "Capa Termica",
+  // "Bomba Aquecimento", "Tubos e conexoes para filtro"). Vem do template
+  // como uma checklist de slots — ajuda o operador a nao esquecer items
+  // padrao da etapa. Excel original chama de "Etapa", mas pra evitar
+  // colisao com a etapa-card (poolSection) usamos `slotName`.
+  slotName       String?
   description    String // Editavel sem mexer no cadastro
   unit           String @default("UN")
   qtyCalculated  Float? // Calculada via formula (referencia)

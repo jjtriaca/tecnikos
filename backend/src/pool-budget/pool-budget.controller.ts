@@ -109,6 +109,17 @@ export class PoolBudgetController {
 
   // ============== STATUS TRANSITIONS ==============
 
+  @ApiOperation({
+    summary: 'Aplica template Linear (Padrao Juliano) ao orçamento',
+    description: 'So funciona em orçamentos sem items (RASCUNHO ou similar). Cria 125 items distribuidos em 12 etapas com slotName/descricao/qty/valor extraidos da planilha original.',
+  })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/apply-linear')
+  applyLinear(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.applyLinearTemplate(id, user.companyId, user);
+  }
+
   @ApiOperation({ summary: 'Aprova orçamento (gera obra automaticamente)' })
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)

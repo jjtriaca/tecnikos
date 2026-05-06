@@ -11,6 +11,7 @@ type BudgetItem = {
   id: string;
   poolSection: string;
   sortOrder: number;
+  slotName: string | null; // Rotulo do papel da linha (ex: "Capa Termica", "Bomba Aquecimento")
   description: string;
   unit: string;
   qty: number;
@@ -21,6 +22,10 @@ type BudgetItem = {
   isExtra: boolean;
   notes: string | null;
   catalogConfigId: string | null;
+  productId?: string | null;
+  serviceId?: string | null;
+  product?: { id: string; code: string | null; description: string } | null;
+  service?: { id: string; code: string | null; name: string } | null;
 };
 
 type Budget = {
@@ -76,6 +81,23 @@ const SECTION_LABEL: Record<string, string> = {
   OUTROS: "Outros",
 };
 
+// Ordem das etapas — espelha aba "Linear" da planilha original (CONSTRUCAO
+// primeiro, depois sistemas auxiliares, por ultimo execucao/outros).
+const SECTION_ORDER: string[] = [
+  "CONSTRUCAO", "BORDA_CALCADA", "FILTRO", "CASCATA", "SPA",
+  "AQUECIMENTO", "ILUMINACAO", "CASA_MAQUINAS", "DISPOSITIVOS",
+  "ACIONAMENTOS", "EXECUCAO", "OUTROS",
+];
+
+// Heuristica: item com serviceId vinculado OU unidade hora = SERVICO,
+// senao PRODUTO. Usado pra calcular Total Servicos vs Total Produtos por etapa.
+function isServicoItem(item: BudgetItem): boolean {
+  if (item.serviceId || item.service) return true;
+  if (item.productId || item.product) return false;
+  // Item livre sem catalogo: usa unidade como heuristica (h, hr, hora)
+  return /^h(or)?a?s?$/i.test((item.unit || "").trim());
+}
+
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   RASCUNHO: { label: "Rascunho", cls: "bg-slate-100 text-slate-700 border-slate-300" },
   ENVIADO: { label: "Enviado", cls: "bg-blue-100 text-blue-700 border-blue-300" },
@@ -97,6 +119,9 @@ export default function PoolBudgetDetailPage() {
   const [loading, setLoading] = useState(true);
   const [catalog, setCatalog] = useState<CatalogConfig[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [addSection, setAddSection] = useState<string | null>(null);
+  // Etapas adicionadas manualmente que ainda nao tem items (pra UI ja ter card vazio)
+  const [extraSections, setExtraSections] = useState<string[]>([]);
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject" | "cancel" | "delete">(null);
 
   const load = useCallback(async () => {
@@ -284,68 +309,149 @@ export default function PoolBudgetDetailPage() {
         </div>
       </div>
 
-      {/* Items por secao */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-          <h3 className="text-sm font-semibold text-slate-700">Items do Orcamento</h3>
-          {!isLocked && (
-            <button
-              onClick={() => setShowAdd(true)}
-              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-cyan-700"
-            >
-              + Adicionar item
-            </button>
-          )}
-        </div>
-        {budget.items.length === 0 ? (
-          <div className="py-12 text-center text-slate-400">
-            Nenhum item ainda. Adicione manualmente ou crie um orcamento com template.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {Object.entries(itemsBySection).map(([section, items]) => {
-              const sectionTotal = items.reduce((s, it) => s + it.totalCents, 0);
+      {/* Etapas — cada secao em um card separado, com totais no rodape (espelha aba Linear da planilha) */}
+      {(() => {
+        // Lista das secoes que aparecem (presentes nos items OU adicionadas manualmente)
+        const presentSections = SECTION_ORDER.filter(
+          (sec) => itemsBySection[sec]?.length > 0 || extraSections.includes(sec),
+        );
+        if (presentSections.length === 0) {
+          return (
+            <div className="rounded-xl border border-dashed border-cyan-300 bg-cyan-50 p-12 text-center">
+              <p className="text-sm text-slate-600 mb-4">
+                Orçamento vazio. Voce pode adicionar etapas manualmente ou carregar o template padrao com todas as etapas e linhas.
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!confirm("Aplicar template Linear (Padrao Juliano)?\n\nVai criar 125 items distribuidos em 12 etapas baseados na planilha original. Os valores e quantidades sao SUGESTOES — voce edita depois.")) return;
+                  try {
+                    const res = await api.post<{ itemsCreated: number; unmappedSections: string[] }>(
+                      `/pool-budgets/${id}/apply-linear`, {},
+                    );
+                    toast(`Template aplicado: ${res.itemsCreated} linhas criadas.`, "success");
+                    if (res.unmappedSections.length > 0) {
+                      toast(`Etapas nao mapeadas: ${res.unmappedSections.join(", ")}`, "info");
+                    }
+                    await load();
+                  } catch (err: any) {
+                    toast(err?.payload?.message || "Erro ao aplicar template", "error");
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 shadow-sm"
+              >
+                Carregar template Linear (Padrao Juliano)
+              </button>
+              <p className="text-xs text-slate-400 mt-4">
+                Ou use os botoes &ldquo;+ Adicionar etapa&rdquo; abaixo pra montar manualmente.
+              </p>
+            </div>
+          );
+        }
+        return (
+          <div className="space-y-4">
+            {presentSections.map((section) => {
+              const items = itemsBySection[section] || [];
+              const totProdutos = items.filter((it) => !isServicoItem(it)).reduce((s, it) => s + it.totalCents, 0);
+              const totServicos = items.filter((it) => isServicoItem(it)).reduce((s, it) => s + it.totalCents, 0);
+              const totEtapa = totProdutos + totServicos;
               return (
-                <div key={section} className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-semibold uppercase text-slate-500">
-                      {SECTION_LABEL[section] || section}
-                    </h4>
-                    <span className="text-xs text-slate-500">{fmtCurrency(sectionTotal)}</span>
+                <div key={section} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-cyan-50">
+                    <h3 className="text-sm font-semibold text-cyan-900 uppercase tracking-wide">
+                      Etapa: {SECTION_LABEL[section] || section}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">{items.length} linha{items.length !== 1 ? "s" : ""}</span>
+                      {!isLocked && (
+                        <button
+                          onClick={() => { setAddSection(section); setShowAdd(true); }}
+                          className="rounded bg-cyan-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-cyan-700"
+                          title="Adicionar linha nesta etapa"
+                        >
+                          + Linha
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-xs text-slate-400">
-                        <th className="text-left py-1">Descricao</th>
-                        <th className="text-center py-1 w-20">Qtd</th>
-                        <th className="text-center py-1 w-20">Un</th>
-                        <th className="text-right py-1 w-32">Preco un.</th>
-                        <th className="text-right py-1 w-32">Total</th>
+                      <tr className="bg-slate-50 text-[10px] font-semibold uppercase text-slate-500 border-b border-slate-100">
+                        <th className="text-left px-3 py-1.5 w-12">Seq</th>
+                        <th className="text-left px-3 py-1.5 w-56">Item</th>
+                        <th className="text-left px-3 py-1.5">Descricao</th>
+                        <th className="text-center px-2 py-1.5 w-16">Un</th>
+                        <th className="text-center px-2 py-1.5 w-20">Qtd</th>
+                        <th className="text-right px-3 py-1.5 w-28">Valor un.</th>
+                        <th className="text-right px-3 py-1.5 w-28">Valor total</th>
                         <th className="w-20" />
                       </tr>
                     </thead>
                     <tbody>
-                      {items.map((it) => (
-                        <ItemRow key={it.id} item={it} locked={isLocked}
+                      {items.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center text-xs text-slate-400 py-6">
+                            Etapa vazia — clique em &ldquo;+ Linha&rdquo; pra adicionar items.
+                          </td>
+                        </tr>
+                      ) : items.map((it, idx) => (
+                        <ItemRow key={it.id} item={it} seq={idx + 1} locked={isLocked}
                           onUpdate={(patch) => updateItem(it.id, patch)}
                           onRemove={() => removeItem(it.id)}
                         />
                       ))}
                     </tbody>
+                    <tfoot className="bg-slate-50 border-t border-slate-200">
+                      <tr className="text-xs">
+                        <td colSpan={6} className="px-3 py-1.5 text-right text-slate-600 uppercase font-medium tracking-wide">Total Produtos</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-slate-700">{fmtCurrency(totProdutos)}</td>
+                        <td />
+                      </tr>
+                      <tr className="text-xs">
+                        <td colSpan={6} className="px-3 py-1.5 text-right text-slate-600 uppercase font-medium tracking-wide">Total Servicos</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-slate-700">{fmtCurrency(totServicos)}</td>
+                        <td />
+                      </tr>
+                      <tr className="text-sm font-semibold bg-cyan-100 border-t border-cyan-200">
+                        <td colSpan={6} className="px-3 py-2 text-right text-cyan-900 uppercase tracking-wide">Total {SECTION_LABEL[section] || section}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-cyan-900">{fmtCurrency(totEtapa)}</td>
+                        <td />
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               );
             })}
+
+            {/* Adicionar nova etapa */}
+            {!isLocked && (() => {
+              const availableSections = SECTION_ORDER.filter((s) => !presentSections.includes(s));
+              if (availableSections.length === 0) return null;
+              return (
+                <div className="flex items-center gap-2 pt-2">
+                  <span className="text-xs text-slate-500">+ Adicionar etapa:</span>
+                  {availableSections.map((s) => (
+                    <button key={s} type="button"
+                      onClick={() => setExtraSections((prev) => [...prev, s])}
+                      className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1 text-xs text-slate-600 hover:border-cyan-400 hover:text-cyan-700"
+                    >
+                      {SECTION_LABEL[s] || s}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Modal adicionar item */}
       {showAdd && (
         <AddItemModal
           catalog={catalog}
-          onClose={() => setShowAdd(false)}
-          onSubmit={addItem}
+          defaultSection={addSection}
+          onClose={() => { setShowAdd(false); setAddSection(null); }}
+          onSubmit={(p) => { addItem(p); setAddSection(null); }}
         />
       )}
 
@@ -376,8 +482,9 @@ export default function PoolBudgetDetailPage() {
   );
 }
 
-function ItemRow({ item, locked, onUpdate, onRemove }: {
+function ItemRow({ item, seq, locked, onUpdate, onRemove }: {
   item: BudgetItem;
+  seq?: number;
   locked: boolean;
   onUpdate: (patch: Partial<BudgetItem>) => void;
   onRemove: () => void;
@@ -385,6 +492,7 @@ function ItemRow({ item, locked, onUpdate, onRemove }: {
   const [qty, setQty] = useState(item.qty);
   const [price, setPrice] = useState((item.unitPriceCents / 100).toFixed(2));
   const [desc, setDesc] = useState(item.description);
+  const [slot, setSlot] = useState(item.slotName || "");
 
   function commit() {
     const newQty = parseFloat(String(qty)) || 0;
@@ -393,12 +501,27 @@ function ItemRow({ item, locked, onUpdate, onRemove }: {
     if (newQty !== item.qty) patch.qty = newQty;
     if (newPrice !== item.unitPriceCents) patch.unitPriceCents = newPrice;
     if (desc !== item.description) patch.description = desc;
+    if ((slot || null) !== (item.slotName || null)) patch.slotName = slot || null;
     if (Object.keys(patch).length > 0) onUpdate(patch);
   }
 
   return (
-    <tr className="hover:bg-slate-50">
-      <td className="py-2 pr-2">
+    <tr className="border-b border-slate-100 hover:bg-slate-50 last:border-b-0">
+      <td className="px-3 py-1.5 text-xs text-slate-400 font-mono tabular-nums">{seq ?? ""}</td>
+      <td className="px-3 py-1.5">
+        {locked ? (
+          <span className="text-sm font-medium text-slate-700">{item.slotName || ""}</span>
+        ) : (
+          <input
+            value={slot}
+            onChange={(e) => setSlot(e.target.value)}
+            onBlur={commit}
+            placeholder="ex: Capa Termica"
+            className="w-full rounded border border-transparent px-1 py-0.5 text-sm font-medium hover:border-slate-300 focus:border-cyan-500 outline-none placeholder:font-normal placeholder:text-slate-300"
+          />
+        )}
+      </td>
+      <td className="px-3 py-1.5">
         {locked ? (
           <span className="text-sm text-slate-700">{item.description}</span>
         ) : (
@@ -412,45 +535,50 @@ function ItemRow({ item, locked, onUpdate, onRemove }: {
         {item.isAutoCalculated && <span className="ml-2 text-[10px] text-cyan-600">auto</span>}
         {item.isExtra && <span className="ml-2 text-[10px] text-orange-600">extra</span>}
       </td>
-      <td className="py-2 text-center">
-        {locked ? <span>{item.qty}</span> : (
+      <td className="px-2 py-1.5 text-center text-xs text-slate-500">{item.unit}</td>
+      <td className="px-2 py-1.5 text-center">
+        {locked ? <span className="text-sm tabular-nums">{item.qty}</span> : (
           <input type="number" step="0.01" value={qty}
             onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
             onBlur={commit}
-            className="w-16 rounded border border-slate-200 px-1 py-0.5 text-center text-sm" />
+            className="w-16 rounded border border-slate-200 px-1 py-0.5 text-center text-sm tabular-nums" />
         )}
       </td>
-      <td className="py-2 text-center text-xs text-slate-500">{item.unit}</td>
-      <td className="py-2 text-right">
-        {locked ? <span>{fmtCurrency(item.unitPriceCents)}</span> : (
+      <td className="px-3 py-1.5 text-right">
+        {locked ? <span className="text-sm tabular-nums">{fmtCurrency(item.unitPriceCents)}</span> : (
           <input value={price} onChange={(e) => setPrice(e.target.value)} onBlur={commit}
-            className="w-24 rounded border border-slate-200 px-1 py-0.5 text-right text-sm" />
+            className="w-24 rounded border border-slate-200 px-1 py-0.5 text-right text-sm tabular-nums" />
         )}
       </td>
-      <td className="py-2 text-right font-medium text-slate-800">{fmtCurrency(item.totalCents)}</td>
-      <td className="py-2 text-right">
+      <td className="px-3 py-1.5 text-right font-medium text-slate-800 tabular-nums">{fmtCurrency(item.totalCents)}</td>
+      <td className="px-2 py-1.5 text-right">
         {!locked && (
-          <button onClick={onRemove} className="text-red-500 hover:text-red-700 text-xs">
-            Remover
-          </button>
+          <button onClick={onRemove} className="text-red-400 hover:text-red-600 text-xs"
+            title="Remover linha">✕</button>
         )}
       </td>
     </tr>
   );
 }
 
-function AddItemModal({ catalog, onClose, onSubmit }: {
+function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
   catalog: CatalogConfig[];
+  defaultSection?: string | null;
   onClose: () => void;
   onSubmit: (payload: any) => void;
 }) {
   const [mode, setMode] = useState<"catalog" | "free">("catalog");
   const [catalogConfigId, setCatalogConfigId] = useState("");
-  const [section, setSection] = useState("OUTROS");
+  const [section, setSection] = useState(defaultSection || "OUTROS");
   const [description, setDescription] = useState("");
   const [unit, setUnit] = useState("UN");
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState("0,00");
+
+  // Filtra catalogo pra mostrar prioritariamente itens da secao alvo
+  const filteredCatalog = defaultSection
+    ? [...catalog.filter((c) => c.poolSection === defaultSection), ...catalog.filter((c) => c.poolSection !== defaultSection)]
+    : catalog;
 
   function handleCatalogPick(id: string) {
     setCatalogConfigId(id);
@@ -505,7 +633,7 @@ function AddItemModal({ catalog, onClose, onSubmit }: {
               <select value={catalogConfigId} onChange={(e) => handleCatalogPick(e.target.value)}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                 <option value="">Selecione...</option>
-                {catalog.map((c) => (
+                {filteredCatalog.map((c) => (
                   <option key={c.id} value={c.id}>
                     [{SECTION_LABEL[c.poolSection]}] {c.product?.description || c.service?.name}
                   </option>

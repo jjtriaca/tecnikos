@@ -22,6 +22,11 @@ export class CreateBudgetItemDto {
   @IsEnum(PoolSection)
   poolSection!: PoolSection;
 
+  @ApiPropertyOptional({ description: 'Rotulo do papel da linha (ex: Capa Termica, Bomba Aquecimento)' })
+  @IsOptional()
+  @IsString()
+  slotName?: string;
+
   @ApiProperty()
   @IsString()
   description!: string;
@@ -59,6 +64,11 @@ export class CreateBudgetItemDto {
 }
 
 export class UpdateBudgetItemDto {
+  @ApiPropertyOptional({ description: 'Rotulo do papel da linha' })
+  @IsOptional()
+  @IsString()
+  slotName?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

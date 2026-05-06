@@ -20,6 +20,8 @@ import {
   PoolFormulaConfig,
   PoolConditionConfig,
 } from './pool-formula.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface TemplateSection {
   section: string;
@@ -457,6 +459,7 @@ export class PoolBudgetService {
         serviceId: dto.serviceId,
         poolSection: dto.poolSection,
         sortOrder: dto.sortOrder ?? 0,
+        slotName: dto.slotName,
         description: dto.description,
         unit: dto.unit ?? 'UN',
         qty: dto.qty,
@@ -508,6 +511,7 @@ export class PoolBudgetService {
     const updated = await this.prisma.poolBudgetItem.update({
       where: { id: itemId },
       data: {
+        slotName: dto.slotName,
         description: dto.description,
         unit: dto.unit,
         qty: dto.qty,
@@ -566,6 +570,167 @@ export class PoolBudgetService {
     });
 
     return { success: true };
+  }
+
+  // ============== APLICAR TEMPLATE LINEAR (Padrao Juliano) ==============
+
+  /**
+   * Aplica o template "Linear" extraido da planilha de origem (ANDREIA SANTANA
+   * - Orçamento 120614042026.xlsm aba Linear) ao orçamento atual.
+   *
+   * Para cada linha da planilha cria 1 PoolBudgetItem com:
+   *  - slotName = coluna "Etapa" da planilha (rotulo do papel da linha)
+   *  - description = coluna "Descricao" (produto/servico inicial sugerido)
+   *  - unit/qty/unitPriceCents conforme planilha
+   *  - poolSection = mapeamento da etapa (CONSTRUCAO, FILTRO, etc)
+   *  - tenta vincular catalogConfigId/productId/serviceId procurando match
+   *    pela `description` no PoolCatalogConfig/Product/Service do tenant
+   *
+   * So aplica se o orçamento estiver SEM items (RASCUNHO + items vazios) — pra
+   * evitar duplicacao acidental.
+   */
+  async applyLinearTemplate(
+    budgetId: string,
+    companyId: string,
+    user: AuthenticatedUser,
+  ) {
+    await this.assertModuleActive(companyId);
+
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      include: { items: { select: { id: true } } },
+    });
+    if (!budget) throw new NotFoundException('Orçamento não encontrado');
+    if (budget.status === PoolBudgetStatus.APROVADO) {
+      throw new BadRequestException('Orçamento aprovado — não pode aplicar template');
+    }
+    if (budget.items.length > 0) {
+      throw new BadRequestException(
+        'Orçamento ja tem items. Apague todos antes de aplicar o template Linear, ou crie um orçamento novo.',
+      );
+    }
+
+    // Carrega o JSON do template (bundled em scripts/pool-seed/linear_template.json)
+    // Tenta varios caminhos pra cobrir dev (ts-node de src/) e prod (dist/) e
+    // tambem container Docker (cwd=/app).
+    const candidates = [
+      path.join(__dirname, '../../scripts/pool-seed/linear_template.json'),
+      path.join(__dirname, '../../../scripts/pool-seed/linear_template.json'),
+      path.resolve(process.cwd(), 'scripts/pool-seed/linear_template.json'),
+      path.resolve(process.cwd(), '../scripts/pool-seed/linear_template.json'),
+    ];
+    let template: Array<{ label: string; items: Array<any> }> | null = null;
+    let lastError = '';
+    for (const tplPath of candidates) {
+      try {
+        if (fs.existsSync(tplPath)) {
+          template = JSON.parse(fs.readFileSync(tplPath, 'utf-8'));
+          this.logger.log(`Linear template carregado de: ${tplPath}`);
+          break;
+        }
+      } catch (err: any) {
+        lastError = err?.message || String(err);
+      }
+    }
+    if (!template) {
+      throw new BadRequestException(
+        `Template Linear nao encontrado. Caminhos tentados: ${candidates.join('; ')}. Erro: ${lastError}`,
+      );
+    }
+
+    // Mapeia rotulos da planilha → PoolSection enum
+    const SECTION_MAP: Record<string, string> = {
+      'CONSTRUÇÃO': 'CONSTRUCAO',
+      'FILTRO': 'FILTRO',
+      'CASCATA': 'CASCATA',
+      'SPA': 'SPA',
+      'AQUECIMENTO': 'AQUECIMENTO',
+      'ILUMINAÇÃO': 'ILUMINACAO',
+      'CASA DE MAQUINAS': 'CASA_MAQUINAS',
+      'OUTROS OPCIONAIS': 'OUTROS',
+      'DISPOSITIVOS': 'DISPOSITIVOS',
+      'ACIONAMENTOS ELÉTRICOS': 'ACIONAMENTOS',
+      'BORDA E CALÇADA': 'BORDA_CALCADA',
+      'EXECUÇÃO E ADICIONAIS': 'EXECUCAO',
+    };
+
+    // Carrega catalog completo do tenant (1x) pra fazer matching por descricao
+    const catalogs = await this.prisma.poolCatalogConfig.findMany({
+      where: { companyId },
+      include: {
+        product: { select: { id: true, description: true, salePriceCents: true, unit: true } },
+        service: { select: { id: true, name: true, priceCents: true, unit: true } },
+      },
+    });
+    const findCatalog = (descricao: string) => {
+      if (!descricao) return null;
+      const norm = descricao.toLowerCase().trim().substring(0, 30);
+      for (const c of catalogs) {
+        const candidato = c.product?.description?.toLowerCase()?.trim() || c.service?.name?.toLowerCase()?.trim();
+        if (candidato && candidato.startsWith(norm.substring(0, 15))) return c;
+      }
+      return null;
+    };
+
+    // Cria todos os items em batch
+    const itemsToCreate: Prisma.PoolBudgetItemCreateManyInput[] = [];
+    let created = 0;
+    let unmappedSections = new Set<string>();
+    let globalSort = 0;
+
+    for (const sec of template) {
+      const poolSection = SECTION_MAP[sec.label];
+      if (!poolSection) {
+        unmappedSections.add(sec.label);
+        continue;
+      }
+      for (const it of sec.items) {
+        const cat = findCatalog(it.descricao);
+        const qty = it.qty || 0;
+        // Sistema eh autoritativo: unitPrice arredondado ao centavo,
+        // totalCents = qty × unitPriceCents (auto consistente).
+        const unitPriceCents = Math.round((it.valorUnit || 0) * 100);
+        const totalCents = Math.round(qty * unitPriceCents);
+        itemsToCreate.push({
+          budgetId,
+          poolSection: poolSection as any,
+          sortOrder: globalSort++,
+          slotName: it.etapa || null,
+          description: it.descricao || it.etapa || '(sem descricao)',
+          unit: it.unit || 'UN',
+          qty,
+          unitPriceCents,
+          totalCents,
+          isAutoCalculated: false,
+          isExtra: false,
+          catalogConfigId: cat?.id || null,
+          productId: cat?.productId || null,
+          serviceId: cat?.serviceId || null,
+        });
+        created++;
+      }
+    }
+
+    if (itemsToCreate.length > 0) {
+      await this.prisma.poolBudgetItem.createMany({ data: itemsToCreate });
+      await this.recalculateTotals(budgetId);
+    }
+
+    this.audit.log({
+      companyId,
+      entityType: 'POOL_BUDGET',
+      entityId: budgetId,
+      action: 'TEMPLATE_APPLIED',
+      actorType: 'USER',
+      actorId: user.id,
+      actorName: user.email,
+      after: { template: 'LINEAR_DEFAULT', itemsCreated: created } as any,
+    });
+
+    return {
+      itemsCreated: created,
+      unmappedSections: [...unmappedSections],
+    };
   }
 
   // ============== STATUS TRANSITIONS ==============

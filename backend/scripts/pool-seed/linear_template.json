@@ -1,0 +1,1187 @@
+[
+  {
+    "label": "CONSTRUÇÃO",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Serviço Projeto",
+        "descricao": "Não usado",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 2,
+        "etapa": "Serviço Execução",
+        "descricao": "Não usado calculo da execução no final da planilha",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 3,
+        "etapa": "Serviço Demolição",
+        "descricao": "Sem Serviço",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 4,
+        "etapa": "Serviço de Escavação",
+        "descricao": "Serviço De Escavação De Regularização",
+        "unit": "h",
+        "qty": 6.0,
+        "valorUnit": 272.484,
+        "valorTotal": 1634.904
+      },
+      {
+        "seq": 5,
+        "etapa": "Serviço  de Gabarito",
+        "descricao": "Serviço de gabarito",
+        "unit": "h",
+        "qty": 4.0,
+        "valorUnit": 272.484,
+        "valorTotal": 1089.936
+      },
+      {
+        "seq": 6,
+        "etapa": "Serviço de Compactação",
+        "descricao": "Serviço de compactação",
+        "unit": "h",
+        "qty": 4.0,
+        "valorUnit": 272.484,
+        "valorTotal": 1089.936
+      },
+      {
+        "seq": 7,
+        "etapa": "Tipo de construção",
+        "descricao": "Parede Pré-moldada externa 150cm",
+        "unit": "m/l",
+        "qty": 25.0,
+        "valorUnit": 348.0,
+        "valorTotal": 8700.0
+      },
+      {
+        "seq": 8,
+        "etapa": "Tipo de construção 2",
+        "descricao": "Parede Pré-moldada interna Tamanhos diversos",
+        "unit": "m/l",
+        "qty": 9.0,
+        "valorUnit": 255.2,
+        "valorTotal": 2296.7999999999997
+      },
+      {
+        "seq": 9,
+        "etapa": "Tipo de construção 3",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 10,
+        "etapa": "Serviço de construção",
+        "descricao": "Serviço de montagem de estrutura pré moldada",
+        "unit": "h",
+        "qty": 34.0,
+        "valorUnit": 272.484,
+        "valorTotal": 9264.456
+      },
+      {
+        "seq": 11,
+        "etapa": "Concreto Usinado",
+        "descricao": "Concreto Usinado Fck 35 Mpa",
+        "unit": "m³",
+        "qty": 8.0,
+        "valorUnit": 754.0,
+        "valorTotal": 6032.0
+      },
+      {
+        "seq": 12,
+        "etapa": "Concreto para praia e degraus",
+        "descricao": "Concreto Simples Aditivado Fck 30 Mpa Aprox",
+        "unit": "m³",
+        "qty": 2.0,
+        "valorUnit": 754.0,
+        "valorTotal": 1508.0
+      },
+      {
+        "seq": 13,
+        "etapa": "Serviço de concretagem",
+        "descricao": "Serviço de concretagem",
+        "unit": "h",
+        "qty": 8.0,
+        "valorUnit": 336.4,
+        "valorTotal": 2691.2
+      },
+      {
+        "seq": 14,
+        "etapa": "Chapisco e reboco",
+        "descricao": "Produtos p/ chapisco e reboco",
+        "unit": "m²",
+        "qty": 64.3,
+        "valorUnit": 28.999999999999996,
+        "valorTotal": 1864.6999999999996
+      },
+      {
+        "seq": 15,
+        "etapa": "Serviço para chapisco e reboco",
+        "descricao": "Serviço De Chapisco E Reboco",
+        "unit": "h",
+        "qty": 64.3,
+        "valorUnit": 47.559999999999995,
+        "valorTotal": 3058.1079999999997
+      },
+      {
+        "seq": 16,
+        "etapa": "Impermeabilização Estrutura",
+        "descricao": "Via Plus 7000 Fibras Cx 18kg",
+        "unit": "cx",
+        "qty": 2.8577777777777778,
+        "valorUnit": 348.0,
+        "valorTotal": 994.5066666666667
+      },
+      {
+        "seq": 17,
+        "etapa": "Impermeabilização Geral",
+        "descricao": "Via Plus 7000 Fibras Cx 18kg",
+        "unit": "cx",
+        "qty": 19.647222222222222,
+        "valorUnit": 348.0,
+        "valorTotal": 6837.233333333334
+      },
+      {
+        "seq": 18,
+        "etapa": "Serviço de impermeabilização",
+        "descricao": "Serviço De Impermeabilização Polimérica",
+        "unit": "h",
+        "qty": 59.14,
+        "valorUnit": 82.36,
+        "valorTotal": 4870.7704
+      },
+      {
+        "seq": 19,
+        "etapa": "Revestimentos",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 64.3,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 20,
+        "etapa": "Cantoneiras",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 360.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 21,
+        "etapa": "Argamassa ou cola para revestimentos",
+        "descricao": "Argamassa Quartzolit ACII 18kg",
+        "unit": "sc",
+        "qty": 22.0,
+        "valorUnit": 75.39999999999999,
+        "valorTotal": 1658.7999999999997
+      },
+      {
+        "seq": 22,
+        "etapa": "Serviço de revestimento",
+        "descricao": "Serviço de revestimento pastilhas 20x20cm",
+        "unit": "h",
+        "qty": 64.3,
+        "valorUnit": 148.016,
+        "valorTotal": 9517.4288
+      },
+      {
+        "seq": 23,
+        "etapa": "Rejunte",
+        "descricao": "Rejunte Cimentício Quartzolit Piscina 5kg",
+        "unit": "pac",
+        "qty": 13.0,
+        "valorUnit": 290.0,
+        "valorTotal": 3770.0
+      },
+      {
+        "seq": 24,
+        "etapa": "Serviço de rejunte",
+        "descricao": "Serviço de rejunte cimentício pastilhas 10x10cm",
+        "unit": "h",
+        "qty": 64.3,
+        "valorUnit": 40.367999999999995,
+        "valorTotal": 2595.6623999999997
+      }
+    ]
+  },
+  {
+    "label": "FILTRO",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Conjunto filtrante",
+        "descricao": "Conjunto Filtrante V50 C/ Areia E Bomba Pré-filtro 3/4cv",
+        "unit": "Kit",
+        "qty": 1.0,
+        "valorUnit": 2875.64,
+        "valorTotal": 2875.64
+      },
+      {
+        "seq": 2,
+        "etapa": "Tubos conexoes e registros p/ sist filtragem",
+        "descricao": "Tubos conexões e registros p/ sist. filtragem 50mm",
+        "unit": "Kit",
+        "qty": 1.0,
+        "valorUnit": 1802.5792159999996,
+        "valorTotal": 1802.5792159999996
+      },
+      {
+        "seq": 3,
+        "etapa": "Serviço de Montagem sistema de filtragem",
+        "descricao": "Serviço de montagem sistema de filtragem",
+        "unit": "h",
+        "qty": 10.0,
+        "valorUnit": 336.4,
+        "valorTotal": 3364.0
+      }
+    ]
+  },
+  {
+    "label": "CASCATA",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Cascata",
+        "descricao": "Kit Cascata Inox De Embutir 100cm + Bomba Pf 1cv",
+        "unit": "Kit",
+        "qty": 1.0,
+        "valorUnit": 4269.5887999999995,
+        "valorTotal": 4269.5887999999995
+      },
+      {
+        "seq": 2,
+        "etapa": "Tubos e conexoes p/ cascata",
+        "descricao": "Tubos conexões e registros p/ cascata 50mm",
+        "unit": "Kit",
+        "qty": 1.0,
+        "valorUnit": 1594.2937919999997,
+        "valorTotal": 1594.2937919999997
+      },
+      {
+        "seq": 3,
+        "etapa": "Serviço de montagem cascata",
+        "descricao": "Serviço de montagem de cascata",
+        "unit": "h",
+        "qty": 4.0,
+        "valorUnit": 272.484,
+        "valorTotal": 1089.936
+      },
+      {
+        "seq": 4,
+        "etapa": "Construção para cascata",
+        "descricao": "Alvenaria estrutural",
+        "unit": "m²",
+        "qty": 0.0,
+        "valorUnit": 174.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 5,
+        "etapa": "Laje para cascata",
+        "descricao": "Laje de concreto",
+        "unit": "m²",
+        "qty": 0.0,
+        "valorUnit": 290.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 6,
+        "etapa": "Serviço de Construção alvenaria para casccata",
+        "descricao": "Serviço de construção alvenaria estrutural",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 272.484,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 7,
+        "etapa": "Chapisco e reboco pra cascata",
+        "descricao": "Produtos p/ chapisco e reboco",
+        "unit": "m²",
+        "qty": 0.0,
+        "valorUnit": 28.999999999999996,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 8,
+        "etapa": "Serviço de chapisco e reboco cascata",
+        "descricao": "Serviço de chapisco e reboco",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 47.559999999999995,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 9,
+        "etapa": "Revestimento para contrução cascata",
+        "descricao": "Tinta Suvinil fachada protegida 18l",
+        "unit": "Lt",
+        "qty": 0.0,
+        "valorUnit": 869.9999999999999,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 10,
+        "etapa": "Serviço de revestimento cascata",
+        "descricao": "Serviço de rejunte epóxi em pastilhas 20x20cm",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 121.10399999999998,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 11,
+        "etapa": "Material  selar/impermeabilizar parade cascata",
+        "descricao": "Via Plus 7000 Fibras Cx 18kg",
+        "unit": "cx",
+        "qty": 0.0,
+        "valorUnit": 348.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 12,
+        "etapa": "Material pintura cascata",
+        "descricao": "Selador Suvinil 3,6l",
+        "unit": "Gl",
+        "qty": 0.0,
+        "valorUnit": 99.644,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 13,
+        "etapa": "Serviço de pintura cascata",
+        "descricao": "Serviço de pintura",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 107.648,
+        "valorTotal": 0.0
+      }
+    ]
+  },
+  {
+    "label": "SPA",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Hidromassagem SPA",
+        "descricao": "Kit Spa Bomba 2cv + 8 Jatos Hidro Acabamento Inox",
+        "unit": "Kit",
+        "qty": 1.0,
+        "valorUnit": 4131.92,
+        "valorTotal": 4131.92
+      },
+      {
+        "seq": 2,
+        "etapa": "Blower",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 3,
+        "etapa": "Kit SPA Anatomico (ao escolher vereficar serviço)",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 3,
+        "etapa": "Tubos e conexoes p/ hidromassagem SPA",
+        "descricao": "Tubos conexões e registros SPA 60mm 8 jatos",
+        "unit": "Kit",
+        "qty": 1.0,
+        "valorUnit": 3348.9199999999996,
+        "valorTotal": 3348.9199999999996
+      },
+      {
+        "seq": 4,
+        "etapa": "Serviço de montagem hidromassagem SPA",
+        "descricao": "Serviço de montagem sistema SPA",
+        "unit": "h",
+        "qty": 8.0,
+        "valorUnit": 272.484,
+        "valorTotal": 2179.872
+      }
+    ]
+  },
+  {
+    "label": "AQUECIMENTO",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Aquecimento",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 2,
+        "etapa": "Aquecimento solar",
+        "descricao": "Coletor Solar Trop Piscin 1.12x4m 4,48m²",
+        "unit": "UN",
+        "qty": 10.0,
+        "valorUnit": 821.28,
+        "valorTotal": 8212.8
+      },
+      {
+        "seq": 3,
+        "etapa": "Bomba Aquecimento",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 4,
+        "etapa": "Bomba Aquecimento solar",
+        "descricao": "Bomba pré-filtro auto escovante 1/2 cv Syllenty",
+        "unit": "Un",
+        "qty": 1.0,
+        "valorUnit": 1929.08,
+        "valorTotal": 1929.08
+      },
+      {
+        "seq": 5,
+        "etapa": "Tubos e conexoes para aquecimento",
+        "descricao": "Tubos e conexões para aquecimento 50mm",
+        "unit": "Kit",
+        "qty": 1.0,
+        "valorUnit": 2273.6,
+        "valorTotal": 2273.6
+      },
+      {
+        "seq": 6,
+        "etapa": "Capa Térmica",
+        "descricao": "Capa térmica 300 mic",
+        "unit": "m²",
+        "qty": 28.499999999999996,
+        "valorUnit": 41.76,
+        "valorTotal": 1190.1599999999999
+      },
+      {
+        "seq": 7,
+        "etapa": "Serviço de montagem aquecimento",
+        "descricao": "Serviço de montagem aquecimento solar",
+        "unit": "h",
+        "qty": 8.0,
+        "valorUnit": 272.484,
+        "valorTotal": 2179.872
+      }
+    ]
+  },
+  {
+    "label": "ILUMINAÇÃO",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Iluminação subaquática cabo 10m",
+        "descricao": "Refletor Rgb 10w Slim C/ Cabo 10m",
+        "unit": "UN",
+        "qty": 5.0,
+        "valorUnit": 771.4,
+        "valorTotal": 3857.0
+      },
+      {
+        "seq": 2,
+        "etapa": "Iluminação subaquática cabo 20m",
+        "descricao": "Refletor Rgb 10w Premium C/ Cabo 20m",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 820.1199999999999,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 3,
+        "etapa": "Módulo Iluminação",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 4,
+        "etapa": "Tubos e conexoes iluminação sub aquatica 10m",
+        "descricao": "Tubos e conexões p/ iluminação ponto 10m",
+        "unit": "Kit",
+        "qty": 5.0,
+        "valorUnit": 67.28,
+        "valorTotal": 336.4
+      },
+      {
+        "seq": 5,
+        "etapa": "Tubos e conexoes iluminação sub aquatica 20m",
+        "descricao": "Tubos e conexões p/ iluminação ponto 20m",
+        "unit": "Kit",
+        "qty": 0.0,
+        "valorUnit": 134.56,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 6,
+        "etapa": "Serviço de instalção iluminação sub aquatica",
+        "descricao": "Serviço de montagem iluminação Sub aquática",
+        "unit": "h",
+        "qty": 8.0,
+        "valorUnit": 272.484,
+        "valorTotal": 2179.872
+      }
+    ]
+  },
+  {
+    "label": "CASA DE MAQUINAS",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Tipo casa de maquinas",
+        "descricao": "Subterrânea Simples Sem Tampa",
+        "unit": "Un",
+        "qty": 1.0,
+        "valorUnit": 580.0,
+        "valorTotal": 580.0
+      },
+      {
+        "seq": 2,
+        "etapa": "Serviço escavação casa de maquinas",
+        "descricao": "Serviço De Escavação De Regularização",
+        "unit": "h",
+        "qty": 4.0,
+        "valorUnit": 272.484,
+        "valorTotal": 1089.936
+      },
+      {
+        "seq": 3,
+        "etapa": "Casa de maquinas construção",
+        "descricao": "Parede Pré-moldada interna Tamanhos diversos",
+        "unit": "m/l",
+        "qty": 4.4,
+        "valorUnit": 255.2,
+        "valorTotal": 1122.88
+      },
+      {
+        "seq": 4,
+        "etapa": "Lage e piso casa de maquinas",
+        "descricao": "Concreto simples p/ laje ou piso",
+        "unit": "m³",
+        "qty": 0.5,
+        "valorUnit": 580.0,
+        "valorTotal": 290.0
+      },
+      {
+        "seq": 5,
+        "etapa": "Serviço construção casa de maquinas",
+        "descricao": "Serviço de montagem de estrutura pré moldada",
+        "unit": "h",
+        "qty": 6.0,
+        "valorUnit": 272.484,
+        "valorTotal": 1634.904
+      },
+      {
+        "seq": 6,
+        "etapa": "Reboco casa de maquinas",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 7,
+        "etapa": "Serviço reboco casa de maquinas",
+        "descricao": "Sem Serviço",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 8,
+        "etapa": "Impermeabilização casa de maquinas",
+        "descricao": "Via Plus 7000 Fibras Cx 18kg",
+        "unit": "cx",
+        "qty": 0,
+        "valorUnit": 348.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 9,
+        "etapa": "Serviço de Impermeabilização",
+        "descricao": "Sem Serviço",
+        "unit": "UN",
+        "qty": 0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 10,
+        "etapa": "Revestimento casa de maquinas",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 11,
+        "etapa": "Serviço de revestimento casa de maquinas",
+        "descricao": "Serviço de pintura",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 107.648,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 12,
+        "etapa": "Pintura casa de maquinas",
+        "descricao": "Tinta Suvinil fachada protegida 3,6l",
+        "unit": "Gl",
+        "qty": 0.0,
+        "valorUnit": 487.2,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 13,
+        "etapa": "Serviço de pintura casa de maquinas",
+        "descricao": "Sem Serviço",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 14,
+        "etapa": "Ventilador exaustor casa de maquinas",
+        "descricao": "Ventilador Exaustor In-line Tdm 100 220v",
+        "unit": "PC",
+        "qty": 1.0,
+        "valorUnit": 196.04,
+        "valorTotal": 196.04
+      },
+      {
+        "seq": 15,
+        "etapa": "Tampa para casa de maquinas",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      }
+    ]
+  },
+  {
+    "label": "OUTROS OPCIONAIS",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Abastecimento e nível",
+        "descricao": "Kit Abast. Nível Automático C/ Caixa De Passagem E Boia",
+        "unit": "Kit",
+        "qty": 0.0,
+        "valorUnit": 1750.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 2,
+        "etapa": "Serviço para abastecimento e nivel",
+        "descricao": "Serviço de montagem abastecimento e nível",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 272.484,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 3,
+        "etapa": "Kit Automação poço",
+        "descricao": "Kit automação Poço x Mangueira",
+        "unit": "Kit",
+        "qty": 0.0,
+        "valorUnit": 3619.2,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 4,
+        "etapa": "Serviço de automação poço",
+        "descricao": "Serviço De Montagem Automação Poço",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 3758.3999999999996,
+        "valorTotal": 0.0
+      }
+    ]
+  },
+  {
+    "label": "DISPOSITIVOS",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Dispositivos de retorno",
+        "descricao": "Dispositivo Retorno Alvenaria Ajust Inox",
+        "unit": "PC",
+        "qty": 5.0,
+        "valorUnit": 71.92,
+        "valorTotal": 359.6
+      },
+      {
+        "seq": 2,
+        "etapa": "Dispositivo Aspiração",
+        "descricao": "Dispositivo Asp Alv Rosca 1.1/2 Inox",
+        "unit": "PC",
+        "qty": 1.0,
+        "valorUnit": 55.67999999999999,
+        "valorTotal": 55.67999999999999
+      },
+      {
+        "seq": 3,
+        "etapa": "Ralos de fundo",
+        "descricao": "Grade Fundo 15x15 C/ Tamp Fsb Prata  Abs",
+        "unit": "PC",
+        "qty": 2.0,
+        "valorUnit": 103.24,
+        "valorTotal": 206.48
+      },
+      {
+        "seq": 4,
+        "etapa": "Ralos de parede",
+        "descricao": "Tampa Para Dreno Lbm Prata",
+        "unit": "PC",
+        "qty": 2.0,
+        "valorUnit": 55.67999999999999,
+        "valorTotal": 111.35999999999999
+      },
+      {
+        "seq": 5,
+        "etapa": "Skimer",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 6,
+        "etapa": "Serviço de montagem Dispositivo Ralos e Skimers",
+        "descricao": "Serviço montagem dispositivos e ralos",
+        "unit": "h",
+        "qty": 2.0,
+        "valorUnit": 272.484,
+        "valorTotal": 544.968
+      }
+    ]
+  },
+  {
+    "label": "ACIONAMENTOS ELÉTRICOS",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Disjuntor geral",
+        "descricao": "Disjuntor Shb2 Gii-c063a",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 70.75999999999999,
+        "valorTotal": 70.75999999999999
+      },
+      {
+        "seq": 2,
+        "etapa": "Interruptor DR NBR 5410",
+        "descricao": "Interruptor Dr - Drs2 L-063a",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 143.84,
+        "valorTotal": 143.84
+      },
+      {
+        "seq": 3,
+        "etapa": "Disjuntor Filtro",
+        "descricao": "Disjuntor Shb2 Gii-c063a",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 70.75999999999999,
+        "valorTotal": 70.75999999999999
+      },
+      {
+        "seq": 4,
+        "etapa": "Disjuntor cascata",
+        "descricao": "Disjuntor Shb2 Gii-c063a",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 70.75999999999999,
+        "valorTotal": 70.75999999999999
+      },
+      {
+        "seq": 5,
+        "etapa": "Disjuntor SPA",
+        "descricao": "Disjuntor Shb2 Gii-c063a",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 70.75999999999999,
+        "valorTotal": 70.75999999999999
+      },
+      {
+        "seq": 6,
+        "etapa": "Disjuntor Aquecimento",
+        "descricao": "Disjuntor Shb2 Gii-c063a",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 70.75999999999999,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 7,
+        "etapa": "Disjuntor Aquecimento solar",
+        "descricao": "Disjuntor Shb2 Gii-c063a",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 70.75999999999999,
+        "valorTotal": 70.75999999999999
+      },
+      {
+        "seq": 8,
+        "etapa": "Disjuntor Iluminação",
+        "descricao": "Disjuntor Shb2 Gii-c063a",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 70.75999999999999,
+        "valorTotal": 70.75999999999999
+      },
+      {
+        "seq": 9,
+        "etapa": "Contactor filtro",
+        "descricao": "Contator 2nc Ac-7a 63a 220v C/ Atuador",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 301.59999999999997,
+        "valorTotal": 301.59999999999997
+      },
+      {
+        "seq": 10,
+        "etapa": "Contactor cascata",
+        "descricao": "Contator 2nc Ac-7a 63a 220v C/ Atuador",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 301.59999999999997,
+        "valorTotal": 301.59999999999997
+      },
+      {
+        "seq": 11,
+        "etapa": "Contactor SPA",
+        "descricao": "Contator 2nc Ac-7a 63a 220v C/ Atuador",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 301.59999999999997,
+        "valorTotal": 301.59999999999997
+      },
+      {
+        "seq": 12,
+        "etapa": "Contactor aquecimento",
+        "descricao": "Contator 2nc Ac-7a 63a 220v C/ Atuador",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 301.59999999999997,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 13,
+        "etapa": "Contactor aquecimento solar",
+        "descricao": "Contator 2nc Ac-7a 63a 220v C/ Atuador",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 301.59999999999997,
+        "valorTotal": 301.59999999999997
+      },
+      {
+        "seq": 14,
+        "etapa": "Quadro de Distribuição",
+        "descricao": "Quadro Distr.sob.ip65 18polos",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 477.91999999999996,
+        "valorTotal": 477.91999999999996
+      },
+      {
+        "seq": 15,
+        "etapa": "Módulos de automação",
+        "descricao": "Smart Pool 2ª Geração 12vcc 200w",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 3235.24,
+        "valorTotal": 3235.24
+      },
+      {
+        "seq": 16,
+        "etapa": "Módulo de automação solar",
+        "descricao": "Sem Produto",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 17,
+        "etapa": "Fonte 12V",
+        "descricao": "Fonte 12v 190-240v 8.3a 100w",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 229.67999999999998,
+        "valorTotal": 229.67999999999998
+      },
+      {
+        "seq": 18,
+        "etapa": "Quadro VDI para modulos",
+        "descricao": "Quadro Sistema Vdi 30x30 Embutir",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 372.35999999999996,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 19,
+        "etapa": "Material p/ Aterramento, Barramento, Terminais etc",
+        "descricao": "Kit, Aterramento, Barramento, Terminais etc.",
+        "unit": "Kit",
+        "qty": 1.0,
+        "valorUnit": 371.2,
+        "valorTotal": 371.2
+      },
+      {
+        "seq": 20,
+        "etapa": "Serviço de Eletrotécnica",
+        "descricao": "Serviço de Eletrotécnica",
+        "unit": "h",
+        "qty": 8.0,
+        "valorUnit": 272.484,
+        "valorTotal": 2179.872
+      }
+    ]
+  },
+  {
+    "label": "BORDA E CALÇADA",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Escavação ou aterro para calçada",
+        "descricao": "Serviço de demolição",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 272.484,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 2,
+        "etapa": "Compactação para calçada",
+        "descricao": "Serviço de compactação",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 272.484,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 3,
+        "etapa": "Gabarito para calçada",
+        "descricao": "Serviço de gabarito",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 272.484,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 4,
+        "etapa": "Viga baldrame para calçada",
+        "descricao": "Alvenaria estrutural",
+        "unit": "m²",
+        "qty": 0.0,
+        "valorUnit": 174.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 5,
+        "etapa": "Serviço de viga baldrame para calçada",
+        "descricao": "Serviço de construção alvenaria estrutural",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 272.484,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 6,
+        "etapa": "Tela armada para calçada",
+        "descricao": "Tela armada 15x15 5mm para calçada",
+        "unit": "m²",
+        "qty": 0.0,
+        "valorUnit": 40.599999999999994,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 7,
+        "etapa": "Concreto para calçada",
+        "descricao": "Concreto simples p/ laje ou piso",
+        "unit": "m³",
+        "qty": 0.0,
+        "valorUnit": 580.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 8,
+        "etapa": "Serviço de tela e concreto para calçada",
+        "descricao": "Serviço de construção alvenaria estrutural",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 272.484,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 9,
+        "etapa": "Revestimento calçada",
+        "descricao": "Pedra Serrada Seleção Verde 30xdiv",
+        "unit": "M2",
+        "qty": 0.0,
+        "valorUnit": 474.43999999999994,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 10,
+        "etapa": "Serviço de revestimento para calçada",
+        "descricao": "Serviço de rejunte epóxi em grandes formatos",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 80.73599999999999,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 11,
+        "etapa": "Borda",
+        "descricao": "Borda Pedra Serrada Seleção Verde 30xdiv",
+        "unit": "M2",
+        "qty": 0.0,
+        "valorUnit": 571.88,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 12,
+        "etapa": "Serviço de borda",
+        "descricao": "Serviço de resvestimento pedra serrada",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 215.296,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 13,
+        "etapa": "Ralo ou grelhas",
+        "descricao": "Grelha 8x80 oculta aluminio gda",
+        "unit": "UN",
+        "qty": 0.0,
+        "valorUnit": 580.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 14,
+        "etapa": "Serviço de ralos ou grelhas",
+        "descricao": "Serviço de Eletrotécnica",
+        "unit": "h",
+        "qty": 0.0,
+        "valorUnit": 272.484,
+        "valorTotal": 0.0
+      }
+    ]
+  },
+  {
+    "label": "EXECUÇÃO E ADICIONAIS",
+    "items": [
+      {
+        "seq": 1,
+        "etapa": "Projeto",
+        "descricao": "Sem Serviço",
+        "unit": "UN",
+        "qty": 1.0,
+        "valorUnit": 0.0,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 2,
+        "etapa": "Serviço de Execução",
+        "descricao": "Serviço De Execução Sls",
+        "unit": "Uni",
+        "qty": 0.0,
+        "valorUnit": 24075.0535408,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 3,
+        "etapa": "Serviço de Deslocamento da Equipe",
+        "descricao": "Deslocamento De Equipe Ida E Volda",
+        "unit": "Km",
+        "qty": 0.0,
+        "valorUnit": 3.4799999999999995,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 4,
+        "etapa": "Serviço de Deslocamento do Juliano",
+        "descricao": "Deslocamento Juliano Ida E Volda",
+        "unit": "Km",
+        "qty": 0.0,
+        "valorUnit": 2.32,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 5,
+        "etapa": "Terceiro Pedagio",
+        "descricao": "Pedagio",
+        "unit": "Un",
+        "qty": 0.0,
+        "valorUnit": 11.6,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 6,
+        "etapa": "Terceiros Alimentação",
+        "descricao": "Alimentação De Equipe",
+        "unit": "Uni",
+        "qty": 0.0,
+        "valorUnit": 81.19999999999999,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 7,
+        "etapa": "Terceiro Hospedagem",
+        "descricao": "Hospedagem De Equipe (por Pessoa)",
+        "unit": "Dia",
+        "qty": 0.0,
+        "valorUnit": 69.6,
+        "valorTotal": 0.0
+      },
+      {
+        "seq": 8,
+        "etapa": "Frete",
+        "descricao": "Frete por km rodado",
+        "unit": "Km",
+        "qty": 0.0,
+        "valorUnit": 8.12,
+        "valorTotal": 0.0
+      }
+    ]
+  }
+]

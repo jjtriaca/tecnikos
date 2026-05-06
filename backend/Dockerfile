@@ -37,6 +37,9 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 # Copiar build
 COPY --from=builder /app/dist ./dist
 
+# Copiar templates JSON usados em runtime (pool linear_template, dados, etc.)
+COPY scripts ./scripts
+
 # Copiar version.json (gerado pelo script de deploy)
 COPY version.json* ./
 
