@@ -90,8 +90,8 @@ type PoolPaymentTerm = {
 type CatalogConfig = {
   id: string;
   poolSection: string;
-  product: { id: string; description: string; salePriceCents: number; unit: string } | null;
-  service: { id: string; name: string; priceCents: number; unit: string } | null;
+  product: { id: string; code?: string | null; description: string; brand?: string | null; salePriceCents: number; unit: string; technicalSpecs?: Record<string, any> | null } | null;
+  service: { id: string; code?: string | null; name: string; priceCents: number; unit: string; technicalSpecs?: Record<string, any> | null } | null;
 };
 
 const SECTION_LABEL: Record<string, string> = {
@@ -220,9 +220,25 @@ export default function PoolBudgetDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    api.get<{ data: CatalogConfig[] }>("/pool-catalog-config?limit=200")
-      .then((r) => setCatalog(r.data || []))
-      .catch(() => setCatalog([]));
+    // Carrega catalogo paginado (limit max do backend = 100, cabem ~220 items)
+    (async () => {
+      try {
+        const all: CatalogConfig[] = [];
+        let page = 1;
+        for (let i = 0; i < 10; i++) {
+          const r = await api.get<{ data: CatalogConfig[]; meta?: { total: number } }>(
+            `/pool-catalog-config?limit=100&page=${page}`,
+          );
+          const batch = r.data || [];
+          all.push(...batch);
+          if (batch.length < 100) break;
+          page++;
+        }
+        setCatalog(all);
+      } catch {
+        setCatalog([]);
+      }
+    })();
     api.get<PoolPaymentTerm[]>("/pool-payment-terms")
       .then((r) => setPaymentTerms(r || []))
       .catch(() => setPaymentTerms([]));
@@ -675,10 +691,16 @@ export default function PoolBudgetDetailPage() {
         <SaveAsTemplateModal
           budgetId={id}
           itemsCount={budget.items.length}
+          currentTemplateId={budget.template?.id}
           onClose={() => setShowSaveAsTemplate(false)}
-          onSaved={(name) => {
+          onSaved={(name, mode) => {
             setShowSaveAsTemplate(false);
-            toast(`Modelo "${name}" salvo. Use ao criar novo orcamento.`, "success");
+            toast(
+              mode === "update"
+                ? `Modelo "${name}" atualizado. Orcamentos novos vao usar a versao atualizada.`
+                : `Modelo "${name}" criado. Use ao criar novo orcamento.`,
+              "success",
+            );
           }}
         />
       )}
@@ -839,11 +861,27 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
   const [unit, setUnit] = useState("UN");
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState("0,00");
+  const [search, setSearch] = useState("");
+  const [showAllSections, setShowAllSections] = useState(false);
 
-  // Filtra catalogo pra mostrar prioritariamente itens da secao alvo
-  const filteredCatalog = defaultSection
-    ? [...catalog.filter((c) => c.poolSection === defaultSection), ...catalog.filter((c) => c.poolSection !== defaultSection)]
-    : catalog;
+  // Filtra catalogo: busca por descricao/marca/code/specs + secao
+  const filteredCatalog = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const tokens = q.length > 0 ? q.split(/\s+/) : [];
+    return catalog.filter((c) => {
+      // Filtra por secao se nao "mostrar todas"
+      if (!showAllSections && defaultSection && c.poolSection !== defaultSection) return false;
+      if (tokens.length === 0) return true;
+      const haystack = [
+        c.product?.code, c.product?.description, c.product?.brand,
+        c.service?.code, c.service?.name,
+        SECTION_LABEL[c.poolSection],
+        ...(c.product?.technicalSpecs ? Object.values(c.product.technicalSpecs).map(String) : []),
+        ...(c.service?.technicalSpecs ? Object.values(c.service.technicalSpecs).map(String) : []),
+      ].filter(Boolean).join(" ").toLowerCase();
+      return tokens.every((t) => haystack.includes(t));
+    });
+  }, [catalog, search, defaultSection, showAllSections]);
 
   function handleCatalogPick(id: string) {
     setCatalogConfigId(id);
@@ -893,17 +931,91 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           {mode === "catalog" && (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Item do catalogo</label>
-              <select value={catalogConfigId} onChange={(e) => handleCatalogPick(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Selecione...</option>
-                {filteredCatalog.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    [{SECTION_LABEL[c.poolSection]}] {c.product?.description || c.service?.name}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-medium text-slate-600">Item do catalogo</label>
+                {defaultSection && (
+                  <label className="text-[10px] text-slate-500 flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={showAllSections}
+                      onChange={(e) => setShowAllSections(e.target.checked)}
+                      className="h-3 w-3" />
+                    Buscar em todas as etapas
+                  </label>
+                )}
+              </div>
+              <div className="relative">
+                <input value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
+                  placeholder="🔍 Buscar por descricao, marca, codigo, voltagem, vazao..."
+                  className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-cyan-500 outline-none" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                {search && (
+                  <button type="button" onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm">✕</button>
+                )}
+              </div>
+              <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
+                {filteredCatalog.length === 0 ? (
+                  <div className="text-center text-xs text-slate-400 py-6">
+                    {search ? "Nenhum item encontrado" : "Catalogo vazio"}
+                  </div>
+                ) : filteredCatalog.slice(0, 200).map((c) => {
+                  const isProduct = !!c.product;
+                  const item = c.product ?? c.service!;
+                  const name = c.product?.description || c.service?.name || "";
+                  const code = c.product?.code || c.service?.code;
+                  const priceCents = c.product?.salePriceCents ?? c.service?.priceCents ?? 0;
+                  const itemUnit = c.product?.unit || c.service?.unit || "UN";
+                  const specs = c.product?.technicalSpecs || c.service?.technicalSpecs || null;
+                  const specBadges: string[] = [];
+                  if (specs) {
+                    if (specs.voltagem) specBadges.push(`${specs.voltagem}V`);
+                    if (specs.amperagem) specBadges.push(`${specs.amperagem}A`);
+                    if (specs.potenciaCv) specBadges.push(`${specs.potenciaCv}cv`);
+                    if (specs.potenciaWatts) specBadges.push(`${specs.potenciaWatts}W`);
+                    if (specs.vazaoM3h) specBadges.push(`${specs.vazaoM3h}m³/h`);
+                    if (specs.pesoKg) specBadges.push(`${specs.pesoKg}kg`);
+                    if (specs.eficiencia) specBadges.push(`${specs.eficiencia}%ef`);
+                    if (specs.kcalHMax) specBadges.push(`${specs.kcalHMax}kcal/h`);
+                  }
+                  const isSelected = catalogConfigId === c.id;
+                  return (
+                    <button key={c.id} type="button" onClick={() => handleCatalogPick(c.id)}
+                      className={`w-full text-left px-3 py-2 hover:bg-cyan-50 transition ${isSelected ? "bg-cyan-100" : ""}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isProduct ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}>
+                              {isProduct ? "PROD" : "SERV"}
+                            </span>
+                            <span className="text-[9px] font-mono text-slate-400">{code}</span>
+                            <span className="text-[9px] text-slate-500">{SECTION_LABEL[c.poolSection]}</span>
+                          </div>
+                          <div className="text-sm font-medium text-slate-900 mt-0.5">{name}</div>
+                          {(c.product?.brand || specBadges.length > 0) && (
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {c.product?.brand && (
+                                <span className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{c.product.brand}</span>
+                              )}
+                              {specBadges.map((b, i) => (
+                                <span key={i} className="text-[10px] text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded font-mono">{b}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right whitespace-nowrap">
+                          <div className="text-sm font-bold text-slate-900 tabular-nums">{fmtCurrency(priceCents)}</div>
+                          <div className="text-[10px] text-slate-500">/ {itemUnit}</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {filteredCatalog.length > 200 && (
+                <div className="text-[10px] text-slate-500 text-center">
+                  Mostrando 200 de {filteredCatalog.length}. Refine a busca.
+                </div>
+              )}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -1516,25 +1628,66 @@ function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit
 // ─────────────────────────────────────────────────────────
 // SaveAsTemplateModal — captura snapshot do orcamento atual e cria PoolBudgetTemplate.
 // ─────────────────────────────────────────────────────────
-function SaveAsTemplateModal({ budgetId, itemsCount, onClose, onSaved }: {
+type ExistingTemplate = { id: string; name: string; description?: string | null; isDefault: boolean; updatedAt?: string };
+
+function SaveAsTemplateModal({ budgetId, itemsCount, currentTemplateId, onClose, onSaved }: {
   budgetId: string;
   itemsCount: number;
+  currentTemplateId?: string | null;
   onClose: () => void;
-  onSaved: (name: string) => void;
+  onSaved: (name: string, mode: "new" | "update") => void;
 }) {
   const { toast } = useToast();
+  const [templates, setTemplates] = useState<ExistingTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [mode, setMode] = useState<"new" | "update">(currentTemplateId ? "update" : "new");
+  const [updateTemplateId, setUpdateTemplateId] = useState<string>(currentTemplateId ?? "");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isDefault, setIsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    api.get<ExistingTemplate[] | { data: ExistingTemplate[] }>("/pool-budget-templates")
+      .then((r) => {
+        const list = Array.isArray(r) ? r : (r as any)?.data ?? [];
+        setTemplates(list);
+        // Se nao ha modelos, forca modo "new"
+        if (list.length === 0) setMode("new");
+      })
+      .catch(() => setTemplates([]))
+      .finally(() => setLoadingTemplates(false));
+  }, []);
+
+  // Quando seleciona modelo pra atualizar, pre-popula nome/descricao
+  useEffect(() => {
+    if (mode === "update" && updateTemplateId) {
+      const t = templates.find((x) => x.id === updateTemplateId);
+      if (t) {
+        setName(t.name);
+        setDescription(t.description ?? "");
+        setIsDefault(t.isDefault);
+      }
+    }
+  }, [updateTemplateId, mode, templates]);
+
+  const selectedTemplate = mode === "update" ? templates.find((t) => t.id === updateTemplateId) : null;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) { toast("Nome obrigatorio", "error"); return; }
+    if (mode === "new" && !name.trim()) { toast("Nome obrigatorio", "error"); return; }
+    if (mode === "update" && !updateTemplateId) { toast("Selecione um modelo pra atualizar", "error"); return; }
+    if (mode === "update" && !confirm(`Sobrescrever o modelo "${selectedTemplate?.name}" com o estado atual deste orcamento? Os ${itemsCount} items + defaults atuais vao SUBSTITUIR o conteudo do modelo.`)) return;
     setSaving(true);
     try {
-      await api.post(`/pool-budgets/${budgetId}/save-as-template`, { name: name.trim(), description: description || undefined, isDefault });
-      onSaved(name.trim());
+      const payload: any = {
+        name: name.trim() || undefined,
+        description: description || undefined,
+        isDefault,
+      };
+      if (mode === "update") payload.templateId = updateTemplateId;
+      await api.post(`/pool-budgets/${budgetId}/save-as-template`, payload);
+      onSaved(name.trim() || selectedTemplate?.name || "modelo", mode);
     } catch (err: any) {
       toast(err?.payload?.message || "Erro ao salvar modelo", "error");
     } finally {
@@ -1544,19 +1697,58 @@ function SaveAsTemplateModal({ budgetId, itemsCount, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Salvar como modelo</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
         </div>
+
+        {/* Mode toggle */}
+        <div className="grid grid-cols-2 gap-1.5 rounded-lg bg-slate-100 p-1">
+          <button type="button" onClick={() => setMode("new")}
+            className={`rounded px-3 py-1.5 text-sm font-medium transition ${mode === "new" ? "bg-white shadow text-indigo-700" : "text-slate-600 hover:text-slate-900"}`}>
+            Novo modelo
+          </button>
+          <button type="button" onClick={() => setMode("update")} disabled={templates.length === 0}
+            className={`rounded px-3 py-1.5 text-sm font-medium transition ${mode === "update" ? "bg-white shadow text-orange-700" : "text-slate-600 hover:text-slate-900"} disabled:opacity-40 disabled:cursor-not-allowed`}>
+            Atualizar existente
+          </button>
+        </div>
+
         <p className="text-xs text-slate-600">
-          Captura {itemsCount} item{itemsCount !== 1 ? "s" : ""} (com etapas/formulas/precos) + impostos, desconto, garantias e forma de pagamento. Proximo orcamento criado com este modelo ja vem populado.
+          Captura {itemsCount} item{itemsCount !== 1 ? "s" : ""} (etapas/formulas/precos) + impostos, desconto, garantias e forma de pagamento.
+          {mode === "update"
+            ? <span className="text-orange-700 font-medium"> O conteudo do modelo selecionado vai ser SUBSTITUIDO.</span>
+            : <span className="text-slate-500"> Proximo orcamento criado com este modelo ja vem populado.</span>}
         </p>
+
         <form onSubmit={submit} className="space-y-3">
+          {mode === "update" && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Modelo a atualizar</label>
+              <select value={updateTemplateId} onChange={(e) => setUpdateTemplateId(e.target.value)} required
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <option value="">{loadingTemplates ? "Carregando..." : "Selecione um modelo..."}</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.isDefault ? " ★" : ""}{currentTemplateId === t.id ? " (modelo deste orcamento)" : ""}
+                  </option>
+                ))}
+              </select>
+              {selectedTemplate?.description && (
+                <div className="mt-1 text-[11px] text-slate-500 italic">{selectedTemplate.description}</div>
+              )}
+            </div>
+          )}
+
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Nome do modelo</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus
-              placeholder="Ex: Padrao Juliano Azul"
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Nome do modelo {mode === "update" && <span className="text-slate-400">(opcional — mantem o atual se vazio)</span>}
+            </label>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              required={mode === "new"}
+              autoFocus={mode === "new"}
+              placeholder={mode === "new" ? "Ex: Padrao Juliano Azul" : selectedTemplate?.name}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           </div>
           <div>
@@ -1571,8 +1763,9 @@ function SaveAsTemplateModal({ budgetId, itemsCount, onClose, onSaved }: {
           </label>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancelar</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
-              {saving ? "Salvando..." : "Salvar modelo"}
+            <button type="submit" disabled={saving}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${mode === "update" ? "bg-orange-600 hover:bg-orange-700" : "bg-indigo-600 hover:bg-indigo-700"}`}>
+              {saving ? "Salvando..." : (mode === "update" ? "Sobrescrever modelo" : "Criar novo modelo")}
             </button>
           </div>
         </form>

@@ -1058,6 +1058,13 @@ model Product {
   // Imagem (modulo Piscina + impressao de orcamento)
   imageUrl String? // URL da foto do produto (CDN ou /uploads)
 
+  // Especificacoes tecnicas extensiveis (modulo Piscina). Json livre:
+  // { weightKg, lengthCm, widthCm, thicknessCm, powerHp, voltage, phaseType,
+  //   powerWatts, amperage, wattsHourMax, wattsHourAvg, flowRateM3h, sandLoadKg,
+  //   inletPipeMm, recommendedPumpCode, efficiency, multiplier, kcalHourMin,
+  //   kcalHourMax, kitCode, yieldRate, consumptionKgPerM2, ... }
+  technicalSpecs Json?
+
   status    String    @default("ATIVO")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -2047,6 +2054,9 @@ model Service {
 
   // Imagem (modulo Piscina + impressao)
   imageUrl String?
+
+  // Especificacoes tecnicas extensiveis (modulo Piscina). Json livre — espelho do Product
+  technicalSpecs Json?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

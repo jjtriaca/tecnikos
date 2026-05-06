@@ -244,10 +244,17 @@ async function main() {
     const specs = buildTechnicalSpecs(row);
 
     if (isProduto) {
-      // Cria Product (skip se ja existe pelo code)
+      // Cria Product (skip se ja existe pelo code) — atualiza technicalSpecs/imageUrl em ambos casos
       const existing = await prisma.product.findFirst({ where: { companyId, code } });
       const product = existing
-        ? existing
+        ? await prisma.product.update({
+            where: { id: existing.id },
+            data: {
+              technicalSpecs: specs as any,
+              ...(imageUrl && !existing.imageUrl ? { imageUrl } : {}),
+              ...(brand && !existing.brand ? { brand } : {}),
+            },
+          })
         : await prisma.product.create({
             data: {
               companyId,
@@ -260,6 +267,7 @@ async function main() {
               salePriceCents: sale ?? undefined,
               profitMarginPercent: margin ? margin * 100 : undefined,
               imageUrl,
+              technicalSpecs: specs as any,
             },
           });
       if (!existing) createdProducts++;
@@ -283,10 +291,16 @@ async function main() {
         }
       }
     } else {
-      // Cria Service
+      // Cria Service — atualiza technicalSpecs/imageUrl mesmo se ja existir
       const existing = await prisma.service.findFirst({ where: { companyId, code } });
       const service = existing
-        ? existing
+        ? await prisma.service.update({
+            where: { id: existing.id },
+            data: {
+              technicalSpecs: specs as any,
+              ...(imageUrl && !existing.imageUrl ? { imageUrl } : {}),
+            },
+          })
         : await prisma.service.create({
             data: {
               companyId,
@@ -297,6 +311,7 @@ async function main() {
               priceCents: sale ?? undefined,
               category: row.Categoria || grupo || null,
               imageUrl,
+              technicalSpecs: specs as any,
             },
           });
       if (!existing) createdServices++;

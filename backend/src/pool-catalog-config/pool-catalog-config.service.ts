@@ -163,8 +163,8 @@ export class PoolCatalogConfigService {
         take: limit,
         orderBy,
         include: {
-          product: { select: { id: true, code: true, description: true, unit: true, imageUrl: true, salePriceCents: true } },
-          service: { select: { id: true, code: true, name: true, unit: true, imageUrl: true, priceCents: true } },
+          product: { select: { id: true, code: true, description: true, brand: true, unit: true, imageUrl: true, salePriceCents: true, technicalSpecs: true } },
+          service: { select: { id: true, code: true, name: true, unit: true, imageUrl: true, priceCents: true, technicalSpecs: true } },
         },
       }),
       this.prisma.poolCatalogConfig.count({ where }),

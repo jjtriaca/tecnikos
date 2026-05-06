@@ -1180,12 +1180,26 @@ export class PoolBudgetService {
     budgetId: string,
     companyId: string,
     user: AuthenticatedUser,
-    payload: { name: string; description?: string; isDefault?: boolean },
+    payload: { name?: string; description?: string; isDefault?: boolean; templateId?: string },
   ) {
     await this.assertModuleActive(companyId);
 
-    if (!payload?.name || payload.name.trim().length === 0) {
+    // Sem templateId = criar novo (precisa de nome). Com templateId = atualizar (nome opcional).
+    const isUpdate = !!payload?.templateId;
+    if (!isUpdate && (!payload?.name || payload.name.trim().length === 0)) {
       throw new BadRequestException('Nome do modelo e obrigatorio');
+    }
+
+    // Se atualizando, valida que o modelo existe e pertence a empresa
+    let existingTemplate: { id: string; name: string } | null = null;
+    if (isUpdate) {
+      existingTemplate = await this.prisma.poolBudgetTemplate.findFirst({
+        where: { id: payload.templateId, companyId, deletedAt: null },
+        select: { id: true, name: true },
+      });
+      if (!existingTemplate) {
+        throw new NotFoundException('Modelo nao encontrado');
+      }
     }
 
     const budget = await this.prisma.poolBudget.findFirst({
@@ -1235,28 +1249,49 @@ export class PoolBudgetService {
 
     if (payload.isDefault) {
       await this.prisma.poolBudgetTemplate.updateMany({
-        where: { companyId, isDefault: true, deletedAt: null },
+        where: {
+          companyId,
+          isDefault: true,
+          deletedAt: null,
+          ...(isUpdate ? { id: { not: payload.templateId } } : {}),
+        },
         data: { isDefault: false },
       });
     }
 
-    const template = await this.prisma.poolBudgetTemplate.create({
-      data: {
-        companyId,
-        name: payload.name.trim(),
-        description: payload.description ?? null,
-        isDefault: payload.isDefault ?? false,
-        sections: [] as unknown as Prisma.InputJsonValue,
-        itemsSnapshot: itemsSnapshot as unknown as Prisma.InputJsonValue,
-        defaults: defaults as unknown as Prisma.InputJsonValue,
-      },
-    });
+    let template: { id: string; name: string };
+    if (isUpdate && existingTemplate) {
+      template = await this.prisma.poolBudgetTemplate.update({
+        where: { id: existingTemplate.id },
+        data: {
+          name: payload.name?.trim() || existingTemplate.name,
+          description: payload.description !== undefined ? (payload.description || null) : undefined,
+          isDefault: payload.isDefault,
+          itemsSnapshot: itemsSnapshot as unknown as Prisma.InputJsonValue,
+          defaults: defaults as unknown as Prisma.InputJsonValue,
+        },
+        select: { id: true, name: true },
+      });
+    } else {
+      template = await this.prisma.poolBudgetTemplate.create({
+        data: {
+          companyId,
+          name: payload.name!.trim(),
+          description: payload.description ?? null,
+          isDefault: payload.isDefault ?? false,
+          sections: [] as unknown as Prisma.InputJsonValue,
+          itemsSnapshot: itemsSnapshot as unknown as Prisma.InputJsonValue,
+          defaults: defaults as unknown as Prisma.InputJsonValue,
+        },
+        select: { id: true, name: true },
+      });
+    }
 
     this.audit.log({
       companyId,
       entityType: 'POOL_BUDGET_TEMPLATE',
       entityId: template.id,
-      action: 'CREATED',
+      action: isUpdate ? 'UPDATED' : 'CREATED',
       actorType: 'USER',
       actorId: user.id,
       actorName: user.email,

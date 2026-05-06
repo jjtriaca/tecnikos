@@ -158,14 +158,14 @@ export class PoolBudgetController {
 
   @ApiOperation({
     summary: 'Salva o orcamento atual como modelo (PoolBudgetTemplate)',
-    description: 'Captura todos os items + impostos/desconto/garantias/forma pagamento/etc. Proximo orcamento criado com esse modelo ja vem populado.',
+    description: 'Captura todos os items + impostos/desconto/garantias/forma pagamento. Se templateId enviado, ATUALIZA o modelo existente (sobrescreve items e defaults). Senao, cria novo.',
   })
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/save-as-template')
   saveAsTemplate(
     @Param('id') id: string,
-    @Body() body: { name: string; description?: string; isDefault?: boolean },
+    @Body() body: { name?: string; description?: string; isDefault?: boolean; templateId?: string },
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.saveAsTemplate(id, user.companyId, user, body);
