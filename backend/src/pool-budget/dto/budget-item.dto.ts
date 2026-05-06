@@ -61,6 +61,11 @@ export class CreateBudgetItemDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Expressao pra auto-calcular qty (vars: length, width, depth, area, perimeter, volume)' })
+  @IsOptional()
+  @IsString()
+  formulaExpr?: string;
 }
 
 export class UpdateBudgetItemDto {
@@ -101,4 +106,9 @@ export class UpdateBudgetItemDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Expressao pra auto-calcular qty. String vazia = remove formula.' })
+  @IsOptional()
+  @IsString()
+  formulaExpr?: string;
 }

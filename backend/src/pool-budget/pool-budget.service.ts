@@ -14,6 +14,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
+import { evaluateFormula, extractDimensionVars } from './formula-eval';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
 import {
   PoolFormulaService,
@@ -72,11 +73,11 @@ export class PoolBudgetService {
     if (!client) throw new NotFoundException('Cliente não encontrado');
 
     // Valida template (se enviado)
-    let template: { sections: unknown } | null = null;
+    let template: { sections: unknown; itemsSnapshot: unknown; defaults: unknown } | null = null;
     if (dto.templateId) {
       template = await this.prisma.poolBudgetTemplate.findFirst({
         where: { id: dto.templateId, companyId, deletedAt: null, isActive: true },
-        select: { sections: true },
+        select: { sections: true, itemsSnapshot: true, defaults: true },
       });
       if (!template) throw new NotFoundException('Template não encontrado ou inativo');
     }
@@ -94,6 +95,8 @@ export class PoolBudgetService {
       .generateCode(companyId, 'POOL_BUDGET')
       .catch(() => null);
 
+    // Se template tem defaults (snapshot v1.10.43+), aplica como base. DTO sobrescreve.
+    const tDefaults = (template?.defaults as Record<string, any>) || {};
     const created = await this.prisma.poolBudget.create({
       data: {
         companyId,
@@ -108,15 +111,17 @@ export class PoolBudgetService {
         termsConditions: dto.termsConditions,
         poolDimensions: dto.poolDimensions as unknown as Prisma.InputJsonValue,
         environmentParams: dto.environmentParams as Prisma.InputJsonValue | undefined,
-        validityDays: dto.validityDays ?? 30,
+        validityDays: dto.validityDays ?? tDefaults.validityDays ?? 30,
         discountCents: dto.discountCents,
-        discountPercent: dto.discountPercent,
-        taxesPercent: dto.taxesPercent,
+        discountPercent: dto.discountPercent ?? tDefaults.discountPercent ?? null,
+        taxesPercent: dto.taxesPercent ?? tDefaults.taxesPercent ?? null,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        equipmentWarranty: dto.equipmentWarranty,
-        workWarranty: dto.workWarranty,
-        paymentTerms: dto.paymentTerms,
-        earlyPaymentDiscountPct: dto.earlyPaymentDiscountPct,
+        equipmentWarranty: dto.equipmentWarranty ?? tDefaults.equipmentWarranty ?? null,
+        workWarranty: dto.workWarranty ?? tDefaults.workWarranty ?? null,
+        paymentTerms: dto.paymentTerms ?? tDefaults.paymentTerms ?? null,
+        earlyPaymentDiscountPct: dto.earlyPaymentDiscountPct ?? tDefaults.earlyPaymentDiscountPct ?? null,
+        paymentTermId: dto.paymentTermId ?? tDefaults.paymentTermId ?? null,
+        sectionOrder: dto.sectionOrder ?? tDefaults.sectionOrder ?? [],
         status: PoolBudgetStatus.RASCUNHO,
       },
       include: {
@@ -125,9 +130,16 @@ export class PoolBudgetService {
       },
     });
 
-    // Se tem template, popula os itens automaticamente
+    // Aplica items do template:
+    // 1) Se tem itemsSnapshot[] (v1.10.43+ Salvar como modelo), usa-o (mais rico)
+    // 2) Caso contrario, usa sections (template legado)
     if (template) {
-      await this.applyTemplate(created.id, companyId, template.sections, dto.poolDimensions);
+      const snapshot = Array.isArray(template.itemsSnapshot) ? (template.itemsSnapshot as any[]) : [];
+      if (snapshot.length > 0) {
+        await this.applyItemsSnapshot(created.id, snapshot, dto.poolDimensions);
+      } else {
+        await this.applyTemplate(created.id, companyId, template.sections, dto.poolDimensions);
+      }
       await this.recalculateTotals(created.id);
     }
 
@@ -143,6 +155,54 @@ export class PoolBudgetService {
     });
 
     return this.findOne(created.id, companyId);
+  }
+
+  /**
+   * Aplica items vindos de um snapshot (v1.10.43+ "Salvar como modelo").
+   * Cada entry tem todos os campos do PoolBudgetItem preservados.
+   * Re-avalia formulaExpr contra dimensions atuais quando presente.
+   */
+  private async applyItemsSnapshot(
+    budgetId: string,
+    snapshot: any[],
+    poolDimensions: any,
+  ) {
+    if (!Array.isArray(snapshot) || snapshot.length === 0) return;
+    const vars = extractDimensionVars(poolDimensions);
+    const itemsToCreate: Prisma.PoolBudgetItemCreateManyInput[] = [];
+    let order = 0;
+    for (const it of snapshot) {
+      let qty = Number(it.qty) || 0;
+      let qtyCalculated: number | null = null;
+      if (it.formulaExpr && String(it.formulaExpr).trim()) {
+        try {
+          qty = evaluateFormula(String(it.formulaExpr), vars);
+          qtyCalculated = qty;
+        } catch {
+          // Mantem qty do snapshot se a formula falhar
+        }
+      }
+      const unitPriceCents = Number(it.unitPriceCents) || 0;
+      const totalCents = Math.round(qty * unitPriceCents);
+      itemsToCreate.push({
+        budgetId,
+        poolSection: it.poolSection,
+        sortOrder: typeof it.sortOrder === 'number' ? it.sortOrder : order++,
+        slotName: it.slotName ?? null,
+        description: it.description || '(sem descricao)',
+        unit: it.unit || 'UN',
+        qty,
+        qtyCalculated,
+        formulaExpr: it.formulaExpr || null,
+        unitPriceCents,
+        totalCents,
+        isAutoCalculated: !!it.formulaExpr,
+        isExtra: false,
+      });
+    }
+    if (itemsToCreate.length > 0) {
+      await this.prisma.poolBudgetItem.createMany({ data: itemsToCreate });
+    }
   }
 
   /**
@@ -369,6 +429,7 @@ export class PoolBudgetService {
         clientPartner: true,
         template: { select: { id: true, name: true } },
         printLayout: { select: { id: true, name: true } },
+        paymentTerm: true,
         items: {
           orderBy: [{ poolSection: 'asc' }, { sortOrder: 'asc' }],
           include: {
@@ -426,6 +487,8 @@ export class PoolBudgetService {
         workWarranty: dto.workWarranty,
         paymentTerms: dto.paymentTerms,
         earlyPaymentDiscountPct: dto.earlyPaymentDiscountPct,
+        sectionOrder: dto.sectionOrder,
+        paymentTermId: dto.paymentTermId,
       },
     });
 
@@ -505,7 +568,23 @@ export class PoolBudgetService {
       throw new BadRequestException('Orçamento aprovado — não pode adicionar items');
     }
 
-    const totalCents = Math.round(dto.qty * dto.unitPriceCents);
+    // Se formula foi enviada, avalia e sobrescreve qty + qtyCalculated
+    let effectiveQty = dto.qty;
+    let qtyCalculated: number | undefined;
+    if (dto.formulaExpr && dto.formulaExpr.trim()) {
+      const fullBudget = await this.prisma.poolBudget.findUnique({
+        where: { id: budgetId },
+        select: { poolDimensions: true },
+      });
+      const vars = extractDimensionVars(fullBudget?.poolDimensions);
+      try {
+        effectiveQty = evaluateFormula(dto.formulaExpr, vars);
+        qtyCalculated = effectiveQty;
+      } catch (err: any) {
+        throw new BadRequestException(`Formula invalida: ${err.message}`);
+      }
+    }
+    const totalCents = Math.round(effectiveQty * dto.unitPriceCents);
     const item = await this.prisma.poolBudgetItem.create({
       data: {
         budgetId,
@@ -517,10 +596,12 @@ export class PoolBudgetService {
         slotName: dto.slotName,
         description: dto.description,
         unit: dto.unit ?? 'UN',
-        qty: dto.qty,
+        qty: effectiveQty,
+        qtyCalculated: qtyCalculated ?? null,
+        formulaExpr: dto.formulaExpr || null,
         unitPriceCents: dto.unitPriceCents,
         totalCents,
-        isAutoCalculated: false,
+        isAutoCalculated: !!dto.formulaExpr,
         isExtra: dto.isExtra ?? true,
         notes: dto.notes,
       },
@@ -559,9 +640,35 @@ export class PoolBudgetService {
       throw new BadRequestException('Orçamento aprovado — não pode editar items');
     }
 
-    const newQty = dto.qty ?? item.qty;
+    // Se formula foi enviada, recalcula qty + qtyCalculated. String vazia = remove formula.
+    let effectiveQty = dto.qty ?? item.qty;
+    let qtyCalculated: number | null | undefined = undefined;
+    let formulaExpr: string | null | undefined = undefined;
+    let autoCalculatedOverride: boolean | undefined = undefined;
+    if (dto.formulaExpr !== undefined) {
+      if (dto.formulaExpr.trim()) {
+        const fullBudget = await this.prisma.poolBudget.findUnique({
+          where: { id: item.budgetId },
+          select: { poolDimensions: true },
+        });
+        const vars = extractDimensionVars(fullBudget?.poolDimensions);
+        try {
+          effectiveQty = evaluateFormula(dto.formulaExpr, vars);
+        } catch (err: any) {
+          throw new BadRequestException(`Formula invalida: ${err.message}`);
+        }
+        qtyCalculated = effectiveQty;
+        formulaExpr = dto.formulaExpr;
+        autoCalculatedOverride = true;
+      } else {
+        // Limpa formula
+        qtyCalculated = null;
+        formulaExpr = null;
+        autoCalculatedOverride = false;
+      }
+    }
     const newUnitPrice = dto.unitPriceCents ?? item.unitPriceCents;
-    const totalCents = Math.round(newQty * newUnitPrice);
+    const totalCents = Math.round(effectiveQty * newUnitPrice);
 
     const updated = await this.prisma.poolBudgetItem.update({
       where: { id: itemId },
@@ -569,15 +676,18 @@ export class PoolBudgetService {
         slotName: dto.slotName,
         description: dto.description,
         unit: dto.unit,
-        qty: dto.qty,
+        qty: dto.formulaExpr !== undefined && formulaExpr ? effectiveQty : dto.qty,
+        qtyCalculated,
+        formulaExpr,
         unitPriceCents: dto.unitPriceCents,
         totalCents,
         sortOrder: dto.sortOrder,
         notes: dto.notes,
-        // Marcar como editado se mudou qty ou preço
-        ...(dto.qty !== undefined || dto.unitPriceCents !== undefined
-          ? { isAutoCalculated: false }
-          : {}),
+        ...(autoCalculatedOverride !== undefined
+          ? { isAutoCalculated: autoCalculatedOverride }
+          : (dto.qty !== undefined || dto.unitPriceCents !== undefined
+            ? { isAutoCalculated: false }
+            : {})),
       },
     });
 
@@ -892,5 +1002,100 @@ export class PoolBudgetService {
     });
 
     return updated;
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Salvar como modelo: captura items + defaults do orcamento
+  // atual e cria PoolBudgetTemplate. Proximo orcamento criado
+  // com esse template ja vem populado com tudo.
+  // ─────────────────────────────────────────────────────────
+  async saveAsTemplate(
+    budgetId: string,
+    companyId: string,
+    user: AuthenticatedUser,
+    payload: { name: string; description?: string; isDefault?: boolean },
+  ) {
+    await this.assertModuleActive(companyId);
+
+    if (!payload?.name || payload.name.trim().length === 0) {
+      throw new BadRequestException('Nome do modelo e obrigatorio');
+    }
+
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      include: {
+        items: {
+          orderBy: [{ poolSection: 'asc' }, { sortOrder: 'asc' }],
+          select: {
+            poolSection: true,
+            sortOrder: true,
+            slotName: true,
+            description: true,
+            unit: true,
+            qty: true,
+            unitPriceCents: true,
+            formulaExpr: true,
+          },
+        },
+      },
+    });
+    if (!budget) throw new NotFoundException('Orçamento não encontrado');
+
+    // Snapshot dos items
+    const itemsSnapshot = budget.items.map((it) => ({
+      poolSection: it.poolSection,
+      sortOrder: it.sortOrder,
+      slotName: it.slotName,
+      description: it.description,
+      unit: it.unit,
+      qty: it.qty,
+      unitPriceCents: it.unitPriceCents,
+      formulaExpr: it.formulaExpr,
+    }));
+
+    // Defaults
+    const defaults = {
+      validityDays: budget.validityDays,
+      discountPercent: budget.discountPercent,
+      taxesPercent: budget.taxesPercent,
+      equipmentWarranty: budget.equipmentWarranty,
+      workWarranty: budget.workWarranty,
+      paymentTerms: budget.paymentTerms,
+      earlyPaymentDiscountPct: budget.earlyPaymentDiscountPct,
+      paymentTermId: budget.paymentTermId,
+      sectionOrder: budget.sectionOrder,
+    };
+
+    if (payload.isDefault) {
+      await this.prisma.poolBudgetTemplate.updateMany({
+        where: { companyId, isDefault: true, deletedAt: null },
+        data: { isDefault: false },
+      });
+    }
+
+    const template = await this.prisma.poolBudgetTemplate.create({
+      data: {
+        companyId,
+        name: payload.name.trim(),
+        description: payload.description ?? null,
+        isDefault: payload.isDefault ?? false,
+        sections: [] as unknown as Prisma.InputJsonValue,
+        itemsSnapshot: itemsSnapshot as unknown as Prisma.InputJsonValue,
+        defaults: defaults as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    this.audit.log({
+      companyId,
+      entityType: 'POOL_BUDGET_TEMPLATE',
+      entityId: template.id,
+      action: 'CREATED',
+      actorType: 'USER',
+      actorId: user.id,
+      actorName: user.email,
+      after: { sourceBudgetId: budgetId, name: template.name } as unknown as Record<string, unknown>,
+    });
+
+    return template;
   }
 }

@@ -16,6 +16,7 @@ type BudgetItem = {
   unit: string;
   qty: number;
   qtyCalculated: number | null;
+  formulaExpr: string | null;
   unitPriceCents: number;
   totalCents: number;
   isAutoCalculated: boolean;
@@ -53,6 +54,9 @@ type Budget = {
   workWarranty: string | null;
   paymentTerms: string | null;
   earlyPaymentDiscountPct: number | null;
+  sectionOrder: string[];
+  paymentTermId: string | null;
+  paymentTerm: PoolPaymentTerm | null;
   approvedAt: string | null;
   approvedByName: string | null;
   rejectedAt: string | null;
@@ -65,6 +69,21 @@ type Budget = {
   template?: { id: string; name: string };
   printLayout?: { id: string; name: string };
   project?: { id: string; code: string | null; status: string };
+};
+
+type PoolPaymentTermPart = {
+  label: string;
+  percent: number;
+  count: number;
+  intervalDays: number;
+  firstOffsetDays: number;
+};
+type PoolPaymentTerm = {
+  id: string;
+  name: string;
+  isActive: boolean;
+  isDefault: boolean;
+  structure: PoolPaymentTermPart[];
 };
 
 type CatalogConfig = {
@@ -115,6 +134,43 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   EXPIRADO: { label: "Expirado", cls: "bg-orange-100 text-orange-700 border-orange-300" },
 };
 
+// ─────────────────────────────────────────────────────────
+// Gera parcelas a partir de PoolPaymentTerm + totalCents + startDate.
+// - Cada parte: valorCents = round(total × percent/100), distribuido em `count` parcelas.
+// - Parcela base = floor(partCents / count); ultima parcela do bloco recebe o resto pra
+//   somar exato. Diferenca total final tambem cai na ultima parcela geral (sistema autoritativo).
+// - Data: startDate + firstOffsetDays + k × intervalDays.
+// ─────────────────────────────────────────────────────────
+function generateInstallments(
+  term: PoolPaymentTerm | null,
+  totalCents: number,
+  startDate: Date | null,
+): Array<{ idx: number; date: Date; cents: number; label: string }> {
+  if (!term || totalCents <= 0) return [];
+  const result: Array<{ idx: number; date: Date; cents: number; label: string }> = [];
+  const baseStart = startDate ?? new Date();
+  let allocated = 0;
+  let idx = 0;
+  for (const part of term.structure) {
+    const partCents = Math.round((totalCents * part.percent) / 100);
+    const baseAmount = Math.floor(partCents / part.count);
+    const remainder = partCents - baseAmount * part.count;
+    for (let k = 0; k < part.count; k++) {
+      const amount = baseAmount + (k === part.count - 1 ? remainder : 0);
+      const due = new Date(baseStart);
+      due.setUTCDate(due.getUTCDate() + part.firstOffsetDays + k * part.intervalDays);
+      idx++;
+      result.push({ idx, date: due, cents: amount, label: part.label });
+      allocated += amount;
+    }
+  }
+  const diff = totalCents - allocated;
+  if (diff !== 0 && result.length > 0) {
+    result[result.length - 1].cents += diff;
+  }
+  return result;
+}
+
 function fmtCurrency(c: number) {
   return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -126,12 +182,14 @@ export default function PoolBudgetDetailPage() {
   const [budget, setBudget] = useState<Budget | null>(null);
   const [loading, setLoading] = useState(true);
   const [catalog, setCatalog] = useState<CatalogConfig[]>([]);
+  const [paymentTerms, setPaymentTerms] = useState<PoolPaymentTerm[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [addSection, setAddSection] = useState<string | null>(null);
   // Etapas adicionadas manualmente que ainda nao tem items (pra UI ja ter card vazio)
   const [extraSections, setExtraSections] = useState<string[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject" | "cancel" | "delete">(null);
+  const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
 
   function toggleSection(section: string) {
     setCollapsedSections((prev) => {
@@ -164,6 +222,9 @@ export default function PoolBudgetDetailPage() {
     api.get<{ data: CatalogConfig[] }>("/pool-catalog-config?limit=200")
       .then((r) => setCatalog(r.data || []))
       .catch(() => setCatalog([]));
+    api.get<PoolPaymentTerm[]>("/pool-payment-terms")
+      .then((r) => setPaymentTerms(r || []))
+      .catch(() => setPaymentTerms([]));
   }, []);
 
   const isLocked = budget?.status === "APROVADO" || budget?.status === "CANCELADO";
@@ -182,6 +243,31 @@ export default function PoolBudgetDetailPage() {
       await load();
     } catch (err: any) {
       toast(err?.payload?.message || "Erro ao atualizar item", "error");
+    }
+  }
+
+  async function moveItem(item: BudgetItem, dir: -1 | 1) {
+    if (!budget) return;
+    const sectionItems = (budget.items.filter((i) => i.poolSection === item.poolSection) || [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = sectionItems.findIndex((i) => i.id === item.id);
+    if (idx < 0) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= sectionItems.length) return;
+    const a = sectionItems[idx];
+    const b = sectionItems[newIdx];
+    try {
+      // Troca direta dos sortOrder. Em caso de empate (sortOrder iguais), aplica delta.
+      const newA = b.sortOrder === a.sortOrder ? a.sortOrder + dir : b.sortOrder;
+      const newB = b.sortOrder === a.sortOrder ? b.sortOrder - dir : a.sortOrder;
+      await Promise.all([
+        api.put(`/pool-budgets/items/${a.id}`, { sortOrder: newA }),
+        api.put(`/pool-budgets/items/${b.id}`, { sortOrder: newB }),
+      ]);
+      await load();
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao mover linha", "error");
     }
   }
 
@@ -310,6 +396,15 @@ export default function PoolBudgetDetailPage() {
               Excluir
             </button>
           )}
+          {!isLocked && budget.items.length > 0 && (
+            <button
+              onClick={() => setShowSaveAsTemplate(true)}
+              className="rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+              title="Salva todos os items + impostos/desconto/garantias/forma pagto como modelo"
+            >
+              💾 Salvar como modelo
+            </button>
+          )}
         </div>
       </div>
 
@@ -343,10 +438,22 @@ export default function PoolBudgetDetailPage() {
 
       {/* Etapas — cada secao em um card separado, com totais no rodape (espelha aba Linear da planilha) */}
       {(() => {
-        // Lista das secoes que aparecem (presentes nos items OU adicionadas manualmente)
-        const presentSections = SECTION_ORDER.filter(
+        // Ordem efetiva: usa sectionOrder do budget se preenchido, senao default. Inclui extras nao listadas no fim.
+        const orderBase = budget.sectionOrder && budget.sectionOrder.length > 0 ? budget.sectionOrder : SECTION_ORDER;
+        const allWithItems = [...new Set([...orderBase, ...SECTION_ORDER, ...extraSections])];
+        const presentSections = allWithItems.filter(
           (sec) => itemsBySection[sec]?.length > 0 || extraSections.includes(sec),
         );
+
+        async function moveSection(section: string, dir: -1 | 1) {
+          const idx = presentSections.indexOf(section);
+          if (idx < 0) return;
+          const newIdx = idx + dir;
+          if (newIdx < 0 || newIdx >= presentSections.length) return;
+          const next = [...presentSections];
+          [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+          await updateBudget({ sectionOrder: next });
+        }
         if (presentSections.length === 0) {
           return (
             <div className="rounded-xl border border-dashed border-cyan-300 bg-cyan-50 p-12 text-center">
@@ -414,6 +521,22 @@ export default function PoolBudgetDetailPage() {
                       {isCollapsed && <span className="ml-2 normal-case font-normal text-xs text-slate-600 tabular-nums">— {fmtCurrency(totEtapa)}</span>}
                     </button>
                     <div className="flex items-center gap-2">
+                      {!isLocked && (
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={() => moveSection(section, -1)}
+                            disabled={presentSections.indexOf(section) === 0}
+                            className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Mover etapa pra cima"
+                          >▲</button>
+                          <button
+                            onClick={() => moveSection(section, 1)}
+                            disabled={presentSections.indexOf(section) === presentSections.length - 1}
+                            className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Mover etapa pra baixo"
+                          >▼</button>
+                        </div>
+                      )}
                       <span className="text-xs text-slate-500">{items.length} linha{items.length !== 1 ? "s" : ""}</span>
                       {!isLocked && (
                         <button
@@ -449,8 +572,12 @@ export default function PoolBudgetDetailPage() {
                         </tr>
                       ) : items.map((it, idx) => (
                         <ItemRow key={it.id} item={it} seq={idx + 1} locked={isLocked}
+                          isFirst={idx === 0}
+                          isLast={idx === items.length - 1}
+                          dimensions={budget.poolDimensions}
                           onUpdate={(patch) => updateItem(it.id, patch)}
                           onRemove={() => removeItem(it.id)}
+                          onMove={(dir) => moveItem(it, dir)}
                         />
                       ))}
                     </tbody>
@@ -503,6 +630,7 @@ export default function PoolBudgetDetailPage() {
       <BudgetSummaryBlock
         budget={budget}
         locked={budget.status === "APROVADO"}
+        paymentTerms={paymentTerms}
         onUpdate={updateBudget}
       />
 
@@ -539,18 +667,35 @@ export default function PoolBudgetDetailPage() {
         onConfirmWithReason={(r) => performAction(r)}
         onCancel={() => setConfirmAction(null)}
       />
+
+      {showSaveAsTemplate && (
+        <SaveAsTemplateModal
+          budgetId={id}
+          itemsCount={budget.items.length}
+          onClose={() => setShowSaveAsTemplate(false)}
+          onSaved={(name) => {
+            setShowSaveAsTemplate(false);
+            toast(`Modelo "${name}" salvo. Use ao criar novo orcamento.`, "success");
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function ItemRow({ item, seq, locked, onUpdate, onRemove }: {
+function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, onUpdate, onRemove, onMove }: {
   item: BudgetItem;
   seq?: number;
   locked: boolean;
-  onUpdate: (patch: Partial<BudgetItem>) => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+  dimensions?: any;
+  onUpdate: (patch: Partial<BudgetItem> & { formulaExpr?: string | null }) => void;
   onRemove: () => void;
+  onMove?: (dir: -1 | 1) => void;
 }) {
   const [qty, setQty] = useState(item.qty);
+  const [showFormula, setShowFormula] = useState(false);
   const [price, setPrice] = useState((item.unitPriceCents / 100).toFixed(2));
   const [desc, setDesc] = useState(item.description);
   const [slot, setSlot] = useState(item.slotName || "");
@@ -567,6 +712,7 @@ function ItemRow({ item, seq, locked, onUpdate, onRemove }: {
   }
 
   return (
+    <>
     <tr className="border-b border-slate-100 hover:bg-slate-50 last:border-b-0">
       <td className="px-3 py-1.5 text-xs text-slate-400 font-mono tabular-nums">{seq ?? ""}</td>
       <td className="px-3 py-1.5">
@@ -598,11 +744,23 @@ function ItemRow({ item, seq, locked, onUpdate, onRemove }: {
       </td>
       <td className="px-2 py-1.5 text-center text-xs text-slate-500">{item.unit}</td>
       <td className="px-2 py-1.5 text-center">
-        {locked ? <span className="text-sm tabular-nums">{item.qty}</span> : (
-          <input type="number" step="0.01" value={qty}
-            onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
-            onBlur={commit}
-            className="w-16 rounded border border-slate-200 px-1 py-0.5 text-center text-sm tabular-nums" />
+        {locked ? (
+          <span className="text-sm tabular-nums">{item.qty}</span>
+        ) : (
+          <div className="inline-flex items-center gap-1">
+            <button type="button" onClick={() => setShowFormula(true)}
+              className={"text-[10px] font-bold px-1 rounded border " + (item.formulaExpr ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-slate-200 text-slate-400 hover:text-cyan-600 hover:border-cyan-300")}
+              title={item.formulaExpr ? `Formula: ${item.formulaExpr}` : "Configurar formula automatica"}
+            >fx</button>
+            {item.formulaExpr ? (
+              <span className="text-sm tabular-nums text-cyan-700 font-medium" title={`= ${item.formulaExpr}`}>{item.qty}</span>
+            ) : (
+              <input type="number" step="0.01" value={qty}
+                onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
+                onBlur={commit}
+                className="w-16 rounded border border-slate-200 px-1 py-0.5 text-center text-sm tabular-nums" />
+            )}
+          </div>
         )}
       </td>
       <td className="px-3 py-1.5 text-right">
@@ -612,13 +770,35 @@ function ItemRow({ item, seq, locked, onUpdate, onRemove }: {
         )}
       </td>
       <td className="px-3 py-1.5 text-right font-medium text-slate-800 tabular-nums">{fmtCurrency(item.totalCents)}</td>
-      <td className="px-2 py-1.5 text-right">
+      <td className="px-2 py-1.5">
         {!locked && (
-          <button onClick={onRemove} className="text-red-400 hover:text-red-600 text-xs"
-            title="Remover linha">✕</button>
+          <div className="flex items-center justify-end gap-1">
+            {onMove && (
+              <>
+                <button onClick={() => onMove(-1)} disabled={isFirst}
+                  className="text-slate-400 hover:text-slate-700 text-[10px] disabled:opacity-20 disabled:cursor-not-allowed"
+                  title="Mover linha pra cima">▲</button>
+                <button onClick={() => onMove(1)} disabled={isLast}
+                  className="text-slate-400 hover:text-slate-700 text-[10px] disabled:opacity-20 disabled:cursor-not-allowed"
+                  title="Mover linha pra baixo">▼</button>
+              </>
+            )}
+            <button onClick={onRemove} className="text-red-400 hover:text-red-600 text-xs ml-1"
+              title="Remover linha">✕</button>
+          </div>
         )}
       </td>
     </tr>
+    {showFormula && (
+      <FormulaModal
+        initialExpr={item.formulaExpr || ""}
+        dimensions={dimensions}
+        onClose={() => setShowFormula(false)}
+        onSave={(expr) => { setShowFormula(false); onUpdate({ formulaExpr: expr }); }}
+        onClear={() => { setShowFormula(false); onUpdate({ formulaExpr: "" }); }}
+      />
+    )}
+    </>
   );
 }
 
@@ -756,9 +936,10 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
 // 4 linhas de totais (Subtotal, Impostos, Desconto, Total Geral) + prazo + condicoes.
 // Impostos e Desconto sao em %, valores calculados pelo backend.
 // ─────────────────────────────────────────────────────────
-function BudgetSummaryBlock({ budget, locked, onUpdate }: {
+function BudgetSummaryBlock({ budget, locked, paymentTerms, onUpdate }: {
   budget: Budget;
   locked: boolean;
+  paymentTerms: PoolPaymentTerm[];
   onUpdate: (patch: Record<string, any>) => void;
 }) {
   const [taxesPct, setTaxesPct] = useState<string>(budget.taxesPercent?.toString().replace(".", ",") ?? "");
@@ -766,7 +947,7 @@ function BudgetSummaryBlock({ budget, locked, onUpdate }: {
   const [startDate, setStartDate] = useState<string>(budget.startDate ? budget.startDate.slice(0, 10) : "");
   const [eqWarranty, setEqWarranty] = useState<string>(budget.equipmentWarranty ?? "");
   const [workWarranty, setWorkWarranty] = useState<string>(budget.workWarranty ?? "");
-  const [paymentTerms, setPaymentTerms] = useState<string>(budget.paymentTerms ?? "");
+  // texto livre legado — mantido pra exibir orcamentos antigos no modo locked, nao mais editavel
   const [earlyPct, setEarlyPct] = useState<string>(budget.earlyPaymentDiscountPct?.toString().replace(".", ",") ?? "");
 
   function parsePct(v: string): number | undefined {
@@ -801,54 +982,60 @@ function BudgetSummaryBlock({ budget, locked, onUpdate }: {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* TOTAIS — espelha o bloco laranja da planilha (SUBTOTAL/IMPOSTOS/DESCONTO%/TOTAL GERAL) */}
-      <div className="rounded-xl border-2 border-orange-400 bg-orange-50 overflow-hidden">
+      <div className="rounded-xl border-2 border-orange-500 bg-orange-100 overflow-hidden shadow-sm">
         <table className="w-full text-sm">
           <tbody>
             <tr className="border-b border-orange-300">
-              <td className="px-4 py-2 font-semibold text-slate-700 text-right">SUBTOTAL:</td>
-              <td className="px-4 py-2 text-right tabular-nums font-medium w-40">R$ {(budget.subtotalCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td className="px-4 py-2.5 font-semibold text-slate-900 text-right">SUBTOTAL:</td>
+              <td className="px-4 py-2.5 text-right tabular-nums font-bold text-slate-900 w-44">R$ {(budget.subtotalCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             </tr>
             <tr className="border-b border-orange-300">
-              <td className="px-4 py-2 font-semibold text-slate-700 text-right">
+              <td className="px-4 py-2.5 font-semibold text-slate-900 text-right">
                 <span className="inline-flex items-center gap-1.5 justify-end">
                   IMPOSTOS
                   {locked ? (
-                    <span className="text-xs text-slate-500">({budget.taxesPercent ? `${budget.taxesPercent}%` : "0%"})</span>
+                    <span className="text-xs font-medium text-slate-700">({budget.taxesPercent ? `${budget.taxesPercent}%` : "0%"})</span>
                   ) : (
-                    <span className="inline-flex items-center gap-0.5 text-xs">
+                    <span className="inline-flex items-center gap-0.5 text-xs font-medium text-slate-700">
                       (
                       <input type="text" value={taxesPct} onChange={(e) => setTaxesPct(e.target.value)} onBlur={commitTaxes}
-                        placeholder="0" className="w-12 rounded border border-orange-300 bg-white px-1 py-0 text-xs text-right" />
+                        placeholder="0" className="w-12 rounded border border-orange-400 bg-white px-1 py-0 text-xs text-right text-slate-900 font-semibold" />
                       %)
                     </span>
                   )}
                   :
                 </span>
               </td>
-              <td className="px-4 py-2 text-right tabular-nums w-40">R$ {(budget.taxesCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td className="px-4 py-2.5 text-right tabular-nums font-bold text-slate-900 w-44">R$ {(budget.taxesCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             </tr>
             <tr className="border-b border-orange-300">
-              <td className="px-4 py-2 font-semibold text-slate-700 text-right">DESCONTO %:</td>
-              <td className="px-4 py-2 text-right tabular-nums w-40">
+              <td className="px-4 py-2.5 font-semibold text-slate-900 text-right">DESCONTO %:</td>
+              <td className="px-4 py-2.5 text-right tabular-nums w-44">
                 {locked ? (
-                  <span>{budget.discountPercent ? `${budget.discountPercent.toString().replace(".", ",")}%` : "0,00%"}</span>
+                  <span className="font-bold text-slate-900">{budget.discountPercent ? `${budget.discountPercent.toString().replace(".", ",")}%` : "0,00%"}</span>
                 ) : (
                   <span className="inline-flex items-center gap-0.5 justify-end">
                     <input type="text" value={discPct} onChange={(e) => setDiscPct(e.target.value)} onBlur={commitDiscount}
-                      placeholder="0,00" className="w-16 rounded border border-orange-300 bg-white px-1 py-0.5 text-right text-sm tabular-nums" />
-                    %
+                      placeholder="0,00" className="w-16 rounded border border-orange-400 bg-white px-1.5 py-0.5 text-right text-sm tabular-nums font-bold text-slate-900" />
+                    <span className="font-bold text-slate-900">%</span>
                   </span>
                 )}
               </td>
             </tr>
-            <tr className="bg-orange-200/60">
-              <td className="px-4 py-3 font-bold text-slate-900 text-right">TOTAL GERAL:</td>
-              <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-slate-900 w-40">
+            <tr className="bg-orange-300">
+              <td className="px-4 py-3 font-bold text-slate-900 text-right text-base">TOTAL GERAL:</td>
+              <td className="px-4 py-3 text-right text-lg font-extrabold tabular-nums text-slate-900 w-44">
                 R$ {(budget.totalCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
             </tr>
           </tbody>
         </table>
+        {/* Parcelas auto-calculadas a partir da forma de pagamento + totalCents + startDate */}
+        <BudgetInstallments
+          paymentTerm={budget.paymentTerm}
+          totalCents={budget.totalCents}
+          startDate={budget.startDate ? new Date(budget.startDate) : null}
+        />
       </div>
 
       {/* PRAZO + CONDICOES */}
@@ -897,11 +1084,25 @@ function BudgetSummaryBlock({ budget, locked, onUpdate }: {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Forma de pagamento</label>
-            {locked ? <div className={lockedValueCls}>{budget.paymentTerms || "—"}</div> : (
-              <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)}
-                onBlur={() => commitText("paymentTerms", paymentTerms, budget.paymentTerms)}
-                placeholder="50% Entrada / 50% Final" className={inputCls} />
+            <label className="flex items-center justify-between text-xs font-medium text-slate-600 mb-1">
+              <span>Forma de pagamento</span>
+              {!locked && (
+                <a href="/quotes/pool/payment-terms" target="_blank" rel="noopener"
+                  className="text-cyan-600 hover:text-cyan-800 text-[10px]" title="Cadastrar/editar formas">
+                  Gerenciar →
+                </a>
+              )}
+            </label>
+            {locked ? (
+              <div className={lockedValueCls}>{budget.paymentTerm?.name || budget.paymentTerms || "—"}</div>
+            ) : (
+              <select value={budget.paymentTermId ?? ""} onChange={(e) => onUpdate({ paymentTermId: e.target.value || null })}
+                className={inputCls}>
+                <option value="">Selecione...</option>
+                {paymentTerms.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " ★" : ""}</option>
+                ))}
+              </select>
             )}
           </div>
 
@@ -919,3 +1120,222 @@ function BudgetSummaryBlock({ budget, locked, onUpdate }: {
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────
+// BudgetInstallments — parcelas geradas a partir do PaymentTerm.
+// Layout: 1 coluna ate 6 parcelas, 2 colunas acima de 6 (compacta lista longa).
+// Soma das parcelas == totalCents (a ultima ajusta o resto pra exato).
+// ─────────────────────────────────────────────────────────
+function BudgetInstallments({ paymentTerm, totalCents, startDate }: {
+  paymentTerm: PoolPaymentTerm | null;
+  totalCents: number;
+  startDate: Date | null;
+}) {
+  if (!paymentTerm || totalCents <= 0) {
+    return (
+      <div className="px-4 py-3 text-xs text-slate-600 border-t border-orange-300 bg-orange-50">
+        Selecione uma forma de pagamento{!startDate ? " e uma data de inicio" : ""} pra gerar as parcelas automaticamente.
+      </div>
+    );
+  }
+  if (!startDate) {
+    return (
+      <div className="px-4 py-3 text-xs text-slate-600 border-t border-orange-300 bg-orange-50">
+        Defina a Previsao de inicio (em Condicoes Gerais) pra calcular as datas das parcelas.
+      </div>
+    );
+  }
+  const installments = generateInstallments(paymentTerm, totalCents, startDate);
+  const useTwoCols = installments.length > 6;
+  const sumCents = installments.reduce((s, i) => s + i.cents, 0);
+  const ok = sumCents === totalCents;
+  return (
+    <div className="border-t-2 border-orange-400 bg-orange-50">
+      <div className="px-4 py-2 bg-orange-200/60 text-xs font-semibold text-slate-900 uppercase tracking-wide flex items-center justify-between">
+        <span>Parcelas — {paymentTerm.name}</span>
+        <span className={"text-[10px] normal-case font-medium " + (ok ? "text-green-700" : "text-red-700")}>
+          {installments.length} parc. · soma R$ {(sumCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+        </span>
+      </div>
+      <div className={useTwoCols ? "grid grid-cols-2 gap-x-4" : ""}>
+        {installments.map((p) => (
+          <div key={p.idx} className="flex items-center gap-2 px-4 py-1 text-xs border-b border-orange-200 last:border-b-0 odd:bg-orange-100/40">
+            <span className="font-mono text-slate-500 w-7 text-right">{String(p.idx).padStart(2, "0")}.</span>
+            <span className="text-slate-700 w-20 tabular-nums">{p.date.toLocaleDateString("pt-BR")}</span>
+            <span className="flex-1 truncate text-slate-500">{p.label}</span>
+            <span className="font-semibold text-slate-900 tabular-nums">R$ {(p.cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────
+// FormulaModal — editor de expressao pra auto-calcular qty.
+// Avaliador local (deve casar com backend formula-eval.ts).
+// Variaveis: length, width, depth, area, perimeter, volume.
+// ─────────────────────────────────────────────────────────
+function evalLocal(expr: string, vars: Record<string, number>): { ok: boolean; value?: number; error?: string } {
+  if (!expr.trim()) return { ok: false, error: 'vazia' };
+  let s = expr.replace(/,/g, '.');
+  for (const k of ['length', 'width', 'depth', 'area', 'perimeter', 'volume']) {
+    s = s.replace(new RegExp('\b' + k + '\b', 'g'), '(' + (vars[k] || 0) + ')');
+  }
+  if (/[a-zA-Z_]/.test(s)) return { ok: false, error: 'variavel desconhecida' };
+  if (!/^[\d.\s+\-*/()]*$/.test(s)) return { ok: false, error: 'caracter invalido' };
+  try {
+    // eslint-disable-next-line no-new-func
+    const r = Function('"use strict"; return (' + s + ');')();
+    if (typeof r !== 'number' || !isFinite(r)) return { ok: false, error: 'resultado invalido' };
+    return { ok: true, value: r };
+  } catch {
+    return { ok: false, error: 'sintaxe invalida' };
+  }
+}
+
+function FormulaModal({ initialExpr, dimensions, onClose, onSave, onClear }: {
+  initialExpr: string;
+  dimensions: any;
+  onClose: () => void;
+  onSave: (expr: string) => void;
+  onClear: () => void;
+}) {
+  const [expr, setExpr] = useState(initialExpr);
+  const vars: Record<string, number> = {
+    length: Number(dimensions?.length) || 0,
+    width: Number(dimensions?.width) || 0,
+    depth: Number(dimensions?.depth) || 0,
+    area: Number(dimensions?.area) || 0,
+    perimeter: Number(dimensions?.perimeter) || 0,
+    volume: Number(dimensions?.volume) || 0,
+  };
+  const result = evalLocal(expr, vars);
+  return (
+    <tr>
+      <td colSpan={8} className="p-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900">Formula automatica</h3>
+              <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+            <div className="text-xs text-slate-600">
+              Variaveis disponiveis (clique pra inserir):
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {Object.entries(vars).map(([k, v]) => (
+                <button key={k} type="button" onClick={() => setExpr((p) => (p + ' ' + k).trim())}
+                  className="text-[10px] rounded bg-slate-100 hover:bg-cyan-100 px-2 py-1 border border-slate-200 hover:border-cyan-300">
+                  <span className="font-mono">{k}</span>
+                  <span className="text-slate-500 ml-1">= {v}</span>
+                </button>
+              ))}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Expressao</label>
+              <input value={expr} onChange={(e) => setExpr(e.target.value)} autoFocus
+                placeholder="Ex: area * 2"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono" />
+              <div className="mt-1 text-xs">
+                {result.ok ? (
+                  <span className="text-green-700">= <span className="font-bold tabular-nums">{result.value!.toFixed(4)}</span></span>
+                ) : (
+                  <span className="text-red-600">{result.error}</span>
+                )}
+              </div>
+            </div>
+            <div className="text-[10px] text-slate-500">
+              Operadores: + − × ÷ () · Decimal com . ou , · Ex: <code className="bg-slate-100 px-1 rounded">area * 2</code>, <code className="bg-slate-100 px-1 rounded">perimeter * 0.5</code>, <code className="bg-slate-100 px-1 rounded">volume * 1.1</code>
+            </div>
+            <div className="flex justify-between gap-2 pt-2">
+              <button type="button" onClick={onClear}
+                className="rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50">
+                Remover formula
+              </button>
+              <div className="flex gap-2">
+                <button type="button" onClick={onClose}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancelar</button>
+                <button type="button" disabled={!result.ok} onClick={() => onSave(expr)}
+                  className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
+                  Aplicar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────
+// SaveAsTemplateModal — captura snapshot do orcamento atual e cria PoolBudgetTemplate.
+// ─────────────────────────────────────────────────────────
+function SaveAsTemplateModal({ budgetId, itemsCount, onClose, onSaved }: {
+  budgetId: string;
+  itemsCount: number;
+  onClose: () => void;
+  onSaved: (name: string) => void;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isDefault, setIsDefault] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) { toast("Nome obrigatorio", "error"); return; }
+    setSaving(true);
+    try {
+      await api.post(`/pool-budgets/${budgetId}/save-as-template`, { name: name.trim(), description: description || undefined, isDefault });
+      onSaved(name.trim());
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao salvar modelo", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Salvar como modelo</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+        <p className="text-xs text-slate-600">
+          Captura {itemsCount} item{itemsCount !== 1 ? "s" : ""} (com etapas/formulas/precos) + impostos, desconto, garantias e forma de pagamento. Proximo orcamento criado com este modelo ja vem populado.
+        </p>
+        <form onSubmit={submit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Nome do modelo</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus
+              placeholder="Ex: Padrao Juliano Azul"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Descricao (opcional)</label>
+            <input value={description} onChange={(e) => setDescription(e.target.value)}
+              placeholder="Notas internas sobre quando usar este modelo"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
+            Marcar como padrao (auto-selecionado em novos orcamentos)
+          </label>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancelar</button>
+            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+              {saving ? "Salvando..." : "Salvar modelo"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+

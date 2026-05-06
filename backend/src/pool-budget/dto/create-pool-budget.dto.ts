@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsDateString,
   IsInt,
   IsNumber,
@@ -113,4 +114,15 @@ export class CreatePoolBudgetDto {
   @Min(0)
   @Max(100)
   earlyPaymentDiscountPct?: number;
+
+  @ApiPropertyOptional({ description: 'Ordem de exibicao das etapas (PoolSection[])' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sectionOrder?: string[];
+
+  @ApiPropertyOptional({ description: 'ID da forma de pagamento de obra (PoolPaymentTerm)' })
+  @IsOptional()
+  @IsString()
+  paymentTermId?: string;
 }

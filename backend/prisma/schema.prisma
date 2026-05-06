@@ -250,6 +250,7 @@ model Company {
   poolBudgets         PoolBudget[]
   poolProjects        PoolProject[]
   poolPrintLayouts    PoolPrintLayout[]
+  poolPaymentTerms    PoolPaymentTerm[]
   poolModuleConfig    PoolModuleConfig?
 }
 
@@ -3110,8 +3111,15 @@ model PoolBudgetTemplate {
   name        String
   description String?
   isDefault   Boolean   @default(false)
-  // [{section: "CONSTRUCAO", catalogConfigIds: [uuid1, uuid2], required: true, sortOrder: 1}]
+  // Estrutura legada (pre-snapshot): [{section, catalogConfigIds[], required, sortOrder}]
   sections    Json
+  // v1.10.43+: snapshot completo de items quando salvar-como-modelo a partir de um budget
+  // [{poolSection, sortOrder, slotName, description, unit, qty, unitPriceCents, formulaExpr, isExtra}]
+  itemsSnapshot Json @default("[]")
+  // v1.10.43+: defaults aplicaveis ao criar novo budget com este template
+  // {taxesPercent, discountPercent, validityDays, equipmentWarranty, workWarranty,
+  //  earlyPaymentDiscountPct, sectionOrder, paymentTermId}
+  defaults Json?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -3173,6 +3181,12 @@ model PoolBudget {
   paymentTerms            String? // ex: "50% Entrada 50% Final"
   earlyPaymentDiscountPct Float? // Desconto pra pagamento antecipado (informativo)
 
+  // Ordem de exibicao das etapas (PoolSection). null = ordem padrao SECTION_ORDER do front
+  sectionOrder String[] @default([])
+
+  // Forma de pagamento (separado do paymentTerms texto livre acima — futuro: deprecar texto livre)
+  paymentTermId String?
+
   // Aprovacao publica (igual Quote)
   publicToken          String?   @unique
   publicTokenExpiresAt DateTime?
@@ -3200,6 +3214,7 @@ model PoolBudget {
   printLayout   PoolPrintLayout?    @relation(fields: [printLayoutId], references: [id])
   parentBudget  PoolBudget?         @relation("PoolBudgetVersions", fields: [parentBudgetId], references: [id])
   childBudgets  PoolBudget[]        @relation("PoolBudgetVersions")
+  paymentTerm   PoolPaymentTerm?    @relation(fields: [paymentTermId], references: [id])
   items         PoolBudgetItem[]
   project       PoolProject? // 1:1 quando aprovado
 
@@ -3231,6 +3246,7 @@ model PoolBudgetItem {
   unit           String @default("UN")
   qtyCalculated  Float? // Calculada via formula (referencia)
   qty            Float  @default(1) // O usado (default = qtyCalculated)
+  formulaExpr    String? // Expressao usada pra auto-calcular qty (vars: length, width, depth, area, perimeter, volume)
   unitPriceCents Int    @default(0)
   totalCents     Int    @default(0)
 
@@ -3249,6 +3265,31 @@ model PoolBudgetItem {
   projectEntries PoolProjectEntry[]
 
   @@index([budgetId, poolSection, sortOrder])
+}
+
+// Forma de pagamento de OBRA (modulo Piscina)
+// Separado dos PaymentMethod do financeiro (PIX/Cartao/etc) - aqui descreve estrutura de parcelas.
+// structure (Json[]) — cada parte:
+//   { label: string, percent: number, count: number, intervalDays: number, firstOffsetDays: number }
+//   percent = % do total geral pra esse bloco; count = qtas parcelas no bloco;
+//   intervalDays = espacamento entre parcelas do bloco; firstOffsetDays = dias da startDate ate a 1a parcela.
+// Soma dos percents deve ser 100. Valor de cada parcela = total * percent/100 / count (ultima ajusta sobra).
+model PoolPaymentTerm {
+  id        String  @id @default(uuid())
+  companyId String
+  name      String  // ex: "33% Entrada + 10x quinzenal"
+  isActive  Boolean @default(true)
+  isDefault Boolean @default(false) // marca padrao pra novos orcamentos
+  structure Json
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company Company      @relation(fields: [companyId], references: [id])
+  budgets PoolBudget[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive, deletedAt])
 }
 
 // Obra (projeto/execucao) - gerada de orcamento aprovado

@@ -155,4 +155,19 @@ export class PoolBudgetController {
   ) {
     return this.service.cancel(id, user.companyId, user, body?.reason);
   }
+
+  @ApiOperation({
+    summary: 'Salva o orcamento atual como modelo (PoolBudgetTemplate)',
+    description: 'Captura todos os items + impostos/desconto/garantias/forma pagamento/etc. Proximo orcamento criado com esse modelo ja vem populado.',
+  })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/save-as-template')
+  saveAsTemplate(
+    @Param('id') id: string,
+    @Body() body: { name: string; description?: string; isDefault?: boolean },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.saveAsTemplate(id, user.companyId, user, body);
+  }
 }
