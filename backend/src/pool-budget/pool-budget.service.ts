@@ -14,7 +14,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
-import { evaluateFormula, extractDimensionVars } from './formula-eval';
+import { evaluateFormula, extractCellRefs, extractDimensionVars, type CellRefData } from './formula-eval';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
 import {
   PoolFormulaService,
@@ -158,6 +158,45 @@ export class PoolBudgetService {
   }
 
   /**
+   * Constroi map de cellRef -> {qty, total, unitPrice} dos items do budget,
+   * pra usar em formulas que referenciam outras linhas (qty(LX), total(LX), etc).
+   */
+  private async buildBudgetCellRefMap(budgetId: string): Promise<Map<string, CellRefData>> {
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId, cellRef: { not: null } },
+      select: { cellRef: true, qty: true, unitPriceCents: true },
+    });
+    const map = new Map<string, CellRefData>();
+    for (const it of items) {
+      if (!it.cellRef) continue;
+      const qty = Number(it.qty) || 0;
+      map.set(it.cellRef, {
+        qty,
+        total: (qty * it.unitPriceCents) / 100,
+        unitPrice: it.unitPriceCents / 100,
+      });
+    }
+    return map;
+  }
+
+  /**
+   * Pega o proximo cellRef disponivel para o budget (L1, L2, L3, ...).
+   * Nao reusa numeros de items deletados — sempre incrementa o maior existente.
+   */
+  private async nextCellRef(budgetId: string): Promise<string> {
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId, cellRef: { not: null } },
+      select: { cellRef: true },
+    });
+    let max = 0;
+    for (const it of items) {
+      const m = it.cellRef?.match(/^L(\d+)$/);
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    }
+    return `L${max + 1}`;
+  }
+
+  /**
    * Aplica items vindos de um snapshot (v1.10.43+ "Salvar como modelo").
    * Cada entry tem todos os campos do PoolBudgetItem preservados.
    * Re-avalia formulaExpr contra dimensions atuais quando presente.
@@ -171,10 +210,13 @@ export class PoolBudgetService {
     const vars = extractDimensionVars(poolDimensions);
     const itemsToCreate: Prisma.PoolBudgetItemCreateManyInput[] = [];
     let order = 0;
+    let cellRefSeq = 0;
     for (const it of snapshot) {
       let qty = Number(it.qty) || 0;
       let qtyCalculated: number | null = null;
-      if (it.formulaExpr && String(it.formulaExpr).trim()) {
+      // Items de snapshot que tem formula com cellRef (qty(L7), etc) podem falhar aqui
+      // pois nao temos os outros items ainda. Tudo bem — recalculateTotals refaz depois.
+      if (it.formulaExpr && String(it.formulaExpr).trim() && extractCellRefs(it.formulaExpr).length === 0) {
         try {
           qty = evaluateFormula(String(it.formulaExpr), vars);
           qtyCalculated = qty;
@@ -184,6 +226,7 @@ export class PoolBudgetService {
       }
       const unitPriceCents = Number(it.unitPriceCents) || 0;
       const totalCents = Math.round(qty * unitPriceCents);
+      cellRefSeq++;
       itemsToCreate.push({
         budgetId,
         poolSection: it.poolSection,
@@ -191,6 +234,7 @@ export class PoolBudgetService {
         slotName: it.slotName ?? null,
         description: it.description || '(sem descricao)',
         unit: it.unit || 'UN',
+        cellRef: `L${cellRefSeq}`,
         qty,
         qtyCalculated,
         formulaExpr: it.formulaExpr || null,
@@ -270,6 +314,7 @@ export class PoolBudgetService {
           serviceId: cfg.serviceId,
           poolSection: cfg.poolSection,
           sortOrder: globalSort++,
+          cellRef: `L${itemsToCreate.length + 1}`,
           description,
           unit,
           qtyCalculated,
@@ -291,11 +336,7 @@ export class PoolBudgetService {
    * Recalcula subtotalCents, taxesCents e totalCents do orçamento somando os itens.
    */
   async recalculateTotals(budgetId: string) {
-    const items = await this.prisma.poolBudgetItem.findMany({
-      where: { budgetId },
-      select: { totalCents: true, qty: true, unit: true },
-    });
-    const subtotalCents = items.reduce((sum, i) => sum + (i.totalCents ?? 0), 0);
+    const HOURS_PER_DAY = 8;
 
     const budget = await this.prisma.poolBudget.findUnique({
       where: { id: budgetId },
@@ -304,8 +345,129 @@ export class PoolBudgetService {
         discountPercent: true,
         taxesPercent: true,
         startDate: true,
+        poolDimensions: true,
       },
     });
+    const dimensionVars = extractDimensionVars(budget?.poolDimensions);
+
+    // PASSO 1: re-avalia formulas de items SEM dependencias (sem dias, sem cellRef de outros items)
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId },
+      select: { id: true, qty: true, unit: true, unitPriceCents: true, formulaExpr: true, cellRef: true },
+    });
+
+    const usesDias = (expr: string | null) => !!expr && /\bdias\b/.test(expr);
+    const usesCellRef = (expr: string | null) => extractCellRefs(expr).length > 0;
+
+    // Helpers de mutate state local
+    function persistItem(it: typeof items[number], newQty: number) {
+      const newTotal = Math.round(newQty * it.unitPriceCents);
+      it.qty = newQty;
+      return { qty: newQty, qtyCalculated: newQty, totalCents: newTotal };
+    }
+
+    // Constroi mapa cellRef -> dados (atualizado conforme items sao re-avaliados)
+    function buildCellRefMap(): Map<string, CellRefData> {
+      const map = new Map<string, CellRefData>();
+      for (const it of items) {
+        if (!it.cellRef) continue;
+        map.set(it.cellRef, {
+          qty: Number(it.qty) || 0,
+          total: ((Number(it.qty) || 0) * it.unitPriceCents) / 100,
+          unitPrice: it.unitPriceCents / 100,
+        });
+      }
+      return map;
+    }
+
+    // PASSO 1a: items sem nenhuma dependencia (so dimensions)
+    for (const it of items) {
+      if (!it.formulaExpr) continue;
+      if (usesDias(it.formulaExpr) || usesCellRef(it.formulaExpr)) continue;
+      try {
+        const newQty = evaluateFormula(it.formulaExpr, dimensionVars);
+        const data = persistItem(it, newQty);
+        await this.prisma.poolBudgetItem.update({ where: { id: it.id }, data });
+      } catch { /* mantem qty atual */ }
+    }
+
+    function computeDias(excludeItemId?: string): number {
+      let totalHours = 0;
+      for (const it of items) {
+        if (excludeItemId && it.id === excludeItemId) continue;
+        if (it.formulaExpr && usesDias(it.formulaExpr)) continue; // ignora items que dependem de dias
+        const u = (it.unit || '').trim().toLowerCase();
+        const qty = Number(it.qty) || 0;
+        if (qty <= 0) continue;
+        if (u === 'h' || u === 'hora' || u === 'horas') totalHours += qty;
+        else if (u === 'd' || u === 'dia' || u === 'dias') totalHours += qty * HOURS_PER_DAY;
+      }
+      return totalHours > 0 ? Math.ceil(totalHours / HOURS_PER_DAY) : 0;
+    }
+
+    // PASSO 1b: items que usam APENAS dias (sem cellRef)
+    for (const it of items) {
+      if (!it.formulaExpr) continue;
+      if (!usesDias(it.formulaExpr) || usesCellRef(it.formulaExpr)) continue;
+      const diasForThis = computeDias(it.id);
+      try {
+        const newQty = evaluateFormula(it.formulaExpr, { ...dimensionVars, dias: diasForThis });
+        const data = persistItem(it, newQty);
+        await this.prisma.poolBudgetItem.update({ where: { id: it.id }, data });
+      } catch { /* mantem qty atual */ }
+    }
+
+    // PASSO 2: items que usam cellRef (com ou sem dias). Resolve em ordem topologica
+    // (item depende de items ja resolvidos). Em ate N iteracoes (N = items count),
+    // re-avalia items cujas dependencias agora estao prontas. Detecta ciclo se nao converge.
+    const itemsWithCellRef = items.filter((it) => it.formulaExpr && usesCellRef(it.formulaExpr));
+    const resolved = new Set<string>(); // ids ja resolvidos nesta passada
+    const maxIter = itemsWithCellRef.length + 1;
+    for (let iter = 0; iter < maxIter; iter++) {
+      let progressed = false;
+      for (const it of itemsWithCellRef) {
+        if (resolved.has(it.id)) continue;
+        const refs = extractCellRefs(it.formulaExpr!);
+        // Verifica auto-referencia
+        if (it.cellRef && refs.includes(it.cellRef)) {
+          // Item ref a si mesmo - mantem qty atual
+          resolved.add(it.id);
+          continue;
+        }
+        // Todos os deps existem e ja foram resolvidos (ou nao precisam ser, se nao tem formula)?
+        const cellRefMap = buildCellRefMap();
+        const allDepsAvailable = refs.every((ref) => {
+          const target = items.find((x) => x.cellRef === ref);
+          if (!target) return false; // referencia para linha inexistente
+          if (!target.formulaExpr || !usesCellRef(target.formulaExpr)) return true; // nao depende de outros
+          return resolved.has(target.id);
+        });
+        if (!allDepsAvailable) continue;
+
+        // Avalia
+        try {
+          const diasForThis = usesDias(it.formulaExpr!) ? computeDias(it.id) : 0;
+          const newQty = evaluateFormula(
+            it.formulaExpr!,
+            { ...dimensionVars, dias: diasForThis },
+            cellRefMap,
+          );
+          const data = persistItem(it, newQty);
+          await this.prisma.poolBudgetItem.update({ where: { id: it.id }, data });
+        } catch { /* mantem qty atual */ }
+        resolved.add(it.id);
+        progressed = true;
+      }
+      if (!progressed) break;
+    }
+    // Items nao resolvidos = ciclo detectado (A -> B -> A). Mantem qty atual deles.
+
+    // PASSO 3: agora soma subtotal final e calcula totais/prazo
+    const finalItems = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId },
+      select: { totalCents: true, qty: true, unit: true },
+    });
+    const subtotalCents = finalItems.reduce((sum, i) => sum + (i.totalCents ?? 0), 0);
 
     // Desconto: %/valor sobre subtotal
     const discountPctCents = budget?.discountPercent && budget.discountPercent > 0
@@ -324,20 +486,8 @@ export class PoolBudgetService {
     // Total Geral = subtotal - desconto + impostos
     const totalCents = Math.max(0, subtotalCents - discountCents + taxesCents);
 
-    // Prazo: itens com unit ∈ {h,H,hora,horas} = horas; {d,D,dia,dias} = dias × 8h
-    const HOURS_PER_DAY = 8;
-    let totalHours = 0;
-    for (const it of items) {
-      const u = (it.unit || '').trim().toLowerCase();
-      const qty = Number(it.qty) || 0;
-      if (qty <= 0) continue;
-      if (u === 'h' || u === 'hora' || u === 'horas') {
-        totalHours += qty;
-      } else if (u === 'd' || u === 'dia' || u === 'dias') {
-        totalHours += qty * HOURS_PER_DAY;
-      }
-    }
-    const estimatedDurationDays = totalHours > 0 ? Math.ceil(totalHours / HOURS_PER_DAY) : null;
+    // Prazo final (ja inclui items com unit DIA/h, exceto os que dependem de dias)
+    const estimatedDurationDays = computeDias() || null;
 
     let endDate: Date | null = null;
     if (budget?.startDate && estimatedDurationDays && estimatedDurationDays > 0) {
@@ -577,14 +727,23 @@ export class PoolBudgetService {
         select: { poolDimensions: true },
       });
       const vars = extractDimensionVars(fullBudget?.poolDimensions);
+      const cellRefMap = await this.buildBudgetCellRefMap(budgetId);
       try {
-        effectiveQty = evaluateFormula(dto.formulaExpr, vars);
+        effectiveQty = evaluateFormula(dto.formulaExpr, vars, cellRefMap);
         qtyCalculated = effectiveQty;
       } catch (err: any) {
-        throw new BadRequestException(`Formula invalida: ${err.message}`);
+        // Se a formula usa cellRef e nao consegue resolver agora, deixa pro recalculateTotals
+        const refs = extractCellRefs(dto.formulaExpr);
+        if (refs.length > 0) {
+          // mantem qty fornecido no DTO; recalculateTotals depois ajusta
+          qtyCalculated = effectiveQty;
+        } else {
+          throw new BadRequestException(`Formula invalida: ${err.message}`);
+        }
       }
     }
     const totalCents = Math.round(effectiveQty * dto.unitPriceCents);
+    const cellRef = await this.nextCellRef(budgetId);
     const item = await this.prisma.poolBudgetItem.create({
       data: {
         budgetId,
@@ -596,6 +755,7 @@ export class PoolBudgetService {
         slotName: dto.slotName,
         description: dto.description,
         unit: dto.unit ?? 'UN',
+        cellRef,
         qty: effectiveQty,
         qtyCalculated: qtyCalculated ?? null,
         formulaExpr: dto.formulaExpr || null,
@@ -652,10 +812,16 @@ export class PoolBudgetService {
           select: { poolDimensions: true },
         });
         const vars = extractDimensionVars(fullBudget?.poolDimensions);
+        const cellRefMap = await this.buildBudgetCellRefMap(item.budgetId);
         try {
-          effectiveQty = evaluateFormula(dto.formulaExpr, vars);
+          effectiveQty = evaluateFormula(dto.formulaExpr, vars, cellRefMap);
         } catch (err: any) {
-          throw new BadRequestException(`Formula invalida: ${err.message}`);
+          // Se usa cellRef e nao resolve agora, deixa pro recalculateTotals depois
+          const refs = extractCellRefs(dto.formulaExpr);
+          if (refs.length === 0) {
+            throw new BadRequestException(`Formula invalida: ${err.message}`);
+          }
+          // mantem qty atual; recalc ajusta
         }
         qtyCalculated = effectiveQty;
         formulaExpr = dto.formulaExpr;
@@ -860,6 +1026,7 @@ export class PoolBudgetService {
           budgetId,
           poolSection: poolSection as any,
           sortOrder: globalSort++,
+          cellRef: `L${itemsToCreate.length + 1}`,
           slotName: it.etapa || null,
           description: it.descricao || it.etapa || '(sem descricao)',
           unit: it.unit || 'UN',

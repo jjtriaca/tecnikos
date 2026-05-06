@@ -3246,7 +3246,8 @@ model PoolBudgetItem {
   unit           String @default("UN")
   qtyCalculated  Float? // Calculada via formula (referencia)
   qty            Float  @default(1) // O usado (default = qtyCalculated)
-  formulaExpr    String? // Expressao usada pra auto-calcular qty (vars: length, width, depth, area, perimeter, volume)
+  formulaExpr    String? // Expressao usada pra auto-calcular qty (vars: length, width, depth, area, perimeter, volume, dias)
+  cellRef        String? // Endereco estavel da linha (L1, L2, ...) pra referenciar em formulas de outros items
   unitPriceCents Int    @default(0)
   totalCents     Int    @default(0)
 
@@ -3264,6 +3265,7 @@ model PoolBudgetItem {
 
   projectEntries PoolProjectEntry[]
 
+  @@unique([budgetId, cellRef])
   @@index([budgetId, poolSection, sortOrder])
 }
 

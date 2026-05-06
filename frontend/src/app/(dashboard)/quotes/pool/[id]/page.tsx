@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -11,6 +11,7 @@ type BudgetItem = {
   id: string;
   poolSection: string;
   sortOrder: number;
+  cellRef: string | null; // Endereco estavel (L1, L2, ...) usado em formulas de outros items
   slotName: string | null; // Rotulo do papel da linha (ex: "Capa Termica", "Bomba Aquecimento")
   description: string;
   unit: string;
@@ -553,7 +554,7 @@ export default function PoolBudgetDetailPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-slate-50 text-[10px] font-semibold uppercase text-slate-500 border-b border-slate-100">
-                        <th className="text-left px-3 py-1.5 w-12">Seq</th>
+                        <th className="text-left px-3 py-1.5 w-20" title="Sequencia atual + Endereco estavel da linha (LX) usado em formulas">Seq · Ref</th>
                         <th className="text-left px-3 py-1.5 w-56">Item</th>
                         <th className="text-left px-3 py-1.5">Descricao</th>
                         <th className="text-center px-2 py-1.5 w-16">Un</th>
@@ -575,6 +576,8 @@ export default function PoolBudgetDetailPage() {
                           isFirst={idx === 0}
                           isLast={idx === items.length - 1}
                           dimensions={budget.poolDimensions}
+                          dias={budget.estimatedDurationDays ?? 0}
+                          allItems={budget.items}
                           onUpdate={(patch) => updateItem(it.id, patch)}
                           onRemove={() => removeItem(it.id)}
                           onMove={(dir) => moveItem(it, dir)}
@@ -683,13 +686,15 @@ export default function PoolBudgetDetailPage() {
   );
 }
 
-function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, onUpdate, onRemove, onMove }: {
+function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItems, onUpdate, onRemove, onMove }: {
   item: BudgetItem;
   seq?: number;
   locked: boolean;
   isFirst?: boolean;
   isLast?: boolean;
   dimensions?: any;
+  dias?: number;
+  allItems?: BudgetItem[];
   onUpdate: (patch: Partial<BudgetItem> & { formulaExpr?: string | null }) => void;
   onRemove: () => void;
   onMove?: (dir: -1 | 1) => void;
@@ -714,7 +719,13 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, onUpdate, onR
   return (
     <>
     <tr className="border-b border-slate-100 hover:bg-slate-50 last:border-b-0">
-      <td className="px-3 py-1.5 text-xs text-slate-400 font-mono tabular-nums">{seq ?? ""}</td>
+      <td className="px-3 py-1.5 text-xs font-mono tabular-nums whitespace-nowrap">
+        <span className="text-slate-400">{seq ?? ""}</span>
+        {item.cellRef && (
+          <span className="ml-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5"
+            title="Endereco da linha (use em formulas: qty(LX), total(LX))">{item.cellRef}</span>
+        )}
+      </td>
       <td className="px-3 py-1.5">
         {locked ? (
           <span className="text-sm font-medium text-slate-700">{item.slotName || ""}</span>
@@ -793,6 +804,19 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, onUpdate, onR
       <FormulaModal
         initialExpr={item.formulaExpr || ""}
         dimensions={dimensions}
+        dias={dias}
+        itemDescription={item.description}
+        itemUnit={item.unit}
+        itemCellRef={item.cellRef}
+        otherItems={(allItems ?? [])
+          .filter((x) => x.cellRef && x.id !== item.id)
+          .map((x) => ({
+            cellRef: x.cellRef!,
+            description: x.description,
+            qty: x.qty,
+            total: x.totalCents / 100,
+            unitPrice: x.unitPriceCents / 100,
+          }))}
         onClose={() => setShowFormula(false)}
         onSave={(expr) => { setShowFormula(false); onUpdate({ formulaExpr: expr }); }}
         onClear={() => { setShowFormula(false); onUpdate({ formulaExpr: "" }); }}
@@ -1175,34 +1199,97 @@ function BudgetInstallments({ paymentTerm, totalCents, startDate }: {
 // ─────────────────────────────────────────────────────────
 // FormulaModal — editor de expressao pra auto-calcular qty.
 // Avaliador local (deve casar com backend formula-eval.ts).
-// Variaveis: length, width, depth, area, perimeter, volume.
+// Variaveis: length, width, depth, area, perimeter, volume, dias.
+// Funcoes: ceil(x), floor(x), round(x), min(a,b), max(a,b).
+// Referencias: qty(LX), total(LX), unitPrice(LX) -> outras linhas via cellRef.
 // ─────────────────────────────────────────────────────────
-function evalLocal(expr: string, vars: Record<string, number>): { ok: boolean; value?: number; error?: string } {
+const FORMULA_VARS = ['length', 'width', 'depth', 'area', 'perimeter', 'volume', 'dias'] as const;
+const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
+const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
+
+type CellRefDataLocal = { qty: number; total: number; unitPrice: number };
+
+function evalLocal(
+  expr: string,
+  vars: Record<string, number>,
+  cellRefs: Map<string, CellRefDataLocal> = new Map(),
+): { ok: boolean; value?: number; error?: string } {
   if (!expr.trim()) return { ok: false, error: 'vazia' };
-  let s = expr.replace(/,/g, '.');
-  for (const k of ['length', 'width', 'depth', 'area', 'perimeter', 'volume']) {
-    s = s.replace(new RegExp('\b' + k + '\b', 'g'), '(' + (vars[k] || 0) + ')');
+  let s = expr;
+  // Substitui chamadas a cellRef ANTES das vars (evita confundir 'L1' com identifier solto)
+  for (const fn of CELL_REF_FUNCTIONS) {
+    s = s.replace(
+      new RegExp('\\b' + fn + '\\s*\\(\\s*(L\\d+)\\s*\\)', 'g'),
+      (_m, ref: string) => {
+        const data = cellRefs.get(ref);
+        if (!data) throw new Error('linha ' + ref + ' nao existe');
+        return '(' + (Number(data[fn as keyof CellRefDataLocal]) || 0) + ')';
+      },
+    );
   }
-  if (/[a-zA-Z_]/.test(s)) return { ok: false, error: 'variavel desconhecida' };
-  if (!/^[\d.\s+\-*/()]*$/.test(s)) return { ok: false, error: 'caracter invalido' };
+  for (const k of FORMULA_VARS) {
+    s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + (vars[k] || 0) + ')');
+  }
+  // Remove nomes de funcoes whitelisted antes de validar identifiers
+  const fnPattern = new RegExp('\\b(' + FORMULA_FUNCTIONS.join('|') + ')\\b', 'g');
+  const stripped = s.replace(fnPattern, '');
+  if (/[a-zA-Z_]/.test(stripped)) return { ok: false, error: 'variavel ou funcao desconhecida' };
+  if (!/^[\d.\s+\-*/(),]*$/.test(stripped)) return { ok: false, error: 'caracter invalido' };
   try {
     // eslint-disable-next-line no-new-func
-    const r = Function('"use strict"; return (' + s + ');')();
+    const r = Function('ceil', 'floor', 'round', 'min', 'max',
+      '"use strict"; return (' + s + ');',
+    )(Math.ceil, Math.floor, Math.round, Math.min, Math.max);
     if (typeof r !== 'number' || !isFinite(r)) return { ok: false, error: 'resultado invalido' };
     return { ok: true, value: r };
-  } catch {
-    return { ok: false, error: 'sintaxe invalida' };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || 'sintaxe invalida' };
   }
 }
 
-function FormulaModal({ initialExpr, dimensions, onClose, onSave, onClear }: {
+type FormulaRecipe = { label: string; expr: string; hint: string };
+
+const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
+  { label: "Area da piscina", expr: "area", hint: "Liner, capa termica, manta - geralmente 1× area" },
+  { label: "Area × 2 (capa termica)", expr: "area * 2", hint: "Capa em 2 camadas" },
+  { label: "Volume da piscina", expr: "volume", hint: "Bombas, tratamento por m3" },
+  { label: "Perimetro (borda)", expr: "perimeter", hint: "Borda corrida em metros lineares" },
+  { label: "Borda + 10%", expr: "perimeter * 1.1", hint: "Margem de seguranca/perda" },
+  { label: "Caixa 18kg (impermeabilizante)", expr: "ceil(area * 0.5 / 18)", hint: "0.5 kg/m2 - arredonda pra cima" },
+  { label: "Saco cimento 50kg", expr: "ceil(volume * 350 / 50)", hint: "350 kg/m3 de concreto - arredonda pra cima" },
+  { label: "Tijolos por m2 (12u/m2)", expr: "ceil(area * 12)", hint: "Considera 12 tijolos por m2" },
+  { label: "Diaria por dia de obra", expr: "dias", hint: "Quantidade = nº de dias da obra (auto)" },
+  { label: "Diaria × 2 (2 funcionarios)", expr: "dias * 2", hint: "2 pessoas trabalhando juntas" },
+  { label: "Diaria - 2 dias (sem inicio/fim)", expr: "max(0, dias - 2)", hint: "Exclui prep e finalizacao" },
+  { label: "30% sobre total da linha L7", expr: "total(L7) * 0.3", hint: "Ex: comissao/margem sobre outra linha" },
+  { label: "Mesma quantidade da linha L5", expr: "qty(L5)", hint: "Espelha qty de outra linha (parafuso casa com furo)" },
+];
+
+const FORMULA_FN_HELP: Record<typeof FORMULA_FUNCTIONS[number], string> = {
+  ceil: "Arredonda PRA CIMA (50.1 → 51, 49.9 → 50). Usar pra embalagens fechadas.",
+  floor: "Arredonda PRA BAIXO (50.9 → 50). Pouco usado em compras (perde material).",
+  round: "Arredondamento normal (50.4 → 50, 50.5 → 51).",
+  min: "Menor entre 2 valores: min(area, 100). Limita maximo.",
+  max: "Maior entre 2 valores: max(area, 10). Garante minimo.",
+};
+
+type OtherItemForModal = { cellRef: string; description: string; qty: number; total: number; unitPrice: number };
+
+function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit, itemCellRef, otherItems, onClose, onSave, onClear }: {
   initialExpr: string;
   dimensions: any;
+  dias?: number;
+  itemDescription?: string;
+  itemUnit?: string;
+  itemCellRef?: string | null;
+  otherItems?: OtherItemForModal[];
   onClose: () => void;
   onSave: (expr: string) => void;
   onClear: () => void;
 }) {
   const [expr, setExpr] = useState(initialExpr);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const vars: Record<string, number> = {
     length: Number(dimensions?.length) || 0,
     width: Number(dimensions?.width) || 0,
@@ -1210,56 +1297,211 @@ function FormulaModal({ initialExpr, dimensions, onClose, onSave, onClear }: {
     area: Number(dimensions?.area) || 0,
     perimeter: Number(dimensions?.perimeter) || 0,
     volume: Number(dimensions?.volume) || 0,
+    dias: Number(dias) || 0,
   };
-  const result = evalLocal(expr, vars);
+  const cellRefMap = new Map<string, CellRefDataLocal>();
+  for (const o of otherItems ?? []) {
+    if (o.cellRef && o.cellRef !== itemCellRef) {
+      cellRefMap.set(o.cellRef, { qty: o.qty, total: o.total, unitPrice: o.unitPrice });
+    }
+  }
+  const VAR_GROUPS: Record<string, { label: string; vars: string[] }> = {
+    dimensoes: {
+      label: "Dimensoes da piscina",
+      vars: ["length", "width", "depth", "area", "perimeter", "volume"],
+    },
+    tempo: {
+      label: "Tempo / Prazo",
+      vars: ["dias"],
+    },
+  };
+  const VAR_DESCRIPTIONS: Record<string, string> = {
+    length: "Comprimento (m)",
+    width: "Largura (m)",
+    depth: "Profundidade (m)",
+    area: "Area da piscina (m²)",
+    perimeter: "Perimetro / borda (m)",
+    volume: "Volume (m³)",
+    dias: "Duracao estimada da obra (dias)",
+  };
+
+  const result = evalLocal(expr, vars, cellRefMap);
+
+  function insert(text: string) {
+    const el = inputRef.current;
+    if (el && document.activeElement === el) {
+      const start = el.selectionStart ?? expr.length;
+      const end = el.selectionEnd ?? expr.length;
+      const next = expr.slice(0, start) + text + expr.slice(end);
+      setExpr(next);
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(start + text.length, start + text.length);
+      });
+    } else {
+      setExpr((p) => (p + (p.endsWith(" ") || p === "" ? "" : " ") + text).trim());
+    }
+  }
+
   return (
     <tr>
       <td colSpan={8} className="p-0">
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-900">Formula automatica</h3>
-              <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
-            </div>
-            <div className="text-xs text-slate-600">
-              Variaveis disponiveis (clique pra inserir):
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {Object.entries(vars).map(([k, v]) => (
-                <button key={k} type="button" onClick={() => setExpr((p) => (p + ' ' + k).trim())}
-                  className="text-[10px] rounded bg-slate-100 hover:bg-cyan-100 px-2 py-1 border border-slate-200 hover:border-cyan-300">
-                  <span className="font-mono">{k}</span>
-                  <span className="text-slate-500 ml-1">= {v}</span>
-                </button>
-              ))}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Expressao</label>
-              <input value={expr} onChange={(e) => setExpr(e.target.value)} autoFocus
-                placeholder="Ex: area * 2"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono" />
-              <div className="mt-1 text-xs">
-                {result.ok ? (
-                  <span className="text-green-700">= <span className="font-bold tabular-nums">{result.value!.toFixed(4)}</span></span>
-                ) : (
-                  <span className="text-red-600">{result.error}</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-3xl rounded-xl bg-white shadow-2xl max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-cyan-50 to-violet-50">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Formula automatica de quantidade</h3>
+                {itemDescription && (
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Linha: <span className="font-medium text-slate-800">{itemDescription}</span>
+                    {itemUnit && <span className="text-slate-500"> · unidade: {itemUnit}</span>}
+                  </p>
                 )}
               </div>
+              <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
             </div>
-            <div className="text-[10px] text-slate-500">
-              Operadores: + − × ÷ () · Decimal com . ou , · Ex: <code className="bg-slate-100 px-1 rounded">area * 2</code>, <code className="bg-slate-100 px-1 rounded">perimeter * 0.5</code>, <code className="bg-slate-100 px-1 rounded">volume * 1.1</code>
+
+            <div className="overflow-y-auto p-6 space-y-5">
+              {/* Expressao + preview */}
+              <div className="rounded-lg border-2 border-cyan-200 bg-cyan-50/50 p-4">
+                <label className="block text-xs font-bold uppercase tracking-wide text-cyan-900 mb-2">Expressao</label>
+                <input ref={inputRef} value={expr} onChange={(e) => setExpr(e.target.value)} autoFocus
+                  placeholder="Ex: ceil(area * 0.5 / 18)"
+                  className="w-full rounded-lg border-2 border-slate-300 bg-white px-3 py-2 text-base font-mono focus:border-cyan-500 outline-none" />
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="text-sm">
+                    {result.ok ? (
+                      <span className="text-green-700">
+                        = <span className="text-2xl font-extrabold tabular-nums text-green-800">{result.value!.toFixed(4).replace(/\.?0+$/, "")}</span>
+                        <span className="text-xs text-slate-500 ml-2">resultado da quantidade</span>
+                      </span>
+                    ) : (
+                      <span className="text-red-600 font-medium">⚠ {result.error}</span>
+                    )}
+                  </div>
+                  {expr && (
+                    <button type="button" onClick={() => setExpr("")}
+                      className="text-xs text-slate-500 hover:text-slate-800">limpar</button>
+                  )}
+                </div>
+              </div>
+
+              {/* Receitas prontas */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
+                  ⚡ Receitas prontas (clique pra usar)
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                  {FORMULA_RECIPES_PISCINA.map((r) => (
+                    <button key={r.label} type="button" onClick={() => setExpr(r.expr)}
+                      className="text-left rounded border border-slate-200 hover:border-amber-400 hover:bg-amber-50 px-3 py-1.5 group">
+                      <div className="text-xs font-semibold text-slate-800 group-hover:text-amber-900">{r.label}</div>
+                      <div className="font-mono text-[11px] text-cyan-700">{r.expr}</div>
+                      <div className="text-[10px] text-slate-500">{r.hint}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Variaveis */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
+                  📐 Variaveis (clique pra inserir no cursor)
+                </div>
+                {Object.entries(VAR_GROUPS).map(([key, group]) => (
+                  <div key={key} className="mb-2">
+                    <div className="text-[11px] font-medium text-slate-600 mb-1">{group.label}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {group.vars.map((k) => (
+                        <button key={k} type="button" onClick={() => insert(k)}
+                          title={VAR_DESCRIPTIONS[k]}
+                          className="inline-flex items-center gap-2 text-xs rounded border-2 border-cyan-200 bg-white hover:bg-cyan-50 hover:border-cyan-400 px-2.5 py-1.5 transition">
+                          <span className="font-mono font-bold text-cyan-700">{k}</span>
+                          <span className="text-slate-500 text-[10px]">{VAR_DESCRIPTIONS[k]}</span>
+                          <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{vars[k]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Funcoes */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
+                  🧮 Funcoes
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                  {FORMULA_FUNCTIONS.map((fn) => (
+                    <button key={fn} type="button" onClick={() => insert(fn + "(")}
+                      className="text-left rounded border border-violet-200 bg-violet-50 hover:bg-violet-100 hover:border-violet-400 px-3 py-1.5">
+                      <span className="font-mono font-bold text-violet-800">{fn}(...)</span>
+                      <div className="text-[11px] text-slate-600 mt-0.5">{FORMULA_FN_HELP[fn]}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Outras linhas (referencias) */}
+              {otherItems && otherItems.length > 0 && (
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
+                    🔗 Referencias a outras linhas
+                  </div>
+                  <div className="text-[11px] text-slate-600 mb-2">
+                    Use <code className="bg-slate-100 px-1 rounded">qty(LX)</code> pra puxar a quantidade,{" "}
+                    <code className="bg-slate-100 px-1 rounded">total(LX)</code> pro valor total em R$,{" "}
+                    <code className="bg-slate-100 px-1 rounded">unitPrice(LX)</code> pro preco unitario.
+                  </div>
+                  <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                    {otherItems
+                      .filter((o) => o.cellRef && o.cellRef !== itemCellRef)
+                      .map((o) => (
+                        <div key={o.cellRef} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-amber-50 text-xs">
+                          <div className="flex-1 min-w-0">
+                            <span className="font-mono font-bold text-amber-700 mr-2">{o.cellRef}</span>
+                            <span className="text-slate-800 truncate">{o.description}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 tabular-nums whitespace-nowrap">
+                            qty {o.qty} · R$ {o.total.toFixed(2)}
+                          </div>
+                          <div className="flex gap-1">
+                            <button type="button" onClick={() => insert(`qty(${o.cellRef})`)}
+                              className="rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] text-amber-800"
+                              title={`Insere qty(${o.cellRef}) — quantidade da linha`}>qty</button>
+                            <button type="button" onClick={() => insert(`total(${o.cellRef})`)}
+                              className="rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] text-amber-800"
+                              title={`Insere total(${o.cellRef}) — total em R$ da linha`}>total</button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Operadores e sintaxe */}
+              <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                <div className="text-[11px] font-semibold text-slate-700 mb-1">Sintaxe</div>
+                <div className="text-[11px] text-slate-600 leading-relaxed space-y-1">
+                  <div>Operadores: <code className="bg-white border border-slate-300 px-1.5 rounded">+ − × ÷ ( )</code> · Decimal so com <code className="bg-white border border-slate-300 px-1.5 rounded">.</code> (ponto) · Virgula = separador de funcao</div>
+                  <div className="text-slate-500">Ex: <code className="bg-white border border-slate-300 px-1.5 rounded">area * 1.05</code> (5% margem) · <code className="bg-white border border-slate-300 px-1.5 rounded">ceil(volume / 18)</code> · <code className="bg-white border border-slate-300 px-1.5 rounded">max(perimeter, 10)</code></div>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between gap-2 pt-2">
+
+            {/* Footer */}
+            <div className="flex items-center justify-between gap-2 px-6 py-3 border-t border-slate-200 bg-slate-50">
               <button type="button" onClick={onClear}
-                className="rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50">
-                Remover formula
+                className="rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">
+                🗑 Remover formula
               </button>
               <div className="flex gap-2">
                 <button type="button" onClick={onClose}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancelar</button>
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Cancelar</button>
                 <button type="button" disabled={!result.ok} onClick={() => onSave(expr)}
-                  className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
-                  Aplicar
+                  className="rounded-lg bg-cyan-600 px-5 py-2 text-sm font-bold text-white hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                  ✓ Aplicar formula
                 </button>
               </div>
             </div>
