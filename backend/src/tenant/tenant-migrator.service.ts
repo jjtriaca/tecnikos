@@ -251,18 +251,44 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
    */
   private async addColumn(schemaName: string, col: ColumnInfo) {
     const isArray = col.dataType === 'ARRAY';
-    const isEnum = col.dataType === 'USER-DEFINED' || isArray;
+    // udtSchema='public' = enum/tipo customizado; 'pg_catalog' = built-in (text, int, etc)
+    const isCustomType = col.udtSchema === 'public';
+    const isEnumType = col.dataType === 'USER-DEFINED' && isCustomType;
+    const isCustomEnumArray = isArray && isCustomType;
 
     let sqlType: string;
 
-    if (isEnum) {
-      // Enum types need to reference the tenant schema
-      const enumName = isArray ? col.udtName.substring(1) : col.udtName;
-      sqlType = isArray
-        ? `"${schemaName}"."${enumName}"[]`
-        : `"${schemaName}"."${enumName}"`;
+    if (isEnumType) {
+      // Enum customizado: referencia schema do tenant
+      sqlType = `"${schemaName}"."${col.udtName}"`;
+    } else if (isCustomEnumArray) {
+      // Array de enum customizado: idem, com [] no final
+      const enumName = col.udtName.startsWith('_') ? col.udtName.substring(1) : col.udtName;
+      sqlType = `"${schemaName}"."${enumName}"[]`;
+    } else if (isArray) {
+      // Array de tipo built-in (TEXT[], INT[], etc): nao precisa schema
+      const baseUdt = col.udtName.startsWith('_') ? col.udtName.substring(1) : col.udtName;
+      // Mapeia udt_name (pg_catalog) pra SQL type
+      const baseSql =
+        baseUdt === 'text' ? 'TEXT' :
+        baseUdt === 'varchar' ? 'VARCHAR' :
+        baseUdt === 'int4' ? 'INTEGER' :
+        baseUdt === 'int8' ? 'BIGINT' :
+        baseUdt === 'int2' ? 'SMALLINT' :
+        baseUdt === 'bool' ? 'BOOLEAN' :
+        baseUdt === 'float4' ? 'REAL' :
+        baseUdt === 'float8' ? 'DOUBLE PRECISION' :
+        baseUdt === 'numeric' ? 'NUMERIC' :
+        baseUdt === 'uuid' ? 'UUID' :
+        baseUdt === 'jsonb' ? 'JSONB' :
+        baseUdt === 'json' ? 'JSON' :
+        baseUdt === 'date' ? 'DATE' :
+        baseUdt === 'timestamp' ? 'TIMESTAMP' :
+        baseUdt === 'timestamptz' ? 'TIMESTAMPTZ' :
+        baseUdt.toUpperCase();
+      sqlType = `${baseSql}[]`;
     } else {
-      // Standard SQL types
+      // Tipo escalar built-in
       sqlType = this.mapDataType(col);
     }
 
