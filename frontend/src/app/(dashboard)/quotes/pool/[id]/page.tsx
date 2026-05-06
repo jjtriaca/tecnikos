@@ -765,23 +765,36 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItem
         )}
       </td>
       <td className="px-3 py-1.5">
-        {locked ? (
-          <span className="text-sm text-slate-700">{item.description}</span>
-        ) : (
-          <div className="flex items-center gap-1">
-            <button type="button" onClick={() => setShowCatalogPick(true)}
-              className="text-slate-400 hover:text-cyan-700 hover:bg-cyan-50 rounded p-1 text-xs flex-shrink-0"
-              title="Buscar no catalogo (trocar produto/servico)">
-              🔍
-            </button>
-            <input
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              onBlur={commit}
-              className="flex-1 rounded border border-transparent px-1 py-0.5 text-sm hover:border-slate-300 focus:border-cyan-500 outline-none"
-            />
-          </div>
-        )}
+        {(() => {
+          const isLinkedToCatalog = !!(item.productId || item.serviceId);
+          if (locked) {
+            return <span className="text-sm text-slate-700">{item.description}</span>;
+          }
+          return (
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => setShowCatalogPick(true)}
+                className="text-slate-400 hover:text-cyan-700 hover:bg-cyan-50 rounded p-1 text-xs flex-shrink-0"
+                title={isLinkedToCatalog ? "Trocar produto/servico (catalogo)" : "Buscar no catalogo"}>
+                🔍
+              </button>
+              {isLinkedToCatalog ? (
+                <span
+                  className="flex-1 px-1 py-0.5 text-sm text-slate-700 truncate cursor-pointer hover:underline"
+                  title="Vinculado ao catalogo. Clique pra trocar."
+                  onClick={() => setShowCatalogPick(true)}
+                >{item.description}</span>
+              ) : (
+                <input
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  onBlur={commit}
+                  placeholder="(sem item) — clique na lupa pra escolher"
+                  className="flex-1 rounded border border-transparent px-1 py-0.5 text-sm hover:border-slate-300 focus:border-cyan-500 outline-none placeholder:text-slate-300 placeholder:italic"
+                />
+              )}
+            </div>
+          );
+        })()}
         {item.isAutoCalculated && <span className="ml-2 text-[10px] text-cyan-600">auto</span>}
         {item.isExtra && <span className="ml-2 text-[10px] text-orange-600">extra</span>}
       </td>

@@ -113,9 +113,10 @@ function reais(v: string | null | undefined): number | null {
 }
 
 function isSkipRow(row: ExcelRow): boolean {
-  // Linhas placeholder do excel ("Sem Produto", "Sem Serviço")
+  // Linhas vazias
   if (!row.Cod || !row.Descrição) return true;
-  if (/^Sem (Produto|Serviço|Servico)$/i.test(row.Descrição)) return true;
+  // "Sem Produto"/"Sem Serviço" agora SAO criados como placeholders oficiais
+  // pra linhas de orcamento sem item real definido (mantem unit/preco em zero).
   if (row.Ativo && /^N(ã|a)o$/i.test(row.Ativo)) return true;
   return false;
 }
@@ -228,7 +229,11 @@ async function main() {
     if (!isProduto && !isServico) { skipped++; continue; }
 
     const grupo = (row.Grupo || '').trim();
-    const section = SECTION_MAP[grupo] as PoolSection | undefined;
+    let section = SECTION_MAP[grupo] as PoolSection | undefined;
+    // "Sem Produto"/"Sem Serviço" caem em OUTROS por default
+    if (!section && /^Sem (Produto|Serviço|Servico)$/i.test(row.Descrição || '')) {
+      section = 'OUTROS' as PoolSection;
+    }
     if (!section) {
       unmapped.add(grupo || '(vazio)');
     }
