@@ -1,7 +1,15 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.54 (em prod)
+## Versao: v1.10.55 (em prod)
 ## Ultima sessao: 187 (07/05/2026)
+
+## v1.10.55 — Fix CORP same-origin bloqueando preview WhatsApp pra outros destinatarios
+- **Bug reportado pelo Juliano (3a iteracao)**: pos v1.10.54 (logo centralizada), enviou link pro Eduardo as 17:53 — compose mostrou preview SLS, mas mensagem chegou como URL bruta sem rich preview. Mensagem 17:21 funcionou, 17:53 falhou — comportamento intermitente.
+- **Causa**: Helmet default seta `Cross-Origin-Resource-Policy: same-origin` em toda response. Pra OG image (que precisa ser embed/loaded por crawlers de WhatsApp/Telegram/Facebook em outras origens), isso bloqueia. Browsers modernos fazem fetch via CORP-aware loader e rejeitam silenciosamente.
+- **Fix** ([tenant-branding.controller.ts:122-124](backend/src/company/tenant-branding.controller.ts#L122)): no endpoint `getLogo`, sobrescreve com:
+  - `Cross-Origin-Resource-Policy: cross-origin` (libera embed cross-origin)
+  - `Access-Control-Allow-Origin: *` (CORS wildcard pra crawlers)
+- **Por que era intermitente**: WhatsApp tem multipla infra de crawl + cache. Alguns crawlers respeitam CORP, outros nao. Cache servidor decide qual versao do preview entregar pra cada destinatario.
 
 ## v1.10.54 — Fix logo cortada no preview WhatsApp (og:image padding)
 - **Bug reportado pelo Juliano (continuacao do v1.10.53)**: apos fix do og:image apontar pro logo customizado, WhatsApp mostrou logo SLS com texto "SOLUÇÕES" cortado na lateral direita.

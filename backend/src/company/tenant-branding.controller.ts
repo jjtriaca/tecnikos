@@ -121,6 +121,11 @@ export class TenantBrandingController {
       'Cache-Control',
       isDefault ? 'public, max-age=300' : 'public, max-age=86400, immutable',
     );
+    // CRITICO: og:image precisa ser carregavel cross-origin (WhatsApp, Telegram,
+    // Facebook, Twitter previews etc.). Helmet default eh `same-origin` que bloqueia
+    // embed em outras origens — sobrescreve aqui.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.sendFile(filePath);
   }
 
