@@ -1,7 +1,17 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.52 (em prod)
+## Versao: v1.10.53 (em prod)
 ## Ultima sessao: 187 (07/05/2026)
+
+## v1.10.53 — Fix preview WhatsApp em links publicos (/q/ e /p/)
+- **Bug reportado pelo Juliano**: ao enviar link de orcamento (`https://sls.tecnikos.com.br/q/{token}`) pelo WhatsApp, o preview as vezes funciona e as vezes mostra "Ocorreu um erro". Curl com user-agent WhatsApp mostrou que o HTML retornado tinha `og:title=Orcamento — Tecnikos` (generico) e `og:image=https://tecnikos.com.br/icons/icon-512.png` (fallback) em vez do logo do tenant.
+- **Causa raiz** (2 bugs em cascata no `generateMetadata` SSR):
+  1. `INTERNAL_API = process.env.NEXT_PUBLIC_API_URL || "http://backend:4000"`. Em prod, `NEXT_PUBLIC_API_URL=/api` (URL relativa pra rewrite client-side). SSR (Node.js) nao resolve URL relativa → `fetch("/api/...")` joga TypeError → catch swallow → `branding=null`.
+  2. Mesmo se SSR usasse o fallback `http://backend:4000`, a URL era `${INTERNAL_API}/api/public/tenant/...` MAS o backend NAO tem `setGlobalPrefix('api')` — controller eh `@Controller('public/tenant')` direto. Endpoint correto SSR: `http://backend:4000/public/tenant/sls/branding` (sem `/api`). Externo via HTTPS: `https://sls.tecnikos.com.br/api/public/tenant/sls/branding` (com `/api`, nginx rewrita).
+- **Fix** (2 arquivos identicos): `frontend/src/app/q/[token]/layout.tsx` e `frontend/src/app/p/[token]/layout.tsx`:
+  - `INTERNAL_API` agora prioriza `INTERNAL_BACKEND_URL`, depois detecta se `NEXT_PUBLIC_API_URL` eh absoluta, fallback `http://backend:4000`.
+  - Detecta SSR interno (`startsWith("http://backend")`) vs externo e ajusta path com/sem `/api`.
+- **Resultado esperado**: WhatsApp agora le `og:title=Orcamento — SLS Obras` e `og:image=https://sls.tecnikos.com.br/api/public/tenant/sls/logo/og` (logo customizado do tenant). Preview consistente.
 
 ## v1.10.52 — Pool budget: fix receitas com variaveis erradas + 5 vars novas
 - **Bug reportado pelo Juliano**: receita "Perimetro (borda)" retornava 43 quando deveria retornar 25 (perimetro externo digitado manualmente). User pediu pra auditar TODAS as receitas.

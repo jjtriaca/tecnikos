@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
-const INTERNAL_API = process.env.NEXT_PUBLIC_API_URL || "http://backend:4000";
+// SSR fetch precisa de URL absoluta (Node.js nao resolve `/api` relativo).
+// `NEXT_PUBLIC_API_URL` vale `/api` em prod (pra browser usar via rewrite Next.js),
+// entao usamos `INTERNAL_BACKEND_URL` pro SSR ou cai no nome do container.
+const INTERNAL_API =
+  process.env.INTERNAL_BACKEND_URL ||
+  (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.startsWith("/")
+    ? process.env.NEXT_PUBLIC_API_URL
+    : "http://backend:4000");
 
 interface BrandingInfo {
   tenantSlug: string;
@@ -33,7 +40,13 @@ async function resolveTenantSlug(): Promise<string | null> {
 
 async function fetchBranding(slug: string): Promise<BrandingInfo | null> {
   try {
-    const res = await fetch(`${INTERNAL_API}/api/public/tenant/${slug}/branding`, {
+    // Backend nao tem `setGlobalPrefix('api')` — controller `public/tenant` mapeia direto.
+    // Container interno: sem `/api`. Dominio externo (HTTPS): com `/api` (nginx rewrita).
+    const isInternal = INTERNAL_API.startsWith("http://backend") || INTERNAL_API.startsWith("http://localhost");
+    const path = isInternal
+      ? `/public/tenant/${slug}/branding`
+      : `/api/public/tenant/${slug}/branding`;
+    const res = await fetch(`${INTERNAL_API}${path}`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return null;
