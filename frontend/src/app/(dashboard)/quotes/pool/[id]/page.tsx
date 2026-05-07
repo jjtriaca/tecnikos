@@ -1539,9 +1539,21 @@ function BudgetInstallments({ paymentTerm, totalCents, startDate }: {
 // Referencias: qty(LX), total(LX), unitPrice(LX) -> outras linhas via cellRef.
 // ─────────────────────────────────────────────────────────
 const FORMULA_VARS = [
-  'length', 'width', 'depth', 'area', 'perimeter', 'volume',
+  // Dimensoes basicas (primeira section)
+  'length', 'width', 'depth',
+  // Metricas agregadas (somatorio das sections)
+  'area', 'perimeter', 'volume',
+  // Bounding box (envelope externo)
   'cantos', 'perimExterno', 'perimInterno',
+  // Areas extras
+  'areaParedeEFundo',
+  // Radier
+  'radierM2', 'radierEspessura', 'radierM3',
+  // Escavacao
+  'escavacao',
+  // Prazo
   'dias',
+  // Aquecimento
   'tempLocal', 'tempAgua', 'vento', 'capa', 'construcao',
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
@@ -1590,17 +1602,32 @@ function evalLocal(
 type FormulaRecipe = { label: string; expr: string; hint: string };
 
 const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
-  { label: "Area da piscina", expr: "area", hint: "Liner, capa termica, manta - geralmente 1× area" },
-  { label: "Area × 2 (capa termica)", expr: "area * 2", hint: "Capa em 2 camadas" },
-  { label: "Volume da piscina", expr: "volume", hint: "Bombas, tratamento por m3" },
-  { label: "Perimetro (borda)", expr: "perimeter", hint: "Borda corrida em metros lineares" },
-  { label: "Borda + 10%", expr: "perimeter * 1.1", hint: "Margem de seguranca/perda" },
-  { label: "Caixa 18kg (impermeabilizante)", expr: "ceil(area * 0.5 / 18)", hint: "0.5 kg/m2 - arredonda pra cima" },
-  { label: "Saco cimento 50kg", expr: "ceil(volume * 350 / 50)", hint: "350 kg/m3 de concreto - arredonda pra cima" },
-  { label: "Tijolos por m2 (12u/m2)", expr: "ceil(area * 12)", hint: "Considera 12 tijolos por m2" },
+  // ── Area / superficie (somatorio das sections) ──
+  { label: "Area da piscina (m²)", expr: "area", hint: "Superficie d'agua — liner, manta, tratamento de superficie" },
+  { label: "Capa termica (area)", expr: "area", hint: "Capa cobre superficie — 1× area" },
+  { label: "Capa termica × 2 (2 camadas)", expr: "area * 2", hint: "Capa em 2 camadas" },
+  // ── Volume d'agua ──
+  { label: "Volume d'agua (m³)", expr: "volume", hint: "Bombas, tratamento por m³, dimensionar filtro" },
+  // ── Borda externa (perimetro real, nao soma de sections) ──
+  { label: "Borda externa (m/l)", expr: "perimExterno", hint: "Parede externa, borda corrida — usa o perimetro do bounding box" },
+  { label: "Borda externa + 10% perda", expr: "perimExterno * 1.1", hint: "Margem de seguranca pra recortes" },
+  { label: "Cantoneira interna (m/l)", expr: "cantos", hint: "Cantoneiras internas — usa valor digitado em Dimensoes" },
+  { label: "Parede interna (m/l)", expr: "perimInterno", hint: "Paredes internas (degraus, divisorias)" },
+  // ── Parede + fundo (impermeabilizacao, pintura, azulejo) ──
+  { label: "Impermeabilizante caixa 18kg", expr: "ceil(areaParedeEFundo * 0.5 / 18)", hint: "0.5 kg/m² em parede+fundo, arredonda pra cima" },
+  { label: "Tijolos parede+fundo (12u/m²)", expr: "ceil(areaParedeEFundo * 12)", hint: "Tijolos em parede+fundo (12 por m²)" },
+  { label: "Azulejo / revestimento (m²)", expr: "areaParedeEFundo", hint: "Cobre paredes + fundo da piscina" },
+  // ── Radier (concreto do fundo) ──
+  { label: "Radier — area (m²)", expr: "radierM2", hint: "Area do radier do fundo" },
+  { label: "Radier — concreto (m³)", expr: "radierM3", hint: "Volume de concreto = radier m² × espessura" },
+  { label: "Cimento radier (50kg)", expr: "ceil(radierM3 * 350 / 50)", hint: "350 kg cimento/m³ concreto, saco 50kg" },
+  // ── Escavacao ──
+  { label: "Escavacao (m³)", expr: "escavacao", hint: "Volume de terra removida" },
+  // ── Diarias ──
   { label: "Diaria por dia de obra", expr: "dias", hint: "Quantidade = nº de dias da obra (auto)" },
   { label: "Diaria × 2 (2 funcionarios)", expr: "dias * 2", hint: "2 pessoas trabalhando juntas" },
   { label: "Diaria - 2 dias (sem inicio/fim)", expr: "max(0, dias - 2)", hint: "Exclui prep e finalizacao" },
+  // ── Referencias entre linhas ──
   { label: "30% sobre total da linha L7", expr: "total(L7) * 0.3", hint: "Ex: comissao/margem sobre outra linha" },
   { label: "Mesma quantidade da linha L5", expr: "qty(L5)", hint: "Espelha qty de outra linha (parafuso casa com furo)" },
 ];
@@ -1651,6 +1678,8 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
     return m[String(v || '').toUpperCase()] ?? 0;
   })();
 
+  const radierM2Val = Number(dimensions?.radierM2) || 0;
+  const radierEspVal = Number(dimensions?.radierEspessura) || 0;
   const vars: Record<string, number> = {
     length: Number(dimensions?.length) || 0,
     width: Number(dimensions?.width) || 0,
@@ -1661,6 +1690,11 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
     cantos: Number(dimensions?.cantos) || 0,
     perimExterno: Number(dimensions?.perimetroExternoBorda) || 0,
     perimInterno: Number(dimensions?.perimetroParedesInternas) || 0,
+    areaParedeEFundo: Number(dimensions?.areaParedeEFundo) || 0,
+    radierM2: radierM2Val,
+    radierEspessura: radierEspVal,
+    radierM3: Number(dimensions?.radierM3) || (radierM2Val * radierEspVal) || 0,
+    escavacao: Number(dimensions?.escavacaoM3) || 0,
     dias: Number(dias) || 0,
     tempLocal: Number(environmentParams?.temperaturaMediaLocal ?? environmentParams?.temperatura) || 0,
     tempAgua: Number(environmentParams?.temperaturaAguaDesejada) || 0,
@@ -1676,8 +1710,28 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
   }
   const VAR_GROUPS: Record<string, { label: string; vars: string[] }> = {
     dimensoes: {
-      label: "Dimensoes da piscina",
-      vars: ["length", "width", "depth", "area", "perimeter", "volume", "cantos", "perimExterno", "perimInterno"],
+      label: "Dimensoes basicas (1ª section)",
+      vars: ["length", "width", "depth"],
+    },
+    aggregadas: {
+      label: "Metricas agregadas (somatorio das sections)",
+      vars: ["area", "volume", "perimeter"],
+    },
+    boundingBox: {
+      label: "Bounding box / borda (manuais em Dimensoes)",
+      vars: ["perimExterno", "cantos", "perimInterno"],
+    },
+    paredeFundo: {
+      label: "Parede + fundo (impermeabilizacao, pintura, azulejo)",
+      vars: ["areaParedeEFundo"],
+    },
+    radier: {
+      label: "Radier (concreto do fundo)",
+      vars: ["radierM2", "radierEspessura", "radierM3"],
+    },
+    escavacao: {
+      label: "Escavacao",
+      vars: ["escavacao"],
     },
     tempo: {
       label: "Tempo / Prazo",
@@ -1689,15 +1743,20 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
     },
   };
   const VAR_DESCRIPTIONS: Record<string, string> = {
-    length: "Comprimento (m)",
-    width: "Largura (m)",
-    depth: "Profundidade (m)",
-    area: "Area da piscina (m²)",
-    perimeter: "Perimetro / borda (m)",
-    volume: "Volume (m³)",
-    cantos: "Cantoneiras internas (m/l)",
-    perimExterno: "Perimetro externo borda (m/l)",
-    perimInterno: "Perimetro paredes internas (m/l)",
+    length: "Comprimento 1ª section (m)",
+    width: "Largura 1ª section (m)",
+    depth: "Profundidade 1ª section (m)",
+    area: "Area total — somatorio das sections (m²)",
+    perimeter: "Perimetro — SOMA dos perimetros das sections (m). Pra borda real use perimExterno",
+    volume: "Volume total — somatorio das sections (m³)",
+    cantos: "Cantoneiras internas (m/l) — bounding box",
+    perimExterno: "Perimetro externo / borda real (m/l) — use pra parede externa",
+    perimInterno: "Perimetro paredes internas (m/l) — divisorias internas",
+    areaParedeEFundo: "Area parede + fundo (m²) — impermeabilizante, pintura, azulejo",
+    radierM2: "Radier — area (m²)",
+    radierEspessura: "Radier — espessura (m)",
+    radierM3: "Radier — volume concreto (m³) = m² × espessura",
+    escavacao: "Escavacao (m³) — volume de terra removida",
     dias: "Duracao estimada da obra (dias)",
     tempLocal: "Temperatura media local (°C)",
     tempAgua: "Temperatura agua desejada (°C)",

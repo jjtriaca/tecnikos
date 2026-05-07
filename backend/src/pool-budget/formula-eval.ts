@@ -12,12 +12,24 @@
 // Como o input e sanitizado, nao ha risco de injecao de codigo.
 
 const ALLOWED_VARS = [
-  // Dimensoes
-  'length', 'width', 'depth', 'area', 'perimeter', 'volume',
-  // Perimetros especificos
-  'cantos',         // cantoneiras internas (m/l)
-  'perimExterno',   // perimetro externo borda (m/l)
-  'perimInterno',   // perimetro paredes internas (m/l)
+  // Dimensoes basicas (primeira section ou unica)
+  'length', 'width', 'depth',
+  // Metricas agregadas (somatorios das sections)
+  'area',          // m² - superficie d'agua (somatorio das sections)
+  'perimeter',     // m - SOMATORIO das section perimeters (use perimExterno pra borda real)
+  'volume',        // m³ - volume d'agua
+  // Perimetros especificos (bounding box externo)
+  'cantos',         // m/l - cantoneiras internas
+  'perimExterno',   // m/l - perimetro externo borda (BORDA REAL — use pra parede pre-moldada externa)
+  'perimInterno',   // m/l - perimetro paredes internas
+  // Areas especificas (parede + fundo, pra impermeabilizacao/pintura)
+  'areaParedeEFundo', // m² - area total parede + fundo (impermeabilizante, pintura)
+  // Radier (concreto do fundo)
+  'radierM2',         // m² - area do radier
+  'radierEspessura',  // m  - espessura do radier
+  'radierM3',         // m³ - volume de concreto do radier (= radierM2 * radierEspessura)
+  // Escavacao
+  'escavacao',        // m³ - volume de escavacao (terra removida)
   // Prazo
   'dias',
   // Aquecimento (aba CAPA da planilha original)
@@ -146,6 +158,15 @@ export function extractDimensionVars(poolDimensions: any): FormulaVars {
     cantos: typeof d.cantos === 'number' ? d.cantos : undefined,
     perimExterno: typeof d.perimetroExternoBorda === 'number' ? d.perimetroExternoBorda : undefined,
     perimInterno: typeof d.perimetroParedesInternas === 'number' ? d.perimetroParedesInternas : undefined,
+    areaParedeEFundo: typeof d.areaParedeEFundo === 'number' ? d.areaParedeEFundo : undefined,
+    radierM2: typeof d.radierM2 === 'number' ? d.radierM2 : undefined,
+    radierEspessura: typeof d.radierEspessura === 'number' ? d.radierEspessura : undefined,
+    radierM3: typeof d.radierM3 === 'number'
+      ? d.radierM3
+      : (typeof d.radierM2 === 'number' && typeof d.radierEspessura === 'number'
+          ? d.radierM2 * d.radierEspessura
+          : undefined),
+    escavacao: typeof d.escavacaoM3 === 'number' ? d.escavacaoM3 : undefined,
   };
 
   // Se tem sections[], agrega area/volume e usa primeira pra dimensoes

@@ -1,7 +1,24 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.51 (em prod)
+## Versao: v1.10.52 (em prod)
 ## Ultima sessao: 187 (07/05/2026)
+
+## v1.10.52 — Pool budget: fix receitas com variaveis erradas + 5 vars novas
+- **Bug reportado pelo Juliano**: receita "Perimetro (borda)" retornava 43 quando deveria retornar 25 (perimetro externo digitado manualmente). User pediu pra auditar TODAS as receitas.
+- **Causa raiz**: `perimeter` (var classica) e SOMA dos perimetros das sections — geometricamente errado pra piscina multi-secao (ex: Principal + Praia + Degraus → soma 43 que inclui paredes que nao existem). A var correta pra "borda real" e `perimExterno` (bounding box + ajustes manuais).
+- **Auditoria das 13 receitas anteriores**: encontrei 4 com vars erradas:
+  - "Perimetro (borda)" usava `perimeter` → deveria `perimExterno`
+  - "Borda + 10%" usava `perimeter * 1.1` → idem
+  - "Caixa 18kg (impermeabilizante)" usava `area` (28.5, so superficie d'agua) → impermeabilizante vai em parede + fundo: `areaParedeEFundo` (64.3)
+  - "Saco cimento 50kg" usava `volume` (volume d'agua!) → concreto e pra radier: `radierM3`
+  - "Tijolos por m2" usava `area` (so fundo d'agua) → tijolos vao em parede+fundo: `areaParedeEFundo`
+- **5 novas variaveis adicionadas** ao sistema de formulas (eram salvas em poolDimensions mas nunca expostas):
+  - `areaParedeEFundo` (m²) — impermeabilizante, pintura, azulejo
+  - `radierM2` (m²), `radierEspessura` (m), `radierM3` (m³) — concreto do radier
+  - `escavacao` (m³) — volume de terra removida
+- **Receitas reescritas**: 21 receitas organizadas por categoria (area, volume, borda externa, parede+fundo, radier, escavacao, diarias, refs entre linhas). Todas usam a variavel correta agora.
+- **VAR_GROUPS reorganizado** no FormulaModal: 8 grupos visuais (Dimensoes basicas, Metricas agregadas, Bounding box, Parede+Fundo, Radier, Escavacao, Tempo, Aquecimento) — gestor ve claramente o que cada var representa.
+- **Backend formula-eval.ts**: ALLOWED_VARS expandido + extractDimensionVars le os novos campos (incl. fallback radierM3 = radierM2 × espessura).
 
 ## v1.10.51 — Pool budget: fix save de dimensoes + UI fórmulas
 - **Bug critico em prod (reportado pelo Juliano)**: ao editar dimensoes da piscina (ex: 4 linhas de sections), salvar mostrava sucesso mas os dados NAO persistiam. Reabrir o form mostrava os valores antigos.
