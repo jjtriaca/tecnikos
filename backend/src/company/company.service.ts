@@ -171,11 +171,26 @@ export class CompanyService {
             background: { r: 255, g: 255, b: 255, alpha: 0 },
           });
         } else {
-          // og:image 1200x630 — fundo branco solido (Meta nao renderiza alpha)
-          pipeline = pipeline.resize(variant.width, variant.height, {
-            fit: variant.fit,
-            background: { r: 255, g: 255, b: 255, alpha: 1 },
-          });
+          // og:image 1200x630 com logo centralizada a ~60% da largura.
+          // Crawlers diferentes (WhatsApp/Telegram/iMessage) mostram o preview
+          // com aspect ratios variados — alguns crop pra quadrado 1:1, outros
+          // mostram 1.91:1 wide. Pra a logo nao ser cortada em nenhum, fazemos
+          // ela caber no central ~58% (700x400 dentro de 1200x630). O resto fica
+          // padding branco que crawlers podem cropar sem prejuizo.
+          const innerWidth = 700;
+          const innerHeight = 400;
+          pipeline = pipeline
+            .resize(innerWidth, innerHeight, {
+              fit: 'contain',
+              background: { r: 255, g: 255, b: 255, alpha: 1 },
+            })
+            .extend({
+              top: Math.floor((variant.height - innerHeight) / 2),
+              bottom: Math.ceil((variant.height - innerHeight) / 2),
+              left: Math.floor((variant.width - innerWidth) / 2),
+              right: Math.ceil((variant.width - innerWidth) / 2),
+              background: { r: 255, g: 255, b: 255, alpha: 1 },
+            });
         }
 
         await pipeline.png().toFile(outputPath);

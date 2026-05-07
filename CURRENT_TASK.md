@@ -1,7 +1,13 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.53 (em prod)
+## Versao: v1.10.54 (em prod)
 ## Ultima sessao: 187 (07/05/2026)
+
+## v1.10.54 — Fix logo cortada no preview WhatsApp (og:image padding)
+- **Bug reportado pelo Juliano (continuacao do v1.10.53)**: apos fix do og:image apontar pro logo customizado, WhatsApp mostrou logo SLS com texto "SOLUÇÕES" cortado na lateral direita.
+- **Causa**: og.png eh 1200x630 (1.91:1) gerado com `fit:contain`, e a logo SLS tem aspect ratio ~2:1 — entao ela ocupa praticamente 100% da largura do canvas. Quando o crawler do WhatsApp (e Telegram, iMessage) renderiza o preview com aspect mais quadrado/estreito, ele crop as laterais e a logo perde os caracteres das pontas.
+- **Fix** (`company.service.ts:158-198` `generateLogoVariants`): logo agora eh dimensionada pra caber em 700x400 (com padding interno se aspect divergir), depois centralizada num canvas branco 1200x630 com padding extra (250px laterais, 115px verticais). Crawler pode cropar 30%+ das bordas sem perder logo.
+- **Backfill prod**: og.png antiga (algoritmo v1) ainda existe — deletar `uploads/{slsCompanyId}/variants/og.png` apos deploy pra forcar regen via `ensureLogoVariants` no proximo request.
 
 ## v1.10.53 — Fix preview WhatsApp em links publicos (/q/ e /p/)
 - **Bug reportado pelo Juliano**: ao enviar link de orcamento (`https://sls.tecnikos.com.br/q/{token}`) pelo WhatsApp, o preview as vezes funciona e as vezes mostra "Ocorreu um erro". Curl com user-agent WhatsApp mostrou que o HTML retornado tinha `og:title=Orcamento — Tecnikos` (generico) e `og:image=https://tecnikos.com.br/icons/icon-512.png` (fallback) em vez do logo do tenant.
