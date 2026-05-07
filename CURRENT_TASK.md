@@ -1,7 +1,17 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.37 (em prod)
-## Ultima sessao: 186 (05/05/2026)
+## Versao: v1.10.50 (em prod)
+## Ultima sessao: 187 (07/05/2026)
+
+## v1.10.50 — Pool budget: fix preco nao atualiza ao trocar item via 🔍
+- **Bug em prod (reportado pelo Juliano)**: ao clicar no 🔍 ao lado de uma linha existente do orcamento de piscina, escolher outro item do catalogo, a descricao e UN atualizavam mas o VALOR UN. continuava com o preco antigo. Pior: dar blur no input do preco depois sobrescrevia `unitPriceCents` no backend de volta com o valor antigo (commit() linha 902 compara `newPrice` do state local com `item.unitPriceCents` da prop fresh — sempre detecta "mudanca" e patcha pra tras).
+- **Causa**: `ItemRow.price` e `useState((item.unitPriceCents/100).toFixed(2))` (linha 898). Anti-pattern derived state from props. O handler `onPick` do `CatalogPickModal` (linha 1035) chamava `setDesc(newDesc)` mas faltava o equivalente pro preco.
+- **Fix** (frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx linha ~1049): adicionado `setPrice((newPriceCents / 100).toFixed(2))` ao lado do `setDesc`. 1 linha.
+- **Cobertura validada**:
+  - `ItemRow` e componente unico usado em `presentSections.map → items.map` (linha 736) → mesmo fix vale pra todas as 12 etapas atuais e qualquer etapa futura
+  - `AddItemModal` ("+ Linha") usa inputs controlados com setters corretos no `handleCatalogPick` (linha 1097-1105) — ja estava OK
+  - `unit` renderiza direto de `item.unit` (linha 960), sem state local — atualiza automaticamente
+- **Versoes nao documentadas em CURRENT_TASK.md** (v1.10.38–49): module Piscina recebeu 12 patches (Sprint 2/3) com pool-payment-term CRUD, header sticky/colapsavel, formula-eval estendido pra 12 vars (incl. environmentParams da aba CAPA), Product/Service.useInSale/useInWork/useInPool flags, e refinos no [id]/page.tsx. Nao detalho aqui pra economizar contexto — git log tem o historico completo.
 
 ## v1.10.37 — 🔴 CRITICO: fix bug matchAsMultiple direcao PAYABLE
 - **Causa raiz** (introduzida em v1.10.07): em `reconciliation.service.ts:matchAsMultiple` linha ~1602, o sinal era `e.type === expectedType ? 1 : -1`. Pra `expectedType=PAYABLE` isso invertia: PAYABLE entry virava +1 (deveria ser -1, dinheiro saiu), RECEIVABLE desconto virava -1 (deveria ser +1). `liquid` calculado positivo → AccountTransfer criado VT→SICREDI (deveria ser SICREDI→VT). Pra `expectedType=RECEIVABLE` o sinal acertava por coincidencia.

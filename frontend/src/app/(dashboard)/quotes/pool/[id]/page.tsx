@@ -1046,6 +1046,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             unitPriceCents: newPriceCents,
           } as any);
           setDesc(newDesc);
+          setPrice((newPriceCents / 100).toFixed(2));
         }}
       />
     )}
