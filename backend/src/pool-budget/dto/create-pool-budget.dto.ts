@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
@@ -11,7 +10,6 @@ import {
   Max,
   MaxLength,
   Min,
-  ValidateNested,
 } from 'class-validator';
 import { PoolDimensionsDto } from './pool-dimensions.dto';
 
@@ -50,10 +48,13 @@ export class CreatePoolBudgetDto {
   @IsString()
   termsConditions?: string;
 
+  // PoolDimensions e JSON livre no schema Prisma — aceita campos extensiveis
+  // (sections[], cantos, comprimentoTotal, areaParedeEFundo, radierM2, etc.)
+  // sem precisar atualizar o DTO toda vez que adicionarmos campo novo.
+  // PoolDimensionsDto fica como referencia/documentacao Swagger.
   @ApiProperty({ type: PoolDimensionsDto })
-  @ValidateNested()
-  @Type(() => PoolDimensionsDto)
-  poolDimensions!: PoolDimensionsDto;
+  @IsObject()
+  poolDimensions!: Record<string, unknown>;
 
   @ApiPropertyOptional({
     description: 'Parâmetros ambientais (temperatura, capa térmica, região solar, etc.)',

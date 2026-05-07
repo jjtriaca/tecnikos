@@ -1,7 +1,19 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.50 (em prod)
+## Versao: v1.10.51 (em prod)
 ## Ultima sessao: 187 (07/05/2026)
+
+## v1.10.51 — Pool budget: fix save de dimensoes + UI fórmulas
+- **Bug critico em prod (reportado pelo Juliano)**: ao editar dimensoes da piscina (ex: 4 linhas de sections), salvar mostrava sucesso mas os dados NAO persistiam. Reabrir o form mostrava os valores antigos.
+- **Causa raiz**: `ValidationPipe` global do NestJS tem `whitelist: true` ([backend/src/main.ts:81](backend/src/main.ts#L81)). O `CreatePoolBudgetDto.poolDimensions` usava `@ValidateNested() @Type(() => PoolDimensionsDto)`, mas o `PoolDimensionsDto` so declarava `length/width/depth/area/perimeter/volume/type/has*`. Os campos novos do frontend (`sections[]`, `cantos`, `comprimentoTotal`, `larguraTotal`, `perimetroExternoBorda`, `perimetroParedesInternas`, `areaParedeEFundo`, `radierM2`, `radierEspessura`, `radierM3`, `escavacaoM3`, `maxDepth`) eram silenciosamente removidos antes de chegar no service.
+- **Fix backend**: trocado `@ValidateNested + Type(() => PoolDimensionsDto)` por `@IsObject()` em [create-pool-budget.dto.ts:53-58](backend/src/pool-budget/dto/create-pool-budget.dto.ts#L53). PoolDimensions e JSON livre no Prisma — nao precisa de validacao rigida de schema. environmentParams ja usava esse padrao desde sempre.
+- **Cards de formula pre-prontos sao FANTASMA?** Verifiquei: `FORMULA_RECIPES_PISCINA` (13 receitas, [linha 1576-1590](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx#L1576)) estao corretamente conectadas — clicar faz `setExpr(r.expr)`. Expressoes usam so vars/funcs do whitelist (validei). NAO sao fantasma.
+- **UI: padronizacao dos cards do FormulaModal**: antes tinha 3 estilos diferentes (slate/amber, cyan, violet/roxo, amber). Padronizado pra UM estilo unico: `border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 transition`. Diferenciacao agora e so na cor do texto (cyan/slate).
+- **UI: barra de formula com SQL real + erro**: input do modal ja era editavel; melhorias adicionadas:
+  - Border vermelho quando expressao invalida
+  - Mensagem de erro mais clara: "Formula invalida: {motivo}. Conserte ou clique em Remover formula pra usar quantidade manual."
+  - Novo bloco "Avaliacao" abaixo do input mostrando a expressao com VARIAVEIS SUBSTITUIDAS pelos valores reais (ex: `area * 12` → `28.5 * 12`) — gestor entende exatamente o que esta sendo calculado
+- **UI: formula visivel na linha do orcamento (ItemRow)**: antes a expressao so aparecia em `title` (hover). Agora mostra `= ceil(area * 12)` em mono pequeno abaixo da qty, clicavel — abre modal pra edit.
 
 ## v1.10.50 — Pool budget: fix preco nao atualiza ao trocar item via 🔍
 - **Bug em prod (reportado pelo Juliano)**: ao clicar no 🔍 ao lado de uma linha existente do orcamento de piscina, escolher outro item do catalogo, a descricao e UN atualizavam mas o VALOR UN. continuava com o preco antigo. Pior: dar blur no input do preco depois sobrescrevia `unitPriceCents` no backend de volta com o valor antigo (commit() linha 902 compara `newPrice` do state local com `item.unitPriceCents` da prop fresh — sempre detecta "mudanca" e patcha pra tras).

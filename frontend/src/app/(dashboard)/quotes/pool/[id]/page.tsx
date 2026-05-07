@@ -960,20 +960,36 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
       <td className="px-2 py-1.5 text-center text-xs text-slate-500">{item.unit}</td>
       <td className="px-2 py-1.5 text-center">
         {locked ? (
-          <span className="text-sm tabular-nums">{item.qty}</span>
+          <div className="flex flex-col items-center">
+            <span className="text-sm tabular-nums">{item.qty}</span>
+            {item.formulaExpr && (
+              <span className="text-[9px] font-mono text-cyan-600 truncate max-w-full" title={`= ${item.formulaExpr}`}>= {item.formulaExpr}</span>
+            )}
+          </div>
         ) : (
-          <div className="inline-flex items-center gap-1">
-            <button type="button" onClick={() => setShowFormula(true)}
-              className={"text-[10px] font-bold px-1 rounded border " + (item.formulaExpr ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-slate-200 text-slate-400 hover:text-cyan-600 hover:border-cyan-300")}
-              title={item.formulaExpr ? `Formula: ${item.formulaExpr}` : "Configurar formula automatica"}
-            >fx</button>
-            {item.formulaExpr ? (
-              <span className="text-sm tabular-nums text-cyan-700 font-medium" title={`= ${item.formulaExpr}`}>{item.qty}</span>
-            ) : (
-              <input type="number" step="0.01" value={qty}
-                onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
-                onBlur={commit}
-                className="w-16 rounded border border-slate-200 px-1 py-0.5 text-center text-sm tabular-nums" />
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="inline-flex items-center gap-1">
+              <button type="button" onClick={() => setShowFormula(true)}
+                className={"text-[10px] font-bold px-1 rounded border " + (item.formulaExpr ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-slate-200 text-slate-400 hover:text-cyan-600 hover:border-cyan-300")}
+                title={item.formulaExpr ? `Editar formula (atual: ${item.formulaExpr})` : "Configurar formula automatica"}
+              >fx</button>
+              {item.formulaExpr ? (
+                <button type="button" onClick={() => setShowFormula(true)}
+                  className="text-sm tabular-nums text-cyan-700 font-medium hover:underline"
+                  title="Clique pra editar a formula">{item.qty}</button>
+              ) : (
+                <input type="number" step="0.01" value={qty}
+                  onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
+                  onBlur={commit}
+                  className="w-16 rounded border border-slate-200 px-1 py-0.5 text-center text-sm tabular-nums" />
+              )}
+            </div>
+            {item.formulaExpr && (
+              <button type="button" onClick={() => setShowFormula(true)}
+                className="text-[9px] font-mono text-cyan-600 hover:text-cyan-800 hover:underline truncate max-w-full"
+                title={`Clique pra editar (formula atual: ${item.formulaExpr})`}>
+                = {item.formulaExpr}
+              </button>
             )}
           </div>
         )}
@@ -1728,21 +1744,25 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
             </div>
 
             <div className="overflow-y-auto p-6 space-y-5">
-              {/* Expressao + preview */}
+              {/* Expressao + preview com substituicao das variaveis */}
               <div className="rounded-lg border-2 border-cyan-200 bg-cyan-50/50 p-4">
-                <label className="block text-xs font-bold uppercase tracking-wide text-cyan-900 mb-2">Expressao</label>
+                <label className="block text-xs font-bold uppercase tracking-wide text-cyan-900 mb-2">
+                  Expressao <span className="text-[10px] text-slate-500 normal-case font-normal">(editavel — digite livre se entender da sintaxe)</span>
+                </label>
                 <input ref={inputRef} value={expr} onChange={(e) => setExpr(e.target.value)} autoFocus
                   placeholder="Ex: ceil(area * 0.5 / 18)"
-                  className="w-full rounded-lg border-2 border-slate-300 bg-white px-3 py-2 text-base font-mono focus:border-cyan-500 outline-none" />
-                <div className="mt-2 flex items-center justify-between">
+                  className={"w-full rounded-lg border-2 bg-white px-3 py-2 text-base font-mono outline-none " + (expr.trim() && !result.ok ? "border-red-400 focus:border-red-500" : "border-slate-300 focus:border-cyan-500")} />
+                <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
                   <div className="text-sm">
                     {result.ok ? (
                       <span className="text-green-700">
                         = <span className="text-2xl font-extrabold tabular-nums text-green-800">{result.value!.toFixed(4).replace(/\.?0+$/, "")}</span>
                         <span className="text-xs text-slate-500 ml-2">resultado da quantidade</span>
                       </span>
+                    ) : expr.trim() ? (
+                      <span className="text-red-600 font-medium">⚠ Formula invalida: {result.error}. Conserte ou clique em &ldquo;Remover formula&rdquo; pra usar quantidade manual.</span>
                     ) : (
-                      <span className="text-red-600 font-medium">⚠ {result.error}</span>
+                      <span className="text-slate-500 italic">Use uma receita pronta abaixo, ou digite a formula direto.</span>
                     )}
                   </div>
                   {expr && (
@@ -1750,9 +1770,34 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                       className="text-xs text-slate-500 hover:text-slate-800">limpar</button>
                   )}
                 </div>
+                {expr.trim() && result.ok && (() => {
+                  // Preview da expressao com variaveis SUBSTITUIDAS pelos valores reais.
+                  // Util pro gestor entender exatamente o que esta sendo calculado.
+                  let expanded = expr;
+                  for (const fn of CELL_REF_FUNCTIONS) {
+                    expanded = expanded.replace(
+                      new RegExp('\\b' + fn + '\\s*\\(\\s*(L\\d+)\\s*\\)', 'g'),
+                      (_m, ref: string) => {
+                        const data = cellRefMap.get(ref);
+                        return data ? String(Number(data[fn as keyof CellRefDataLocal]).toFixed(2).replace(/\.?0+$/, "")) : `${fn}(${ref})`;
+                      },
+                    );
+                  }
+                  for (const k of FORMULA_VARS) {
+                    expanded = expanded.replace(new RegExp('\\b' + k + '\\b', 'g'), String(vars[k] ?? 0));
+                  }
+                  if (expanded === expr) return null;
+                  return (
+                    <div className="mt-2 pt-2 border-t border-cyan-200 text-[11px] text-slate-600">
+                      <span className="font-medium text-slate-700">Avaliacao:</span>{" "}
+                      <code className="font-mono text-cyan-800 bg-white px-1.5 py-0.5 rounded border border-slate-200">{expanded}</code>{" "}
+                      <span className="text-slate-500">→ {result.value!.toFixed(4).replace(/\.?0+$/, "")}</span>
+                    </div>
+                  );
+                })()}
               </div>
 
-              {/* Receitas prontas */}
+              {/* Receitas prontas — padrao card unificado */}
               <div>
                 <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
                   ⚡ Receitas prontas (clique pra usar)
@@ -1760,8 +1805,8 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
                   {FORMULA_RECIPES_PISCINA.map((r) => (
                     <button key={r.label} type="button" onClick={() => setExpr(r.expr)}
-                      className="text-left rounded border border-slate-200 hover:border-amber-400 hover:bg-amber-50 px-3 py-1.5 group">
-                      <div className="text-xs font-semibold text-slate-800 group-hover:text-amber-900">{r.label}</div>
+                      className="text-left rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-3 py-1.5 transition group">
+                      <div className="text-xs font-semibold text-slate-800 group-hover:text-cyan-900">{r.label}</div>
                       <div className="font-mono text-[11px] text-cyan-700">{r.expr}</div>
                       <div className="text-[10px] text-slate-500">{r.hint}</div>
                     </button>
@@ -1769,7 +1814,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                 </div>
               </div>
 
-              {/* Variaveis */}
+              {/* Variaveis — mesmo card unificado */}
               <div>
                 <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
                   📐 Variaveis (clique pra inserir no cursor)
@@ -1781,7 +1826,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                       {group.vars.map((k) => (
                         <button key={k} type="button" onClick={() => insert(k)}
                           title={VAR_DESCRIPTIONS[k]}
-                          className="inline-flex items-center gap-2 text-xs rounded border-2 border-cyan-200 bg-white hover:bg-cyan-50 hover:border-cyan-400 px-2.5 py-1.5 transition">
+                          className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
                           <span className="font-mono font-bold text-cyan-700">{k}</span>
                           <span className="text-slate-500 text-[10px]">{VAR_DESCRIPTIONS[k]}</span>
                           <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{vars[k]}</span>
@@ -1792,7 +1837,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                 ))}
               </div>
 
-              {/* Funcoes */}
+              {/* Funcoes — mesmo card unificado */}
               <div>
                 <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
                   🧮 Funcoes
@@ -1800,8 +1845,8 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
                   {FORMULA_FUNCTIONS.map((fn) => (
                     <button key={fn} type="button" onClick={() => insert(fn + "(")}
-                      className="text-left rounded border border-violet-200 bg-violet-50 hover:bg-violet-100 hover:border-violet-400 px-3 py-1.5">
-                      <span className="font-mono font-bold text-violet-800">{fn}(...)</span>
+                      className="text-left rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-3 py-1.5 transition group">
+                      <span className="font-mono font-bold text-cyan-700 group-hover:text-cyan-900">{fn}(...)</span>
                       <div className="text-[11px] text-slate-600 mt-0.5">{FORMULA_FN_HELP[fn]}</div>
                     </button>
                   ))}
@@ -1823,9 +1868,9 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                     {otherItems
                       .filter((o) => o.cellRef && o.cellRef !== itemCellRef)
                       .map((o) => (
-                        <div key={o.cellRef} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-amber-50 text-xs">
+                        <div key={o.cellRef} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-cyan-50 text-xs">
                           <div className="flex-1 min-w-0">
-                            <span className="font-mono font-bold text-amber-700 mr-2">{o.cellRef}</span>
+                            <span className="font-mono font-bold text-cyan-700 mr-2">{o.cellRef}</span>
                             <span className="text-slate-800 truncate">{o.description}</span>
                           </div>
                           <div className="text-[10px] text-slate-500 tabular-nums whitespace-nowrap">
@@ -1833,10 +1878,10 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                           </div>
                           <div className="flex gap-1">
                             <button type="button" onClick={() => insert(`qty(${o.cellRef})`)}
-                              className="rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] text-amber-800"
+                              className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
                               title={`Insere qty(${o.cellRef}) — quantidade da linha`}>qty</button>
                             <button type="button" onClick={() => insert(`total(${o.cellRef})`)}
-                              className="rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] text-amber-800"
+                              className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
                               title={`Insere total(${o.cellRef}) — total em R$ da linha`}>total</button>
                           </div>
                         </div>
