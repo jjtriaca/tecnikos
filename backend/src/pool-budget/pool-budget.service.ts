@@ -849,6 +849,9 @@ export class PoolBudgetService {
         totalCents,
         sortOrder: dto.sortOrder,
         notes: dto.notes,
+        ...(dto.catalogConfigId !== undefined ? { catalogConfigId: dto.catalogConfigId } : {}),
+        ...(dto.productId !== undefined ? { productId: dto.productId } : {}),
+        ...(dto.serviceId !== undefined ? { serviceId: dto.serviceId } : {}),
         ...(autoCalculatedOverride !== undefined
           ? { isAutoCalculated: autoCalculatedOverride }
           : (dto.qty !== undefined || dto.unitPriceCents !== undefined

@@ -111,4 +111,20 @@ export class UpdateBudgetItemDto {
   @IsOptional()
   @IsString()
   formulaExpr?: string;
+
+  // Vinculacao ao catalogo (quando troca item via lupa). null = desvincular (livre).
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  catalogConfigId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  productId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  serviceId?: string | null;
 }

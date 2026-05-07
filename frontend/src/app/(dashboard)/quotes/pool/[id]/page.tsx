@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import PartnerCombobox from "@/components/PartnerCombobox";
 
 type BudgetItem = {
   id: string;
@@ -264,6 +265,7 @@ export default function PoolBudgetDetailPage() {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject" | "cancel" | "delete">(null);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
+  const [showEditHeader, setShowEditHeader] = useState(false);
   const { widths: colWidths, setWidth: setColWidth, reset: resetColWidths } = useColumnWidths();
 
   function toggleSection(section: string) {
@@ -440,6 +442,13 @@ export default function PoolBudgetDetailPage() {
             <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${status.cls}`}>
               {status.label}
             </span>
+            {!isLocked && (
+              <button onClick={() => setShowEditHeader(true)}
+                className="text-xs text-slate-500 hover:text-cyan-700 hover:bg-cyan-50 px-2 py-1 rounded border border-slate-200"
+                title="Editar titulo, cliente, dimensoes, validade">
+                ✏️ Editar dados
+              </button>
+            )}
           </div>
           <p className="mt-1 text-sm text-slate-500">
             <span className="font-mono">{budget.code || "—"}</span> • Cliente: <strong>{budget.clientPartner?.name}</strong>
@@ -506,8 +515,12 @@ export default function PoolBudgetDetailPage() {
           <div className="mt-1 text-2xl font-bold text-slate-900">{fmtCurrency(budget.totalCents)}</div>
           <div className="mt-1 text-xs text-slate-400">Subtotal: {fmtCurrency(budget.subtotalCents)}</div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Dimensoes</div>
+        <div onClick={() => !isLocked && setShowEditHeader(true)}
+          className={"rounded-xl border border-slate-200 bg-white p-4 shadow-sm " + (!isLocked ? "cursor-pointer hover:border-cyan-300 hover:bg-cyan-50/30" : "")}
+          title={!isLocked ? "Clique pra editar" : ""}>
+          <div className="text-xs text-slate-500 flex items-center justify-between">
+            Dimensoes {!isLocked && <span className="text-[10px] text-slate-400">✏️</span>}
+          </div>
           <div className="mt-1 text-sm text-slate-700">
             {budget.poolDimensions?.length}m × {budget.poolDimensions?.width}m × {budget.poolDimensions?.depth}m
           </div>
@@ -515,8 +528,12 @@ export default function PoolBudgetDetailPage() {
             Area {budget.poolDimensions?.area?.toFixed(1)} m² • Volume {budget.poolDimensions?.volume?.toFixed(1)} m³
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Validade</div>
+        <div onClick={() => !isLocked && setShowEditHeader(true)}
+          className={"rounded-xl border border-slate-200 bg-white p-4 shadow-sm " + (!isLocked ? "cursor-pointer hover:border-cyan-300 hover:bg-cyan-50/30" : "")}
+          title={!isLocked ? "Clique pra editar" : ""}>
+          <div className="text-xs text-slate-500 flex items-center justify-between">
+            Validade {!isLocked && <span className="text-[10px] text-slate-400">✏️</span>}
+          </div>
           <div className="mt-1 text-sm text-slate-700">{budget.validityDays} dias</div>
           {budget.expiresAt && <div className="mt-1 text-xs text-slate-400">Expira em {new Date(budget.expiresAt).toLocaleDateString("pt-BR")}</div>}
         </div>
@@ -581,11 +598,6 @@ export default function PoolBudgetDetailPage() {
         return (
           <div className="space-y-4">
             <div className="flex justify-end gap-2 -mb-2">
-              <button type="button" onClick={resetColWidths}
-                className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
-                title="Volta as larguras das colunas pro padrao">
-                ↹ Resetar larguras
-              </button>
               <button type="button" onClick={collapseAll}
                 className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
                 title="Minimizar todas as etapas">
@@ -774,6 +786,14 @@ export default function PoolBudgetDetailPage() {
         onConfirmWithReason={(r) => performAction(r)}
         onCancel={() => setConfirmAction(null)}
       />
+
+      {showEditHeader && (
+        <EditBudgetHeaderModal
+          budget={budget}
+          onClose={() => setShowEditHeader(false)}
+          onSaved={async () => { setShowEditHeader(false); await load(); }}
+        />
+      )}
 
       {showSaveAsTemplate && (
         <SaveAsTemplateModal
@@ -2015,5 +2035,139 @@ function CatalogPickModal({ catalog, currentSection, onClose, onPick }: {
         </div>
       </td>
     </tr>
+  );
+}
+
+
+// EditBudgetHeaderModal
+function EditBudgetHeaderModal({ budget, onClose, onSaved }: {
+  budget: Budget;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [title, setTitle] = useState(budget.title);
+  const [clientPartnerId, setClientPartnerId] = useState(budget.clientPartner?.id || "");
+  const [validityDays, setValidityDays] = useState(budget.validityDays);
+  const [length, setLength] = useState<number>(Number(budget.poolDimensions?.length) || 0);
+  const [width, setWidth] = useState<number>(Number(budget.poolDimensions?.width) || 0);
+  const [depth, setDepth] = useState<number>(Number(budget.poolDimensions?.depth) || 0);
+  const [perimeter, setPerimeter] = useState<number>(Number(budget.poolDimensions?.perimeter) || 0);
+  const [saving, setSaving] = useState(false);
+
+  const area = length * width;
+  const volume = length * width * depth;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) { toast("Titulo obrigatorio", "error"); return; }
+    if (!clientPartnerId) { toast("Cliente obrigatorio", "error"); return; }
+    setSaving(true);
+    try {
+      const newDimensions = {
+        ...(budget.poolDimensions || {}),
+        length, width, depth,
+        area, volume,
+        perimeter: perimeter || 2 * (length + width),
+      };
+      await api.put(`/pool-budgets/${budget.id}`, {
+        title: title.trim(),
+        clientPartnerId,
+        validityDays,
+        poolDimensions: newDimensions,
+      });
+      toast("Dados atualizados", "success");
+      onSaved();
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao salvar", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-xl rounded-xl bg-white p-6 shadow-xl space-y-4 max-h-[92vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Editar dados do orcamento</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
+        </div>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Titulo</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} required
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Cliente</label>
+            <PartnerCombobox
+              value={clientPartnerId}
+              onChange={(p) => setClientPartnerId(p?.id || "")}
+              partnerType="CLIENTE"
+              placeholder="Buscar cliente por nome..."
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Dimensoes da piscina</label>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <span className="text-[10px] text-slate-500">Comprimento (m)</span>
+                <input type="number" step="0.01" value={length} onChange={(e) => setLength(parseFloat(e.target.value) || 0)}
+                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-500">Largura (m)</span>
+                <input type="number" step="0.01" value={width} onChange={(e) => setWidth(parseFloat(e.target.value) || 0)}
+                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-500">Profundidade (m)</span>
+                <input type="number" step="0.01" value={depth} onChange={(e) => setDepth(parseFloat(e.target.value) || 0)}
+                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+              <div className="bg-slate-50 rounded px-2 py-1.5">
+                <span className="text-[10px] text-slate-500">Area (m²)</span>
+                <div className="font-semibold tabular-nums">{area.toFixed(2)}</div>
+              </div>
+              <div className="bg-slate-50 rounded px-2 py-1.5">
+                <span className="text-[10px] text-slate-500">Volume (m³)</span>
+                <div className="font-semibold tabular-nums">{volume.toFixed(2)}</div>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-500">Perimetro (m)</span>
+                <input type="number" step="0.01" value={perimeter}
+                  onChange={(e) => setPerimeter(parseFloat(e.target.value) || 0)}
+                  placeholder={String((2 * (length + width)).toFixed(2))}
+                  className="w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+              </div>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-1">
+              Area = comprimento × largura · Volume = area × profundidade · Perimetro padrao = 2×(comp+larg)
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Validade (dias)</label>
+            <input type="number" min={1} value={validityDays}
+              onChange={(e) => setValidityDays(parseInt(e.target.value) || 30)}
+              className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancelar</button>
+            <button type="submit" disabled={saving}
+              className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
+              {saving ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
