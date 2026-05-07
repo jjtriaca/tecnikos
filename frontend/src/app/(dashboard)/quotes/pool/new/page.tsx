@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import PartnerCombobox from "@/components/PartnerCombobox";
@@ -13,6 +13,9 @@ type Layout = { id: string; name: string; isDefault: boolean };
 
 export default function NewPoolBudgetPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+  const isEditMode = !!editId;
   const { toast } = useToast();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [layouts, setLayouts] = useState<Layout[]>([]);
@@ -42,6 +45,8 @@ export default function NewPoolBudgetPage() {
     comprimentoTotal: 0,
     larguraTotal: 0,
     cantos: 0,
+    perimetroExternoBorda: 0,
+    perimetroParedesInternas: 0,
     // Manuais (piscineiro decide com base no projeto real). Default eh derivado
     // como sugestao no placeholder mas o user precisa preencher pra valer no
     // orcamento. 0 = nao preenchido.
@@ -49,13 +54,12 @@ export default function NewPoolBudgetPage() {
     radierM2: 0,
     radierEspessura: 0.20,  // metros — espessura tipica 20cm
     escavacaoM3: 0,
-    hasSpa: false,
-    hasCascata: false,
-    hasAquecimentoSolar: false,
-    // Environment
-    temperatura: 28,
-    capaTermica: false,
-    tipoConstrucao: "ALVENARIA",
+    // Environment (parametros pra calculo de aquecimento)
+    temperaturaMediaLocal: 22,        // °C
+    velocidadeVento: "MODERADO",      // BAIXO=1 | MODERADO=2 | FORTE=3
+    temperaturaAguaDesejada: 30,      // °C
+    capaTermica: true,                // true=SIM | false=NAO
+    tipoConstrucao: "ABERTA",         // ABERTA | FECHADA
     regiaoSolar: "MT",
   });
 
@@ -66,12 +70,56 @@ export default function NewPoolBudgetPage() {
     ]).then(([t, l]) => {
       setTemplates(t.data || []);
       setLayouts(l.data || []);
-      const dt = t.data?.find((x: Template) => x.isDefault);
-      const dl = l.data?.find((x: Layout) => x.isDefault);
-      if (dt) setForm((f) => ({ ...f, templateId: dt.id }));
-      if (dl) setForm((f) => ({ ...f, printLayoutId: dl.id }));
+      // Em modo edit, defaults nao sao auto-aplicados (preserva o que ja foi salvo)
+      if (!isEditMode) {
+        const dt = t.data?.find((x: Template) => x.isDefault);
+        const dl = l.data?.find((x: Layout) => x.isDefault);
+        if (dt) setForm((f) => ({ ...f, templateId: dt.id }));
+        if (dl) setForm((f) => ({ ...f, printLayoutId: dl.id }));
+      }
     });
-  }, []);
+  }, [isEditMode]);
+
+  // Modo edit: carrega dados do orcamento existente e pre-preenche form
+  useEffect(() => {
+    if (!editId) return;
+    api.get<any>(`/pool-budgets/${editId}`)
+      .then((b) => {
+        setForm((f) => ({
+          ...f,
+          clientPartnerId: b.clientPartnerId || "",
+          templateId: b.templateId || "",
+          printLayoutId: b.printLayoutId || "",
+          title: b.title || "",
+          description: b.description || "",
+          notes: b.notes || "",
+          termsConditions: b.termsConditions || "",
+          validityDays: b.validityDays ?? 30,
+          // Dimensoes (poolDimensions json)
+          type: b.poolDimensions?.type || f.type,
+          sections: b.poolDimensions?.sections || f.sections,
+          comprimentoTotal: b.poolDimensions?.comprimentoTotal ?? 0,
+          larguraTotal: b.poolDimensions?.larguraTotal ?? 0,
+          cantos: b.poolDimensions?.cantos ?? 0,
+          perimetroExternoBorda: b.poolDimensions?.perimetroExternoBorda ?? 0,
+          perimetroParedesInternas: b.poolDimensions?.perimetroParedesInternas ?? 0,
+          areaParedeEFundo: b.poolDimensions?.areaParedeEFundo ?? 0,
+          radierM2: b.poolDimensions?.radierM2 ?? 0,
+          radierEspessura: b.poolDimensions?.radierEspessura ?? 0.20,
+          escavacaoM3: b.poolDimensions?.escavacaoM3 ?? 0,
+          // Environment
+          temperaturaMediaLocal: b.environmentParams?.temperaturaMediaLocal ?? b.environmentParams?.temperatura ?? 22,
+          velocidadeVento: b.environmentParams?.velocidadeVento || "MODERADO",
+          temperaturaAguaDesejada: b.environmentParams?.temperaturaAguaDesejada ?? 30,
+          capaTermica: typeof b.environmentParams?.capaTermica === 'boolean' ? b.environmentParams.capaTermica : true,
+          tipoConstrucao: b.environmentParams?.tipoConstrucao || "ABERTA",
+          regiaoSolar: b.environmentParams?.regiaoSolar || "MT",
+          solicitante: (b.environmentParams as any)?.solicitante || "",
+        }));
+        if (b.clientPartner) setClient(b.clientPartner);
+      })
+      .catch((err) => toast(err?.payload?.message || "Erro ao carregar orcamento", "error"));
+  }, [editId]);
 
   // Quando muda cliente: sugere titulo automatico (se vazio) e solicitante = nome do cliente
   function handleClientChange(p: Partner | null) {
@@ -196,17 +244,18 @@ export default function NewPoolBudgetPage() {
           comprimentoTotal: bbCompr,
           larguraTotal: bbLarg,
           cantos: cantosVal,
+          perimetroExternoBorda: form.perimetroExternoBorda || cantosVal,
+          perimetroParedesInternas: form.perimetroParedesInternas || cantosVal,
           // Calculos derivados (snapshot pra impressao — piscineiro pode editar depois)
           areaParedeEFundo,
           radierM2,
           radierM3,
           escavacaoM3,
-          hasSpa: form.hasSpa,
-          hasCascata: form.hasCascata,
-          hasAquecimentoSolar: form.hasAquecimentoSolar,
         },
         environmentParams: {
-          temperatura: form.temperatura,
+          temperaturaMediaLocal: form.temperaturaMediaLocal,
+          velocidadeVento: form.velocidadeVento,
+          temperaturaAguaDesejada: form.temperaturaAguaDesejada,
           capaTermica: form.capaTermica,
           tipoConstrucao: form.tipoConstrucao,
           regiaoSolar: form.regiaoSolar,
@@ -214,11 +263,19 @@ export default function NewPoolBudgetPage() {
           solicitante: form.solicitante || client?.name || "",
         },
       };
-      const created: { id: string } = await api.post("/pool-budgets", payload);
-      toast("Orcamento criado!", "success");
-      router.push(`/quotes/pool/${created.id}`);
+      let resultId: string;
+      if (editId) {
+        const updated: { id: string } = await api.put(`/pool-budgets/${editId}`, payload);
+        resultId = updated.id || editId;
+        toast("Orcamento atualizado!", "success");
+      } else {
+        const created: { id: string } = await api.post("/pool-budgets", payload);
+        resultId = created.id;
+        toast("Orcamento criado!", "success");
+      }
+      router.push(`/quotes/pool/${resultId}`);
     } catch (err: any) {
-      toast(err?.payload?.message || "Erro ao criar orcamento", "error");
+      toast(err?.payload?.message || `Erro ao ${editId ? "atualizar" : "criar"} orcamento`, "error");
     } finally {
       setSaving(false);
     }
@@ -243,7 +300,7 @@ export default function NewPoolBudgetPage() {
           <Link href="/quotes?tab=obras" className="text-xs text-slate-500 hover:text-slate-700">
             ← Voltar
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900">Novo Orcamento de Obra</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{isEditMode ? "Editar Orcamento de Obra" : "Novo Orcamento de Obra"}</h1>
           <p className="mt-1 text-sm text-slate-500">
             Define cliente, dimensoes da piscina e (opcionalmente) um template para gerar items automaticamente.
           </p>
@@ -434,8 +491,8 @@ export default function NewPoolBudgetPage() {
             Use multiplas linhas pra piscinas irregulares ou com niveis diferentes (ex: parte rasa + parte funda).
           </p>
 
-          {/* Inputs amarelos (totais do bounding box + cantos) */}
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Inputs amarelos (totais do bounding box + cantos + perimetros) */}
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Comprimento total interno (m)
@@ -444,7 +501,7 @@ export default function NewPoolBudgetPage() {
                 onChange={(e) => setForm({ ...form, comprimentoTotal: parseFloat(e.target.value) || 0 })}
                 placeholder={`auto: ${bbCompr.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
-              <p className="mt-1 text-xs text-slate-400">Bounding box (formato externo da piscina)</p>
+              <p className="mt-1 text-xs text-slate-400">Bounding box (formato externo)</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -454,17 +511,37 @@ export default function NewPoolBudgetPage() {
                 onChange={(e) => setForm({ ...form, larguraTotal: parseFloat(e.target.value) || 0 })}
                 placeholder={`auto: ${bbLarg.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
-              <p className="mt-1 text-xs text-slate-400">Bounding box (formato externo da piscina)</p>
+              <p className="mt-1 text-xs text-slate-400">Bounding box (formato externo)</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Cantos / Cantoneiras (m/l)
+                Cantos / Cantoneiras internas (m/l)
               </label>
               <input type="number" step="0.01" min="0" value={form.cantos || ""}
                 onChange={(e) => setForm({ ...form, cantos: parseFloat(e.target.value) || 0 })}
                 placeholder={`auto: ${cantosVal.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
-              <p className="mt-1 text-xs text-slate-400">Metragem linear de cantoneiras</p>
+              <p className="mt-1 text-xs text-slate-400">Cantoneiras internas (m/l)</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Perimetro externo borda (m/l)
+              </label>
+              <input type="number" step="0.01" min="0" value={form.perimetroExternoBorda || ""}
+                onChange={(e) => setForm({ ...form, perimetroExternoBorda: parseFloat(e.target.value) || 0 })}
+                placeholder={`auto: ${cantosVal.toFixed(2)}`}
+                className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
+              <p className="mt-1 text-xs text-slate-400">Borda corrida externa (m/l)</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Perimetro paredes internas (m/l)
+              </label>
+              <input type="number" step="0.01" min="0" value={form.perimetroParedesInternas || ""}
+                onChange={(e) => setForm({ ...form, perimetroParedesInternas: parseFloat(e.target.value) || 0 })}
+                placeholder={`auto: ${cantosVal.toFixed(2)}`}
+                className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
+              <p className="mt-1 text-xs text-slate-400">Paredes internas linear (m/l)</p>
             </div>
           </div>
 
@@ -525,19 +602,63 @@ export default function NewPoolBudgetPage() {
             Sugestoes baseadas nas dimensoes — substitua pelos valores reais do projeto. Radier m³ recalcula automaticamente quando voce muda Radier m² ou Espessura.
           </p>
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={form.hasSpa} onChange={(e) => setForm({ ...form, hasSpa: e.target.checked })} />
-              Tem SPA
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={form.hasCascata} onChange={(e) => setForm({ ...form, hasCascata: e.target.checked })} />
-              Tem Cascata
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={form.hasAquecimentoSolar} onChange={(e) => setForm({ ...form, hasAquecimentoSolar: e.target.checked })} />
-              Aquecimento Solar
-            </label>
+        </div>
+
+        {/* Parametros de aquecimento (aba CAPA da planilha original) */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1">Parametros de aquecimento</h3>
+          <p className="text-xs text-slate-500 mb-4">Usados pra calcular kcal/h e dimensionar trocador de calor / aquecedor solar.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Temperatura media local (°C)
+              </label>
+              <input type="number" step="0.1" value={form.temperaturaMediaLocal}
+                onChange={(e) => setForm({ ...form, temperaturaMediaLocal: parseFloat(e.target.value) || 0 })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Velocidade do vento local
+              </label>
+              <select value={form.velocidadeVento}
+                onChange={(e) => setForm({ ...form, velocidadeVento: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+                <option value="BAIXO">BAIXO (1)</option>
+                <option value="MODERADO">MODERADO (2)</option>
+                <option value="FORTE">FORTE (3)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Temperatura agua desejada (°C)
+              </label>
+              <input type="number" step="0.1" value={form.temperaturaAguaDesejada}
+                onChange={(e) => setForm({ ...form, temperaturaAguaDesejada: parseFloat(e.target.value) || 0 })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Usa capa termica
+              </label>
+              <select value={form.capaTermica ? "SIM" : "NAO"}
+                onChange={(e) => setForm({ ...form, capaTermica: e.target.value === "SIM" })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+                <option value="SIM">SIM (1)</option>
+                <option value="NAO">NAO (0)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Tipo de construcao
+              </label>
+              <select value={form.tipoConstrucao}
+                onChange={(e) => setForm({ ...form, tipoConstrucao: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+                <option value="ABERTA">ABERTA (1)</option>
+                <option value="FECHADA">FECHADA (2)</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -567,7 +688,7 @@ export default function NewPoolBudgetPage() {
             disabled={saving}
             className="rounded-lg bg-cyan-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50"
           >
-            {saving ? "Criando..." : "Criar orcamento"}
+            {saving ? (isEditMode ? "Salvando..." : "Criando...") : (isEditMode ? "Salvar alteracoes" : "Criar orcamento")}
           </button>
           <Link
             href="/quotes?tab=obras"

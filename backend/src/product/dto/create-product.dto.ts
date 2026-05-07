@@ -4,6 +4,8 @@ import {
   IsNotEmpty,
   IsInt,
   IsNumber,
+  IsBoolean,
+  IsObject,
   Min,
 } from 'class-validator';
 
@@ -121,4 +123,24 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  /* ── Aba Modulo de uso (Venda / Obra) ───────────────────── */
+
+  @IsOptional()
+  @IsBoolean()
+  useInSale?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  useInWork?: boolean;
+
+  /* ── Specs tecnicas (modulo Piscina) ────────────────────── */
+
+  @IsOptional()
+  @IsObject()
+  technicalSpecs?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }

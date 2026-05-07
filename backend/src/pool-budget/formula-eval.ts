@@ -11,7 +11,22 @@
 // caracteres aritmeticos seguros + nomes de funcoes whitelisted, e usa Function pra avaliar.
 // Como o input e sanitizado, nao ha risco de injecao de codigo.
 
-const ALLOWED_VARS = ['length', 'width', 'depth', 'area', 'perimeter', 'volume', 'dias'] as const;
+const ALLOWED_VARS = [
+  // Dimensoes
+  'length', 'width', 'depth', 'area', 'perimeter', 'volume',
+  // Perimetros especificos
+  'cantos',         // cantoneiras internas (m/l)
+  'perimExterno',   // perimetro externo borda (m/l)
+  'perimInterno',   // perimetro paredes internas (m/l)
+  // Prazo
+  'dias',
+  // Aquecimento (aba CAPA da planilha original)
+  'tempLocal',     // °C - temperatura media local
+  'tempAgua',      // °C - temperatura agua desejada
+  'vento',         // 1=BAIXO, 2=MODERADO, 3=FORTE
+  'capa',          // 0=NAO, 1=SIM
+  'construcao',    // 1=ABERTA, 2=FECHADA
+] as const;
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
 
@@ -90,6 +105,29 @@ export function evaluateFormula(
   return result;
 }
 
+// Mapeia strings da UI pra numeros (vento/capa/construcao).
+const VENTO_MAP: Record<string, number> = { BAIXO: 1, MODERADO: 2, FORTE: 3 };
+const CAPA_MAP: Record<string, number> = { SIM: 1, NAO: 0, NÃO: 0 };
+const CONSTRUCAO_MAP: Record<string, number> = { ABERTA: 1, FECHADA: 2 };
+
+// Le environmentParams do orcamento e converte strings em numeros pra usar em formulas.
+export function extractEnvVars(environmentParams: any): FormulaVars {
+  if (!environmentParams || typeof environmentParams !== 'object') return {};
+  const e = environmentParams as Record<string, any>;
+  const vars: FormulaVars = {};
+  if (typeof e.temperaturaMediaLocal === 'number') vars.tempLocal = e.temperaturaMediaLocal;
+  else if (typeof e.temperatura === 'number') vars.tempLocal = e.temperatura; // legado
+  if (typeof e.temperaturaAguaDesejada === 'number') vars.tempAgua = e.temperaturaAguaDesejada;
+  if (typeof e.velocidadeVento === 'number') vars.vento = e.velocidadeVento;
+  else if (typeof e.velocidadeVento === 'string') vars.vento = VENTO_MAP[e.velocidadeVento.toUpperCase()] ?? 0;
+  if (typeof e.capaTermica === 'boolean') vars.capa = e.capaTermica ? 1 : 0;
+  else if (typeof e.capaTermica === 'string') vars.capa = CAPA_MAP[e.capaTermica.toUpperCase()] ?? 0;
+  else if (typeof e.capaTermica === 'number') vars.capa = e.capaTermica;
+  if (typeof e.tipoConstrucao === 'string') vars.construcao = CONSTRUCAO_MAP[e.tipoConstrucao.toUpperCase()] ?? 0;
+  else if (typeof e.tipoConstrucao === 'number') vars.construcao = e.tipoConstrucao;
+  return vars;
+}
+
 // Extrai variaveis financeiras a partir do JSON de poolDimensions do orcamento.
 // Aceita formato { length, width, depth, area, perimeter, volume } com sub-secoes opcionais.
 // Se houver sections[] (piscinas com formatos irregulares), soma as areas/volumes.
@@ -105,6 +143,9 @@ export function extractDimensionVars(poolDimensions: any): FormulaVars {
     area: typeof d.area === 'number' ? d.area : undefined,
     perimeter: typeof d.perimeter === 'number' ? d.perimeter : undefined,
     volume: typeof d.volume === 'number' ? d.volume : undefined,
+    cantos: typeof d.cantos === 'number' ? d.cantos : undefined,
+    perimExterno: typeof d.perimetroExternoBorda === 'number' ? d.perimetroExternoBorda : undefined,
+    perimInterno: typeof d.perimetroParedesInternas === 'number' ? d.perimetroParedesInternas : undefined,
   };
 
   // Se tem sections[], agrega area/volume e usa primeira pra dimensoes

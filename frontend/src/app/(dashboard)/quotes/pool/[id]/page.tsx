@@ -266,6 +266,8 @@ export default function PoolBudgetDetailPage() {
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject" | "cancel" | "delete">(null);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [showEditHeader, setShowEditHeader] = useState(false);
+  const [showPaymentTerms, setShowPaymentTerms] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const { widths: colWidths, setWidth: setColWidth, reset: resetColWidths } = useColumnWidths();
 
   function toggleSection(section: string) {
@@ -431,117 +433,161 @@ export default function PoolBudgetDetailPage() {
 
   return (
     <div className="space-y-4 p-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <Link href="/quotes?tab=obras" className="text-xs text-slate-500 hover:text-slate-700">
+      {/* Header sticky com gradient + colapsavel */}
+      <div className="sticky top-0 z-30 -mx-6 -mt-6 px-6 pt-4 pb-3 bg-gradient-to-br from-cyan-50 via-white to-blue-50 border-b border-cyan-100 shadow-sm backdrop-blur-sm">
+        {/* Linha topo: voltar + botao colapsar + status + acoes */}
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/quotes?tab=obras" className="text-xs text-slate-500 hover:text-cyan-700 inline-flex items-center gap-1">
             ← Voltar pra Obras
           </Link>
-          <div className="flex items-center gap-3 mt-1">
-            <h1 className="text-2xl font-bold text-slate-900">{budget.title}</h1>
-            <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${status.cls}`}>
-              {status.label}
-            </span>
-            {!isLocked && (
-              <button onClick={() => setShowEditHeader(true)}
-                className="text-xs text-slate-500 hover:text-cyan-700 hover:bg-cyan-50 px-2 py-1 rounded border border-slate-200"
-                title="Editar titulo, cliente, dimensoes, validade">
-                ✏️ Editar dados
+          <div className="flex flex-wrap items-center gap-1.5">
+            {budget.project && (
+              <Link href={`/quotes/pool/projects/${budget.project.id}`}
+                className="rounded-md border border-cyan-300 bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-700 hover:bg-cyan-100">
+                Ver obra
+              </Link>
+            )}
+            {!isLocked && (budget.status === "RASCUNHO" || budget.status === "ENVIADO") && (
+              <button onClick={() => setConfirmAction("approve")}
+                className="rounded-md bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700">
+                ✓ Aprovar
               </button>
             )}
+            {!isLocked && (
+              <button onClick={() => setConfirmAction("reject")}
+                className="rounded-md border border-red-300 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50">
+                Rejeitar
+              </button>
+            )}
+            {budget.status !== "CANCELADO" && (
+              <button onClick={() => setConfirmAction("cancel")}
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50">
+                Cancelar
+              </button>
+            )}
+            {budget.status === "RASCUNHO" && (
+              <button onClick={() => setConfirmAction("delete")}
+                className="rounded-md border border-red-300 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50">
+                Excluir
+              </button>
+            )}
+            {!isLocked && budget.items.length > 0 && (
+              <button onClick={() => setShowSaveAsTemplate(true)}
+                className="rounded-md border border-indigo-300 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                title="Salva todos os items + impostos/desconto/garantias/forma pagto como modelo">
+                💾 Salvar modelo
+              </button>
+            )}
+            <button onClick={() => setHeaderCollapsed((v) => !v)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+              title={headerCollapsed ? "Expandir cabecalho" : "Colapsar cabecalho (mantem visivel ao rolar)"}>
+              {headerCollapsed ? "▼" : "▲"}
+            </button>
           </div>
-          <p className="mt-1 text-sm text-slate-500">
-            <span className="font-mono">{budget.code || "—"}</span> • Cliente: <strong>{budget.clientPartner?.name}</strong>
-          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {budget.project && (
-            <Link
-              href={`/quotes/pool/projects/${budget.project.id}`}
-              className="rounded-lg border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-100"
-            >
-              Ver obra ({budget.project.code || budget.project.status})
-            </Link>
-          )}
-          {!isLocked && (budget.status === "RASCUNHO" || budget.status === "ENVIADO") && (
-            <button
-              onClick={() => setConfirmAction("approve")}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
-            >
-              Aprovar
-            </button>
-          )}
-          {!isLocked && (
-            <button
-              onClick={() => setConfirmAction("reject")}
-              className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              Rejeitar
-            </button>
-          )}
-          {budget.status !== "CANCELADO" && (
-            <button
-              onClick={() => setConfirmAction("cancel")}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Cancelar
-            </button>
-          )}
-          {budget.status === "RASCUNHO" && (
-            <button
-              onClick={() => setConfirmAction("delete")}
-              className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              Excluir
-            </button>
-          )}
-          {!isLocked && budget.items.length > 0 && (
-            <button
-              onClick={() => setShowSaveAsTemplate(true)}
-              className="rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
-              title="Salva todos os items + impostos/desconto/garantias/forma pagto como modelo"
-            >
-              💾 Salvar como modelo
-            </button>
-          )}
-        </div>
-      </div>
+        {/* Versao colapsada: 1 linha compacta */}
+        {headerCollapsed ? (
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-base font-bold text-slate-900 truncate">{budget.title}</span>
+              <span className={`shrink-0 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${status.cls}`}>{status.label}</span>
+            </div>
+            <span className="text-xs text-slate-500">
+              <span className="font-mono">{budget.code || "—"}</span> · {budget.clientPartner?.name}
+            </span>
+            <span className="ml-auto flex items-center gap-3 text-xs">
+              <span className="text-slate-500">📐 {budget.poolDimensions?.length}×{budget.poolDimensions?.width}×{budget.poolDimensions?.depth}m</span>
+              <span className="text-slate-500">📋 {budget.items.length} items</span>
+              <span className="font-bold text-emerald-700">💰 {fmtCurrency(budget.totalCents)}</span>
+            </span>
+          </div>
+        ) : (
+          <>
+            {/* Versao expandida: titulo + cards bonitos */}
+            <div className="mt-2 flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl md:text-2xl font-bold text-slate-900 truncate">{budget.title}</h1>
+                  <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
+                  {!isLocked && (
+                    <Link href={`/quotes/pool/new?edit=${budget.id}`}
+                      className="text-[11px] text-slate-500 hover:text-cyan-700 hover:bg-cyan-50 px-2 py-0.5 rounded border border-slate-200"
+                      title="Editar tudo (cliente, dimensoes, capa, validade)">
+                      ✏️ Editar dados
+                    </Link>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  <span className="font-mono text-slate-600">{budget.code || "—"}</span>
+                  <span className="mx-1.5 text-slate-300">·</span>
+                  Cliente: <strong className="text-slate-700">{budget.clientPartner?.name}</strong>
+                </p>
+              </div>
+            </div>
 
-      {/* Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Valor total</div>
-          <div className="mt-1 text-2xl font-bold text-slate-900">{fmtCurrency(budget.totalCents)}</div>
-          <div className="mt-1 text-xs text-slate-400">Subtotal: {fmtCurrency(budget.subtotalCents)}</div>
-        </div>
-        <div onClick={() => !isLocked && setShowEditHeader(true)}
-          className={"rounded-xl border border-slate-200 bg-white p-4 shadow-sm " + (!isLocked ? "cursor-pointer hover:border-cyan-300 hover:bg-cyan-50/30" : "")}
-          title={!isLocked ? "Clique pra editar" : ""}>
-          <div className="text-xs text-slate-500 flex items-center justify-between">
-            Dimensoes {!isLocked && <span className="text-[10px] text-slate-400">✏️</span>}
-          </div>
-          <div className="mt-1 text-sm text-slate-700">
-            {budget.poolDimensions?.length}m × {budget.poolDimensions?.width}m × {budget.poolDimensions?.depth}m
-          </div>
-          <div className="mt-1 text-xs text-slate-400">
-            Area {budget.poolDimensions?.area?.toFixed(1)} m² • Volume {budget.poolDimensions?.volume?.toFixed(1)} m³
-          </div>
-        </div>
-        <div onClick={() => !isLocked && setShowEditHeader(true)}
-          className={"rounded-xl border border-slate-200 bg-white p-4 shadow-sm " + (!isLocked ? "cursor-pointer hover:border-cyan-300 hover:bg-cyan-50/30" : "")}
-          title={!isLocked ? "Clique pra editar" : ""}>
-          <div className="text-xs text-slate-500 flex items-center justify-between">
-            Validade {!isLocked && <span className="text-[10px] text-slate-400">✏️</span>}
-          </div>
-          <div className="mt-1 text-sm text-slate-700">{budget.validityDays} dias</div>
-          {budget.expiresAt && <div className="mt-1 text-xs text-slate-400">Expira em {new Date(budget.expiresAt).toLocaleDateString("pt-BR")}</div>}
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Items</div>
-          <div className="mt-1 text-2xl font-bold text-slate-900">{budget.items.length}</div>
-          <div className="mt-1 text-xs text-slate-400">Em {Object.keys(itemsBySection).length} secoes</div>
-        </div>
+            {/* 4 cards profissionais */}
+            <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              {/* Valor total — destaque com gradient */}
+              <div className="relative rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 overflow-hidden shadow-sm">
+                <div className="absolute -top-2 -right-2 text-3xl opacity-10">💰</div>
+                <div className="relative">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Valor total</div>
+                  <div className="mt-0.5 text-xl md:text-2xl font-extrabold text-emerald-900 tabular-nums">{fmtCurrency(budget.totalCents)}</div>
+                  <div className="text-[10px] text-emerald-700/70">Subtotal: {fmtCurrency(budget.subtotalCents)}</div>
+                </div>
+              </div>
+
+              {/* Dimensoes — clicavel */}
+              <div onClick={() => !isLocked && router.push(`/quotes/pool/new?edit=${budget.id}`)}
+                className={"relative rounded-xl border border-cyan-200 bg-gradient-to-br from-cyan-50 to-blue-50 p-3 overflow-hidden shadow-sm transition " +
+                  (!isLocked ? "cursor-pointer hover:border-cyan-400 hover:shadow" : "")}
+                title={!isLocked ? "Clique pra editar dimensoes" : ""}>
+                <div className="absolute -top-2 -right-2 text-3xl opacity-10">📐</div>
+                <div className="relative">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-cyan-700 flex items-center justify-between">
+                    Dimensoes da Piscina
+                    {!isLocked && <span className="text-[10px] text-cyan-600/60 normal-case">✏️</span>}
+                  </div>
+                  <div className="mt-0.5 text-base font-bold text-cyan-900 tabular-nums">
+                    {budget.poolDimensions?.length}×{budget.poolDimensions?.width}×{budget.poolDimensions?.depth} m
+                  </div>
+                  <div className="text-[10px] text-cyan-700/70 tabular-nums">
+                    Area {budget.poolDimensions?.area?.toFixed(1)} m² · Vol {budget.poolDimensions?.volume?.toFixed(1)} m³
+                  </div>
+                </div>
+              </div>
+
+              {/* Validade — clicavel */}
+              <div onClick={() => !isLocked && router.push(`/quotes/pool/new?edit=${budget.id}`)}
+                className={"relative rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3 overflow-hidden shadow-sm transition " +
+                  (!isLocked ? "cursor-pointer hover:border-amber-400 hover:shadow" : "")}
+                title={!isLocked ? "Clique pra editar validade" : ""}>
+                <div className="absolute -top-2 -right-2 text-3xl opacity-10">📅</div>
+                <div className="relative">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 flex items-center justify-between">
+                    Validade
+                    {!isLocked && <span className="text-[10px] text-amber-600/60 normal-case">✏️</span>}
+                  </div>
+                  <div className="mt-0.5 text-base font-bold text-amber-900 tabular-nums">{budget.validityDays} dias</div>
+                  {budget.expiresAt && (
+                    <div className="text-[10px] text-amber-700/70">Expira {new Date(budget.expiresAt).toLocaleDateString("pt-BR")}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Items */}
+              <div className="relative rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 p-3 overflow-hidden shadow-sm">
+                <div className="absolute -top-2 -right-2 text-3xl opacity-10">📋</div>
+                <div className="relative">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-violet-700">Items</div>
+                  <div className="mt-0.5 text-xl md:text-2xl font-extrabold text-violet-900 tabular-nums">{budget.items.length}</div>
+                  <div className="text-[10px] text-violet-700/70">em {Object.keys(itemsBySection).length} secoes</div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Etapas — cada secao em um card separado, com totais no rodape (espelha aba Linear da planilha) */}
@@ -691,6 +737,7 @@ export default function PoolBudgetDetailPage() {
                           isFirst={idx === 0}
                           isLast={idx === items.length - 1}
                           dimensions={budget.poolDimensions}
+                          environmentParams={budget.environmentParams}
                           dias={budget.estimatedDurationDays ?? 0}
                           allItems={budget.items}
                           catalog={catalog}
@@ -751,6 +798,7 @@ export default function PoolBudgetDetailPage() {
         locked={budget.status === "APROVADO"}
         paymentTerms={paymentTerms}
         onUpdate={updateBudget}
+        onManagePaymentTerms={() => setShowPaymentTerms(true)}
       />
 
       {/* Modal adicionar item */}
@@ -795,6 +843,19 @@ export default function PoolBudgetDetailPage() {
         />
       )}
 
+      {showPaymentTerms && (
+        <PaymentTermsModal
+          onClose={async () => {
+            setShowPaymentTerms(false);
+            // recarrega a lista de termos no pai pra refletir mudancas
+            try {
+              const r = await api.get<PoolPaymentTerm[]>("/pool-payment-terms");
+              setPaymentTerms(r || []);
+            } catch {}
+          }}
+        />
+      )}
+
       {showSaveAsTemplate && (
         <SaveAsTemplateModal
           budgetId={id}
@@ -816,13 +877,14 @@ export default function PoolBudgetDetailPage() {
   );
 }
 
-function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItems, catalog, onUpdate, onRemove, onMove }: {
+function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, dias, allItems, catalog, onUpdate, onRemove, onMove }: {
   item: BudgetItem;
   seq?: number;
   locked: boolean;
   isFirst?: boolean;
   isLast?: boolean;
   dimensions?: any;
+  environmentParams?: any;
   dias?: number;
   allItems?: BudgetItem[];
   catalog?: CatalogConfig[];
@@ -946,6 +1008,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, dias, allItem
       <FormulaModal
         initialExpr={item.formulaExpr || ""}
         dimensions={dimensions}
+        environmentParams={environmentParams}
         dias={dias}
         itemDescription={item.description}
         itemUnit={item.unit}
@@ -1214,11 +1277,12 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
 // 4 linhas de totais (Subtotal, Impostos, Desconto, Total Geral) + prazo + condicoes.
 // Impostos e Desconto sao em %, valores calculados pelo backend.
 // ─────────────────────────────────────────────────────────
-function BudgetSummaryBlock({ budget, locked, paymentTerms, onUpdate }: {
+function BudgetSummaryBlock({ budget, locked, paymentTerms, onUpdate, onManagePaymentTerms }: {
   budget: Budget;
   locked: boolean;
   paymentTerms: PoolPaymentTerm[];
   onUpdate: (patch: Record<string, any>) => void;
+  onManagePaymentTerms?: () => void;
 }) {
   const [taxesPct, setTaxesPct] = useState<string>(budget.taxesPercent?.toString().replace(".", ",") ?? "");
   const [discPct, setDiscPct] = useState<string>(budget.discountPercent?.toString().replace(".", ",") ?? "");
@@ -1364,11 +1428,11 @@ function BudgetSummaryBlock({ budget, locked, paymentTerms, onUpdate }: {
           <div>
             <label className="flex items-center justify-between text-xs font-medium text-slate-600 mb-1">
               <span>Forma de pagamento</span>
-              {!locked && (
-                <a href="/quotes/pool/payment-terms" target="_blank" rel="noopener"
+              {!locked && onManagePaymentTerms && (
+                <button type="button" onClick={onManagePaymentTerms}
                   className="text-cyan-600 hover:text-cyan-800 text-[10px]" title="Cadastrar/editar formas">
                   Gerenciar →
-                </a>
+                </button>
               )}
             </label>
             {locked ? (
@@ -1457,7 +1521,12 @@ function BudgetInstallments({ paymentTerm, totalCents, startDate }: {
 // Funcoes: ceil(x), floor(x), round(x), min(a,b), max(a,b).
 // Referencias: qty(LX), total(LX), unitPrice(LX) -> outras linhas via cellRef.
 // ─────────────────────────────────────────────────────────
-const FORMULA_VARS = ['length', 'width', 'depth', 'area', 'perimeter', 'volume', 'dias'] as const;
+const FORMULA_VARS = [
+  'length', 'width', 'depth', 'area', 'perimeter', 'volume',
+  'cantos', 'perimExterno', 'perimInterno',
+  'dias',
+  'tempLocal', 'tempAgua', 'vento', 'capa', 'construcao',
+] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
 
@@ -1529,9 +1598,10 @@ const FORMULA_FN_HELP: Record<typeof FORMULA_FUNCTIONS[number], string> = {
 
 type OtherItemForModal = { cellRef: string; description: string; qty: number; total: number; unitPrice: number };
 
-function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit, itemCellRef, otherItems, onClose, onSave, onClear }: {
+function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, otherItems, onClose, onSave, onClear }: {
   initialExpr: string;
   dimensions: any;
+  environmentParams?: any;
   dias?: number;
   itemDescription?: string;
   itemUnit?: string;
@@ -1544,6 +1614,26 @@ function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit
   const [expr, setExpr] = useState(initialExpr);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Mapeia strings -> numero (mesma logica do backend)
+  const ventoNum = (() => {
+    const v = environmentParams?.velocidadeVento;
+    if (typeof v === 'number') return v;
+    const m: Record<string, number> = { BAIXO: 1, MODERADO: 2, FORTE: 3 };
+    return m[String(v || '').toUpperCase()] ?? 0;
+  })();
+  const capaNum = (() => {
+    const v = environmentParams?.capaTermica;
+    if (typeof v === 'boolean') return v ? 1 : 0;
+    if (typeof v === 'number') return v;
+    return ['SIM', 'S', '1'].includes(String(v || '').toUpperCase()) ? 1 : 0;
+  })();
+  const construcaoNum = (() => {
+    const v = environmentParams?.tipoConstrucao;
+    if (typeof v === 'number') return v;
+    const m: Record<string, number> = { ABERTA: 1, FECHADA: 2 };
+    return m[String(v || '').toUpperCase()] ?? 0;
+  })();
+
   const vars: Record<string, number> = {
     length: Number(dimensions?.length) || 0,
     width: Number(dimensions?.width) || 0,
@@ -1551,7 +1641,15 @@ function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit
     area: Number(dimensions?.area) || 0,
     perimeter: Number(dimensions?.perimeter) || 0,
     volume: Number(dimensions?.volume) || 0,
+    cantos: Number(dimensions?.cantos) || 0,
+    perimExterno: Number(dimensions?.perimetroExternoBorda) || 0,
+    perimInterno: Number(dimensions?.perimetroParedesInternas) || 0,
     dias: Number(dias) || 0,
+    tempLocal: Number(environmentParams?.temperaturaMediaLocal ?? environmentParams?.temperatura) || 0,
+    tempAgua: Number(environmentParams?.temperaturaAguaDesejada) || 0,
+    vento: ventoNum,
+    capa: capaNum,
+    construcao: construcaoNum,
   };
   const cellRefMap = new Map<string, CellRefDataLocal>();
   for (const o of otherItems ?? []) {
@@ -1562,11 +1660,15 @@ function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit
   const VAR_GROUPS: Record<string, { label: string; vars: string[] }> = {
     dimensoes: {
       label: "Dimensoes da piscina",
-      vars: ["length", "width", "depth", "area", "perimeter", "volume"],
+      vars: ["length", "width", "depth", "area", "perimeter", "volume", "cantos", "perimExterno", "perimInterno"],
     },
     tempo: {
       label: "Tempo / Prazo",
       vars: ["dias"],
+    },
+    aquecimento: {
+      label: "Aquecimento / Capa (aba CAPA da planilha)",
+      vars: ["tempLocal", "tempAgua", "vento", "capa", "construcao"],
     },
   };
   const VAR_DESCRIPTIONS: Record<string, string> = {
@@ -1576,7 +1678,15 @@ function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit
     area: "Area da piscina (m²)",
     perimeter: "Perimetro / borda (m)",
     volume: "Volume (m³)",
+    cantos: "Cantoneiras internas (m/l)",
+    perimExterno: "Perimetro externo borda (m/l)",
+    perimInterno: "Perimetro paredes internas (m/l)",
     dias: "Duracao estimada da obra (dias)",
+    tempLocal: "Temperatura media local (°C)",
+    tempAgua: "Temperatura agua desejada (°C)",
+    vento: "Velocidade vento (1=BAIXO, 2=MODERADO, 3=FORTE)",
+    capa: "Capa termica (1=SIM, 0=NAO)",
+    construcao: "Tipo construcao (1=ABERTA, 2=FECHADA)",
   };
 
   const result = evalLocal(expr, vars, cellRefMap);
@@ -1601,7 +1711,7 @@ function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit
     <tr>
       <td colSpan={8} className="p-0">
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-3xl rounded-xl bg-white shadow-2xl max-h-[92vh] flex flex-col">
+          <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl max-h-[92vh] flex flex-col">
             {/* Header */}
             <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-cyan-50 to-violet-50">
               <div>
@@ -1646,7 +1756,7 @@ function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit
                 <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
                   ⚡ Receitas prontas (clique pra usar)
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
                   {FORMULA_RECIPES_PISCINA.map((r) => (
                     <button key={r.label} type="button" onClick={() => setExpr(r.expr)}
                       className="text-left rounded border border-slate-200 hover:border-amber-400 hover:bg-amber-50 px-3 py-1.5 group">
@@ -1686,7 +1796,7 @@ function FormulaModal({ initialExpr, dimensions, dias, itemDescription, itemUnit
                 <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
                   🧮 Funcoes
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
                   {FORMULA_FUNCTIONS.map((fn) => (
                     <button key={fn} type="button" onClick={() => insert(fn + "(")}
                       className="text-left rounded border border-violet-200 bg-violet-50 hover:bg-violet-100 hover:border-violet-400 px-3 py-1.5">
@@ -2163,6 +2273,228 @@ function EditBudgetHeaderModal({ budget, onClose, onSaved }: {
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancelar</button>
             <button type="submit" disabled={saving}
               className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
+              {saving ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+// PaymentTermsModal — popup inline pra gerenciar formas de pagamento de obra
+// (substitui o link "Gerenciar →" que abria nova aba)
+type PartLite = { label: string; percent: number; count: number; intervalDays: number; firstOffsetDays: number };
+type TermLite = { id: string; name: string; isActive: boolean; isDefault: boolean; structure: PartLite[] };
+const PMT_EMPTY_PART: PartLite = { label: "Parcela", percent: 100, count: 1, intervalDays: 0, firstOffsetDays: 0 };
+
+function PaymentTermsModal({ onClose }: { onClose: () => void }) {
+  const { toast } = useToast();
+  const [items, setItems] = useState<TermLite[]>([]);
+  const [editing, setEditing] = useState<TermLite | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  async function load() {
+    try {
+      const r = await api.get<TermLite[]>("/pool-payment-terms");
+      setItems(r || []);
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao carregar formas", "error");
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function remove(id: string) {
+    if (!confirm("Excluir esta forma de pagamento?")) return;
+    try {
+      await api.del(`/pool-payment-terms/${id}`);
+      toast("Forma removida", "success");
+      await load();
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro", "error");
+    }
+  }
+
+  function describe(t: TermLite) {
+    return t.structure.map(p => `${p.percent}% ${p.count > 1 ? `${p.count}x` : ""} ${p.label}`).join(" + ");
+  }
+
+  if (showForm) {
+    return (
+      <PaymentTermFormModal
+        initial={editing}
+        onCancel={() => { setShowForm(false); setEditing(null); }}
+        onSaved={async () => { setShowForm(false); setEditing(null); await load(); }}
+      />
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-3xl rounded-xl bg-white p-6 shadow-xl space-y-4 max-h-[92vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Formas de pagamento de obra</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Estrutura de parcelas usada nos orcamentos do modulo Piscina.</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
+        </div>
+
+        <div className="flex justify-end">
+          <button onClick={() => { setEditing(null); setShowForm(true); }}
+            className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700">
+            + Nova forma
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase text-slate-600 border-b border-slate-200">
+              <tr>
+                <th className="text-left px-4 py-2.5">Nome</th>
+                <th className="text-left px-4 py-2.5">Estrutura</th>
+                <th className="text-center px-3 py-2.5 w-16">Padrao</th>
+                <th className="text-center px-3 py-2.5 w-16">Ativa</th>
+                <th className="px-3 py-2.5 w-32" />
+              </tr>
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr><td colSpan={5} className="text-center text-sm text-slate-400 py-8">Nenhuma forma cadastrada</td></tr>
+              ) : items.map((t) => (
+                <tr key={t.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50">
+                  <td className="px-4 py-2 font-medium text-slate-900">{t.name}</td>
+                  <td className="px-4 py-2 text-slate-600 text-xs">{describe(t)}</td>
+                  <td className="px-3 py-2 text-center">{t.isDefault ? <span className="text-amber-500">★</span> : ""}</td>
+                  <td className="px-3 py-2 text-center">{t.isActive ? "✓" : "—"}</td>
+                  <td className="px-3 py-2 text-right">
+                    <button onClick={() => { setEditing(t); setShowForm(true); }}
+                      className="text-cyan-600 hover:text-cyan-800 text-xs mr-3">Editar</button>
+                    <button onClick={() => remove(t.id)} className="text-red-500 hover:text-red-700 text-xs">Excluir</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <button onClick={onClose}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentTermFormModal({ initial, onCancel, onSaved }: {
+  initial: TermLite | null;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState(initial?.name ?? "");
+  const [isDefault, setIsDefault] = useState(initial?.isDefault ?? false);
+  const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+  const [parts, setParts] = useState<PartLite[]>(initial?.structure ?? [{ ...PMT_EMPTY_PART }]);
+  const [saving, setSaving] = useState(false);
+
+  const totalPct = parts.reduce((s, p) => s + (Number(p.percent) || 0), 0);
+  function updatePart(idx: number, patch: Partial<PartLite>) {
+    setParts(parts.map((p, i) => i === idx ? { ...p, ...patch } : p));
+  }
+  function addPart() { setParts([...parts, { ...PMT_EMPTY_PART, percent: Math.max(0, 100 - totalPct) }]); }
+  function removePart(idx: number) { setParts(parts.filter((_, i) => i !== idx)); }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (Math.abs(totalPct - 100) > 0.001) {
+      toast(`Soma dos percents deve ser 100. Atual: ${totalPct.toFixed(2)}`, "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = { name, isActive, isDefault, structure: parts };
+      if (initial) await api.put(`/pool-payment-terms/${initial.id}`, payload);
+      else await api.post("/pool-payment-terms", payload);
+      toast(`Forma ${initial ? "atualizada" : "criada"}`, "success");
+      onSaved();
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao salvar", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl space-y-4 max-h-[92vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">{initial ? "Editar" : "Nova"} forma de pagamento</h2>
+          <button onClick={onCancel} className="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+        </div>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Nome</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} required
+              placeholder="Ex: 33% Entrada + 10x quinzenal"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
+              Marcar como padrao
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+              Ativa
+            </label>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-slate-600">Partes da estrutura</label>
+              <button type="button" onClick={addPart}
+                className="text-xs rounded bg-slate-100 hover:bg-slate-200 px-2 py-1">+ Parte</button>
+            </div>
+            <div className="space-y-2">
+              {parts.map((p, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 rounded-lg p-2 border border-slate-200">
+                  <input value={p.label} onChange={(e) => updatePart(idx, { label: e.target.value })}
+                    placeholder="Rotulo (ex: Entrada)" className="col-span-3 rounded border border-slate-200 px-2 py-1 text-xs" />
+                  <div className="col-span-2 flex items-center gap-1">
+                    <input type="number" step="0.01" value={p.percent} onChange={(e) => updatePart(idx, { percent: parseFloat(e.target.value) || 0 })}
+                      className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-right" />
+                    <span className="text-xs text-slate-500">%</span>
+                  </div>
+                  <div className="col-span-2 flex items-center gap-1">
+                    <input type="number" min={1} value={p.count} onChange={(e) => updatePart(idx, { count: parseInt(e.target.value) || 1 })}
+                      className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-right" />
+                    <span className="text-xs text-slate-500">x</span>
+                  </div>
+                  <div className="col-span-2 flex items-center gap-1">
+                    <input type="number" min={0} value={p.intervalDays} onChange={(e) => updatePart(idx, { intervalDays: parseInt(e.target.value) || 0 })}
+                      className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-right" />
+                    <span className="text-xs text-slate-500">d entre</span>
+                  </div>
+                  <div className="col-span-2 flex items-center gap-1">
+                    <input type="number" min={0} value={p.firstOffsetDays} onChange={(e) => updatePart(idx, { firstOffsetDays: parseInt(e.target.value) || 0 })}
+                      className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-right" />
+                    <span className="text-xs text-slate-500">d 1a</span>
+                  </div>
+                  <button type="button" onClick={() => removePart(idx)} className="col-span-1 text-red-400 hover:text-red-600 text-xs">✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-slate-500 mt-2">
+              Soma: <span className={Math.abs(totalPct - 100) > 0.001 ? "text-red-600 font-bold" : "text-green-700 font-bold"}>{totalPct.toFixed(2)}%</span>
+              {" — "}deve totalizar 100%
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancelar</button>
+            <button type="submit" disabled={saving} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
               {saving ? "Salvando..." : "Salvar"}
             </button>
           </div>

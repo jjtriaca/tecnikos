@@ -1065,6 +1065,12 @@ model Product {
   //   kcalHourMax, kitCode, yieldRate, consumptionKgPerM2, ... }
   technicalSpecs Json?
 
+  // Onde o produto e usado. Default = ambos true (compat com produtos antigos).
+  // useInSale: aparece em vendas/orcamentos comuns (Quote), OS
+  // useInWork: aparece em orcamento de piscina (PoolBudget)
+  useInSale Boolean @default(true)
+  useInWork Boolean @default(false)
+
   status    String    @default("ATIVO")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -2057,6 +2063,12 @@ model Service {
 
   // Especificacoes tecnicas extensiveis (modulo Piscina). Json livre — espelho do Product
   technicalSpecs Json?
+
+  // Onde o servico e usado.
+  // useInServiceOrder: assistencia tecnica / OS
+  // useInPool: obra de piscina (PoolBudget)
+  useInServiceOrder Boolean @default(true)
+  useInPool         Boolean @default(false)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

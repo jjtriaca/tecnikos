@@ -35,7 +35,7 @@ export class ProductService {
   async findAll(
     companyId: string,
     pagination?: PaginationDto,
-    filters?: { category?: string; status?: string; brand?: string },
+    filters?: { category?: string; status?: string; brand?: string; usage?: 'sale' | 'work' | 'both' },
   ): Promise<PaginatedResult<any>> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
@@ -46,6 +46,12 @@ export class ProductService {
     if (filters?.category) where.category = filters.category;
     if (filters?.status) where.status = filters.status;
     if (filters?.brand) where.brand = { contains: filters.brand, mode: 'insensitive' };
+    if (filters?.usage === 'sale') where.useInSale = true;
+    else if (filters?.usage === 'work') where.useInWork = true;
+    else if (filters?.usage === 'both') {
+      where.useInSale = true;
+      where.useInWork = true;
+    }
 
     if (pagination?.search) {
       const searchClause = buildSearchWhere(pagination.search, [
@@ -138,6 +144,10 @@ export class ProductService {
         minStock: data.minStock,
         maxStock: data.maxStock,
         location: data.location,
+        useInSale: data.useInSale,
+        useInWork: data.useInWork,
+        technicalSpecs: data.technicalSpecs as any,
+        imageUrl: data.imageUrl,
       },
       include: {
         _count: { select: { equivalents: true } },
@@ -181,6 +191,10 @@ export class ProductService {
         maxStock: data.maxStock,
         location: data.location,
         status: data.status,
+        useInSale: data.useInSale,
+        useInWork: data.useInWork,
+        technicalSpecs: data.technicalSpecs as any,
+        imageUrl: data.imageUrl,
       },
       include: {
         _count: { select: { equivalents: true } },

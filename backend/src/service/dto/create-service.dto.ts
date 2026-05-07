@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsBoolean, Min } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, IsObject, Min } from 'class-validator';
 
 export class CreateServiceDto {
   @IsOptional()
@@ -56,4 +56,24 @@ export class CreateServiceDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  /* ── Modulo de uso (OS / Obra de Piscina) ───────────────── */
+
+  @IsOptional()
+  @IsBoolean()
+  useInServiceOrder?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  useInPool?: boolean;
+
+  /* ── Specs tecnicas (modulo Piscina) ────────────────────── */
+
+  @IsOptional()
+  @IsObject()
+  technicalSpecs?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }

@@ -29,9 +29,10 @@ export class ServiceController {
     @Query() pagination: PaginationDto,
     @Query('category') category: string | undefined,
     @Query('status') status: string | undefined,
+    @Query('usage') usage: 'os' | 'pool' | 'both' | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.findAll(user.companyId, pagination, { category, status });
+    return this.service.findAll(user.companyId, pagination, { category, status, usage });
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)

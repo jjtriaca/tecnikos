@@ -4,6 +4,8 @@ import {
   IsInt,
   IsNumber,
   IsNotEmpty,
+  IsBoolean,
+  IsObject,
   Min,
 } from 'class-validator';
 
@@ -127,6 +129,26 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  /* ── Modulo de uso ───────────────────────────────────────── */
+
+  @IsOptional()
+  @IsBoolean()
+  useInSale?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  useInWork?: boolean;
+
+  /* ── Specs tecnicas (modulo Piscina) ────────────────────── */
+
+  @IsOptional()
+  @IsObject()
+  technicalSpecs?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }
 
 /* ── Ajuste de Estoque ──────────────────────────────────── */

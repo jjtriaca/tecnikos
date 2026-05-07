@@ -14,7 +14,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
-import { evaluateFormula, extractCellRefs, extractDimensionVars, type CellRefData } from './formula-eval';
+import { evaluateFormula, extractCellRefs, extractDimensionVars, extractEnvVars, type CellRefData } from './formula-eval';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
 import {
   PoolFormulaService,
@@ -346,9 +346,13 @@ export class PoolBudgetService {
         taxesPercent: true,
         startDate: true,
         poolDimensions: true,
+        environmentParams: true,
       },
     });
-    const dimensionVars = extractDimensionVars(budget?.poolDimensions);
+    const dimensionVars = {
+      ...extractDimensionVars(budget?.poolDimensions),
+      ...extractEnvVars(budget?.environmentParams),
+    };
 
     // PASSO 1: re-avalia formulas de items SEM dependencias (sem dias, sem cellRef de outros items)
     const items = await this.prisma.poolBudgetItem.findMany({

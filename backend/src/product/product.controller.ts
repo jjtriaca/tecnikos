@@ -32,12 +32,14 @@ export class ProductController {
     @Query('category') category: string | undefined,
     @Query('status') status: string | undefined,
     @Query('brand') brand: string | undefined,
+    @Query('usage') usage: 'sale' | 'work' | 'both' | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.findAll(user.companyId, pagination, {
       category,
       status,
       brand,
+      usage,
     });
   }
 

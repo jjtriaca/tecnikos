@@ -16,7 +16,7 @@ export class ServiceService {
   async findAll(
     companyId: string,
     pagination: PaginationDto,
-    filters?: { category?: string; status?: string },
+    filters?: { category?: string; status?: string; usage?: 'os' | 'pool' | 'both' },
   ): Promise<PaginatedResult<any>> {
     const page = pagination.page || 1;
     const limit = pagination.limit || 20;
@@ -29,6 +29,12 @@ export class ServiceService {
     }
     if (filters?.status === 'active') where.isActive = true;
     if (filters?.status === 'inactive') where.isActive = false;
+    if (filters?.usage === 'os') where.useInServiceOrder = true;
+    else if (filters?.usage === 'pool') where.useInPool = true;
+    else if (filters?.usage === 'both') {
+      where.useInServiceOrder = true;
+      where.useInPool = true;
+    }
 
     if (pagination.search) {
       const searchClause = buildSearchWhere(pagination.search, [
@@ -81,6 +87,10 @@ export class ServiceService {
         checklists: dto.checklists ?? undefined,
         category: dto.category,
         isActive: dto.isActive ?? true,
+        useInServiceOrder: dto.useInServiceOrder,
+        useInPool: dto.useInPool,
+        technicalSpecs: dto.technicalSpecs as any,
+        imageUrl: dto.imageUrl,
       },
     });
   }
