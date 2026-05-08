@@ -1568,17 +1568,24 @@ function evalLocal(
 ): { ok: boolean; value?: number; error?: string } {
   if (!expr.trim()) return { ok: false, error: 'vazia' };
   let s = expr;
-  // Substitui chamadas a cellRef ANTES das vars (evita confundir 'L1' com identifier solto)
+  // Substitui chamadas a cellRef ANTES das vars (evita confundir 'L1' com identifier solto).
+  // NUNCA jogar throw daqui: evalLocal roda durante render do FormulaModal e exception escaparia
+  // o try/catch (que so cobre o Function eval), quebrando o componente com error boundary global.
+  let cellRefError: string | null = null;
   for (const fn of CELL_REF_FUNCTIONS) {
     s = s.replace(
       new RegExp('\\b' + fn + '\\s*\\(\\s*(L\\d+)\\s*\\)', 'g'),
       (_m, ref: string) => {
         const data = cellRefs.get(ref);
-        if (!data) throw new Error('linha ' + ref + ' nao existe');
+        if (!data) {
+          if (!cellRefError) cellRefError = 'linha ' + ref + ' nao existe (ou e a propria linha em edicao)';
+          return '0';
+        }
         return '(' + (Number(data[fn as keyof CellRefDataLocal]) || 0) + ')';
       },
     );
   }
+  if (cellRefError) return { ok: false, error: cellRefError };
   for (const k of FORMULA_VARS) {
     s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + (vars[k] || 0) + ')');
   }
