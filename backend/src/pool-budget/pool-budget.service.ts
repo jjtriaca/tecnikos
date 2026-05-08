@@ -180,6 +180,43 @@ export class PoolBudgetService {
   }
 
   /**
+   * Auto-vincula uma linha do orcamento ao Product ou Service do cadastro quando a
+   * descricao da match exato (case-insensitive, trim). So vincula quando o match e
+   * unico — ambiguidade (multiplos cadastros com mesmo nome) deixa sem vinculo.
+   * Retorna {} se nao achou ou se houver duplicata. Sempre idempotente: caller
+   * decide se aplica.
+   */
+  private async findAutoLinkByDescription(
+    description: string,
+    companyId: string,
+  ): Promise<{ productId?: string; serviceId?: string }> {
+    const trimmed = (description || '').trim();
+    if (!trimmed) return {};
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        companyId,
+        description: { equals: trimmed, mode: 'insensitive' },
+      },
+      select: { id: true },
+      take: 2,
+    });
+    if (products.length === 1) return { productId: products[0].id };
+    if (products.length >= 2) return {}; // ambiguidade
+
+    const services = await this.prisma.service.findMany({
+      where: {
+        companyId,
+        name: { equals: trimmed, mode: 'insensitive' },
+      },
+      select: { id: true },
+      take: 2,
+    });
+    if (services.length === 1) return { serviceId: services[0].id };
+    return {};
+  }
+
+  /**
    * Pega o proximo cellRef disponivel para o budget (L1, L2, L3, ...).
    * Nao reusa numeros de items deletados — sempre incrementa o maior existente.
    */
@@ -781,12 +818,22 @@ export class PoolBudgetService {
     }
     const totalCents = Math.round(effectiveQty * dto.unitPriceCents);
     const cellRef = await this.nextCellRef(budgetId);
+
+    // Auto-link: se DTO nao especificou productId/serviceId, busca match exato no cadastro
+    let resolvedProductId = dto.productId ?? null;
+    let resolvedServiceId = dto.serviceId ?? null;
+    if (!resolvedProductId && !resolvedServiceId && dto.description) {
+      const matched = await this.findAutoLinkByDescription(dto.description, companyId);
+      if (matched.productId) resolvedProductId = matched.productId;
+      else if (matched.serviceId) resolvedServiceId = matched.serviceId;
+    }
+
     const item = await this.prisma.poolBudgetItem.create({
       data: {
         budgetId,
         catalogConfigId: dto.catalogConfigId,
-        productId: dto.productId,
-        serviceId: dto.serviceId,
+        productId: resolvedProductId,
+        serviceId: resolvedServiceId,
         poolSection: dto.poolSection,
         sortOrder: dto.sortOrder ?? 0,
         slotName: dto.slotName,
@@ -873,6 +920,24 @@ export class PoolBudgetService {
     const newUnitPrice = dto.unitPriceCents ?? item.unitPriceCents;
     const totalCents = Math.round(effectiveQty * newUnitPrice);
 
+    // Auto-link: se a descricao mudou e o item ainda nao tem vinculo (e DTO nao traz
+    // productId/serviceId explicito), tenta match exato no cadastro. Idempotente:
+    // nao desvincula nem sobrescreve vinculo existente.
+    let autoProductId: string | undefined;
+    let autoServiceId: string | undefined;
+    if (
+      dto.description !== undefined &&
+      dto.description !== item.description &&
+      dto.productId === undefined &&
+      dto.serviceId === undefined &&
+      !item.productId &&
+      !item.serviceId
+    ) {
+      const matched = await this.findAutoLinkByDescription(dto.description, companyId);
+      if (matched.productId) autoProductId = matched.productId;
+      else if (matched.serviceId) autoServiceId = matched.serviceId;
+    }
+
     const updated = await this.prisma.poolBudgetItem.update({
       where: { id: itemId },
       data: {
@@ -887,8 +952,8 @@ export class PoolBudgetService {
         sortOrder: dto.sortOrder,
         notes: dto.notes,
         ...(dto.catalogConfigId !== undefined ? { catalogConfigId: dto.catalogConfigId } : {}),
-        ...(dto.productId !== undefined ? { productId: dto.productId } : {}),
-        ...(dto.serviceId !== undefined ? { serviceId: dto.serviceId } : {}),
+        ...(dto.productId !== undefined ? { productId: dto.productId } : (autoProductId ? { productId: autoProductId } : {})),
+        ...(dto.serviceId !== undefined ? { serviceId: dto.serviceId } : (autoServiceId ? { serviceId: autoServiceId } : {})),
         ...(autoCalculatedOverride !== undefined
           ? { isAutoCalculated: autoCalculatedOverride }
           : (dto.qty !== undefined || dto.unitPriceCents !== undefined

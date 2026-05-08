@@ -1,7 +1,16 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.63 (em prod)
+## Versao: v1.10.64 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.64 — Pool budget: receitas de "Sacos por consumo" usam areaParedeEFundo por default
+- **Bug**: receitas v1.10.63 usavam `area` (somatorio das sections = 28,5 m² = superficie d'agua), mas a planilha de referencia da Juliano Piscinas usa `areaParedeEFundo` (= 64,3 m² = revestimento real, parede + fundo). Ex: argamassa Quartzolit ACII (consumoKgM2=6, pesoKg=18) com area=28,5 dava 10 sacos; com areaParedeEFundo=64,3 da 22 sacos (= planilha).
+- **Fix**: receitas reescritas em [page.tsx:1633-1636](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx#L1633):
+  - "Sacos por consumo (parede+fundo) — CIMA": `ceil(consumoKgM2 * areaParedeEFundo / pesoKg)` (default pra revestimento de obra)
+  - "Sacos por consumo (parede+fundo) — NORMAL": `round(consumoKgM2 * areaParedeEFundo / pesoKg)`
+  - "Sacos por consumo (so fundo / superficie d'agua)": `ceil(consumoKgM2 * area / pesoKg)` (so quando o material vai so na agua, ex: liner)
+  - "Consumo total em Kg (parede+fundo)": `consumoKgM2 * areaParedeEFundo`
+- **Tambem nesta sessao** (data fix sem deploy): batch UPDATE no banco vinculou 120 PoolBudgetItems do orcamento ORCP-00001 ao cadastro (77 produtos + 43 servicos). Items estavam com productId/serviceId NULL — vinculados por descricao exata via `DISTINCT ON (LOWER(TRIM(description)))` ordenado por createdAt asc pra evitar ambiguidade quando ha duplicatas. Restou 1 linha sem vinculo (L47 "Bomba pré-filtro auto escovante 1/2 cv Syllenty" — nao existe no cadastro com nome identico).
 
 ## v1.10.63 — Pool budget: vars dinamicas do produto vinculado + UI em accordions
 - **Pedido do Juliano**: replicar logica de Excel `PROCX([Descrição]; Cadastro; Cadastro[Consumo Kg X m²])` no sistema — pra calcular consumo de argamassa puxando dados do cadastro do produto. Tambem reclamou que o modal de formula estava "bagunçado".
