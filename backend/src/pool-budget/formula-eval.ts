@@ -103,6 +103,20 @@ export function evaluateFormula(
     normalized = normalized.replace(new RegExp(`\\b${name}\\b`, 'g'), `(${v})`);
   }
 
+  // Variaveis adicionais (technicalSpecs do produto/servico vinculado, etc).
+  // Substitui qualquer chave nao-whitelisted que esteja em `vars`. Filtra keys
+  // unsafe (so identifiers alfanumericos validos).
+  const allowedSet = new Set<string>(ALLOWED_VARS as readonly string[]);
+  for (const [key, val] of Object.entries(vars)) {
+    if (val == null) continue;
+    if (allowedSet.has(key)) continue;
+    if (/^(areaSec|volumeSec)\d+$/.test(key)) continue; // ja tratado pelo SECTION_VAR_PATTERN
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) continue;
+    const v = Number(val);
+    if (!Number.isFinite(v)) continue;
+    normalized = normalized.replace(new RegExp(`\\b${key}\\b`, 'g'), `(${v})`);
+  }
+
   // Valida: depois de remover funcoes whitelisted, nao deve sobrar nenhum identifier alfa
   const fnPattern = new RegExp(`\\b(${ALLOWED_FUNCTIONS.join('|')})\\b`, 'g');
   const stripped = normalized.replace(fnPattern, '');
@@ -135,6 +149,20 @@ export function evaluateFormula(
 const VENTO_MAP: Record<string, number> = { BAIXO: 1, MODERADO: 2, FORTE: 3 };
 const CAPA_MAP: Record<string, number> = { SIM: 1, NAO: 0, NÃO: 0 };
 const CONSTRUCAO_MAP: Record<string, number> = { ABERTA: 1, FECHADA: 2 };
+
+// Le technicalSpecs (Json livre) do produto ou servico vinculado a uma linha do orcamento
+// e expoe os campos numericos como variaveis utilizaveis na formula (ex: pesoKg, consumoKgM2,
+// vazaoM3h, kcalHMin, ...). Permite formulas como `ceil(consumoKgM2 * area / pesoKg)`.
+export function extractProductVars(specs: unknown): FormulaVars {
+  if (!specs || typeof specs !== 'object') return {};
+  const out: FormulaVars = {};
+  for (const [k, v] of Object.entries(specs as Record<string, unknown>)) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
+    const n = Number(v);
+    if (Number.isFinite(n)) out[k] = n;
+  }
+  return out;
+}
 
 // Le environmentParams do orcamento e converte strings em numeros pra usar em formulas.
 export function extractEnvVars(environmentParams: any): FormulaVars {

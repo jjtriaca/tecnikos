@@ -14,7 +14,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
-import { evaluateFormula, extractCellRefs, extractDimensionVars, extractEnvVars, type CellRefData } from './formula-eval';
+import { evaluateFormula, extractCellRefs, extractDimensionVars, extractEnvVars, extractProductVars, type CellRefData } from './formula-eval';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
 import {
   PoolFormulaService,
@@ -357,8 +357,17 @@ export class PoolBudgetService {
     // PASSO 1: re-avalia formulas de items SEM dependencias (sem dias, sem cellRef de outros items)
     const items = await this.prisma.poolBudgetItem.findMany({
       where: { budgetId },
-      select: { id: true, qty: true, unit: true, unitPriceCents: true, formulaExpr: true, cellRef: true },
+      select: {
+        id: true, qty: true, unit: true, unitPriceCents: true, formulaExpr: true, cellRef: true,
+        product: { select: { technicalSpecs: true } },
+        service: { select: { technicalSpecs: true } },
+      },
     });
+    // Monta o vars completo pra um item: dimensions + environment + product/service specs
+    const varsForItem = (it: typeof items[number]) => {
+      const productSpecs = it.product?.technicalSpecs ?? it.service?.technicalSpecs ?? null;
+      return { ...dimensionVars, ...extractProductVars(productSpecs) };
+    };
 
     const usesDias = (expr: string | null) => !!expr && /\bdias\b/.test(expr);
     const usesCellRef = (expr: string | null) => extractCellRefs(expr).length > 0;
@@ -389,7 +398,7 @@ export class PoolBudgetService {
       if (!it.formulaExpr) continue;
       if (usesDias(it.formulaExpr) || usesCellRef(it.formulaExpr)) continue;
       try {
-        const newQty = evaluateFormula(it.formulaExpr, dimensionVars);
+        const newQty = evaluateFormula(it.formulaExpr, varsForItem(it));
         const data = persistItem(it, newQty);
         await this.prisma.poolBudgetItem.update({ where: { id: it.id }, data });
       } catch { /* mantem qty atual */ }
@@ -415,7 +424,7 @@ export class PoolBudgetService {
       if (!usesDias(it.formulaExpr) || usesCellRef(it.formulaExpr)) continue;
       const diasForThis = computeDias(it.id);
       try {
-        const newQty = evaluateFormula(it.formulaExpr, { ...dimensionVars, dias: diasForThis });
+        const newQty = evaluateFormula(it.formulaExpr, { ...varsForItem(it), dias: diasForThis });
         const data = persistItem(it, newQty);
         await this.prisma.poolBudgetItem.update({ where: { id: it.id }, data });
       } catch { /* mantem qty atual */ }
@@ -453,7 +462,7 @@ export class PoolBudgetService {
           const diasForThis = usesDias(it.formulaExpr!) ? computeDias(it.id) : 0;
           const newQty = evaluateFormula(
             it.formulaExpr!,
-            { ...dimensionVars, dias: diasForThis },
+            { ...varsForItem(it), dias: diasForThis },
             cellRefMap,
           );
           const data = persistItem(it, newQty);
@@ -587,8 +596,8 @@ export class PoolBudgetService {
         items: {
           orderBy: [{ poolSection: 'asc' }, { sortOrder: 'asc' }],
           include: {
-            product: { select: { id: true, code: true, description: true, imageUrl: true } },
-            service: { select: { id: true, code: true, name: true, imageUrl: true } },
+            product: { select: { id: true, code: true, description: true, imageUrl: true, technicalSpecs: true } },
+            service: { select: { id: true, code: true, name: true, imageUrl: true, technicalSpecs: true } },
           },
         },
         project: { select: { id: true, code: true, status: true } },

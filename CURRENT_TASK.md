@@ -1,7 +1,14 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.61 (em prod)
+## Versao: v1.10.62 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.62 — Pool budget: aceita decimal com virgula (padrao BR) na formula
+- **Bug reportado pelo Juliano**: expressao `ceil(areaSec2+ areaSec3+ areaSec4*0,1)` retornou 7 em vez de 1. Causa: virgula em `0,1` foi interpretada como separador de argumento de funcao (Math.ceil ignora extra args), entao avaliou `ceil(soma + areaSec4*0)` = `ceil(6.6)` = 7.
+- **Fix backend** ([formula-eval.ts](backend/src/pool-budget/formula-eval.ts)): primeira linha apos validacao de vazio — `let normalized = expr.replace(/(\d),(\d)/g, '$1.$2')`. Auto-converte decimal-com-virgula em decimal-com-ponto. Padrao matcha **so** digito-virgula-digito sem espaco (preserva separador legitimo em `min(area, 10)` que tem espaco apos virgula).
+- **Fix frontend** ([page.tsx evalLocal](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx)): mesma normalizacao no inicio. Preview "Avaliacao" tambem normaliza pra mostrar a expressao com pontos (consistencia visual).
+- **Texto de "Sintaxe" atualizado**: "Decimal: 0.1 ou 0,1 (ambos aceitos) · Use ( ) pra controlar ordem das operacoes".
+- **Bonus pro user**: a formula correta dele ainda precisa de parenteses pra somar antes de multiplicar — `ceil((areaSec2 + areaSec3 + areaSec4) * 0.1)` (ou com virgula) = 1.
 
 ## v1.10.61 — Pool budget: card de expressao fixo no topo do FormulaModal
 - **UX**: ao rolar o conteudo do modal pra ver receitas/variaveis/funcoes/referencias, o card "Expressao" (input + resultado + erro + Avaliacao) fica fixo no topo. Antes ele rolava junto e o usuario perdia visibilidade do que estava digitando.

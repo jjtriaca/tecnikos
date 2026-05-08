@@ -27,8 +27,8 @@ type BudgetItem = {
   catalogConfigId: string | null;
   productId?: string | null;
   serviceId?: string | null;
-  product?: { id: string; code: string | null; description: string } | null;
-  service?: { id: string; code: string | null; name: string } | null;
+  product?: { id: string; code: string | null; description: string; technicalSpecs?: Record<string, unknown> | null } | null;
+  service?: { id: string; code: string | null; name: string; technicalSpecs?: Record<string, unknown> | null } | null;
 };
 
 type Budget = {
@@ -1029,6 +1029,8 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         itemDescription={item.description}
         itemUnit={item.unit}
         itemCellRef={item.cellRef}
+        productSpecs={(item.product?.technicalSpecs ?? item.service?.technicalSpecs) as Record<string, unknown> | null | undefined}
+        productName={item.product?.description ?? item.service?.name ?? null}
         otherItems={(allItems ?? [])
           .filter((x) => x.cellRef && x.id !== item.id)
           .map((x) => ({
@@ -1600,6 +1602,15 @@ function evalLocal(
   for (const k of FORMULA_VARS) {
     s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + (vars[k] || 0) + ')');
   }
+  // Variaveis dinamicas adicionais (productSpecs etc) — qualquer chave nao whitelisted em vars
+  const allowedSet = new Set<string>(FORMULA_VARS as readonly string[]);
+  for (const [key, val] of Object.entries(vars)) {
+    if (val == null) continue;
+    if (allowedSet.has(key)) continue;
+    if (/^(areaSec|volumeSec)\d+$/.test(key)) continue;
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) continue;
+    s = s.replace(new RegExp('\\b' + key + '\\b', 'g'), '(' + (Number(val) || 0) + ')');
+  }
   // Remove nomes de funcoes whitelisted antes de validar identifiers
   const fnPattern = new RegExp('\\b(' + FORMULA_FUNCTIONS.join('|') + ')\\b', 'g');
   const stripped = s.replace(fnPattern, '');
@@ -1637,6 +1648,10 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   { label: "Escavacao (m³)", expr: "escavacao", hint: "Volume de terra removida" },
   // ── Diarias ──
   { label: "Diaria por dia de obra", expr: "dias", hint: "Quantidade = nº de dias da obra (auto)" },
+  // ── Produto vinculado (technicalSpecs do cadastro) ──
+  { label: "Sacos por consumo m² (arredonda CIMA)", expr: "ceil(consumoKgM2 * area / pesoKg)", hint: "Argamassa, pintura, impermeabilizante: (consumo Kg/m² × area) ÷ peso do saco. Ceil = sempre completa o saco." },
+  { label: "Sacos por consumo m² (arredonda NORMAL)", expr: "round(consumoKgM2 * area / pesoKg)", hint: "Igual a anterior, mas arredondamento normal (50.4→50, 50.5→51)" },
+  { label: "Consumo total em Kg", expr: "consumoKgM2 * area", hint: "Quanto Kg do material no total (sem dividir por saco)" },
   // ── Referencias entre linhas ──
   { label: "30% sobre total da linha L7", expr: "total(L7) * 0.3", hint: "Ex: comissao/margem sobre outra linha" },
   { label: "Mesma quantidade da linha L5", expr: "qty(L5)", hint: "Espelha qty de outra linha (parafuso casa com furo)" },
@@ -1652,7 +1667,7 @@ const FORMULA_FN_HELP: Record<typeof FORMULA_FUNCTIONS[number], string> = {
 
 type OtherItemForModal = { cellRef: string; description: string; poolSection: string; qty: number; total: number; unitPrice: number };
 
-function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, otherItems, onClose, onSave, onClear }: {
+function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, productSpecs, productName, otherItems, onClose, onSave, onClear }: {
   initialExpr: string;
   dimensions: any;
   environmentParams?: any;
@@ -1660,6 +1675,8 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
   itemDescription?: string;
   itemUnit?: string;
   itemCellRef?: string | null;
+  productSpecs?: Record<string, unknown> | null;
+  productName?: string | null;
   otherItems?: OtherItemForModal[];
   onClose: () => void;
   onSave: (expr: string) => void;
@@ -1726,6 +1743,18 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
       vars[`volumeSec${i}`] = volume;
       sectionsList.push({ idx: i, name: String(s?.name || `Section ${i}`), area, volume });
     });
+  }
+  // Especificacoes tecnicas do produto/servico vinculado (Json livre — pesoKg, consumoKgM2, vazaoM3h, ...)
+  const productSpecsList: Array<{ key: string; value: number }> = [];
+  if (productSpecs && typeof productSpecs === 'object') {
+    for (const [k, v] of Object.entries(productSpecs)) {
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
+      const n = Number(v);
+      if (!Number.isFinite(n)) continue;
+      vars[k] = n;
+      productSpecsList.push({ key: k, value: n });
+    }
+    productSpecsList.sort((a, b) => a.key.localeCompare(b.key));
   }
   const cellRefMap = new Map<string, CellRefDataLocal>();
   for (const o of otherItems ?? []) {
@@ -1876,6 +1905,15 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                   for (const k of FORMULA_VARS) {
                     expanded = expanded.replace(new RegExp('\\b' + k + '\\b', 'g'), String(vars[k] ?? 0));
                   }
+                  // Vars dinamicas (productSpecs etc)
+                  const allowedSetExp = new Set<string>(FORMULA_VARS as readonly string[]);
+                  for (const [key, val] of Object.entries(vars)) {
+                    if (val == null) continue;
+                    if (allowedSetExp.has(key)) continue;
+                    if (/^(areaSec|volumeSec)\d+$/.test(key)) continue;
+                    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) continue;
+                    expanded = expanded.replace(new RegExp('\\b' + key + '\\b', 'g'), String(val));
+                  }
                   if (expanded === expr) return null;
                   return (
                     <div className="mt-2 pt-2 border-t border-cyan-200 text-[11px] text-slate-600">
@@ -1888,154 +1926,179 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
               </div>
             </div>
 
-            {/* Area scrollavel: receitas, variaveis, funcoes, referencias e sintaxe */}
-            <div className="overflow-y-auto px-6 py-5 space-y-5">
-              {/* Receitas prontas — padrao card unificado */}
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
-                  ⚡ Receitas prontas (clique pra usar)
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
+            {/* Area scrollavel — accordions colapsaveis pra ficar limpo */}
+            <div className="overflow-y-auto px-6 py-4 space-y-2">
+              {/* Receitas — DEFAULT EXPANDIDO */}
+              <details open className="group rounded-lg border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">⚡ Receitas prontas <span className="text-slate-400 font-normal normal-case">— {FORMULA_RECIPES_PISCINA.length} disponiveis</span></span>
+                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 grid grid-cols-1 md:grid-cols-2 gap-1.5">
                   {FORMULA_RECIPES_PISCINA.map((r) => (
                     <button key={r.label} type="button" onClick={() => setExpr(r.expr)}
-                      className="text-left rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-3 py-1.5 transition group">
-                      <div className="text-xs font-semibold text-slate-800 group-hover:text-cyan-900">{r.label}</div>
+                      className="text-left rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-3 py-1.5 transition group/r">
+                      <div className="text-xs font-semibold text-slate-800 group-hover/r:text-cyan-900">{r.label}</div>
                       <div className="font-mono text-[11px] text-cyan-700">{r.expr}</div>
                       <div className="text-[10px] text-slate-500">{r.hint}</div>
                     </button>
                   ))}
                 </div>
-              </div>
+              </details>
 
-              {/* Variaveis — mesmo card unificado */}
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
-                  📐 Variaveis (clique pra inserir no cursor)
-                </div>
-                {Object.entries(VAR_GROUPS).map(([key, group]) => (
-                  <div key={key} className="mb-2">
-                    <div className="text-[11px] font-medium text-slate-600 mb-1">{group.label}</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {group.vars.map((k) => (
-                        <button key={k} type="button" onClick={() => insert(k)}
-                          title={VAR_DESCRIPTIONS[k]}
-                          className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
-                          <span className="font-mono font-bold text-cyan-700">{k}</span>
-                          <span className="text-slate-500 text-[10px]">{VAR_DESCRIPTIONS[k]}</span>
-                          <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{vars[k]}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {/* Variaveis dinamicas por section (areaSecN / volumeSecN) */}
-                {sectionsList.length > 0 && (
-                  <>
-                    <div className="mb-2">
-                      <div className="text-[11px] font-medium text-slate-600 mb-1">
-                        Area de cada section ({sectionsList.length} sections — use pra excluir uma section especifica)
+              {/* Variaveis — DEFAULT FECHADO */}
+              <details className="group rounded-lg border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">
+                    📐 Variaveis disponiveis
+                    <span className="text-slate-400 font-normal normal-case ml-1">
+                      — clique pra inserir no cursor
+                      {productSpecsList.length > 0 && <span className="text-cyan-700"> · {productSpecsList.length} do produto vinculado</span>}
+                    </span>
+                  </span>
+                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 space-y-2.5">
+                  {/* Produto vinculado — destaque no topo se houver */}
+                  {productSpecsList.length > 0 && (
+                    <div>
+                      <div className="text-[11px] font-medium text-cyan-800 mb-1">
+                        Produto vinculado{productName ? `: ${productName}` : ""} ({productSpecsList.length} campos)
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {sectionsList.map((s) => {
-                          const k = `areaSec${s.idx}`;
-                          return (
-                            <button key={k} type="button" onClick={() => insert(k)}
-                              title={`Area da section ${s.idx} — ${s.name}`}
-                              className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
-                              <span className="font-mono font-bold text-cyan-700">{k}</span>
-                              <span className="text-slate-500 text-[10px]">{s.name}</span>
-                              <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.area.toFixed(2)}</span>
-                            </button>
-                          );
-                        })}
+                        {productSpecsList.map(({ key, value }) => (
+                          <button key={key} type="button" onClick={() => insert(key)}
+                            title={`${key} = ${value} (de technicalSpecs do cadastro)`}
+                            className="inline-flex items-center gap-2 text-xs rounded border border-cyan-200 bg-cyan-50 hover:border-cyan-500 hover:bg-cyan-100 px-2.5 py-1.5 transition">
+                            <span className="font-mono font-bold text-cyan-800">{key}</span>
+                            <span className="font-mono text-slate-900 font-bold tabular-nums bg-white px-1.5 py-0.5 rounded">{value}</span>
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    <div className="mb-2">
-                      <div className="text-[11px] font-medium text-slate-600 mb-1">
-                        Volume de cada section
-                      </div>
+                  )}
+                  {/* Grupos estaticos */}
+                  {Object.entries(VAR_GROUPS).map(([key, group]) => (
+                    <div key={key}>
+                      <div className="text-[11px] font-medium text-slate-600 mb-1">{group.label}</div>
                       <div className="flex flex-wrap gap-1.5">
-                        {sectionsList.map((s) => {
-                          const k = `volumeSec${s.idx}`;
-                          return (
-                            <button key={k} type="button" onClick={() => insert(k)}
-                              title={`Volume da section ${s.idx} — ${s.name}`}
-                              className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
-                              <span className="font-mono font-bold text-cyan-700">{k}</span>
-                              <span className="text-slate-500 text-[10px]">{s.name}</span>
-                              <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.volume.toFixed(2)}</span>
-                            </button>
-                          );
-                        })}
+                        {group.vars.map((k) => (
+                          <button key={k} type="button" onClick={() => insert(k)}
+                            title={VAR_DESCRIPTIONS[k]}
+                            className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
+                            <span className="font-mono font-bold text-cyan-700">{k}</span>
+                            <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{vars[k]}</span>
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  </>
-                )}
-              </div>
-
-              {/* Funcoes — mesmo card unificado */}
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
-                  🧮 Funcoes
+                  ))}
+                  {/* Sections (dinamico) */}
+                  {sectionsList.length > 0 && (
+                    <>
+                      <div>
+                        <div className="text-[11px] font-medium text-slate-600 mb-1">
+                          Area de cada section ({sectionsList.length})
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {sectionsList.map((s) => {
+                            const k = `areaSec${s.idx}`;
+                            return (
+                              <button key={k} type="button" onClick={() => insert(k)}
+                                title={`Area da section ${s.idx} — ${s.name}`}
+                                className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
+                                <span className="font-mono font-bold text-cyan-700">{k}</span>
+                                <span className="text-slate-500 text-[10px]">{s.name}</span>
+                                <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.area.toFixed(2)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-slate-600 mb-1">Volume de cada section</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {sectionsList.map((s) => {
+                            const k = `volumeSec${s.idx}`;
+                            return (
+                              <button key={k} type="button" onClick={() => insert(k)}
+                                title={`Volume da section ${s.idx} — ${s.name}`}
+                                className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
+                                <span className="font-mono font-bold text-cyan-700">{k}</span>
+                                <span className="text-slate-500 text-[10px]">{s.name}</span>
+                                <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.volume.toFixed(2)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
+              </details>
+
+              {/* Funcoes — DEFAULT FECHADO */}
+              <details className="group rounded-lg border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">
+                    🧮 Funcoes <span className="text-slate-400 font-normal normal-case">— {FORMULA_FUNCTIONS.join(" · ")}</span>
+                  </span>
+                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 grid grid-cols-1 md:grid-cols-2 gap-1.5">
                   {FORMULA_FUNCTIONS.map((fn) => (
                     <button key={fn} type="button" onClick={() => insert(fn + "(")}
-                      className="text-left rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-3 py-1.5 transition group">
-                      <span className="font-mono font-bold text-cyan-700 group-hover:text-cyan-900">{fn}(...)</span>
+                      className="text-left rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-3 py-1.5 transition group/f">
+                      <span className="font-mono font-bold text-cyan-700 group-hover/f:text-cyan-900">{fn}(...)</span>
                       <div className="text-[11px] text-slate-600 mt-0.5">{FORMULA_FN_HELP[fn]}</div>
                     </button>
                   ))}
                 </div>
-              </div>
+              </details>
 
-              {/* Outras linhas (referencias) */}
+              {/* Outras linhas — DEFAULT FECHADO */}
               {otherItems && otherItems.length > 0 && (
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">
-                    🔗 Referencias a outras linhas
-                  </div>
-                  <div className="text-[11px] text-slate-600 mb-2">
-                    Use <code className="bg-slate-100 px-1 rounded">qty(LX)</code> pra puxar a quantidade,{" "}
-                    <code className="bg-slate-100 px-1 rounded">total(LX)</code> pro valor total em R$,{" "}
-                    <code className="bg-slate-100 px-1 rounded">unitPrice(LX)</code> pro preco unitario.
-                  </div>
-                  <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
-                    {otherItems
-                      .filter((o) => o.cellRef && o.cellRef !== itemCellRef)
-                      .map((o) => (
-                        <div key={o.cellRef} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-cyan-50 text-xs">
-                          <div className="flex-1 min-w-0 flex items-center gap-2">
-                            <span className="font-mono font-bold text-cyan-700 shrink-0">{o.cellRef}</span>
-                            <span className="text-[9px] font-medium uppercase tracking-wide text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 shrink-0">
-                              {SECTION_LABEL[o.poolSection] || o.poolSection}
-                            </span>
-                            <span className="text-slate-800 truncate">{o.description}</span>
+                <details className="group rounded-lg border border-slate-200 bg-white">
+                  <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700">
+                      🔗 Outras linhas <span className="text-slate-400 font-normal normal-case">— {otherItems.filter(o => o.cellRef !== itemCellRef).length} disponiveis · qty(LX) / total(LX) / unitPrice(LX)</span>
+                    </span>
+                    <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <div className="px-4 pb-3 pt-1">
+                    <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                      {otherItems
+                        .filter((o) => o.cellRef && o.cellRef !== itemCellRef)
+                        .map((o) => (
+                          <div key={o.cellRef} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-cyan-50 text-xs">
+                            <div className="flex-1 min-w-0 flex items-center gap-2">
+                              <span className="font-mono font-bold text-cyan-700 shrink-0">{o.cellRef}</span>
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 shrink-0">
+                                {SECTION_LABEL[o.poolSection] || o.poolSection}
+                              </span>
+                              <span className="text-slate-800 truncate">{o.description}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 tabular-nums whitespace-nowrap">
+                              qty {o.qty} · R$ {o.total.toFixed(2)}
+                            </div>
+                            <div className="flex gap-1">
+                              <button type="button" onClick={() => insert(`qty(${o.cellRef})`)}
+                                className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
+                                title={`Insere qty(${o.cellRef}) — quantidade da linha`}>qty</button>
+                              <button type="button" onClick={() => insert(`total(${o.cellRef})`)}
+                                className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
+                                title={`Insere total(${o.cellRef}) — total em R$ da linha`}>total</button>
+                            </div>
                           </div>
-                          <div className="text-[10px] text-slate-500 tabular-nums whitespace-nowrap">
-                            qty {o.qty} · R$ {o.total.toFixed(2)}
-                          </div>
-                          <div className="flex gap-1">
-                            <button type="button" onClick={() => insert(`qty(${o.cellRef})`)}
-                              className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
-                              title={`Insere qty(${o.cellRef}) — quantidade da linha`}>qty</button>
-                            <button type="button" onClick={() => insert(`total(${o.cellRef})`)}
-                              className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
-                              title={`Insere total(${o.cellRef}) — total em R$ da linha`}>total</button>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                    </div>
                   </div>
-                </div>
+                </details>
               )}
 
-              {/* Operadores e sintaxe */}
-              <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
-                <div className="text-[11px] font-semibold text-slate-700 mb-1">Sintaxe</div>
-                <div className="text-[11px] text-slate-600 leading-relaxed space-y-1">
-                  <div>Operadores: <code className="bg-white border border-slate-300 px-1.5 rounded">+ − × ÷ ( )</code> · Decimal: <code className="bg-white border border-slate-300 px-1.5 rounded">0.1</code> ou <code className="bg-white border border-slate-300 px-1.5 rounded">0,1</code> (ambos aceitos) · Use <code className="bg-white border border-slate-300 px-1.5 rounded">( )</code> pra controlar ordem das operacoes</div>
-                  <div className="text-slate-500">Ex: <code className="bg-white border border-slate-300 px-1.5 rounded">area * 1.05</code> (5% margem) · <code className="bg-white border border-slate-300 px-1.5 rounded">ceil(volume / 18)</code> · <code className="bg-white border border-slate-300 px-1.5 rounded">max(perimeter, 10)</code></div>
-                </div>
+              {/* Sintaxe — nota inline compacta */}
+              <div className="text-[11px] text-slate-500 px-1 pt-1">
+                Operadores: <code className="bg-white border border-slate-300 px-1 rounded">+ − × ÷ ( )</code> · Decimal: <code className="bg-white border border-slate-300 px-1 rounded">0.1</code> ou <code className="bg-white border border-slate-300 px-1 rounded">0,1</code> · Use <code className="bg-white border border-slate-300 px-1 rounded">( )</code> pra controlar precedencia.
               </div>
             </div>
 
