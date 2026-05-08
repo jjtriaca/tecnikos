@@ -257,15 +257,16 @@ export function orderCandidates<T extends { technicalSpecs?: any; priceCents?: n
 
 /**
  * Pipeline completo: filter + where + orderBy + take 1.
- * Retorna o melhor candidato ou null.
+ * Retorna o melhor candidato ou null. T eh permissivo (qualquer objeto)
+ * pra suportar Product e Service com campos diferentes (id, unit, etc).
  */
-export function selectBestCandidate<T extends { description?: string | null; name?: string | null; technicalSpecs?: any; priceCents?: number; salePriceCents?: number; unitPriceCents?: number }>(
+export function selectBestCandidate<T extends Record<string, any>>(
   candidates: T[],
   rule: AutoSelectRule,
   baseVars: FormulaVars,
 ): T | null {
-  const filtered1 = filterCandidates(candidates, rule);
+  const filtered1 = filterCandidates(candidates as any, rule);
   const filtered2 = filterByWhere(filtered1, rule, baseVars);
-  const ordered = orderCandidates(filtered2, rule, baseVars);
-  return ordered[0] ?? null;
+  const ordered = orderCandidates(filtered2 as any, rule, baseVars);
+  return (ordered[0] as T) ?? null;
 }
