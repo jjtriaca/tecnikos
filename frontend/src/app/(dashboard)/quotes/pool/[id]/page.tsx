@@ -1825,8 +1825,8 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
               <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
             </div>
 
-            <div className="overflow-y-auto p-6 space-y-5">
-              {/* Expressao + preview com substituicao das variaveis */}
+            {/* Expressao FIXA (nao rola) — sempre visivel enquanto o usuario explora variaveis/receitas abaixo */}
+            <div className="px-6 pt-4 pb-4 border-b border-slate-100 bg-white shrink-0">
               <div className="rounded-lg border-2 border-cyan-200 bg-cyan-50/50 p-4">
                 <label className="block text-xs font-bold uppercase tracking-wide text-cyan-900 mb-2">
                   Expressao <span className="text-[10px] text-slate-500 normal-case font-normal">(editavel — digite livre se entender da sintaxe)</span>
@@ -1883,7 +1883,10 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                   );
                 })()}
               </div>
+            </div>
 
+            {/* Area scrollavel: receitas, variaveis, funcoes, referencias e sintaxe */}
+            <div className="overflow-y-auto px-6 py-5 space-y-5">
               {/* Receitas prontas — padrao card unificado */}
               <div>
                 <div className="text-xs font-bold uppercase tracking-wide text-slate-700 mb-2">

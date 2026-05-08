@@ -1,7 +1,14 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.59 (em prod)
+## Versao: v1.10.60 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.60 — Pool budget: variaveis areaSecN / volumeSecN por section (sem limite)
+- **Pedido do Juliano**: numa linha do orcamento, calcular m² das sections excluindo a "Principal" (ex: praia + degraus, sem o corpo principal). Hoje so existia `area` (somatorio total).
+- **Backend** (`formula-eval.ts`): tipo `FormulaVars` agora aceita chaves dinamicas (`{ [k: string]: number | undefined }`). Adicionado `SECTION_VAR_PATTERN = /\b(areaSec|volumeSec)(\d+)\b/g` que substitui qualquer `areaSecN` / `volumeSecN` antes da validacao. `extractDimensionVars` itera `dimensions.sections[]` e popula `areaSec1, areaSec2, ..., volumeSec1, volumeSec2, ...` (auto-deriva de length×width / length×width×depth quando section so tem dimensoes).
+- **Frontend** (`page.tsx`): `evalLocal` e preview "Avaliacao" usam o mesmo `SECTION_VAR_PATTERN`. `FormulaModal` computa `vars[areaSecN]` / `vars[volumeSecN]` + monta `sectionsList` com metadata (idx, name, area, volume) das sections passadas em `dimensions.sections[]`. UI ganhou 2 grupos novos no card de variaveis: "Area de cada section" e "Volume de cada section" — cada chip mostra `areaSecN`, o nome real da section (ex: "Principal", "Praia", "Degrau 01"), e o valor numerico. Clica e insere no cursor.
+- **Suporta numero arbitrario de sections**: regex matcha 1..999. Sem limite hardcoded.
+- **Exemplo de uso**: piscina com 4 sections (Principal=21m², Praia=5.7m², Degrau 01=0.9m², Degrau 02=0.9m²) — pode escrever `areaSec2 + areaSec3 + areaSec4` (= 7.5m²) ou `area - areaSec1` (= 7.5m²).
 
 ## v1.10.59 — Pool budget: limpeza de receitas pouco usadas no FormulaModal
 - **UX**: removidas 8 receitas marcadas pelo Juliano que nao seriam usadas, deixando o modal mais limpo: Capa termica (area), Capa termica × 2, Tijolos parede+fundo (12u/m²), Azulejo / revestimento, Radier — area, Cimento radier (50kg), Diaria × 2, Diaria - 2 dias.
