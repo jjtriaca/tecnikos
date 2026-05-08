@@ -1,7 +1,15 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.62 (em prod)
+## Versao: v1.10.63 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.63 — Pool budget: vars dinamicas do produto vinculado + UI em accordions
+- **Pedido do Juliano**: replicar logica de Excel `PROCX([Descrição]; Cadastro; Cadastro[Consumo Kg X m²])` no sistema — pra calcular consumo de argamassa puxando dados do cadastro do produto. Tambem reclamou que o modal de formula estava "bagunçado".
+- **Backend** (`formula-eval.ts`): nova fn `extractProductVars(specs)` que extrai campos numericos validos de `technicalSpecs` (Json livre do Product/Service). `evaluateFormula` agora substitui qualquer chave nao-whitelisted que esteja em `vars`, com filtro pra identifier alfanumerico valido. `pool-budget.service.ts` `recalculateTotals` mergea `varsForItem(it) = { ...dimensionVars, ...extractProductVars(item.product?.technicalSpecs ?? item.service?.technicalSpecs) }` em todos os 3 passos do recalculo. `findOne` ja tinha `technicalSpecs: true` no select de product/service.
+- **Frontend** (`page.tsx`): `BudgetItem` type agora inclui `technicalSpecs`. `ItemRow` passa `productSpecs` e `productName` ao FormulaModal. Modal extrai `productSpecsList` (so campos numericos) e mergea em `vars`. `evalLocal` e preview "Avaliacao" tambem aceitam vars dinamicas (mesmo padrao do backend).
+- **3 receitas novas** ([page.tsx:1633-1635](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx#L1633)): "Sacos por consumo m² (arredonda CIMA)" `ceil(consumoKgM2 * area / pesoKg)`, "Sacos por consumo m² (arredonda NORMAL)" `round(consumoKgM2 * area / pesoKg)`, "Consumo total em Kg" `consumoKgM2 * area`.
+- **UI reorganizada** ([page.tsx:1929-2110](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx#L1929)): scroll area agora tem 4 accordions `<details>/<summary>`: ⚡ Receitas (default aberto), 📐 Variaveis (fechado — productSpecsList aparece em destaque cyan no topo se houver), 🧮 Funcoes (fechado), 🔗 Outras linhas (fechado, so aparece se houver). Sintaxe virou nota inline compacta no fim.
+- **Esperado**: numa linha que tem produto vinculado (ex: "Argamassa caixa 18kg" com `technicalSpecs={pesoKg:18, consumoKgM2:4.5}`), basta clicar na receita "Sacos por consumo m² (CIMA)" e o sistema calcula `ceil(4.5 * area / 18)` automaticamente — area sai das dimensoes da piscina, peso/consumo do cadastro.
 
 ## v1.10.62 — Pool budget: aceita decimal com virgula (padrao BR) na formula
 - **Bug reportado pelo Juliano**: expressao `ceil(areaSec2+ areaSec3+ areaSec4*0,1)` retornou 7 em vez de 1. Causa: virgula em `0,1` foi interpretada como separador de argumento de funcao (Math.ceil ignora extra args), entao avaliou `ceil(soma + areaSec4*0)` = `ceil(6.6)` = 7.

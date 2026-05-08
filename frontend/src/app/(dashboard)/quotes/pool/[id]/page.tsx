@@ -1649,9 +1649,10 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   // ── Diarias ──
   { label: "Diaria por dia de obra", expr: "dias", hint: "Quantidade = nº de dias da obra (auto)" },
   // ── Produto vinculado (technicalSpecs do cadastro) ──
-  { label: "Sacos por consumo m² (arredonda CIMA)", expr: "ceil(consumoKgM2 * area / pesoKg)", hint: "Argamassa, pintura, impermeabilizante: (consumo Kg/m² × area) ÷ peso do saco. Ceil = sempre completa o saco." },
-  { label: "Sacos por consumo m² (arredonda NORMAL)", expr: "round(consumoKgM2 * area / pesoKg)", hint: "Igual a anterior, mas arredondamento normal (50.4→50, 50.5→51)" },
-  { label: "Consumo total em Kg", expr: "consumoKgM2 * area", hint: "Quanto Kg do material no total (sem dividir por saco)" },
+  { label: "Sacos por consumo (parede+fundo) — CIMA", expr: "ceil(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Argamassa, cimentcola, cimento, impermeabilizante: aplica em paredes + fundo (areaParedeEFundo). Ceil = sempre completa o saco." },
+  { label: "Sacos por consumo (parede+fundo) — NORMAL", expr: "round(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Igual a anterior, arredondamento normal (50.4→50, 50.5→51)" },
+  { label: "Sacos por consumo (so fundo / superficie d'agua)", expr: "ceil(consumoKgM2 * area / pesoKg)", hint: "Quando o material so vai na area da agua (ex: liner). Use areaParedeEFundo pra revestimento de parede+fundo." },
+  { label: "Consumo total em Kg (parede+fundo)", expr: "consumoKgM2 * areaParedeEFundo", hint: "Quantos Kg do material no total — antes de dividir por saco" },
   // ── Referencias entre linhas ──
   { label: "30% sobre total da linha L7", expr: "total(L7) * 0.3", hint: "Ex: comissao/margem sobre outra linha" },
   { label: "Mesma quantidade da linha L5", expr: "qty(L5)", hint: "Espelha qty de outra linha (parafuso casa com furo)" },
