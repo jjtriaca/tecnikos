@@ -596,6 +596,30 @@ export class PoolBudgetService {
     });
 
     if (!budget) throw new NotFoundException('Orçamento não encontrado');
+
+    // Auto-backfill de cellRef em items legacy (criados antes da feature de cellRef).
+    // Sem cellRef, formulas com qty(LX)/total(LX) nao acham nenhuma linha referenciavel.
+    const missing = budget.items.filter((it) => !it.cellRef);
+    if (missing.length > 0) {
+      let nextNum = budget.items.reduce((max, it) => {
+        const m = it.cellRef?.match(/^L(\d+)$/);
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+      }, 0);
+      const updates: Promise<any>[] = [];
+      for (const it of missing.sort((a, b) => a.sortOrder - b.sortOrder)) {
+        nextNum++;
+        const newRef = `L${nextNum}`;
+        updates.push(
+          this.prisma.poolBudgetItem.update({
+            where: { id: it.id },
+            data: { cellRef: newRef },
+          }),
+        );
+        it.cellRef = newRef;
+      }
+      await Promise.all(updates);
+    }
+
     return budget;
   }
 

@@ -1,7 +1,14 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.55 (em prod)
-## Ultima sessao: 187 (07/05/2026)
+## Versao: v1.10.56 (em prod)
+## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.56 — Fix crash na pagina de orcamento de piscina ao clicar receita qty(LX)/total(LX)/unitPrice(LX)
+- **Bug reportado pelo Juliano**: em /quotes/pool/[id], abrir o modal de formula de uma linha, clicar nas receitas "Mesma quantidade da linha L5" (`qty(L5)`) ou "30% sobre total da linha L7" (`total(L7) * 0.3`) -> pagina inteira quebra com error boundary "Algo deu errado".
+- **Causa raiz**: em [page.tsx:1577](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx#L1577) (pre-fix), `evalLocal` chamava `throw new Error('linha LX nao existe')` DENTRO de um callback de `String.prototype.replace` quando a linha referenciada nao estava no `cellRefMap`. O try/catch da funcao so envolve o `Function(...)` final (linha 1592-1599), entao o throw escapava. E como `evalLocal` roda **durante o render** do `FormulaModal` (linha 1768: `const result = evalLocal(...)`), a exception virava uncaught e derrubava o componente -> error boundary global mostrava "Algo deu errado".
+- **Por que disparava com receitas hardcoded**: as receitas "Mesma quantidade da linha L5" e "30% sobre total da linha L7" tem `qty(L5)`/`total(L7)` hardcoded. Mas `cellRefMap` exclui a propria linha em edicao (linha 1707). Se o usuario abriu o modal sentado **na linha L5** (ou L7), ou o orcamento tem menos de 5/7 linhas, a referencia falha.
+- **Fix** ([page.tsx:1564-1601](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx#L1564)): substituido `throw` por flag `cellRefError`. Quando a linha referenciada nao existe, retorna `0` no replace, registra o erro e sai cedo com `{ ok: false, error: "linha LX nao existe (ou e a propria linha em edicao)" }` — que ja eh renderizado no banner vermelho do modal. Modal mostra mensagem amigavel em vez de quebrar a pagina.
+- **Outros usos de cellRefMap no mesmo arquivo (preview "Avaliacao", linhas 1832-1855) ja tinham fallback sem throw — nao precisaram fix. Backend `formula-eval.ts` mantem throw porque caller espera (envia 400 BadRequest, nao crash).
 
 ## v1.10.55 — Fix CORP same-origin bloqueando preview WhatsApp pra outros destinatarios
 - **Bug reportado pelo Juliano (3a iteracao)**: pos v1.10.54 (logo centralizada), enviou link pro Eduardo as 17:53 — compose mostrou preview SLS, mas mensagem chegou como URL bruta sem rich preview. Mensagem 17:21 funcionou, 17:53 falhou — comportamento intermitente.
