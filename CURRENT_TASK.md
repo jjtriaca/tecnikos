@@ -1,7 +1,12 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.58 (em prod)
+## Versao: v1.10.59 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.59 — Pool budget: limpeza de receitas pouco usadas no FormulaModal
+- **UX**: removidas 8 receitas marcadas pelo Juliano que nao seriam usadas, deixando o modal mais limpo: Capa termica (area), Capa termica × 2, Tijolos parede+fundo (12u/m²), Azulejo / revestimento, Radier — area, Cimento radier (50kg), Diaria × 2, Diaria - 2 dias.
+- **Mantidas**: 12 receitas — Area da piscina, Volume d'agua, Borda externa (e +10% perda), Cantoneira interna, Parede interna, Impermeabilizante caixa 18kg, Radier — concreto (m³), Escavacao, Diaria por dia de obra, e as 2 didaticas de cellRef (qty(L5), total(L7)*0.3).
+- **Mudanca pontual**: array `FORMULA_RECIPES_PISCINA` em [page.tsx:1604-1626](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx#L1604).
 
 ## v1.10.58 — Card de referencias mostra etapa de cada linha
 - **UX**: no FormulaModal, card "🔗 Referencias a outras linhas" agora exibe um badge slate com o nome da etapa (ex: "Construcao", "Acabamento") antes da descricao de cada linha. Ajuda a achar a linha certa quando o orcamento tem multiplas etapas com items parecidos.

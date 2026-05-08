@@ -42,7 +42,12 @@ const ALLOWED_VARS = [
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
 
-export type FormulaVars = Partial<Record<typeof ALLOWED_VARS[number], number>>;
+// Variaveis dinamicas: areaSec1, areaSec2, ..., volumeSec1, volumeSec2, ...
+// (uma por section da piscina, em ordem). Suporta numero arbitrario de sections.
+const SECTION_VAR_PATTERN = /\b(areaSec|volumeSec)(\d+)\b/g;
+
+// Permite chaves dinamicas (areaSecN, volumeSecN) alem das whitelisted.
+export type FormulaVars = { [k: string]: number | undefined };
 
 export interface CellRefData {
   qty: number;
@@ -82,6 +87,13 @@ export function evaluateFormula(
       },
     );
   }
+
+  // Substitui variaveis dinamicas areaSecN / volumeSecN (uma por section da piscina)
+  normalized = normalized.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => {
+    const key = `${prefix}${num}`;
+    const v = Number(vars[key] ?? 0);
+    return `(${v})`;
+  });
 
   // Substitui cada variavel pelo valor (entre parenteses pra preservar precedencia)
   for (const name of ALLOWED_VARS) {
@@ -173,14 +185,21 @@ export function extractDimensionVars(poolDimensions: any): FormulaVars {
   if (Array.isArray(d.sections) && d.sections.length > 0) {
     let totalArea = 0;
     let totalVolume = 0;
-    for (const s of d.sections) {
-      if (typeof s.area === 'number') totalArea += s.area;
-      else if (typeof s.length === 'number' && typeof s.width === 'number') totalArea += s.length * s.width;
-      if (typeof s.volume === 'number') totalVolume += s.volume;
+    d.sections.forEach((s: any, idx: number) => {
+      let area = 0;
+      if (typeof s.area === 'number') area = s.area;
+      else if (typeof s.length === 'number' && typeof s.width === 'number') area = s.length * s.width;
+      let volume = 0;
+      if (typeof s.volume === 'number') volume = s.volume;
       else if (typeof s.length === 'number' && typeof s.width === 'number' && typeof s.depth === 'number') {
-        totalVolume += s.length * s.width * s.depth;
+        volume = s.length * s.width * s.depth;
       }
-    }
+      totalArea += area;
+      totalVolume += volume;
+      // Variaveis individuais por section (areaSec1, areaSec2, ..., volumeSec1, ...)
+      direct[`areaSec${idx + 1}`] = area;
+      direct[`volumeSec${idx + 1}`] = volume;
+    });
     if (totalArea > 0) direct.area = totalArea;
     if (totalVolume > 0) direct.volume = totalVolume;
     const first = d.sections[0];

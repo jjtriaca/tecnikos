@@ -1559,6 +1559,9 @@ const FORMULA_VARS = [
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
+// Variaveis dinamicas: areaSec1, areaSec2, ..., volumeSec1, volumeSec2, ...
+// (uma por section da piscina, em ordem). Suporta numero arbitrario de sections.
+const SECTION_VAR_PATTERN = /\b(areaSec|volumeSec)(\d+)\b/g;
 
 type CellRefDataLocal = { qty: number; total: number; unitPrice: number };
 
@@ -1587,6 +1590,11 @@ function evalLocal(
     );
   }
   if (cellRefError) return { ok: false, error: cellRefError };
+  // Substitui areaSecN / volumeSecN dinamicamente (uma por section)
+  s = s.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => {
+    const key = prefix + num;
+    return '(' + (vars[key] || 0) + ')';
+  });
   for (const k of FORMULA_VARS) {
     s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + (vars[k] || 0) + ')');
   }
@@ -1702,6 +1710,21 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
     capa: capaNum,
     construcao: construcaoNum,
   };
+  // Variaveis individuais por section (areaSec1, volumeSec1, areaSec2, ...).
+  // Auto-deriva area/volume de length×width×depth quando section so tem dimensoes.
+  const sectionsList: Array<{ idx: number; name: string; area: number; volume: number }> = [];
+  if (Array.isArray(dimensions?.sections)) {
+    dimensions.sections.forEach((s: any, idx: number) => {
+      let area = Number(s?.area) || 0;
+      if (!area && s?.length && s?.width) area = Number(s.length) * Number(s.width);
+      let volume = Number(s?.volume) || 0;
+      if (!volume && s?.length && s?.width && s?.depth) volume = Number(s.length) * Number(s.width) * Number(s.depth);
+      const i = idx + 1;
+      vars[`areaSec${i}`] = area;
+      vars[`volumeSec${i}`] = volume;
+      sectionsList.push({ idx: i, name: String(s?.name || `Section ${i}`), area, volume });
+    });
+  }
   const cellRefMap = new Map<string, CellRefDataLocal>();
   for (const o of otherItems ?? []) {
     if (o.cellRef && o.cellRef !== itemCellRef) {
@@ -1842,6 +1865,11 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                       },
                     );
                   }
+                  // Substitui areaSecN / volumeSecN pelos valores reais
+                  expanded = expanded.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => {
+                    const key = prefix + num;
+                    return String(vars[key] ?? 0);
+                  });
                   for (const k of FORMULA_VARS) {
                     expanded = expanded.replace(new RegExp('\\b' + k + '\\b', 'g'), String(vars[k] ?? 0));
                   }
@@ -1894,6 +1922,49 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                     </div>
                   </div>
                 ))}
+                {/* Variaveis dinamicas por section (areaSecN / volumeSecN) */}
+                {sectionsList.length > 0 && (
+                  <>
+                    <div className="mb-2">
+                      <div className="text-[11px] font-medium text-slate-600 mb-1">
+                        Area de cada section ({sectionsList.length} sections — use pra excluir uma section especifica)
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sectionsList.map((s) => {
+                          const k = `areaSec${s.idx}`;
+                          return (
+                            <button key={k} type="button" onClick={() => insert(k)}
+                              title={`Area da section ${s.idx} — ${s.name}`}
+                              className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
+                              <span className="font-mono font-bold text-cyan-700">{k}</span>
+                              <span className="text-slate-500 text-[10px]">{s.name}</span>
+                              <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.area.toFixed(2)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="mb-2">
+                      <div className="text-[11px] font-medium text-slate-600 mb-1">
+                        Volume de cada section
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sectionsList.map((s) => {
+                          const k = `volumeSec${s.idx}`;
+                          return (
+                            <button key={k} type="button" onClick={() => insert(k)}
+                              title={`Volume da section ${s.idx} — ${s.name}`}
+                              className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
+                              <span className="font-mono font-bold text-cyan-700">{k}</span>
+                              <span className="text-slate-500 text-[10px]">{s.name}</span>
+                              <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.volume.toFixed(2)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Funcoes — mesmo card unificado */}
