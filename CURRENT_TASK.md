@@ -1,7 +1,12 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.57 (em prod)
+## Versao: v1.10.58 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.58 — Card de referencias mostra etapa de cada linha
+- **UX**: no FormulaModal, card "🔗 Referencias a outras linhas" agora exibe um badge slate com o nome da etapa (ex: "Construcao", "Acabamento") antes da descricao de cada linha. Ajuda a achar a linha certa quando o orcamento tem multiplas etapas com items parecidos.
+- **Mudanca**: `OtherItemForModal` ganhou `poolSection: string`; mapping em `ItemRow` passa `x.poolSection`; render usa `SECTION_LABEL[o.poolSection]` ja existente. `max-h-44` -> `max-h-60` pra acomodar layout mais largo.
+- **Por que precisava**: cellRefs sao globais no orcamento (nao por etapa) — `qty(L5)` referencia a linha 5 do orcamento todo, independentemente da etapa em que ela esta. Sem o badge, era dificil identificar de qual etapa cada linha do card era.
 
 ## v1.10.57 — Auto-backfill de cellRef em items legacy de orcamento de piscina
 - **Bug reportado pelo Juliano** (continuacao do fix v1.10.56): apos o crash ter sido tratado com mensagem amigavel, ficou claro que **nenhuma formula com `qty(LX)`/`total(LX)`/`unitPrice(LX)` funcionava** no orcamento ORCP-00001 (Anderson da Silva Prado, 22 linhas). Mensagem "linha L5 nao existe" aparecia mesmo a linha L5 existindo visualmente.

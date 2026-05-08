@@ -1612,8 +1612,6 @@ type FormulaRecipe = { label: string; expr: string; hint: string };
 const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   // ── Area / superficie (somatorio das sections) ──
   { label: "Area da piscina (m²)", expr: "area", hint: "Superficie d'agua — liner, manta, tratamento de superficie" },
-  { label: "Capa termica (area)", expr: "area", hint: "Capa cobre superficie — 1× area" },
-  { label: "Capa termica × 2 (2 camadas)", expr: "area * 2", hint: "Capa em 2 camadas" },
   // ── Volume d'agua ──
   { label: "Volume d'agua (m³)", expr: "volume", hint: "Bombas, tratamento por m³, dimensionar filtro" },
   // ── Borda externa (perimetro real, nao soma de sections) ──
@@ -1623,18 +1621,12 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   { label: "Parede interna (m/l)", expr: "perimInterno", hint: "Paredes internas (degraus, divisorias)" },
   // ── Parede + fundo (impermeabilizacao, pintura, azulejo) ──
   { label: "Impermeabilizante caixa 18kg", expr: "ceil(areaParedeEFundo * 0.5 / 18)", hint: "0.5 kg/m² em parede+fundo, arredonda pra cima" },
-  { label: "Tijolos parede+fundo (12u/m²)", expr: "ceil(areaParedeEFundo * 12)", hint: "Tijolos em parede+fundo (12 por m²)" },
-  { label: "Azulejo / revestimento (m²)", expr: "areaParedeEFundo", hint: "Cobre paredes + fundo da piscina" },
   // ── Radier (concreto do fundo) ──
-  { label: "Radier — area (m²)", expr: "radierM2", hint: "Area do radier do fundo" },
   { label: "Radier — concreto (m³)", expr: "radierM3", hint: "Volume de concreto = radier m² × espessura" },
-  { label: "Cimento radier (50kg)", expr: "ceil(radierM3 * 350 / 50)", hint: "350 kg cimento/m³ concreto, saco 50kg" },
   // ── Escavacao ──
   { label: "Escavacao (m³)", expr: "escavacao", hint: "Volume de terra removida" },
   // ── Diarias ──
   { label: "Diaria por dia de obra", expr: "dias", hint: "Quantidade = nº de dias da obra (auto)" },
-  { label: "Diaria × 2 (2 funcionarios)", expr: "dias * 2", hint: "2 pessoas trabalhando juntas" },
-  { label: "Diaria - 2 dias (sem inicio/fim)", expr: "max(0, dias - 2)", hint: "Exclui prep e finalizacao" },
   // ── Referencias entre linhas ──
   { label: "30% sobre total da linha L7", expr: "total(L7) * 0.3", hint: "Ex: comissao/margem sobre outra linha" },
   { label: "Mesma quantidade da linha L5", expr: "qty(L5)", hint: "Espelha qty de outra linha (parafuso casa com furo)" },
