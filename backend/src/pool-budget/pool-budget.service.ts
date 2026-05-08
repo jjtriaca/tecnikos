@@ -792,6 +792,16 @@ export class PoolBudgetService {
       throw new BadRequestException('Orçamento aprovado — não pode adicionar items');
     }
 
+    // Auto-link: se DTO nao especificou productId/serviceId, busca match exato no cadastro
+    // (precisa rodar ANTES de avaliar formula pra que productSpecs estejam disponiveis)
+    let resolvedProductId = dto.productId ?? null;
+    let resolvedServiceId = dto.serviceId ?? null;
+    if (!resolvedProductId && !resolvedServiceId && dto.description) {
+      const matched = await this.findAutoLinkByDescription(dto.description, companyId);
+      if (matched.productId) resolvedProductId = matched.productId;
+      else if (matched.serviceId) resolvedServiceId = matched.serviceId;
+    }
+
     // Se formula foi enviada, avalia e sobrescreve qty + qtyCalculated
     let effectiveQty = dto.qty;
     let qtyCalculated: number | undefined;
@@ -800,7 +810,23 @@ export class PoolBudgetService {
         where: { id: budgetId },
         select: { poolDimensions: true },
       });
-      const vars = extractDimensionVars(fullBudget?.poolDimensions);
+      // Inclui technicalSpecs do produto/servico vinculado pra suportar formulas
+      // que usam vars como consumoKgM2, pesoKg, vazaoM3h, etc.
+      let productSpecs: unknown = null;
+      if (resolvedProductId) {
+        const p = await this.prisma.product.findUnique({
+          where: { id: resolvedProductId },
+          select: { technicalSpecs: true },
+        });
+        productSpecs = p?.technicalSpecs;
+      } else if (resolvedServiceId) {
+        const s = await this.prisma.service.findUnique({
+          where: { id: resolvedServiceId },
+          select: { technicalSpecs: true },
+        });
+        productSpecs = s?.technicalSpecs;
+      }
+      const vars = { ...extractDimensionVars(fullBudget?.poolDimensions), ...extractProductVars(productSpecs) };
       const cellRefMap = await this.buildBudgetCellRefMap(budgetId);
       try {
         effectiveQty = evaluateFormula(dto.formulaExpr, vars, cellRefMap);
@@ -818,15 +844,6 @@ export class PoolBudgetService {
     }
     const totalCents = Math.round(effectiveQty * dto.unitPriceCents);
     const cellRef = await this.nextCellRef(budgetId);
-
-    // Auto-link: se DTO nao especificou productId/serviceId, busca match exato no cadastro
-    let resolvedProductId = dto.productId ?? null;
-    let resolvedServiceId = dto.serviceId ?? null;
-    if (!resolvedProductId && !resolvedServiceId && dto.description) {
-      const matched = await this.findAutoLinkByDescription(dto.description, companyId);
-      if (matched.productId) resolvedProductId = matched.productId;
-      else if (matched.serviceId) resolvedServiceId = matched.serviceId;
-    }
 
     const item = await this.prisma.poolBudgetItem.create({
       data: {
@@ -895,7 +912,25 @@ export class PoolBudgetService {
           where: { id: item.budgetId },
           select: { poolDimensions: true },
         });
-        const vars = extractDimensionVars(fullBudget?.poolDimensions);
+        // Inclui technicalSpecs do produto/servico vinculado (formulas com consumoKgM2,
+        // pesoKg, vazaoM3h etc dependem disso). Usa o vinculo atual do item, ou novo do DTO se mudou.
+        const targetProductId = dto.productId !== undefined ? dto.productId : item.productId;
+        const targetServiceId = dto.serviceId !== undefined ? dto.serviceId : item.serviceId;
+        let productSpecs: unknown = null;
+        if (targetProductId) {
+          const p = await this.prisma.product.findUnique({
+            where: { id: targetProductId },
+            select: { technicalSpecs: true },
+          });
+          productSpecs = p?.technicalSpecs;
+        } else if (targetServiceId) {
+          const s = await this.prisma.service.findUnique({
+            where: { id: targetServiceId },
+            select: { technicalSpecs: true },
+          });
+          productSpecs = s?.technicalSpecs;
+        }
+        const vars = { ...extractDimensionVars(fullBudget?.poolDimensions), ...extractProductVars(productSpecs) };
         const cellRefMap = await this.buildBudgetCellRefMap(item.budgetId);
         try {
           effectiveQty = evaluateFormula(dto.formulaExpr, vars, cellRefMap);
