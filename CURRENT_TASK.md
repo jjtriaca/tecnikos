@@ -1,7 +1,43 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.66 (em prod)
+## Versao: v1.10.68 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.67/v1.10.68 — Pool budget: AUTO-SELECAO DO PRODUTO (feature grande)
+- **Pedido do Juliano**: ao inves de escolher manualmente o produto em cada linha (Conjunto Filtrante V30/V50/V60, etc), o sistema deve auto-selecionar o melhor produto baseado em variaveis da piscina (volume, area) + technicalSpecs do candidato (vazaoM3h, kcalH, tuboEntradaMm). Tambem mostrar **indicador visual** (Excelente/Bom/Ruim) na linha. Reusavel pra varias etapas (filtragem, aquecimento, cascata, iluminacao).
+- **v1.10.67 quebrou no build** (TS error em `selectBestCandidate<T extends {...}>` que nao incluia `id`/`unit`). v1.10.68 corrigiu trocando pra `T extends Record<string, any>`.
+- **Backend**:
+  - Schema: `PoolBudgetItem.autoSelectRule Json?` ([migration 20260508140000](backend/prisma/migrations/20260508140000_add_pool_item_auto_select_rule/migration.sql))
+  - [auto-select.helper.ts](backend/src/pool-budget/auto-select.helper.ts): `evaluateCondition` (booleano com >= <= == != && ||), `evaluateNumeric`, `evaluateIndicator` (calcula label+color+value baseado em levels), `selectBestCandidate` (filter+where+orderBy+limit 1)
+  - `recalculateTotals`: novo PASSO 0 antes das formulas — busca todos Product+Service do tenant, aplica regra de cada item com autoSelectRule, vincula productId/serviceId + atualiza description/unitPriceCents/unit
+  - `findOne`: calcula indicator em runtime e injeta `indicatorLabel/indicatorColor/indicatorValue/indicatorUnit` em cada item retornado
+  - DTOs aceitam `autoSelectRule` (Json livre, sem @IsObject pra aceitar null)
+  - addItem/updateItem persistem autoSelectRule via `Prisma.JsonNull` quando null
+- **Frontend**:
+  - Tipo `AutoSelectRule` + campos indicator no `BudgetItem`
+  - Icone ✨ roxo na celula da qty (ao lado do `fx`) abre modal
+  - Componente `AutoSelectModal` com 4 accordions (Candidatos / Criterio / Ordem / Indicador) + Preview avaliado dos candidatos + Resultado da auto-selecao no topo (sticky com fundo violet)
+  - Badge colorido (verde/amarelo/vermelho) na linha quando indicator esta setado
+  - 2 templates de indicator pre-prontos: "Tempo de filtragem (volume / vazaoM3h)" e "Aquecimento (kcalHMax / volume)"
+  - 5 presets de orderBy (Mais barato, Maior vazao, etc)
+- **Estrutura da regra**:
+  ```json
+  {
+    "filterCategoria": "Conjuntos de filtragem",
+    "filterDescription": "filtro",
+    "where": "vazaoM3h * 1 >= volume * 0.25",
+    "orderBy": "priceCents asc",
+    "indicator": {
+      "label": "Tempo de filtragem", "expr": "volume / vazaoM3h", "unit": "h",
+      "levels": [
+        { "max": 4, "label": "Excelente", "color": "green" },
+        { "max": 8, "label": "Bom", "color": "yellow" },
+        { "max": 999, "label": "Ruim", "color": "red" }
+      ]
+    }
+  }
+  ```
+- **Pendente em fase 2**: cascata entre linhas (`prod(L34, "tuboEntradaMm")` pra linha de tubos seguir o filtro escolhido — extensao do `qty()` atual pra acessar specs).
 
 ## v1.10.66 — Pool budget: fix critico — addItem/updateItem agora incluem productSpecs na validacao da formula
 - **Bug ativo apos v1.10.65**: ao aplicar formula com vars do produto (`ceil(consumoKgM2 * areaParedeEFundo / pesoKg)`), preview do frontend mostrava 22 (correto) mas backend rejeitava com "Variavel ou funcao nao reconhecida na formula".

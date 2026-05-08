@@ -2438,23 +2438,23 @@ function AutoSelectModal({
               {/* CANDIDATOS */}
               <details open className="group rounded-lg border border-slate-200 bg-white">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">🎯 Candidatos <span className="text-slate-400 font-normal normal-case">— de qual catalogo buscar</span></span>
-                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-800">🎯 Candidatos <span className="text-slate-600 font-normal normal-case">— de qual catalogo buscar</span></span>
+                  <span className="text-slate-600 text-xs group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="px-4 pb-3 pt-1 space-y-2">
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-700 mb-1">Categoria do cadastro (opcional)</label>
+                    <label className="block text-[11px] font-medium text-slate-800 mb-1">Categoria do cadastro (opcional)</label>
                     <select value={filterCategoria} onChange={(e) => setFilterCategoria(e.target.value)}
-                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-900">
                       <option value="">— Sem filtro de categoria —</option>
                       {categorias.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-700 mb-1">Descricao contendo (opcional, case-insensitive)</label>
+                    <label className="block text-[11px] font-medium text-slate-800 mb-1">Descricao contendo (opcional, case-insensitive)</label>
                     <input type="text" value={filterDescription} onChange={(e) => setFilterDescription(e.target.value)}
                       placeholder="Ex: filtro, aquecedor"
-                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-900" />
                   </div>
                 </div>
               </details>
@@ -2462,15 +2462,15 @@ function AutoSelectModal({
               {/* CRITERIO */}
               <details open className="group rounded-lg border border-slate-200 bg-white">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">🔍 Criterio <span className="text-slate-400 font-normal normal-case">— condicao com vars do orcamento + specs do candidato</span></span>
-                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-800">🔍 Criterio <span className="text-slate-600 font-normal normal-case">— condicao com vars do orcamento + specs do candidato</span></span>
+                  <span className="text-slate-600 text-xs group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="px-4 pb-3 pt-1 space-y-2">
                   <input type="text" value={where} onChange={(e) => setWhere(e.target.value)}
                     placeholder="Ex: vazaoM3h * 1 >= volume * 0.25"
-                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm font-mono" />
-                  <div className="text-[10px] text-slate-500">
-                    Vars disponiveis: vars do orcamento (volume, area, areaParedeEFundo, dias, ...) + qualquer campo numerico do technicalSpecs do candidato (vazaoM3h, kcalHMin, kcalHMax, tuboEntradaMm, voltagem, potenciaCv, ...). Operadores: <code>+ − × ÷ ( ) &gt;= &lt;= &gt; &lt; == != &amp;&amp; ||</code>.
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm font-mono text-slate-900" />
+                  <div className="text-[11px] text-slate-700 leading-snug">
+                    Vars disponiveis: vars do orcamento (volume, area, areaParedeEFundo, dias, ...) + qualquer campo numerico do technicalSpecs do candidato (vazaoM3h, kcalHMin, kcalHMax, tuboEntradaMm, voltagem, potenciaCv, ...). Operadores: <code className="bg-slate-100 px-1 rounded text-slate-900">+ − × ÷ ( ) &gt;= &lt;= &gt; &lt; == != &amp;&amp; ||</code>
                   </div>
                 </div>
               </details>
@@ -2478,28 +2478,28 @@ function AutoSelectModal({
               {/* ORDEM */}
               <details className="group rounded-lg border border-slate-200 bg-white">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">📊 Ordem <span className="text-slate-400 font-normal normal-case">— em caso de empate, qual escolher</span></span>
-                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-800">📊 Ordem <span className="text-slate-600 font-normal normal-case">— em caso de empate, qual escolher</span></span>
+                  <span className="text-slate-600 text-xs group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="px-4 pb-3 pt-1 space-y-2">
                   <select value={orderBy} onChange={(e) => setOrderBy(e.target.value)}
-                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-900">
                     {ORDER_BY_PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label} ({p.value})</option>)}
                   </select>
                   <input type="text" value={orderBy} onChange={(e) => setOrderBy(e.target.value)}
                     placeholder="OU customizado: ex: priceCents asc"
-                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm font-mono" />
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm font-mono text-slate-900" />
                 </div>
               </details>
 
               {/* INDICATOR */}
               <details open={hasIndicator} className="group rounded-lg border border-slate-200 bg-white">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">🎨 Indicador <span className="text-slate-400 font-normal normal-case">— badge visivel na linha</span></span>
-                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-800">🎨 Indicador <span className="text-slate-600 font-normal normal-case">— badge visivel na linha</span></span>
+                  <span className="text-slate-600 text-xs group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="px-4 pb-3 pt-1 space-y-2">
-                  <label className="inline-flex items-center gap-2 text-sm">
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-800">
                     <input type="checkbox" checked={hasIndicator} onChange={(e) => setHasIndicator(e.target.checked)} />
                     Mostrar indicador na linha
                   </label>
@@ -2508,55 +2508,55 @@ function AutoSelectModal({
                       <div className="flex flex-wrap gap-1.5">
                         {INDICATOR_TEMPLATES.map((t) => (
                           <button key={t.label} type="button" onClick={() => applyTemplate(t)}
-                            className="text-[10px] rounded border border-violet-300 bg-violet-50 hover:bg-violet-100 px-2 py-1">
+                            className="text-[11px] font-medium rounded border border-violet-400 bg-violet-50 hover:bg-violet-100 px-2 py-1 text-violet-800">
                             ⚡ {t.label}
                           </button>
                         ))}
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <label className="block text-[11px] font-medium text-slate-700 mb-1">Label</label>
+                          <label className="block text-[11px] font-medium text-slate-800 mb-1">Label</label>
                           <input type="text" value={indLabel} onChange={(e) => setIndLabel(e.target.value)}
                             placeholder="Ex: Tempo de filtragem"
-                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900" />
                         </div>
                         <div className="col-span-2">
-                          <label className="block text-[11px] font-medium text-slate-700 mb-1">Calculo</label>
+                          <label className="block text-[11px] font-medium text-slate-800 mb-1">Calculo</label>
                           <input type="text" value={indExpr} onChange={(e) => setIndExpr(e.target.value)}
                             placeholder="Ex: volume / vazaoM3h"
-                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm font-mono" />
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm font-mono text-slate-900" />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">Unidade</label>
+                        <label className="block text-[11px] font-medium text-slate-800 mb-1">Unidade</label>
                         <input type="text" value={indUnit} onChange={(e) => setIndUnit(e.target.value)}
                           placeholder="Ex: h, kcal/m³h"
-                          className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
+                          className="w-32 rounded border border-slate-300 px-2 py-1 text-sm text-slate-900" />
                       </div>
                       <div>
-                        <div className="text-[11px] font-medium text-slate-700 mb-1">Niveis (avalia em ordem; primeiro que value &lt;= max ganha)</div>
+                        <div className="text-[11px] font-medium text-slate-800 mb-1">Niveis (avalia em ordem; primeiro que value &lt;= max ganha)</div>
                         {indLevels.map((lvl, idx) => (
                           <div key={idx} className="flex items-center gap-2 mb-1">
                             <select value={lvl.color} onChange={(e) => {
                               const v = [...indLevels]; v[idx] = { ...v[idx], color: e.target.value }; setIndLevels(v);
-                            }} className="rounded border border-slate-300 px-2 py-1 text-sm">
+                            }} className="rounded border border-slate-300 px-2 py-1 text-sm text-slate-900">
                               <option value="green">🟢 Verde</option>
                               <option value="yellow">🟡 Amarelo</option>
                               <option value="red">🔴 Vermelho</option>
                             </select>
-                            <span className="text-[11px] text-slate-500">ate</span>
+                            <span className="text-[11px] font-medium text-slate-700">ate</span>
                             <input type="number" value={lvl.max} step="0.01" onChange={(e) => {
                               const v = [...indLevels]; v[idx] = { ...v[idx], max: parseFloat(e.target.value) || 0 }; setIndLevels(v);
-                            }} className="w-24 rounded border border-slate-300 px-2 py-1 text-sm tabular-nums" />
+                            }} className="w-24 rounded border border-slate-300 px-2 py-1 text-sm tabular-nums text-slate-900" />
                             <input type="text" value={lvl.label} placeholder="Label" onChange={(e) => {
                               const v = [...indLevels]; v[idx] = { ...v[idx], label: e.target.value }; setIndLevels(v);
-                            }} className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm" />
+                            }} className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm text-slate-900" />
                             <button type="button" onClick={() => setIndLevels(indLevels.filter((_, i) => i !== idx))}
-                              className="text-red-500 hover:text-red-700 text-sm">✕</button>
+                              className="text-red-600 hover:text-red-800 text-sm font-bold">✕</button>
                           </div>
                         ))}
                         <button type="button" onClick={() => setIndLevels([...indLevels, { max: 0, label: '', color: 'slate' }])}
-                          className="text-xs text-violet-700 hover:underline">+ adicionar nivel</button>
+                          className="text-xs font-medium text-violet-700 hover:text-violet-900 hover:underline">+ adicionar nivel</button>
                       </div>
                     </>
                   )}
@@ -2566,8 +2566,8 @@ function AutoSelectModal({
               {/* CANDIDATOS AVALIADOS */}
               <details className="group rounded-lg border border-slate-200 bg-white">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">👁 Preview ({preview.all.length} candidatos avaliados)</span>
-                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-800">👁 Preview <span className="text-slate-600 font-normal normal-case">({preview.all.length} candidatos avaliados)</span></span>
+                  <span className="text-slate-600 text-xs group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="px-4 pb-3 pt-1 max-h-60 overflow-y-auto">
                   {preview.all.length === 0 ? (
