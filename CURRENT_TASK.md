@@ -1,7 +1,19 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.64 (em prod)
+## Versao: v1.10.66 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.66 — Pool budget: fix critico — addItem/updateItem agora incluem productSpecs na validacao da formula
+- **Bug ativo apos v1.10.65**: ao aplicar formula com vars do produto (`ceil(consumoKgM2 * areaParedeEFundo / pesoKg)`), preview do frontend mostrava 22 (correto) mas backend rejeitava com "Variavel ou funcao nao reconhecida na formula".
+- **Causa**: v1.10.63 adicionou productSpecs em `recalculateTotals` (re-avaliacao), mas esqueci do `addItem`/`updateItem` (validacao na criacao/edicao). Os 2 metodos avaliavam formula apenas com `extractDimensionVars(...)`, sem productVars — entao `consumoKgM2` ficava como literal e quebrava o validator.
+- **Fix** ([pool-budget.service.ts addItem ~785-815](backend/src/pool-budget/pool-budget.service.ts) e updateItem ~860-900): ambos buscam `technicalSpecs` do produto/servico vinculado (resolvedProductId no addItem ja considerando auto-link, ou item.productId/dto.productId no updateItem) e mergeiam via `extractProductVars(specs)` antes de chamar `evaluateFormula`. No `addItem`, movi o auto-link pra ANTES da validacao da formula pra que productSpecs do produto auto-vinculado tambem sejam usados.
+
+## v1.10.65 — Pool budget: auto-link silencioso por descricao exata
+- **Pedido do Juliano** (continuacao do batch fix): items criados com descricao livre (sem 🔍) ficam sem productId/serviceId — isso quebra formulas que usam productSpecs (`consumoKgM2`, `pesoKg`).
+- **Fix** ([pool-budget.service.ts](backend/src/pool-budget/pool-budget.service.ts)): novo helper `findAutoLinkByDescription(description, companyId)` faz busca case-insensitive trim. Se acha **exatamente 1 match** unico em Product (ou Service como fallback), retorna o id; se acha varios (duplicatas no catalogo), retorna `{}` (evita ambiguidade). Aplicado em:
+  - `addItem`: se DTO nao trouxe productId nem serviceId, tenta auto-link
+  - `updateItem`: se descricao mudou, item esta sem vinculo, e DTO nao trouxe productId/serviceId explicito, tenta auto-link. **Idempotente**: nunca desvincula nem sobrescreve vinculo existente.
+- **Comportamento silencioso** (sem toast): UI nao indica que o vinculo foi feito automaticamente. Se o usuario quiser ver, basta abrir modal de formula que ja mostra os specs disponiveis no card cyan.
 
 ## v1.10.64 — Pool budget: receitas de "Sacos por consumo" usam areaParedeEFundo por default
 - **Bug**: receitas v1.10.63 usavam `area` (somatorio das sections = 28,5 m² = superficie d'agua), mas a planilha de referencia da Juliano Piscinas usa `areaParedeEFundo` (= 64,3 m² = revestimento real, parede + fundo). Ex: argamassa Quartzolit ACII (consumoKgM2=6, pesoKg=18) com area=28,5 dava 10 sacos; com areaParedeEFundo=64,3 da 22 sacos (= planilha).

@@ -11,7 +11,7 @@
 // caracteres aritmeticos seguros + nomes de funcoes whitelisted, e usa Function pra avaliar.
 // Como o input e sanitizado, nao ha risco de injecao de codigo.
 
-const ALLOWED_VARS = [
+export const ALLOWED_VARS = [
   // Dimensoes basicas (primeira section ou unica)
   'length', 'width', 'depth',
   // Metricas agregadas (somatorios das sections)

@@ -8,6 +8,19 @@ import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import PartnerCombobox from "@/components/PartnerCombobox";
 
+type AutoSelectRule = {
+  filterCategoria?: string | null;
+  filterDescription?: string | null;
+  where?: string | null;
+  orderBy?: string | null;
+  indicator?: {
+    label: string;
+    expr: string;
+    unit?: string | null;
+    levels: { max: number; label: string; color: string }[];
+  } | null;
+};
+
 type BudgetItem = {
   id: string;
   poolSection: string;
@@ -27,6 +40,12 @@ type BudgetItem = {
   catalogConfigId: string | null;
   productId?: string | null;
   serviceId?: string | null;
+  autoSelectRule?: AutoSelectRule | null;
+  // Calculados em runtime no findOne — nao persistidos:
+  indicatorLabel?: string | null;
+  indicatorColor?: string | null;
+  indicatorValue?: number | null;
+  indicatorUnit?: string | null;
   product?: { id: string; code: string | null; description: string; technicalSpecs?: Record<string, unknown> | null } | null;
   service?: { id: string; code: string | null; name: string; technicalSpecs?: Record<string, unknown> | null } | null;
 };
@@ -894,6 +913,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
 }) {
   const [qty, setQty] = useState(item.qty);
   const [showFormula, setShowFormula] = useState(false);
+  const [showAutoSelect, setShowAutoSelect] = useState(false);
   const [showCatalogPick, setShowCatalogPick] = useState(false);
   const [price, setPrice] = useState((item.unitPriceCents / 100).toFixed(2));
   const [desc, setDesc] = useState(item.description);
@@ -973,6 +993,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
                 className={"text-[10px] font-bold px-1 rounded border " + (item.formulaExpr ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-slate-200 text-slate-400 hover:text-cyan-600 hover:border-cyan-300")}
                 title={item.formulaExpr ? `Editar formula (atual: ${item.formulaExpr})` : "Configurar formula automatica"}
               >fx</button>
+              <button type="button" onClick={() => setShowAutoSelect(true)}
+                className={"text-[10px] font-bold px-1 rounded border " + (item.autoSelectRule ? "border-violet-500 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300")}
+                title={item.autoSelectRule ? "Editar auto-selecao do produto" : "Configurar auto-selecao do produto"}
+              >✨</button>
               {item.formulaExpr ? (
                 <button type="button" onClick={() => setShowFormula(true)}
                   className="text-sm tabular-nums text-cyan-700 font-medium hover:underline"
@@ -984,6 +1008,19 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
                   className="w-16 rounded border border-slate-200 px-1 py-0.5 text-center text-sm tabular-nums" />
               )}
             </div>
+            {item.indicatorLabel && (
+              <span className={
+                "text-[9px] font-medium px-1.5 py-0.5 rounded border " +
+                (item.indicatorColor === 'green' ? "bg-green-50 border-green-300 text-green-800" :
+                 item.indicatorColor === 'yellow' ? "bg-yellow-50 border-yellow-300 text-yellow-800" :
+                 item.indicatorColor === 'red' ? "bg-red-50 border-red-300 text-red-800" :
+                 "bg-slate-50 border-slate-300 text-slate-700")}
+                title={item.autoSelectRule?.indicator?.label
+                  ? `${item.autoSelectRule.indicator.label}: ${item.indicatorValue?.toFixed(2)}${item.indicatorUnit || ''}`
+                  : ''}>
+                {item.indicatorLabel}
+              </span>
+            )}
             {item.formulaExpr && (
               <button type="button" onClick={() => setShowFormula(true)}
                 className="text-[9px] font-mono text-cyan-600 hover:text-cyan-800 hover:underline truncate max-w-full"
@@ -1044,6 +1081,19 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         onClose={() => setShowFormula(false)}
         onSave={(expr) => { setShowFormula(false); onUpdate({ formulaExpr: expr }); }}
         onClear={() => { setShowFormula(false); onUpdate({ formulaExpr: "" }); }}
+      />
+    )}
+    {showAutoSelect && catalog && (
+      <AutoSelectModal
+        initialRule={item.autoSelectRule || null}
+        catalog={catalog}
+        dimensions={dimensions}
+        environmentParams={environmentParams}
+        itemDescription={item.description}
+        currentProductName={item.product?.description ?? item.service?.name ?? null}
+        onClose={() => setShowAutoSelect(false)}
+        onSave={(rule) => { setShowAutoSelect(false); onUpdate({ autoSelectRule: rule } as any); }}
+        onClear={() => { setShowAutoSelect(false); onUpdate({ autoSelectRule: null } as any); }}
       />
     )}
     {showCatalogPick && catalog && (
@@ -2115,6 +2165,440 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                 <button type="button" disabled={!result.ok} onClick={() => onSave(expr)}
                   className="rounded-lg bg-cyan-600 px-5 py-2 text-sm font-bold text-white hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed">
                   ✓ Aplicar formula
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────
+// AutoSelectModal — configura regra de auto-selecao do produto/servico baseada
+// em variaveis da piscina + technicalSpecs do candidato. Mesmo padrao visual do
+// FormulaModal: cards/accordions, preview avaliado, sintaxe inline no fim.
+// ─────────────────────────────────────────────────────────
+const ORDER_BY_PRESETS: Array<{ value: string; label: string }> = [
+  { value: 'priceCents asc', label: 'Mais barato primeiro' },
+  { value: 'priceCents desc', label: 'Mais caro primeiro' },
+  { value: 'vazaoM3h desc', label: 'Maior vazao primeiro' },
+  { value: 'vazaoM3h asc', label: 'Menor vazao primeiro' },
+  { value: 'kcalHMax desc', label: 'Maior aquecimento primeiro' },
+];
+
+const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr: string; unit: string; levels: { max: number; label: string; color: string }[] } }> = [
+  {
+    label: 'Tempo de filtragem (volume / vazaoM3h)',
+    preset: {
+      label: 'Tempo de filtragem',
+      expr: 'volume / vazaoM3h',
+      unit: 'h',
+      levels: [
+        { max: 4, label: 'Excelente', color: 'green' },
+        { max: 8, label: 'Bom', color: 'yellow' },
+        { max: 999, label: 'Ruim', color: 'red' },
+      ],
+    },
+  },
+  {
+    label: 'Aquecimento (kcalHMax / volume)',
+    preset: {
+      label: 'Aquecimento',
+      expr: 'kcalHMax / volume',
+      unit: 'kcal/m³h',
+      levels: [
+        { max: 200, label: 'Insuficiente', color: 'red' },
+        { max: 500, label: 'Adequado', color: 'yellow' },
+        { max: 9999, label: 'Excelente', color: 'green' },
+      ],
+    },
+  },
+];
+
+function AutoSelectModal({
+  initialRule,
+  catalog,
+  dimensions,
+  environmentParams,
+  itemDescription,
+  currentProductName,
+  onClose,
+  onSave,
+  onClear,
+}: {
+  initialRule: AutoSelectRule | null;
+  catalog: CatalogConfig[];
+  dimensions: any;
+  environmentParams?: any;
+  itemDescription?: string;
+  currentProductName?: string | null;
+  onClose: () => void;
+  onSave: (rule: AutoSelectRule) => void;
+  onClear: () => void;
+}) {
+  const [filterCategoria, setFilterCategoria] = useState(initialRule?.filterCategoria || '');
+  const [filterDescription, setFilterDescription] = useState(initialRule?.filterDescription || '');
+  const [where, setWhere] = useState(initialRule?.where || '');
+  const [orderBy, setOrderBy] = useState(initialRule?.orderBy || 'priceCents asc');
+  const [hasIndicator, setHasIndicator] = useState(!!initialRule?.indicator);
+  const [indLabel, setIndLabel] = useState(initialRule?.indicator?.label || '');
+  const [indExpr, setIndExpr] = useState(initialRule?.indicator?.expr || '');
+  const [indUnit, setIndUnit] = useState(initialRule?.indicator?.unit || '');
+  const [indLevels, setIndLevels] = useState<{ max: number; label: string; color: string }[]>(
+    initialRule?.indicator?.levels || [
+      { max: 4, label: 'Excelente', color: 'green' },
+      { max: 8, label: 'Bom', color: 'yellow' },
+      { max: 999, label: 'Ruim', color: 'red' },
+    ]
+  );
+
+  // Categorias unicas extraidas do catalogo (de technicalSpecs.categoriaPlanilha)
+  const categorias = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of catalog) {
+      const cat = (c.product?.technicalSpecs as any)?.categoriaPlanilha
+                ?? (c.service?.technicalSpecs as any)?.categoriaPlanilha;
+      if (cat && typeof cat === 'string') set.add(cat);
+    }
+    return Array.from(set).sort();
+  }, [catalog]);
+
+  // Vars do orcamento (mesma lista de FORMULA_VARS, computada das dimensoes)
+  const dimVars = useMemo(() => {
+    const v: Record<string, number> = {
+      length: Number(dimensions?.length) || 0,
+      width: Number(dimensions?.width) || 0,
+      depth: Number(dimensions?.depth) || 0,
+      area: Number(dimensions?.area) || 0,
+      perimeter: Number(dimensions?.perimeter) || 0,
+      volume: Number(dimensions?.volume) || 0,
+      cantos: Number(dimensions?.cantos) || 0,
+      perimExterno: Number(dimensions?.perimetroExternoBorda) || 0,
+      perimInterno: Number(dimensions?.perimetroParedesInternas) || 0,
+      areaParedeEFundo: Number(dimensions?.areaParedeEFundo) || 0,
+      radierM2: Number(dimensions?.radierM2) || 0,
+      radierEspessura: Number(dimensions?.radierEspessura) || 0,
+      radierM3: Number(dimensions?.radierM3) || 0,
+      escavacao: Number(dimensions?.escavacaoM3) || 0,
+      tempLocal: Number(environmentParams?.temperaturaMediaLocal ?? environmentParams?.temperatura) || 0,
+      tempAgua: Number(environmentParams?.temperaturaAguaDesejada) || 0,
+    };
+    return v;
+  }, [dimensions, environmentParams]);
+
+  // Avalia condicao boolean (mesmo padrao do evalLocal mas retornando boolean)
+  function evalCondition(expr: string, vars: Record<string, number>): boolean {
+    if (!expr.trim()) return true;
+    let s = expr.replace(/(\d),(\d)/g, '$1.$2');
+    s = s.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => '(' + (vars[prefix + num] || 0) + ')');
+    for (const k of FORMULA_VARS) {
+      s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + (vars[k] || 0) + ')');
+    }
+    const allowedSet = new Set<string>(FORMULA_VARS as readonly string[]);
+    for (const [key, val] of Object.entries(vars)) {
+      if (val == null) continue;
+      if (allowedSet.has(key)) continue;
+      if (/^(areaSec|volumeSec)\d+$/.test(key)) continue;
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) continue;
+      s = s.replace(new RegExp('\\b' + key + '\\b', 'g'), '(' + (Number(val) || 0) + ')');
+    }
+    const fnPattern = new RegExp('\\b(' + FORMULA_FUNCTIONS.join('|') + ')\\b', 'g');
+    const stripped = s.replace(fnPattern, '');
+    if (/[a-zA-Z_]/.test(stripped)) return false;
+    if (!/^[\d.\s+\-*/(),<>=!&|]*$/.test(stripped)) return false;
+    try {
+      const fn = Function('ceil', 'floor', 'round', 'min', 'max', '"use strict"; return (' + s + ');');
+      return !!fn(Math.ceil, Math.floor, Math.round, Math.min, Math.max);
+    } catch { return false; }
+  }
+
+  function evalNumber(expr: string, vars: Record<string, number>): number {
+    if (!expr.trim()) return NaN;
+    const r = evalLocal(expr, vars);
+    return r.ok ? r.value! : NaN;
+  }
+
+  // Preview: lista todos os candidatos avaliados, marca o selecionado
+  const preview = useMemo(() => {
+    const items = catalog.map((c) => ({
+      cfg: c,
+      desc: c.product?.description || c.service?.name || '',
+      priceCents: c.product?.salePriceCents ?? c.service?.priceCents ?? 0,
+      specs: ((c.product?.technicalSpecs ?? c.service?.technicalSpecs) || {}) as Record<string, any>,
+      type: c.product ? 'product' : 'service' as 'product' | 'service',
+      kind: c.product ? 'Produto' : 'Servico',
+    }));
+    const filtered1 = items.filter((c) => {
+      if (filterCategoria.trim() && String(c.specs.categoriaPlanilha || '').toLowerCase() !== filterCategoria.trim().toLowerCase()) return false;
+      if (filterDescription.trim() && !c.desc.toLowerCase().includes(filterDescription.trim().toLowerCase())) return false;
+      return true;
+    });
+    const filtered2 = filtered1.map((c) => {
+      const specVars: Record<string, number> = {};
+      for (const [k, v] of Object.entries(c.specs)) {
+        const n = Number(v);
+        if (Number.isFinite(n)) specVars[k] = n;
+      }
+      const merged = { ...dimVars, ...specVars };
+      const passes = evalCondition(where, merged);
+      return { ...c, merged, passes };
+    });
+    // Ordena: somente os que passam, depois aplica orderBy
+    const passing = filtered2.filter((c) => c.passes);
+    const m = orderBy.trim().match(/^(.+?)\s+(asc|desc)$/i);
+    const orderExpr = m ? m[1].trim() : orderBy.trim();
+    const dir = m && m[2].toLowerCase() === 'desc' ? -1 : 1;
+    const sorted = [...passing].sort((a, b) => {
+      const va = evalNumber(orderExpr, { ...a.merged, priceCents: a.priceCents, salePriceCents: a.priceCents });
+      const vb = evalNumber(orderExpr, { ...b.merged, priceCents: b.priceCents, salePriceCents: b.priceCents });
+      const aa = Number.isFinite(va) ? va : Number.MAX_SAFE_INTEGER;
+      const bb = Number.isFinite(vb) ? vb : Number.MAX_SAFE_INTEGER;
+      return (aa - bb) * dir;
+    });
+    return { all: filtered2, selected: sorted[0] || null };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog, filterCategoria, filterDescription, where, orderBy, dimVars]);
+
+  // Indicator preview: avalia a expressao no contexto do candidato selecionado
+  const indicatorPreview = useMemo(() => {
+    if (!hasIndicator || !indExpr.trim() || !preview.selected) return null;
+    const v = evalNumber(indExpr, preview.selected.merged);
+    if (!Number.isFinite(v)) return null;
+    const sorted = [...indLevels].sort((a, b) => a.max - b.max);
+    const matched = sorted.find((l) => v <= l.max);
+    return { value: v, label: matched?.label || '', color: matched?.color || 'slate' };
+  }, [hasIndicator, indExpr, indLevels, preview.selected]);
+
+  function applyTemplate(t: typeof INDICATOR_TEMPLATES[number]) {
+    setHasIndicator(true);
+    setIndLabel(t.preset.label);
+    setIndExpr(t.preset.expr);
+    setIndUnit(t.preset.unit);
+    setIndLevels(t.preset.levels);
+  }
+
+  function handleSave() {
+    const rule: AutoSelectRule = {
+      filterCategoria: filterCategoria.trim() || null,
+      filterDescription: filterDescription.trim() || null,
+      where: where.trim() || null,
+      orderBy: orderBy.trim() || null,
+      indicator: hasIndicator && indLabel.trim() && indExpr.trim()
+        ? { label: indLabel.trim(), expr: indExpr.trim(), unit: indUnit.trim() || null, levels: indLevels }
+        : null,
+    };
+    onSave(rule);
+  }
+
+  return (
+    <tr>
+      <td colSpan={8} className="p-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl max-h-[92vh] flex flex-col">
+            <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-violet-50 to-cyan-50">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">✨ Auto-selecao do produto</h3>
+                {itemDescription && (
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Linha: <span className="font-medium text-slate-800">{itemDescription}</span>
+                    {currentProductName && <span className="text-slate-500"> · vinculado: {currentProductName}</span>}
+                  </p>
+                )}
+              </div>
+              <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
+            </div>
+
+            <div className="px-6 pt-4 pb-3 border-b border-slate-100 bg-white shrink-0">
+              <div className="rounded-lg border-2 border-violet-200 bg-violet-50/50 p-3">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-violet-900 mb-1">Resultado da auto-selecao</div>
+                {preview.selected ? (
+                  <div className="text-sm">
+                    <span className="font-medium text-slate-900">{preview.selected.kind}: {preview.selected.desc}</span>
+                    <span className="text-slate-500 ml-2">R$ {(preview.selected.priceCents / 100).toFixed(2)}</span>
+                    {indicatorPreview && (
+                      <span className={"ml-2 text-[10px] font-medium px-2 py-0.5 rounded border " +
+                        (indicatorPreview.color === 'green' ? "bg-green-50 border-green-300 text-green-800" :
+                         indicatorPreview.color === 'yellow' ? "bg-yellow-50 border-yellow-300 text-yellow-800" :
+                         indicatorPreview.color === 'red' ? "bg-red-50 border-red-300 text-red-800" :
+                         "bg-slate-50 border-slate-300 text-slate-700")}>
+                        {indLabel}: {indicatorPreview.value.toFixed(2)}{indUnit} → {indicatorPreview.label}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-red-600">⚠ Nenhum candidato passa nos filtros + criterio. Ajuste a regra.</div>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-4 space-y-2">
+              {/* CANDIDATOS */}
+              <details open className="group rounded-lg border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">🎯 Candidatos <span className="text-slate-400 font-normal normal-case">— de qual catalogo buscar</span></span>
+                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 space-y-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-700 mb-1">Categoria do cadastro (opcional)</label>
+                    <select value={filterCategoria} onChange={(e) => setFilterCategoria(e.target.value)}
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                      <option value="">— Sem filtro de categoria —</option>
+                      {categorias.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-700 mb-1">Descricao contendo (opcional, case-insensitive)</label>
+                    <input type="text" value={filterDescription} onChange={(e) => setFilterDescription(e.target.value)}
+                      placeholder="Ex: filtro, aquecedor"
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                  </div>
+                </div>
+              </details>
+
+              {/* CRITERIO */}
+              <details open className="group rounded-lg border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">🔍 Criterio <span className="text-slate-400 font-normal normal-case">— condicao com vars do orcamento + specs do candidato</span></span>
+                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 space-y-2">
+                  <input type="text" value={where} onChange={(e) => setWhere(e.target.value)}
+                    placeholder="Ex: vazaoM3h * 1 >= volume * 0.25"
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm font-mono" />
+                  <div className="text-[10px] text-slate-500">
+                    Vars disponiveis: vars do orcamento (volume, area, areaParedeEFundo, dias, ...) + qualquer campo numerico do technicalSpecs do candidato (vazaoM3h, kcalHMin, kcalHMax, tuboEntradaMm, voltagem, potenciaCv, ...). Operadores: <code>+ − × ÷ ( ) &gt;= &lt;= &gt; &lt; == != &amp;&amp; ||</code>.
+                  </div>
+                </div>
+              </details>
+
+              {/* ORDEM */}
+              <details className="group rounded-lg border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">📊 Ordem <span className="text-slate-400 font-normal normal-case">— em caso de empate, qual escolher</span></span>
+                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 space-y-2">
+                  <select value={orderBy} onChange={(e) => setOrderBy(e.target.value)}
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                    {ORDER_BY_PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label} ({p.value})</option>)}
+                  </select>
+                  <input type="text" value={orderBy} onChange={(e) => setOrderBy(e.target.value)}
+                    placeholder="OU customizado: ex: priceCents asc"
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm font-mono" />
+                </div>
+              </details>
+
+              {/* INDICATOR */}
+              <details open={hasIndicator} className="group rounded-lg border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">🎨 Indicador <span className="text-slate-400 font-normal normal-case">— badge visivel na linha</span></span>
+                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 space-y-2">
+                  <label className="inline-flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={hasIndicator} onChange={(e) => setHasIndicator(e.target.checked)} />
+                    Mostrar indicador na linha
+                  </label>
+                  {hasIndicator && (
+                    <>
+                      <div className="flex flex-wrap gap-1.5">
+                        {INDICATOR_TEMPLATES.map((t) => (
+                          <button key={t.label} type="button" onClick={() => applyTemplate(t)}
+                            className="text-[10px] rounded border border-violet-300 bg-violet-50 hover:bg-violet-100 px-2 py-1">
+                            ⚡ {t.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-700 mb-1">Label</label>
+                          <input type="text" value={indLabel} onChange={(e) => setIndLabel(e.target.value)}
+                            placeholder="Ex: Tempo de filtragem"
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-[11px] font-medium text-slate-700 mb-1">Calculo</label>
+                          <input type="text" value={indExpr} onChange={(e) => setIndExpr(e.target.value)}
+                            placeholder="Ex: volume / vazaoM3h"
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm font-mono" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700 mb-1">Unidade</label>
+                        <input type="text" value={indUnit} onChange={(e) => setIndUnit(e.target.value)}
+                          placeholder="Ex: h, kcal/m³h"
+                          className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-slate-700 mb-1">Niveis (avalia em ordem; primeiro que value &lt;= max ganha)</div>
+                        {indLevels.map((lvl, idx) => (
+                          <div key={idx} className="flex items-center gap-2 mb-1">
+                            <select value={lvl.color} onChange={(e) => {
+                              const v = [...indLevels]; v[idx] = { ...v[idx], color: e.target.value }; setIndLevels(v);
+                            }} className="rounded border border-slate-300 px-2 py-1 text-sm">
+                              <option value="green">🟢 Verde</option>
+                              <option value="yellow">🟡 Amarelo</option>
+                              <option value="red">🔴 Vermelho</option>
+                            </select>
+                            <span className="text-[11px] text-slate-500">ate</span>
+                            <input type="number" value={lvl.max} step="0.01" onChange={(e) => {
+                              const v = [...indLevels]; v[idx] = { ...v[idx], max: parseFloat(e.target.value) || 0 }; setIndLevels(v);
+                            }} className="w-24 rounded border border-slate-300 px-2 py-1 text-sm tabular-nums" />
+                            <input type="text" value={lvl.label} placeholder="Label" onChange={(e) => {
+                              const v = [...indLevels]; v[idx] = { ...v[idx], label: e.target.value }; setIndLevels(v);
+                            }} className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm" />
+                            <button type="button" onClick={() => setIndLevels(indLevels.filter((_, i) => i !== idx))}
+                              className="text-red-500 hover:text-red-700 text-sm">✕</button>
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setIndLevels([...indLevels, { max: 0, label: '', color: 'slate' }])}
+                          className="text-xs text-violet-700 hover:underline">+ adicionar nivel</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </details>
+
+              {/* CANDIDATOS AVALIADOS */}
+              <details className="group rounded-lg border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">👁 Preview ({preview.all.length} candidatos avaliados)</span>
+                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 max-h-60 overflow-y-auto">
+                  {preview.all.length === 0 ? (
+                    <div className="text-xs text-slate-500 italic">Nenhum candidato bate com os filtros (categoria/descricao). Ajuste.</div>
+                  ) : (
+                    <div className="text-xs space-y-1">
+                      {preview.all.map((c) => (
+                        <div key={c.cfg.id} className={"flex items-center justify-between gap-2 px-2 py-1 rounded " + (c.passes ? "" : "opacity-50")}>
+                          <span className="shrink-0">{c.passes ? "✓" : "🚫"}</span>
+                          <span className="flex-1 truncate">{c.kind}: {c.desc}</span>
+                          <span className="text-slate-500 tabular-nums">R$ {(c.priceCents / 100).toFixed(2)}</span>
+                          {preview.selected?.cfg.id === c.cfg.id && <span className="text-[10px] font-bold text-violet-700">SELECIONADO</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </details>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 px-6 py-3 border-t border-slate-200 bg-slate-50">
+              <button type="button" onClick={onClear}
+                className="rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">
+                🗑 Remover regra
+              </button>
+              <div className="flex gap-2">
+                <button type="button" onClick={onClose}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Cancelar</button>
+                <button type="button" onClick={handleSave}
+                  className="rounded-lg bg-violet-600 px-5 py-2 text-sm font-bold text-white hover:bg-violet-700">
+                  ✓ Aplicar regra
                 </button>
               </div>
             </div>

@@ -3277,6 +3277,29 @@ model PoolBudgetItem {
   isExtra          Boolean @default(false) // Adicionado fora do template
   notes            String?
 
+  // Regra de auto-selecao do produto/servico baseada em variaveis da piscina (volume, area)
+  // e specs do candidato (vazaoM3h, kcalH, tuboEntradaMm). Quando setada, recalculateTotals
+  // varre o catalogo, filtra candidatos, avalia `where` (com vars + technicalSpecs do candidato),
+  // ordena por `orderBy`, vincula o 1o resultado ao item via productId/serviceId.
+  // Estrutura JSON:
+  // {
+  //   "filterCategoria": "Conjuntos de filtragem" | null,  // matcha categoriaPlanilha em technicalSpecs
+  //   "filterDescription": "filtro" | null,                 // matcha descricao/name (LIKE %x%)
+  //   "where": "vazaoM3h * 1 >= volume * 0.25",
+  //   "orderBy": "priceCents asc",
+  //   "indicator": {
+  //     "label": "Tempo de filtragem",
+  //     "expr": "volume / vazaoM3h",
+  //     "unit": "h",
+  //     "levels": [
+  //       { "max": 4, "label": "Excelente", "color": "green" },
+  //       { "max": 8, "label": "Bom", "color": "yellow" },
+  //       { "max": 999, "label": "Ruim", "color": "red" }
+  //     ]
+  //   }
+  // }
+  autoSelectRule Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -15,6 +15,7 @@ import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
 import { evaluateFormula, extractCellRefs, extractDimensionVars, extractEnvVars, extractProductVars, type CellRefData } from './formula-eval';
+import { selectBestCandidate, evaluateIndicator, type AutoSelectRule } from './auto-select.helper';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
 import {
   PoolFormulaService,
@@ -391,6 +392,77 @@ export class PoolBudgetService {
       ...extractEnvVars(budget?.environmentParams),
     };
 
+    // PASSO 0: auto-selecao do produto/servico em items que tem autoSelectRule.
+    // Roda ANTES das formulas porque escolha do produto afeta technicalSpecs disponiveis.
+    const itemsForAutoSelect = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId, autoSelectRule: { not: Prisma.JsonNull as any } },
+      select: { id: true, autoSelectRule: true, productId: true, serviceId: true, description: true, unitPriceCents: true },
+    });
+    if (itemsForAutoSelect.length > 0) {
+      const companyId = await this.prisma.poolBudget.findUnique({
+        where: { id: budgetId },
+        select: { companyId: true },
+      }).then((b) => b?.companyId);
+
+      if (companyId) {
+        // Carrega catalogo (Products + Services) com technicalSpecs uma vez
+        const allProducts = await this.prisma.product.findMany({
+          where: { companyId },
+          select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true },
+        });
+        const allServices = await this.prisma.service.findMany({
+          where: { companyId },
+          select: { id: true, name: true, priceCents: true, unit: true, technicalSpecs: true },
+        });
+
+        for (const it of itemsForAutoSelect) {
+          const rule = it.autoSelectRule as AutoSelectRule | null;
+          if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription)) continue;
+
+          // Tenta primeiro Products, depois Services
+          const bestProduct = selectBestCandidate(allProducts as any, rule, dimensionVars);
+          let target: { id: string; type: 'product' | 'service'; description: string; priceCents: number; unit: string } | null = null;
+          if (bestProduct) {
+            target = {
+              id: bestProduct.id,
+              type: 'product',
+              description: bestProduct.description ?? '',
+              priceCents: bestProduct.salePriceCents ?? 0,
+              unit: bestProduct.unit ?? 'UN',
+            };
+          } else {
+            const bestService = selectBestCandidate(
+              allServices.map((s) => ({ ...s, description: s.name })) as any,
+              rule,
+              dimensionVars,
+            );
+            if (bestService) {
+              target = {
+                id: bestService.id,
+                type: 'service',
+                description: (bestService as any).name ?? '',
+                priceCents: (bestService as any).priceCents ?? 0,
+                unit: (bestService as any).unit ?? 'UN',
+              };
+            }
+          }
+          if (!target) continue;
+
+          // Aplica seleção: troca productId/serviceId, atualiza description e preco unit
+          await this.prisma.poolBudgetItem.update({
+            where: { id: it.id },
+            data: {
+              productId: target.type === 'product' ? target.id : null,
+              serviceId: target.type === 'service' ? target.id : null,
+              description: target.description || it.description,
+              unitPriceCents: target.priceCents || it.unitPriceCents,
+              unit: target.unit,
+            },
+          });
+        }
+      }
+    }
+
     // PASSO 1: re-avalia formulas de items SEM dependencias (sem dias, sem cellRef de outros items)
     const items = await this.prisma.poolBudgetItem.findMany({
       where: { budgetId },
@@ -643,6 +715,26 @@ export class PoolBudgetService {
 
     if (!budget) throw new NotFoundException('Orçamento não encontrado');
 
+    // Calcula indicator (label, color, value) em runtime pra cada item com autoSelectRule.
+    // Nao armazena em DB — sempre fresco baseado em dimensoes atuais + technicalSpecs do produto.
+    const dimensionVarsForIndicator = {
+      ...extractDimensionVars(budget.poolDimensions),
+      ...extractEnvVars(budget.environmentParams),
+    };
+    for (const item of budget.items) {
+      const rule = (item as any).autoSelectRule as AutoSelectRule | null | undefined;
+      if (!rule?.indicator) continue;
+      const productSpecs = (item.product as any)?.technicalSpecs ?? (item.service as any)?.technicalSpecs ?? null;
+      const vars = { ...dimensionVarsForIndicator, ...extractProductVars(productSpecs) };
+      const calculated = evaluateIndicator(rule, vars);
+      if (calculated) {
+        (item as any).indicatorLabel = calculated.label;
+        (item as any).indicatorColor = calculated.color;
+        (item as any).indicatorValue = calculated.value;
+        (item as any).indicatorUnit = calculated.unit;
+      }
+    }
+
     // Auto-backfill de cellRef em items legacy (criados antes da feature de cellRef).
     // Sem cellRef, formulas com qty(LX)/total(LX) nao acham nenhuma linha referenciavel.
     const missing = budget.items.filter((it) => !it.cellRef);
@@ -860,6 +952,7 @@ export class PoolBudgetService {
         qty: effectiveQty,
         qtyCalculated: qtyCalculated ?? null,
         formulaExpr: dto.formulaExpr || null,
+        ...(dto.autoSelectRule ? { autoSelectRule: dto.autoSelectRule as Prisma.InputJsonValue } : {}),
         unitPriceCents: dto.unitPriceCents,
         totalCents,
         isAutoCalculated: !!dto.formulaExpr,
@@ -989,6 +1082,9 @@ export class PoolBudgetService {
         ...(dto.catalogConfigId !== undefined ? { catalogConfigId: dto.catalogConfigId } : {}),
         ...(dto.productId !== undefined ? { productId: dto.productId } : (autoProductId ? { productId: autoProductId } : {})),
         ...(dto.serviceId !== undefined ? { serviceId: dto.serviceId } : (autoServiceId ? { serviceId: autoServiceId } : {})),
+        ...(dto.autoSelectRule !== undefined
+          ? { autoSelectRule: (dto.autoSelectRule === null ? Prisma.JsonNull : dto.autoSelectRule) as Prisma.InputJsonValue }
+          : {}),
         ...(autoCalculatedOverride !== undefined
           ? { isAutoCalculated: autoCalculatedOverride }
           : (dto.qty !== undefined || dto.unitPriceCents !== undefined

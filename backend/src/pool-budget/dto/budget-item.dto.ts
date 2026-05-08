@@ -66,6 +66,10 @@ export class CreateBudgetItemDto {
   @IsOptional()
   @IsString()
   formulaExpr?: string;
+
+  @ApiPropertyOptional({ description: 'Regra de auto-selecao do produto/servico (filter, where, orderBy, indicator)' })
+  @IsOptional()
+  autoSelectRule?: Record<string, any>;
 }
 
 export class UpdateBudgetItemDto {
@@ -127,4 +131,8 @@ export class UpdateBudgetItemDto {
   @IsOptional()
   @IsString()
   serviceId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Regra de auto-selecao. null = remove regra.', nullable: true })
+  @IsOptional()
+  autoSelectRule?: Record<string, any> | null;
 }
