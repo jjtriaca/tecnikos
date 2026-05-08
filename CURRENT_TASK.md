@@ -1,7 +1,13 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.56 (em prod)
+## Versao: v1.10.57 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.57 — Auto-backfill de cellRef em items legacy de orcamento de piscina
+- **Bug reportado pelo Juliano** (continuacao do fix v1.10.56): apos o crash ter sido tratado com mensagem amigavel, ficou claro que **nenhuma formula com `qty(LX)`/`total(LX)`/`unitPrice(LX)` funcionava** no orcamento ORCP-00001 (Anderson da Silva Prado, 22 linhas). Mensagem "linha L5 nao existe" aparecia mesmo a linha L5 existindo visualmente.
+- **Causa raiz**: items deste orcamento foram criados antes da feature de cellRef estar funcionando — o campo `cellRef` esta `null` no banco. Coluna "SEQ · REF" mostrava so o `seq` (sortOrder) sem o badge amber "LX". O `cellRefMap` em `findOne` retorna so items com `cellRef` populado, entao ficava vazio. Toda formula com cellRef falhava.
+- **Fix** ([pool-budget.service.ts:577-622](backend/src/pool-budget/pool-budget.service.ts#L577)): em `findOne`, apos carregar items, detecta os com `cellRef = null`, calcula proximo numero baseado no maior cellRef existente (`max+1`), atribui em ordem de sortOrder e atualiza em paralelo via `Promise.all`. Mutate o budget local pra retornar ja com cellRef populado. No-op se todos os items ja tem cellRef (impacto zero em orcamentos novos).
+- **Esperado pos-deploy**: ao reabrir o orcamento, badge amber "L1", "L2", ..., "L22" aparece ao lado do SEQ na tabela. Formula `qty(L5)+qty(L6)+qty(L7)` em qualquer linha funciona.
 
 ## v1.10.56 — Fix crash na pagina de orcamento de piscina ao clicar receita qty(LX)/total(LX)/unitPrice(LX)
 - **Bug reportado pelo Juliano**: em /quotes/pool/[id], abrir o modal de formula de uma linha, clicar nas receitas "Mesma quantidade da linha L5" (`qty(L5)`) ou "30% sobre total da linha L7" (`total(L7) * 0.3`) -> pagina inteira quebra com error boundary "Algo deu errado".

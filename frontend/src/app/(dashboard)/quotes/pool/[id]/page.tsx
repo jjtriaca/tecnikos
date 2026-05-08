@@ -1034,6 +1034,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           .map((x) => ({
             cellRef: x.cellRef!,
             description: x.description,
+            poolSection: x.poolSection,
             qty: x.qty,
             total: x.totalCents / 100,
             unitPrice: x.unitPriceCents / 100,
@@ -1647,7 +1648,7 @@ const FORMULA_FN_HELP: Record<typeof FORMULA_FUNCTIONS[number], string> = {
   max: "Maior entre 2 valores: max(area, 10). Garante minimo.",
 };
 
-type OtherItemForModal = { cellRef: string; description: string; qty: number; total: number; unitPrice: number };
+type OtherItemForModal = { cellRef: string; description: string; poolSection: string; qty: number; total: number; unitPrice: number };
 
 function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, otherItems, onClose, onSave, onClear }: {
   initialExpr: string;
@@ -1930,13 +1931,16 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                     <code className="bg-slate-100 px-1 rounded">total(LX)</code> pro valor total em R$,{" "}
                     <code className="bg-slate-100 px-1 rounded">unitPrice(LX)</code> pro preco unitario.
                   </div>
-                  <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                  <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
                     {otherItems
                       .filter((o) => o.cellRef && o.cellRef !== itemCellRef)
                       .map((o) => (
                         <div key={o.cellRef} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-cyan-50 text-xs">
-                          <div className="flex-1 min-w-0">
-                            <span className="font-mono font-bold text-cyan-700 mr-2">{o.cellRef}</span>
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <span className="font-mono font-bold text-cyan-700 shrink-0">{o.cellRef}</span>
+                            <span className="text-[9px] font-medium uppercase tracking-wide text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 shrink-0">
+                              {SECTION_LABEL[o.poolSection] || o.poolSection}
+                            </span>
                             <span className="text-slate-800 truncate">{o.description}</span>
                           </div>
                           <div className="text-[10px] text-slate-500 tabular-nums whitespace-nowrap">
