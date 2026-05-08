@@ -72,8 +72,10 @@ export function evaluateFormula(
 ): number {
   if (!expr || expr.trim() === '') throw new Error('Formula vazia');
 
-  // Decimal so com ponto. Virgula reservada como separador de argumento de funcao.
-  let normalized = expr;
+  // Aceita decimal com virgula (padrao BR) — auto-converte "0,1" -> "0.1".
+  // So matcha digito-virgula-digito SEM espaco. Em "min(area, 10)" tem espaco apos
+  // a virgula, entao continua como separador de argumento.
+  let normalized = expr.replace(/(\d),(\d)/g, '$1.$2');
 
   // Substitui chamadas a cellRef ANTES das vars (pra nao confundir 'L1' com identifier solto)
   for (const fn of CELL_REF_FUNCTIONS) {

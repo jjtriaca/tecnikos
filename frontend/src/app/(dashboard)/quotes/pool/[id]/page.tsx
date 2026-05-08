@@ -1571,7 +1571,9 @@ function evalLocal(
   cellRefs: Map<string, CellRefDataLocal> = new Map(),
 ): { ok: boolean; value?: number; error?: string } {
   if (!expr.trim()) return { ok: false, error: 'vazia' };
-  let s = expr;
+  // Aceita decimal com virgula (padrao BR) — auto-converte "0,1" -> "0.1".
+  // So matcha digito-virgula-digito SEM espaco; "min(x, 10)" mantem virgula como separador.
+  let s = expr.replace(/(\d),(\d)/g, '$1.$2');
   // Substitui chamadas a cellRef ANTES das vars (evita confundir 'L1' com identifier solto).
   // NUNCA jogar throw daqui: evalLocal roda durante render do FormulaModal e exception escaparia
   // o try/catch (que so cobre o Function eval), quebrando o componente com error boundary global.
@@ -1855,7 +1857,8 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                 {expr.trim() && result.ok && (() => {
                   // Preview da expressao com variaveis SUBSTITUIDAS pelos valores reais.
                   // Util pro gestor entender exatamente o que esta sendo calculado.
-                  let expanded = expr;
+                  // Aplica mesma normalizacao de virgula→ponto pra consistencia visual.
+                  let expanded = expr.replace(/(\d),(\d)/g, '$1.$2');
                   for (const fn of CELL_REF_FUNCTIONS) {
                     expanded = expanded.replace(
                       new RegExp('\\b' + fn + '\\s*\\(\\s*(L\\d+)\\s*\\)', 'g'),
@@ -2030,7 +2033,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
               <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
                 <div className="text-[11px] font-semibold text-slate-700 mb-1">Sintaxe</div>
                 <div className="text-[11px] text-slate-600 leading-relaxed space-y-1">
-                  <div>Operadores: <code className="bg-white border border-slate-300 px-1.5 rounded">+ − × ÷ ( )</code> · Decimal so com <code className="bg-white border border-slate-300 px-1.5 rounded">.</code> (ponto) · Virgula = separador de funcao</div>
+                  <div>Operadores: <code className="bg-white border border-slate-300 px-1.5 rounded">+ − × ÷ ( )</code> · Decimal: <code className="bg-white border border-slate-300 px-1.5 rounded">0.1</code> ou <code className="bg-white border border-slate-300 px-1.5 rounded">0,1</code> (ambos aceitos) · Use <code className="bg-white border border-slate-300 px-1.5 rounded">( )</code> pra controlar ordem das operacoes</div>
                   <div className="text-slate-500">Ex: <code className="bg-white border border-slate-300 px-1.5 rounded">area * 1.05</code> (5% margem) · <code className="bg-white border border-slate-300 px-1.5 rounded">ceil(volume / 18)</code> · <code className="bg-white border border-slate-300 px-1.5 rounded">max(perimeter, 10)</code></div>
                 </div>
               </div>

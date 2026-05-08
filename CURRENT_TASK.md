@@ -1,7 +1,11 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.60 (em prod)
+## Versao: v1.10.61 (em prod)
 ## Ultima sessao: 188 (08/05/2026)
+
+## v1.10.61 — Pool budget: card de expressao fixo no topo do FormulaModal
+- **UX**: ao rolar o conteudo do modal pra ver receitas/variaveis/funcoes/referencias, o card "Expressao" (input + resultado + erro + Avaliacao) fica fixo no topo. Antes ele rolava junto e o usuario perdia visibilidade do que estava digitando.
+- **Mudanca estrutural** ([page.tsx:1827-1888](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx#L1827)): card expressao saiu de dentro do `overflow-y-auto`, virou um wrapper `shrink-0` com `border-b` separando da area scrollavel. Scroll container continua abaixo com receitas/variaveis/funcoes/referencias/sintaxe.
 
 ## v1.10.60 — Pool budget: variaveis areaSecN / volumeSecN por section (sem limite)
 - **Pedido do Juliano**: numa linha do orcamento, calcular m² das sections excluindo a "Principal" (ex: praia + degraus, sem o corpo principal). Hoje so existia `area` (somatorio total).
