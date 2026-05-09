@@ -1,0 +1,1858 @@
+[
+ {
+  "description": "Sem Serviço",
+  "specs": {
+   "bifTrif": "0"
+  }
+ },
+ {
+  "description": "Parede Pré-moldada externa 150cm",
+  "specs": {
+   "pesoKg": 235.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Parede Pré-moldada interna Tamanhos diversos",
+  "specs": {
+   "pesoKg": 200.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Concreto simples p/ laje ou piso",
+  "specs": {
+   "pesoKg": 2200.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Concreto Simples Aditivado Fck 30 Mpa Aprox",
+  "specs": {
+   "pesoKg": 2400.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Via Plus 7000 Fibras Cx 18kg",
+  "specs": {
+   "pesoKg": 18.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Argamassa Quartzolit ACII 18kg",
+  "specs": {
+   "pesoKg": 18.0,
+   "rendimento": 0.3333333333333333,
+   "consumoKgM2": 6.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Rejunte Epóxi Quartzolit Cx 1kg",
+  "specs": {
+   "pesoKg": 1.0,
+   "rendimento": 0.9,
+   "consumoKgM2": 0.9,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Rejunte Cimentício Quartzolit Piscina 5kg",
+  "specs": {
+   "pesoKg": 5.0,
+   "rendimento": 0.2,
+   "consumoKgM2": 1.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Produtos p/ chapisco e reboco",
+  "specs": {
+   "pesoKg": 22.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Cola cascola 2,8Kg",
+  "specs": {
+   "pesoKg": 2.8,
+   "rendimento": 0.10714285714285715,
+   "consumoKgM2": 0.3,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Alvenaria estrutural",
+  "specs": {
+   "pesoKg": 245.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Alvenaria simples blocos ou tijolos",
+  "specs": {
+   "pesoKg": 150.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tinta Suvinil fachada protegida 18l",
+  "specs": {
+   "pesoKg": 18.0,
+   "rendimento": 0.006111111111111111,
+   "consumoKgM2": 0.11,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tinta Suvinil fachada protegida 3,6l",
+  "specs": {
+   "pesoKg": 3.6,
+   "rendimento": 0.030555555555555555,
+   "consumoKgM2": 0.11,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Selador Suvinil 18l",
+  "specs": {
+   "pesoKg": 18.0,
+   "rendimento": 0.01,
+   "consumoKgM2": 0.18,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Selador Suvinil 3,6l",
+  "specs": {
+   "pesoKg": 3.6,
+   "rendimento": 0.049999999999999996,
+   "consumoKgM2": 0.18,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Laje de concreto",
+  "specs": {
+   "pesoKg": 190.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tela armada 15x15 5mm para calçada",
+  "specs": {
+   "pesoKg": 2.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Conjunto Filtrante V30 C/ Areia E Bomba Pré-filtro 1/3cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 2.8,
+   "vazaoM3h": 3.0,
+   "tuboEntradaMm": 50.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Conjunto Filtrante V40 C/ Areia E Bomba Pré-filtro 1/2cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 3.6,
+   "vazaoM3h": 5.0,
+   "tuboEntradaMm": 50.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Conjunto Filtrante V50 C/ Areia E Bomba Pré-filtro 3/4cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 5.1,
+   "vazaoM3h": 9.0,
+   "tuboEntradaMm": 50.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Conjunto Filtrante V60 C/ Areia E Bomba Pré-filtro 1cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 5.5,
+   "vazaoM3h": 12.0,
+   "tuboEntradaMm": 50.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Conjunto Filtrante V70 C/ Areia Bomba Pré-filtro 1.1/2cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 6.8,
+   "vazaoM3h": 15.0,
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Conjunto Filtrante V80 C/ Areia Bomba Pré-filtro 2cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 10.5,
+   "vazaoM3h": 19.0,
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Conjunto filtrante FVP 100 c/ areia bomba pré-filtro 3cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 12.8,
+   "vazaoM3h": 34.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Conjunto Filtrante V80 C/ Areia Bomba Pré-filtro 2cv Trif",
+  "specs": {
+   "bifTrif": "Trif",
+   "bifTrifConta": 3.0,
+   "amperagem": 7.0,
+   "vazaoM3h": 19.0,
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 3
+  }
+ },
+ {
+  "description": "Conjunto filtrante FVP 100 c/ areia bomba pré-filtro 3cv TRIF",
+  "specs": {
+   "bifTrif": "Trif",
+   "bifTrifConta": 3.0,
+   "amperagem": 8.54,
+   "vazaoM3h": 34.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 3
+  }
+ },
+ {
+  "description": "Tubos conexões e registros p/ sist. filtragem 50mm",
+  "specs": {
+   "tuboEntradaMm": 50.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos conexões e registros p/ sist. filtragem 60mm",
+  "specs": {
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos conexões e registros p/ sist. filtragem 75mm",
+  "specs": {
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos e conexões p/ iluminação ponto 10m",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos e conexões p/ iluminação ponto 20m",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos e conexões para aquecimento 32mm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos e conexões para aquecimento 40mm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos e conexões para aquecimento 50mm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Kit Cascata Inox De Embutir 40cm + Bomba Pf 1/3cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 2.8,
+   "vazaoM3h": 11.0,
+   "tuboEntradaMm": 50.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Cascata Inox De Embutir 60cm + Bomba Pf 1/2cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 3.6,
+   "vazaoM3h": 14.0,
+   "tuboEntradaMm": 50.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Cascata Inox De Embutir 80cm + Bomba Pf 3/4cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 5.1,
+   "vazaoM3h": 18.0,
+   "tuboEntradaMm": 50.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Cascata Inox De Embutir 100cm + Bomba Pf 1cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 5.5,
+   "vazaoM3h": 19.0,
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Cascata Inox De Embutir 120cm + Bomba Pf 1.1/2cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 6.8,
+   "vazaoM3h": 20.0,
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Cascata Inox De Embutir 150cm + Bomba Pf 2cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 10.5,
+   "vazaoM3h": 36.0,
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Cascata Inox De Embutir 180cm + Bomba Pf 3cv",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 12.8,
+   "vazaoM3h": 44.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Cascata Inox De Embutir 150cm + Bomba Pf 2cv Trif",
+  "specs": {
+   "bifTrif": "Trif",
+   "bifTrifConta": 3.0,
+   "amperagem": 7.0,
+   "vazaoM3h": 36.0,
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 3
+  }
+ },
+ {
+  "description": "Kit Cascata Inox De Embutir 180cm + Bomba Pf 3cv Trif",
+  "specs": {
+   "bifTrif": "Trif",
+   "bifTrifConta": 3.0,
+   "amperagem": 8.54,
+   "vazaoM3h": 44.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 3
+  }
+ },
+ {
+  "description": "Tubos conexões e registros p/ cascata 50mm",
+  "specs": {
+   "tuboEntradaMm": 50.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos conexões e registros p/ cascata 60mm",
+  "specs": {
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos conexões e registros p/ cascata 75mm",
+  "specs": {
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Kit Spa Bomba 3cv + 12 Jatos Hidro Acabamento Inox",
+  "specs": {
+   "voltagem": 220.0,
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 15.8,
+   "vazaoM3h": 37.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Spa Bomba 3cv + 12 Jatos Hidro Acab Inox + Blower",
+  "specs": {
+   "voltagem": 220.0,
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 12.8,
+   "vazaoM3h": 37.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Spa Bomba 3cv + 12 Jatos Hidro Inox 316",
+  "specs": {
+   "voltagem": 220.0,
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 12.8,
+   "vazaoM3h": 37.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Kit Spa Bomba 3cv + 12 Jatos Hidro Inox 316 + Blower",
+  "specs": {
+   "voltagem": 220.0,
+   "bifTrif": "Trif",
+   "bifTrifConta": 3.0,
+   "amperagem": 15.8,
+   "vazaoM3h": 37.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 3
+  }
+ },
+ {
+  "description": "Kit Spa Bomba 3cv Trif + 12 Jatos Hidro Acab Inox + Blower",
+  "specs": {
+   "voltagem": 220.0,
+   "bifTrif": "Trif",
+   "bifTrifConta": 3.0,
+   "amperagem": 10.54,
+   "vazaoM3h": 37.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 3
+  }
+ },
+ {
+  "description": "Kit Spa Bomba 3cv Trif + 12 Jatos Hidro Inox 316 + Blower",
+  "specs": {
+   "amperagem": 10.54,
+   "vazaoM3h": 37.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Tubos conexões e registros SPA 75mm 12 jatos",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tubos conexões e registros SPA c/ Blower 75mm 12 jatos",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Kit SPA somente os jatos 8 jatos tubos e cabamentos",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Serviço De Escavação Com Maquina",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço De Escavação Manual P/ Regularização",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço De Escavação E Aterro Maquina/manual",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço De Escavação Manual + Bota Fora",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço De Escavação Com Maquina + Bota Fora",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de demolição",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço De Escavação De Regularização",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de aterro",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de projeto",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Serviço De Execução Sls",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Serviço De Impermeabilização Polimérica",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de montagem de estrutura pré moldada",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de concretagem",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço De Chapisco E Reboco",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de revestimento pastilhas 10x10cm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de revestimento pastilhas 20x20cm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de rejunte epóxi em pastilhas 5x5cm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de rejunte epóxi em pastilhas 10x10cm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de rejunte epóxi em pastilhas 15x15cm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de rejunte epóxi em pastilhas 20x20cm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de rejunte epóxi em grandes formatos",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de rejunte cimentício pastilhas 10x10cm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de aplicação manta armada 1,5mm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de aplicação manta armada 2mm",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de montagem sistema de filtragem",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Serviço de gabarito",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de montagem de cascata",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Serviço de compactação",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de construção alvenaria estrutural",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de pintura",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de montagem sistema SPA",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Serviço de montagem aquecimento solar",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Serviço de montagem aquecimento Trocador de calor",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Serviço Montagem Dispositivos E Ralos",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Serviço de montagem abastecimento e nível",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Serviço de montagem iluminação Sub aquática",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Serviço de Eletrotécnica",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Serviço de demolição",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de resvestimento pedra serrada",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Serviço de contrapiso",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Kit, Aterramento, Barramento, Terminais etc.",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Kit abastecimento manual c/ registro",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Kit nível max 3m",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Kit Abast. Nível Automático C/ Caixa De Passagem E Boia",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Subterrânea Simples Sem Tampa",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Subterrânea porão",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Deslocamento De Equipe Ida E Volda",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Hospedagem De Equipe (por Pessoa)",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Alimentação De Equipe",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Pedagio",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Subterrânea Simples Com Tampa Oculta",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Frete por km rodado",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Concreto Usinado Fck 35 Mpa",
+  "specs": {
+   "pesoKg": 2400.0,
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Kit Spa Bomba 2cv + 8 Jatos Hidro Acabamento Inox",
+  "specs": {
+   "potenciaCv": 2.0,
+   "voltagem": 220.0,
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "potenciaWatts": 1500.0,
+   "amperagem": 10.15,
+   "vazaoM3h": 28.0,
+   "tuboEntradaMm": 60.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Tubos conexões e registros SPA 60mm 8 jatos",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Capa térmica 300 mic",
+  "specs": {
+   "eficiencia": 73.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Kit Spa anatomico",
+  "specs": {
+   "voltagem": 220.0,
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "vazaoM3h": 37.0,
+   "tuboEntradaMm": 75.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Serviço De Montagem Automação Poço",
+  "specs": {
+   "categoriaPlanilha": "Técnico"
+  }
+ },
+ {
+  "description": "Ventilador Td-250/100 *220v - 60hz* - Pc",
+  "specs": {
+   "amperagem": 1.5,
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Quadro Dist Emb 18/24 Disj Pta Br S/bar",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Grade Fundo 15x15 C/ Tamp Fsb Prata  Abs",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Grade 30cm X 30cm Com Tampa Fsb Prata",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Quadro Sistema Vdi 40x40 Embutir",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Tampa Para Dreno Lbm Prata",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Quadro Sistema Vdi 30x30 Embutir",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Ventilador Td-500/150 *220v - 60hz* - Pc",
+  "specs": {
+   "amperagem": 1.5,
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Ventilador Td-160/100 N Silent *220v",
+  "specs": {
+   "amperagem": 1.0,
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Ventilador Silent-100 Cz *220v - 60hz* -",
+  "specs": {
+   "amperagem": 1.0,
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Disjuntor Shb1 Gii-c010a",
+  "specs": {
+   "bifTrif": "Mono",
+   "bifTrifConta": 1.0,
+   "categoriaPlanilha": "Geral",
+   "espacosQuadro": 1
+  }
+ },
+ {
+  "description": "Disjuntor Shb2 Gii-c063a",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "categoriaPlanilha": "Geral",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Disjuntor Shb3 Gii-c063a",
+  "specs": {
+   "bifTrif": "Trif",
+   "bifTrifConta": 3.0,
+   "categoriaPlanilha": "Geral",
+   "espacosQuadro": 3
+  }
+ },
+ {
+  "description": "Interruptor Dr - Drs4 L-063a",
+  "specs": {
+   "bifTrif": "Tetra",
+   "bifTrifConta": 4.0,
+   "categoriaPlanilha": "Geral",
+   "espacosQuadro": 4
+  }
+ },
+ {
+  "description": "Interruptor Dr - Drs2 L-063a",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "categoriaPlanilha": "Geral",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Fonte 12v 190-240v 8.3a 100w",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 1.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Fonte 12v 190-240v 12.5a 150w",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 1.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Quadro Dist Emb 6/8 Disj Pta Br S/bar",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Quadro Dist Emb 12/16 Disj Pta Br S/bar",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Fonte 12v 190-240v 3a 36w",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 1.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Revest. Smalt. 10x10 Drop System Fiji",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Painel Control Rgb Com Controle Touch",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Fonte 12v 190-240v  16.6a 200w",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 1.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Coletor Solar Trop Pisci 1.12x3m 3,36m²",
+  "specs": {
+   "eficiencia": 73.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Coletor Solar Trop Pisci 1.12x2m 2,24m²",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Coletor Solar Trop Piscin 1.12x4m 4,48m²",
+  "specs": {
+   "eficiencia": 73.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Coletor Solar Trop Piscin 1.12x5m 5,60m²",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Coletor Solar Trop Pisci 1.12x6m 6,72m²",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Quadro Dist Emb 27/36 Disj Pta Br S/bar",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Dispositivo Asp Premium Flat Inox Alv 50mm",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Dispositivo Retorno Premium Flat Inox Alv 50mm",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Dispositivo Ralo Quebra Onda Premium Flat Inox",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Dispositivo Hidromassagem Premium Flat Inox",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Cantoneira Ext 3x10 Bp-11 Omd-15438 Bali",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Revest. Smalt. 10x10 Drop System Bali",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Tampa 90x90 Arti Grelha Invis Cinza Mart",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Grelha 8x80 oculta aluminio gda",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Ventilador Exaustor In-line Tdm 100 220v",
+  "specs": {
+   "amperagem": 1.0,
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Fonte 12v 190-240v 5a 60w",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 1.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Manta Armada 2mm",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Quadro Distr.sob.ip65 24polos",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Quadro Distr.sob.ip65 18polos",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Quadro Distr.sob.ip65 8polos",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Quadro Distr.sob.ip65 4polos",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Vinil Creta Manta Armada 1,5mm",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Top+9 Inverter Mono 220v",
+  "specs": {
+   "amperagem": 7.3,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Top+14 Inverter Mono 220v",
+  "specs": {
+   "amperagem": 9.4,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Top+19 Inverter Mono 220v",
+  "specs": {
+   "amperagem": 14.1,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Top+7 Inverter Mono 220v",
+  "specs": {
+   "amperagem": 5.5,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Tampa P/ Dreno Fsb Prata Quadrada",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Tampa Anti Aprisionamento Inox 316 Quadr",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Tampa Anti Aprisionamento Inox 316 Redon",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Contator 2nc Ac-7a 63a 220v C/ Atuador",
+  "specs": {
+   "voltagem": 220.0,
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "categoriaPlanilha": "Geral",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Refletor Essential 6w Rgb 12v Cabo 2m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 6.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Essential 6w Rgb 12v Cabo 10m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 6.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Essential 6w Rgb 12v Cabo 20m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 6.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Dispositivo Asp Alv Rosca 1.1/2 Com Tamp",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Dispositivo Asp Alv Rosca 1.1/2 Inox",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Dispositivo De Retorno Alvenaria Ajust Br",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Dispositivo Retorno Alvenaria Ajust Inox",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Pedra Serrada Seleção Verde 30xdiv",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Eko 14 Full Inverter 220v",
+  "specs": {
+   "amperagem": 10.4,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Ultra 32 Full Inverter",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Smart Pool 2ª Geração 12vcc 200w",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Rgb 10w Premium C/ Cabo 10m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 10.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor 15w Rgbw Premium C/ Cabo 10m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 15.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Controlador Solar Mmz - 2ª G 220v P859",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Rgb 10w Premium C/ Cabo 20m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 10.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Cantoneira Ext 3x20 Bp-11 Omd-14952 Fiji",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Bomba De Calor Eko 24 Full Inverter 220v",
+  "specs": {
+   "amperagem": 18.2,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Top+24 Inverter Mono 220v",
+  "specs": {
+   "amperagem": 17.8,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Eko 9 Full Inverter 220v",
+  "specs": {
+   "amperagem": 7.1,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Eko 7 Full Inverter 220v",
+  "specs": {
+   "amperagem": 5.5,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Eko 19 Full Inverter 220v",
+  "specs": {
+   "amperagem": 14.5,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Top+34 Inverter Mono 220v",
+  "specs": {
+   "amperagem": 30.7,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Top+41 Inverter Mono 220v",
+  "specs": {
+   "amperagem": 37.3,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Ultra 24 Full Inverter",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Ultra 19 Full Inverter",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Ultra 14 Full Inverter",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Ultra 9 Full Inverter",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Ultra 12 Full Inverter",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Rgb 10w Premium C/ Cabo 2m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 10.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor 6w Rgb Lxp 12v Cabo 2m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 6.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Rgb 10w Slim C/ Cabo 10m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 10.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Rgb 10w Slim C/ Cabo 20m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 10.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Rgbw 15w Slim C/ Cabo 10m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 15.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Rgbw 15w Slim C/ Cabo 20m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 15.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Borda Pedra Serrada Seleção Verde 30xdiv",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Kit Filtro V-30 C/ Bomba Syllent 1/3",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Painel  Rgb  C/ Controle De Parede",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba pré-filtro auto escovante 1 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 5.5,
+   "vazaoM3h": 12.5,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba pré-filtro auto escovante 1.5 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 6.8,
+   "vazaoM3h": 13.8,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba pré-filtro auto escovante 1/2 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 3.6,
+   "vazaoM3h": 8.2,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba pré-filtro auto escovante 1/3 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 2.8,
+   "vazaoM3h": 7.5,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba pré-filtro auto escovante 2 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 10.5,
+   "vazaoM3h": 36.5,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba pré-filtro auto escovante 2 cv Trif Syllenty",
+  "specs": {
+   "bifTrif": "Trif",
+   "bifTrifConta": 3.0,
+   "amperagem": 7.0,
+   "vazaoM3h": 36.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 3
+  }
+ },
+ {
+  "description": "Bomba pré-filtro auto escovante 3 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 12.8,
+   "vazaoM3h": 44.1,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba pré-filtro auto escovante 3 cv Trif Syllenty",
+  "specs": {
+   "bifTrif": "Trif",
+   "bifTrifConta": 3.0,
+   "amperagem": 8.54,
+   "vazaoM3h": 44.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 3
+  }
+ },
+ {
+  "description": "Bomba pré-filtro auto escovante 3/4 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 5.1,
+   "vazaoM3h": 9.5,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba residencial 1 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 5.5,
+   "vazaoM3h": 7.7,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba residencial 1.5 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 6.8,
+   "vazaoM3h": 8.3,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba residencial 1/2 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 3.6,
+   "vazaoM3h": 5.7,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba residencial 1/3 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 2.8,
+   "vazaoM3h": 5.6,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba residencial 1/4 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 2.6,
+   "vazaoM3h": 5.3,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba residencial 3/4 cv Syllenty",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 5.1,
+   "vazaoM3h": 7.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba Submersa 12.000 Lth.220 Volts  Ocean Tech",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 0.39,
+   "vazaoM3h": 12.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba Submersa 20.000 Lth.220 Volts  Ocean Tech",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 0.91,
+   "vazaoM3h": 20.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba Submersa 25.000 Lth.220 Volts  Ocean Tech",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 1.1,
+   "vazaoM3h": 25.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba Submersa 30.000 Lth.220 Volts  Ocean Tech",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 1.28,
+   "vazaoM3h": 30.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba Submersa 40.000 Lth.220 Volts  Ocean Tech",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 1.64,
+   "vazaoM3h": 35.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Bomba Submersa 9.000 Lth.220 Volts  Ocean Tech",
+  "specs": {
+   "bifTrif": "Bif",
+   "bifTrifConta": 2.0,
+   "amperagem": 0.35,
+   "vazaoM3h": 9.0,
+   "categoriaPlanilha": "Piscinas",
+   "espacosQuadro": 2
+  }
+ },
+ {
+  "description": "Revestimento Em Fibra Laminada C/ Pintura",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Revestimento Fibra Laminada Sem Pintura",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Kit automação Poço x Mangueira",
+  "specs": {
+   "categoriaPlanilha": "Geral"
+  }
+ },
+ {
+  "description": "Deslocamento Juliano Ida E Volda",
+  "specs": {
+   "categoriaPlanilha": "Obras"
+  }
+ },
+ {
+  "description": "Refletor Rgb 9w Acab Inox Lxp C/ Cabo 20m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 9.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Rgb 9w Acab Inox Lxp C/ Cabo 10m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 9.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Refletor Rgb 9w Acab Inox Lxp C/ Cabo 2m",
+  "specs": {
+   "voltagem": 12.0,
+   "potenciaWatts": 9.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Ultra 24 Full Inverter semi nova",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Tholz X23-09c Full Inverter 220v",
+  "specs": {
+   "voltagem": "220v",
+   "potenciaWatts": 1800.0,
+   "whMax": 1800.0,
+   "whMed": 970.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Tholz X23-14c Full Inverter 220v",
+  "specs": {
+   "voltagem": "220v",
+   "potenciaWatts": 1730.0,
+   "whMax": 1730.0,
+   "whMed": 955.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Tholz X23-18c Full Inverter 220v",
+  "specs": {
+   "voltagem": "220v",
+   "potenciaWatts": 2660.0,
+   "whMax": 2660.0,
+   "whMed": 1465.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Tholz X23-26c Full Inverter 220v",
+  "specs": {
+   "voltagem": "220v",
+   "potenciaWatts": 3720.0,
+   "whMax": 3720.0,
+   "whMed": 2040.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Bomba De Calor Tholz X23-40c Full Inverter 220v",
+  "specs": {
+   "voltagem": "220v",
+   "potenciaWatts": 5700.0,
+   "whMax": 5700.0,
+   "whMed": 3145.0,
+   "categoriaPlanilha": "Piscinas"
+  }
+ },
+ {
+  "description": "Basic Pool 2ª Geração 12vcc 200w",
+  "specs": {
+   "categoriaPlanilha": "Piscinas"
+  }
+ }
+]

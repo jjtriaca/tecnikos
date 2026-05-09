@@ -1644,6 +1644,10 @@ function evalLocal(
     );
   }
   if (cellRefError) return { ok: false, error: cellRefError };
+  // Funcoes de agregacao avaliadas no servidor — frontend usa placeholder 0 pra nao quebrar
+  // o validador. O resultado real virá do recalculateTotals apos salvar.
+  s = s.replace(/\bprod\s*\(\s*L\d+\s*,\s*"[a-zA-Z_][a-zA-Z0-9_]*"\s*\)/g, '(0)');
+  s = s.replace(/\bsum\s*\(\s*"[a-zA-Z_][a-zA-Z0-9_]*"\s*(?:,\s*"[^"]*"\s*)?\)/g, '(0)');
   // Substitui areaSecN / volumeSecN dinamicamente (uma por section)
   s = s.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => {
     const key = prefix + num;
@@ -2189,6 +2193,67 @@ const ORDER_BY_PRESETS: Array<{ value: string; label: string }> = [
   { value: 'kcalHMax desc', label: 'Maior aquecimento primeiro' },
 ];
 
+// Templates completos de auto-selecao — clique em 1 e popula filterCategoria+where+orderBy+indicator
+const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: string; rule: AutoSelectRule }> = [
+  {
+    icon: '⚡',
+    label: 'Disjuntor geral por amperagem total',
+    description: 'Soma amperagem de todas as linhas eletricas × 1.25 (fator de potencia)',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'disjuntor',
+      where: 'amperagem >= sum("amperagem") * 1.25',
+      orderBy: 'amperagem asc',
+      indicator: {
+        label: 'Carga total',
+        expr: 'sum("amperagem") * 1.25',
+        unit: 'A',
+        levels: [
+          { max: 1000, label: 'OK', color: 'green' },
+        ],
+      },
+    },
+  },
+  {
+    icon: '🔌',
+    label: 'Quadro por soma de espacos',
+    description: 'Quadro que cabe a soma dos espacos (bifTrifConta) das linhas eletricas',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'quadro distr',
+      where: 'polos >= sum("espacosQuadro")',
+      orderBy: 'polos asc',
+      indicator: {
+        label: 'Espacos usados',
+        expr: 'sum("espacosQuadro")',
+        unit: '',
+        levels: [
+          { max: 999, label: 'OK', color: 'green' },
+        ],
+      },
+    },
+  },
+  {
+    icon: '💡',
+    label: 'Fonte de iluminacao por potencia total',
+    description: 'Fonte 12V que aguenta a soma da potencia (W) dos refletores',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'fonte',
+      where: 'amperagem >= sum("potenciaWatts") / 12',
+      orderBy: 'amperagem asc',
+      indicator: {
+        label: 'A carga ilum',
+        expr: 'sum("potenciaWatts") / 12',
+        unit: 'A',
+        levels: [
+          { max: 999, label: 'OK', color: 'green' },
+        ],
+      },
+    },
+  },
+];
+
 const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr: string; unit: string; levels: { max: number; label: string; color: string }[] } }> = [
   {
     label: 'Tempo de filtragem (volume / vazaoM3h)',
@@ -2435,6 +2500,34 @@ function AutoSelectModal({
             </div>
 
             <div className="overflow-y-auto px-6 py-4 space-y-2">
+              {/* TEMPLATES PRONTOS — clique pra preencher tudo de uma vez */}
+              <details open className="group rounded-lg border border-violet-300 bg-violet-50/30">
+                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-violet-50 rounded-lg">
+                  <span className="text-xs font-bold uppercase tracking-wide text-violet-900">⚡ Templates prontos <span className="text-violet-700 font-normal normal-case">— clique pra usar uma regra ja configurada</span></span>
+                  <span className="text-violet-700 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="px-4 pb-3 pt-1 grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {AUTOSELECT_TEMPLATES.map((t) => (
+                    <button key={t.label} type="button" onClick={() => {
+                      setFilterCategoria(t.rule.filterCategoria || '');
+                      setFilterDescription(t.rule.filterDescription || '');
+                      setWhere(t.rule.where || '');
+                      setOrderBy(t.rule.orderBy || 'priceCents asc');
+                      if (t.rule.indicator) {
+                        setHasIndicator(true);
+                        setIndLabel(t.rule.indicator.label);
+                        setIndExpr(t.rule.indicator.expr);
+                        setIndUnit(t.rule.indicator.unit || '');
+                        setIndLevels(t.rule.indicator.levels);
+                      }
+                    }} className="text-left rounded border border-violet-300 bg-white hover:border-violet-500 hover:bg-violet-50 px-3 py-2 transition">
+                      <div className="text-sm font-semibold text-violet-900">{t.icon} {t.label}</div>
+                      <div className="text-[11px] text-slate-700 mt-0.5">{t.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </details>
+
               {/* CANDIDATOS */}
               <details open className="group rounded-lg border border-slate-200 bg-white">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">

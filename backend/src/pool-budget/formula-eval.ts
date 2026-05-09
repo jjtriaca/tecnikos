@@ -53,15 +53,27 @@ export interface CellRefData {
   qty: number;
   total: number;     // em REAIS (nao centavos)
   unitPrice: number; // em REAIS
+  specs?: Record<string, number>; // technicalSpecs do produto/servico vinculado a essa linha
 }
 
-// Extrai cellRefs referenciados em uma formula (ex: "qty(L7) + total(L8)" -> ["L7", "L8"])
+// Item do orcamento usado em agregacoes via funcao sum().
+export interface BudgetItemForFormula {
+  qty: number;
+  specs?: Record<string, number> | null;
+  categoria?: string | null; // categoriaPlanilha do produto vinculado
+}
+
+// Extrai cellRefs referenciados em uma formula. Reconhece qty/total/unitPrice/prod.
 export function extractCellRefs(expr: string | null | undefined): string[] {
   if (!expr) return [];
   const refs = new Set<string>();
-  const pattern = new RegExp(`\\b(${CELL_REF_FUNCTIONS.join('|')})\\s*\\(\\s*(L\\d+)\\s*\\)`, 'g');
+  // qty(LX), total(LX), unitPrice(LX)
+  const p1 = new RegExp(`\\b(${CELL_REF_FUNCTIONS.join('|')})\\s*\\(\\s*(L\\d+)\\s*\\)`, 'g');
   let m: RegExpExecArray | null;
-  while ((m = pattern.exec(expr)) !== null) refs.add(m[2]);
+  while ((m = p1.exec(expr)) !== null) refs.add(m[2]);
+  // prod(LX, "key")
+  const p2 = /\bprod\s*\(\s*(L\d+)\s*,\s*"[a-zA-Z_][a-zA-Z0-9_]*"\s*\)/g;
+  while ((m = p2.exec(expr)) !== null) refs.add(m[1]);
   return Array.from(refs);
 }
 
@@ -69,6 +81,7 @@ export function evaluateFormula(
   expr: string,
   vars: FormulaVars,
   cellRefs: Map<string, CellRefData> = new Map(),
+  budgetItems: BudgetItemForFormula[] = [],
 ): number {
   if (!expr || expr.trim() === '') throw new Error('Formula vazia');
 
@@ -76,6 +89,39 @@ export function evaluateFormula(
   // So matcha digito-virgula-digito SEM espaco. Em "min(area, 10)" tem espaco apos
   // a virgula, entao continua como separador de argumento.
   let normalized = expr.replace(/(\d),(\d)/g, '$1.$2');
+
+  // sum("spec") — soma spec_value × qty de todos os items do orcamento (com produto vinculado)
+  // sum("spec", "categoriaPlanilha") — somatorio filtrado pela categoria do produto
+  normalized = normalized.replace(
+    /\bsum\s*\(\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*(?:,\s*"([^"]*)"\s*)?\)/g,
+    (_m, key: string, cat?: string) => {
+      let total = 0;
+      for (const it of budgetItems) {
+        const specs = it.specs;
+        if (!specs) continue;
+        const v = Number(specs[key]);
+        if (!Number.isFinite(v) || v === 0) continue;
+        if (cat && cat.trim()) {
+          const c = (it.categoria || '').toLowerCase().trim();
+          if (c !== cat.toLowerCase().trim()) continue;
+        }
+        const q = Number(it.qty) || 0;
+        total += v * q;
+      }
+      return `(${total})`;
+    },
+  );
+
+  // prod(LX, "spec") — pega spec do produto vinculado a linha LX
+  normalized = normalized.replace(
+    /\bprod\s*\(\s*(L\d+)\s*,\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*\)/g,
+    (_m, ref: string, key: string) => {
+      const data = cellRefs.get(ref);
+      if (!data) throw new Error(`Linha ${ref} nao existe`);
+      const v = Number(data.specs?.[key] ?? 0);
+      return `(${v})`;
+    },
+  );
 
   // Substitui chamadas a cellRef ANTES das vars (pra nao confundir 'L1' com identifier solto)
   for (const fn of CELL_REF_FUNCTIONS) {

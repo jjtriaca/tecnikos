@@ -165,16 +165,29 @@ export class PoolBudgetService {
   private async buildBudgetCellRefMap(budgetId: string): Promise<Map<string, CellRefData>> {
     const items = await this.prisma.poolBudgetItem.findMany({
       where: { budgetId, cellRef: { not: null } },
-      select: { cellRef: true, qty: true, unitPriceCents: true },
+      select: {
+        cellRef: true, qty: true, unitPriceCents: true,
+        product: { select: { technicalSpecs: true } },
+        service: { select: { technicalSpecs: true } },
+      },
     });
     const map = new Map<string, CellRefData>();
     for (const it of items) {
       if (!it.cellRef) continue;
       const qty = Number(it.qty) || 0;
+      const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+      const numericSpecs: Record<string, number> = {};
+      if (specs && typeof specs === 'object') {
+        for (const [k, v] of Object.entries(specs)) {
+          const n = Number(v);
+          if (Number.isFinite(n)) numericSpecs[k] = n;
+        }
+      }
       map.set(it.cellRef, {
         qty,
         total: (qty * it.unitPriceCents) / 100,
         unitPrice: it.unitPriceCents / 100,
+        specs: numericSpecs,
       });
     }
     return map;
@@ -493,21 +506,47 @@ export class PoolBudgetService {
       const map = new Map<string, CellRefData>();
       for (const it of items) {
         if (!it.cellRef) continue;
+        const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+        const numericSpecs: Record<string, number> = {};
+        if (specs && typeof specs === 'object') {
+          for (const [k, v] of Object.entries(specs)) {
+            const n = Number(v);
+            if (Number.isFinite(n)) numericSpecs[k] = n;
+          }
+        }
         map.set(it.cellRef, {
           qty: Number(it.qty) || 0,
           total: ((Number(it.qty) || 0) * it.unitPriceCents) / 100,
           unitPrice: it.unitPriceCents / 100,
+          specs: numericSpecs,
         });
       }
       return map;
     }
+    // Lista de items pra agregacoes via sum(): cada item com qty + specs + categoria do produto
+    const buildBudgetItemsForFormula = () => items.map((it) => {
+      const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+      const numericSpecs: Record<string, number> = {};
+      let categoria: string | null = null;
+      if (specs && typeof specs === 'object') {
+        for (const [k, v] of Object.entries(specs)) {
+          if (k === 'categoriaPlanilha' && typeof v === 'string') {
+            categoria = v;
+          } else {
+            const n = Number(v);
+            if (Number.isFinite(n)) numericSpecs[k] = n;
+          }
+        }
+      }
+      return { qty: Number(it.qty) || 0, specs: numericSpecs, categoria };
+    });
 
     // PASSO 1a: items sem nenhuma dependencia (so dimensions)
     for (const it of items) {
       if (!it.formulaExpr) continue;
       if (usesDias(it.formulaExpr) || usesCellRef(it.formulaExpr)) continue;
       try {
-        const newQty = evaluateFormula(it.formulaExpr, varsForItem(it));
+        const newQty = evaluateFormula(it.formulaExpr, varsForItem(it), new Map(), buildBudgetItemsForFormula());
         const data = persistItem(it, newQty);
         await this.prisma.poolBudgetItem.update({ where: { id: it.id }, data });
       } catch { /* mantem qty atual */ }
@@ -533,7 +572,7 @@ export class PoolBudgetService {
       if (!usesDias(it.formulaExpr) || usesCellRef(it.formulaExpr)) continue;
       const diasForThis = computeDias(it.id);
       try {
-        const newQty = evaluateFormula(it.formulaExpr, { ...varsForItem(it), dias: diasForThis });
+        const newQty = evaluateFormula(it.formulaExpr, { ...varsForItem(it), dias: diasForThis }, new Map(), buildBudgetItemsForFormula());
         const data = persistItem(it, newQty);
         await this.prisma.poolBudgetItem.update({ where: { id: it.id }, data });
       } catch { /* mantem qty atual */ }
@@ -573,6 +612,7 @@ export class PoolBudgetService {
             it.formulaExpr!,
             { ...varsForItem(it), dias: diasForThis },
             cellRefMap,
+            buildBudgetItemsForFormula(),
           );
           const data = persistItem(it, newQty);
           await this.prisma.poolBudgetItem.update({ where: { id: it.id }, data });
