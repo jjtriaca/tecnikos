@@ -43,6 +43,30 @@ echo -e "${CYAN}   Tecnikos — Deploy Remoto para Produção          ${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════${NC}"
 echo ""
 
+# ── 0. Pre-flight: versao local DEVE bater com prod ──────────
+# Bloqueio anti-incidente v1.10.71: worktrees diferentes podem ficar dessincronizados
+# (deploy push pra origin/main falha silencioso em branches claude/*). Sem este check,
+# uma sessao nova abrindo worktree fresco a partir de origin/main pode fazer deploy
+# revertendo 15 versoes de prod.
+echo -e "${YELLOW}[0/9]${NC} Verificando alinhamento com prod..."
+LOCAL_VERSION_PRE=$(node -e "console.log(require('./version.json').version)" 2>/dev/null || echo "")
+LIVE_VERSION_PRE=$(curl -s --max-time 5 https://sls.tecnikos.com.br/health 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{console.log(JSON.parse(d).version)}catch(e){console.log('')}})" 2>/dev/null || echo "")
+if [ -z "$LIVE_VERSION_PRE" ]; then
+  echo -e "  ${YELLOW}⚠${NC} Nao consegui consultar /health — pulando check (prod offline?)"
+elif [ "$LOCAL_VERSION_PRE" != "$LIVE_VERSION_PRE" ]; then
+  echo -e "  ${RED}✗ BLOQUEADO${NC} — versao local (${RED}${LOCAL_VERSION_PRE}${NC}) ≠ prod (${GREEN}${LIVE_VERSION_PRE}${NC})"
+  echo ""
+  echo -e "  ${YELLOW}Este worktree esta dessincronizado.${NC} Worktrees disponiveis:"
+  git worktree list
+  echo ""
+  echo -e "  ${YELLOW}→${NC} Procure o worktree com version.json = ${LIVE_VERSION_PRE} e rode o deploy de la."
+  echo -e "  ${YELLOW}→${NC} Se for um worktree novo, rebaseie em cima do worktree em prod antes de mexer."
+  exit 1
+else
+  echo -e "  ${GREEN}✓${NC} Local e prod alinhados em ${LOCAL_VERSION_PRE}"
+fi
+echo ""
+
 # ── 1. Incrementar versão ────────────────────────────────────
 BUMP_TYPE="${1:-patch}"
 echo -e "${YELLOW}[1/9]${NC} Incrementando versão (${BUMP_TYPE})..."

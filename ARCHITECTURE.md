@@ -85,6 +85,24 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 | PoolProjectModule | Obras (etapas + livro caixa + fotos) | PoolProjectService |
 | PoolPrintLayoutModule | Page builder de layouts PDF | PoolPrintLayoutService |
 
+### Pool Budget — Engine de calculo (formula + auto-selecao)
+
+**Calculo de qty automatico** ([formula-eval.ts](backend/src/pool-budget/formula-eval.ts)):
+- Eval seguro de expressoes: `length`, `width`, `area`, `volume`, `perimExterno`, `cantos`, `areaParedeEFundo`, `radierM3`, `escavacao`, `dias`, `tempLocal`, `tempAgua`, etc
+- Variaveis dinamicas por section: `areaSec1..N`, `volumeSec1..N` (regex `/\b(areaSec|volumeSec)(\d+)\b/g`)
+- Variaveis dinamicas do produto vinculado: chaves arbitrarias do `technicalSpecs` (pesoKg, consumoKgM2, vazaoM3h, kcalHMin/Max, amperagem, espacosQuadro, ...)
+- Funcoes whitelisted: `ceil`, `floor`, `round`, `min`, `max`
+- Referencias entre linhas: `qty(LX)`, `total(LX)`, `unitPrice(LX)` + `prod(LX, "spec")` (spec do produto da linha)
+- Agregacoes: `sum("spec")` ou `sum("spec", "categoriaPlanilha")` — soma `qty × spec` de items do orcamento
+- Decimal aceita virgula ou ponto (`0,1` ou `0.1`)
+- `recalculateTotals` em 4 passos: (0) auto-select de produto via `autoSelectRule`, (1a/b) formulas sem deps, formulas com `dias`, (2) formulas com cellRef em ordem topologica, (3) totais finais
+
+**Auto-selecao de produto** ([auto-select.helper.ts](backend/src/pool-budget/auto-select.helper.ts) + `PoolBudgetItem.autoSelectRule` Json):
+- Regra: `{ filterCategoria, filterDescription, where, orderBy, indicator }`
+- Pipeline: filter por categoria/descricao → avalia `where` em cada candidato com vars do orcamento + technicalSpecs do candidato → ordena → escolhe 1º → vincula `productId/serviceId` + atualiza `description/unitPriceCents/unit`
+- Indicator: calculado runtime no `findOne`, injetado em `indicatorLabel/indicatorColor/indicatorValue/indicatorUnit`
+- Templates frontend pre-prontos: Disjuntor geral, Quadro por espacos, Fonte de iluminacao (AUTOSELECT_TEMPLATES no AutoSelectModal)
+
 ### Dependencias Circulares (forwardRef)
 - FinanceModule <-> NfseEmissionModule
 - AuthModule -> TenantModule

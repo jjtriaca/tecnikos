@@ -1,7 +1,42 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.68 (em prod)
-## Ultima sessao: 188 (08/05/2026)
+## Versao: v1.10.71 (em prod)
+## Ultima sessao: 190 (11/05/2026)
+
+## v1.10.71 — Busca financeira por valor monetario (A Receber/A Pagar)
+- **Pedido do Juliano**: digitar "227" no campo de busca do Financeiro deve trazer todos os lançamentos com valor R$ 227,XX (qualquer centavo); "227,36" deve trazer só valor exato.
+- **Fix** ([backend/src/finance/finance.service.ts:441](backend/src/finance/finance.service.ts#L441) — `findEntries`): adicionada detecção de valor monetario no `OR` da busca:
+  - `"227"` ou `"1.227"` (inteiro) → range `grossCents`/`netCents` entre `N*100` e `N*100+99`
+  - `"227,36"` ou `"1.227,36"` (com vírgula) → exato `N*100+CC`
+  - `"227.36"` (fallback US) → exato
+  - Suporta separador de milhar com `.` (`\d{1,3}(?:\.\d{3})*`)
+- **Compatibilidade**: aditivo. Busca por código `FIN-00227`, descrição e parceiro continuam funcionando (incluídos no mesmo OR).
+- **Match em ambos os campos**: cobre tanto a coluna BRUTO (`grossCents`) quanto VALOR (`netCents`).
+
+## v1.10.70 — Pool budget: funcoes sum() e prod() + templates pre-configurados de auto-selecao
+- **Pedido do Juliano**: replicar logica da planilha Excel da Juliano Piscinas — auto-selecao de disjuntor geral por amperagem total, quadro por soma de espacos, fonte de iluminacao pela potencia. "Tudo por variavel/formula" — sem hardcode no backend.
+- **Backend funcoes novas no evaluator**:
+  - `sum("spec")` — itera todos os items do orcamento, soma `qty × spec_value` do produto vinculado
+  - `sum("spec", "categoriaPlanilha")` — somatorio filtrado por categoria do produto
+  - `prod(LX, "spec")` — pega spec especifico do produto vinculado a uma linha (cellRef)
+  - `extractCellRefs` reconhece tambem `prod(LX, ...)` pra ordem topologica
+  - `CellRefData` ganha campo `specs` opcional
+  - Novo type `BudgetItemForFormula` (qty + specs + categoria)
+  - 3 chamadas de evaluateFormula em recalculateTotals passam `buildBudgetItemsForFormula()` + cellRefMap com specs
+- **Frontend**: `evalLocal` substitui `prod()` e `sum()` por `0` (placeholder pre-server) — backend recalcula correto. **3 templates** AUTOSELECT_TEMPLATES no AutoSelectModal pre-configurados:
+  - **⚡ Disjuntor geral**: `where = amperagem >= sum("amperagem") * 1.25` + indicator "Carga total"
+  - **🔌 Quadro por espacos**: `where = polos >= sum("espacosQuadro")` + indicator "Espacos usados"
+  - **💡 Fonte iluminacao**: `where = amperagem >= sum("potenciaWatts") / 12` + indicator "A carga ilum"
+  - UI: botoes coloridos no topo do scroll do modal — clique popula filterCategoria/where/orderBy/indicator de uma vez
+- **Sync de specs** rodado em prod via SQL (240 produtos da planilha xlsm sincronizados):
+  - Disjuntores: amperagem (10/63A) + espacosQuadro (1/2/3)
+  - Contator: 63A, 2 espacos
+  - DR: 63A, 2/4 espacos
+  - Fontes: 1A, 2 espacos
+  - Quadros: polos (4/8/16/18/24/36)
+  - Bombas/filtros/cascatas/SPAs/aquecedores: amperagem + vazaoM3h
+  - Refletores: potenciaWatts + voltagem
+- **Pendente**: cadastrar disjuntores intermediarios (16/20/25/32/40/50A) — sem eles auto-selecao ainda eh limitada (so escolhe entre 10A e 63A); UI de edicao de specs no cadastro de produto pra fase 2; ralo eh `qty=2` constante (NBR 5410), nao precisa auto-selecao.
 
 ## v1.10.67/v1.10.68 — Pool budget: AUTO-SELECAO DO PRODUTO (feature grande)
 - **Pedido do Juliano**: ao inves de escolher manualmente o produto em cada linha (Conjunto Filtrante V30/V50/V60, etc), o sistema deve auto-selecionar o melhor produto baseado em variaveis da piscina (volume, area) + technicalSpecs do candidato (vazaoM3h, kcalH, tuboEntradaMm). Tambem mostrar **indicador visual** (Excelente/Bom/Ruim) na linha. Reusavel pra varias etapas (filtragem, aquecimento, cascata, iluminacao).

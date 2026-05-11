@@ -446,12 +446,43 @@ export class FinanceService {
       const codeMatch = raw.match(/^(?:FIN-?)?0*(\d+)$/i);
       const codeLike = codeMatch ? `FIN-${codeMatch[1].padStart(5, '0')}` : null;
 
+      // Detecta busca por valor monetario (BRT):
+      //  "227" ou "1.227"        => range R$ 227,00 a R$ 227,99 (qualquer centavo)
+      //  "227,36" ou "1.227,36"  => valor exato R$ 227,36
+      //  "227.36"                => fallback US, valor exato R$ 227,36
+      const normalized = raw.replace(/^R\$\s*/i, '').trim();
+      const decimalComma = normalized.match(/^(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})$/);
+      const integerOnly = !decimalComma ? normalized.match(/^(\d{1,3}(?:\.\d{3})*|\d+)$/) : null;
+      const decimalDot = !decimalComma && !integerOnly ? normalized.match(/^(\d+)\.(\d{2})$/) : null;
+
+      const valueOr: any[] = [];
+      if (decimalComma) {
+        const reais = parseInt(decimalComma[1].replace(/\./g, ''), 10);
+        const cents = parseInt(decimalComma[2], 10);
+        const exact = reais * 100 + cents;
+        valueOr.push({ grossCents: exact }, { netCents: exact });
+      } else if (integerOnly) {
+        const reais = parseInt(integerOnly[1].replace(/\./g, ''), 10);
+        const start = reais * 100;
+        const end = start + 99;
+        valueOr.push(
+          { grossCents: { gte: start, lte: end } },
+          { netCents: { gte: start, lte: end } },
+        );
+      } else if (decimalDot) {
+        const reais = parseInt(decimalDot[1], 10);
+        const cents = parseInt(decimalDot[2], 10);
+        const exact = reais * 100 + cents;
+        valueOr.push({ grossCents: exact }, { netCents: exact });
+      }
+
       if (codeLike) {
-        // Busca por codigo OU texto (caso "372" tambem esteja na descricao)
+        // Busca por codigo OU valor OU texto (caso "372" tambem esteja na descricao)
         where.OR = [
           { code: codeLike },
           { description: { contains: raw, mode: 'insensitive' } },
           { partner: { name: { contains: raw, mode: 'insensitive' } } },
+          ...valueOr,
         ];
       } else if (words.length <= 1) {
         where.OR = [
@@ -459,6 +490,7 @@ export class FinanceService {
           { description: { contains: raw, mode: 'insensitive' } },
           { serviceOrder: { title: { contains: raw, mode: 'insensitive' } } },
           { partner: { name: { contains: raw, mode: 'insensitive' } } },
+          ...valueOr,
         ];
       } else {
         where.AND = words.map((word) => ({

@@ -10,6 +10,19 @@
 7. Ao fazer mudancas estruturais: ATUALIZAR ARCHITECTURE.md antes de encerrar
 8. A CADA tarefa concluida: ATUALIZAR CURRENT_TASK.md
 
+## REGRA ABSOLUTA: Worktree alinhado com PROD antes de QUALQUER deploy
+**Incidente v1.10.71 (11/05/2026):** sessao abriu worktree fresco a partir de `origin/main` (v1.10.55). Prod estava em v1.10.70 (focused-hugle worktree, 15 versoes locais nao pushadas). Deploy quase reverteu 15 versoes — abortado em 5/9.
+
+**Causa raiz:** `deploy-remote.sh` faz `git push origin main 2>/dev/null || true` mas o branch local eh `claude/<name>` — push pra `main` exige `HEAD:main`. Falha silenciosa ha 15 versoes.
+
+### Checklist OBRIGATORIO antes de editar/deployar:
+1. **VERIFICAR versao local**: `cat version.json` (do worktree atual)
+2. **VERIFICAR versao prod**: `curl -s https://sls.tecnikos.com.br/health`
+3. **Se versao local ≠ prod**: PARAR. Rodar `git worktree list`, achar worktree com a versao certa, mover trabalho pra la
+4. **NUNCA editar `scripts/deploy-remote.sh` enquanto deploy estiver rodando** — bash le linha a linha, deslocamento de linhas quebra parsing
+5. **NUNCA confiar no push** — origin/main pode estar atrasada vs prod. Source of truth = `/health`, nao GitHub
+6. O proprio `deploy-remote.sh` agora tem **step 0** que bloqueia deploy se local ≠ prod (`[0/9] Verificando alinhamento com prod...`)
+
 ## REGRA ABSOLUTA: Financeiro e Saldos (NUNCA VIOLAR)
 **Financeiro e EXATO. Nao tolera erro de R$ 0,01. E matematica, e ciencia exata.**
 
