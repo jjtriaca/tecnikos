@@ -1,7 +1,12 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.76 (em prod)
-## Ultima sessao: 195 (12/05/2026)
+## Versao: v1.10.77 (em prod)
+## Ultima sessao: 196 (12/05/2026)
+
+## v1.10.77 — Hotfix: permitir encargo sem cartao na conciliacao de fatura
+- **Bug v1.10.76**: ao tentar conciliar fatura com encargo da fatura toda (sem `paymentInstrumentId`), backend rejeitava: "Lancamento X nao tem instrumento de pagamento — nao pode compor fatura."
+- **Fix** ([reconciliation.service.ts:1375](backend/src/finance/reconciliation.service.ts#L1375)): validacao agora aceita entry sem instrumento SE `isInvoiceCharge=true`. Compra normal sem cartao continua bloqueada.
+- **Saldo**: encargo sem cashAccountId nao gera AccountTransfer no match — saldo do banco ja eh debitado pelo total da linha da fatura (`lineAbs`), encargo so registra a despesa pra DRE.
 
 ## v1.10.76 — Encargo de fatura (juros/IOF/anuidade) distinto de compras de cartao
 - **Pedido do Juliano**: extrato Sicredi mostra "Encargos (R$): 32,12" como linha agregada do banco, alem de "Juros De Mora - Multa" por cartao. Sistema forcava vincular encargo a 1 cartao especifico — artificial. Solucao: distinguir compra (do cartao) de encargo (do banco sobre a fatura).

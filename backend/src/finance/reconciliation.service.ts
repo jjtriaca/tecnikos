@@ -1308,6 +1308,7 @@ export class ReconciliationService {
         invoiceMatchLineId: true,
         financialAccountId: true,
         isRefundEntry: true,
+        isInvoiceCharge: true,
       },
     });
 
@@ -1372,7 +1373,9 @@ export class ReconciliationService {
       if (e.invoiceMatchLineId && e.invoiceMatchLineId !== lineId) {
         throw new BadRequestException(`Lançamento ${e.id} já está vinculado a outra fatura conciliada.`);
       }
-      if (!e.paymentInstrumentId) {
+      // v1.10.77: encargo da fatura toda (isInvoiceCharge=true sem cartao) pode compor — eh
+      // tarifa/anuidade/IOF do banco, nao pertence a cartao especifico. Compra normal continua exigindo.
+      if (!e.paymentInstrumentId && !e.isInvoiceCharge) {
         throw new BadRequestException(`Lançamento ${e.id} não tem instrumento de pagamento — não pode compor fatura.`);
       }
       // Validacao de plano: se empresa usa e entry nao tem e nao foi passado no DTO, bloqueia
