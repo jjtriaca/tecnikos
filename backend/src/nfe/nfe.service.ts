@@ -756,6 +756,10 @@ export class NfeService {
           paymentMethodCode: decisions.finance?.paymentMethod,
           type: 'PAYABLE',
           netCents: totalCents,
+          // Bug v1.10.73 fix: data REAL da compra eh a issueDate da NFe, nao "hoje" (quando o gestor
+          // importa). Sem isso, cardBillingDate cai no ciclo errado e a entry some das candidates
+          // de conciliacao de fatura.
+          purchaseDate: nfeImport.issueDate,
           tx,
         });
 

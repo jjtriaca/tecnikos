@@ -73,6 +73,14 @@ export class PaymentInstrumentService {
     dtoCashAccountId?: string | null;
     type: 'RECEIVABLE' | 'PAYABLE';
     netCents: number;
+    /**
+     * Data REAL da transacao no cartao (ex: dataEmissao da NFe).
+     * Usada pra calcular cardBillingDate corretamente.
+     * Se omitida, usa `new Date()` (assume que a compra foi hoje — comportamento legado).
+     * Bug v1.10.73: pra NFe import, paidAt nao reflete a data da compra (eh quando o gestor
+     * marca como pago no sistema). Usar purchaseDate previne ciclo de fatura errado.
+     */
+    purchaseDate?: Date | null;
     tx?: Prisma.TransactionClient;
   }): Promise<AutoPayResolution> {
     const client = params.tx ?? this.prisma;
@@ -102,8 +110,12 @@ export class PaymentInstrumentService {
     }
 
     // Calcula cardBillingDate se instrumento tem billingClosingDay
+    // Usa purchaseDate (data real da transacao) se fornecida — caso contrario, fallback pra hoje (legado).
     const billingDate = instrument?.billingClosingDay
-      ? PaymentInstrumentService.calculateCardBillingDate(new Date(), instrument.billingClosingDay)
+      ? PaymentInstrumentService.calculateCardBillingDate(
+          params.purchaseDate ?? new Date(),
+          instrument.billingClosingDay,
+        )
       : null;
 
     // Default: nao autoMarkPaid

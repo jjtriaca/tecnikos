@@ -1,7 +1,17 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.72 (em prod)
-## Ultima sessao: 191 (12/05/2026)
+## Versao: v1.10.73 (em prod)
+## Ultima sessao: 192 (12/05/2026)
+
+## v1.10.73 — Fix cardBillingDate calculado em cima da data errada (NFe import)
+- **Bug reportado pelo Juliano**: FIN-00509 (Master Ueslei, R$ 509,94) aparecia como "Conciliado: Nao" mas nao aparecia nos candidates da fatura de 08/05/2026 que ele estava tentando conciliar.
+- **Causa raiz**: `PaymentInstrumentService.resolveAutoPay()` calculava `cardBillingDate` usando `new Date()` (hoje, no momento do import) ao inves da data REAL da compra. Pra NFe import, a issueDate da NFe eh a data real da transacao no cartao — paidAt/today nao sao confiaveis (gestor pode importar 1 mes depois e ai cai no ciclo errado).
+- **Exemplo do bug**: FIN-00509 issueDate=31/03, importada 29/04. closingDay=25. Sistema usou 29/04 → cardBillingDate=25/05 (fatura junho). Correto: usar 31/03 → cardBillingDate=25/04 (fatura maio, a que o Juliano estava conciliando).
+- **Fix codigo**:
+  - [payment-instrument.service.ts](backend/src/finance/payment-instrument.service.ts): `resolveAutoPay` ganha param `purchaseDate?: Date | null`. Quando passado, usa ele pra calcular `cardBillingDate`. Sem ele, fallback pra `new Date()` (compat).
+  - [nfe.service.ts:759](backend/src/nfe/nfe.service.ts#L759): NFe import passa `nfeImport.issueDate` como `purchaseDate`.
+- **Backfill SQL**: 5 entries corrigidas em tenant_sls (FIN-00012, FIN-00497, FIN-00498, FIN-00509, FIN-00514). Outros tenants verificados — nenhum afetado. Impacto liquido na fatura 08/05: +R$ 1.178,35 (5 entries movidas pros ciclos certos).
+- **NAO afeta saldos**: cardBillingDate eh separado de paidAt — confer-saldo/balance-compare usa paidAt, intocado.
 
 ## v1.10.72 — Colunas Metodo + Conciliado na lista de A Receber/A Pagar
 - **Pedido do Juliano**: ver de relance qual metodo de pagamento foi usado em cada lancamento e se ja foi conciliado com o extrato bancario.
