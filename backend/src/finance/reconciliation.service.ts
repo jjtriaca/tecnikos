@@ -1164,13 +1164,23 @@ export class ReconciliationService {
       return { entries: [], totalCents: 0, totalNextCycleCents: 0 };
     }
 
+    // v1.10.76: aceita compras no cartao (paymentInstrumentId in [cards]) OU encargos da
+    // fatura toda (isInvoiceCharge=true sem cartao especifico). Anuidade, IOF, taxa do banco
+    // sao cobrados no fechamento da fatura conjunta, nao pertencem a nenhum cartao.
     const where: Record<string, unknown> = {
       companyId,
       deletedAt: null,
       // PAID (historico), PENDING/CONFIRMED (nao pago ainda — sera auto-pago ao conciliar)
       status: { in: ['PAID', 'PENDING', 'CONFIRMED'] },
       type: 'PAYABLE',
-      paymentInstrumentId: { in: paymentInstrumentIds },
+      AND: [
+        {
+          OR: [
+            { paymentInstrumentId: { in: paymentInstrumentIds } },
+            { AND: [{ isInvoiceCharge: true }, { paymentInstrumentId: null }] },
+          ],
+        },
+      ],
     };
     if (!includeAlreadyMatched) {
       where.invoiceMatchLineId = null;
@@ -1225,6 +1235,7 @@ export class ReconciliationService {
         dueDate: true,
         status: true,
         isRefundEntry: true,
+        isInvoiceCharge: true,
         paymentInstrumentId: true,
         invoiceMatchLineId: true,
         cashAccountId: true,

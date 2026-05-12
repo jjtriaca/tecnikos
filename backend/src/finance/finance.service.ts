@@ -288,6 +288,7 @@ export class FinanceService {
           receivedCardLast4: data.receivedCardLast4 || undefined,
           cashAccountId: autoPay.cashAccountId || undefined,
           cardBillingDate: autoPay.cardBillingDate || undefined,
+          isInvoiceCharge: data.isInvoiceCharge || false,
         },
         include: {
           serviceOrder: { select: { id: true, title: true, status: true } },

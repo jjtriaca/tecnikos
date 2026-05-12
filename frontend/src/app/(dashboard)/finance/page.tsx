@@ -285,6 +285,11 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
               Vencida
             </span>
           )}
+          {e.isInvoiceCharge && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200 whitespace-nowrap" title="Encargo de fatura (juros, IOF, anuidade ou taxa do banco)">
+              Encargo
+            </span>
+          )}
         </div>
       ),
     },

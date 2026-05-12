@@ -1,7 +1,25 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.75 (em prod)
-## Ultima sessao: 194 (12/05/2026)
+## Versao: v1.10.76 (em prod)
+## Ultima sessao: 195 (12/05/2026)
+
+## v1.10.76 — Encargo de fatura (juros/IOF/anuidade) distinto de compras de cartao
+- **Pedido do Juliano**: extrato Sicredi mostra "Encargos (R$): 32,12" como linha agregada do banco, alem de "Juros De Mora - Multa" por cartao. Sistema forcava vincular encargo a 1 cartao especifico — artificial. Solucao: distinguir compra (do cartao) de encargo (do banco sobre a fatura).
+- **Schema** ([financial-entry migration](backend/prisma/migrations/20260512170000_add_financial_entry_is_invoice_charge/migration.sql)):
+  - Novo campo `FinancialEntry.isInvoiceCharge: Boolean @default(false)`
+  - Migration aditiva (default false em registros existentes — TenantMigrator sincroniza)
+- **Backend** ([financial-entry.dto.ts](backend/src/finance/dto/financial-entry.dto.ts), [finance.service.ts](backend/src/finance/finance.service.ts), [reconciliation.service.ts](backend/src/finance/reconciliation.service.ts)):
+  - DTO aceita `isInvoiceCharge?: boolean`
+  - `createEntry` repassa pro Prisma
+  - `findCardInvoiceCandidates` filtro AND-OR: aceita `paymentInstrumentId in [cards]` OU `(isInvoiceCharge=true AND paymentInstrumentId IS NULL)`. Encargos da fatura toda aparecem em qualquer conciliacao de fatura cobrindo aqueles cartoes.
+- **Frontend** ([ReconciliationTab.tsx](frontend/src/app/(dashboard)/finance/components/ReconciliationTab.tsx) — mini-modal Novo lancamento):
+  - Chavinha "Este lancamento e encargo (juros, IOF, anuidade, taxa)" entre Descricao e Valor
+  - Quando ligada: Cartao vira opcional (label muda pra "Cartao (opcional — vazio = encargo da fatura toda)"); "Data da compra" vira "Data do encargo"; hint do ciclo de fatura some
+  - Validacao backend: encargo sem cartao OK; compra normal ainda exige cartao
+- **Frontend** ([finance/page.tsx](frontend/src/app/(dashboard)/finance/page.tsx) lista A Pagar/A Receber):
+  - Badge "Encargo" (purple) ao lado de "Vencida"/"Reneg." na coluna Descricao
+- **Modelo de saldo**: encargo com `cashAccountId=null` nao gera AccountTransfer no matchAsCardInvoice (saldo do banco ja debitado pelo total da fatura — encargo so registra a despesa pra DRE).
+- **Multi-tenant**: campo opcional, default false — tenants existentes sem mudanca. Tenants futuros: encargos vao auto pra "Despesas Financeiras" no DRE quando classificados.
 
 ## v1.10.75 — Novo lancamento inline + detecao de duplicacao (modal de conciliacao)
 - **Pedido do Juliano**: ao conciliar fatura, se faltar um lancamento tem que fechar tela, ir em A Pagar, criar, voltar. Adicionar botao "Novo lancamento" no proprio modal de conciliacao + alerta de duplicacao por valor (na hora de digitar).

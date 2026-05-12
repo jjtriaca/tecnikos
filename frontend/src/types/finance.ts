@@ -61,6 +61,9 @@ export interface FinancialEntry {
   invoiceMatchLineId?: string | null;
   /** Computed: true se invoiceMatchLineId OU ha BankStatementLine matched apontando pra esta entry */
   _reconciled?: boolean;
+
+  /** v1.10.76 — Encargo de fatura (juros, IOF, anuidade, taxa do banco) — distinto de compra */
+  isInvoiceCharge?: boolean;
 }
 
 export interface FinancialInstallment {

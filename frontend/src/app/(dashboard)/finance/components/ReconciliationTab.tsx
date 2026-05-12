@@ -2091,6 +2091,8 @@ interface CardInvoiceEntry {
   isRefundEntry?: boolean;
   /** v1.10.74 — true se essa entry tem cardBillingDate na proxima fatura (range estendido) */
   isFromNextCycle?: boolean;
+  /** v1.10.76 — true se essa entry e encargo da fatura (juros/IOF/anuidade/taxa) */
+  isInvoiceCharge?: boolean;
   partner: { id: string; name: string } | null;
   paymentInstrumentRef: { id: string; name: string; cardLast4: string | null } | null;
   financialAccount?: { id: string; name: string } | null;
@@ -2131,6 +2133,7 @@ function CardInvoiceMatchModal({
     financialAccountId: "",
     paymentInstrumentId: "",
     purchaseDate: "",
+    isInvoiceCharge: false,
   });
   const [newEntryPartner, setNewEntryPartner] = useState<PartnerSummary | null>(null);
   const [newEntryDuplicates, setNewEntryDuplicates] = useState<Array<{
@@ -2243,7 +2246,7 @@ function CardInvoiceMatchModal({
   }, [showNewEntry, newEntryForm.grossCents]);
 
   function resetNewEntryForm() {
-    setNewEntryForm({ description: "", grossCents: "", notes: "", financialAccountId: "", paymentInstrumentId: "", purchaseDate: "" });
+    setNewEntryForm({ description: "", grossCents: "", notes: "", financialAccountId: "", paymentInstrumentId: "", purchaseDate: "", isInvoiceCharge: false });
     setNewEntryPartner(null);
     setNewEntryDuplicates([]);
     setNewEntryDuplicatesTotal(0);
@@ -2259,7 +2262,9 @@ function CardInvoiceMatchModal({
       toast("Informe um valor valido.", "error");
       return;
     }
-    if (!newEntryForm.paymentInstrumentId) {
+    // v1.10.76: encargo da fatura toda pode ficar sem cartao especifico (juros/IOF/anuidade
+    // sao do banco, nao do cartao individual). Compra normal ainda exige cartao.
+    if (!newEntryForm.isInvoiceCharge && !newEntryForm.paymentInstrumentId) {
       toast("Selecione o cartao.", "error");
       return;
     }
@@ -2274,8 +2279,9 @@ function CardInvoiceMatchModal({
         dueDate: newEntryForm.purchaseDate || undefined,
         notes: newEntryForm.notes || undefined,
         financialAccountId: newEntryForm.financialAccountId || undefined,
-        paymentInstrumentId: newEntryForm.paymentInstrumentId,
-        purchaseDate: newEntryForm.purchaseDate || undefined,
+        paymentInstrumentId: newEntryForm.paymentInstrumentId || undefined,
+        purchaseDate: newEntryForm.isInvoiceCharge ? undefined : (newEntryForm.purchaseDate || undefined),
+        isInvoiceCharge: newEntryForm.isInvoiceCharge || undefined,
       });
       toast("Lancamento criado!", "success");
       setShowNewEntry(false);
@@ -2541,6 +2547,9 @@ function CardInvoiceMatchModal({
                           <span className="text-sm font-medium text-slate-800 truncate">
                             {entry.partner?.name || entry.description || "—"}
                           </span>
+                          {entry.isInvoiceCharge && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">encargo</span>
+                          )}
                           {isPending && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">sera marcado como pago</span>
                           )}
@@ -2637,6 +2646,9 @@ function CardInvoiceMatchModal({
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 font-semibold">
                               fatura seguinte
                             </span>
+                            {entry.isInvoiceCharge && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">encargo</span>
+                            )}
                             {isPending && (
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">sera marcado como pago</span>
                             )}
@@ -2776,6 +2788,29 @@ function CardInvoiceMatchModal({
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
               />
             </div>
+            {/* v1.10.76 — chavinha encargo de fatura. Quando ligada, cartao vira opcional e
+                purchaseDate (data da compra) some — encargo nao tem data de compra. */}
+            <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 cursor-pointer hover:bg-slate-100">
+              <input
+                type="checkbox"
+                checked={newEntryForm.isInvoiceCharge}
+                onChange={(e) => setNewEntryForm({
+                  ...newEntryForm,
+                  isInvoiceCharge: e.target.checked,
+                  // Quando marca: limpa cartao e data da compra (vao ficar opcionais/escondidos)
+                  paymentInstrumentId: e.target.checked ? "" : newEntryForm.paymentInstrumentId,
+                  purchaseDate: e.target.checked ? "" : newEntryForm.purchaseDate,
+                })}
+                className="mt-0.5 w-4 h-4 accent-rose-600"
+              />
+              <div>
+                <p className="text-xs font-medium text-slate-700">Este lancamento e encargo (juros, IOF, anuidade, taxa)</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Marcar quando for taxa do banco aplicada na fatura, nao compra de cartao especifico.
+                  Cartao fica opcional (juros vinculados a 1 cartao) ou vazio (encargo da fatura toda).
+                </p>
+              </div>
+            </label>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Valor (R$) *</label>
               <div className="relative">
@@ -2816,13 +2851,15 @@ function CardInvoiceMatchModal({
               )}
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Cartao *</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Cartao {newEntryForm.isInvoiceCharge ? <span className="text-slate-400 font-normal">(opcional — vazio = encargo da fatura toda)</span> : "*"}
+              </label>
               <select
                 value={newEntryForm.paymentInstrumentId}
                 onChange={(e) => setNewEntryForm({ ...newEntryForm, paymentInstrumentId: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none bg-white"
               >
-                <option value="">Selecione...</option>
+                <option value="">{newEntryForm.isInvoiceCharge ? "Sem cartao especifico (encargo da fatura toda)" : "Selecione..."}</option>
                 {instruments.map((inst) => (
                   <option key={inst.id} value={inst.id}>
                     {inst.name}{inst.cardLast4 ? ` •••• ${inst.cardLast4}` : ""}
@@ -2832,7 +2869,7 @@ function CardInvoiceMatchModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Data da compra *
+                {newEntryForm.isInvoiceCharge ? "Data do encargo" : "Data da compra"} *
               </label>
               <input
                 type="date"
@@ -2840,7 +2877,7 @@ function CardInvoiceMatchModal({
                 onChange={(e) => setNewEntryForm({ ...newEntryForm, purchaseDate: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
               />
-              {selectedInstrument?.billingClosingDay && newEntryForm.purchaseDate && (() => {
+              {!newEntryForm.isInvoiceCharge && selectedInstrument?.billingClosingDay && newEntryForm.purchaseDate && (() => {
                 const closingDay = selectedInstrument.billingClosingDay!;
                 const d = new Date(`${newEntryForm.purchaseDate}T12:00:00-03:00`);
                 const day = d.getDate();

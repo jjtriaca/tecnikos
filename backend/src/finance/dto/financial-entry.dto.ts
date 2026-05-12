@@ -87,6 +87,17 @@ export class CreateFinancialEntryDto {
   @IsOptional()
   @IsDateString()
   purchaseDate?: string;
+
+  /**
+   * v1.10.76 — Marca a entry como encargo da fatura (juros, IOF, anuidade, taxa do banco)
+   * em vez de compra. Quando true:
+   *  - paymentInstrumentId opcional (encargo da fatura toda fica null; juros por cartao seta o cartao)
+   *  - Aparece nos candidates de conciliacao de fatura mesmo sem cartao especifico
+   *  - Plano de contas sugerido: Despesas Financeiras
+   */
+  @IsOptional()
+  @IsBoolean()
+  isInvoiceCharge?: boolean;
 }
 
 export class UpdateFinancialEntryDto {
