@@ -1,7 +1,14 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.71 (em prod)
-## Ultima sessao: 190 (11/05/2026)
+## Versao: v1.10.72 (em prod)
+## Ultima sessao: 191 (12/05/2026)
+
+## v1.10.72 — Colunas Metodo + Conciliado na lista de A Receber/A Pagar
+- **Pedido do Juliano**: ver de relance qual metodo de pagamento foi usado em cada lancamento e se ja foi conciliado com o extrato bancario.
+- **Backend** ([finance.service.ts](backend/src/finance/finance.service.ts) `findEntries`): apos o $transaction, query adicional em `BankStatementLine { status: MATCHED, matchedEntryId in: data.ids }`. Computa `_reconciled = !!invoiceMatchLineId || directMatchedIds.has(id)`. Cobre os 2 tipos de conciliacao (N-pra-1 via invoiceMatchLineId + 1-pra-1 via BankStatementLine.matchedEntryId).
+- **Frontend types** ([finance.ts](frontend/src/types/finance.ts)): `FinancialEntry` ganha `invoiceMatchLineId?` e `_reconciled?: boolean`.
+- **Frontend page** ([finance/page.tsx](frontend/src/app/(dashboard)/finance/page.tsx)): 2 colunas novas apos Status — "Metodo" (le `paymentInstrumentRef.paymentMethod.code || paymentMethod`, mostra label via `paymentMethodLabel()` + `••last4` se cartao) e "Conciliado" (badge verde "Sim" / amber "Nao" so pra entries PAID, "—" pros outros status).
+- **Behavior**: useTableLayout auto-anexa colunas novas no fim da ordem persistida — usuarios existentes veem no fim, podem reordenar via drag.
 
 ## v1.10.71 — Busca financeira por valor monetario (A Receber/A Pagar)
 - **Pedido do Juliano**: digitar "227" no campo de busca do Financeiro deve trazer todos os lançamentos com valor R$ 227,XX (qualquer centavo); "227,36" deve trazer só valor exato.

@@ -536,8 +536,25 @@ export class FinanceService {
       }),
     ]);
 
+    // Conciliacao: entry esta conciliado se invoiceMatchLineId != null
+    // (fatura cartao N-pra-1) OU BankStatementLine.matchedEntryId aponta pra ele (1-pra-1)
+    const entryIds = data.map((e: any) => e.id);
+    const matchedLines = entryIds.length > 0
+      ? await this.prisma.bankStatementLine.findMany({
+          where: { status: 'MATCHED', matchedEntryId: { in: entryIds } },
+          select: { matchedEntryId: true },
+        })
+      : [];
+    const directMatchedIds = new Set(
+      matchedLines.map((l: any) => l.matchedEntryId).filter(Boolean),
+    );
+    const dataWithReconciled = data.map((e: any) => ({
+      ...e,
+      _reconciled: !!e.invoiceMatchLineId || directMatchedIds.has(e.id),
+    }));
+
     return {
-      data,
+      data: dataWithReconciled,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
       totals: {
         sumNetCents: agg._sum.netCents || 0,

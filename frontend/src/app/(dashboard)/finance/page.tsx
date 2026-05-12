@@ -368,6 +368,39 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
       sortable: true,
       render: (e) => <StatusBadge status={e.status} entryType={type} />,
     },
+    {
+      id: "paymentMethod",
+      label: "Método",
+      render: (e) => {
+        const code = e.paymentInstrumentRef?.paymentMethod?.code || e.paymentMethod;
+        if (!code) return <span className="text-xs text-slate-400">—</span>;
+        const label = paymentMethodLabel(code, e.cardBrand || e.paymentInstrumentRef?.cardBrand || undefined);
+        const last4 = e.paymentInstrumentRef?.cardLast4;
+        const tooltip = e.paymentInstrumentRef?.name || label;
+        return (
+          <span className="text-xs text-slate-700 truncate block max-w-[140px]" title={tooltip}>
+            {label}{last4 ? ` ••${last4}` : ""}
+          </span>
+        );
+      },
+    },
+    {
+      id: "reconciled",
+      label: "Conciliado",
+      render: (e) => {
+        if (e.status !== "PAID") return <span className="text-xs text-slate-400">—</span>;
+        const isReconciled = !!e.invoiceMatchLineId || !!e._reconciled;
+        return isReconciled ? (
+          <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium text-green-700 bg-green-50 border-green-200">
+            Sim
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium text-amber-700 bg-amber-50 border-amber-200">
+            Não
+          </span>
+        );
+      },
+    },
   );
 
   // NFS-e column only for RECEIVABLE (we emit notes for clients)
