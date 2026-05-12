@@ -566,6 +566,59 @@ export class FinanceService {
     };
   }
 
+  /**
+   * v1.10.75 — Lista entries com mesmo valor (netCents) que ainda nao foram conciliadas.
+   * Usado no form de criacao pra alertar duplicacao em tempo real (on blur do campo Valor).
+   * Limitado a 10 resultados pra nao sobrecarregar UI quando ha valores recorrentes.
+   */
+  async findDuplicateValueEntries(
+    companyId: string,
+    netCents: number,
+    type: 'RECEIVABLE' | 'PAYABLE',
+  ) {
+    // Exclui entries ja conciliadas 1:1 com BankStatementLine
+    const matchedLines = await this.prisma.bankStatementLine.findMany({
+      where: { status: 'MATCHED', matchedEntryId: { not: null } },
+      select: { matchedEntryId: true },
+    });
+    const matchedIds = Array.from(new Set(
+      matchedLines.map((l) => l.matchedEntryId!).filter(Boolean),
+    ));
+
+    const where: any = {
+      companyId,
+      deletedAt: null,
+      status: { in: ['PAID', 'PENDING', 'CONFIRMED'] },
+      type,
+      netCents,
+      invoiceMatchLineId: null,
+    };
+    if (matchedIds.length > 0) {
+      where.id = { notIn: matchedIds };
+    }
+
+    const entries = await this.prisma.financialEntry.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }],
+      take: 10,
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        netCents: true,
+        paidAt: true,
+        dueDate: true,
+        cardBillingDate: true,
+        status: true,
+        partner: { select: { id: true, name: true } },
+        paymentInstrumentRef: { select: { name: true, cardLast4: true } },
+      },
+    });
+
+    const totalCount = await this.prisma.financialEntry.count({ where });
+    return { entries, total: totalCount };
+  }
+
   async findOneEntry(id: string, companyId: string) {
     const entry = await this.prisma.financialEntry.findFirst({
       where: { id, companyId, deletedAt: null },

@@ -10,6 +10,7 @@ import type { ColumnDefinition } from "@/lib/types/table";
 import LookupField from "@/components/ui/LookupField";
 import type { LookupFetcher, LookupFetcherResult } from "@/components/ui/SearchLookupModal";
 import CardLast4Input, { isCardPayment } from "@/components/ui/CardLast4Input";
+import { maskCurrency, parseCurrencyToCents } from "@/lib/brazil-utils";
 
 /* ── Partner Lookup (shared) ────────────────────────────── */
 
@@ -2120,6 +2121,27 @@ function CardInvoiceMatchModal({
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [matching, setMatching] = useState(false);
 
+  // v1.10.75 — Mini-modal "Novo lancamento" inline (sem fechar conciliacao)
+  const [showNewEntry, setShowNewEntry] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [newEntryForm, setNewEntryForm] = useState({
+    description: "",
+    grossCents: "",
+    notes: "",
+    financialAccountId: "",
+    paymentInstrumentId: "",
+    purchaseDate: "",
+  });
+  const [newEntryPartner, setNewEntryPartner] = useState<PartnerSummary | null>(null);
+  const [newEntryDuplicates, setNewEntryDuplicates] = useState<Array<{
+    id: string; code: string | null; description: string | null; netCents: number;
+    paidAt: string | null; dueDate: string | null; cardBillingDate: string | null;
+    partner: { id: string; name: string } | null;
+    paymentInstrumentRef: { name: string; cardLast4: string | null } | null;
+  }>>([]);
+  const [newEntryDuplicatesTotal, setNewEntryDuplicatesTotal] = useState(0);
+  const [newEntrySaving, setNewEntrySaving] = useState(false);
+
   // Load credit card instruments + plano de contas when modal opens
   useEffect(() => {
     if (!open) return;
@@ -2177,7 +2199,100 @@ function CardInvoiceMatchModal({
       .then((data) => setCandidates(data.entries || []))
       .catch(() => toast("Erro ao buscar compras", "error"))
       .finally(() => setLoadingCandidates(false));
-  }, [open, line, selectedCardIds, fromDate, toDate, toast]);
+  }, [open, line, selectedCardIds, fromDate, toDate, toast, refreshTick]);
+
+  // v1.10.75 — Pre-fill defaults quando abre mini-modal: usa o primeiro cartao selecionado
+  // e toDate como base, pra entry ja cair no candidate set apos save.
+  useEffect(() => {
+    if (!showNewEntry) return;
+    const firstCardId = Array.from(selectedCardIds)[0] || "";
+    setNewEntryForm((prev) => ({
+      ...prev,
+      paymentInstrumentId: prev.paymentInstrumentId || firstCardId,
+      purchaseDate: prev.purchaseDate || toDate || "",
+    }));
+  }, [showNewEntry, selectedCardIds, toDate]);
+
+  // v1.10.75 — Detecta duplicacao por valor (debounced 350ms apos onBlur/onChange)
+  useEffect(() => {
+    if (!showNewEntry) {
+      setNewEntryDuplicates([]);
+      setNewEntryDuplicatesTotal(0);
+      return;
+    }
+    const cents = parseCurrencyToCents(newEntryForm.grossCents);
+    if (!cents || cents <= 0) {
+      setNewEntryDuplicates([]);
+      setNewEntryDuplicatesTotal(0);
+      return;
+    }
+    const t = setTimeout(() => {
+      api.get<{ entries: typeof newEntryDuplicates; total: number }>(
+        `/finance/entries/duplicates?netCents=${cents}&type=PAYABLE`,
+      )
+        .then((data) => {
+          setNewEntryDuplicates(data.entries || []);
+          setNewEntryDuplicatesTotal(data.total || 0);
+        })
+        .catch(() => {
+          setNewEntryDuplicates([]);
+          setNewEntryDuplicatesTotal(0);
+        });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [showNewEntry, newEntryForm.grossCents]);
+
+  function resetNewEntryForm() {
+    setNewEntryForm({ description: "", grossCents: "", notes: "", financialAccountId: "", paymentInstrumentId: "", purchaseDate: "" });
+    setNewEntryPartner(null);
+    setNewEntryDuplicates([]);
+    setNewEntryDuplicatesTotal(0);
+  }
+
+  async function handleCreateNewEntry() {
+    if (!newEntryPartner) {
+      toast("Selecione um parceiro.", "error");
+      return;
+    }
+    const cents = parseCurrencyToCents(newEntryForm.grossCents);
+    if (!cents || cents <= 0) {
+      toast("Informe um valor valido.", "error");
+      return;
+    }
+    if (!newEntryForm.paymentInstrumentId) {
+      toast("Selecione o cartao.", "error");
+      return;
+    }
+    setNewEntrySaving(true);
+    try {
+      const created = await api.post<{ id: string }>("/finance/entries", {
+        type: "PAYABLE",
+        partnerId: newEntryPartner.id,
+        description: newEntryForm.description || undefined,
+        grossCents: cents,
+        // dueDate: usa purchaseDate como dueDate tambem (semantica de "compra retroativa")
+        dueDate: newEntryForm.purchaseDate || undefined,
+        notes: newEntryForm.notes || undefined,
+        financialAccountId: newEntryForm.financialAccountId || undefined,
+        paymentInstrumentId: newEntryForm.paymentInstrumentId,
+        purchaseDate: newEntryForm.purchaseDate || undefined,
+      });
+      toast("Lancamento criado!", "success");
+      setShowNewEntry(false);
+      resetNewEntryForm();
+      // Auto-seleciona o entry recem-criado e refaz a busca
+      setSelectedEntryIds((prev) => {
+        const next = new Set(prev);
+        next.add(created.id);
+        return next;
+      });
+      setRefreshTick((t) => t + 1);
+    } catch {
+      toast("Erro ao criar lancamento.", "error");
+    } finally {
+      setNewEntrySaving(false);
+    }
+  }
 
   if (!open || !line) return null;
 
@@ -2268,7 +2383,11 @@ function CardInvoiceMatchModal({
     }
   }
 
+  const selectedInstrument = instruments.find((i) => i.id === newEntryForm.paymentInstrumentId);
+  const newEntryCents = parseCurrencyToCents(newEntryForm.grossCents);
+
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl flex flex-col max-h-[90vh]">
         <div className="px-5 py-4 border-b border-slate-200">
@@ -2336,6 +2455,16 @@ function CardInvoiceMatchModal({
               />
             </div>
           </div>
+          {/* v1.10.75 — Botao "Novo lancamento" inline: cria entry sem fechar o modal de conciliacao.
+              Defaults inteligentes (cartao da fatura, data dentro do range) garantem que entry
+              aparece nos candidates apos save. */}
+          <button
+            type="button"
+            onClick={() => setShowNewEntry(true)}
+            className="w-full rounded-lg border-2 border-dashed border-rose-300 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 hover:border-rose-400 transition-colors"
+          >
+            + Novo lancamento (sem fechar essa tela)
+          </button>
         </div>
 
         {/* Lista de candidatos */}
@@ -2604,6 +2733,170 @@ function CardInvoiceMatchModal({
         </div>
       </div>
     </div>
+
+    {/* v1.10.75 — Mini-modal Novo Lancamento sobre o modal de conciliacao */}
+    {showNewEntry && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+          <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+            <h3 className="text-base font-semibold text-slate-900">Novo lancamento — A Pagar (cartao)</h3>
+            <button
+              onClick={() => { setShowNewEntry(false); resetNewEntryForm(); }}
+              className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+            >
+              &times;
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+            <LookupField
+              label="Parceiro *"
+              placeholder="Selecione um parceiro"
+              modalTitle="Buscar Parceiro"
+              modalPlaceholder="Nome ou documento..."
+              value={newEntryPartner}
+              displayValue={(p: PartnerSummary) => p.name}
+              onChange={(p: PartnerSummary | null) => setNewEntryPartner(p)}
+              fetcher={partnerFetcher}
+              keyExtractor={(p: PartnerSummary) => p.id}
+              required
+              renderItem={(p: PartnerSummary) => (
+                <div>
+                  <div className="font-medium text-slate-900">{p.name}</div>
+                  {p.document && <div className="text-xs text-slate-400 mt-0.5">{p.document}</div>}
+                </div>
+              )}
+            />
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Descricao</label>
+              <input
+                type="text"
+                value={newEntryForm.description}
+                onChange={(e) => setNewEntryForm({ ...newEntryForm, description: e.target.value })}
+                placeholder="Ex: NFe 1234, assinatura mensal, etc."
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Valor (R$) *</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">R$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={newEntryForm.grossCents}
+                  onChange={(e) => setNewEntryForm({ ...newEntryForm, grossCents: maskCurrency(e.target.value) })}
+                  placeholder="0,00"
+                  className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+                />
+              </div>
+              {/* v1.10.75 — Alerta de duplicacao por valor */}
+              {newEntryDuplicates.length > 0 && newEntryCents > 0 && (
+                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+                  <p className="text-[11px] font-semibold text-amber-900">
+                    &#9888; {newEntryDuplicatesTotal} lancamento(s) com R$ {(newEntryCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ja registrado(s) e nao conciliado(s):
+                  </p>
+                  <ul className="mt-1 space-y-0.5 text-[11px] text-amber-800">
+                    {newEntryDuplicates.slice(0, 5).map((d) => (
+                      <li key={d.id} className="flex items-baseline gap-1.5">
+                        <span className="font-mono text-amber-600">{d.code || "—"}</span>
+                        <span className="truncate">
+                          {d.partner?.name || d.description || "(sem descricao)"}
+                        </span>
+                        <span className="text-amber-600 whitespace-nowrap">
+                          {d.paidAt ? `pago ${formatDate(d.paidAt)}` : d.dueDate ? `venc ${formatDate(d.dueDate)}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                    {newEntryDuplicatesTotal > 5 && (
+                      <li className="text-amber-700 italic">+{newEntryDuplicatesTotal - 5} outros...</li>
+                    )}
+                  </ul>
+                  <p className="text-[10px] text-amber-700 mt-1">Conferir antes de salvar pode evitar duplicata.</p>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Cartao *</label>
+              <select
+                value={newEntryForm.paymentInstrumentId}
+                onChange={(e) => setNewEntryForm({ ...newEntryForm, paymentInstrumentId: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none bg-white"
+              >
+                <option value="">Selecione...</option>
+                {instruments.map((inst) => (
+                  <option key={inst.id} value={inst.id}>
+                    {inst.name}{inst.cardLast4 ? ` •••• ${inst.cardLast4}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Data da compra *
+              </label>
+              <input
+                type="date"
+                value={newEntryForm.purchaseDate}
+                onChange={(e) => setNewEntryForm({ ...newEntryForm, purchaseDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+              />
+              {selectedInstrument?.billingClosingDay && newEntryForm.purchaseDate && (() => {
+                const closingDay = selectedInstrument.billingClosingDay!;
+                const d = new Date(`${newEntryForm.purchaseDate}T12:00:00-03:00`);
+                const day = d.getDate();
+                const closing = day < closingDay
+                  ? new Date(d.getFullYear(), d.getMonth(), closingDay, 12)
+                  : new Date(d.getFullYear(), d.getMonth() + 1, closingDay, 12);
+                const fmt = (x: Date) => `${String(x.getDate()).padStart(2, "0")}/${String(x.getMonth() + 1).padStart(2, "0")}/${x.getFullYear()}`;
+                return (
+                  <p className="text-[11px] text-blue-700 mt-1">Cai na fatura com fechamento {fmt(closing)}</p>
+                );
+              })()}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
+              <select
+                value={newEntryForm.financialAccountId}
+                onChange={(e) => setNewEntryForm({ ...newEntryForm, financialAccountId: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none bg-white"
+              >
+                <option value="">Selecione...</option>
+                {financialAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Observacoes</label>
+              <textarea
+                value={newEntryForm.notes}
+                onChange={(e) => setNewEntryForm({ ...newEntryForm, notes: e.target.value })}
+                rows={2}
+                placeholder="Opcional..."
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none resize-none"
+              />
+            </div>
+          </div>
+          <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-end gap-2">
+            <button
+              onClick={() => { setShowNewEntry(false); resetNewEntryForm(); }}
+              disabled={newEntrySaving}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleCreateNewEntry}
+              disabled={newEntrySaving}
+              className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg disabled:opacity-50"
+            >
+              {newEntrySaving ? "Criando..." : "Criar lancamento"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

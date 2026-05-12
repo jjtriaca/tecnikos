@@ -1,7 +1,23 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.74 (em prod)
-## Ultima sessao: 193 (12/05/2026)
+## Versao: v1.10.75 (em prod)
+## Ultima sessao: 194 (12/05/2026)
+
+## v1.10.75 — Novo lancamento inline + detecao de duplicacao (modal de conciliacao)
+- **Pedido do Juliano**: ao conciliar fatura, se faltar um lancamento tem que fechar tela, ir em A Pagar, criar, voltar. Adicionar botao "Novo lancamento" no proprio modal de conciliacao + alerta de duplicacao por valor (na hora de digitar).
+- **Backend** ([finance.controller.ts:677](backend/src/finance/finance.controller.ts) + [finance.service.ts](backend/src/finance/finance.service.ts) `findDuplicateValueEntries`): novo endpoint `GET /finance/entries/duplicates?netCents=X&type=Y` retorna entries com mesmo valor que ainda nao foram conciliadas. Limitado a 10 com total separado pra UI mostrar "+N outros".
+- **Frontend** ([ReconciliationTab.tsx:CardInvoiceMatchModal](frontend/src/app/(dashboard)/finance/components/ReconciliationTab.tsx)):
+  - Botao "+ Novo lancamento (sem fechar essa tela)" logo abaixo dos campos De/Ate
+  - Mini-modal sobre o de conciliacao (z-60) — campos: parceiro, descricao, valor, cartao, data da compra, plano, observacoes
+  - Defaults inteligentes: cartao = primeiro selecionado na conciliacao; data da compra = toDate (joga na fatura corrente)
+  - Hint de ciclo de fatura abaixo da Data da compra (ja existia em createEntry — replicado aqui)
+  - Apos save: mini-modal fecha, candidates re-fetcham automaticamente (refreshTick), entry recem-criada vem auto-selecionada
+- **Detecao de duplicacao**: no `onChange` debounced (350ms) do campo Valor, chama o endpoint. Se houver matches, mostra card amarelo com:
+  - "⚠ N lancamento(s) com R$ X,XX ja registrado(s) e nao conciliado(s):"
+  - Lista 5 primeiros (code, parceiro, paidAt) + contador "+N outros"
+  - Nao bloqueia salvar — so alerta
+- **Reuso**: usa `LookupField` (parceiro) e `partnerFetcher` ja existentes em ReconciliationTab. POST pra mesmo endpoint `/finance/entries` do modal principal.
+- **Multi-tenant**: endpoint `/duplicates` filtra por `companyId`. Tenants sem cartao com closingDay nao mudam comportamento — botao continua disponivel mas mini-modal serve qualquer A Pagar.
 
 ## v1.10.74 — Barreiras anti-erro de cardBillingDate (criacao + conciliacao)
 - **Pedido do Juliano**: estudar barreiras pra erros de ciclo de fatura (FIN-00563 caiu na fatura errada mesmo digitando dueDate=29/03; v1.10.73 so fix de NFe).

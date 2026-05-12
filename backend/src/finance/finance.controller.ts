@@ -675,6 +675,24 @@ export class FinanceController {
     });
   }
 
+  /**
+   * v1.10.75 — Busca entries com mesmo valor que NAO estao conciliadas.
+   * Usado em forms de criacao pra alertar duplicacao em tempo real.
+   */
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('entries/duplicates')
+  findDuplicates(
+    @Query('netCents') netCents: string,
+    @Query('type') type: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const cents = parseInt(netCents, 10);
+    if (!cents || isNaN(cents) || (type !== 'RECEIVABLE' && type !== 'PAYABLE')) {
+      return { entries: [] };
+    }
+    return this.service.findDuplicateValueEntries(user.companyId, cents, type as 'RECEIVABLE' | 'PAYABLE');
+  }
+
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Post('entries/batch-pay')
   batchPay(
