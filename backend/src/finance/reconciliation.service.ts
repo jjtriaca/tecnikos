@@ -1151,11 +1151,17 @@ export class ReconciliationService {
       fromDate?: string;
       toDate?: string;
       includeAlreadyMatched?: boolean;
+      /**
+       * v1.10.74 — Quando true, retorna tambem entries com cardBillingDate ATE 40 dias APOS
+       * toDate (proxima fatura), marcadas com isFromNextCycle=true. Permite recovery
+       * pra erros de ±poucos dias no fechamento e backdated entries com cardBillingDate errado.
+       */
+      extendNextCycle?: boolean;
     },
   ) {
-    const { paymentInstrumentIds, fromDate, toDate, includeAlreadyMatched } = params;
+    const { paymentInstrumentIds, fromDate, toDate, includeAlreadyMatched, extendNextCycle } = params;
     if (!paymentInstrumentIds || paymentInstrumentIds.length === 0) {
-      return { entries: [], totalCents: 0 };
+      return { entries: [], totalCents: 0, totalNextCycleCents: 0 };
     }
 
     const where: Record<string, unknown> = {
@@ -1180,22 +1186,35 @@ export class ReconciliationService {
         where.id = { notIn: matchedIds };
       }
     }
-    if (fromDate || toDate) {
-      const range: Record<string, Date> = {};
-      if (fromDate) range.gte = new Date(`${fromDate}T00:00:00.000-03:00`);
-      if (toDate) range.lte = new Date(`${toDate}T23:59:59.999-03:00`);
+
+    // Range principal (fatura corrente) + range estendido (proxima fatura, opcional)
+    const mainRange: Record<string, Date> = {};
+    let nextCycleEnd: Date | null = null;
+    if (fromDate) mainRange.gte = new Date(`${fromDate}T00:00:00.000-03:00`);
+    if (toDate) {
+      mainRange.lte = new Date(`${toDate}T23:59:59.999-03:00`);
+      if (extendNextCycle) {
+        // Estende 40 dias apos toDate (cobre proxima fatura mesmo com closingDay alto)
+        nextCycleEnd = new Date(mainRange.lte.getTime() + 40 * 24 * 60 * 60 * 1000);
+      }
+    }
+
+    if (Object.keys(mainRange).length > 0) {
+      const effectiveRange = nextCycleEnd
+        ? { ...mainRange, lte: nextCycleEnd }
+        : mainRange;
       // Prefere cardBillingDate (ciclo de fatura do cartao, separado de paidAt).
       // Fallback pra paidAt/dueDate pra entries antigos que ainda nao tem cardBillingDate.
       where.OR = [
-        { cardBillingDate: range },
-        { AND: [{ cardBillingDate: null }, { paidAt: range }] },
-        { AND: [{ cardBillingDate: null }, { paidAt: null }, { dueDate: range }] },
+        { cardBillingDate: effectiveRange },
+        { AND: [{ cardBillingDate: null }, { paidAt: effectiveRange }] },
+        { AND: [{ cardBillingDate: null }, { paidAt: null }, { dueDate: effectiveRange }] },
       ];
     }
 
-    const entries = await this.prisma.financialEntry.findMany({
+    const rawEntries = await this.prisma.financialEntry.findMany({
       where,
-      orderBy: [{ paidAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ cardBillingDate: 'asc' }, { paidAt: 'asc' }, { createdAt: 'asc' }],
       select: {
         id: true,
         code: true,
@@ -1210,14 +1229,28 @@ export class ReconciliationService {
         invoiceMatchLineId: true,
         cashAccountId: true,
         financialAccountId: true,
+        cardBillingDate: true,
         partner: { select: { id: true, name: true } },
         paymentInstrumentRef: { select: { id: true, name: true, cardLast4: true } },
         financialAccount: { select: { id: true, name: true } },
       },
     });
 
-    const totalCents = entries.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
-    return { entries, totalCents };
+    // Marca cada entry como current ou nextCycle baseado em cardBillingDate vs mainRange.lte
+    const mainTo = mainRange.lte;
+    const entries = rawEntries.map((e) => {
+      const referenceDate = e.cardBillingDate || e.paidAt || e.dueDate;
+      const isFromNextCycle = !!(extendNextCycle && mainTo && referenceDate && referenceDate > mainTo);
+      return { ...e, isFromNextCycle };
+    });
+
+    const totalCents = entries
+      .filter((e) => !e.isFromNextCycle)
+      .reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+    const totalNextCycleCents = entries
+      .filter((e) => e.isFromNextCycle)
+      .reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+    return { entries, totalCents, totalNextCycleCents };
   }
 
   /**

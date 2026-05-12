@@ -1130,7 +1130,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const [showNewForm, setShowNewForm] = useState(false);
   const [receivedCardLast4, setReceivedCardLast4] = useState("");
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "" });
+  const [formData, setFormData] = useState({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "", purchaseDate: "" });
   const [selectedPartner, setSelectedPartner] = useState<PartnerSummary | null>(null);
   const [postableAccounts, setPostableAccounts] = useState<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>([]);
 
@@ -1515,10 +1515,13 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         paymentMethod: formData.paymentMethod || undefined,
         paymentInstrumentId: formData.paymentInstrumentId || undefined,
         receivedCardLast4: receivedCardLast4 && receivedCardLast4.length === 4 ? receivedCardLast4 : undefined,
+        // v1.10.74: purchaseDate explicito > dueDate (proxy comum) > undefined (backend usa today).
+        // Backend so usa esse valor se instrumento tem billingClosingDay; pra outros e ignorado.
+        purchaseDate: formData.purchaseDate || formData.dueDate || undefined,
       });
       toast("Entrada criada com sucesso!", "success");
       setShowNewForm(false);
-      setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "" });
+      setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "", purchaseDate: "" });
       setReceivedCardLast4("");
       setSelectedPartner(null);
       await loadEntries();
@@ -2412,6 +2415,47 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   </div>
                 );
               })()}
+              {/* v1.10.74: Data da compra (so pra cartao de credito com billingClosingDay).
+                  Override do auto-calc que usa today. Resolve bug "lancei agora mas compra foi mes passado". */}
+              {(() => {
+                const pi = allInstruments.find((i: any) => i.id === formData.paymentInstrumentId);
+                const closingDay = pi?.billingClosingDay;
+                const dueDay = pi?.billingDueDay;
+                if (!closingDay) return null;
+                // Default da Data da compra: usa dueDate do form se preenchido, senao today
+                const rawPurchase = formData.purchaseDate || formData.dueDate || new Date().toISOString().substring(0, 10);
+                const previewDate = rawPurchase ? new Date(`${rawPurchase}T12:00:00-03:00`) : null;
+                let faturaText = "";
+                if (previewDate && closingDay) {
+                  const day = previewDate.getDate();
+                  const closing = day < closingDay
+                    ? new Date(previewDate.getFullYear(), previewDate.getMonth(), closingDay, 12)
+                    : new Date(previewDate.getFullYear(), previewDate.getMonth() + 1, closingDay, 12);
+                  const dueDate = dueDay
+                    ? new Date(closing.getFullYear(), closing.getMonth() + 1, dueDay, 12)
+                    : null;
+                  const fmt = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+                  faturaText = dueDate
+                    ? `Fatura paga em ${fmt(dueDate)} (fechamento ${fmt(closing)})`
+                    : `Fechamento da fatura: ${fmt(closing)}`;
+                }
+                return (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Data da compra <span className="text-slate-400 font-normal">(cartão de crédito)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.purchaseDate || formData.dueDate || ""}
+                      onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                    {faturaText && (
+                      <p className="text-[11px] text-blue-700 mt-1">{faturaText}</p>
+                    )}
+                  </div>
+                );
+              })()}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
                 <select
@@ -2452,7 +2496,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               <button
                 onClick={() => {
                   setShowNewForm(false);
-                  setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "" });
+                  setFormData({ description: "", grossCents: "", dueDate: "", notes: "", financialAccountId: "", paymentMethod: "", paymentInstrumentId: "", purchaseDate: "" });
                   setSelectedPartner(null);
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"

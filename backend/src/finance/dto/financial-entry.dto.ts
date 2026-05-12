@@ -76,6 +76,17 @@ export class CreateFinancialEntryDto {
   @IsOptional()
   @Matches(/^\d{4}$/, { message: 'Ultimos 4 digitos devem ser 4 numeros.' })
   receivedCardLast4?: string;
+
+  /**
+   * v1.10.74 — Data REAL da transacao no cartao (compra), pra calcular cardBillingDate.
+   * Quando preenchida, override do auto-calc baseado em paidAt/issueDate. Usar pra:
+   *  - Lancamentos retroativos (gestor digita compra de meses atras)
+   *  - Faturas em que o fechamento caiu 1-2 dias antes/depois do esperado
+   * Se omitido, sistema mantem heuristica atual (NFe issueDate / today).
+   */
+  @IsOptional()
+  @IsDateString()
+  purchaseDate?: string;
 }
 
 export class UpdateFinancialEntryDto {

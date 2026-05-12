@@ -2086,7 +2086,10 @@ interface CardInvoiceEntry {
   paymentInstrumentId: string | null;
   invoiceMatchLineId: string | null;
   financialAccountId: string | null;
+  cardBillingDate?: string | null;
   isRefundEntry?: boolean;
+  /** v1.10.74 — true se essa entry tem cardBillingDate na proxima fatura (range estendido) */
+  isFromNextCycle?: boolean;
   partner: { id: string; name: string } | null;
   paymentInstrumentRef: { id: string; name: string; cardLast4: string | null } | null;
   financialAccount?: { id: string; name: string } | null;
@@ -2159,6 +2162,8 @@ function CardInvoiceMatchModal({
   }, [open, line, toast]);
 
   // Auto-load candidates when filter changes
+  // v1.10.74: extendNextCycle=true tras tambem compras da proxima fatura (recovery pra
+  // erros de fechamento ou cardBillingDate atrasado)
   useEffect(() => {
     if (!open || !line || selectedCardIds.size === 0 || !fromDate || !toDate) {
       setCandidates([]);
@@ -2166,8 +2171,8 @@ function CardInvoiceMatchModal({
     }
     setLoadingCandidates(true);
     const ids = Array.from(selectedCardIds).join(",");
-    api.get<{ entries: CardInvoiceEntry[]; totalCents: number }>(
-      `/finance/reconciliation/card-invoice-candidates?paymentInstrumentIds=${ids}&fromDate=${fromDate}&toDate=${toDate}`,
+    api.get<{ entries: CardInvoiceEntry[]; totalCents: number; totalNextCycleCents: number }>(
+      `/finance/reconciliation/card-invoice-candidates?paymentInstrumentIds=${ids}&fromDate=${fromDate}&toDate=${toDate}&extendNextCycle=true`,
     )
       .then((data) => setCandidates(data.entries || []))
       .catch(() => toast("Erro ao buscar compras", "error"))
@@ -2196,9 +2201,21 @@ function CardInvoiceMatchModal({
     setSelectedEntryIds(next);
   }
 
+  // v1.10.74: separa candidates por ciclo
+  const mainCandidates = candidates.filter((e) => !e.isFromNextCycle);
+  const nextCycleCandidates = candidates.filter((e) => e.isFromNextCycle);
+
   function selectAll() {
-    const available = candidates.filter((e) => !e.invoiceMatchLineId);
+    // So seleciona o ciclo principal por default — proxima fatura tem botao proprio
+    const available = mainCandidates.filter((e) => !e.invoiceMatchLineId);
     setSelectedEntryIds(new Set(available.map((e) => e.id)));
+  }
+
+  function selectAllNextCycle() {
+    const available = nextCycleCandidates.filter((e) => !e.invoiceMatchLineId);
+    const next = new Set(selectedEntryIds);
+    available.forEach((e) => next.add(e.id));
+    setSelectedEntryIds(next);
   }
 
   function clearAll() {
@@ -2324,7 +2341,7 @@ function CardInvoiceMatchModal({
         {/* Lista de candidatos */}
         <div className="flex-1 overflow-y-auto px-5 py-3">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-medium text-slate-600 uppercase">Compras no periodo ({candidates.length})</p>
+            <p className="text-[11px] font-medium text-slate-600 uppercase">Compras no periodo ({mainCandidates.length})</p>
             <div className="flex items-center gap-2">
               <button onClick={selectAll} className="text-[11px] text-rose-600 hover:text-rose-700 font-medium">Selecionar todas</button>
               <span className="text-slate-300">|</span>
@@ -2364,7 +2381,7 @@ function CardInvoiceMatchModal({
             </p>
           ) : (
             <div className="space-y-1">
-              {candidates.map((entry) => {
+              {mainCandidates.map((entry) => {
                 const amount = entry.netCents || entry.grossCents || 0;
                 const alreadyMatched = !!entry.invoiceMatchLineId;
                 const selected = selectedEntryIds.has(entry.id);
@@ -2433,6 +2450,101 @@ function CardInvoiceMatchModal({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* v1.10.74 Recovery — proxima fatura. Renderiza so se nao bate ainda E ha entries elegiveis.
+              Cobre erro de fechamento de poucos dias + cardBillingDate atrasado por backdating. */}
+          {!loadingCandidates && nextCycleCandidates.length > 0 && !matches && (
+            <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50/40">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-amber-200">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-amber-800 uppercase">
+                    ↳ Proxima fatura ({nextCycleCandidates.length})
+                  </p>
+                  <p className="text-[10px] text-amber-700 mt-0.5">
+                    Compras com ciclo na fatura seguinte. Marque as que pertencerem a esta fatura.
+                  </p>
+                </div>
+                <button
+                  onClick={selectAllNextCycle}
+                  className="text-[11px] font-medium text-amber-700 hover:text-amber-900 whitespace-nowrap"
+                >
+                  Selecionar todas
+                </button>
+              </div>
+              <div className="space-y-1 p-2">
+                {nextCycleCandidates.map((entry) => {
+                  const amount = entry.netCents || entry.grossCents || 0;
+                  const alreadyMatched = !!entry.invoiceMatchLineId;
+                  const selected = selectedEntryIds.has(entry.id);
+                  const isPending = entry.status === "PENDING" || entry.status === "CONFIRMED";
+                  const needsAccount = financialAccounts.length > 0 && !entry.isRefundEntry && !entry.financialAccountId && !accountAssignments[entry.id];
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`rounded-lg border transition-colors ${
+                        alreadyMatched
+                          ? "opacity-50 bg-slate-50 border-slate-200"
+                          : selected
+                          ? (needsAccount ? "bg-amber-100 border-amber-500" : "bg-amber-100 border-amber-400")
+                          : "bg-white border-amber-200 hover:bg-amber-50"
+                      }`}
+                    >
+                      <label className={`flex items-center gap-3 px-3 py-2 ${alreadyMatched ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          disabled={alreadyMatched}
+                          onChange={() => toggleEntry(entry.id)}
+                          className="w-4 h-4 accent-amber-600"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {entry.code && <span className="text-[10px] font-mono text-slate-400">{entry.code}</span>}
+                            <span className="text-sm font-medium text-slate-800 truncate">
+                              {entry.partner?.name || entry.description || "—"}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 font-semibold">
+                              fatura seguinte
+                            </span>
+                            {isPending && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">sera marcado como pago</span>
+                            )}
+                            {alreadyMatched && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 font-semibold">ja conciliado</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500 flex-wrap">
+                            {entry.cardBillingDate && <span>Ciclo: {formatDate(entry.cardBillingDate)}</span>}
+                            {entry.paidAt && <span>Pago: {formatDate(entry.paidAt)}</span>}
+                            {!entry.paidAt && entry.dueDate && <span>Vence: {formatDate(entry.dueDate)}</span>}
+                            {entry.paymentInstrumentRef && (
+                              <span>
+                                {entry.paymentInstrumentRef.name}
+                                {entry.paymentInstrumentRef.cardLast4 ? ` ••${entry.paymentInstrumentRef.cardLast4}` : ""}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-sm font-bold text-slate-700 tabular-nums">{formatCurrency(amount)}</span>
+                      </label>
+                      {selected && needsAccount && (
+                        <div className="px-3 pb-2 pl-10">
+                          <select
+                            value={accountAssignments[entry.id] || ""}
+                            onChange={(ev) => setAccountAssignments((prev) => ({ ...prev, [entry.id]: ev.target.value }))}
+                            className="w-full text-[11px] rounded border border-amber-400 bg-amber-50 px-2 py-1 focus:outline-none focus:ring-1 focus:border-amber-500 focus:ring-amber-500"
+                          >
+                            <option value="">Escolha o plano de contas...</option>
+                            {renderAccountOptions(financialAccounts)}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

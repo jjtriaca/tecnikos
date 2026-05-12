@@ -1,7 +1,27 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.73 (em prod)
-## Ultima sessao: 192 (12/05/2026)
+## Versao: v1.10.74 (em prod)
+## Ultima sessao: 193 (12/05/2026)
+
+## v1.10.74 — Barreiras anti-erro de cardBillingDate (criacao + conciliacao)
+- **Pedido do Juliano**: estudar barreiras pra erros de ciclo de fatura (FIN-00563 caiu na fatura errada mesmo digitando dueDate=29/03; v1.10.73 so fix de NFe).
+- **Solucao em duas frentes — preventiva (criacao) + corretiva (conciliacao)**:
+  1. **Preventiva** — campo "Data da compra" no modal de criacao de entry, aparece quando instrumento tem `billingClosingDay`:
+     - Default = dueDate (ou today se sem dueDate). User pode editar.
+     - Hint ao vivo: "Fatura paga em DD/MM/YYYY (fechamento DD/MM/YYYY)" — atualiza enquanto digita.
+     - Backend recebe `purchaseDate` no DTO ([financial-entry.dto.ts:77](backend/src/finance/dto/financial-entry.dto.ts)) e passa pra resolveAutoPay.
+     - Fallback de seguranca: se purchaseDate omitido, usa dueDate ([finance/page.tsx:1518](frontend/src/app/(dashboard)/finance/page.tsx#L1518)).
+  2. **Corretiva (recovery)** — secao "Proxima fatura" no modal de conciliacao de cartao:
+     - Backend ([reconciliation.service.ts:findCardInvoiceCandidates](backend/src/finance/reconciliation.service.ts)) novo param `extendNextCycle`: busca tambem entries com `cardBillingDate` ate ~40 dias apos toDate.
+     - Cada entry retorna com flag `isFromNextCycle: boolean`.
+     - Frontend ([ReconciliationTab.tsx:CardInvoiceMatchModal](frontend/src/app/(dashboard)/finance/components/ReconciliationTab.tsx)) renderiza secao colapsavel amarela "↳ Proxima fatura (N)" abaixo da lista principal — so aparece se diff > 0 (`!matches`).
+     - Botao "Selecionar todas" proprio na secao; cada item tem badge "fatura seguinte".
+- **Cenarios cobertos**:
+  - One-shot retroativo (FIN-00563 com dueDate=29/03 lancado em 12/05) → preventiva resolve no save.
+  - Compra dia 24 ou 26 (borda do fechamento) → recovery aparece se cair fora.
+  - cardBillingDate atrasado por backdating em prod → recovery resgata sem precisar backfill.
+- **Multi-tenant**: tudo herda de `PaymentInstrument.billingClosingDay`. Tenants sem cartao com closingDay nao veem mudanca. Tenants com N cartoes diferentes funcionam por instrumento.
+- **Sem backfill broad** — backfill so de FIN-00563 (UPDATE manual rodado antes do deploy).
 
 ## v1.10.73 — Fix cardBillingDate calculado em cima da data errada (NFe import)
 - **Bug reportado pelo Juliano**: FIN-00509 (Master Ueslei, R$ 509,94) aparecia como "Conciliado: Nao" mas nao aparecia nos candidates da fatura de 08/05/2026 que ele estava tentando conciliar.

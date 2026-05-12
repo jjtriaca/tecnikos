@@ -418,6 +418,7 @@ export class FinanceController {
     @Query('fromDate') fromDate: string | undefined,
     @Query('toDate') toDate: string | undefined,
     @Query('includeAlreadyMatched') includeAlreadyMatched: string | undefined,
+    @Query('extendNextCycle') extendNextCycle: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const ids = (paymentInstrumentIds || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -426,6 +427,7 @@ export class FinanceController {
       fromDate,
       toDate,
       includeAlreadyMatched: includeAlreadyMatched === 'true',
+      extendNextCycle: extendNextCycle === 'true',
     });
   }
 

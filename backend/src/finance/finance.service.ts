@@ -251,6 +251,8 @@ export class FinanceService {
 
     // v1.09.72: Usa helper unico resolveAutoPay — garante consistencia com todos os outros
     // fluxos do sistema (NFe, NFS-e, OS, renegociacao, etc.) que tambem criam entries.
+    // v1.10.74: Se user passou purchaseDate explicito (UI agora expoe pra cartao de credito),
+    // usa ele pra calcular cardBillingDate. Senao fallback comportamento atual (new Date()).
     const autoPay = await this.paymentInstrumentService.resolveAutoPay({
       companyId,
       paymentInstrumentId: data.paymentInstrumentId,
@@ -258,6 +260,7 @@ export class FinanceService {
       dtoCashAccountId: data.cashAccountId,
       type: data.type,
       netCents,
+      purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
     });
 
     // Transaction atomica: cria entry + aplica saldo juntos (IC-03)
