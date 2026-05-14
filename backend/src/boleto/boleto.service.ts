@@ -4,6 +4,7 @@ import { BoletoConfigService } from './boleto-config.service';
 import { BankProviderFactory } from './providers/bank-provider.factory';
 import { BoletoRegistrationRequest, BoletoWebhookEvent } from './providers/boleto-provider.interface';
 import { CreateBoletoDto, CreateBoletosForEntryDto, CancelBoletoDto } from './dto/create-boleto.dto';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 @Injectable()
 export class BoletoService {
@@ -123,7 +124,8 @@ export class BoletoService {
     const nossoNumero = await this.configService.getNextNossoNumero(companyId);
 
     const boleto = await this.prisma.boleto.create({
-      data: {
+      // withCreate injeta createdByUserId/Name/Via do userContext (v1.10.88+ tracking universal)
+      data: withCreate({
         companyId,
         boletoConfigId: config.id,
         financialEntryId: dto.financialEntryId || null,
@@ -153,7 +155,7 @@ export class BoletoService {
         instructions2: dto.instructions2 || config.defaultInstructions2,
         instructions3: dto.instructions3 || config.defaultInstructions3,
         status: 'DRAFT',
-      },
+      }),
     });
 
     // Registrar imediatamente se solicitado
@@ -241,7 +243,7 @@ export class BoletoService {
     // Marcar como registrando
     await this.prisma.boleto.update({
       where: { id: boletoId },
-      data: { status: 'REGISTERING' },
+      data: withUpdate({ status: 'REGISTERING' }),
     });
 
     const credentials = this.configService.getDecryptedCredentials(config);
@@ -280,7 +282,7 @@ export class BoletoService {
       if (result.success) {
         return this.prisma.boleto.update({
           where: { id: boletoId },
-          data: {
+          data: withUpdate({
             status: 'REGISTERED',
             bankProtocol: result.bankProtocol,
             nossoNumero: result.nossoNumero || boleto.nossoNumero,
@@ -291,26 +293,26 @@ export class BoletoService {
             bankResponse: result.rawResponse || undefined,
             registeredAt: new Date(),
             errorMessage: null,
-          },
+          }),
         });
       } else {
         return this.prisma.boleto.update({
           where: { id: boletoId },
-          data: {
+          data: withUpdate({
             status: 'REJECTED',
             errorMessage: result.errorMessage,
             bankResponse: result.rawResponse || undefined,
-          },
+          }),
         });
       }
     } catch (error) {
       this.logger.error(`Register boleto ${boletoId} failed`, error);
       await this.prisma.boleto.update({
         where: { id: boletoId },
-        data: {
+        data: withUpdate({
           status: 'REJECTED',
           errorMessage: error instanceof Error ? error.message : 'Erro desconhecido',
-        },
+        }),
       });
       throw error;
     }
@@ -328,7 +330,7 @@ export class BoletoService {
     if (boleto.status === 'DRAFT') {
       return this.prisma.boleto.update({
         where: { id: boletoId },
-        data: { status: 'CANCELLED', cancelledAt: new Date() },
+        data: withUpdate({ status: 'CANCELLED', cancelledAt: new Date() }),
       });
     }
 
@@ -348,7 +350,7 @@ export class BoletoService {
     if (result.success) {
       return this.prisma.boleto.update({
         where: { id: boletoId },
-        data: { status: 'CANCELLED', cancelledAt: new Date() },
+        data: withUpdate({ status: 'CANCELLED', cancelledAt: new Date() }),
       });
     }
 
@@ -385,7 +387,7 @@ export class BoletoService {
     if (Object.keys(updateData).length > 0) {
       const updated = await this.prisma.boleto.update({
         where: { id: boletoId },
-        data: updateData,
+        data: withUpdate(updateData),
       });
 
       // Se foi pago, reconciliar com financeiro
@@ -475,7 +477,7 @@ export class BoletoService {
     if (Object.keys(updateData).length > 0) {
       const updated = await this.prisma.boleto.update({
         where: { id: boleto.id },
-        data: updateData,
+        data: withUpdate(updateData),
       });
 
       if (event.eventType === 'PAID') {
@@ -494,11 +496,11 @@ export class BoletoService {
       if (boleto.installmentId) {
         await this.prisma.financialInstallment.update({
           where: { id: boleto.installmentId },
-          data: {
+          data: withUpdate({
             status: 'PAID',
             paidAt: boleto.paidAt || new Date(),
             paidAmountCents: boleto.paidAmountCents || boleto.amountCents,
-          },
+          }),
         });
 
         // Verificar se todas as parcelas do entry estao pagas
@@ -535,9 +537,9 @@ export class BoletoService {
       if (config?.cashAccountId && boleto.paidAmountCents) {
         await this.prisma.cashAccount.update({
           where: { id: config.cashAccountId },
-          data: {
+          data: withUpdate({
             currentBalanceCents: { increment: boleto.paidAmountCents },
-          },
+          }),
         });
       }
 

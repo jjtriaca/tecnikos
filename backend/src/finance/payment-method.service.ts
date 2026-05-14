@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-method.dto';
+import { withCreate, withUpdate, withDelete } from '../common/tracking/tracking.helpers';
 
 const DEFAULT_PAYMENT_METHODS = [
   { name: 'PIX', code: 'PIX', sortOrder: 1 },
@@ -55,7 +56,8 @@ export class PaymentMethodService {
     }
 
     return this.prisma.paymentMethod.create({
-      data: {
+      // withCreate injeta createdByUserId/Name/Via do userContext (v1.10.88+ tracking universal)
+      data: withCreate({
         companyId,
         name: dto.name,
         code: dto.code,
@@ -65,7 +67,7 @@ export class PaymentMethodService {
         requiresBrand: dto.requiresBrand ?? false,
         requiresCheckData: dto.requiresCheckData ?? false,
         sortOrder: dto.sortOrder ?? 0,
-      },
+      }),
     });
   }
 
@@ -91,7 +93,7 @@ export class PaymentMethodService {
 
     return this.prisma.paymentMethod.update({
       where: { id },
-      data: {
+      data: withUpdate({
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.code !== undefined && { code: dto.code }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
@@ -100,7 +102,7 @@ export class PaymentMethodService {
         ...(dto.requiresBrand !== undefined && { requiresBrand: dto.requiresBrand }),
         ...(dto.requiresCheckData !== undefined && { requiresCheckData: dto.requiresCheckData }),
         ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
-      },
+      }),
     });
   }
 
@@ -116,7 +118,8 @@ export class PaymentMethodService {
 
     return this.prisma.paymentMethod.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      // withDelete injeta deletedAt + deletedByUserId/Name (v1.10.88+ tracking universal)
+      data: withDelete(),
     });
   }
 
@@ -139,7 +142,7 @@ export class PaymentMethodService {
     }
 
     await this.prisma.paymentMethod.createMany({
-      data: toCreate.map((m) => ({
+      data: toCreate.map((m) => withCreate({
         companyId,
         name: m.name,
         code: m.code,

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransferDto } from './dto/transfer.dto';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 @Injectable()
 export class TransferService {
@@ -37,18 +38,19 @@ export class TransferService {
       // Decrement source
       await tx.cashAccount.update({
         where: { id: dto.fromAccountId },
-        data: { currentBalanceCents: { decrement: dto.amountCents } },
+        data: withUpdate({ currentBalanceCents: { decrement: dto.amountCents } }),
       });
 
       // Increment destination
       await tx.cashAccount.update({
         where: { id: dto.toAccountId },
-        data: { currentBalanceCents: { increment: dto.amountCents } },
+        data: withUpdate({ currentBalanceCents: { increment: dto.amountCents } }),
       });
 
       // Create transfer record
       const transfer = await tx.accountTransfer.create({
-        data: {
+        // withCreate complementa createdByUserId/Via/etc. — createdByName legado mantido.
+        data: withCreate({
           companyId,
           fromAccountId: dto.fromAccountId,
           toAccountId: dto.toAccountId,
@@ -56,7 +58,7 @@ export class TransferService {
           description: dto.description ?? null,
           transferDate: dto.transferDate ? new Date(dto.transferDate) : new Date(),
           createdByName,
-        },
+        }),
         include: {
           fromAccount: { select: { id: true, name: true, type: true } },
           toAccount: { select: { id: true, name: true, type: true } },

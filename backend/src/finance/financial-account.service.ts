@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFinancialAccountDto, UpdateFinancialAccountDto } from './dto/financial-account.dto';
+import { withCreate, withUpdate, withDelete } from '../common/tracking/tracking.helpers';
 
 const DEFAULT_ACCOUNTS = [
   // REVENUE
@@ -54,7 +55,8 @@ export class FinancialAccountService {
 
     for (const p of parents) {
       const created = await this.prisma.financialAccount.create({
-        data: {
+        // Seed do sistema — withCreate sem contexto user (seedDefaults roda no signup/onboarding).
+        data: withCreate({
           companyId,
           code: p.code,
           name: p.name,
@@ -63,7 +65,7 @@ export class FinancialAccountService {
           allowPosting: p.allowPosting,
           isSystem: p.isSystem,
           sortOrder: p.sortOrder,
-        },
+        }, { via: 'SYSTEM_SEED' }),
       });
       parentMap.set(p.code, created.id);
     }
@@ -73,7 +75,7 @@ export class FinancialAccountService {
     for (const c of children) {
       const parentId = parentMap.get(c.parentCode);
       await this.prisma.financialAccount.create({
-        data: {
+        data: withCreate({
           companyId,
           code: c.code,
           name: c.name,
@@ -83,7 +85,7 @@ export class FinancialAccountService {
           allowPosting: c.allowPosting,
           isSystem: c.isSystem,
           sortOrder: c.sortOrder,
-        },
+        }, { via: 'SYSTEM_SEED' }),
       });
     }
 
@@ -160,7 +162,7 @@ export class FinancialAccountService {
     }
 
     return this.prisma.financialAccount.create({
-      data: {
+      data: withCreate({
         companyId,
         code: dto.code,
         name: dto.name,
@@ -169,7 +171,7 @@ export class FinancialAccountService {
         level,
         allowPosting: level === 2, // Only subgroups allow posting
         sortOrder: dto.sortOrder || 0,
-      },
+      }),
     });
   }
 
@@ -184,7 +186,7 @@ export class FinancialAccountService {
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
     if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
 
-    return this.prisma.financialAccount.update({ where: { id }, data });
+    return this.prisma.financialAccount.update({ where: { id }, data: withUpdate(data) });
   }
 
   async delete(id: string, companyId: string) {
@@ -199,7 +201,8 @@ export class FinancialAccountService {
 
     return this.prisma.financialAccount.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      // withDelete injeta deletedAt + deletedByUserId/Name (v1.10.88+ tracking universal)
+      data: withDelete(),
     });
   }
 }

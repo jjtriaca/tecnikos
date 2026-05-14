@@ -12,6 +12,7 @@ import { NfeParserService } from './nfe-parser.service';
 import { PaymentInstrumentService } from '../finance/payment-instrument.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildSearchWhere } from '../common/util/build-search-where';
+import { withCreate } from '../common/tracking/tracking.helpers';
 
 /* ══════════════════════════════════════════════════════════════════════
    Types — DTO classes with class-validator decorators
@@ -793,14 +794,14 @@ export class NfeService {
         if (hasInstallments) {
           for (const inst of installments) {
             await tx.financialInstallment.create({
-              data: {
+              data: withCreate({
                 financialEntryId: financialEntry.id,
                 installmentNumber: inst.number,
                 dueDate: new Date(inst.dueDate),
                 amountCents: inst.valueCents,
                 totalCents: inst.valueCents,
                 status: 'PENDING',
-              },
+              }, { via: 'IMPORT_NFE_XML' }),
             });
           }
         }

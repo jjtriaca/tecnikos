@@ -1011,7 +1011,7 @@ export class FinanceService {
           if (cs.status === 'SETTLED' && cs.cashAccountId && cs.actualAmountCents) {
             await tx.cashAccount.update({
               where: { id: cs.cashAccountId },
-              data: { currentBalanceCents: { increment: -cs.actualAmountCents } },
+              data: withUpdate({ currentBalanceCents: { increment: -cs.actualAmountCents } }),
             });
             this.logger.log(`Cash account ${cs.cashAccountId} reversed by -${cs.actualAmountCents} for settled card ${cs.id}`);
           }
@@ -1041,7 +1041,7 @@ export class FinanceService {
           const deltaCents = entry.type === 'RECEIVABLE' ? -entry.netCents : entry.netCents;
           await tx.cashAccount.update({
             where: { id: entry.cashAccountId },
-            data: { currentBalanceCents: { increment: deltaCents } },
+            data: withUpdate({ currentBalanceCents: { increment: deltaCents } }),
           });
           this.logger.log(`Cash account ${entry.cashAccountId} reversed by ${deltaCents} cents for entry ${id}`);
         }
@@ -1125,7 +1125,7 @@ export class FinanceService {
           if (destAccountId) {
             await tx.cashAccount.update({
               where: { id: destAccountId },
-              data: { currentBalanceCents: { decrement: entry.netCents } },
+              data: withUpdate({ currentBalanceCents: { decrement: entry.netCents } }),
             });
             // Persiste o cashAccountId no entry (ja foi updated — aplica patch)
             if (entry.cashAccountId !== destAccountId) {
@@ -1141,7 +1141,7 @@ export class FinanceService {
           const deltaCents = entry.type === 'RECEIVABLE' ? entry.netCents : -entry.netCents;
           await tx.cashAccount.update({
             where: { id: dto.cashAccountId },
-            data: { currentBalanceCents: { increment: deltaCents } },
+            data: withUpdate({ currentBalanceCents: { increment: deltaCents } }),
           });
         }
       }
@@ -1213,7 +1213,7 @@ export class FinanceService {
             financialEntryId: id,
             status: { in: ['PENDING', 'OVERDUE'] },
           },
-          data: { status: 'RENEGOTIATED' },
+          data: withUpdate({ status: 'RENEGOTIATED' }),
         });
       }
 
@@ -1284,7 +1284,7 @@ export class FinanceService {
           const amountCents = i === count - 1 ? baseAmount + remainder : baseAmount;
 
           await tx.financialInstallment.create({
-            data: {
+            data: withCreate({
               financialEntryId: newEntry.id,
               installmentNumber: i + 1,
               dueDate,
@@ -1294,7 +1294,7 @@ export class FinanceService {
               discountCents: 0,
               totalCents: amountCents,
               status: 'PENDING',
-            },
+            }),
           });
         }
       }

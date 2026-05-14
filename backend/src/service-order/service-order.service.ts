@@ -13,6 +13,7 @@ import { UpdateServiceOrderDto } from './dto/update-service-order.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
 import { AuthenticatedUser } from '../auth/auth.types';
+import { withCreate } from '../common/tracking/tracking.helpers';
 
 /** Resolve technician commission based on flexible rules */
 function resolveCommission(params: {
@@ -1843,7 +1844,7 @@ export class ServiceOrderService {
             expectedDate.setDate(expectedDate.getDate() + (i + 1) * receivingDays);
 
             await tx.cardSettlement.create({
-              data: {
+              data: withCreate({
                 companyId,
                 financialEntryId: receivable.id,
                 paymentMethodCode: data.paymentMethod,
@@ -1857,7 +1858,7 @@ export class ServiceOrderService {
                 status: 'PENDING',
                 cardFeeRateId: data.cardFeeRateId,
                 notes: `Parcela ${i + 1}/${nParcelas} — OS: ${so.title}`,
-              },
+              }),
             });
           }
         }

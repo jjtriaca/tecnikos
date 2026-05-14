@@ -995,8 +995,19 @@ model FinancialInstallment {
   paidAt            DateTime?
   paidAmountCents   Int? // Valor efetivamente pago
   notes             String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   financialEntry FinancialEntry @relation(fields: [financialEntryId], references: [id])
   boletos        Boleto[]
@@ -1010,17 +1021,27 @@ model FinancialInstallment {
 // ========== Régua de Cobrança (v2.0) ==========
 
 model CollectionRule {
-  id              String    @id @default(uuid())
+  id              String  @id @default(uuid())
   companyId       String
   name            String // Ex: "Lembrete 3 dias antes", "Cobrança 1 dia após"
   daysAfterDue    Int // Negativo = antes do vencimento, positivo = depois
   actionType      String // WHATSAPP, EMAIL, STATUS_CHANGE, INTEREST_APPLY
   messageTemplate String? // {{partner_name}}, {{amount}}, {{due_date}}, {{days_overdue}}
-  isActive        Boolean   @default(true)
-  sortOrder       Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  isActive        Boolean @default(true)
+  sortOrder       Int     @default(0)
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -1039,6 +1060,16 @@ model CollectionExecution {
   message          String?
   error            String?
   executedAt       DateTime @default(now())
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
 
   @@index([companyId, executedAt])
   @@index([financialEntryId])
@@ -1456,19 +1487,29 @@ model WhatsAppMessage {
 // ========== Formas de Pagamento (v2.2) ==========
 
 model PaymentMethod {
-  id                String    @id @default(uuid())
+  id                String  @id @default(uuid())
   companyId         String
   name              String // "PIX", "Cartao Credito", "Cheque"
   code              String // Slug: "PIX", "CARTAO_CREDITO", "CHEQUE"
-  isActive          Boolean   @default(true)
+  isActive          Boolean @default(true)
   feePercent        Float? // Taxa % (ex: 2.5)
   receivingDays     Int? // Prazo de recebimento em dias
-  requiresBrand     Boolean   @default(false) // Exige bandeira (cartoes)
-  requiresCheckData Boolean   @default(false) // Exige dados do cheque
-  sortOrder         Int       @default(0)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  deletedAt         DateTime?
+  requiresBrand     Boolean @default(false) // Exige bandeira (cartoes)
+  requiresCheckData Boolean @default(false) // Exige dados do cheque
+  sortOrder         Int     @default(0)
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   company            Company             @relation(fields: [companyId], references: [id])
   financialEntries   FinancialEntry[]
@@ -1481,7 +1522,7 @@ model PaymentMethod {
 // ========== Instrumentos de Pagamento da Empresa (v1.01) ==========
 
 model PaymentInstrument {
-  id                String    @id @default(uuid())
+  id                String  @id @default(uuid())
   companyId         String
   paymentMethodId   String // FK -> PaymentMethod (tipo generico: PIX, Cartao, etc.)
   name              String // "Mastercard Final 9767", "PIX CNPJ", "Conta Bradesco"
@@ -1493,17 +1534,27 @@ model PaymentInstrument {
   billingClosingDay Int? // Dia do fechamento da fatura (1-31, cartoes)
   billingDueDay     Int? // Dia do vencimento da fatura (1-31, cartoes)
   // Direcao do uso — em qual tipo de lancamento este meio aparece (v1.08.100)
-  showInReceivables Boolean   @default(true) // aparece no dropdown de "A Receber"
-  showInPayables    Boolean   @default(true) // aparece no dropdown de "A Pagar"
+  showInReceivables Boolean @default(true) // aparece no dropdown de "A Receber"
+  showInPayables    Boolean @default(true) // aparece no dropdown de "A Pagar"
   // Comportamento ao lancar (v1.08.100)
-  autoMarkPaid      Boolean   @default(false) // Lancamento nasce como PAID (dinheiro/PIX instantaneo)
+  autoMarkPaid      Boolean @default(false) // Lancamento nasce como PAID (dinheiro/PIX instantaneo)
   feePercent        Float? // Taxa % padrao aplicada (shortcut — pra casos simples sem tela de Taxas de Cartao)
   receivingDays     Int? // Prazo de recebimento/compensacao em dias
-  isActive          Boolean   @default(true)
-  sortOrder         Int       @default(0)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  deletedAt         DateTime?
+  isActive          Boolean @default(true)
+  sortOrder         Int     @default(0)
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   company          Company                    @relation(fields: [companyId], references: [id])
   paymentMethod    PaymentMethod              @relation(fields: [paymentMethodId], references: [id])
@@ -1521,17 +1572,27 @@ model PaymentInstrument {
 // de "Taxas de Cartao" (CardFeeRate) pra quem quer tudo em 1 cadastro.
 
 model PaymentInstrumentFeeRate {
-  id                  String    @id @default(uuid())
+  id                  String @id @default(uuid())
   companyId           String
   paymentInstrumentId String
   installmentFrom     Int // 1 para avista, 2 para inicio de faixa "2 a 6x"
   installmentTo       Int // 1 para avista, 6 para fim de faixa "2 a 6x"
   feePercent          Float // Ex: 2.77
   receivingDays       Int? // D+N (dias ate o dinheiro cair no banco)
-  sortOrder           Int       @default(0)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  deletedAt           DateTime?
+  sortOrder           Int    @default(0)
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   company           Company           @relation(fields: [companyId], references: [id])
   paymentInstrument PaymentInstrument @relation(fields: [paymentInstrumentId], references: [id])
@@ -1562,9 +1623,19 @@ model CashAccount {
   showInReceivables   Boolean          @default(true) // Aparece em formas de recebimento
   showInPayables      Boolean          @default(true) // Aparece em formas de pagamento
   isActive            Boolean          @default(true)
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  deletedAt           DateTime?
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   company            Company             @relation(fields: [companyId], references: [id])
   transfersFrom      AccountTransfer[]   @relation("TransferFrom")
@@ -1591,7 +1662,19 @@ model AccountTransfer {
   description   String?
   transferDate  DateTime @default(now())
   createdByName String
-  createdAt     DateTime @default(now())
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  // NOTA: createdByName ja existe acima como NOT NULL (legado, mantido).
+  // createdByUserId adicionado nullable; demais campos seguem padrao.
+  createdByUserId String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 
   fromAccount CashAccount @relation("TransferFrom", fields: [fromAccountId], references: [id])
   toAccount   CashAccount @relation("TransferTo", fields: [toAccountId], references: [id])
@@ -1649,6 +1732,16 @@ model BankStatementImport {
   lineCount      Int      @default(0)
   matchedCount   Int      @default(0)
 
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   lines     BankStatementLine[]
   statement BankStatement?      @relation(fields: [statementId], references: [id])
 
@@ -1683,7 +1776,18 @@ model BankStatementLine {
   isCardInvoice        Boolean             @default(false) // Linha representa fatura de cartao com N entries vinculados
   // Conciliacao como transferencia entre contas (deposito em dinheiro, etc) (v1.09.44)
   transferMatchId      String? // FK para AccountTransfer criada via conciliacao
-  createdAt            DateTime            @default(now())
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime @default(now())
 
   import      BankStatementImport @relation(fields: [importId], references: [id])
   statement   BankStatement?      @relation(fields: [statementId], references: [id])
@@ -1908,8 +2012,19 @@ model CardSettlement {
   notes               String?
   cardFeeRateId       String?
   paymentInstrumentId String? // FK -> PaymentInstrument (facilita filtro por cartao)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   company           Company            @relation(fields: [companyId], references: [id])
   financialEntry    FinancialEntry     @relation(fields: [financialEntryId], references: [id])
@@ -1937,7 +2052,18 @@ model CardFeeRate {
   feePercent      Float // Taxa % (ex: 1.99)
   receivingDays   Int    @default(30) // Prazo de recebimento em dias
 
-  isActive  Boolean  @default(true)
+  isActive Boolean @default(true)
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1950,20 +2076,30 @@ model CardFeeRate {
 
 // ========== Plano de Contas (v1.01) ==========
 model FinancialAccount {
-  id           String    @id @default(uuid())
+  id           String  @id @default(uuid())
   companyId    String
   code         String // "1000", "5200", etc.
   name         String // "Receitas Operacionais", "Taxas de Cartão"
   type         String // REVENUE | EXPENSE | COST
   parentId     String? // null = grupo principal, preenchido = subgrupo
-  level        Int       @default(1) // 1 = grupo, 2 = subgrupo
-  allowPosting Boolean   @default(false) // true = pode receber lançamentos (só subgrupos)
-  isSystem     Boolean   @default(false) // true = criado pelo sistema, não pode deletar
-  isActive     Boolean   @default(true)
-  sortOrder    Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  level        Int     @default(1) // 1 = grupo, 2 = subgrupo
+  allowPosting Boolean @default(false) // true = pode receber lançamentos (só subgrupos)
+  isSystem     Boolean @default(false) // true = criado pelo sistema, não pode deletar
+  isActive     Boolean @default(true)
+  sortOrder    Int     @default(0)
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   company  Company            @relation(fields: [companyId], references: [id])
   parent   FinancialAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id])
@@ -2952,7 +3088,18 @@ model BoletoConfig {
   // Webhook
   webhookSecret String? // Secret para validacao de webhook (encrypted)
 
-  isActive  Boolean  @default(true)
+  isActive Boolean @default(true)
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -3024,6 +3171,16 @@ model Boleto {
   instructions1 String?
   instructions2 String?
   instructions3 String?
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3163,24 +3320,24 @@ model PoolCatalogConfig {
 // Template editavel de etapas (substitui aba Linear da planilha).
 // Tenant pode ter varios: "Piscina padrao", "Piscina + spa", "Piscina premium"
 model PoolBudgetTemplate {
-  id          String    @id @default(uuid())
-  companyId   String
-  name        String
-  description String?
-  isDefault   Boolean   @default(false)
+  id            String    @id @default(uuid())
+  companyId     String
+  name          String
+  description   String?
+  isDefault     Boolean   @default(false)
   // Estrutura legada (pre-snapshot): [{section, catalogConfigIds[], required, sortOrder}]
-  sections    Json
+  sections      Json
   // v1.10.43+: snapshot completo de items quando salvar-como-modelo a partir de um budget
   // [{poolSection, sortOrder, slotName, description, unit, qty, unitPriceCents, formulaExpr, isExtra}]
-  itemsSnapshot Json @default("[]")
+  itemsSnapshot Json      @default("[]")
   // v1.10.43+: defaults aplicaveis ao criar novo budget com este template
   // {taxesPercent, discountPercent, validityDays, equipmentWarranty, workWarranty,
   //  earlyPaymentDiscountPct, sectionOrder, paymentTermId}
-  defaults Json?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  defaults      Json?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
   company Company      @relation(fields: [companyId], references: [id])
   budgets PoolBudget[]
@@ -3228,8 +3385,8 @@ model PoolBudget {
   totalCents      Int    @default(0) // subtotal - desconto + impostos
 
   // Prazo (auto-calculado a partir dos items com unit h/dia)
-  startDate            DateTime?
-  endDate              DateTime?
+  startDate             DateTime?
+  endDate               DateTime?
   estimatedDurationDays Int? // dias corridos (8h/dia padrao)
 
   // Condicoes gerais da proposta
@@ -3300,13 +3457,13 @@ model PoolBudgetItem {
   // colisao com a etapa-card (poolSection) usamos `slotName`.
   slotName       String?
   description    String // Editavel sem mexer no cadastro
-  unit           String @default("UN")
+  unit           String  @default("UN")
   qtyCalculated  Float? // Calculada via formula (referencia)
-  qty            Float  @default(1) // O usado (default = qtyCalculated)
+  qty            Float   @default(1) // O usado (default = qtyCalculated)
   formulaExpr    String? // Expressao usada pra auto-calcular qty (vars: length, width, depth, area, perimeter, volume, dias)
   cellRef        String? // Endereco estavel da linha (L1, L2, ...) pra referenciar em formulas de outros items
-  unitPriceCents Int    @default(0)
-  totalCents     Int    @default(0)
+  unitPriceCents Int     @default(0)
+  totalCents     Int     @default(0)
 
   isAutoCalculated Boolean @default(true) // UI badge "auto" vs "editado"
   isExtra          Boolean @default(false) // Adicionado fora do template
@@ -3357,11 +3514,11 @@ model PoolBudgetItem {
 //   intervalDays = espacamento entre parcelas do bloco; firstOffsetDays = dias da startDate ate a 1a parcela.
 // Soma dos percents deve ser 100. Valor de cada parcela = total * percent/100 / count (ultima ajusta sobra).
 model PoolPaymentTerm {
-  id        String  @id @default(uuid())
+  id        String    @id @default(uuid())
   companyId String
-  name      String  // ex: "33% Entrada + 10x quinzenal"
-  isActive  Boolean @default(true)
-  isDefault Boolean @default(false) // marca padrao pra novos orcamentos
+  name      String // ex: "33% Entrada + 10x quinzenal"
+  isActive  Boolean   @default(true)
+  isDefault Boolean   @default(false) // marca padrao pra novos orcamentos
   structure Json
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
+import { withCreate, withUpdate, withDelete } from '../common/tracking/tracking.helpers';
 
 /**
  * Resultado da resolucao de auto-pay: dados prontos pra aplicar em FinancialEntry.create + ajuste de saldo.
@@ -184,7 +185,7 @@ export class PaymentInstrumentService {
     const client = tx ?? this.prisma;
     await client.cashAccount.update({
       where: { id: delta.accountId },
-      data: { currentBalanceCents: { increment: delta.cents } },
+      data: withUpdate({ currentBalanceCents: { increment: delta.cents } }),
     });
   }
 
@@ -223,7 +224,7 @@ export class PaymentInstrumentService {
       let cashAccountId: string | null = null;
       if (isCreditLocal && defaultShowInPayables && !defaultShowInReceivables) {
         const virtualAccount = await this.prisma.cashAccount.create({
-          data: {
+          data: withCreate({
             companyId,
             name: buildExclusiveAccountName(pm.name, true),
             type: 'CARTAO_CREDITO',
@@ -232,13 +233,13 @@ export class PaymentInstrumentService {
             showInReceivables: false,
             showInPayables: true,
             isActive: true,
-          },
+          }),
         });
         cashAccountId = virtualAccount.id;
       }
 
       await this.prisma.paymentInstrument.create({
-        data: {
+        data: withCreate({
           companyId,
           paymentMethodId: pm.id,
           name: pm.name,
@@ -254,7 +255,7 @@ export class PaymentInstrumentService {
           autoMarkPaid,
           feePercent: null,
           receivingDays: null,
-        },
+        }),
       });
     }
   }
@@ -282,7 +283,7 @@ export class PaymentInstrumentService {
       if (!pi.showInPayables || pi.showInReceivables) continue;
       if (pi.cashAccount && pi.cashAccount.type === 'CARTAO_CREDITO') continue;
       const virtualAccount = await this.prisma.cashAccount.create({
-        data: {
+        data: withCreate({
           companyId,
           name: buildExclusiveAccountName(pi.name, true),
           type: 'CARTAO_CREDITO',
@@ -291,11 +292,11 @@ export class PaymentInstrumentService {
           showInReceivables: false,
           showInPayables: true,
           isActive: pi.isActive,
-        },
+        }),
       });
       await this.prisma.paymentInstrument.update({
         where: { id: pi.id },
-        data: { cashAccountId: virtualAccount.id },
+        data: withUpdate({ cashAccountId: virtualAccount.id }),
       });
     }
   }
@@ -391,10 +392,10 @@ export class PaymentInstrumentService {
     if (!rate) throw new NotFoundException('Faixa de taxa não encontrada.');
     return this.prisma.paymentInstrumentFeeRate.update({
       where: { id: rateId },
-      data: {
+      data: withUpdate({
         ...(dto.feePercent !== undefined && { feePercent: dto.feePercent }),
         ...(dto.receivingDays !== undefined && { receivingDays: dto.receivingDays }),
-      },
+      }),
     });
   }
 
@@ -465,7 +466,7 @@ export class PaymentInstrumentService {
       } else {
         // Cria meio novo: recebimento, sem conta virtual (cartao de receber), sem auto-pay pra credito
         const created = await this.prisma.paymentInstrument.create({
-          data: {
+          data: withCreate({
             companyId,
             paymentMethodId,
             name: desiredName,
@@ -476,7 +477,7 @@ export class PaymentInstrumentService {
             autoMarkPaid: group.type === 'DEBITO', // debito sai no ato
             isActive: true,
             sortOrder: 0,
-          },
+          }),
         });
         instrumentId = created.id;
         instrumentsCreated++;
@@ -498,7 +499,7 @@ export class PaymentInstrumentService {
           continue;
         }
         await this.prisma.paymentInstrumentFeeRate.create({
-          data: {
+          data: withCreate({
             companyId,
             paymentInstrumentId: instrumentId,
             installmentFrom: rate.installmentFrom,
@@ -506,7 +507,7 @@ export class PaymentInstrumentService {
             feePercent: rate.feePercent,
             receivingDays: rate.receivingDays,
             sortOrder: rate.installmentFrom,
-          },
+          }),
         });
         ratesCreated++;
       }
@@ -564,7 +565,7 @@ export class PaymentInstrumentService {
 
     if (rates.length > 0) {
       await tx.paymentInstrumentFeeRate.createMany({
-        data: rates.map((r, idx) => ({
+        data: rates.map((r, idx) => withCreate({
           companyId,
           paymentInstrumentId,
           installmentFrom: r.installmentFrom,
@@ -613,7 +614,7 @@ export class PaymentInstrumentService {
     if (isCreditForPaymentOnly) {
       // Cartao de credito exclusivo pra pagar: sempre cria conta virtual propria
       const virtualAccount = await this.prisma.cashAccount.create({
-        data: {
+        data: withCreate({
           companyId,
           name: buildExclusiveAccountName(dto.name, true),
           type: 'CARTAO_CREDITO',
@@ -622,13 +623,13 @@ export class PaymentInstrumentService {
           showInReceivables: false,
           showInPayables: true,
           isActive: dto.isActive ?? true,
-        },
+        }),
       });
       effectiveCashAccountId = virtualAccount.id;
     } else if (dto.createExclusiveAccount) {
       // Outros tipos com flag marcada: cria CashAccount dedicada tipo BANCO (utilitario)
       const dedicatedAccount = await this.prisma.cashAccount.create({
-        data: {
+        data: withCreate({
           companyId,
           name: buildExclusiveAccountName(dto.name, false),
           type: 'BANCO',
@@ -638,7 +639,7 @@ export class PaymentInstrumentService {
           showInReceivables: dto.showInReceivables ?? true,
           showInPayables: dto.showInPayables ?? true,
           isActive: dto.isActive ?? true,
-        },
+        }),
       });
       effectiveCashAccountId = dedicatedAccount.id;
     } else if (dto.cashAccountId) {
@@ -650,7 +651,7 @@ export class PaymentInstrumentService {
     }
 
     const created = await this.prisma.paymentInstrument.create({
-      data: {
+      data: withCreate({
         companyId,
         paymentMethodId: dto.paymentMethodId,
         name: dto.name,
@@ -668,7 +669,7 @@ export class PaymentInstrumentService {
         autoMarkPaid: dto.autoMarkPaid ?? false,
         feePercent: dto.feePercent ?? null,
         receivingDays: dto.receivingDays ?? null,
-      },
+      }),
     });
 
     // Cria faixas de taxa se informadas (pode ser array vazio)
@@ -766,7 +767,7 @@ export class PaymentInstrumentService {
         if (virtAcc?.type === 'CARTAO_CREDITO') {
           await this.prisma.cashAccount.update({
             where: { id: pi.cashAccountId },
-            data: { deletedAt: new Date(), isActive: false },
+            data: withDelete({ isActive: false }),
           });
         }
       }
@@ -775,7 +776,7 @@ export class PaymentInstrumentService {
       // Virou credito-exclusivo-de-pagamento e ainda nao tem conta: cria virtual
       const newName = dto.name ?? pi.name;
       const virtualAccount = await this.prisma.cashAccount.create({
-        data: {
+        data: withCreate({
           companyId,
           name: buildExclusiveAccountName(newName, true),
           type: 'CARTAO_CREDITO',
@@ -784,7 +785,7 @@ export class PaymentInstrumentService {
           showInReceivables: false,
           showInPayables: true,
           isActive: dto.isActive ?? pi.isActive,
-        },
+        }),
       });
       effectiveCashAccountId = virtualAccount.id;
     } else if (willBeCreditForPaymentOnly && pi.cashAccountId) {
@@ -799,13 +800,13 @@ export class PaymentInstrumentService {
       if (Object.keys(updates).length > 0) {
         await this.prisma.cashAccount.update({
           where: { id: pi.cashAccountId },
-          data: updates,
+          data: withUpdate(updates) as any,
         });
       }
     } else if (!willBeCreditForPaymentOnly && dto.createExclusiveAccount && !pi.cashAccountId) {
       // Nao-credito sem conta ainda, mas pediu conta exclusiva agora: cria
       const dedicatedAccount = await this.prisma.cashAccount.create({
-        data: {
+        data: withCreate({
           companyId,
           name: buildExclusiveAccountName(dto.name ?? pi.name, false),
           type: 'BANCO',
@@ -815,7 +816,7 @@ export class PaymentInstrumentService {
           showInReceivables: dto.showInReceivables ?? pi.showInReceivables,
           showInPayables: dto.showInPayables ?? pi.showInPayables,
           isActive: dto.isActive ?? pi.isActive,
-        },
+        }),
       });
       effectiveCashAccountId = dedicatedAccount.id;
     } else if (dto.cashAccountId !== undefined) {
@@ -824,7 +825,7 @@ export class PaymentInstrumentService {
 
     await this.prisma.paymentInstrument.update({
       where: { id },
-      data: {
+      data: withUpdate({
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.paymentMethodId !== undefined && { paymentMethodId: dto.paymentMethodId }),
         ...(dto.cardLast4 !== undefined && { cardLast4: dto.cardLast4 || null }),
@@ -841,7 +842,7 @@ export class PaymentInstrumentService {
         ...(dto.autoMarkPaid !== undefined && { autoMarkPaid: dto.autoMarkPaid }),
         ...(dto.feePercent !== undefined && { feePercent: dto.feePercent }),
         ...(dto.receivingDays !== undefined && { receivingDays: dto.receivingDays }),
-      },
+      }),
     });
 
     // Substitui as faixas de taxa se informadas
@@ -876,13 +877,14 @@ export class PaymentInstrumentService {
     if (isCreditCardMethod(pi.paymentMethod?.code) && pi.cashAccountId) {
       await this.prisma.cashAccount.update({
         where: { id: pi.cashAccountId },
-        data: { deletedAt: new Date(), isActive: false },
+        data: withDelete({ isActive: false }),
       });
     }
 
     return this.prisma.paymentInstrument.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      // withDelete injeta deletedAt + deletedByUserId/Name (v1.10.88+ tracking universal)
+      data: withDelete(),
     });
   }
 }

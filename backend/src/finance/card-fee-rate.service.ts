@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCardFeeRateDto, UpdateCardFeeRateDto } from './dto/card-fee-rate.dto';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 @Injectable()
 export class CardFeeRateService {
@@ -35,7 +36,7 @@ export class CardFeeRateService {
     }
 
     return this.prisma.cardFeeRate.create({
-      data: {
+      data: withCreate({
         companyId,
         description: dto.description,
         brand: dto.brand,
@@ -44,7 +45,7 @@ export class CardFeeRateService {
         installmentTo: dto.installmentTo,
         feePercent: dto.feePercent,
         receivingDays: dto.receivingDays,
-      },
+      }),
     });
   }
 
@@ -55,7 +56,7 @@ export class CardFeeRateService {
 
     return this.prisma.cardFeeRate.update({
       where: { id },
-      data: { ...dto, updatedAt: new Date() },
+      data: withUpdate({ ...dto, updatedAt: new Date() }),
     });
   }
 

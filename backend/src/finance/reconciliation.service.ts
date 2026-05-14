@@ -10,6 +10,7 @@ import { CsvParserService } from './csv-parser.service';
 import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto, MatchAsTransferDto } from './dto/reconciliation.dto';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { breakInTenantTz, endOfTenantDay } from '../common/util/tenant-date.util';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 /**
  * Detecta paymentMethod pela descricao da linha do extrato bancario.
@@ -141,7 +142,8 @@ export class ReconciliationService {
 
       // 4. Create the audit import record
       const importRecord = await tx.bankStatementImport.create({
-        data: {
+        // withCreate injeta createdByUserId/Name/Via — origem do import via interceptor.
+        data: withCreate({
           companyId,
           cashAccountId,
           fileName,
@@ -149,7 +151,7 @@ export class ReconciliationService {
           importedByName,
           lineCount: newTxs.length,
           matchedCount: 0,
-        },
+        }, { via: fileType === 'OFX' ? 'IMPORT_OFX' : 'IMPORT_CSV' }),
       });
 
       // 5. For each period, find or create the BankStatement and insert lines
@@ -187,7 +189,7 @@ export class ReconciliationService {
 
         // Insert lines for this statement
         await tx.bankStatementLine.createMany({
-          data: txs.map((t) => ({
+          data: txs.map((t) => withCreate({
             importId: importRecord.id,
             statementId: statement!.id,
             cashAccountId,
@@ -198,7 +200,7 @@ export class ReconciliationService {
             checkNum: t.checkNum,
             refNum: t.refNum,
             status: 'UNMATCHED' as const,
-          })),
+          }, { via: fileType === 'OFX' ? 'IMPORT_OFX' : 'IMPORT_CSV' })),
         });
 
         // Saldo do OFX (LEDGERBAL) — grava apenas no statement que cobre a data DTASOF
@@ -236,7 +238,7 @@ export class ReconciliationService {
       if (primaryStatementId) {
         await tx.bankStatementImport.update({
           where: { id: importRecord.id },
-          data: { statementId: primaryStatementId },
+          data: withUpdate({ statementId: primaryStatementId }),
         });
       }
 
@@ -567,7 +569,7 @@ export class ReconciliationService {
     });
     await tx.bankStatementImport.update({
       where: { id: importId },
-      data: { matchedCount: importMatched },
+      data: withUpdate({ matchedCount: importMatched }),
     });
     if (statementId) {
       const [lineCount, matchedCount] = await Promise.all([
@@ -735,7 +737,7 @@ export class ReconciliationService {
       // 1. Atualiza a linha do extrato
       const updated = await tx.bankStatementLine.update({
         where: { id: lineId },
-        data: {
+        data: withUpdate({
           status: 'MATCHED',
           matchedEntryId: dto.entryId ?? null,
           matchedInstallmentId: dto.installmentId ?? null,
@@ -744,7 +746,7 @@ export class ReconciliationService {
           matchedLiquidCents: dto.liquidCents ?? null,
           matchedTaxCents: dto.taxCents ?? null,
           notes: dto.notes ?? null,
-        },
+        }),
       });
 
       await this.recalcCounts(tx, line.importId, line.statementId);
@@ -806,18 +808,18 @@ export class ReconciliationService {
             // Passo 1: receita entra na conta origem
             await tx.cashAccount.update({
               where: { id: sourceAccountId! },
-              data: {
+              data: withUpdate({
                 currentBalanceCents: entryBefore.type === 'RECEIVABLE'
                   ? { increment: entryGross }
                   : { decrement: entryGross },
-              },
+              }),
             });
 
             // Passo 2: cria AccountTransfer rastreavel
             const fromId = isCredit ? sourceAccountId! : bankAccountId;
             const toId = isCredit ? bankAccountId : sourceAccountId!;
             await tx.accountTransfer.create({
-              data: {
+              data: withCreate({
                 companyId,
                 fromAccountId: fromId,
                 toAccountId: toId,
@@ -825,22 +827,22 @@ export class ReconciliationService {
                 description: `Conciliacao - linha ${line.id.substring(0, 8)} (entry ${entryBefore.id.substring(0, 8)})`,
                 transferDate: line.transactionDate,
                 createdByName: matchedByName,
-              },
+              }),
             });
             await tx.cashAccount.update({
               where: { id: fromId },
-              data: { currentBalanceCents: { decrement: lineAbs } },
+              data: withUpdate({ currentBalanceCents: { decrement: lineAbs } }),
             });
             await tx.cashAccount.update({
               where: { id: toId },
-              data: { currentBalanceCents: { increment: lineAbs } },
+              data: withUpdate({ currentBalanceCents: { increment: lineAbs } }),
             });
           } else {
             // Fluxo legado (sem conta de transito): entry vai direto pro banco
             entryUpdate.cashAccountId = bankAccountId;
             await tx.cashAccount.update({
               where: { id: bankAccountId },
-              data: { currentBalanceCents: { increment: line.amountCents } },
+              data: withUpdate({ currentBalanceCents: { increment: line.amountCents } }),
             });
           }
 
@@ -875,7 +877,7 @@ export class ReconciliationService {
               // Fluxo novo: taxa decrementa saldo da conta origem
               await tx.cashAccount.update({
                 where: { id: taxAccountId },
-                data: { currentBalanceCents: { decrement: taxCents } },
+                data: withUpdate({ currentBalanceCents: { decrement: taxCents } }),
               });
             }
             // Fluxo legado: saldo do banco ja foi incrementado com line.amountCents (liquido),
@@ -901,7 +903,7 @@ export class ReconciliationService {
 
             // Criar AccountTransfer rastreavel (balance-compare depende disso)
             await tx.accountTransfer.create({
-              data: {
+              data: withCreate({
                 companyId,
                 fromAccountId: fromId,
                 toAccountId: toId,
@@ -909,17 +911,17 @@ export class ReconciliationService {
                 description: `Conciliacao - linha ${line.id.substring(0, 8)} (entry ${entryBefore.id.substring(0, 8)})`,
                 transferDate: line.transactionDate,
                 createdByName: matchedByName,
-              },
+              }),
             });
 
             // Ajustar saldos do transfer
             await tx.cashAccount.update({
               where: { id: fromId },
-              data: { currentBalanceCents: { decrement: transferAmount } },
+              data: withUpdate({ currentBalanceCents: { decrement: transferAmount } }),
             });
             await tx.cashAccount.update({
               where: { id: toId },
-              data: { currentBalanceCents: { increment: transferAmount } },
+              data: withUpdate({ currentBalanceCents: { increment: transferAmount } }),
             });
 
             // v1.09.94: NAO mover entry pro banco (preserva historico no VT).
@@ -948,7 +950,7 @@ export class ReconciliationService {
               });
               await tx.cashAccount.update({
                 where: { id: sourceAccountId! },
-                data: { currentBalanceCents: { decrement: autoTaxCents } },
+                data: withUpdate({ currentBalanceCents: { decrement: autoTaxCents } }),
               });
             }
           }
@@ -1081,7 +1083,7 @@ export class ReconciliationService {
       // Mark entry line MATCHED against receivable
       await tx.bankStatementLine.update({
         where: { id: entryLine.id },
-        data: {
+        data: withUpdate({
           status: 'MATCHED',
           matchedEntryId: receivable.id,
           matchedAt: new Date(),
@@ -1089,13 +1091,13 @@ export class ReconciliationService {
           refundPairLineId: exitLine.id,
           isRefund: true,
           notes: dto.notes || null,
-        },
+        }),
       });
 
       // Mark exit line MATCHED against payable
       await tx.bankStatementLine.update({
         where: { id: exitLine.id },
-        data: {
+        data: withUpdate({
           status: 'MATCHED',
           matchedEntryId: payable.id,
           matchedAt: new Date(),
@@ -1103,7 +1105,7 @@ export class ReconciliationService {
           refundPairLineId: entryLine.id,
           isRefund: true,
           notes: dto.notes || null,
-        },
+        }),
       });
 
       // Update matchedCount on both imports and statements
@@ -1441,7 +1443,7 @@ export class ReconciliationService {
           if (destAccountId) {
             await tx.cashAccount.update({
               where: { id: destAccountId },
-              data: { currentBalanceCents: { decrement: amount } },
+              data: withUpdate({ currentBalanceCents: { decrement: amount } }),
             });
             // entry tambem recebe a cashAccountId (pra refletir onde o dinheiro foi "contabilizado")
             if (!e.cashAccountId) entryUpdate.cashAccountId = destAccountId;
@@ -1464,7 +1466,7 @@ export class ReconciliationService {
       const bankAccountId = line.cashAccountId;
       for (const [cardAccountId, amount] of creditByAccount.entries()) {
         await tx.accountTransfer.create({
-          data: {
+          data: withCreate({
             companyId,
             fromAccountId: bankAccountId,
             toAccountId: cardAccountId,
@@ -1472,30 +1474,30 @@ export class ReconciliationService {
             description: `Fatura cartao — conciliacao linha ${line.id.substring(0, 8)}`,
             transferDate: line.transactionDate,
             createdByName: matchedByName,
-          },
+          }),
         });
       }
       // Atualiza saldos: debita banco, credita cada conta de cartao
       await tx.cashAccount.update({
         where: { id: bankAccountId },
-        data: { currentBalanceCents: { decrement: lineAbs } },
+        data: withUpdate({ currentBalanceCents: { decrement: lineAbs } }),
       });
       for (const [cardAccountId, amount] of creditByAccount.entries()) {
         await tx.cashAccount.update({
           where: { id: cardAccountId },
-          data: { currentBalanceCents: { increment: amount } },
+          data: withUpdate({ currentBalanceCents: { increment: amount } }),
         });
       }
 
       const updated = await tx.bankStatementLine.update({
         where: { id: lineId },
-        data: {
+        data: withUpdate({
           status: 'MATCHED',
           isCardInvoice: true,
           matchedAt: new Date(),
           matchedByName,
           notes: dto.notes ?? null,
-        },
+        }),
       });
       await this.recalcCounts(tx, line.importId, line.statementId);
       return { ...updated, entriesCount: dto.entryIds.length, entriesTotalCents: entriesTotal };
@@ -1673,7 +1675,7 @@ export class ReconciliationService {
       const bankDelta = expectedType === 'RECEIVABLE' ? lineAbs : -lineAbs;
       await tx.cashAccount.update({
         where: { id: line.cashAccountId },
-        data: { currentBalanceCents: { increment: bankDelta } },
+        data: withUpdate({ currentBalanceCents: { increment: bankDelta } }),
       });
 
       // 2) AccountTransfer rastreavel por origem (entries PAID em outra conta).
@@ -1688,7 +1690,7 @@ export class ReconciliationService {
         const fromId = liquid > 0 ? originAccountId : line.cashAccountId;
         const toId = liquid > 0 ? line.cashAccountId : originAccountId;
         await tx.accountTransfer.create({
-          data: {
+          data: withCreate({
             companyId,
             fromAccountId: fromId,
             toAccountId: toId,
@@ -1696,13 +1698,13 @@ export class ReconciliationService {
             description: `Conciliação multipla — linha ${line.id.substring(0, 8)}`,
             transferDate: line.transactionDate,
             createdByName: matchedByName,
-          },
+          }),
         });
         // Origem: liquid>0 => decrementa (saiu); liquid<0 => incrementa (entrou).
         // Banco: NAO mexer aqui — ja foi creditado em lineAbs no passo 1 (linha 1).
         await tx.cashAccount.update({
           where: { id: originAccountId },
-          data: { currentBalanceCents: { increment: -liquid } },
+          data: withUpdate({ currentBalanceCents: { increment: -liquid } }),
         });
       }
 
@@ -1720,23 +1722,23 @@ export class ReconciliationService {
               financialEntryId: { in: cardEntryIds },
               status: 'PENDING',
             },
-            data: {
+            data: withUpdate({
               status: 'CANCELLED',
               notes: `[${tsLog}] Cancelado automaticamente — taxa cartao tratada via match-multiple (linha ${line.id.substring(0, 8)})`,
-            },
+            }),
           });
         }
       }
 
       const updated = await tx.bankStatementLine.update({
         where: { id: lineId },
-        data: {
+        data: withUpdate({
           status: 'MATCHED',
           isCardInvoice: false,
           matchedAt: new Date(),
           matchedByName,
           notes: dto.notes ?? null,
-        },
+        }),
       });
       await this.recalcCounts(tx, line.importId, line.statementId);
       return { ...updated, entriesCount: dto.entryIds.length, entriesTotalCents: netSigned };
@@ -1808,7 +1810,7 @@ export class ReconciliationService {
     const result = await this.prisma.$transaction(async (tx) => {
       // 1. Cria a AccountTransfer
       const transfer = await tx.accountTransfer.create({
-        data: {
+        data: withCreate({
           companyId,
           fromAccountId,
           toAccountId,
@@ -1816,29 +1818,29 @@ export class ReconciliationService {
           description,
           transferDate: line.transactionDate,
           createdByName: matchedByName,
-        },
+        }),
       });
 
       // 2. Atualiza saldos das duas contas
       await tx.cashAccount.update({
         where: { id: fromAccountId },
-        data: { currentBalanceCents: { decrement: absAmount } },
+        data: withUpdate({ currentBalanceCents: { decrement: absAmount } }),
       });
       await tx.cashAccount.update({
         where: { id: toAccountId },
-        data: { currentBalanceCents: { increment: absAmount } },
+        data: withUpdate({ currentBalanceCents: { increment: absAmount } }),
       });
 
       // 3. Marca a linha como MATCHED vinculada a transferencia
       const updatedLine = await tx.bankStatementLine.update({
         where: { id: lineId },
-        data: {
+        data: withUpdate({
           status: 'MATCHED',
           transferMatchId: transfer.id,
           matchedAt: new Date(),
           matchedByName,
           notes: dto.notes ?? null,
-        },
+        }),
       });
 
       await this.recalcCounts(tx, line.importId, line.statementId);
@@ -1880,24 +1882,24 @@ export class ReconciliationService {
           // Reverte saldos: origem recupera, destino perde
           await tx.cashAccount.update({
             where: { id: transfer.fromAccountId },
-            data: { currentBalanceCents: { increment: transfer.amountCents } },
+            data: withUpdate({ currentBalanceCents: { increment: transfer.amountCents } }),
           });
           await tx.cashAccount.update({
             where: { id: transfer.toAccountId },
-            data: { currentBalanceCents: { decrement: transfer.amountCents } },
+            data: withUpdate({ currentBalanceCents: { decrement: transfer.amountCents } }),
           });
           // Deleta a transfer (FK ON DELETE SET NULL limpa transferMatchId na linha, mas reescrevemos abaixo)
           await tx.accountTransfer.delete({ where: { id: transfer.id } });
         }
         await tx.bankStatementLine.update({
           where: { id: lineId },
-          data: {
+          data: withUpdate({
             status: 'UNMATCHED',
             transferMatchId: null,
             matchedAt: null,
             matchedByName: null,
             notes: null,
-          },
+          }),
         });
         await this.recalcCounts(tx, line.importId, line.statementId);
       });
@@ -1948,7 +1950,7 @@ export class ReconciliationService {
         // 1. Reverte transferencia consolidada (banco += total, contas destino -= por entry)
         await tx.cashAccount.update({
           where: { id: line.cashAccountId },
-          data: { currentBalanceCents: { increment: lineAbs } },
+          data: withUpdate({ currentBalanceCents: { increment: lineAbs } }),
         });
         for (const e of groupEntries) {
           const amount = e.netCents || e.grossCents || 0;
@@ -1956,7 +1958,7 @@ export class ReconciliationService {
           if (destAccountId) {
             await tx.cashAccount.update({
               where: { id: destAccountId },
-              data: { currentBalanceCents: { decrement: amount } },
+              data: withUpdate({ currentBalanceCents: { decrement: amount } }),
             });
           }
         }
@@ -1970,7 +1972,7 @@ export class ReconciliationService {
           if (destAccountId) {
             await tx.cashAccount.update({
               where: { id: destAccountId },
-              data: { currentBalanceCents: { increment: amount } },
+              data: withUpdate({ currentBalanceCents: { increment: amount } }),
             });
           }
         }
@@ -1996,13 +1998,13 @@ export class ReconciliationService {
         }
         await tx.bankStatementLine.update({
           where: { id: lineId },
-          data: {
+          data: withUpdate({
             status: 'UNMATCHED',
             isCardInvoice: false,
             matchedAt: null,
             matchedByName: null,
             notes: null,
-          },
+          }),
         });
         await this.recalcCounts(tx, line.importId, line.statementId);
       });
@@ -2027,7 +2029,7 @@ export class ReconciliationService {
         const bankRevertDelta = direction === 'RECEIVABLE' ? -lineAbs : lineAbs;
         await tx.cashAccount.update({
           where: { id: line.cashAccountId },
-          data: { currentBalanceCents: { increment: bankRevertDelta } },
+          data: withUpdate({ currentBalanceCents: { increment: bankRevertDelta } }),
         });
 
         // 2) Reverter AccountTransfers criados pelo matchAsMultiple (entries PAID em outra conta).
@@ -2054,11 +2056,11 @@ export class ReconciliationService {
           //  - liquid<0 (banco -> origem): origem ganhou amount, retira -= amount
           await tx.cashAccount.update({
             where: { id: originId },
-            data: {
+            data: withUpdate({
               currentBalanceCents: isCredit
                 ? { increment: tr.amountCents }
                 : { decrement: tr.amountCents },
-            },
+            }),
           });
         }
         await tx.accountTransfer.deleteMany({
@@ -2109,12 +2111,12 @@ export class ReconciliationService {
         // 6) Linha volta UNMATCHED
         await tx.bankStatementLine.update({
           where: { id: lineId },
-          data: {
+          data: withUpdate({
             status: 'UNMATCHED',
             matchedAt: null,
             matchedByName: null,
             notes: null,
-          },
+          }),
         });
         await this.recalcCounts(tx, line.importId, line.statementId);
       });
@@ -2151,7 +2153,7 @@ export class ReconciliationService {
         // Reset both lines
         await tx.bankStatementLine.updateMany({
           where: { id: { in: [line.id, ...(pairLine ? [pairLine.id] : [])] } },
-          data: {
+          data: withUpdate({
             status: 'UNMATCHED',
             matchedEntryId: null,
             matchedInstallmentId: null,
@@ -2162,7 +2164,7 @@ export class ReconciliationService {
             refundPairLineId: null,
             isRefund: false,
             notes: null,
-          },
+          }),
         });
         // Update matchedCount on imports + statements
         const pairs = Array.from(new Set([
@@ -2214,11 +2216,11 @@ export class ReconciliationService {
         // 1) Reverter transfer
         await this.prisma.cashAccount.update({
           where: { id: autoTransfer.fromAccountId },
-          data: { currentBalanceCents: { increment: autoTransfer.amountCents } },
+          data: withUpdate({ currentBalanceCents: { increment: autoTransfer.amountCents } }),
         });
         await this.prisma.cashAccount.update({
           where: { id: autoTransfer.toAccountId },
-          data: { currentBalanceCents: { decrement: autoTransfer.amountCents } },
+          data: withUpdate({ currentBalanceCents: { decrement: autoTransfer.amountCents } }),
         });
         await this.prisma.accountTransfer.delete({ where: { id: autoTransfer.id } });
 
@@ -2226,11 +2228,11 @@ export class ReconciliationService {
         if (entry.cashAccountId && entry.grossCents > 0) {
           await this.prisma.cashAccount.update({
             where: { id: entry.cashAccountId },
-            data: {
+            data: withUpdate({
               currentBalanceCents: entry.type === 'RECEIVABLE'
                 ? { decrement: entry.grossCents }
                 : { increment: entry.grossCents },
-            },
+            }),
           });
         }
 
@@ -2238,7 +2240,7 @@ export class ReconciliationService {
         if (autoTaxEntry) {
           await this.prisma.cashAccount.update({
             where: { id: autoTaxEntry.cashAccountId! },
-            data: { currentBalanceCents: { increment: autoTaxEntry.netCents } },
+            data: withUpdate({ currentBalanceCents: { increment: autoTaxEntry.netCents } }),
           });
           await this.prisma.financialEntry.delete({ where: { id: autoTaxEntry.id } });
         }
@@ -2257,7 +2259,7 @@ export class ReconciliationService {
         // Reverter saldo do banco + deletar entry de taxa (criada no banco).
         await this.prisma.cashAccount.update({
           where: { id: bankAccountId },
-          data: { currentBalanceCents: { decrement: line.amountCents } },
+          data: withUpdate({ currentBalanceCents: { decrement: line.amountCents } }),
         });
 
         if (autoTaxEntry) {
@@ -2297,18 +2299,18 @@ export class ReconciliationService {
         // Reverter transfer e entry de taxa. NAO mover entry (pode ter ficado em VT ou no banco).
         await this.prisma.cashAccount.update({
           where: { id: autoTransfer.fromAccountId },
-          data: { currentBalanceCents: { increment: autoTransfer.amountCents } },
+          data: withUpdate({ currentBalanceCents: { increment: autoTransfer.amountCents } }),
         });
         await this.prisma.cashAccount.update({
           where: { id: autoTransfer.toAccountId },
-          data: { currentBalanceCents: { decrement: autoTransfer.amountCents } },
+          data: withUpdate({ currentBalanceCents: { decrement: autoTransfer.amountCents } }),
         });
         await this.prisma.accountTransfer.delete({ where: { id: autoTransfer.id } });
 
         if (autoTaxEntry) {
           await this.prisma.cashAccount.update({
             where: { id: autoTaxEntry.cashAccountId! },
-            data: { currentBalanceCents: { increment: autoTaxEntry.netCents } },
+            data: withUpdate({ currentBalanceCents: { increment: autoTaxEntry.netCents } }),
           });
           await this.prisma.financialEntry.delete({ where: { id: autoTaxEntry.id } });
         }
@@ -2337,20 +2339,20 @@ export class ReconciliationService {
           if (isCredit) {
             await this.prisma.cashAccount.update({
               where: { id: bankAccountId },
-              data: { currentBalanceCents: { decrement: transferAmount } },
+              data: withUpdate({ currentBalanceCents: { decrement: transferAmount } }),
             });
             await this.prisma.cashAccount.update({
               where: { id: transitAccount.id },
-              data: { currentBalanceCents: { increment: transferAmount } },
+              data: withUpdate({ currentBalanceCents: { increment: transferAmount } }),
             });
           } else {
             await this.prisma.cashAccount.update({
               where: { id: bankAccountId },
-              data: { currentBalanceCents: { increment: transferAmount } },
+              data: withUpdate({ currentBalanceCents: { increment: transferAmount } }),
             });
             await this.prisma.cashAccount.update({
               where: { id: transitAccount.id },
-              data: { currentBalanceCents: { decrement: transferAmount } },
+              data: withUpdate({ currentBalanceCents: { decrement: transferAmount } }),
             });
           }
           await this.prisma.financialEntry.update({
@@ -2363,7 +2365,7 @@ export class ReconciliationService {
 
     const updated = await this.prisma.bankStatementLine.update({
       where: { id: lineId },
-      data: {
+      data: withUpdate({
         status: 'UNMATCHED',
         matchedEntryId: null,
         matchedInstallmentId: null,
@@ -2372,7 +2374,7 @@ export class ReconciliationService {
         matchedLiquidCents: null,
         matchedTaxCents: null,
         notes: null,
-      },
+      }),
     });
 
     await this.recalcCounts(this.prisma, line.importId, line.statementId);
@@ -2396,7 +2398,7 @@ export class ReconciliationService {
     }
     const updated = await this.prisma.bankStatementLine.update({
       where: { id: lineId },
-      data: { status: 'UNMATCHED', notes: null },
+      data: withUpdate({ status: 'UNMATCHED', notes: null }),
     });
     await this.recalcCounts(this.prisma, line.importId, line.statementId);
     return updated;
@@ -2416,10 +2418,10 @@ export class ReconciliationService {
 
     const updated = await this.prisma.bankStatementLine.update({
       where: { id: lineId },
-      data: {
+      data: withUpdate({
         status: 'IGNORED',
         notes: notes ?? null,
-      },
+      }),
     });
     await this.recalcCounts(this.prisma, line.importId, line.statementId);
     return updated;

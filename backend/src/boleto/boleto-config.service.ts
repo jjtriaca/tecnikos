@@ -4,6 +4,7 @@ import { EncryptionService } from '../common/encryption.service';
 import { BankProviderFactory } from './providers/bank-provider.factory';
 import { SaveBoletoConfigDto } from './dto/save-boleto-config.dto';
 import { BoletoProviderCredentials } from './providers/boleto-provider.interface';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 const MASKED = '••••••••';
 const ENCRYPTED_FIELDS = ['clientId', 'clientSecret', 'apiKey', 'certificateBase64', 'certificatePassword', 'webhookSecret'];
@@ -49,8 +50,9 @@ export class BoletoConfigService {
 
     const config = await this.prisma.boletoConfig.upsert({
       where: { companyId },
-      create: { companyId, ...data },
-      update: data,
+      // withCreate/withUpdate injetam quem criou/alterou (v1.10.88+ tracking universal)
+      create: withCreate({ companyId, ...data }),
+      update: withUpdate(data),
     });
 
     return this.maskConfig(config);

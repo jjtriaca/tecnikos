@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { CreateCashAccountDto, UpdateCashAccountDto } from './dto/cash-account.dto';
+import { withCreate, withUpdate, withDelete } from '../common/tracking/tracking.helpers';
 
 @Injectable()
 export class CashAccountService {
@@ -53,7 +54,7 @@ export class CashAccountService {
     const initialBalance = dto.initialBalanceCents ?? 0;
     const code = await this.codeGenerator.generateCode(companyId, 'CASH_ACCOUNT');
     return this.prisma.cashAccount.create({
-      data: {
+      data: withCreate({
         companyId,
         code,
         name: dto.name,
@@ -69,7 +70,7 @@ export class CashAccountService {
         initialBalanceDate: dto.initialBalanceDate ? new Date(dto.initialBalanceDate) : null,
         currentBalanceCents: initialBalance,
         isActive: dto.isActive ?? true,
-      },
+      }),
     });
   }
 
@@ -97,7 +98,7 @@ export class CashAccountService {
 
     return this.prisma.cashAccount.update({
       where: { id },
-      data: {
+      data: withUpdate({
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.type !== undefined && { type: dto.type }),
         ...(dto.bankCode !== undefined && { bankCode: dto.bankCode }),
@@ -114,7 +115,7 @@ export class CashAccountService {
           initialBalanceDate: dto.initialBalanceDate ? new Date(dto.initialBalanceDate) : null,
         }),
         ...initialBalanceUpdate,
-      },
+      }),
     });
   }
 
@@ -130,7 +131,8 @@ export class CashAccountService {
 
     return this.prisma.cashAccount.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      // withDelete injeta deletedAt + deletedByUserId/Name (v1.10.88+ tracking universal)
+      data: withDelete(),
     });
   }
 
@@ -140,9 +142,9 @@ export class CashAccountService {
   async adjustBalance(id: string, deltaCents: number) {
     return this.prisma.cashAccount.update({
       where: { id },
-      data: {
+      data: withUpdate({
         currentBalanceCents: { increment: deltaCents },
-      },
+      }),
     });
   }
 
@@ -227,7 +229,7 @@ export class CashAccountService {
 
       await tx.cashAccount.update({
         where: { id: cashAccountId },
-        data: { currentBalanceCents: { increment: delta } },
+        data: withUpdate({ currentBalanceCents: { increment: delta } }),
       });
 
       const accountAfter = await tx.cashAccount.findUnique({

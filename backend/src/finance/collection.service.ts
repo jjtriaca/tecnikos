@@ -11,6 +11,7 @@ import {
   CreateCollectionRuleDto,
   UpdateCollectionRuleDto,
 } from './dto/collection-rule.dto';
+import { withCreate, withUpdate, withDelete } from '../common/tracking/tracking.helpers';
 
 @Injectable()
 export class CollectionService {
@@ -35,7 +36,7 @@ export class CollectionService {
    */
   async createRule(companyId: string, dto: CreateCollectionRuleDto) {
     return this.prisma.collectionRule.create({
-      data: {
+      data: withCreate({
         companyId,
         name: dto.name,
         daysAfterDue: dto.daysAfterDue,
@@ -43,7 +44,7 @@ export class CollectionService {
         messageTemplate: dto.messageTemplate ?? null,
         isActive: dto.isActive ?? true,
         sortOrder: dto.sortOrder ?? 0,
-      },
+      }),
     });
   }
 
@@ -65,7 +66,7 @@ export class CollectionService {
 
     return this.prisma.collectionRule.update({
       where: { id },
-      data: {
+      data: withUpdate({
         name: dto.name ?? rule.name,
         daysAfterDue: dto.daysAfterDue ?? rule.daysAfterDue,
         actionType: dto.actionType ?? rule.actionType,
@@ -75,7 +76,7 @@ export class CollectionService {
             : rule.messageTemplate,
         isActive: dto.isActive !== undefined ? dto.isActive : rule.isActive,
         sortOrder: dto.sortOrder ?? rule.sortOrder,
-      },
+      }),
     });
   }
 
@@ -93,7 +94,8 @@ export class CollectionService {
 
     return this.prisma.collectionRule.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      // withDelete injeta deletedAt + deletedByUserId/Name (v1.10.88+ tracking universal)
+      data: withDelete(),
     });
   }
 
@@ -216,7 +218,8 @@ export class CollectionService {
 
         // Record the execution
         await this.prisma.collectionExecution.create({
-          data: {
+          // Cron — registro de execucao automatica (collection.service @Cron processDaily).
+          data: withCreate({
             companyId,
             collectionRuleId: rule.id,
             financialEntryId: installment.financialEntry.id,
@@ -225,7 +228,7 @@ export class CollectionService {
             actionType: rule.actionType,
             message: executionResult.message,
             error: executionResult.error,
-          },
+          }, { via: 'CRON' }),
         });
 
         executed++;
@@ -270,7 +273,7 @@ export class CollectionService {
         case 'STATUS_CHANGE': {
           await this.prisma.financialInstallment.update({
             where: { id: installment.id },
-            data: { status: 'OVERDUE' },
+            data: withUpdate({ status: 'OVERDUE' }),
           });
           const msg = `Status da parcela ${installment.id} alterado para OVERDUE (${daysOverdue} dias apos vencimento)`;
           this.logger.log(msg);

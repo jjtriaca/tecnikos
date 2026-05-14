@@ -4,6 +4,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { SettleCardDto, BatchSettleCardDto } from './dto/card-settlement.dto';
 import { FinancialAccountService } from './financial-account.service';
 import { CardFeeRateService } from './card-fee-rate.service';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 @Injectable()
 export class CardSettlementService {
@@ -42,7 +43,7 @@ export class CardSettlementService {
       expectedDate.setDate(expectedDate.getDate() + (i + 1) * receivingDays);
 
       const settlement = await tx.cardSettlement.create({
-        data: {
+        data: withCreate({
           companyId: entry.companyId,
           financialEntryId: entry.id,
           paymentMethodCode: pm.code,
@@ -57,7 +58,7 @@ export class CardSettlementService {
           receivingDays: (i + 1) * receivingDays,
           status: 'PENDING',
           notes: nParcelas > 1 ? `Parcela ${i + 1}/${nParcelas}` : undefined,
-        },
+        }),
       });
       settlements.push(settlement);
     }
@@ -203,7 +204,7 @@ export class CardSettlementService {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.cardSettlement.update({
         where: { id },
-        data: {
+        data: withUpdate({
           status: 'SETTLED',
           settledAt: new Date(),
           actualAmountCents: dto.actualAmountCents,
@@ -214,7 +215,7 @@ export class CardSettlementService {
           cashAccountId: dto.cashAccountId,
           settledByName,
           notes: dto.notes,
-        },
+        }),
       });
 
       // Mover saldo da conta de origem (TRANSITO) pra conta destino (banco)
@@ -222,7 +223,7 @@ export class CardSettlementService {
       const sourceAccountId = cs.financialEntry?.cashAccountId;
       if (sourceAccountId && sourceAccountId !== dto.cashAccountId) {
         await tx.accountTransfer.create({
-          data: {
+          data: withCreate({
             companyId,
             fromAccountId: sourceAccountId,
             toAccountId: dto.cashAccountId,
@@ -230,17 +231,17 @@ export class CardSettlementService {
             description: `Baixa cartao — settlement ${id.substring(0, 8)}`,
             transferDate: new Date(),
             createdByName: settledByName,
-          },
+          }),
         });
         await tx.cashAccount.update({
           where: { id: sourceAccountId },
-          data: { currentBalanceCents: { decrement: dto.actualAmountCents } },
+          data: withUpdate({ currentBalanceCents: { decrement: dto.actualAmountCents } }),
         });
       }
       // Incrementa conta destino (banco)
       await tx.cashAccount.update({
         where: { id: dto.cashAccountId },
-        data: { currentBalanceCents: { increment: dto.actualAmountCents } },
+        data: withUpdate({ currentBalanceCents: { increment: dto.actualAmountCents } }),
       });
 
       // Auto-generate fee expense entry for DRE reporting
@@ -271,7 +272,7 @@ export class CardSettlementService {
 
         await tx.cardSettlement.update({
           where: { id: cs.id },
-          data: {
+          data: withUpdate({
             status: 'SETTLED',
             settledAt: new Date(),
             actualAmountCents: actualAmount,
@@ -279,7 +280,7 @@ export class CardSettlementService {
             cashAccountId: dto.cashAccountId,
             settledByName,
             notes: dto.notes,
-          },
+          }),
         });
 
         totalActual += actualAmount;
@@ -293,7 +294,7 @@ export class CardSettlementService {
       // Update cash account with total
       await tx.cashAccount.update({
         where: { id: dto.cashAccountId },
-        data: { currentBalanceCents: { increment: totalActual } },
+        data: withUpdate({ currentBalanceCents: { increment: totalActual } }),
       });
     });
 
@@ -350,7 +351,7 @@ export class CardSettlementService {
 
     return this.prisma.cardSettlement.update({
       where: { id },
-      data: { status: 'CANCELLED', notes },
+      data: withUpdate({ status: 'CANCELLED', notes }),
     });
   }
 }
