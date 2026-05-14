@@ -422,6 +422,14 @@ export class FinanceService {
           { cashAccountId: null },
           { cashAccountId: { in: validAccountIds } },
         ];
+        // v1.10.78: Exclui entries tecnicas de rebalance/ajuste do saldo. Essas entries foram
+        // criadas por script SQL pra fechar conferencia de saldo retroativa — saldo do banco ja
+        // contempla elas, conciliar com OFX line geraria double counting e quebraria meses fechados.
+        // Tag [REBALANCE_AJUSTE] e padrao nas notas. [NO_RECONCILE] reservado pra novos ajustes futuros.
+        where.AND = [
+          { notes: { not: { contains: '[REBALANCE_AJUSTE]' } } },
+          { notes: { not: { contains: '[NO_RECONCILE]' } } },
+        ];
       }
     }
 

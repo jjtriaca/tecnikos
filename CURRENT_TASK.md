@@ -1,7 +1,17 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.77 (em prod)
-## Ultima sessao: 196 (12/05/2026)
+## Versao: v1.10.78 (em prod)
+## Ultima sessao: 197 (14/05/2026)
+
+## v1.10.78 — Esconder entries de rebalance/ajuste dos candidates de conciliacao
+- **Bug reportado pelo Juliano**: FIN-00487 (R$ 296,30) e FIN-00488 (R$ 23,70) — entries criadas em SQL por sessao 182 (27/04/2026) pra rebalancear saldo SICREDI — apareciam como candidates no modal de "Conciliar Transacao". Conciliar elas geraria double-count e quebraria meses fechados.
+- **Causa**: nada distinguia entries tecnicas de rebalance das compras/recebimentos normais. O filtro `matchableForCashAccountId` so cruzava cashAccountId — ambas tem SICREDI como conta destino.
+- **Fix** ([finance.service.ts:425](backend/src/finance/finance.service.ts#L425)): adicionado AND no where do `findEntries` quando `matchableForCashAccountId` filtra: exclui entries com `[REBALANCE_AJUSTE]` ou `[NO_RECONCILE]` nas notes. Padrao de tag ja usado nos entries criados em sessao 182; `[NO_RECONCILE]` reservado pra ajustes futuros.
+- **Seguranca**: nao toca em dados. As entries continuam:
+  - Existindo (id, paidAt, cashAccountId intocados)
+  - Computando no saldo da SICREDI (status PAID)
+  - Aparecendo em DRE, relatorios, lista A Receber normal
+  - So somem do modal de conciliacao bancaria — o unico lugar onde conciliar seria perigoso
 
 ## v1.10.77 — Hotfix: permitir encargo sem cartao na conciliacao de fatura
 - **Bug v1.10.76**: ao tentar conciliar fatura com encargo da fatura toda (sem `paymentInstrumentId`), backend rejeitava: "Lancamento X nao tem instrumento de pagamento — nao pode compor fatura."
