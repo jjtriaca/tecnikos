@@ -3,6 +3,33 @@
 ## Versao: v1.10.81 (em prod)
 ## Ultima sessao: 200 (14/05/2026)
 
+## FEATURES PENDENTES (priorizadas)
+
+### [GRANDE] Tracking universal de "quem criou" cada lancamento
+- **Pedido do Juliano (14/05/2026, sessao 200)**: gravar em **TODO** lancamento do sistema qual usuario criou. Cobrir:
+  - **Financeiro**: FinancialEntry, FinancialInstallment, AccountTransfer (ja tem), CardSettlement, Boleto, BoletoConfig, CashAccount, FinancialAccount, PaymentMethod, PaymentInstrument, CardFeeRate, CollectionRule, BankStatementImport
+  - **OS**: ServiceOrder (ja tem), ServiceOrderItem, Quote/QuoteItem, Evaluation
+  - **Cadastros**: Partner, Product, Service, Specialization, Obra, ServiceAddress, User
+  - **Fiscal**: NfeImport, NfseEntrada, NfseEmission, FiscalPeriod, SefazDocument
+  - **Configuracoes**: Tudo de SaasConfig, BoletoConfig, NfseConfig, WhatsAppConfig, EmailConfig
+  - **Workflow/Automation**: WorkflowTemplate, AutomationRule
+  - **Modulo Piscina**: PoolBudget, PoolProject, PoolBudgetTemplate, PoolCatalogConfig, PoolPrintLayout
+- **Padrao a usar** (consistente com modelos existentes que ja tem):
+  - `createdByUserId String?` (FK pra User.id, pode ser null pra registros do sistema)
+  - `createdByName String?` (snapshot do nome no momento — sobrevive a deletes/renames de User)
+- **Escopo da implementacao** (estimativa 4-6h):
+  1. Migration: adicionar 2 colunas nullable em ~30 models (TenantMigrator sincroniza)
+  2. Backend: em cada `.create()`/`.upsert()` setar os campos (usar `user.id` e `user.name` do JWT)
+     - Idealmente: criar Prisma middleware/extension que injeta automaticamente quando contexto do user esta disponivel
+     - Fallback: tocar cada service manualmente
+  3. Frontend: tela de detalhe (`/finance/entries/[id]` e demais) renderiza "Criado por X em DD/MM/YYYY"
+  4. Audit: AuditLog ja tem actorName — manter, mas adicionar campo createdByName nas entidades complementa (auditLog so registra MUDANCAS, nao criacao em si pra entidades sem audit)
+- **Riscos**:
+  - Migration aditiva eh segura (NULLABLE, sem default change de logica)
+  - Captura de user no service depende do contexto — `@CurrentUser` ja existe nos controllers, propagar pra service
+  - NAO precisa backfill de dados antigos (ficam null, UI mostra "—" ou "Sistema")
+- **Quando implementar**: depois de fechar outras pendencias urgentes. Tarefa grande mas modular — da pra fazer por modulo (financeiro primeiro, depois OS, etc).
+
 ## v1.10.81 — Bug fix: NFS-e Entrada nao vinculava no link N:N + polimento detalhe
 - **Bug reportado pelo Juliano**: NFS-e numero 38 importada em /fiscal/nfse-entrada mas a tela de detalhe do FIN-00346 nao mostrava a NFS-e vinculada (parecia que tinha sido digitada manualmente). Tambem faltava a descricao do servico.
 - **Causa raiz** ([nfse-entrada.service.ts:754](backend/src/nfse-entrada/nfse-entrada.service.ts#L754)): no fluxo CREATE (importar NFS-e + criar FinancialEntry novo), apenas a FK 1:1 `NfseEntrada.financialEntryId` era setada — o link N:N `NfseEntradaEntryLink` (que o tela de detalhe usa) **nao era criado**. Apenas o modo LINK (vincular a entry existente) criava o link. Resultado: 11 NfseEntradas em SLS com FK 1:1 mas sem link N:N.
