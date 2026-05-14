@@ -2368,15 +2368,15 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
   {
     icon: '🔌',
     label: 'Quadro por soma de espacos',
-    description: 'Quadro que cabe a soma dos espacos (bifTrifConta) das linhas eletricas',
+    description: 'Quadro de distribuicao com numero de polos >= soma de bifTrifConta (espacos) dos equipamentos eletricos. Eh independente do tipo (Bif/Trif) — modulos de automacao podem ser Bif e ainda ocupar varios espacos.',
     rule: {
       filterCategoria: null,
       filterDescription: 'quadro distr',
-      where: 'polos >= sum("espacosQuadro")',
+      where: 'polos >= sum("bifTrifConta")',
       orderBy: 'polos asc',
       indicator: {
         label: 'Espacos usados',
-        expr: 'sum("espacosQuadro")',
+        expr: 'sum("bifTrifConta")',
         unit: '',
         levels: [
           { max: 999, label: 'OK', color: 'green' },

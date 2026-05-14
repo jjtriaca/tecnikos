@@ -271,6 +271,7 @@ interface ProductForm {
   specAmperagem: string;      // A (eletricos)
   specBifTrif: string;        // 'Bif' | 'Trif' | '' (tipo eletrico)
   specBifTrifConta: string;   // numero — quantos espacos ocupa no quadro de distribuicao
+  specTempoMontagemH: string; // horas — tempo padrao de montagem/instalacao do equipamento
 }
 
 const EMPTY_FORM: ProductForm = {
@@ -309,6 +310,7 @@ const EMPTY_FORM: ProductForm = {
   specAmperagem: "",
   specBifTrif: "",
   specBifTrifConta: "",
+  specTempoMontagemH: "",
 };
 
 function productToForm(p: Product): ProductForm {
@@ -348,6 +350,7 @@ function productToForm(p: Product): ProductForm {
     specAmperagem: numericSpecToStr(p.technicalSpecs?.amperagem),
     specBifTrif: typeof p.technicalSpecs?.bifTrif === 'string' ? p.technicalSpecs.bifTrif : "",
     specBifTrifConta: numericSpecToStr(p.technicalSpecs?.bifTrifConta),
+    specTempoMontagemH: numericSpecToStr(p.technicalSpecs?.tempoMontagemH),
   };
 }
 
@@ -378,6 +381,7 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("voltagem", f.specVoltagem);
   setOrUnset("amperagem", f.specAmperagem);
   setOrUnset("bifTrifConta", f.specBifTrifConta);
+  setOrUnset("tempoMontagemH", f.specTempoMontagemH);
   // bifTrif eh string (Bif/Trif/'') — nao usa setOrUnset que so trata numeros
   if (f.specBifTrif.trim() === "") {
     delete merged.bifTrif;
@@ -1534,6 +1538,26 @@ export default function ProductsPage() {
                       Preencha apenas os campos relevantes pro tipo de produto (filtro, bomba, aquecedor, kit SPA, cascata, etc).
                       Campos em branco nao sao usados.
                     </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">
+                      ⏱ Tempo de instalacao
+                    </h4>
+                    <div className="max-w-sm">
+                      <label className={labelClass}>Tempo padrao de montagem (horas)</label>
+                      <input
+                        type="number" step="0.5" min="0"
+                        value={form.specTempoMontagemH}
+                        onChange={(e) => setField("specTempoMontagemH", e.target.value)}
+                        placeholder="Ex: 4 (filtro pequeno), 10 (aquecedor grande)"
+                        className={inputClass}
+                      />
+                      <p className="mt-1 text-[11px] text-slate-600">
+                        Tempo padrao de montagem/instalacao desse equipamento. Usado pra calcular automaticamente o servico
+                        de montagem no orcamento de piscina. Equipamentos pequenos vs grandes podem ter tempos bem diferentes.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
