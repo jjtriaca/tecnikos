@@ -269,6 +269,8 @@ interface ProductForm {
   specPotenciaCv: string;     // CV (motores)
   specVoltagem: string;       // V (eletricos)
   specAmperagem: string;      // A (eletricos)
+  specBifTrif: string;        // 'Bif' | 'Trif' | '' (tipo eletrico)
+  specBifTrifConta: string;   // numero — quantos espacos ocupa no quadro de distribuicao
 }
 
 const EMPTY_FORM: ProductForm = {
@@ -305,6 +307,8 @@ const EMPTY_FORM: ProductForm = {
   specPotenciaCv: "",
   specVoltagem: "",
   specAmperagem: "",
+  specBifTrif: "",
+  specBifTrifConta: "",
 };
 
 function productToForm(p: Product): ProductForm {
@@ -342,6 +346,8 @@ function productToForm(p: Product): ProductForm {
     specPotenciaCv: numericSpecToStr(p.technicalSpecs?.potenciaCv),
     specVoltagem: numericSpecToStr(p.technicalSpecs?.voltagem),
     specAmperagem: numericSpecToStr(p.technicalSpecs?.amperagem),
+    specBifTrif: typeof p.technicalSpecs?.bifTrif === 'string' ? p.technicalSpecs.bifTrif : "",
+    specBifTrifConta: numericSpecToStr(p.technicalSpecs?.bifTrifConta),
   };
 }
 
@@ -371,6 +377,13 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("potenciaCv", f.specPotenciaCv);
   setOrUnset("voltagem", f.specVoltagem);
   setOrUnset("amperagem", f.specAmperagem);
+  setOrUnset("bifTrifConta", f.specBifTrifConta);
+  // bifTrif eh string (Bif/Trif/'') — nao usa setOrUnset que so trata numeros
+  if (f.specBifTrif.trim() === "") {
+    delete merged.bifTrif;
+  } else {
+    merged.bifTrif = f.specBifTrif.trim();
+  }
   return merged;
 }
 
@@ -1589,7 +1602,7 @@ export default function ProductsPage() {
                     <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">
                       ⚡ Eletrico — Bombas, Motores, Equipamentos
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div>
                         <label className={labelClass}>Potencia (CV)</label>
                         <input
@@ -1619,6 +1632,36 @@ export default function ProductsPage() {
                           placeholder="Ex: 5.1"
                           className={inputClass}
                         />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelClass}>Tipo eletrico</label>
+                        <select
+                          value={form.specBifTrif}
+                          onChange={(e) => setField("specBifTrif", e.target.value)}
+                          className={inputClass}
+                        >
+                          <option value="">— Nao se aplica —</option>
+                          <option value="Bif">Bifasico (220V — 2 fases)</option>
+                          <option value="Trif">Trifasico (220V/380V — 3 fases)</option>
+                        </select>
+                        <p className="mt-1 text-[11px] text-slate-600">
+                          Influencia disjuntor, quadro de distribuicao e fiacao.
+                        </p>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Espacos no quadro</label>
+                        <input
+                          type="number" step="1" min="0"
+                          value={form.specBifTrifConta}
+                          onChange={(e) => setField("specBifTrifConta", e.target.value)}
+                          placeholder="Ex: 2 (Bif) ou 3 (Trif)"
+                          className={inputClass}
+                        />
+                        <p className="mt-1 text-[11px] text-slate-600">
+                          Quantos modulos/espacos o disjuntor ou contactor desse equipamento ocupa no quadro. Usado pra dimensionar quadro automaticamente.
+                        </p>
                       </div>
                     </div>
                   </div>
