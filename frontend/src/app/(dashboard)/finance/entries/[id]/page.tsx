@@ -242,7 +242,7 @@ export default function FinanceEntryDetailPage() {
               {typeLabel} {entry.isInvoiceCharge && "· Encargo"}
             </p>
             <h1 className="text-2xl font-bold text-slate-900 mt-1">
-              <span className="font-mono text-slate-400 mr-2">{entry.code}</span>
+              <span className="font-mono text-slate-500 mr-2">{entry.code}</span>
               {entry.description || "(sem descricao)"}
             </h1>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -288,7 +288,7 @@ export default function FinanceEntryDetailPage() {
             {entry.partner ? (
               <span>
                 {entry.partner.name}
-                {entry.partner.document && <span className="text-slate-400 text-xs ml-1">({entry.partner.document})</span>}
+                {entry.partner.document && <span className="text-slate-600 text-xs ml-1">({entry.partner.document})</span>}
               </span>
             ) : "—"}
           </Field>
@@ -331,7 +331,7 @@ export default function FinanceEntryDetailPage() {
               <span>
                 {entry.paymentInstrumentRef.name}
                 {entry.paymentInstrumentRef.cardLast4 && (
-                  <span className="text-slate-400 ml-1">••{entry.paymentInstrumentRef.cardLast4}</span>
+                  <span className="text-slate-600 ml-1">••{entry.paymentInstrumentRef.cardLast4}</span>
                 )}
               </span>
             ) : "—"}
@@ -372,7 +372,7 @@ export default function FinanceEntryDetailPage() {
                     {nfeImport.nfeSeries && <span>Serie {nfeImport.nfeSeries} </span>}
                     · Emitida em {formatDate(nfeImport.issueDate)}
                   </p>
-                  <p className="text-[11px] text-slate-400 font-mono mt-1 break-all">{nfeImport.nfeKey}</p>
+                  <p className="text-[11px] text-slate-600 font-mono mt-1 break-all">{nfeImport.nfeKey}</p>
                 </div>
                 {/* v1.10.79: Prefere SefazDocument endpoint (mesmo usado em /nfe fiscal) — quando a NFe
                     veio da SEFAZ tem sefazDocumentId. Fallback pro endpoint do NfeImport (upload manual). */}
@@ -448,7 +448,7 @@ export default function FinanceEntryDetailPage() {
                     Nosso N° {b.nossoNumero} · {formatCurrency(b.amountCents)} · Venc. {formatDate(b.dueDate)} · Status: <strong>{b.status}</strong>
                   </p>
                   {b.linhaDigitavel && (
-                    <p className="text-[11px] font-mono text-slate-400 mt-1 break-all">{b.linhaDigitavel}</p>
+                    <p className="text-[11px] font-mono text-slate-600 mt-1 break-all">{b.linhaDigitavel}</p>
                   )}
                 </div>
                 {b.pdfUrl && (
@@ -474,15 +474,15 @@ export default function FinanceEntryDetailPage() {
                     <p className="text-xs font-semibold text-slate-700">NFS-e recebida (serviço tomado)</p>
                     <p className="text-xs text-slate-500 mt-1">
                       N° {ne.numero || "—"} · {ne.prestadorRazaoSocial || "—"}
-                      {ne.prestadorCnpjCpf && <span className="text-slate-400 ml-1">({ne.prestadorCnpjCpf})</span>}
+                      {ne.prestadorCnpjCpf && <span className="text-slate-600 ml-1">({ne.prestadorCnpjCpf})</span>}
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Emitida em {formatDate(ne.dataEmissao)}
                       {ne.competencia && <span> · Competencia {ne.competencia}</span>}
-                      {ne.layout && <span className="text-slate-400 ml-1">({ne.layout})</span>}
+                      {ne.layout && <span className="text-slate-600 ml-1">({ne.layout})</span>}
                     </p>
                     {ne.codigoVerificacao && (
-                      <p className="text-[11px] text-slate-400 font-mono mt-1">Cod. Verif.: {ne.codigoVerificacao}</p>
+                      <p className="text-[11px] text-slate-600 font-mono mt-1">Cod. Verif.: {ne.codigoVerificacao}</p>
                     )}
                   </div>
                   <a
@@ -596,7 +596,7 @@ export default function FinanceEntryDetailPage() {
         <Section title="Baixa de cartao">
           {entry.cardSettlements.map((s: any) => (
             <div key={s.id} className="text-xs mb-2 last:mb-0">
-              <span className="font-mono text-slate-400">{s.cardBrand || s.paymentMethodCode}</span> ·
+              <span className="font-mono text-slate-600">{s.cardBrand || s.paymentMethodCode}</span> ·
               Bruto {formatCurrency(s.grossCents)} · Taxa {formatCurrency(s.feeCents)} ·
               Liquido esperado {formatCurrency(s.expectedNetCents)} · Esperado {formatDate(s.expectedDate)} ·
               Status: <strong>{s.status}</strong>
@@ -655,7 +655,7 @@ export default function FinanceEntryDetailPage() {
               <li key={a.id} className="border-l-2 border-slate-200 pl-3">
                 <p className="text-slate-700">
                   <strong>{a.action}</strong> por {a.actorName || a.actorType}
-                  <span className="text-slate-400 ml-2">{formatDateTime(a.createdAt)}</span>
+                  <span className="text-slate-600 ml-2">{formatDateTime(a.createdAt)}</span>
                 </p>
                 {(a.before || a.after) && (
                   <details className="mt-1">

@@ -12,16 +12,13 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* App nao suporta dark mode — todas as Sections usam bg-white. Override do
+   @media prefers-color-scheme:dark deixava --foreground cinza claro (#ededed)
+   sobre fundo branco, tornando todo texto sem cor explicita ilegivel pra
+   usuarios com modo escuro do Windows ativo. Forcamos foreground escuro sempre. */
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: #ffffff;
+  color: #171717;
   font-family: Arial, Helvetica, sans-serif;
 }
 
