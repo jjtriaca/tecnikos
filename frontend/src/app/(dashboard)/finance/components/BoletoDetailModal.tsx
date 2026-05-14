@@ -64,7 +64,7 @@ export default function BoletoDetailModal({ boleto, onClose, onRefresh }: Props)
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `boleto-${boleto.nossoNúmero}.pdf`;
+      a.download = `boleto-${boleto.nossoNumero}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -138,7 +138,7 @@ export default function BoletoDetailModal({ boleto, onClose, onRefresh }: Props)
             </div>
             <div>
               <div className="text-xs text-slate-500">Nosso Número</div>
-              <div className="font-mono text-xs">{boleto.nossoNúmero}</div>
+              <div className="font-mono text-xs">{boleto.nossoNumero}</div>
             </div>
             {boleto.paidAmountCents && (
               <div>

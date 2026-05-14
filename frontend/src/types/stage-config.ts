@@ -40,7 +40,7 @@ export interface StageConfig {
 
   autoActions: {
     notifyGestor:   { enabled: boolean; channel: string; message: string };
-    notifyTécnico:  { enabled: boolean; channel: string; message: string; includeLink: boolean };
+    notifyTecnico:  { enabled: boolean; channel: string; message: string; includeLink: boolean };
     notifyCliente:  { enabled: boolean; channel: string; message: string };
     financialEntry: {
       enabled: boolean;
@@ -54,7 +54,7 @@ export interface StageConfig {
       enabled: boolean;
       reviewChecklist: string[];                    // itens que o gestor confere antes de aprovar
       onApprove: {
-        notifyTécnico: { enabled: boolean; channel: string; message: string };
+        notifyTecnico: { enabled: boolean; channel: string; message: string };
         notifyCliente: { enabled: boolean; channel: string; message: string };
       };
       onApproveWithReservations: {
@@ -66,13 +66,13 @@ export interface StageConfig {
           value: number;                            // % ou valor fixo a reduzir
         };
         flagOS: boolean;                            // marca a OS com flag de qualidade
-        notifyTécnico: { enabled: boolean; channel: string; message: string };
+        notifyTecnico: { enabled: boolean; channel: string; message: string };
         notifyCliente: { enabled: boolean; channel: string; message: string };
       };
       onReject: {
         action: string;          // 'reopen_execution' | 'return_assigned' | 'notify_only'
         requireReason: boolean;
-        notifyTécnico: { enabled: boolean; channel: string; message: string };
+        notifyTecnico: { enabled: boolean; channel: string; message: string };
         notifyCliente: { enabled: boolean; channel: string; message: string };
       };
     };
@@ -999,7 +999,7 @@ export const TECH_ACTION_LABELS: Record<string, { label: string; icon: string; h
 
 export const AUTO_ACTION_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
   notifyGestor:   { label: 'Notificar gestor',                 icon: '👔', hint: 'Dispara quando a OS entra nesta etapa. O gestor recebe aviso automático pelo canal configurado.' },
-  notifyTécnico:  { label: 'Notificar técnico',                icon: '👷', hint: 'Dispara quando a OS entra nesta etapa. O técnico recebe a mensagem pelo canal configurado.' },
+  notifyTecnico:  { label: 'Notificar técnico',                icon: '👷', hint: 'Dispara quando a OS entra nesta etapa. O técnico recebe a mensagem pelo canal configurado.' },
   notifyCliente:  { label: 'Notificar cliente',                icon: '👤', hint: 'Dispara quando a OS entra nesta etapa. O cliente da OS recebe a mensagem pelo canal configurado.' },
   financialEntry: { label: 'Lancar financeiro',                icon: '💰', hint: 'Gera lancamento financeiro (a receber, a pagar, comissao) automáticamente quando a OS chega nesta etapa.' },
   alert:          { label: 'Enviar alerta',                    icon: '🔔', hint: 'Cria notificacao visual no painel do gestor. Util para chamar atencao em etapas criticas.' },
@@ -1064,7 +1064,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
     },
     autoActions: {
       notifyGestor:   { enabled: false, channel: 'whatsapp', message: 'OS {titulo} entrou na etapa {status}. Cliente: {cliente}.' },
-      notifyTécnico:  { enabled: false, channel: 'whatsapp', message: 'Você foi atribuído à OS {titulo}. Cliente: {cliente}, Endereço: {endereco}.', includeLink: false },
+      notifyTecnico:  { enabled: false, channel: 'whatsapp', message: 'Você foi atribuído à OS {titulo}. Cliente: {cliente}, Endereço: {endereco}.', includeLink: false },
       notifyCliente:  { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, sua OS {titulo} foi atualizada para {status}.' },
       financialEntry: { enabled: false, entries: [] },
       alert:          { enabled: false, message: 'OS {titulo} mudou para {status}. Cliente: {cliente}.', severity: 'info' },
@@ -1075,7 +1075,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
         enabled: false,
         reviewChecklist: ['Verificar fotos do serviço', 'Conferir checklist do técnico', 'Revisar materiais utilizados'],
         onApprove: {
-          notifyTécnico: { enabled: true,  channel: 'whatsapp', message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
+          notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Seu serviço "{titulo}" foi finalizado com sucesso. Obrigado!' },
         },
         onApproveWithReservations: {
@@ -1083,13 +1083,13 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
           requireNote: true,
           commissionAdjustment: { enabled: false, type: 'reduce_percent', value: 10 },
           flagOS: true,
-          notifyTécnico: { enabled: true,  channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
+          notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi aprovado com ressalvas: {ressalvas}.' },
         },
         onReject: {
           action: 'reopen_execution',
           requireReason: true,
-          notifyTécnico: { enabled: true,  channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
+          notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, houve um problema com seu serviço {titulo}. Entraremos em contato.' },
         },
       },
@@ -1284,7 +1284,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
-      atrib.autoActions.notifyTécnico = { enabled: true, channel: 'whatsapp', message: 'Você foi atribuído à OS {titulo}. Endereço: {endereco}', includeLink: true };
+      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: 'Você foi atribuído à OS {titulo}. Endereço: {endereco}', includeLink: true };
       // A_CAMINHO
       const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
       caminho.enabled = true;
@@ -1336,7 +1336,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         enabled: true,
         reviewChecklist: ['Verificar fotos antes/depois', 'Conferir checklist de instalação', 'Revisar materiais utilizados', 'Verificar assinatura do cliente'],
         onApprove: {
-          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '✅ Instalação "{titulo}" aprovada! Comissão: {comissao}' },
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '✅ Instalação "{titulo}" aprovada! Comissão: {comissao}' },
           notifyCliente: { enabled: true, channel: 'whatsapp', message: 'Sua instalação "{titulo}" foi concluída e aprovada. Obrigado por escolher {empresa}!' },
         },
         onApproveWithReservations: {
@@ -1344,13 +1344,13 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           requireNote: true,
           commissionAdjustment: { enabled: true, type: 'reduce_percent', value: 10 },
           flagOS: true,
-          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Instalação "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 10%.' },
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Instalação "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 10%.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, sua instalação {titulo} foi aprovada com ressalvas: {ressalvas}.' },
         },
         onReject: {
           action: 'reopen_execution',
           requireReason: true,
-          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '❌ Instalação "{titulo}" reprovada. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '❌ Instalação "{titulo}" reprovada. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, houve um problema com sua instalação {titulo}. Entraremos em contato.' },
         },
       };
@@ -1373,7 +1373,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
-      atrib.autoActions.notifyTécnico = { enabled: true, channel: 'whatsapp', message: 'Nova manutenção: {titulo}. Local: {endereco}', includeLink: true };
+      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: 'Nova manutenção: {titulo}. Local: {endereco}', includeLink: true };
       // A_CAMINHO
       const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
       caminho.enabled = true;
@@ -1417,7 +1417,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         enabled: true,
         reviewChecklist: ['Verificar fotos do problema (antes)', 'Verificar foto do reparo (depois)', 'Conferir diagnóstico e materiais', 'Revisar custos'],
         onApprove: {
-          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '✅ Manutenção "{titulo}" aprovada!' },
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '✅ Manutenção "{titulo}" aprovada!' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, a manutenção {titulo} foi concluída com sucesso.' },
         },
         onApproveWithReservations: {
@@ -1425,13 +1425,13 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           requireNote: true,
           commissionAdjustment: { enabled: true, type: 'reduce_percent', value: 15 },
           flagOS: true,
-          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Manutenção "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 15%.' },
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Manutenção "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 15%.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, a manutenção {titulo} foi aprovada com ressalvas: {ressalvas}.' },
         },
         onReject: {
           action: 'reopen_execution',
           requireReason: true,
-          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '❌ Manutenção "{titulo}" reprovada. Motivo: {motivo_rejeicao}.' },
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '❌ Manutenção "{titulo}" reprovada. Motivo: {motivo_rejeicao}.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, houve um problema com a manutenção {titulo}. Entraremos em contato.' },
         },
       };
@@ -1455,7 +1455,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
-      atrib.autoActions.notifyTécnico = { enabled: true, channel: 'whatsapp', message: 'Vistoria agendada: {titulo}. Endereço: {endereco}', includeLink: true };
+      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: 'Vistoria agendada: {titulo}. Endereço: {endereco}', includeLink: true };
       // A_CAMINHO
       const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
       caminho.enabled = true;
@@ -1501,7 +1501,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
-      atrib.autoActions.notifyTécnico = { enabled: true, channel: 'whatsapp', message: '🚨 URGENTE: {titulo}. Comparecer imediatamente em {endereco}', includeLink: true };
+      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: '🚨 URGENTE: {titulo}. Comparecer imediatamente em {endereco}', includeLink: true };
       atrib.timeControl.waitFor = { enabled: true, timeoutMinutes: 15, triggerConditions: ['os_assigned'], targetStatus: '', timeoutAction: 'continue' };
       // EM_EXECUCAO
       const exec = c.stages.find(s => s.status === 'EM_EXECUCAO')!;
@@ -1725,10 +1725,10 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
           next: null,
         });
       }
-      if (stage.autoActions.notifyTécnico.enabled) {
+      if (stage.autoActions.notifyTecnico.enabled) {
         stageBlocks.push({
           id: genId('notify'), type: 'NOTIFY', name: 'Notificar técnico', icon: '👷',
-          config: { recipients: [{ type: 'TECNICO', enabled: true, channel: stage.autoActions.notifyTécnico.channel, message: stage.autoActions.notifyTécnico.message, includeLink: stage.autoActions.notifyTécnico.includeLink }] },
+          config: { recipients: [{ type: 'TECNICO', enabled: true, channel: stage.autoActions.notifyTecnico.channel, message: stage.autoActions.notifyTecnico.message, includeLink: stage.autoActions.notifyTecnico.includeLink }] },
           next: null,
         });
       }
@@ -2223,7 +2223,7 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
             // Also populate rich messageDispatch
             stage.autoActions.messageDispatch.toGestor = { enabled: true, channel: r.channel || 'whatsapp', message: r.message || '' };
           } else if (r.type === 'TECNICO') {
-            stage.autoActions.notifyTécnico = { enabled: true, channel: r.channel || 'whatsapp', message: r.message || '', includeLink: !!r.includeLink };
+            stage.autoActions.notifyTecnico = { enabled: true, channel: r.channel || 'whatsapp', message: r.message || '', includeLink: !!r.includeLink };
             // Also populate rich messageDispatch with link config
             stage.autoActions.messageDispatch.toTechnicians.enabled = true;
             stage.autoActions.messageDispatch.toTechnicians.channel = r.channel || 'whatsapp';
@@ -2501,7 +2501,7 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
         enabled: true,
         reviewChecklist: cfg.reviewChecklist || [],
         onApprove: cfg.onApprove || {
-          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi finalizado com sucesso. Obrigado!' },
         },
         onApproveWithReservations: cfg.onApproveWithReservations || {
@@ -2509,13 +2509,13 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
           requireNote: true,
           commissionAdjustment: { enabled: false, type: 'reduce_percent', value: 10 },
           flagOS: true,
-          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi aprovado com ressalvas: {ressalvas}.' },
         },
         onReject: cfg.onReject || {
           action: 'reopen_execution',
           requireReason: true,
-          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
+          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, houve um problema com seu serviço {titulo}. Entraremos em contato.' },
         },
       };

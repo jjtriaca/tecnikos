@@ -499,7 +499,7 @@ export default function FinancePage() {
 
   const visibleMainTabs = useMemo(() => {
     if (!sysConfig) return MAIN_TABS.filter((t) => t.id !== "cartoes");
-    const show = sysConfig.financial?.showBaixaCartões === true;
+    const show = sysConfig.financial?.showBaixaCartoes === true;
     return show ? MAIN_TABS : MAIN_TABS.filter((t) => t.id !== "cartoes");
   }, [sysConfig]);
 

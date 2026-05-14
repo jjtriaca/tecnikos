@@ -49,7 +49,7 @@ interface NfseConfig {
   focusNfeEnvironment: string;
   inscricaoMunicipal: string | null;
   codigoMunicipio: string | null;
-  naturezaOperação: string;
+  naturezaOperacao: string;
   regimeEspecialTributacao: string | null;
   optanteSimplesNacional: boolean;
   itemListaServico: string | null;
@@ -74,7 +74,7 @@ const EMPTY_CONFIG: NfseConfig = {
   focusNfeEnvironment: "HOMOLOGATION",
   inscricaoMunicipal: null,
   codigoMunicipio: null,
-  naturezaOperação: "1",
+  naturezaOperacao: "1",
   regimeEspecialTributacao: null,
   optanteSimplesNacional: false,
   itemListaServico: null,
@@ -125,7 +125,7 @@ const labelClass = "block text-xs font-medium text-slate-600 mb-1";
 function editableSnapshot(c: NfseConfig, t: string): string {
   return JSON.stringify([
     c.focusNfeEnvironment, c.inscricaoMunicipal, c.codigoMunicipio,
-    c.naturezaOperação, c.regimeEspecialTributacao, c.optanteSimplesNacional,
+    c.naturezaOperacao, c.regimeEspecialTributacao, c.optanteSimplesNacional,
     c.itemListaServico, c.codigoCnae, c.codigoTributarioMunicipio, c.codigoTributarioNacional, c.codigoTributarioNacionalServico,
     c.nfseLayout, c.aliquotaIss, c.autoEmitOnEntry, c.askOnFinishOS, c.receiveWithoutNfse,
     c.sendEmailToTomador, c.afterEmissionSendWhatsApp, c.rpsSeries, c.defaultDiscriminacao, t,
@@ -291,7 +291,7 @@ export default function FiscalSettingsPage() {
         focusNfeEnvironment: config.focusNfeEnvironment,
         inscricaoMunicipal: config.inscricaoMunicipal || undefined,
         codigoMunicipio: config.codigoMunicipio || undefined,
-        naturezaOperação: config.naturezaOperação,
+        naturezaOperacao: config.naturezaOperacao,
         regimeEspecialTributacao: config.regimeEspecialTributacao || undefined,
         optanteSimplesNacional: config.optanteSimplesNacional,
         itemListaServico: config.itemListaServico || undefined,
@@ -757,8 +757,8 @@ export default function FiscalSettingsPage() {
           <div>
             <label className={labelClass}>Natureza da Operação</label>
             <select
-              value={config.naturezaOperação}
-              onChange={(e) => setConfig({ ...config, naturezaOperação: e.target.value })}
+              value={config.naturezaOperacao}
+              onChange={(e) => setConfig({ ...config, naturezaOperacao: e.target.value })}
               className={inputClass}
             >
               {NATUREZA_OPTIONS.map((o) => (

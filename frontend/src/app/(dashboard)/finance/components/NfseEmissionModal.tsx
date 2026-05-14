@@ -171,10 +171,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [tomadorRazaoSocial, setTomadorRazaoSocial] = useState("");
   const [tomadorEmail, setTomadorEmail] = useState("");
   const [tomadorLogradouro, setTomadorLogradouro] = useState("");
-  const [tomadorNúmero, setTomadorNúmero] = useState("");
+  const [tomadorNumero, setTomadorNumero] = useState("");
   const [tomadorComplemento, setTomadorComplemento] = useState("");
   const [tomadorBairro, setTomadorBairro] = useState("");
-  const [tomadorCódigoMunicipio, setTomadorCódigoMunicipio] = useState("");
+  const [tomadorCodigoMunicipio, setTomadorCodigoMunicipio] = useState("");
   const [tomadorUf, setTomadorUf] = useState("");
   const [tomadorCep, setTomadorCep] = useState("");
   const [tomadorCaepf, setTomadorCaepf] = useState("");
@@ -257,10 +257,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       setTomadorRazaoSocial(data.tomador.razaoSocial);
       setTomadorEmail(data.tomador.email);
       setTomadorLogradouro(data.tomador.logradouro);
-      setTomadorNúmero(data.tomador.numero);
+      setTomadorNumero(data.tomador.numero);
       setTomadorComplemento(data.tomador.complemento);
       setTomadorBairro(data.tomador.bairro);
-      setTomadorCódigoMunicipio(data.tomador.codigoMunicipio);
+      setTomadorCodigoMunicipio(data.tomador.codigoMunicipio);
       setTomadorUf(data.tomador.uf);
       setTomadorCep(data.tomador.cep);
       setTomadorCaepf(data.tomador.caepf || "");
@@ -410,7 +410,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
     if (!tomadorBairro) { toast("Bairro do tomador e obrigatório.", "error"); return; }
     if (!tomadorUf) { toast("UF do tomador e obrigatoria.", "error"); return; }
     if (!tomadorCep) { toast("CEP do tomador e obrigatório.", "error"); return; }
-    if (!tomadorCódigoMunicipio) { toast("Código do municipio (IBGE) do tomador e obrigatório.", "error"); return; }
+    if (!tomadorCodigoMunicipio) { toast("Código do municipio (IBGE) do tomador e obrigatório.", "error"); return; }
     // Validacao de obra so aplica quando o user marcou tipoNota=OBRA. Em SERVICO
     // (padrao) o bloco de obra nem eh anexado, entao nao precisa exigir obra
     // mesmo quando o codigo eh 07.xx.
@@ -433,10 +433,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         tomadorRazaoSocial,
         tomadorEmail,
         tomadorLogradouro,
-        tomadorNúmero: tomadorNúmero || "S/N",
+        tomadorNumero: tomadorNumero || "S/N",
         tomadorComplemento,
         tomadorBairro,
-        tomadorCódigoMunicipio,
+        tomadorCodigoMunicipio,
         tomadorUf,
         tomadorCep,
         ...(tomadorCaepf ? { tomadorCaepf } : {}),
@@ -806,7 +806,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                     {/* Endereço do tomador */}
                     <div className="mt-3 pt-3 border-t border-slate-100">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Endereço</p>
-                      {(!tomadorLogradouro || !tomadorBairro || !tomadorUf || !tomadorCep || !tomadorCódigoMunicipio) && (
+                      {(!tomadorLogradouro || !tomadorBairro || !tomadorUf || !tomadorCep || !tomadorCodigoMunicipio) && (
                         <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700 mb-2">
                           Endereço incompleto — preencha todos os campos obrigatorios para emitir a NFS-e.
                         </div>
@@ -820,7 +820,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                         </div>
                         <div className="col-span-2">
                           <label className="block text-xs font-medium text-slate-600 mb-1">Número</label>
-                          <input type="text" value={tomadorNúmero} onChange={(e) => setTomadorNúmero(e.target.value)} placeholder="S/N"
+                          <input type="text" value={tomadorNumero} onChange={(e) => setTomadorNumero(e.target.value)} placeholder="S/N"
                             className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                         </div>
                         <div className="col-span-3">
@@ -847,7 +847,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                         </div>
                         <div className="col-span-3">
                           <label className="block text-xs font-medium text-slate-600 mb-1">Cod. Municipio IBGE *</label>
-                          <input type="text" value={tomadorCódigoMunicipio} onChange={(e) => setTomadorCódigoMunicipio(e.target.value)} placeholder="7 digitos"
+                          <input type="text" value={tomadorCodigoMunicipio} onChange={(e) => setTomadorCodigoMunicipio(e.target.value)} placeholder="7 digitos"
                             className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                         </div>
                       </div>

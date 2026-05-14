@@ -22,7 +22,7 @@ type SystemConfig = {
     autoGenerateReceivable: boolean;
     autoGeneratePayable: boolean;
     defaultDueDays: number;
-    showBaixaCartões: boolean;
+    showBaixaCartoes: boolean;
     lockAccountOnReceive: boolean;
     lockPlanOnReceive: boolean;
     autoReconciliation: boolean;
@@ -136,7 +136,7 @@ const SECTIONS: SectionConfig[] = [
       },
       {
         section: "financial",
-        key: "showBaixaCartões",
+        key: "showBaixaCartoes",
         label: "Exibir aba Baixa de Cartões",
         description: "Quando desligado, a baixa de cartoes e feita automaticamente pela conciliacao bancaria (importacao OFX/CSV). Ligue apenas se nao utiliza conciliacao por importacao.",
         type: "toggle",
