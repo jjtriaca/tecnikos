@@ -196,6 +196,23 @@ function fmtCurrency(c: number) {
   return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+// Formata valor do indicador de eficiencia da auto-selecao.
+// Pra unit='h' converte decimal em "Xh Ymin" (ex: 3.67 -> "3h 40min"). Outras
+// unidades (kcal/m³h, A, mm, etc) usam decimal padrao com 2 casas.
+function formatIndicatorValue(value: number | null | undefined, unit: string | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  const u = (unit || '').toLowerCase().trim();
+  if (u === 'h' && value > 0) {
+    const hours = Math.floor(value);
+    const minutes = Math.round((value - hours) * 60);
+    if (hours === 0) return `${minutes}min`;
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${minutes}min`;
+  }
+  const formatted = value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return unit ? `${formatted} ${unit}` : formatted;
+}
+
 // ─────────────────────────────────────────────────────────
 // useColumnWidths — persiste larguras das colunas em localStorage por usuario.
 // Aceita defaults inicialmente; substitui pelos persistidos quando montar.
@@ -980,6 +997,30 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         )}
         {item.isAutoCalculated && <span className="ml-2 text-[10px] text-cyan-600">auto</span>}
         {item.isExtra && <span className="ml-2 text-[10px] text-orange-600">extra</span>}
+        {/* Faixa de eficiencia da auto-selecao do produto. Recalcula automaticamente
+            se o gestor trocar o produto manualmente — o valor reflete o produto atual,
+            nao o que a regra originalmente escolheria. */}
+        {item.indicatorLabel && item.autoSelectRule?.indicator && (
+          <div className={
+            "mt-1 px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-2 flex-wrap " +
+            (item.indicatorColor === 'emerald' ? "bg-emerald-50 border-emerald-400 text-emerald-800" :
+             item.indicatorColor === 'green' ? "bg-green-50 border-green-300 text-green-800" :
+             item.indicatorColor === 'blue' ? "bg-blue-50 border-blue-300 text-blue-800" :
+             item.indicatorColor === 'yellow' ? "bg-yellow-50 border-yellow-300 text-yellow-800" :
+             item.indicatorColor === 'orange' ? "bg-orange-50 border-orange-300 text-orange-800" :
+             item.indicatorColor === 'red' ? "bg-red-50 border-red-300 text-red-800" :
+             "bg-slate-50 border-slate-300 text-slate-700")
+          }>
+            <span className="font-bold uppercase tracking-wide">{item.indicatorLabel}</span>
+            <span className="opacity-60">·</span>
+            <span>
+              {item.autoSelectRule.indicator.label}: <span className="font-semibold tabular-nums">{formatIndicatorValue(item.indicatorValue, item.indicatorUnit)}</span>
+            </span>
+            <span className="ml-auto text-[10px] opacity-70 flex items-center gap-1" title="Produto escolhido automaticamente pela regra de auto-selecao. Se voce trocar manualmente, a eficiencia recalcula com base no novo produto.">
+              ✨ selecao automatica
+            </span>
+          </div>
+        )}
       </td>
       <td className="px-2 py-1.5 text-center text-xs text-slate-500">{item.unit}</td>
       <td className="px-2 py-1.5 text-center">
@@ -1008,22 +1049,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
                   className="w-16 rounded border border-slate-200 px-1 py-0.5 text-center text-sm tabular-nums" />
               )}
             </div>
-            {item.indicatorLabel && (
-              <span className={
-                "text-[9px] font-medium px-1.5 py-0.5 rounded border " +
-                (item.indicatorColor === 'emerald' ? "bg-emerald-50 border-emerald-400 text-emerald-800" :
-                 item.indicatorColor === 'green' ? "bg-green-50 border-green-300 text-green-800" :
-                 item.indicatorColor === 'blue' ? "bg-blue-50 border-blue-300 text-blue-800" :
-                 item.indicatorColor === 'yellow' ? "bg-yellow-50 border-yellow-300 text-yellow-800" :
-                 item.indicatorColor === 'orange' ? "bg-orange-50 border-orange-300 text-orange-800" :
-                 item.indicatorColor === 'red' ? "bg-red-50 border-red-300 text-red-800" :
-                 "bg-slate-50 border-slate-300 text-slate-700")}
-                title={item.autoSelectRule?.indicator?.label
-                  ? `${item.autoSelectRule.indicator.label}: ${item.indicatorValue?.toFixed(2)}${item.indicatorUnit || ''}`
-                  : ''}>
-                {item.indicatorLabel}
-              </span>
-            )}
+            {/* Indicador antigo removido — agora aparece como faixa colorida na coluna DESCRICAO (mais visivel) */}
             {item.formulaExpr && (
               <button type="button" onClick={() => setShowFormula(true)}
                 className="text-[9px] font-mono text-cyan-600 hover:text-cyan-800 hover:underline truncate max-w-full"
