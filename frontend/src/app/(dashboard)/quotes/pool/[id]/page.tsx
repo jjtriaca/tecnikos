@@ -936,6 +936,31 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   const [desc, setDesc] = useState(item.description);
   const [slot, setSlot] = useState(item.slotName || "");
 
+  // Sibling vars (v1.10.99+) — pra preview do modal de auto-selecao em items
+  // com regra cross-line (ex: tubo le tuboEntradaMm do filtro da mesma etapa).
+  // Backend ja calcula essas vars no recalc; aqui replicamos pro preview do
+  // modal mostrar candidatos corretos antes do save. Primeiro sibling com a
+  // chave ganha — mesma logica do backend.
+  const siblingVars = useMemo(() => {
+    const out: Record<string, number> = {};
+    if (!allItems) return out;
+    for (const sib of allItems) {
+      if (sib.id === item.id) continue;
+      if (sib.poolSection !== item.poolSection) continue;
+      const specs = (sib.product?.technicalSpecs ?? sib.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+      if (!specs) continue;
+      for (const [k, raw] of Object.entries(specs)) {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) continue;
+        const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+        if (out[siblingKey] === undefined) {
+          out[siblingKey] = n;
+        }
+      }
+    }
+    return out;
+  }, [allItems, item.id, item.poolSection]);
+
   function commit() {
     const newQty = parseFloat(String(qty)) || 0;
     const newPrice = Math.round(parseFloat(price.replace(",", ".")) * 100) || 0;
@@ -1118,10 +1143,17 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         catalog={catalog}
         dimensions={dimensions}
         environmentParams={environmentParams}
+        siblingVars={siblingVars}
         itemDescription={item.description}
         currentProductName={item.product?.description ?? item.service?.name ?? null}
         onClose={() => setShowAutoSelect(false)}
-        onSave={(rule) => { setShowAutoSelect(false); onUpdate({ autoSelectRule: rule } as any); }}
+        // 'Aplicar regra' salva a regra E limpa productId/serviceId pra forcar
+        // o recalc backend rodar auto-selecao com a regra nova. Sem isso o user
+        // precisaria limpar manualmente o produto da linha — confuso.
+        onSave={(rule) => {
+          setShowAutoSelect(false);
+          onUpdate({ autoSelectRule: rule, productId: null, serviceId: null } as any);
+        }}
         onClear={() => { setShowAutoSelect(false); onUpdate({ autoSelectRule: null } as any); }}
       />
     )}
@@ -2407,6 +2439,7 @@ function AutoSelectModal({
   catalog,
   dimensions,
   environmentParams,
+  siblingVars,
   itemDescription,
   currentProductName,
   onClose,
@@ -2417,6 +2450,10 @@ function AutoSelectModal({
   catalog: CatalogConfig[];
   dimensions: any;
   environmentParams?: any;
+  // Vars 'sibling*' calculadas dos outros items da mesma etapa — replica
+  // backend pra preview do modal mostrar candidatos certos quando regra
+  // referencia o equipamento da linha vizinha (ex: tubo usa siblingTuboMm).
+  siblingVars?: Record<string, number>;
   itemDescription?: string;
   currentProductName?: string | null;
   onClose: () => void;
@@ -2469,9 +2506,13 @@ function AutoSelectModal({
       escavacao: Number(dimensions?.escavacaoM3) || 0,
       tempLocal: Number(environmentParams?.temperaturaMediaLocal ?? environmentParams?.temperatura) || 0,
       tempAgua: Number(environmentParams?.temperaturaAguaDesejada) || 0,
+      // Merge das sibling vars vindas do componente pai (calculadas a partir dos outros items da mesma poolSection).
+      // Permite regras como 'tuboEntradaMm == siblingTuboMm' funcionarem no preview do modal,
+      // antes mesmo do save (backend tambem calcula no recalc, e os dois precisam bater).
+      ...(siblingVars || {}),
     };
     return v;
-  }, [dimensions, environmentParams]);
+  }, [dimensions, environmentParams, siblingVars]);
 
   // Avalia condicao boolean (mesmo padrao do evalLocal mas retornando boolean)
   function evalCondition(expr: string, vars: Record<string, number>): boolean {
