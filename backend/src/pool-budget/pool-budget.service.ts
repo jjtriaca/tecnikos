@@ -407,8 +407,21 @@ export class PoolBudgetService {
 
     // PASSO 0: auto-selecao do produto/servico em items que tem autoSelectRule.
     // Roda ANTES das formulas porque escolha do produto afeta technicalSpecs disponiveis.
+    //
+    // CRITICO: so dispara em items SEM produto/servico vinculado (productId AND serviceId null).
+    // Antes (pre-v1.10.96) rodava em todo recalc sobre todos os items com rule,
+    // sobrescrevendo escolhas manuais do gestor. Agora respeita selecao manual:
+    // - Linha nova com rule -> auto-selecao escolhe um produto (preenche productId).
+    // - Linha ja com produto manual -> auto-selecao NAO MEXE.
+    // - Pra forcar reaplicacao apos mudar dimensoes ou regra, o gestor pode limpar
+    //   o produto (excluir e adicionar de novo) ou usar botao "Reaplicar regra" do modal.
     const itemsForAutoSelect = await this.prisma.poolBudgetItem.findMany({
-      where: { budgetId, autoSelectRule: { not: Prisma.JsonNull as any } },
+      where: {
+        budgetId,
+        autoSelectRule: { not: Prisma.JsonNull as any },
+        productId: null,
+        serviceId: null,
+      },
       select: { id: true, autoSelectRule: true, productId: true, serviceId: true, description: true, unitPriceCents: true },
     });
     if (itemsForAutoSelect.length > 0) {

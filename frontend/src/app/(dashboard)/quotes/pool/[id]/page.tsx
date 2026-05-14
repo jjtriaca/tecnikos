@@ -2226,13 +2226,13 @@ const ORDER_BY_PRESETS: Array<{ value: string; label: string }> = [
 const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: string; rule: AutoSelectRule }> = [
   {
     icon: '🌊',
-    label: 'Filtro de piscina por volume (cicla em 6h)',
-    description: 'Conjunto Filtrante cuja vazao cicla todo o volume em max 6h. Indicador 5 niveis: Excelente (<=3h), Otimo (<=4h), Bom (<=6h), Regular (<=8h), Pessimo (>8h)',
+    label: 'Filtro de piscina (vazao = volume / 3.7)',
+    description: 'Conjunto Filtrante cuja vazao atende vazaoIdeal = volume / 3.7. Escolhe o filtro de menor vazao que cumpra (logica fiel ao macro VBA da planilha original). Indicador 5 niveis baseado em tempo de ciclo.',
     rule: {
       filterCategoria: null,
       filterDescription: 'Conjunto Filtrante',
-      where: 'vazaoM3h >= volume / 6',
-      orderBy: 'priceCents asc',
+      where: 'vazaoM3h >= volume / 3.7',
+      orderBy: 'vazaoM3h asc',
       indicator: {
         label: 'Tempo de filtragem',
         expr: 'volume / vazaoM3h',
