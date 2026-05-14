@@ -4,6 +4,7 @@ import { NotificationService } from '../notification/notification.service';
 import { PublicOfferService } from '../public-offer/public-offer.service';
 import { WorkflowEngineService } from './workflow-engine.service';
 import { buildSearchWhere } from '../common/util/build-search-where';
+import { withCreate } from '../common/tracking/tracking.helpers';
 
 export interface WorkflowStep {
   order: number;
@@ -346,7 +347,7 @@ export class WorkflowService {
 
     // Create preview OS directly (bypasses engine — no notifications/automations)
     const os = await this.prisma.serviceOrder.create({
-      data: {
+      data: withCreate({
         companyId,
         code,
         title: `Preview - ${triggerLabel}`,
@@ -359,20 +360,20 @@ export class WorkflowService {
         assignedPartnerId: tech?.id || undefined,
         directedTechnicianIds: tech ? [tech.id] : [],
         status: 'OFERTADA',
-      },
+      }),
     });
 
     // Create offer token with 7-day expiry, channel=PREVIEW to distinguish
     const { randomUUID } = await import('crypto');
     const token = randomUUID();
     await this.prisma.serviceOrderOffer.create({
-      data: {
+      data: withCreate({
         serviceOrderId: os.id,
         companyId,
         channel: 'PREVIEW',
         token,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
+      }),
     });
 
     return { token, serviceOrderId: os.id };

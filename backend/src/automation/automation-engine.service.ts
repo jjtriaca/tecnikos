@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { FinanceService } from '../finance/finance.service';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 /* ═══════════════════════════════════════════════════════════════
    AUTOMATION ENGINE — Event-driven rule evaluator & executor
@@ -337,7 +338,7 @@ export class AutomationEngineService {
 
     return this.prisma.serviceOrder.update({
       where: { id: event.entityId },
-      data,
+      data: withUpdate(data),
     });
   }
 
@@ -427,10 +428,10 @@ export class AutomationEngineService {
 
     return this.prisma.serviceOrder.update({
       where: { id: event.entityId },
-      data: {
+      data: withUpdate({
         assignedPartnerId: selectedTech.id,
         status: 'ATRIBUIDA',
-      },
+      }),
     });
   }
 
@@ -447,7 +448,7 @@ export class AutomationEngineService {
     }
 
     const copy = await this.prisma.serviceOrder.create({
-      data: {
+      data: withCreate({
         companyId: so.companyId,
         title: `${so.title} (cópia)`,
         description: so.description,
@@ -467,7 +468,7 @@ export class AutomationEngineService {
         clientPartnerId: so.clientPartnerId,
         workflowTemplateId: so.workflowTemplateId,
         // assignedPartnerId intentionally NOT copied
-      },
+      }),
     });
 
     this.logger.log(`📋 DUPLICATE_OS: Created copy ${copy.id} from OS ${event.entityId}`);

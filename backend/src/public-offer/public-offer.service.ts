@@ -22,6 +22,7 @@ import {
   createHmac,
 } from 'crypto';
 import { haversineMeters } from '../common/geo/haversine';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 function normalizePhone(phone: string): string {
   return String(phone || '').replace(/\D/g, '');
@@ -288,13 +289,13 @@ export class PublicOfferService {
     const expiresAt = new Date(Date.now() + hoursValid * 60 * 60 * 1000);
 
     return this.prisma.serviceOrderOffer.create({
-      data: {
+      data: withCreate({
         serviceOrderId,
         companyId,
         channel: 'PUBLIC_LINK',
         token,
         expiresAt,
-      },
+      }),
     });
   }
 
@@ -648,7 +649,7 @@ export class PublicOfferService {
     }
     await this.prisma.serviceOrder.update({
       where: { id: activeOffer.serviceOrderId },
-      data: updateData,
+      data: withUpdate(updateData),
     });
 
     // Fire onEnRoute notifications (fire-and-forget)
@@ -743,11 +744,11 @@ export class PublicOfferService {
             assignedPartnerId: null,
             acceptedAt: null,
           },
-          data: {
+          data: withUpdate({
             assignedPartnerId: technician.id,
             acceptedAt: now,
             status: ServiceOrderStatus.ATRIBUIDA,
-          },
+          }),
         });
 
         if (updated.count !== 1) {
@@ -759,7 +760,7 @@ export class PublicOfferService {
             serviceOrderId: offer.serviceOrderId,
             revokedAt: null,
           },
-          data: { revokedAt: now },
+          data: withUpdate({ revokedAt: now }),
         });
 
         const serviceOrder = await tx.serviceOrder.findUnique({
@@ -829,7 +830,7 @@ export class PublicOfferService {
     // Save estimatedArrivalMinutes
     await this.prisma.serviceOrder.update({
       where: { id: offer.serviceOrderId },
-      data: { estimatedArrivalMinutes: selectedMinutes } as any,
+      data: withUpdate({ estimatedArrivalMinutes: selectedMinutes }) as any,
     });
 
     return { success: true, estimatedArrivalMinutes: selectedMinutes };
@@ -853,7 +854,7 @@ export class PublicOfferService {
     // Save decline reason and timestamp
     await this.prisma.serviceOrder.update({
       where: { id: offer.serviceOrderId },
-      data: { declinedReason: reason || null, declinedAt: new Date() },
+      data: withUpdate({ declinedReason: reason || null, declinedAt: new Date() }),
     });
 
     // Execute decline action
@@ -861,19 +862,19 @@ export class PublicOfferService {
       case 'return_offered':
         await this.prisma.serviceOrder.update({
           where: { id: offer.serviceOrderId },
-          data: { status: ServiceOrderStatus.OFERTADA, assignedPartnerId: null, acceptedAt: null },
+          data: withUpdate({ status: ServiceOrderStatus.OFERTADA, assignedPartnerId: null, acceptedAt: null }),
         });
         break;
       case 'reassign':
         await this.prisma.serviceOrder.update({
           where: { id: offer.serviceOrderId },
-          data: { status: ServiceOrderStatus.ABERTA, assignedPartnerId: null, acceptedAt: null },
+          data: withUpdate({ status: ServiceOrderStatus.ABERTA, assignedPartnerId: null, acceptedAt: null }),
         });
         break;
       case 'cancel':
         await this.prisma.serviceOrder.update({
           where: { id: offer.serviceOrderId },
-          data: { status: ServiceOrderStatus.CANCELADA },
+          data: withUpdate({ status: ServiceOrderStatus.CANCELADA }),
         });
         break;
       case 'notify_gestor':
@@ -910,10 +911,10 @@ export class PublicOfferService {
     // Mark tracking started
     await this.prisma.serviceOrder.update({
       where: { id: offer.serviceOrderId },
-      data: {
+      data: withUpdate({
         trackingStartedAt: new Date(),
         proximityRadiusMeters: radius,
-      } as any,
+      }) as any,
     });
 
     // Fire onGps notifications (fire-and-forget)
@@ -1022,7 +1023,7 @@ export class PublicOfferService {
       // FIRST TIME entering radius — trigger events
       await this.prisma.serviceOrder.update({
         where: { id: so.id },
-        data: { proximityEnteredAt: new Date() } as any,
+        data: withUpdate({ proximityEnteredAt: new Date() }) as any,
       });
       proximityReached = true;
 
@@ -1190,20 +1191,20 @@ export class PublicOfferService {
       if (targetStatus === 'EM_EXECUCAO') data.startedAt = new Date();
       await this.prisma.serviceOrder.update({
         where: { id: so.id },
-        data,
+        data: withUpdate(data),
       });
       this.logger.log(`🚀 PROXIMITY: Auto-changed status to ${targetStatus} for SO ${so.id}`);
 
       // Create event
       await this.prisma.serviceOrderEvent.create({
-        data: {
+        data: withCreate({
           companyId,
           serviceOrderId: so.id,
           type: 'PROXIMITY_AUTO_START',
           actorType: 'SYSTEM',
           actorId: null,
           payload: { distanceMeters: Math.round(distanceMeters), previousStatus: currentStatus },
-        },
+        }),
       });
     }
 
@@ -1283,7 +1284,7 @@ export class PublicOfferService {
 
     await this.prisma.serviceOrder.update({
       where: { id: so.id },
-      data: soUpdateData,
+      data: withUpdate(soUpdateData),
     });
 
     // 3. Update address coordinates on partner's ServiceAddress (if configured)
@@ -1315,7 +1316,7 @@ export class PublicOfferService {
 
     // 4. Create event
     await this.prisma.serviceOrderEvent.create({
-      data: {
+      data: withCreate({
         companyId: so.companyId,
         serviceOrderId: so.id,
         type: 'TECH_ARRIVED',
@@ -1328,7 +1329,7 @@ export class PublicOfferService {
           newStatus: soUpdateData.status || so.status,
           addressUpdated: arrivalCfg.updateAddressCoords,
         },
-      },
+      }),
     });
 
     // 5. Notifications
@@ -1533,11 +1534,11 @@ export class PublicOfferService {
       }),
       this.prisma.serviceOrder.update({
         where: { id: so.id },
-        data: {
+        data: withUpdate({
           isPaused: true,
           pausedAt: now,
           pauseCount: { increment: 1 },
-        },
+        }),
       }),
     ]);
 
@@ -1612,11 +1613,11 @@ export class PublicOfferService {
     txOps.push(
       this.prisma.serviceOrder.update({
         where: { id: so.id },
-        data: {
+        data: withUpdate({
           isPaused: false,
           pausedAt: null,
           totalPausedMs: { increment: durationMs },
-        },
+        }),
       }),
     );
 

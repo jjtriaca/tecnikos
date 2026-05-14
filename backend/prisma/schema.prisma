@@ -497,6 +497,13 @@ model ServiceOrder {
   createdByUserId String? // ID do usuario que criou
   createdByName   String? // Nome do usuario que criou (snapshot)
 
+  // Tracking universal (v1.10.89+) — quem alterou/excluiu + origem
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
   // Cancelamento (v1.00.55)
   cancelledReason String? // Motivo do cancelamento
   cancelledByName String? // Nome do usuario que cancelou
@@ -568,6 +575,17 @@ model ServiceOrderOffer {
   token          String    @unique
   expiresAt      DateTime
   revokedAt      DateTime?
+
+  // Tracking universal (v1.10.89+)
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt      DateTime  @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
@@ -585,6 +603,17 @@ model ServiceOrderEvent {
   actorId         String?
   payload         Json?
   clientTimestamp DateTime? // Timestamp do dispositivo do tecnico (pode diferir do createdAt se offline)
+
+  // Tracking universal (v1.10.89+)
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt       DateTime  @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
@@ -653,6 +682,17 @@ model ServiceOrderLedger {
   commissionCents Int
   netCents        Int
   confirmedAt     DateTime?
+
+  // Tracking universal (v1.10.89+)
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt       DateTime  @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
@@ -763,6 +803,17 @@ model Evaluation {
   score          Int // 1-5
   comment        String?
   token          String?  @unique // para avaliação pública do cliente
+
+  // Tracking universal (v1.10.89+)
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt      DateTime @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
@@ -2271,6 +2322,16 @@ model ServiceOrderItem {
   techFixedValueCents Int? // Valor fixo para técnico (snapshot)
   commissionRule      CommissionRule? // Regra de comissão (snapshot)
 
+  // Tracking universal (v1.10.89+)
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt DateTime @default(now())
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
@@ -2299,6 +2360,17 @@ model ChecklistResponse {
   deviceInfo     Json? // {browser?: string, os?: string, device?: string}
   timeInStage    Int? // Segundos entre receber e confirmar
   skippedItems   Json? // Itens não confirmados quando modo Recomendado
+
+  // Tracking universal (v1.10.89+)
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt      DateTime       @default(now())
 
   company      Company      @relation(fields: [companyId], references: [id])
@@ -2927,6 +2999,14 @@ model Quote {
   serviceOrderId  String?
   createdByUserId String
 
+  // Tracking universal (v1.10.89+) — quem criou (nome snapshot)/alterou/excluiu + origem
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
+
   // Content
   title           String
   description     String?
@@ -3011,6 +3091,16 @@ model QuoteItem {
 
   totalCents Int @default(0) // Computed: (qty * unitPrice) * (1 - discount%)
 
+  // Tracking universal (v1.10.89+)
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -3030,6 +3120,17 @@ model QuoteAttachment {
   mimeType     String   @default("application/pdf")
   label        String? // e.g. "Orçamento Loja X - Materiais"
   supplierName String? // Partner store name
+
+  // Tracking universal (v1.10.89+)
+  createdByUserId String?
+  createdByName   String?
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+
   createdAt    DateTime @default(now())
 
   quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)

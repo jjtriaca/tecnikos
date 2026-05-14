@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitChecklistDto } from './dto/submit-checklist.dto';
 import { ChecklistClass, ChecklistMode } from '@prisma/client';
+import { withCreate } from '../common/tracking/tracking.helpers';
 
 @Injectable()
 export class ChecklistResponseService {
@@ -9,7 +10,7 @@ export class ChecklistResponseService {
 
   async create(companyId: string, serviceOrderId: string, dto: SubmitChecklistDto) {
     return this.prisma.checklistResponse.create({
-      data: {
+      data: withCreate({
         companyId,
         serviceOrderId,
         checklistClass: dto.checklistClass as ChecklistClass,
@@ -26,7 +27,7 @@ export class ChecklistResponseService {
         deviceInfo: dto.deviceInfo as any,
         timeInStage: dto.timeInStage,
         skippedItems: dto.skippedItems as any,
-      },
+      }),
     });
   }
 

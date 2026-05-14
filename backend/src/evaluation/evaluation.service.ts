@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { randomUUID } from 'crypto';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 @Injectable()
 export class EvaluationService {
@@ -33,7 +34,7 @@ export class EvaluationService {
 
     const code = await this.codeGenerator.generateCode(companyId, 'EVALUATION');
     const evaluation = await this.prisma.evaluation.create({
-      data: {
+      data: withCreate({
         serviceOrderId,
         partnerId,
         companyId,
@@ -41,7 +42,7 @@ export class EvaluationService {
         evaluatorType: 'GESTOR',
         score,
         comment,
-      },
+      }),
     });
 
     // Aprovar a OS (CONCLUIDA → APROVADA)
@@ -52,16 +53,16 @@ export class EvaluationService {
     if (so?.status === 'CONCLUIDA') {
       await this.prisma.serviceOrder.update({
         where: { id: serviceOrderId },
-        data: { status: 'APROVADA' },
+        data: withUpdate({ status: 'APROVADA' }),
       });
       await this.prisma.serviceOrderEvent.create({
-        data: {
+        data: withCreate({
           companyId,
           serviceOrderId,
           type: 'STATUS_CHANGE',
           actorType: 'USER',
           payload: { from: 'CONCLUIDA', to: 'APROVADA', reason: 'Avaliação do gestor', score },
-        },
+        }),
       });
     }
 
@@ -79,7 +80,7 @@ export class EvaluationService {
 
     const code = await this.codeGenerator.generateCode(companyId, 'EVALUATION');
     await this.prisma.evaluation.create({
-      data: {
+      data: withCreate({
         serviceOrderId,
         partnerId,
         companyId,
@@ -87,7 +88,7 @@ export class EvaluationService {
         evaluatorType: 'CLIENTE',
         score: 0,
         token,
-      },
+      }),
     });
 
     return token;
@@ -132,7 +133,7 @@ export class EvaluationService {
 
     const updated = await this.prisma.evaluation.update({
       where: { id: evaluation.id },
-      data: { score, comment },
+      data: withUpdate({ score, comment }),
     });
 
     await this.updateTechnicianRating(evaluation.partnerId, evaluation.companyId);

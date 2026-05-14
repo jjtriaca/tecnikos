@@ -13,7 +13,7 @@ import { UpdateServiceOrderDto } from './dto/update-service-order.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
 import { AuthenticatedUser } from '../auth/auth.types';
-import { withCreate } from '../common/tracking/tracking.helpers';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 /** Resolve technician commission based on flexible rules */
 function resolveCommission(params: {
@@ -210,7 +210,7 @@ export class ServiceOrderService {
     }
 
     const result = await this.prisma.serviceOrder.create({
-      data: {
+      data: withCreate({
         companyId: data.companyId,
         code,
         title: data.title,
@@ -254,7 +254,7 @@ export class ServiceOrderService {
         createdByName,
         // OS SEMPRE nasce ABERTA — blocos do workflow controlam status/atribuicao
         status: 'ABERTA' as any,
-      },
+      }),
     });
 
     // Create service items if provided (v1.03.31)
@@ -267,7 +267,7 @@ export class ServiceOrderService {
         .filter(i => serviceMap.has(i.serviceId))
         .map(i => {
           const svc = serviceMap.get(i.serviceId)!;
-          return {
+          return withCreate({
             serviceOrderId: result.id,
             serviceId: svc.id,
             serviceName: svc.name,
@@ -277,7 +277,7 @@ export class ServiceOrderService {
             commissionBps: svc.commissionBps ?? null,
             techFixedValueCents: svc.techFixedValueCents ?? null,
             commissionRule: svc.commissionRule ?? null,
-          };
+          });
         });
       if (itemsData.length) {
         await this.prisma.serviceOrderItem.createMany({ data: itemsData });
@@ -296,7 +296,7 @@ export class ServiceOrderService {
           if (totalTechCents > 0) {
             await this.prisma.serviceOrder.update({
               where: { id: result.id },
-              data: { techCommissionCents: totalTechCents },
+              data: withUpdate({ techCommissionCents: totalTechCents }),
             });
           }
         }
@@ -434,18 +434,18 @@ export class ServiceOrderService {
     // Update directed technician IDs with confirmed list
     await this.prisma.serviceOrder.update({
       where: { id: osId },
-      data: { directedTechnicianIds: technicianIds },
+      data: withUpdate({ directedTechnicianIds: technicianIds }),
     });
 
     // If single tech and not yet assigned, assign
     if (technicianIds.length === 1 && !os.assignedPartnerId) {
       await this.prisma.serviceOrder.update({
         where: { id: osId },
-        data: {
+        data: withUpdate({
           assignedPartnerId: technicianIds[0],
           status: 'ATRIBUIDA' as any,
           acceptedAt: new Date(),
-        },
+        }),
       });
     }
 
@@ -993,7 +993,7 @@ export class ServiceOrderService {
       if (matched) {
         result = await this.prisma.serviceOrder.update({
           where: { id },
-          data: { assignedPartnerId: technicianId, acceptedAt: new Date(), status: ServiceOrderStatus.ATRIBUIDA, workflowTemplateId: matched.id },
+          data: withUpdate({ assignedPartnerId: technicianId, acceptedAt: new Date(), status: ServiceOrderStatus.ATRIBUIDA, workflowTemplateId: matched.id }),
         });
       }
     }
@@ -1001,7 +1001,7 @@ export class ServiceOrderService {
     if (!result) {
       result = await this.prisma.serviceOrder.update({
         where: { id },
-        data: { assignedPartnerId: technicianId, acceptedAt: new Date(), status: ServiceOrderStatus.ATRIBUIDA },
+        data: withUpdate({ assignedPartnerId: technicianId, acceptedAt: new Date(), status: ServiceOrderStatus.ATRIBUIDA }),
       });
     }
 
@@ -1109,7 +1109,7 @@ export class ServiceOrderService {
     if (status === ServiceOrderStatus.EM_EXECUCAO && !so.startedAt) data.startedAt = new Date();
     if ((status === ServiceOrderStatus.CONCLUIDA || status === ServiceOrderStatus.APROVADA) && !so.completedAt) data.completedAt = new Date();
 
-    const updated = await this.prisma.serviceOrder.update({ where: { id }, data });
+    const updated = await this.prisma.serviceOrder.update({ where: { id }, data: withUpdate(data) });
 
     this.audit.log({
       companyId, entityType: 'SERVICE_ORDER', entityId: id,
@@ -1305,7 +1305,7 @@ export class ServiceOrderService {
           .filter(i => serviceMap.has(i.serviceId))
           .map(i => {
             const svc = serviceMap.get(i.serviceId)!;
-            return {
+            return withCreate({
               serviceOrderId: id,
               serviceId: svc.id,
               serviceName: svc.name,
@@ -1313,7 +1313,7 @@ export class ServiceOrderService {
               unitPriceCents: svc.priceCents || 0,
               commissionBps: (svc as any).commissionBps ?? null,
               quantity: i.quantity || 1,
-            };
+            });
           });
         if (itemsData.length) {
           await this.prisma.serviceOrderItem.createMany({ data: itemsData });
@@ -1329,7 +1329,7 @@ export class ServiceOrderService {
 
     if (Object.keys(updateData).length === 0 && data.items === undefined) return so;
 
-    const updated = await this.prisma.serviceOrder.update({ where: { id }, data: updateData });
+    const updated = await this.prisma.serviceOrder.update({ where: { id }, data: withUpdate(updateData) });
 
     this.audit.log({
       companyId, entityType: 'SERVICE_ORDER', entityId: id,
@@ -1480,7 +1480,7 @@ export class ServiceOrderService {
     const so = await this.findOne(id, companyId);
 
     const result = await this.prisma.serviceOrder.create({
-      data: {
+      data: withCreate({
         companyId,
         title: `${so.title} (cópia)`,
         description: so.description,
@@ -1505,7 +1505,7 @@ export class ServiceOrderService {
         contactPersonName: (so as any).contactPersonName,
         acceptTimeoutMinutes: (so as any).acceptTimeoutMinutes,
         enRouteTimeoutMinutes: (so as any).enRouteTimeoutMinutes,
-      },
+      }),
     });
 
     this.audit.log({
@@ -1521,13 +1521,13 @@ export class ServiceOrderService {
     await this.findOne(id, companyId);
     const result = await this.prisma.serviceOrder.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: withUpdate({ deletedAt: new Date() }),
     });
 
     // Unlink any quote that references this OS so it can generate a new OS
     await this.prisma.quote.updateMany({
       where: { serviceOrderId: id, companyId },
-      data: { serviceOrderId: null },
+      data: withUpdate({ serviceOrderId: null }),
     });
 
     this.audit.log({
@@ -2059,7 +2059,7 @@ export class ServiceOrderService {
       }
       await this.prisma.serviceOrder.update({
         where: { id },
-        data: { assignedPartnerId: directed[0] },
+        data: withUpdate({ assignedPartnerId: directed[0] }),
       });
       so.assignedPartnerId = directed[0];
     }
@@ -2214,7 +2214,7 @@ export class ServiceOrderService {
     const clientTs = data.clientTimestamp ? new Date(data.clientTimestamp) : undefined;
 
     await this.prisma.serviceOrderEvent.create({
-      data: {
+      data: withCreate({
         companyId,
         serviceOrderId: id,
         type: 'INCIDENT_REPORTED',
@@ -2225,7 +2225,7 @@ export class ServiceOrderService {
           category: data.category,
           description: data.description,
         },
-      },
+      }),
     });
 
     // Notify gestor via push (fire-and-forget)
@@ -2263,7 +2263,7 @@ export class ServiceOrderService {
       }),
       this.prisma.serviceOrder.update({
         where: { id },
-        data: { isPaused: true, pausedAt: now, pauseCount: { increment: 1 } },
+        data: withUpdate({ isPaused: true, pausedAt: now, pauseCount: { increment: 1 } }),
       }),
     ]);
     return { success: true, pausedAt: now.toISOString() };
@@ -2292,7 +2292,7 @@ export class ServiceOrderService {
       }),
       this.prisma.serviceOrder.update({
         where: { id },
-        data: { isPaused: false, pausedAt: null, totalPausedMs: { increment: BigInt(durationMs) } },
+        data: withUpdate({ isPaused: false, pausedAt: null, totalPausedMs: { increment: BigInt(durationMs) } }),
       }),
     ]);
     return { success: true, resumedAt: now.toISOString(), durationMs };

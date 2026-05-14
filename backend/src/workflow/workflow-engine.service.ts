@@ -14,6 +14,7 @@ import { FinanceService } from '../finance/finance.service';
 import { PublicOfferService } from '../public-offer/public-offer.service';
 import { StepProgressDto } from './dto/step-progress.dto';
 import { haversineMeters } from '../common/geo/haversine';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -869,7 +870,7 @@ export class WorkflowEngineService {
         // Atualizar lat/lng na OS
         await this.prisma.serviceOrder.update({
           where: { id: so.id },
-          data: { lat, lng },
+          data: withUpdate({ lat, lng }),
         });
 
         // Sincronizar com ServiceAddress do cliente
@@ -1160,10 +1161,10 @@ export class WorkflowEngineService {
     ) {
       await this.prisma.serviceOrder.update({
         where: { id: serviceOrderId },
-        data: {
+        data: withUpdate({
           status: ServiceOrderStatus.CONCLUIDA,
           completedAt: new Date(),
-        },
+        }),
       });
 
       this.logger.log(
@@ -1210,7 +1211,7 @@ export class WorkflowEngineService {
           // Revoke all open offers for this OS (marks acceptance)
           await this.prisma.serviceOrderOffer.updateMany({
             where: { serviceOrderId, revokedAt: null },
-            data: { revokedAt: new Date() },
+            data: withUpdate({ revokedAt: new Date() }),
           });
           this.logger.log(`🔄 Revoked all open offers for OS ${serviceOrderId}`);
         }
@@ -1219,7 +1220,7 @@ export class WorkflowEngineService {
         if (targetStatus === 'RECUSADA') {
           await this.prisma.serviceOrderOffer.updateMany({
             where: { serviceOrderId, revokedAt: null },
-            data: { revokedAt: new Date() },
+            data: withUpdate({ revokedAt: new Date() }),
           });
           this.logger.log(`🔄 Revoked all open offers for OS ${serviceOrderId} (RECUSADA)`);
         }
@@ -1229,7 +1230,7 @@ export class WorkflowEngineService {
         );
         return this.prisma.serviceOrder.update({
           where: { id: serviceOrderId },
-          data,
+          data: withUpdate(data),
         });
       }
 
@@ -1662,10 +1663,10 @@ export class WorkflowEngineService {
         );
         return this.prisma.serviceOrder.update({
           where: { id: serviceOrderId },
-          data: {
+          data: withUpdate({
             assignedPartnerId: selected.id,
             status: 'ATRIBUIDA',
-          },
+          }),
         });
       }
 
@@ -1678,7 +1679,7 @@ export class WorkflowEngineService {
           `📋 System block: Duplicating OS ${serviceOrderId}`,
         );
         return this.prisma.serviceOrder.create({
-          data: {
+          data: withCreate({
             companyId: original.companyId,
             title: `${original.title} (copia)`,
             description: original.description,
@@ -1697,7 +1698,7 @@ export class WorkflowEngineService {
             status: 'ABERTA',
             clientPartnerId: original.clientPartnerId,
             workflowTemplateId: original.workflowTemplateId,
-          },
+          }),
         });
       }
 
@@ -2106,7 +2107,7 @@ export class WorkflowEngineService {
       // FIRST TIME entering radius
       await this.prisma.serviceOrder.update({
         where: { id: serviceOrderId },
-        data: { proximityEnteredAt: new Date() } as any,
+        data: withUpdate({ proximityEnteredAt: new Date() }) as any,
       });
       proximityReached = true;
 
@@ -2147,7 +2148,7 @@ export class WorkflowEngineService {
             if (onEnter.autoChangeStatus === 'EM_EXECUCAO') statusData.startedAt = new Date();
             await this.prisma.serviceOrder.update({
               where: { id: serviceOrderId },
-              data: statusData,
+              data: withUpdate(statusData),
             });
             this.logger.log(`🚀 PROXIMITY: Auto-changed status to ${onEnter.autoChangeStatus}`);
           } catch (err) {

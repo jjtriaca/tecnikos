@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkflowEngineService } from './workflow-engine.service';
+import { withCreate } from '../common/tracking/tracking.helpers';
 
 /* ═══════════════════════════════════════════════════════════════
    WAIT FOR SERVICE — Gerencia blocos WAIT_FOR pendentes
@@ -208,7 +209,7 @@ export class WaitForService {
 
     // Cria evento de resolução
     await this.prisma.serviceOrderEvent.create({
-      data: {
+      data: withCreate({
         companyId: wait.companyId,
         serviceOrderId: wait.serviceOrderId,
         type: 'WORKFLOW_WAIT_RESOLVED',
@@ -220,7 +221,7 @@ export class WaitForService {
           nextBlockId: wait.nextBlockId,
           status,
         },
-      },
+      }),
     });
   }
 

@@ -20,6 +20,7 @@ import { WorkflowEngineService } from '../workflow/workflow-engine.service';
 import { randomUUID } from 'crypto';
 import { QuoteStatus, Prisma } from '@prisma/client';
 import { Inject, Optional } from '@nestjs/common';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 @Injectable()
 export class QuoteService {
@@ -82,7 +83,7 @@ export class QuoteService {
     expiresAt.setDate(expiresAt.getDate() + validityDays);
 
     const quote = await this.prisma.quote.create({
-      data: {
+      data: withCreate({
         companyId,
         code,
         title: dto.title,
@@ -102,7 +103,7 @@ export class QuoteService {
         deliveryMethod: 'WHATSAPP_LINK',
         approvalMode: 'CLIENT',
         items: {
-          create: dto.items.map((item, idx) => ({
+          create: dto.items.map((item, idx) => withCreate({
             type: item.type,
             productId: item.productId || null,
             serviceId: item.serviceId || null,
@@ -115,7 +116,7 @@ export class QuoteService {
             sortOrder: item.sortOrder ?? idx,
           })),
         },
-      },
+      }),
       include: { items: true, clientPartner: true },
     });
 
@@ -293,7 +294,7 @@ export class QuoteService {
       if (items) {
         await tx.quoteItem.deleteMany({ where: { quoteId: id } });
         await tx.quoteItem.createMany({
-          data: items.map((item, idx) => ({
+          data: items.map((item, idx) => withCreate({
             quoteId: id,
             type: item.type,
             productId: item.productId || null,
@@ -311,7 +312,7 @@ export class QuoteService {
 
       return tx.quote.update({
         where: { id },
-        data: {
+        data: withUpdate({
           ...(dto.title !== undefined && { title: dto.title }),
           ...(dto.description !== undefined && { description: dto.description }),
           ...(dto.clientPartnerId !== undefined && { clientPartnerId: dto.clientPartnerId }),
@@ -324,7 +325,7 @@ export class QuoteService {
           subtotalCents,
           totalCents,
           expiresAt,
-        },
+        }),
         include: { items: true, clientPartner: true },
       });
     });
@@ -344,7 +345,7 @@ export class QuoteService {
 
     await this.prisma.quote.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: withUpdate({ deletedAt: new Date() }),
     });
 
     this.audit.log({
@@ -389,14 +390,14 @@ export class QuoteService {
     // Update quote status
     const updated = await this.prisma.quote.update({
       where: { id },
-      data: {
+      data: withUpdate({
         status: 'ENVIADO',
         publicToken,
         publicTokenExpiresAt: tokenExpiry,
         sentAt: new Date(),
         sentVia: dto.sendWhatsApp ? 'WHATSAPP' : dto.sendEmail ? 'EMAIL' : null,
         deliveryMethod,
-      },
+      }),
     });
 
     // Send notifications based on explicit flags
@@ -465,12 +466,12 @@ export class QuoteService {
 
     const updated = await this.prisma.quote.update({
       where: { id },
-      data: {
+      data: withUpdate({
         status: 'APROVADO',
         approvedAt: new Date(),
         approvedByName: user.email,
         approvedByType: 'INTERNAL',
-      },
+      }),
     });
 
     this.audit.log({
@@ -498,12 +499,12 @@ export class QuoteService {
 
     const updated = await this.prisma.quote.update({
       where: { id },
-      data: {
+      data: withUpdate({
         status: 'REJEITADO',
         rejectedAt: new Date(),
         rejectedByName: user.email,
         rejectedReason: reason || null,
-      },
+      }),
     });
 
     this.audit.log({
@@ -531,12 +532,12 @@ export class QuoteService {
 
     const updated = await this.prisma.quote.update({
       where: { id },
-      data: {
+      data: withUpdate({
         status: 'CANCELADO',
         cancelledAt: new Date(),
         cancelledByName: user.email,
         cancelledReason: reason || null,
-      },
+      }),
     });
 
     this.audit.log({
@@ -565,7 +566,7 @@ export class QuoteService {
     expiresAt.setDate(expiresAt.getDate() + original.validityDays);
 
     const duplicate = await this.prisma.quote.create({
-      data: {
+      data: withCreate({
         companyId,
         code,
         title: `${original.title} (Cópia)`,
@@ -584,7 +585,7 @@ export class QuoteService {
         deliveryMethod: original.deliveryMethod,
         approvalMode: original.approvalMode,
         items: {
-          create: original.items.map((item) => ({
+          create: original.items.map((item) => withCreate({
             type: item.type,
             productId: item.productId,
             serviceId: item.serviceId,
@@ -597,7 +598,7 @@ export class QuoteService {
             sortOrder: item.sortOrder,
           })),
         },
-      },
+      }),
       include: { items: true },
     });
 
@@ -659,7 +660,7 @@ export class QuoteService {
       : 'A definir';
 
     const os = await this.prisma.serviceOrder.create({
-      data: {
+      data: withCreate({
         companyId,
         code: osCode,
         title: quote.title,
@@ -675,7 +676,7 @@ export class QuoteService {
         city: client.city || null,
         state: client.state || null,
         cep: client.cep || null,
-      },
+      }),
     });
 
     // Create OS items from quote items (service items)
@@ -683,14 +684,14 @@ export class QuoteService {
     for (const item of sortedItems) {
       if (item.serviceId) {
         await this.prisma.serviceOrderItem.create({
-          data: {
+          data: withCreate({
             serviceOrderId: os.id,
             serviceId: item.serviceId,
             serviceName: item.description,
             unit: item.unit || 'SV',
             quantity: item.quantity,
             unitPriceCents: item.unitPriceCents,
-          },
+          }),
         });
       }
     }
@@ -698,7 +699,7 @@ export class QuoteService {
     // Link quote to OS
     await this.prisma.quote.update({
       where: { id },
-      data: { serviceOrderId: os.id },
+      data: withUpdate({ serviceOrderId: os.id }),
     });
 
     this.audit.log({
@@ -723,7 +724,7 @@ export class QuoteService {
 
     await this.prisma.quote.update({
       where: { id: quoteId },
-      data: { serviceOrderId },
+      data: withUpdate({ serviceOrderId }),
     });
     return { linked: true };
   }
@@ -809,12 +810,12 @@ export class QuoteService {
 
     const updated = await this.prisma.quote.update({
       where: { id: quote.id },
-      data: {
+      data: withUpdate({
         status: 'APROVADO',
         approvedAt: new Date(),
         approvedByName: approverName,
         approvedByType: 'CLIENT',
-      },
+      }),
     });
 
     // Notify company
@@ -847,12 +848,12 @@ export class QuoteService {
 
     const updated = await this.prisma.quote.update({
       where: { id: quote.id },
-      data: {
+      data: withUpdate({
         status: 'REJEITADO',
         rejectedAt: new Date(),
         rejectedByName: quote.clientPartner.name,
         rejectedReason: reason || null,
-      },
+      }),
     });
 
     // Notify company
@@ -882,7 +883,7 @@ export class QuoteService {
         expiresAt: { lt: new Date() },
         deletedAt: null,
       },
-      data: { status: 'EXPIRADO' },
+      data: withUpdate({ status: 'EXPIRADO' }, { via: 'CRON' }),
     });
 
     if (result.count > 0) {
@@ -903,7 +904,7 @@ export class QuoteService {
     if (!quote) throw new NotFoundException('Orçamento não encontrado');
 
     return this.prisma.quoteAttachment.create({
-      data: {
+      data: withCreate({
         quoteId,
         fileName: data.fileName,
         filePath: data.filePath,
@@ -911,7 +912,7 @@ export class QuoteService {
         mimeType: data.mimeType ?? 'application/pdf',
         label: data.label ?? null,
         supplierName: data.supplierName ?? null,
-      },
+      }),
     });
   }
 
