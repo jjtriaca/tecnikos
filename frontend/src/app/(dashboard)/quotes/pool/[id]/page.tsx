@@ -1013,6 +1013,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
                 "text-[9px] font-medium px-1.5 py-0.5 rounded border " +
                 (item.indicatorColor === 'emerald' ? "bg-emerald-50 border-emerald-400 text-emerald-800" :
                  item.indicatorColor === 'green' ? "bg-green-50 border-green-300 text-green-800" :
+                 item.indicatorColor === 'blue' ? "bg-blue-50 border-blue-300 text-blue-800" :
                  item.indicatorColor === 'yellow' ? "bg-yellow-50 border-yellow-300 text-yellow-800" :
                  item.indicatorColor === 'orange' ? "bg-orange-50 border-orange-300 text-orange-800" :
                  item.indicatorColor === 'red' ? "bg-red-50 border-red-300 text-red-800" :
@@ -2512,6 +2513,7 @@ function AutoSelectModal({
                       <span className={"ml-2 text-[10px] font-medium px-2 py-0.5 rounded border " +
                         (indicatorPreview.color === 'emerald' ? "bg-emerald-50 border-emerald-400 text-emerald-800" :
                          indicatorPreview.color === 'green' ? "bg-green-50 border-green-300 text-green-800" :
+                         indicatorPreview.color === 'blue' ? "bg-blue-50 border-blue-300 text-blue-800" :
                          indicatorPreview.color === 'yellow' ? "bg-yellow-50 border-yellow-300 text-yellow-800" :
                          indicatorPreview.color === 'orange' ? "bg-orange-50 border-orange-300 text-orange-800" :
                          indicatorPreview.color === 'red' ? "bg-red-50 border-red-300 text-red-800" :
@@ -2660,8 +2662,11 @@ function AutoSelectModal({
                             <select value={lvl.color} onChange={(e) => {
                               const v = [...indLevels]; v[idx] = { ...v[idx], color: e.target.value }; setIndLevels(v);
                             }} className="rounded border border-slate-300 px-2 py-1 text-sm text-slate-900">
+                              <option value="emerald">💚 Verde escuro</option>
                               <option value="green">🟢 Verde</option>
+                              <option value="blue">🔵 Azul</option>
                               <option value="yellow">🟡 Amarelo</option>
+                              <option value="orange">🟠 Laranja</option>
                               <option value="red">🔴 Vermelho</option>
                             </select>
                             <span className="text-[11px] font-medium text-slate-700">ate</span>
