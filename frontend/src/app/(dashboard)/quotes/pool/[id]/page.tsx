@@ -2305,17 +2305,21 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
   {
     icon: '🚿',
     label: 'Tubo (mesmo diametro do equipamento da etapa)',
-    description: 'Tubo PVC com diametro igual ao tubo de entrada do equipamento escolhido na mesma etapa (filtro, aquecedor, cascata, SPA). Le siblingTuboMm calculado automaticamente. Vale pra qualquer etapa que tenha tubo.',
+    description: 'Tubo PVC com diametro igual ao tubo de entrada do equipamento escolhido na mesma etapa (filtro, aquecedor, cascata, SPA). Le siblingTuboEntradaMm calculado automaticamente. Vale pra qualquer etapa que tenha tubo.',
     rule: {
       filterCategoria: null,
       filterDescription: 'Tubos conex', // matcha 'conexoes' e 'conexões' (sem/com acento)
-      where: 'tuboEntradaMm >= siblingTuboMm',
+      where: 'tuboEntradaMm >= siblingTuboEntradaMm',
       orderBy: 'tuboEntradaMm asc',
       indicator: {
         label: 'Compatibilidade tubo',
-        expr: 'tuboEntradaMm - siblingTuboMm',
+        expr: 'tuboEntradaMm - siblingTuboEntradaMm',
         unit: 'mm',
+        // Levels avaliados em ordem crescente — primeiro cujo max >= value ganha.
+        // Negativo = tubo MENOR que o equipamento (incompativel, fluxo restrito).
+        // Zero = exato (perfeito). Positivo = tubo MAIOR (funciona, desperdicio).
         levels: [
+          { max: -0.01, label: 'Incompativel (tubo menor)', color: 'red' },
           { max: 0, label: 'Compativel', color: 'emerald' },
           { max: 999, label: 'Maior que necessario', color: 'yellow' },
         ],
