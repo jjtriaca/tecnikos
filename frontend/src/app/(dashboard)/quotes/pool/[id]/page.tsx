@@ -963,6 +963,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               title="Buscar no catalogo">
               🔍
             </button>
+            <button type="button" onClick={() => setShowAutoSelect(true)}
+              className={"text-[11px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 " + (item.autoSelectRule ? "border-violet-500 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300")}
+              title={item.autoSelectRule ? "Editar auto-selecao do produto" : "Configurar auto-selecao do produto"}
+            >✨</button>
             <span
               onClick={() => setShowCatalogPick(true)}
               title="Clique pra escolher/trocar item do catalogo"
@@ -993,10 +997,6 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
                 className={"text-[10px] font-bold px-1 rounded border " + (item.formulaExpr ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-slate-200 text-slate-400 hover:text-cyan-600 hover:border-cyan-300")}
                 title={item.formulaExpr ? `Editar formula (atual: ${item.formulaExpr})` : "Configurar formula automática"}
               >fx</button>
-              <button type="button" onClick={() => setShowAutoSelect(true)}
-                className={"text-[10px] font-bold px-1 rounded border " + (item.autoSelectRule ? "border-violet-500 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300")}
-                title={item.autoSelectRule ? "Editar auto-selecao do produto" : "Configurar auto-selecao do produto"}
-              >✨</button>
               {item.formulaExpr ? (
                 <button type="button" onClick={() => setShowFormula(true)}
                   className="text-sm tabular-nums text-cyan-700 font-medium hover:underline"
