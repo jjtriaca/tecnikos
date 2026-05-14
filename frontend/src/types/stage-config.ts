@@ -202,12 +202,12 @@ export interface StageConfig {
         onPause: {
           gestor:  { enabled: boolean; channel: string; message: string };
           cliente: { enabled: boolean; channel: string; message: string };
-          técnico: { enabled: boolean; channel: string; message: string };
+          tecnico: { enabled: boolean; channel: string; message: string };
         };
         onResume: {
           gestor:  { enabled: boolean; channel: string; message: string };
           cliente: { enabled: boolean; channel: string; message: string };
-          técnico: { enabled: boolean; channel: string; message: string };
+          tecnico: { enabled: boolean; channel: string; message: string };
         };
       };
       /* ── Fotos: controladas via photoRequirements (on_pause / on_resume) ── */
@@ -1230,12 +1230,12 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
           onPause: {
             gestor:  { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} pausou a OS "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
             cliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi pausado temporariamente. Motivo: {motivo_pausa}.' },
-            técnico: { enabled: false, channel: 'whatsapp', message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
+            tecnico: { enabled: false, channel: 'whatsapp', message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
           },
           onResume: {
             gestor:  { enabled: false, channel: 'whatsapp', message: 'O técnico {tecnico} retomou a OS "{titulo}". Tempo pausado: {tempo_pausado}.' },
             cliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi retomado.' },
-            técnico: { enabled: false, channel: 'whatsapp', message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
+            tecnico: { enabled: false, channel: 'whatsapp', message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
           },
         },
       },
@@ -1314,12 +1314,12 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           onPause: {
             gestor:  { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} pausou a OS "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
             cliente: { enabled: false, channel: 'whatsapp',      message: 'Olá {cliente}, sua instalação {titulo} foi pausada. Motivo: {motivo_pausa}.' },
-            técnico: { enabled: false, channel: 'whatsapp',     message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
+            tecnico: { enabled: false, channel: 'whatsapp',     message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
           },
           onResume: {
             gestor:  { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} retomou a OS "{titulo}". Tempo pausado: {tempo_pausado}.' },
             cliente: { enabled: false, channel: 'whatsapp',      message: 'Olá {cliente}, sua instalação {titulo} foi retomada.' },
-            técnico: { enabled: false, channel: 'whatsapp',     message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
+            tecnico: { enabled: false, channel: 'whatsapp',     message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
           },
         },
       };
@@ -1396,12 +1396,12 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           onPause: {
             gestor:  { enabled: true,  channel: 'whatsapp', message: 'Técnico pausou manutenção "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
             cliente: { enabled: false, channel: 'whatsapp',      message: 'Olá {cliente}, a manutenção {titulo} foi pausada. Motivo: {motivo_pausa}.' },
-            técnico: { enabled: false, channel: 'whatsapp',     message: 'Pausa registrada na manutenção {titulo}. Motivo: {motivo_pausa}.' },
+            tecnico: { enabled: false, channel: 'whatsapp',     message: 'Pausa registrada na manutenção {titulo}. Motivo: {motivo_pausa}.' },
           },
           onResume: {
             gestor:  { enabled: false, channel: 'whatsapp', message: 'Técnico retomou manutenção "{titulo}". Pausado por: {tempo_pausado}.' },
             cliente: { enabled: false, channel: 'whatsapp',      message: 'Olá {cliente}, a manutenção {titulo} foi retomada.' },
-            técnico: { enabled: false, channel: 'whatsapp',     message: 'Manutenção {titulo} retomada. Pausado por: {tempo_pausado}.' },
+            tecnico: { enabled: false, channel: 'whatsapp',     message: 'Manutenção {titulo} retomada. Pausado por: {tempo_pausado}.' },
           },
         },
       };
@@ -2464,12 +2464,12 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
         onPause: {
           gestor:  { enabled: cfg.notifyGestorOnPause ?? true, channel: 'whatsapp', message: 'O técnico {tecnico} pausou a OS "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
           cliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi pausado temporariamente. Motivo: {motivo_pausa}.' },
-          técnico: { enabled: false, channel: 'whatsapp', message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
+          tecnico: { enabled: false, channel: 'whatsapp', message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
         },
         onResume: {
           gestor:  { enabled: cfg.notifyGestorOnResume ?? false, channel: 'whatsapp', message: 'O técnico {tecnico} retomou a OS "{titulo}". Tempo pausado: {tempo_pausado}.' },
           cliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi retomado.' },
-          técnico: { enabled: false, channel: 'whatsapp', message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
+          tecnico: { enabled: false, channel: 'whatsapp', message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
         },
       };
       stage.timeControl.pauseSystem = {
