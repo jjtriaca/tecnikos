@@ -1,7 +1,22 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.80 (em prod)
-## Ultima sessao: 199 (14/05/2026)
+## Versao: v1.10.81 (em prod)
+## Ultima sessao: 200 (14/05/2026)
+
+## v1.10.81 — Bug fix: NFS-e Entrada nao vinculava no link N:N + polimento detalhe
+- **Bug reportado pelo Juliano**: NFS-e numero 38 importada em /fiscal/nfse-entrada mas a tela de detalhe do FIN-00346 nao mostrava a NFS-e vinculada (parecia que tinha sido digitada manualmente). Tambem faltava a descricao do servico.
+- **Causa raiz** ([nfse-entrada.service.ts:754](backend/src/nfse-entrada/nfse-entrada.service.ts#L754)): no fluxo CREATE (importar NFS-e + criar FinancialEntry novo), apenas a FK 1:1 `NfseEntrada.financialEntryId` era setada — o link N:N `NfseEntradaEntryLink` (que o tela de detalhe usa) **nao era criado**. Apenas o modo LINK (vincular a entry existente) criava o link. Resultado: 11 NfseEntradas em SLS com FK 1:1 mas sem link N:N.
+- **Fix em 3 frentes**:
+  1. **Codigo** ([nfse-entrada.service.ts](backend/src/nfse-entrada/nfse-entrada.service.ts)): mode CREATE agora insere tambem `NfseEntradaEntryLink`.
+  2. **Backfill SQL**: 11 links inseridos em SLS. Loop em demais tenants — nenhum afetado.
+  3. **Fallback defensivo** ([finance.service.ts](backend/src/finance/finance.service.ts) `findEntryDetail`): se entry nao tem `nfseEntradaLinks`, busca via FK reversa `NfseEntrada.financialEntryId = entry.id`. Cobre dados pre-fix em qualquer tenant futuro.
+- **UI melhorada** ([finance/entries/[id]/page.tsx](frontend/src/app/(dashboard)/finance/entries/[id]/page.tsx)):
+  - Secao "NFS-e recebida" agora mostra: numero, prestador (com CNPJ), data emissao, competencia, layout, codigo de verificacao, valor servicos, ISS (com flag retido), aliquota, valor liquido, item LC 116, CNAE, e **discriminacao do servico** (texto completo).
+  - Botao "Ver no Fiscal" linka pra /fiscal/servicos-tomados pra ver original.
+- **Polimento UX no detalhe**: campos condicionais escondem ruido:
+  - "Cardholder (cliente)" so aparece pra RECEIVABLE com `receivedCardLast4`.
+  - "Ciclo da fatura" so aparece pra cartao de credito (instrumento com `billingClosingDay`).
+  - "Auto-pago" so aparece quando `autoMarkedPaid=true`.
 
 ## v1.10.80 — Reusar endpoints existentes de DANFE/DANFSe no detalhe do lancamento
 - **Pedido do Juliano**: visualizacao de PDF de NFe e NFS-e ja existe no fiscal/importacao — reusar mesmos endpoints e padrao, nao duplicar.

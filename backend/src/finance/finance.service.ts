@@ -714,7 +714,15 @@ export class FinanceService {
           select: {
             id: true,
             nfseEntrada: {
-              select: { id: true, numero: true, dataEmissao: true, prestadorRazaoSocial: true, valorServicosCents: true },
+              select: {
+                id: true, numero: true, dataEmissao: true, codigoVerificacao: true,
+                prestadorRazaoSocial: true, prestadorCnpjCpf: true,
+                valorServicosCents: true, valorIssCents: true, aliquotaIss: true,
+                issRetido: true, valorLiquidoCents: true,
+                discriminacao: true, itemListaServico: true, codigoCnae: true,
+                competencia: true, layout: true,
+                chaveNfse: true, focusSource: true,
+              },
             },
           },
         },
@@ -759,6 +767,27 @@ export class FinanceService {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
+
+    // v1.10.81 — Fallback defensivo: se nao tem link N:N, busca via FK reversa 1:1
+    // (NfseEntrada.financialEntryId). Cobre dados pre-fix-de-link que ainda nao foram
+    // backfillados. Garante que tela de detalhe sempre mostra a NFS-e vinculada quando existe.
+    if (!entry.nfseEntradaLinks || entry.nfseEntradaLinks.length === 0) {
+      const orphanNfseEntrada = await this.prisma.nfseEntrada.findFirst({
+        where: { financialEntryId: id, companyId },
+        select: {
+          id: true, numero: true, dataEmissao: true, codigoVerificacao: true,
+          prestadorRazaoSocial: true, prestadorCnpjCpf: true,
+          valorServicosCents: true, valorIssCents: true, aliquotaIss: true,
+          issRetido: true, valorLiquidoCents: true,
+          discriminacao: true, itemListaServico: true, codigoCnae: true,
+          competencia: true, layout: true,
+          chaveNfse: true, focusSource: true,
+        },
+      });
+      if (orphanNfseEntrada) {
+        (entry as any).nfseEntradaLinks = [{ id: `fallback-${orphanNfseEntrada.id}`, nfseEntrada: orphanNfseEntrada }];
+      }
+    }
 
     return {
       entry,

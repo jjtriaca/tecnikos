@@ -754,6 +754,16 @@ export class NfseEntradaService {
         });
         financialEntryId = financialEntry.id;
 
+        // v1.10.81 — Bug fix: CREATE mode tambem precisa criar o link N:N (NfseEntradaEntryLink).
+        // Antes so o LINK mode criava — entries criadas via import nao apareciam no detalhe do
+        // FinancialEntry pra mostrar a NFS-e vinculada. 11 entries em SLS afetadas (backfill via SQL).
+        await tx.nfseEntradaEntryLink.create({
+          data: {
+            nfseEntradaId: id,
+            financialEntryId: financialEntry.id,
+          },
+        });
+
         await this.paymentInstrumentService.applyBalanceDelta(autoPay.balanceDelta, tx);
       } else if (finMode === 'LINK' && decisions.finance.linkedEntryIds?.length) {
         // Link to existing entry(ies)

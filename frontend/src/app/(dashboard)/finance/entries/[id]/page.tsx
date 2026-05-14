@@ -322,7 +322,7 @@ export default function FinanceEntryDetailPage() {
         )}
       </Section>
 
-      {/* Pagamento */}
+      {/* Pagamento — campos condicionais escondem ruido (cardholder/ciclo fatura so quando aplicaveis) */}
       <Section title="Pagamento">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <Field label="Metodo">{entry.paymentMethodRef?.name || entry.paymentMethod || "—"}</Field>
@@ -337,9 +337,18 @@ export default function FinanceEntryDetailPage() {
             ) : "—"}
           </Field>
           <Field label="Conta">{entry.cashAccountRef?.name || "—"}</Field>
-          <Field label="Cardholder (cliente)">{entry.receivedCardLast4 ? `••••${entry.receivedCardLast4} ${entry.cardBrand || ""}` : "—"}</Field>
-          <Field label="Data da compra/ciclo fatura">{formatDate(entry.cardBillingDate)}</Field>
-          <Field label="Auto-pago no recebimento?">{entry.autoMarkedPaid ? "Sim" : "Nao"}</Field>
+          {/* Cardholder so faz sentido pra RECEIVABLE recebido via cartao */}
+          {entry.type === "RECEIVABLE" && entry.receivedCardLast4 && (
+            <Field label="Cartao do cliente">••••{entry.receivedCardLast4} {entry.cardBrand || ""}</Field>
+          )}
+          {/* Ciclo de fatura so pra credito de cartao */}
+          {entry.paymentInstrumentRef?.billingClosingDay && (
+            <Field label="Ciclo da fatura">{formatDate(entry.cardBillingDate)}</Field>
+          )}
+          {/* Auto-pago so quando relevante (entry foi auto-marcada paga por configuracao do instrumento) */}
+          {entry.autoMarkedPaid && (
+            <Field label="Pagamento automatico">Sim — debitado direto no instrumento</Field>
+          )}
           {entry.checkNumber && (
             <>
               <Field label="Cheque numero">{entry.checkNumber}</Field>
@@ -456,14 +465,60 @@ export default function FinanceEntryDetailPage() {
             </div>
           ))}
 
-          {entry.nfseEntradaLinks && entry.nfseEntradaLinks.length > 0 && entry.nfseEntradaLinks.map((link: any) => (
-            <div key={link.id} className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:pb-0 last:mb-0">
-              <p className="text-xs font-semibold text-slate-700">NFS-e recebida</p>
-              <p className="text-xs text-slate-500 mt-1">
-                N° {link.nfseEntrada.numero || "—"} · {link.nfseEntrada.prestadorRazaoSocial || "—"} · {formatCurrency(link.nfseEntrada.valorServicosCents)} · {formatDate(link.nfseEntrada.dataEmissao)}
-              </p>
-            </div>
-          ))}
+          {entry.nfseEntradaLinks && entry.nfseEntradaLinks.length > 0 && entry.nfseEntradaLinks.map((link: any) => {
+            const ne = link.nfseEntrada;
+            return (
+              <div key={link.id} className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:pb-0 last:mb-0">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-700">NFS-e recebida (servico tomado)</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      N° {ne.numero || "—"} · {ne.prestadorRazaoSocial || "—"}
+                      {ne.prestadorCnpjCpf && <span className="text-slate-400 ml-1">({ne.prestadorCnpjCpf})</span>}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Emitida em {formatDate(ne.dataEmissao)}
+                      {ne.competencia && <span> · Competencia {ne.competencia}</span>}
+                      {ne.layout && <span className="text-slate-400 ml-1">({ne.layout})</span>}
+                    </p>
+                    {ne.codigoVerificacao && (
+                      <p className="text-[11px] text-slate-400 font-mono mt-1">Cod. Verif.: {ne.codigoVerificacao}</p>
+                    )}
+                  </div>
+                  <a
+                    href={`/fiscal/servicos-tomados?id=${ne.id}`}
+                    className="px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-300 hover:bg-blue-50 rounded-lg whitespace-nowrap"
+                  >
+                    Ver no Fiscal
+                  </a>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div><span className="text-slate-500">Valor servicos:</span> {formatCurrency(ne.valorServicosCents)}</div>
+                  {ne.valorIssCents != null && (
+                    <div><span className="text-slate-500">ISS:</span> {formatCurrency(ne.valorIssCents)} {ne.issRetido && <span className="text-amber-700">(retido)</span>}</div>
+                  )}
+                  {ne.aliquotaIss != null && (
+                    <div><span className="text-slate-500">Aliquota ISS:</span> {ne.aliquotaIss}%</div>
+                  )}
+                  {ne.valorLiquidoCents != null && (
+                    <div><span className="text-slate-500">Valor liquido:</span> {formatCurrency(ne.valorLiquidoCents)}</div>
+                  )}
+                  {ne.itemListaServico && (
+                    <div><span className="text-slate-500">Item LC 116:</span> {ne.itemListaServico}</div>
+                  )}
+                  {ne.codigoCnae && (
+                    <div><span className="text-slate-500">CNAE:</span> {ne.codigoCnae}</div>
+                  )}
+                </div>
+                {ne.discriminacao && (
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <p className="text-[11px] font-medium text-slate-500 uppercase mb-1">Discriminacao do servico</p>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{ne.discriminacao}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </Section>
       )}
 
