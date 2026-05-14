@@ -1,7 +1,16 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.79 (em prod)
-## Ultima sessao: 198 (14/05/2026)
+## Versao: v1.10.80 (em prod)
+## Ultima sessao: 199 (14/05/2026)
+
+## v1.10.80 — Reusar endpoints existentes de DANFE/DANFSe no detalhe do lancamento
+- **Pedido do Juliano**: visualizacao de PDF de NFe e NFS-e ja existe no fiscal/importacao — reusar mesmos endpoints e padrao, nao duplicar.
+- **Antes (v1.10.79)**: detalhe usava `<a href={pdfUrl}>` direto — perde Bearer token, nao funcionava pra NFS-e (URL Focus NFe exige auth no nosso proxy) e nao reusava o codigo do fiscal.
+- **Fix** ([finance/entries/[id]/page.tsx](frontend/src/app/(dashboard)/finance/entries/[id]/page.tsx)):
+  - Novo helper `openPdfBlob(endpoint, toast)` — fetch com Bearer token, blob, window.open. **Mesmo padrao** da pagina /nfe fiscal e do menu de A Receber.
+  - **NFe DANFE**: prefere `/api/nfe/sefaz/documents/:sefazDocId/danfe` quando NfeImport tem `sefazDocumentId` (NFe veio do SEFAZ). Fallback pro endpoint `/api/nfe/imports/:id/danfe` (NFe importada via upload manual, sem SefazDocument).
+  - **NFS-e**: usa `/api/nfse-emission/emissions/:id/pdf` — endpoint autenticado padrao do sistema, ja usado em /nfe/saida e menu de A Receber.
+- **Comentario padrao**: helper `openPdfBlob` tem aviso "NUNCA usar href={url} direto em URLs do backend — perde token de auth" pra orientar IA futura.
 
 ## v1.10.79 — Tela completa de detalhe do lancamento + acesso ao PDF da NFe
 - **Pedido do Juliano**: padronizar menus A Pagar/A Receber, adicionar "Ver detalhes" (como em OS), tela completa com TODOS os dados do banco do documento incluindo PDF da NFe importada. Codigo deve ter comentarios orientando IA pra que campos novos no banco apareçam automaticamente na tela.
