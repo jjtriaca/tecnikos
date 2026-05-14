@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 export interface JwtPayload {
   sub: string;       // userId or partnerId
   email: string;
+  name?: string;     // snapshot do nome do User no momento da emissao do token (pra tracking universal createdByName)
   roles: UserRole[];
   isTecnico?: boolean;
   companyId: string;
@@ -15,6 +16,7 @@ export interface JwtPayload {
 export class AuthenticatedUser {
   id: string;
   email: string;
+  name?: string;     // disponivel em sessoes novas pos v1.10.87 (tracking universal). Pode ser undefined em tokens antigos.
   roles: UserRole[];
   isTecnico?: boolean;
   companyId: string;

@@ -122,6 +122,26 @@ enum BoletoStatus {
   WRITTEN_OFF // Baixado
 }
 
+// Tracking universal (v1.10.87+) — origem do registro pra distinguir
+// criacao manual de import/webhook/cron. Aparece em qualquer lancamento
+// do sistema via campo createdVia. Adicionar novos valores aqui requer
+// migration aditiva no enum no Postgres.
+enum CreationSource {
+  MANUAL // Usuario logado no app
+  IMPORT_CSV // Upload de planilha CSV
+  IMPORT_OFX // Import de extrato bancario OFX
+  IMPORT_NFE_XML // Upload manual de XML de NFe
+  WEBHOOK_FOCUS // Focus NFe (NFS-e / NFe via SEFAZ)
+  WEBHOOK_ASAAS // Pagamento confirmado/expirado Asaas
+  WEBHOOK_SICREDI // Boleto bancario Sicredi
+  WEBHOOK_META // WhatsApp Business / Meta
+  CRON // Job agendado (cobranca diaria, etc)
+  CHAT_IA // Wizard ChatIA criou registro em vez do usuario direto
+  API_PUBLIC // Endpoint publico (/q/, /p/, /tech, avaliacao, etc)
+  SYSTEM_SEED // Seed do tenant (signup inicial)
+  MIGRATION_BACKFILL // Script de backfill rodado por dev
+}
+
 model Company {
   id        String  @id @default(uuid())
   name      String // Razão Social
@@ -900,6 +920,15 @@ model FinancialEntry {
   // Separada de paidAt pra nao afetar conferencia de saldo/DRE.
   // NULL para entries sem cartao de credito. Preenchida automaticamente quando paymentInstrument tem billingClosingDay.
   cardBillingDate DateTime?
+
+  // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
+  createdByUserId String?
+  createdByName   String? // snapshot, sobrevive a rename/delete do User
+  createdVia      CreationSource?
+  updatedByUserId String?
+  updatedByName   String?
+  deletedByUserId String?
+  deletedByName   String?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

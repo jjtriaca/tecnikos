@@ -501,6 +501,7 @@ export class AuthService {
   private issueAccessToken(user: {
     id: string;
     email: string;
+    name?: string;
     roles: any[];
     companyId: string;
   }, sessionId?: string): string {
@@ -509,6 +510,7 @@ export class AuthService {
       email: user.email,
       roles: user.roles,
       companyId: user.companyId,
+      ...(user.name ? { name: user.name } : {}),
       ...(sessionId ? { sessionId } : {}),
     };
     return this.jwt.sign(payload);

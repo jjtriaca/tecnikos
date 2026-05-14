@@ -11,6 +11,7 @@ import { FinancialReportService } from './financial-report.service';
 import { CashAccountService } from './cash-account.service';
 import { InstallmentService } from './installment.service';
 import { PaymentInstrumentService } from './payment-instrument.service';
+import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
 const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt', 'paidAt'];
@@ -266,7 +267,8 @@ export class FinanceService {
     // Transaction atomica: cria entry + aplica saldo juntos (IC-03)
     const entry = await this.prisma.$transaction(async (tx) => {
       const created = await tx.financialEntry.create({
-        data: {
+        // withCreate injeta createdByUserId/Name/Via do userContext (v1.10.87+ tracking universal)
+        data: withCreate({
           companyId,
           code,
           serviceOrderId: data.serviceOrderId || undefined,
@@ -289,7 +291,7 @@ export class FinanceService {
           cashAccountId: autoPay.cashAccountId || undefined,
           cardBillingDate: autoPay.cardBillingDate || undefined,
           isInvoiceCharge: data.isInvoiceCharge || false,
-        },
+        }),
         include: {
           serviceOrder: { select: { id: true, title: true, status: true } },
           partner: { select: { id: true, name: true } },
@@ -826,7 +828,8 @@ export class FinanceService {
 
     return this.prisma.financialEntry.update({
       where: { id },
-      data,
+      // withUpdate injeta updatedByUserId/Name do userContext (v1.10.87+ tracking universal)
+      data: withUpdate(data),
       include: {
         partner: { select: { id: true, name: true } },
         financialAccount: { select: { id: true, code: true, name: true } },

@@ -74,12 +74,33 @@ const KNOWN_FIELDS_RENDERED = new Set<string>([
   "isInvoiceCharge",
   // Lote
   "batchPaymentId",
+  // Tracking universal (v1.10.87+) — renderizado em secao Auditoria
+  "createdByUserId", "createdByName", "createdVia",
+  "updatedByUserId", "updatedByName",
+  "deletedByUserId", "deletedByName",
   // Relacoes (objetos aninhados — renderizadas em secoes proprias)
   "partner", "serviceOrder", "financialAccount", "paymentMethodRef",
   "cashAccountRef", "paymentInstrumentRef", "installments", "parentEntry",
   "childEntries", "renegotiatedTo", "invoiceMatchLine", "refundPairEntry",
   "nfseEmission", "boletos", "cardSettlements", "nfseEntradaLinks",
 ]);
+
+// Mapeamento amigavel pra mostrar a origem do registro em portugues
+const CREATION_VIA_LABEL: Record<string, string> = {
+  MANUAL: "Manual (usuario logado)",
+  IMPORT_CSV: "Importacao CSV",
+  IMPORT_OFX: "Importacao OFX (extrato bancario)",
+  IMPORT_NFE_XML: "Importacao NFe (XML)",
+  WEBHOOK_FOCUS: "Webhook Focus NFe",
+  WEBHOOK_ASAAS: "Webhook Asaas (pagamento)",
+  WEBHOOK_SICREDI: "Webhook Sicredi (boleto)",
+  WEBHOOK_META: "Webhook WhatsApp",
+  CRON: "Sistema (job agendado)",
+  CHAT_IA: "Assistente IA (wizard)",
+  API_PUBLIC: "API publica (portal cliente/tecnico)",
+  SYSTEM_SEED: "Sistema (seed inicial)",
+  MIGRATION_BACKFILL: "Sistema (migration backfill)",
+};
 
 const ENTRY_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   PENDING: { label: "Pendente", color: "bg-amber-100 text-amber-700 border-amber-200" },
@@ -630,10 +651,53 @@ export default function FinanceEntryDetailPage() {
         </Section>
       )}
 
+      {/* Rastreabilidade — quem criou / alterou / excluiu (v1.10.87+ tracking universal) */}
+      <Section title="Rastreabilidade">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div>
+            <p className="text-[11px] font-medium text-slate-500 uppercase mb-1">Criado por</p>
+            <p className="text-sm text-slate-800">
+              {(entry as any).createdByName || <span className="text-slate-500">—</span>}
+            </p>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              em {formatDateTime(entry.createdAt)}
+            </p>
+            {(entry as any).createdVia && (
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                origem: {CREATION_VIA_LABEL[(entry as any).createdVia] || (entry as any).createdVia}
+              </p>
+            )}
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-slate-500 uppercase mb-1">Ultima alteracao</p>
+            <p className="text-sm text-slate-800">
+              {(entry as any).updatedByName || <span className="text-slate-500">—</span>}
+            </p>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              em {formatDateTime(entry.updatedAt)}
+            </p>
+          </div>
+          {entry.deletedAt && (
+            <div>
+              <p className="text-[11px] font-medium text-rose-600 uppercase mb-1">Excluido por</p>
+              <p className="text-sm text-rose-700">
+                {(entry as any).deletedByName || <span className="text-rose-500">—</span>}
+              </p>
+              <p className="text-[11px] text-rose-600 mt-0.5">
+                em {formatDateTime(entry.deletedAt)}
+              </p>
+            </div>
+          )}
+        </div>
+        <p className="text-[11px] text-slate-500 italic mt-3">
+          Registros antigos (anteriores ao v1.10.87) ficam sem informacao de quem criou — mostram "—" aqui. A partir desta versao, todo lancamento novo grava automaticamente.
+        </p>
+      </Section>
+
       {/* Outros dados do banco — fallback automático (NUNCA REMOVER) */}
       {otherFields.length > 0 && (
         <Section title="Outros dados do banco">
-          <p className="text-[11px] text-slate-400 italic mb-3">
+          <p className="text-[11px] text-slate-500 italic mb-3">
             Campos do banco nao listados nas secoes acima — aparecem aqui automaticamente.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">

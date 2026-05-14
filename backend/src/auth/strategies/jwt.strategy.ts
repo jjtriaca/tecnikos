@@ -30,6 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       id: payload.sub,
       email: payload.email,
+      name: payload.name, // pode ser undefined em tokens emitidos antes do v1.10.87
       // Handle both old (role) and new (roles) JWT format during rollout
       roles: payload.roles || (payload.role && payload.role !== 'TECNICO' ? [payload.role] : []),
       isTecnico: payload.isTecnico || payload.role === 'TECNICO',

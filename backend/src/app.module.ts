@@ -1,5 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
-import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SentryModule, SentryGlobalFilter } from '@sentry/nestjs/setup';
@@ -55,6 +55,7 @@ import { THROTTLE_LIMIT, THROTTLE_TTL_MS } from './common/throttler';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { VerificationGuard } from './auth/guards/verification.guard';
+import { UserContextInterceptor } from './auth/user-context.interceptor';
 
 @Module({
   imports: [
@@ -133,6 +134,12 @@ import { VerificationGuard } from './auth/guards/verification.guard';
     {
       provide: APP_GUARD,
       useClass: VerificationGuard,
+    },
+    // Tracking universal: roda apos guards (JwtAuthGuard ja populou req.user),
+    // poe usuario em AsyncLocalStorage pra helpers withCreate/withUpdate lerem.
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: UserContextInterceptor,
     },
   ],
 })
