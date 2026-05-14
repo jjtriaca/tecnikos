@@ -945,6 +945,35 @@ export default function ProductsPage() {
               })}
             </div>
 
+            {/* Barra fixa de contexto: mostra qual produto esta sendo editado pra que
+                o gestor nao perca referencia ao trocar de aba. Aparece so em modo edicao
+                (no modo criacao ainda nao ha description definido). */}
+            {editingProduct && (
+              <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50/80 px-6 py-2.5 shrink-0">
+                {editingProduct.code && (
+                  <span className="text-[10px] font-mono font-bold text-slate-600 bg-white border border-slate-300 rounded px-2 py-0.5 shrink-0">
+                    {editingProduct.code}
+                  </span>
+                )}
+                <span className="text-sm font-semibold text-slate-900 truncate flex-1 min-w-0" title={editingProduct.description}>
+                  {editingProduct.description}
+                </span>
+                {editingProduct.brand && (
+                  <span className="text-xs text-slate-600 shrink-0 hidden sm:inline" title="Marca">
+                    {editingProduct.brand}
+                  </span>
+                )}
+                <span className="text-[10px] font-medium text-slate-600 bg-slate-200 rounded px-1.5 py-0.5 shrink-0">
+                  {editingProduct.unit}
+                </span>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 border ${
+                  editingProduct.status === 'ATIVO' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-100 text-slate-600 border-slate-300'
+                }`}>
+                  {editingProduct.status}
+                </span>
+              </div>
+            )}
+
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {/* ── Tab: Geral ─────────────────────────── */}
