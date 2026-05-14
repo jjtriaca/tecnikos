@@ -2302,22 +2302,64 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
       },
     },
   },
+  // 3 templates de tubo — mesma logica matematica, filterDescription distinto pra
+  // garantir que o auto-select pegue o tipo de tubo certo (filtragem nao deve
+  // pegar tubo de cascata mesmo que ambos tenham tuboEntradaMm igual).
   {
     icon: '🚿',
-    label: 'Tubo (mesmo diametro do equipamento da etapa)',
-    description: 'Tubo PVC com diametro igual ao tubo de entrada do equipamento escolhido na mesma etapa (filtro, aquecedor, cascata, SPA). Le siblingTuboEntradaMm calculado automaticamente. Vale pra qualquer etapa que tenha tubo.',
+    label: 'Tubo de filtragem (mesmo diametro do filtro)',
+    description: 'Tubos do sistema de filtragem com diametro = tuboEntradaMm do filtro escolhido na mesma etapa.',
     rule: {
       filterCategoria: null,
-      filterDescription: 'Tubos conex', // matcha 'conexoes' e 'conexões' (sem/com acento)
+      filterDescription: 'sist. filtragem',
       where: 'tuboEntradaMm >= siblingTuboEntradaMm',
       orderBy: 'tuboEntradaMm asc',
       indicator: {
         label: 'Compatibilidade tubo',
         expr: 'tuboEntradaMm - siblingTuboEntradaMm',
         unit: 'mm',
-        // Levels avaliados em ordem crescente — primeiro cujo max >= value ganha.
-        // Negativo = tubo MENOR que o equipamento (incompativel, fluxo restrito).
-        // Zero = exato (perfeito). Positivo = tubo MAIOR (funciona, desperdicio).
+        levels: [
+          { max: -0.01, label: 'Incompativel (tubo menor)', color: 'red' },
+          { max: 0, label: 'Compativel', color: 'emerald' },
+          { max: 999, label: 'Maior que necessario', color: 'yellow' },
+        ],
+      },
+    },
+  },
+  {
+    icon: '🚿',
+    label: 'Tubo de cascata (mesmo diametro do kit cascata)',
+    description: 'Tubos do sistema de cascata com diametro = tuboEntradaMm do kit cascata escolhido na mesma etapa.',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'p/ cascata',
+      where: 'tuboEntradaMm >= siblingTuboEntradaMm',
+      orderBy: 'tuboEntradaMm asc',
+      indicator: {
+        label: 'Compatibilidade tubo',
+        expr: 'tuboEntradaMm - siblingTuboEntradaMm',
+        unit: 'mm',
+        levels: [
+          { max: -0.01, label: 'Incompativel (tubo menor)', color: 'red' },
+          { max: 0, label: 'Compativel', color: 'emerald' },
+          { max: 999, label: 'Maior que necessario', color: 'yellow' },
+        ],
+      },
+    },
+  },
+  {
+    icon: '🚿',
+    label: 'Tubo de SPA (mesmo diametro do kit SPA)',
+    description: 'Tubos do sistema SPA com diametro = tuboEntradaMm do kit SPA escolhido na mesma etapa.',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'SPA',
+      where: 'tuboEntradaMm >= siblingTuboEntradaMm',
+      orderBy: 'tuboEntradaMm asc',
+      indicator: {
+        label: 'Compatibilidade tubo',
+        expr: 'tuboEntradaMm - siblingTuboEntradaMm',
+        unit: 'mm',
         levels: [
           { max: -0.01, label: 'Incompativel (tubo menor)', color: 'red' },
           { max: 0, label: 'Compativel', color: 'emerald' },

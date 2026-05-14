@@ -829,11 +829,31 @@ export class PoolBudgetService {
       ...extractDimensionVars(budget.poolDimensions),
       ...extractEnvVars(budget.environmentParams),
     };
+    // v1.11.05: precalcula sibling vars POR poolSection — necessario pra indicators
+    // que referenciam o equipamento principal da etapa (ex: tubo usa siblingTuboEntradaMm).
+    // Sem isso o evalNumeric falha (chave nao existe = expressao com var sem valor),
+    // indicator vira null, faixa nao aparece na UI.
+    const siblingVarsByPoolSection: Record<string, Record<string, number>> = {};
+    for (const it of budget.items) {
+      const specs = ((it.product as any)?.technicalSpecs ?? (it.service as any)?.technicalSpecs) as Record<string, unknown> | null;
+      if (!specs) continue;
+      const sec = String(it.poolSection);
+      siblingVarsByPoolSection[sec] ||= {};
+      for (const [k, raw] of Object.entries(specs)) {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) continue;
+        const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+        if (siblingVarsByPoolSection[sec][siblingKey] === undefined) {
+          siblingVarsByPoolSection[sec][siblingKey] = n;
+        }
+      }
+    }
     for (const item of budget.items) {
       const rule = (item as any).autoSelectRule as AutoSelectRule | null | undefined;
       if (!rule?.indicator) continue;
       const productSpecs = (item.product as any)?.technicalSpecs ?? (item.service as any)?.technicalSpecs ?? null;
-      const vars = { ...dimensionVarsForIndicator, ...extractProductVars(productSpecs) };
+      const siblings = siblingVarsByPoolSection[String(item.poolSection)] || {};
+      const vars = { ...dimensionVarsForIndicator, ...extractProductVars(productSpecs), ...siblings };
       const calculated = evaluateIndicator(rule, vars);
       if (calculated) {
         (item as any).indicatorLabel = calculated.label;
